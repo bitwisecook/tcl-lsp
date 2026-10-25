@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T12:16:37.807352+00:00",
+  "scheduled_report_utc": "2026-10-25T12:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T12:45:00+00:00",
+  "change_since_previous_report": [
+    "Allreviewedactualfixes developedonworkfirst andpairedrelease counterparts prepared. Newcurrentproductivefixes include faithfulcompile-service observerdelegation, Logical retainedscope preference, exactprivatestockensembleattestation and Coreimmutablecompleted-world clone. Allsource/pincompanions preserveoriginalassertions/budgets/failclosedguards; freshactualoutcomes pending.",
+    "Newf9host/startup wave all5FAIL beforetests atsame CoreE0308: helperownedreturnusedexistingborrowedworld. One-line world.clone correction verifiedactualgetterandimmutableArc/config fields, pairedF-R/fmt+peer45c21, soleCorehostpin+deriveddrivercorrected. No host semantics/newSendpassadmission fromf9.",
+    "Actualcompiler20401 remains94P8F withzeroobservedselectedPASS-to-FAIL. Closed16+originalfold allPASS. Fourreadonlycases failedbeforeclassifier atobserverwrapper defaultunsupportedprofile; faithfulrealservice delegation21methods inspectedandpairedfixintegrated withoutchangingtests/classifiers. Logical scopeproducer strongerretainedreceipt nowselectedonlyexactexistingpositiveadvice, withallNative/point/ancestry/matcherrefusals intact.",
+    "ActualJimc31 fullauthffe167a3 still31/45+diagnostic5FAIL+new1firstFAIL. First10uses refuseoperand_advice afterearlierscope/cell/owner/invocationmetadata pass; complete existinglazy3route/row/projection/unanimity firstrefusal tracingintegratedWORKonly. No newSource/Logical/framegrant or guessedrelaxation.",
+    "FullCLEAN658runtime current2371unitobservations complete2278PASS93FAIL, unboundedprocPASS andnoabort. Exactnewed baselinejoin746observed745P+ONEprovedPF every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them;7unitcounterparts requireexplicitreview and245integrationremainunrun. Allretainednewtests stillrequiredgreen.",
+    "ProvedInfoPFcause: engineownedstockensembleBuiltinbacking lacksintrinsicidentitysweep. PairedfixrequiresactualprivateInstalledFamily token+registryidentity+completecurrentimplementation, retainslaterpublicmap/privateworkerchecks,2negativecurrencycontrols added. No namelist/profile/publiccopy Nativepermission. Actualfixretrypending.",
+    "Production dependency scopeaudit shows SpecTcl\u2192spec-hooks\u2192engine-tclvm\u2192tcl-vm; standalone runtime/rust is a secondary-engine DEV dependency there but xtask/backing/AOT/compiledWASM consumers stillneedclosure review. Useralreadyparksgeneralparity. No source/test-only removalor guardsweakening authorized by audit; requiredsharedAPI/VMpaths remain.",
+    "Currented baselinefullCI actuallypasses all5shards+3nativee2e/Heavy/runtime/Spec/browser/WASI/editor/strictchecks; onlycargo-denyoldcrypto0.7.5vulnerabilityfails, candidateeightlocks already0.7.6patched. Actualcompletecurrentnamedinventory collectionassigned; oldfcb24312historicalonly untilnewreceiptcomplete.",
+    "Kotlin candidate658actual97PASS retained. PairedTcl initialsmallLinux ended143withoutvalidmeasurement; otherfive lastreportedactive/noartifacts. No timingacceptance or inferreddegradation. Browser/Logical/Info/newfixes requireappropriatefreshformat/type/semantic/fullCIchecks; allsectionF/releasegatesremainopen.",
+    "Developmenttraces/manualjobs/evidence confinedtowork; shippingdesigncontracts updatedwithactualAPIboundaries. 12:15report usesactualwrite/publicationtime. Diskabout2.8GiB above2GiBfloor; no livebuild/youngexe deletion. ExternalBIGIP/perftrackers remainstaleover60min, notifiedwithouttakeover. Next12:45."
+  ],
+  "committed": [
+    "2796312cabb7a4ea6f0b340ef29eeada462baad8"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish12:15 WIP/report and arm12:45 reminder.",
+    "Run freshstrict/compiler102/Jim/hosts afteractualtypefixesandproductiveLogicalscope changes.",
+    "MeasureInfoPF+negativecontrols underexistingfreshELF budget, finishruntimeextraction dependencyclosure andfixrequiredproducers.",
+    "Completecurrentbaselineinventory zeroPF, Tclpairedperformance, greenfinalCI/docs/comments/generation/format/packaging beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new global gate or audit admission. Reviewed source fixes and unrun controls are explicit; scoped actual results retain their original source and receipts.",
+  "disk_free_bytes": 2959572992,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -1,6 +1,10 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-25T11:45:19Z
+Last updated: 2026-10-25T11:55:33Z
+
+Resume 2026-10-25T11:55:33Z: New f9 hostedwave rootdispatched/independentlypinned exactf9a368db3f125aba2611ce0394607c5122db5559: hosts40190602081 WASI121160585037/browser121160585120/unit121160585148; startup40190607965 startup121160602589/Core2121160602280. All5active, noartifacts downloaded; initialAPI/sourcecensus/validators at lsp-f9-host-wave-evidence-index-v1. IncludesbrowserV2+shippingdocs+WASIV3observer+ELFwhitelistfix+combinedsourcepins. Own full5singleZIPauth andactualnativepayloadmagic/SHA/readelfcompat-beforeexec +boundedoriginal4/formatterreplay withcurrent traceflags; no cancellation/duplicateZIP/build. New diagnosticstale firstguardobserver is NOT in f9.
+
+WORK-only nextdiagnostictransactionfirstguard packet FROZEN /workspace/naming-proof-storage/lsp-diagnostic-stale-first-guard-v1 WORK87b7e1f6a3154962f113871e83d401b7369d85c32331bc43103d74ea0d495fdf manifestf39679a2. Onecurrent_diagnostics.rs underexistingWORKSPACE_SCAN flag: finite originalStaleguardgroups+directproduce/publish routes, originalenumvalues/predicates/order unchanged, no retry/phase/source/currentness weakening. ActualformattedWHOLEmodule observation-erasurebyteexact/F-R-F0/fmt; all8touchedbodycounts13..82<100, full23GitJSONcensus0sourcepinrefs. Codegenindependentpeerrequested; typing/actualfirstguardUNRUN. BrowserV2 solecombinedmetadata38fc independentlycheckedafterrootadoption peer6d2b219f (all4basepreimages8b4402/currentpostimages/6actualGitpins/composedregion930/23JSON/F-R-F0/wholeJSON+driverinverse), rootnotified.
 
 Resume 2026-10-25T11:45:19Z: Browser V2 independently STATIC DEEP CLEAR462d387f (compiler-peer-conditional-completed-world-v2): Core94/serverrename97/prepare97 via predicate-identical helpers, no lint suppressions; kernel+controls exactV1, source owner/frame/Normal/oldledgerguards+physicaldepsbeforeafter remain. Root INTEGRATED product WORKce041/C16a18 and shippingcontracts WORK50fa/C15b787; WORKWASIobserver4653 region930 integrateddisjointly. Compiler solecombinedcurrenthost/unitJSON+driver unionpendingpeer; oldV1metadata9a2 AUDITONLY do notapply. Newcontrolruntime/typing/hostafterintegration UNRUN. WASI genuineprocedureNormal/effects helperownsnormal_result/source_procedure diagnosis; no sourceprocedureeditsbyLSP.
 
