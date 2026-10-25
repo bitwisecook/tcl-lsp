@@ -282,6 +282,39 @@ pub(crate) fn reject_link_obligations(
     Ok(())
 }
 
+fn coverage_region(
+    source: &str,
+    start: usize,
+    end: usize,
+) -> Result<&str, OriginalCommandRenameRefusal> {
+    source
+        .get(start..end)
+        .ok_or(OriginalCommandRenameRefusal::StaleSource)
+}
+
+fn queue_declaration(
+    walk: &crate::refactor::FrameWalk<'_>,
+    document: OriginalDeclarationDocument<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    depth: u32,
+    pending: &mut Vec<(usize, usize, u32)>,
+) -> Result<bool, OriginalCommandRenameRefusal> {
+    let Some((selected, body)) =
+        walk.procedure_declaration_for_rename_coverage(document.source, command)
+    else {
+        return Ok(false);
+    };
+    let command_offset = command
+        .argv
+        .first()
+        .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?
+        .span
+        .start();
+    reject_selected_command_link_coverage(&selected, command_offset)?;
+    pending.push((body.start() as usize, body.end() as usize, depth + 1));
+    Ok(true)
+}
+
 fn document_requests(
     document: OriginalDeclarationDocument<'_>,
     documents: &[OriginalDeclarationDocument<'_>],
@@ -305,10 +338,7 @@ fn document_requests(
         if !visited.insert((start, end)) {
             continue;
         }
-        let region = document
-            .source
-            .get(start..end)
-            .ok_or(OriginalCommandRenameRefusal::StaleSource)?;
+        let region = coverage_region(document.source, start, end)?;
         let offset = u32::try_from(start).map_err(|_| OriginalCommandRenameRefusal::StaleSource)?;
         for command in if depth == 0 {
             walk.segment_document(region)
@@ -350,6 +380,9 @@ fn document_requests(
                         .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
                     requests.push((input.clone(), NameBytes::from(wanted)));
                 }
+            }
+            if queue_declaration(&walk, document, &command, depth, &mut pending)? {
+                continue;
             }
             if let Some(selected) = walk.structure(document.source, &command) {
                 reject_link_obligations(&selected)?;
@@ -887,6 +920,50 @@ mod tests {
             result.replace_range(edit.span.as_range(), &edit.new_text);
         }
         result
+    }
+
+    #[test]
+    fn authored_declaration_queue_uses_actual_frame_walk_and_refuses_foreign_source() {
+        let source = "proc outer {} {proc inner {} {return VALUE}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let walk = crate::refactor::FrameWalk::new(source, &analysis).unwrap();
+        let start = source.find("proc inner").unwrap();
+        let end = source.rfind('}').unwrap();
+        let offset = u32::try_from(start).unwrap();
+        let command = walk
+            .segment_nested(&source[start..end], offset)
+            .into_iter()
+            .next()
+            .unwrap();
+        let document = OriginalDeclarationDocument {
+            uri: "file:///authored.tcl",
+            source,
+            analysis: &analysis,
+        };
+        let mut pending = Vec::new();
+        assert!(walk.structure(source, &command).is_none());
+        assert!(queue_declaration(&walk, document, &command, 1, &mut pending).unwrap());
+        assert_eq!(pending.len(), 1);
+        let (body_start, body_end, depth) = pending[0];
+        assert_eq!(depth, 2);
+        assert_eq!(&source[body_start..body_end], "return VALUE");
+        let body = walk.segment_nested(
+            &source[body_start..body_end],
+            u32::try_from(body_start).unwrap(),
+        );
+        assert_eq!(body.len(), 1);
+        assert_eq!(body[0].texts[0], "return");
+        let changed = source.replace("VALUE", "OTHER");
+        assert!(crate::refactor::FrameWalk::new(&changed, &analysis).is_none());
+        let foreign = Analyser::new().analyse("proc other {} {return VALUE}", "tcl8.6");
+        assert!(crate::refactor::FrameWalk::new(source, &foreign).is_none());
+        let mut wrong_input = analysis.clone();
+        wrong_input.resolved_input = Analyser::new().analyse(source, "tcl9.0").resolved_input;
+        assert!(
+            crate::refactor::FrameWalk::new(source, &wrong_input).is_none_or(|other| other
+                .procedure_declaration_for_rename_coverage(source, &command)
+                .is_none())
+        );
     }
 
     #[test]

@@ -367,6 +367,27 @@ impl<'a> FrameWalk<'a> {
         )
     }
 
+    /// Deferred declaration geometry under its own original source lookup.
+    /// The returned body is surveyed separately; no caller frame is inherited.
+    pub(crate) fn procedure_declaration_for_rename_coverage(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<(
+        tcl_compiler::registry_invocation::ResolvedStatementInvocation,
+        tcl_lexer::Span,
+    )> {
+        let selected = tcl_compiler::registry_invocation::original_authored_procedure_declaration_for_source_coverage(
+            self.nesting, self.metadata_context()?, &self.tokens(source, command),
+        )?;
+        let words = self.native_words(source, command)?;
+        let body = words.get(3)?;
+        if body.group().kind != tcl_lexer::WordKind::Braced || body.group().expand {
+            return None;
+        }
+        Some((selected, body.content_span().ok()?))
+    }
+
     /// Borrow complete metadata from this actual document owner. Missing,
     /// foreign or changed source policy cannot reopen standalone assistance.
     pub(crate) fn metadata_context(
