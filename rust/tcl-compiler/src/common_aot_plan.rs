@@ -2678,6 +2678,15 @@ mod tests {
         source: &str,
         context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
     ) -> crate::environment_ingress::RetainedNativeUnit {
+        let result = native_unit_borrowed(source, &context);
+        drop(context);
+        result
+    }
+
+    fn native_unit_borrowed(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let (owner, captured) =
             crate::environment_ingress::captured_native_entry_with_owner(profile);
@@ -2698,7 +2707,7 @@ mod tests {
                 declared_commands: None,
             },
             Some(&entry),
-            std::sync::Arc::clone(&context),
+            std::sync::Arc::clone(context),
         );
         crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
     }
@@ -2707,12 +2716,21 @@ mod tests {
         source: &str,
         context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
     ) -> CompilationUnit {
+        let result = logical_unit_borrowed(source, &context);
+        drop(context);
+        result
+    }
+
+    fn logical_unit_borrowed(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
-            std::sync::Arc::clone(&context),
+            std::sync::Arc::clone(context),
             config,
         );
         let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
@@ -2736,6 +2754,15 @@ mod tests {
     fn authored_program_unit(
         source: &str,
         context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let result = authored_program_unit_borrowed(source, &context);
+        drop(context);
+        result
+    }
+
+    fn authored_program_unit_borrowed(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
     ) -> CompilationUnit {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let entry = crate::command_binding::SourceAnalysisEntry {
@@ -2764,7 +2791,7 @@ mod tests {
                 declared_commands: None,
             },
             Some(&entry),
-            std::sync::Arc::clone(&context),
+            std::sync::Arc::clone(context),
         )
     }
 

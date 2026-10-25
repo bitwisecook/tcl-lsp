@@ -168,6 +168,41 @@ fn original_conditional_body_retains_written_geometry_without_lookup_or_native_e
     }
 }
 
+fn assert_missing_body_geometry(
+    fixture: &Fixture,
+    body: &ExecutedScriptSource,
+    config: tcl_lexer::LexerConfig,
+) {
+    assert!(
+        fixture
+            .bindings
+            .original_body_written_word_owner(
+                body,
+                config,
+                fixture.context.commands(),
+                &fixture.input
+            )
+            .is_none()
+    );
+}
+
+fn assert_geometry_binding(original: &CommandTokens, config: tcl_lexer::LexerConfig) {
+    let binding = original.source_binding.as_ref().unwrap();
+    assert_eq!(
+        binding.original_lexer_config_for_tokens(original),
+        Some(config)
+    );
+    assert!(binding.unknown);
+    assert!(binding.targets.is_empty());
+    assert!(binding.lookup_state.is_none());
+    assert!(binding.compiler_lookup_state.is_none());
+    assert!(
+        binding
+            .original_source_word_dialect_for_tokens(original)
+            .is_none()
+    );
+}
+
 #[test]
 fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() {
     // naming.compiler.original-analysis-metadata-context
@@ -198,20 +233,7 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
             .stamp_original_tokens(fixture.context.commands(), &fixture.input, &mut original)
             .is_some()
     );
-    let binding = original.source_binding.as_ref().unwrap();
-    assert_eq!(
-        binding.original_lexer_config_for_tokens(&original),
-        Some(config)
-    );
-    assert!(binding.unknown);
-    assert!(binding.targets.is_empty());
-    assert!(binding.lookup_state.is_none());
-    assert!(binding.compiler_lookup_state.is_none());
-    assert!(
-        binding
-            .original_source_word_dialect_for_tokens(&original)
-            .is_none()
-    );
+    assert_geometry_binding(&original, config);
     let mut changed_config = config;
     changed_config.strict_quoting = !config.strict_quoting;
     let changed_input = ResolvedAnalysisInput::new(
@@ -255,17 +277,7 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
                 .is_none()
         );
     }
-    assert!(
-        fixture
-            .bindings
-            .original_body_written_word_owner(
-                &fixture.body,
-                changed_config,
-                fixture.context.commands(),
-                &fixture.input
-            )
-            .is_none()
-    );
+    assert_missing_body_geometry(&fixture, &fixture.body, changed_config);
     let mut changed_span = unbound_body_tokens(&fixture);
     crate::lattice_rebase::rebase_command_tokens(&mut changed_span, 1);
     let mut changed_vector = unbound_body_tokens(&fixture);
@@ -281,30 +293,10 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
     }
     let mut changed_source = fixture.body.clone();
     changed_source.text = tcl_lexer::SourceImage::native(b"set result OTHER".as_slice());
-    assert!(
-        fixture
-            .bindings
-            .original_body_written_word_owner(
-                &changed_source,
-                config,
-                fixture.context.commands(),
-                &fixture.input
-            )
-            .is_none()
-    );
+    assert_missing_body_geometry(&fixture, &changed_source, config);
     let mut changed_channel = fixture.body.clone();
     changed_channel.text = tcl_lexer::SourceImage::document(fixture.body.try_text().unwrap());
-    assert!(
-        fixture
-            .bindings
-            .original_body_written_word_owner(
-                &changed_channel,
-                config,
-                fixture.context.commands(),
-                &fixture.input
-            )
-            .is_none()
-    );
+    assert_missing_body_geometry(&fixture, &changed_channel, config);
     let foreign_source = ExecutedScriptSource::contiguous(
         Arc::new(crate::command_binding::SourceOriginId::authored(
             &Arc::from("set result VALUE"),
@@ -313,17 +305,7 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
         0,
     )
     .unwrap();
-    assert!(
-        fixture
-            .bindings
-            .original_body_written_word_owner(
-                &foreign_source,
-                config,
-                fixture.context.commands(),
-                &fixture.input
-            )
-            .is_none()
-    );
+    assert_missing_body_geometry(&fixture, &foreign_source, config);
 }
 
 #[test]

@@ -2961,6 +2961,17 @@ mod tests {
         config: tcl_lexer::LexerConfig,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> crate::environment_ingress::RetainedNativeUnit {
+        let result = native_source_unit_borrowed(&context, source, config, profile);
+        drop(context);
+        result
+    }
+
+    fn native_source_unit_borrowed(
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
         let (owner, captured) =
             crate::environment_ingress::captured_native_entry_with_owner(profile);
         let entry = crate::command_binding::SourceAnalysisEntry {
@@ -2980,7 +2991,7 @@ mod tests {
                 declared_commands: None,
             },
             Some(&entry),
-            std::sync::Arc::clone(&context),
+            std::sync::Arc::clone(context),
         );
         crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
     }
