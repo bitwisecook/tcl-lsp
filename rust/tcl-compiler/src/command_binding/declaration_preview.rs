@@ -285,6 +285,7 @@ pub(crate) struct OriginalProcedureStaticReadAlternatives {
     input: crate::analyser::ResolvedAnalysisInput,
     declaration: OriginalProcedureReadFlowEntry,
     names: std::collections::BTreeSet<String>,
+    original_body_plan: std::sync::OnceLock<Option<tcl_lexer::NativeScriptWordsPlan>>,
 }
 
 impl OriginalProcedureStaticReadAlternatives {
@@ -390,12 +391,7 @@ impl OriginalProcedureStaticReadAlternatives {
             at,
             config,
         )?;
-        let plan = tcl_lexer::native_script_words_in(
-            image.clone(),
-            self.declaration.read.original_body_span()?,
-            config,
-        )
-        .ok()?;
+        let plan = self.original_body_plan()?;
         if plan.fatal_tail.is_some()
             || !plan
                 .commands
@@ -427,6 +423,22 @@ impl OriginalProcedureStaticReadAlternatives {
             }
         }
         found.then_some(())
+    }
+
+    /// One immutable lexical plan for this exact declaration/input owner.
+    /// The cached syntax grants no lookup, frame, effect or successful read.
+    fn original_body_plan(&self) -> Option<&tcl_lexer::NativeScriptWordsPlan> {
+        self.original_body_plan
+            .get_or_init(|| {
+                let image = self.declaration.read.original_image();
+                tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    self.declaration.read.original_body_span()?,
+                    self.input.lexer_config(),
+                )
+                .ok()
+            })
+            .as_ref()
     }
 
     pub(crate) fn may_select_static_in_declared_frame(
@@ -1967,6 +1979,7 @@ impl SourceCommandBindings {
             input: input.clone(),
             declaration: facet.declaration,
             names,
+            original_body_plan: std::sync::OnceLock::new(),
         })
     }
 
