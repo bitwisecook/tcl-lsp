@@ -5531,7 +5531,7 @@ async fn compute_base_analysis_with_read_cancellations(
                     tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                 })
                 .inspect_err(|reason| {
-                    diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason)
+                    diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason);
                 })
                 .ok()
             })
@@ -5621,7 +5621,7 @@ async fn compute_project_diags_with_read_cancellations(
             .clone()
         })
         .inspect_err(|reason| {
-            diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason)
+            diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason);
         })
         .ok()
     })
@@ -5711,7 +5711,7 @@ async fn compute_compiler_diags_with_read_cancellations(
                     tcl_lsp_db::compiler_check_diagnostics_if_available(&*snapshot, file, config)
                 })
                 .inspect_err(|reason| {
-                    diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason)
+                    diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason);
                 })
                 .ok();
                 report_overlay_misses();
@@ -7536,7 +7536,7 @@ async fn compute_deep_diagnostic_report_with_read_cancellations(
         &compiler_result,
         &project_result,
     );
-    diagnostic_read_cancellation::terminal_if_context(cancellations, &provider_completion);
+    diagnostic_read_cancellation::terminal_if_context(cancellations, provider_completion);
     let analysis: Arc<AnalysisResult> = match base_result {
         ControlFlow::Continue(a) => a,
         ControlFlow::Break(settled) => {

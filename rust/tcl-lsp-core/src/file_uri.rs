@@ -564,6 +564,8 @@ mod inverse_tests {
 
     #[test]
     fn windows_document_recipe_keeps_drive_case_unc_and_whole_path() {
+        use FileUriPathUnavailable as Unavailable;
+
         for (raw, expected) in [
             (
                 "file:///C%3A/Users/Me/a%20%CE%BB.tcl",
@@ -580,7 +582,6 @@ mod inverse_tests {
                 "{raw}"
             );
         }
-        use FileUriPathUnavailable as Unavailable;
         for (raw, expected) in [
             ("file:///tmp/a.tcl", Unavailable::UnsupportedNativeGeometry),
             (
