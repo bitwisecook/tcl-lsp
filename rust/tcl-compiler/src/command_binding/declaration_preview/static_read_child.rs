@@ -4,7 +4,7 @@
 
 //! Original nested invocation ownership for alternate-static diagnostics only.
 
-use super::*;
+use super::{Arc, OriginalProcedureStaticReadAlternatives};
 
 impl OriginalProcedureStaticReadAlternatives {
     pub(super) fn original_child_source_read(
@@ -133,8 +133,8 @@ impl OriginalProcedureStaticReadAlternatives {
                 for &(position, role) in &facts.arg_roles {
                     let argument = facts.argument_offset.checked_add(usize::from(position))?;
                     let read = role == tcl_registry::ArgRole::VarRead
-                        && !crate::existence_query::operand(facts)
-                            .is_some_and(|(_, position)| position == argument);
+                        && crate::existence_query::operand(facts)
+                            .is_none_or(|(_, position)| position != argument);
                     let write = role == tcl_registry::ArgRole::VarWrite;
                     if !read && !write {
                         continue;
@@ -165,7 +165,6 @@ impl OriginalProcedureStaticReadAlternatives {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::compilation_unit::{CompilationUnit, FunctionUnit, UnitBuildOptions};
 
     const SOURCE: &str = "proc counter {} {{n 0}} { return [incr n] }; counter";
