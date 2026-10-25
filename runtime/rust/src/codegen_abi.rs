@@ -936,10 +936,16 @@ impl AbiActivation {
     /// # Safety
     /// `interp` must be the live current interpreter for the whole guard's life.
     unsafe fn enter(interp: *mut Interp) -> Option<Self> {
+        // SAFETY: forwarded per this function's contract; observation copies scalars.
+        unsafe { (*interp).observe_codegen_depth("abi-before", 0) };
         // SAFETY: forwarded per this function's contract.
-        unsafe { (*interp).codegen_activation_enter() }.then(|| AbiActivation {
-            interp,
-            code: crate::interp::Code::Ok,
+        unsafe { (*interp).codegen_activation_enter() }.then(|| {
+            // SAFETY: the same live interpreter just entered its activation.
+            unsafe { (*interp).observe_codegen_depth("abi-entered", 0) };
+            AbiActivation {
+                interp,
+                code: crate::interp::Code::Ok,
+            }
         })
     }
 }
@@ -948,7 +954,11 @@ impl Drop for AbiActivation {
     fn drop(&mut self) {
         // SAFETY: the interpreter was live when the activation was entered and
         // stays live for the ABI call that holds this guard.
+        unsafe { (*self.interp).observe_codegen_depth("abi-before-leave", 0) };
+        // SAFETY: this guard's original interpreter remains live through leave.
         unsafe { (*self.interp).codegen_activation_leave(self.code) };
+        // SAFETY: leave does not retire this guard's retained interpreter.
+        unsafe { (*self.interp).observe_codegen_depth("abi-left", 0) };
     }
 }
 

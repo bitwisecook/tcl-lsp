@@ -45,6 +45,7 @@ mod byte_store_retirement_tests;
 #[cfg(test)]
 mod c_api_error_tests;
 mod captured_rmw;
+mod codegen_depth_diagnostic;
 #[cfg(test)]
 mod command_publication_tests;
 #[cfg(test)]
@@ -14247,7 +14248,9 @@ impl Interp {
         owned: Option<CmdFrame>,
         advance_shared: bool,
     ) -> Code {
+        self.observe_codegen_depth("script-before", 0);
         let code = self.eval_script_mode_unpublished(src, owned, advance_shared);
+        self.observe_codegen_depth("script-returned", 0);
         self.finish_outermost_eval(code);
         code
     }
@@ -19115,6 +19118,7 @@ impl Interp {
         // A freshly pushed frame is its own `codePtr->source`, so `errorLine`
         // is measured from this body's base (`eval_framed`).
         frame.proc_line_base = frame.line_base;
+        self.observe_codegen_depth("native-body-before", entry as usize);
         // The activation the eval loop would hold for this body. A refusal is
         // `eval_script_mode`'s: the error is already set, no activation is
         // held, and nothing has been pushed, so `run_proc`'s ordinary error
@@ -19122,6 +19126,7 @@ impl Interp {
         if !self.codegen_activation_enter() {
             return Ok(Code::Error);
         }
+        self.observe_codegen_depth("native-body-entered", entry as usize);
         self.cmd_frames.borrow_mut().push(frame);
         // `Tcl_EvalEx` resets the result at entry; `eval_script_mode` can skip
         // that because its first command always sets one. A compiled body

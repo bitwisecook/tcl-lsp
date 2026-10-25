@@ -1295,8 +1295,18 @@ fn function_table_bootstrap_wat() -> String {
 fn run_boot_only(runtime: &Path, tag: &str, wat: &str) -> Result<String, String> {
     let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
     std::fs::write(&boot, wat).expect("write bootstrap");
+    let depth_diagnostic =
+        std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1");
     let out = Command::new("wasmtime")
         .arg("run")
+        .args(if depth_diagnostic {
+            &[
+                "--env",
+                "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC=first-decline-v1",
+            ][..]
+        } else {
+            &[][..]
+        })
         .arg("--preload")
         .arg(format!("tcl={}", runtime.display()))
         .arg(&boot)
@@ -1304,6 +1314,9 @@ fn run_boot_only(runtime: &Path, tag: &str, wat: &str) -> Result<String, String>
         .expect("run wasmtime");
     let _ = std::fs::remove_file(&boot);
     if out.status.success() {
+        if depth_diagnostic {
+            report_native_depth_ledger(tag, &out.stderr);
+        }
         Ok(String::from_utf8(out.stdout).expect("stdout is utf-8"))
     } else {
         Err(format!(
@@ -1536,6 +1549,7 @@ fn run_real_native_proc(
     let _ = std::fs::remove_file(&boot);
     if out.status.success() && depth_diagnostic {
         report_native_depth_refusals(tag, &out.stderr);
+        report_native_depth_ledger(tag, &out.stderr);
     }
     assert!(
         out.status.success(),
@@ -2106,6 +2120,36 @@ fn report_native_depth_refusals(tag: &str, stderr: &[u8]) {
             return;
         }
         retained += record.len() + 1;
+        eprintln!("{record}");
+    }
+}
+
+// Separate bounded ledger transport; the original refusal channel/caps stay intact.
+fn report_native_depth_ledger(tag: &str, stderr: &[u8]) {
+    if tag.len() > 96 {
+        eprintln!("CCG_WASM_DEPTH_EVIDENCE_REFUSED reason=tag-cap");
+        return;
+    }
+    let mut records = 0;
+    let mut bytes = 0;
+    for line in stderr.split(|byte| *byte == b'\n') {
+        if !line.starts_with(b"CCG_WASM_DEPTH ") {
+            continue;
+        }
+        if line.len() > 512 || records == 512 {
+            eprintln!("CCG_WASM_DEPTH_EVIDENCE_REFUSED tag={tag} reason=record-cap");
+            return;
+        }
+        let record = format!(
+            "CCG_WASM_DEPTH_GUEST tag={tag} {}",
+            String::from_utf8_lossy(line)
+        );
+        if bytes + record.len() + 1 > 512 * 640 {
+            eprintln!("CCG_WASM_DEPTH_EVIDENCE_REFUSED tag={tag} reason=aggregate-cap");
+            return;
+        }
+        records += 1;
+        bytes += record.len() + 1;
         eprintln!("{record}");
     }
 }
