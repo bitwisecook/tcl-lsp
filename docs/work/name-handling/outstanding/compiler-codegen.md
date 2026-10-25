@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T22:42:43.339942+00:00
+Last updated: 2026-10-25T23:24:41.256812+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
@@ -705,3 +705,5 @@ Current checkpoint 2026-10-25T22:11:12.515030+00:00: final frozen WORK5bc7 sourc
 Final5bc7 union independently STATIC DEEP CLEAR cfb4eb3af4b9e94e517ff03dfd2e4bab0131b3dfeb07cf60ec186f260ee40518: all23JSON/17maps/215records/173actual Git sources,14existing refreshes+4explicit new dependencies, exact approved Core2 observation transport. Root canonical apply/preflight/dispatch pending; no fresh execution result inferred.
 
 2026-10-25T22:42:43.339942+00:00 actual C213 strict authenticated366Clippy/zeroRustE:364 SourceExecutionContext264byte size warnings routedCompiler, Namesobserverrename1, Entryobserverlazy1 sourcepeer247810 integrated. WASM C213 stillqueued at lastAPI. Next026e tinyTaintlayout+guard union2files prepared peerpending; all currentCore2protocolguards alreadycoherent. Retained Native i64 implementation interface V2 uses inert guardedpublication candidate +private actual prepared/artifact/frame checkedbody, noambient helper/guestcapability; Runtime owns actualVM draft, Codegen compilerABI/backend draft. No Native execution/coverage acceptance inferred; pending userchoices unchanged.
+
+2026-10-25T23:24:41.256812+00:00 checkpoint: C213 strict FULLAUTH7536ec0f actual366Clippy/zeroRustE (364contextsize+2observer); compiler102 separately ALLUNRUN E0425 ownlong5 registry type, pairedqualifiedrepair Runtimepeerf42e rootintegrated. C213 WASM FULLAUTHd0fbf85f actual22PASS3FAIL originalallocation/depth/NativeAdd unchanged; newRustcaller proves refused generic tcl_invoke_argv only, cachedcalleehead notyetobserved. WORK retained-head diagnostic sourcepacketcfb09725/wholeerasure437c22ce pendingstrongpeer, no newevents/retains/getters/queries. Final11fc codec+Quiet union2d6b7eac independentlyclear ea6f0f26 all23/17maps/223records/176Gitfiles; rootcanonical wave. New362e strict40243862107 active, solecapture owner. AOTretainedpublication compiler draft6files plusRuntimeprivateartifact/kernel strategy implementation underway, UNFROZEN/UNBUILT; no ambientcap/exportedarithmetichelper, noframeelision, realproc+stores preserved, strongcounter/fallbackcontrols required. Userchoices remainpending.

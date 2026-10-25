@@ -1,10 +1,14 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T22:58:28Z
+Last updated: 2026-10-25T23:34:36Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Latest e990 iRules40242565716 FULLAUTH base2d5b29d3/outcome4690d54a9be68b2bea745c57404f2e8a3220c59af3671894cd972ae15b70e8bc: original180timeout again, trace2+scope1UNRUN. Bounded phase proves first init returned successfully (3122UpLevel headers), final init began (711headers) but no final completion.38sampledcaller rows onlyfirstphase, storedprefix itest::cmd::regi and exactresidentheads _orig_namespace/_orig_info consistentwithfinite register_all loop; no finalcaller sample orloopproof. New reordered Spec40243870633/job121321250911 exact362e7ce33682831d4a2d96b1b110f24d830bf8fa stillactive, VMsoleZIPowner.
+
+AOT WORK off-tree vm-native-i64-entered-body-draft-v1 now has inert candidate request/actualstock handler/checked-publication OnceCell transport, exact artifact-derived Return+ADD semantics, lexical private BodyExecution strategy and original NumericOperation/getter/retirement pipeline with distinct checked_i64 kernel. Original body/command-limit/word/result/Return cleanup remains unchanged; no exported/ambient execution capability. Unsupported/preflightoverflow staysordinary; no replay aftereffectful numeric stages. Quiet rawString eligibility uses shared NativeNumber recipe but actualgetter remainsauthoritative. This is DRAFT ONLY (rustfmt syntax pass), controls/paired proof/strongpeer/typing/execution unfinished; no canonical eligibility or Native success claim.
 
 Reviewed WORK diagnostic successors root-ready: caller/head/phase observer V3 source5d0c90a7 +four-pin companiondc472e55 independently clear8d473bb0; deprecated fetch_update and fullcallerString allocation V1/V2 holds fixed beforeintegration. String-before-full one-driver two-call-order swap68397e1a/59f226e1 independently protocol clearde452acc; old16 -> bounded newactual3case replay -> unchanged full600. All old cohorts/helpers/argv/env/assertions/limits/sharedCAP/absolute/floor/lifecycle/final failure aggregate retained; ordinary probeFAIL still fullattempt, resource/lifecycle refusal staysstatus2. No actual firstgate/causal success yet.
 
