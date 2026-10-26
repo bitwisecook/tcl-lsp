@@ -204,10 +204,19 @@ impl ConstSubstCtx<'_> {
         }
         let tokens = n17_live_some!(call.tokens.as_ref(), "fold-tokens")?;
         let binding = n17_live_some!(tokens.source_binding.as_ref(), "fold-binding")?;
+        let target = binding.proved_execution_target();
+        if target.is_none_or(|target| !target.registry_backed) {
+            n17_live_trace!(
+                "selected-target-refusal reachability={:?} compiled_unknown={} execution_unknown={} may_be_absent={} selected_present={}",
+                binding.runtime_reachability(),
+                binding.compiled_execution_unknown(),
+                binding.execution_is_unknown(),
+                binding.execution_may_be_absent(),
+                target.is_some()
+            );
+        }
         n17_live_some!(
-            binding
-                .proved_execution_target()
-                .filter(|target| target.registry_backed),
+            target.filter(|target| target.registry_backed),
             "fold-actual-registry-target"
         )?;
         let invocation = n17_live_some!(
