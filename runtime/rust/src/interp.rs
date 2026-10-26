@@ -18678,10 +18678,7 @@ impl Interp {
                     .check_native_liveness()
                     .and_then(|()| procedure.body.checked_ptr())
                     .map_err(|error| self.report_cmd_error(error.into()))?;
-                match self.prepare_original_c_body(original, ns, Some(procedure)) {
-                    Ok(artifact) => artifact,
-                    Err(code) => return Err(code),
-                }
+                self.prepare_original_c_body(original, ns, Some(procedure))?
             } else {
                 None
             };
