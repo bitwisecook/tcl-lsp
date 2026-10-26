@@ -1,0 +1,13 @@
+{
+  "recorded_utc": "2026-10-26T16:59:51.629180+00:00",
+  "source": "Explicit user answer in chat, call_56f4261f0c0846d7bc73593ea1b4b1dd",
+  "decisions": {
+    "quoted_nul_string_fixture_preconditions": {
+      "answer": "Correct fixture preconditions (Recommended)",
+      "proposal": "/workspace/naming-proof-storage/vm-native-string-negative-premises-v2/",
+      "technical_review_sha256": "2694d6ef5fcca7e9ca3ccb50d4dae64d756ee28028b3a2ca475f189b74c1ea5a",
+      "meaning": "Retain both exact scripts and all known-pre-value/no-post-value/no-constant assertions. Preserve eligible \u00e9 positive effect case with explicit actual receiver/input premises. Remove unconditional positive post-append effect expectation for quoted NUL across three Tcl releases; separately assert measured Tcl8.4 weak-input/effect refusal. No production receiver policy or guard change.",
+      "limits": "Explicit authorised fixture coverage correction, not byte-equivalent mapping or actual PASS. Corrected tests remain UNRUN until current-source execution. Do not infer a new template receiver capability."
+    }
+  }
+}
