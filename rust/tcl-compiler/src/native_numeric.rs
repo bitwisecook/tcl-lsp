@@ -319,7 +319,7 @@ impl ClosedContainerRepresentations {
 pub enum StoredNativeRepresentation {
     /// Original stock literal object class; native intrep is independently tracked.
     StockLiteralObject(crate::command_binding::SourceStockLiteralObject),
-    /// Original Normal producer closes StringAccess effects only.
+    /// Original Normal producer closes `StringAccess` effects only.
     NativeStringAccess(Arc<crate::command_binding::SourceNativeStringAccess>),
     /// Representation proved independently by a selected handler.
     Known(tcl_syntax::value::ValueRepresentation),

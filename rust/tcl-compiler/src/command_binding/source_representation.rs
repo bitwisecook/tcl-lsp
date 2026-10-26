@@ -37,7 +37,7 @@ impl FrozenSourceRepresentation {
             && (self.is_current(variables) || self.is_immediate_created_result())
     }
     /// Producer input closure includes COW/duplicate/free as well as rendering.
-    /// Audited custom List StringAccess providers do not establish this class.
+    /// Audited custom List `StringAccess` providers do not establish this class.
     pub(super) fn native_string_result_input_is_closed(
         &self,
         variables: &crate::var_resolve::ResolveContext,
