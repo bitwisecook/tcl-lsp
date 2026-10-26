@@ -1807,13 +1807,17 @@ impl Emitter<'_, '_> {
                 // q = a / b; if (a % b != 0) && ((a % b < 0) != (b < 0)) { q -= 1 }
                 self.get(a);
                 self.get(b);
-                self.push(WasmOp::I64DivS);
-                self.set(d);
-                self.get(a);
-                self.get(b);
                 self.push(WasmOp::I64RemS);
                 self.set(LOCAL_SCRATCH_I64_C);
                 self.floor_adjust_condition(b);
+                self.set(LOCAL_SCRATCH_I32_B);
+                // The checked path uses scratch c as d: preserve the
+                // adjustment before replacing the remainder with the quotient.
+                self.get(a);
+                self.get(b);
+                self.push(WasmOp::I64DivS);
+                self.set(d);
+                self.get(LOCAL_SCRATCH_I32_B);
                 self.open(WasmOp::If, Label::Plain);
                 self.get(d);
                 self.i64(1);

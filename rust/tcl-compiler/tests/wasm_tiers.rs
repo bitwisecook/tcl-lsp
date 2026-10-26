@@ -719,3 +719,31 @@ fn a_failed_native_add_names_every_rejected_premise() {
 fn the_real_link_gate_is_the_shared_one() {
     assert_eq!(REQUIRE_VAR, "TCL_REQUIRE_WASM_LINK");
 }
+
+#[test]
+fn native_integer_division_keeps_the_quotient_and_tcl_remainder() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = scratch("native_integer_division_signs.tcl");
+    let mut script = String::new();
+    for (lhs, rhs) in [(10, 3), (-10, 3), (10, -3), (-10, -3), (12, 3), (0, 3)] {
+        writeln!(script, "set lhs {lhs}\nset rhs {rhs}").unwrap();
+        script.push_str("puts [expr {$lhs / $rhs}]\nputs [expr {$lhs % $rhs}]\n");
+    }
+    script.push_str("set lhs -9223372036854775808\nset rhs -1\nputs [expr {$lhs / $rhs}]\nputs [expr {$lhs % $rhs}]\n");
+    std::fs::write(&source, script).unwrap();
+    let sample = Sample {
+        tier: "regression".to_owned(),
+        name: "division_signs".to_owned(),
+        source,
+        oracle: PathBuf::new(),
+    };
+    let outcome = run_linked(&runtime, &sample, Plan::Native);
+    let _ = std::fs::remove_file(&sample.source);
+    assert!(outcome.exited_cleanly, "{}", outcome.stderr);
+    assert_eq!(
+        outcome.stdout,
+        "3\n1\n-4\n2\n-4\n-2\n3\n-1\n4\n0\n0\n0\n9223372036854775808\n0\n"
+    );
+}
