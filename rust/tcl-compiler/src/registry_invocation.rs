@@ -1063,11 +1063,13 @@ pub struct OriginalAuthoredResultCompletionSourceCoverage<'a> {
 }
 
 impl OriginalAuthoredResultCompletionSourceCoverage<'_> {
+    /// Return the selected statement invocation retained by this source-only coverage.
     #[must_use]
     pub const fn invocation(&self) -> &ResolvedStatementInvocation {
         &self.selected
     }
 
+    /// Check whether this coverage borrows the same analysis allocation.
     #[must_use]
     pub fn is_for_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
         std::ptr::eq(self.analysis, analysis)
