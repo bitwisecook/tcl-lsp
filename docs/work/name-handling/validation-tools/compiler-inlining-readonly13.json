@@ -9,7 +9,7 @@
         "test"
       ],
       "target": "inlining",
-      "selector": "classify_large_pure_leaf_one_caller_is_if_single_call",
+      "selector": "large_body_profitability_selects_single_caller",
       "env": {
         "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
       }
@@ -51,7 +51,7 @@
         "test"
       ],
       "target": "inlining",
-      "selector": "classify_small_pure_leaf_is_always",
+      "selector": "small_body_profitability_allows_bounded_growth",
       "env": {
         "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
       }
@@ -63,7 +63,7 @@
         "test"
       ],
       "target": "inlining",
-      "selector": "classify_threshold_boundary_is_always",
+      "selector": "threshold_body_profitability_allows_bounded_growth",
       "env": {
         "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
       }
@@ -105,7 +105,7 @@
         "test"
       ],
       "target": "inlining",
-      "selector": "static_call_count_drives_large_proc_decision",
+      "selector": "large_body_profitability_depends_on_static_call_count",
       "env": {
         "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
       }
@@ -159,12 +159,12 @@
     "braced_literal_arg_uses_assign_const",
     "call_inside_for_body_dropped",
     "call_inside_if_clause_dropped",
-    "classify_large_pure_leaf_one_caller_is_if_single_call",
+    "large_body_profitability_selects_single_caller",
     "classify_large_pure_leaf_two_callers_is_never",
     "classify_missing_summary_is_never",
     "classify_non_pure_leaf_is_never",
-    "classify_small_pure_leaf_is_always",
-    "classify_threshold_boundary_is_always",
+    "small_body_profitability_allows_bounded_growth",
+    "threshold_body_profitability_allows_bounded_growth",
     "declaration_only_and_refused_body_compilation_issue_no_compiled_fixture",
     "default_arg_inlines",
     "detect_static_passthrough_recognises_zero_param",
@@ -210,7 +210,7 @@
     "statement_count_empty_body_is_zero",
     "statement_count_flat_body_counts_top_level",
     "statement_count_nested_if_counts_inner",
-    "static_call_count_drives_large_proc_decision",
+    "large_body_profitability_depends_on_static_call_count",
     "static_shape_carries_body",
     "substitution_arg_keeps_assign_value",
     "two_call_sites_get_distinct_mangling",
@@ -224,7 +224,9 @@
     "wrapper_call_is_replaced_with_inner",
     "wrapper_with_args_at_call_site_declined",
     "wrapper_with_unqualified_proc_call_declined",
-    "zero_param_single_uplevel_is_candidate"
+    "zero_param_single_uplevel_is_candidate",
+    "native_observed_add_arguments_do_not_authorize_generic_body_relocation",
+    "retired_native_body_custody_never_authorizes_classification"
   ],
   "approved_product_patch_sha256": "84013f9ae40eda38ebd17dce57e8b223af4ed7c8feba4793d4fe8060f75029e5",
   "source_pins": {
@@ -250,5 +252,42 @@
     "rust/tcl-compiler/src/var_escape/helpers.rs": "f6d634a28122cb0f1b860bda469a50830997e759e53559be7be8d15f564ffe4d",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f"
   },
-  "scope": "Prospective additive readonly10 plus original-owner3, only after all old83 close. Source-owner/card-qualified body metadata retrieval; classifier and all transform/erasure/Native guards unchanged. Fresh inlining artifact and complete75list required, all shared budgets retained. Initial UNRUN; no baseline/full-process/performance acceptance."
+  "scope": "Approved explicit replacement of four semantic expectations by four cost-only selectors, retaining all eligibility guards and original refusal controls. Separately labelled two Native unknown-argument/retired-owner refusal controls follow the existing133 cases on the same fresh inlining ELF. Complete77 inventory required; shared budgets/environment/build unchanged. Old semantic failures are not reported as PASS. Actual new tests UNRUN.",
+  "separate_native_eligibility_controls": {
+    "schema": "native-eligibility-control2-v1",
+    "expected_selected": 2,
+    "rows": [
+      {
+        "group": "diagnostic-native-eligibility2",
+        "package": "tcl-compiler",
+        "kind": [
+          "test"
+        ],
+        "target": "inlining",
+        "selector": "native_observed_add_arguments_do_not_authorize_generic_body_relocation",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-native-eligibility2",
+        "package": "tcl-compiler",
+        "kind": [
+          "test"
+        ],
+        "target": "inlining",
+        "selector": "retired_native_body_custody_never_authorizes_classification",
+        "env": {}
+      }
+    ]
+  },
+  "approved_cost_coverage_mapping": {
+    "decision_path": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261026T143103Z.json",
+    "decision_sha256": "29da8358cc8e6bddcfc3db86a371d54fd60c5c22ea67c56c7ba4105df3b578e8",
+    "old_semantic_to_cost_selector": {
+      "classify_large_pure_leaf_one_caller_is_if_single_call": "large_body_profitability_selects_single_caller",
+      "classify_small_pure_leaf_is_always": "small_body_profitability_allows_bounded_growth",
+      "classify_threshold_boundary_is_always": "threshold_body_profitability_allows_bounded_growth",
+      "static_call_count_drives_large_proc_decision": "large_body_profitability_depends_on_static_call_count"
+    },
+    "qualification": "Changed coverage boundary approved by user; old semantic failures are not reported as passing. Existing eligibility guards and semantic refusal controls remain unchanged."
+  }
 }

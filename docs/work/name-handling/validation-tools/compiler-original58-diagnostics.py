@@ -151,6 +151,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout3-",
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
+            "diagnostic-native-eligibility2-",
             "list-",
             "select-",
         )
@@ -176,6 +177,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout3-",
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
+            "diagnostic-native-eligibility2-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -202,6 +204,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout3-",
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
+            "diagnostic-native-eligibility2-",
         )
     ):
         require(
@@ -384,10 +387,10 @@ def run_readonly_body_controls() -> None:
         },
     )
     require(
-        len(listed) == 75
+        len(listed) == 77
         and set(listed) == set(readonly_validation["full_target_inventory"])
         and {row["selector"] for row in readonly_rows[:10]}.issubset(listed),
-        "readonly fresh complete75 inventory differs",
+        "readonly fresh complete77 inventory differs",
     )
     original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
     require(
@@ -2705,6 +2708,200 @@ def run_advice_catalogue_controls() -> None:
         )
 
 
+def run_native_eligibility_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows
+        ),
+        "Native eligibility controls cannot precede original133 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-inlining.json").read_text())
+    require(
+        {row["selector"] for row in native_eligibility_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "Native eligibility controls absent from actual fresh inlining inventory",
+    )
+    for index, row in enumerate(native_eligibility_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "Native eligibility current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "Native eligibility requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "Native eligibility artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "native-eligibility2"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
+            raise
+        save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -2981,7 +3178,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "7f24e3e401b69d0b792c2145f5fdc341a71bd0c199a1f70b7c5d495e9ee0c230",
+    == "a690976d7f3e2ab7e6e7ac8d57d3596ae880afebfb62249e98694e95bfa0c722",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -3002,10 +3199,10 @@ require(
         == (
             {"TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"}
             if row["selector"] in {
-                "classify_large_pure_leaf_one_caller_is_if_single_call",
-                "classify_small_pure_leaf_is_always",
-                "classify_threshold_boundary_is_always",
-                "static_call_count_drives_large_proc_decision",
+                "large_body_profitability_selects_single_caller",
+                "small_body_profitability_allows_bounded_growth",
+                "threshold_body_profitability_allows_bounded_growth",
+                "large_body_profitability_depends_on_static_call_count",
             }
             else {}
         )
@@ -3024,8 +3221,8 @@ require(
     "readonly fresh target",
 )
 require(
-    len(readonly_validation["full_target_inventory"]) == 75
-    and len(set(readonly_validation["full_target_inventory"])) == 75,
+    len(readonly_validation["full_target_inventory"]) == 77
+    and len(set(readonly_validation["full_target_inventory"])) == 77,
     "readonly full source inventory",
 )
 require(
@@ -3274,6 +3471,10 @@ require(advice_catalogue_validation["rows"] == [{'group': 'diagnostic-advice-cat
     and not {row["selector"] for row in advice_catalogue_rows}.intersection(
         row["selector"] for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows),
     "advice catalogue exact target/selectors/environment/no overlap")
+
+native_eligibility_validation = readonly_validation["separate_native_eligibility_controls"]
+require(native_eligibility_validation == {'schema': 'native-eligibility-control2-v1', 'expected_selected': 2, 'rows': [{'group': 'diagnostic-native-eligibility2', 'package': 'tcl-compiler', 'kind': ['test'], 'target': 'inlining', 'selector': 'native_observed_add_arguments_do_not_authorize_generic_body_relocation', 'env': {}}, {'group': 'diagnostic-native-eligibility2', 'package': 'tcl-compiler', 'kind': ['test'], 'target': 'inlining', 'selector': 'retired_native_body_custody_never_authorizes_classification', 'env': {}}]}, "exact Native eligibility2 roster")
+native_eligibility_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in native_eligibility_validation["rows"]]
 
 require(
     len(
@@ -4174,7 +4375,12 @@ try:
     status = 2
     run_advice_catalogue_controls()
     require(len(advice_catalogue_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in advice_catalogue_rows), "advice catalogue controls incomplete")
+    status = 2
+    run_native_eligibility_controls()
+    require(len(native_eligibility_rows) == 2 and all(row["state"] in ["PASS", "FAIL"] for row in native_eligibility_rows), "Native eligibility controls incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    if any(row["state"] != "PASS" for row in native_eligibility_rows):
+        status = 1
     if any(row["state"] != "PASS" for row in advice_catalogue_rows):
         status = 1
     if any(row["state"] != "PASS" for row in own_jim_member_rows):
@@ -4252,6 +4458,7 @@ finally:
     save(out / "analyser-layout-outcomes.json", analyser_layout_rows)
     save(out / "own-jim-member-outcomes.json", own_jim_member_rows)
     save(out / "advice-catalogue-outcomes.json", advice_catalogue_rows)
+    save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
     save(out / "outcomes.json", rows)
     save(
         out / "final.json",
@@ -4317,6 +4524,9 @@ finally:
             ),
             "logical3_outcomes": logical_rows,
             "separate_logical_roster": logical_validation,
+            "required_separate_native_eligibility_controls": 2,
+            "native_eligibility2_outcomes": native_eligibility_rows,
+            "approved_cost_coverage_mapping": readonly_validation["approved_cost_coverage_mapping"],
             "required_separate_advice_catalogue_controls": 3,
             "advice_catalogue_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in advice_catalogue_rows),
             "advice_catalogue3_outcomes": advice_catalogue_rows,
