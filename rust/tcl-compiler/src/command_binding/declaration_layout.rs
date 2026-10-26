@@ -4745,6 +4745,32 @@ mod tests {
         }
     }
 
+    fn assert_mapped_source_cache_conflict_refused(
+        advice: &super::DeclarationSourceOperandLayoutAdvice,
+        tokens: &crate::ir::CommandTokens,
+        binding: &crate::command_binding::SourceInvocationBinding,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let super::DeclarationSourceOperandLayoutKind::Configured { layout, cache, .. } =
+            &advice.kind
+        else {
+            panic!("distinct source-only mapped carrier");
+        };
+        cache
+            .upgrade()
+            .unwrap()
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(layout.site.offset, None);
+        assert!(advice.current_advice(tokens).is_none());
+        assert!(
+            binding
+                .declaration_source_operand_layout_advice(registry, tokens)
+                .is_none()
+        );
+    }
+
     #[test]
     fn declaration_mapped_source_operands_keep_full_vector_owner_and_conflict_refusals() {
         let name = concat!("local", "\\", "\n", "name");
@@ -4852,24 +4878,7 @@ mod tests {
         );
         assert!(advice.current_advice(&other_tokens).is_none());
 
-        let super::DeclarationSourceOperandLayoutKind::Configured { layout, cache, .. } =
-            &advice.kind
-        else {
-            panic!("distinct source-only mapped carrier");
-        };
-        cache
-            .upgrade()
-            .unwrap()
-            .entries
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(layout.site.offset, None);
-        assert!(advice.current_advice(&tokens).is_none());
-        assert!(
-            binding
-                .declaration_source_operand_layout_advice(registry, &tokens)
-                .is_none()
-        );
+        assert_mapped_source_cache_conflict_refused(&advice, &tokens, binding, registry);
         drop(bindings);
     }
 
