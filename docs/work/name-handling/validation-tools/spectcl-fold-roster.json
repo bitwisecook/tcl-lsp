@@ -85,5 +85,13 @@
     "listing_seconds": 180,
     "test_seconds": 180,
     "cleanup_seconds": 25
+  },
+  "native_string_effect": [
+    "exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives"
+  ],
+  "native_string_effect_budget": {
+    "listing_seconds": 180,
+    "test_seconds": 180,
+    "cleanup_seconds": 25
   }
 }

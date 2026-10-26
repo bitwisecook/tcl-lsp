@@ -129,7 +129,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
     if prefix.startswith(
-        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "spec_corpus-", "tcl_vm-", "list-", "full-corpus-", "string-first-gates-")
+        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "spec_corpus-", "tcl_vm-", "list-", "full-corpus-", "string-first-gates-", "native-string-effect-")
     ):
         require(
             available >= seconds,
@@ -137,7 +137,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
         )
     if prefix.startswith("full-corpus-"):
         require(available >= seconds + 25, "full corpus cleanup reserve unavailable")
-    if prefix.startswith("string-first-gates-"):
+    if prefix.startswith(("string-first-gates-", "native-string-effect-")):
         require(available >= seconds + 25, "string replay cleanup reserve unavailable")
     seconds = min(seconds, available)
     return owner.run(
@@ -317,6 +317,68 @@ def string_first_gates_append(artifacts, environment, budget, processes, outcome
     return budget
 
 
+def native_string_effect_append(artifacts, environment, budget, processes, outcome):
+    global remaining
+    require(budget == remaining, "same remaining aggregate log budget for native string effect")
+    selector = "exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives"
+    require(roster["native_string_effect"] == [selector], "exact actual string corpus replay")
+    require(roster["native_string_effect_budget"] == {
+        "listing_seconds": 180, "test_seconds": 180, "cleanup_seconds": 25,
+    }, "bounded separate native string effect admission")
+    for name in ["SPECTCL_CORPUS_TMP", "SPECTCL_CORPUS_DIFF", "SPECTCL_CORPUS_BLESS"]:
+        require(name not in environment, "native string effect keeps actual samples-only non-bless mode")
+    selected = [artifact for artifact in artifacts if artifact["target"] == "tcl_vm"]
+    require(len(selected) == 1, "one original fresh native string effect executable")
+    artifact = selected[0]
+    event = artifact["cargo_event"]
+    require(event["fresh"] is False and event["profile"]["test"] is True
+            and event["target"]["name"] == "tcl_vm"
+            and event["target"]["kind"] == ["lib"] and artifact["strict_Rust_0w"] is True,
+            "same genuine current integration-test ELF for native string effect")
+    executable = Path(artifact["path"])
+    require(sha(executable) == artifact["sha256"], "native string effect ELF changed before listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable before native string effect")
+    require(deadline - time.time() >= 385, "full 180+180+25 reservation unavailable")
+    listing = execute([str(executable), "--list", "--format", "terse", "--exact", selector],
+                      "list-native-string-effect", executable, 180, environment, budget)
+    processes.append(listing)
+    budget -= listing["retained_bytes"]
+    remaining = budget
+    require(lifecycle(listing) and listing["exit_code"] == 0, "native string effect listing unclosed")
+    listed = []
+    for line in (out / "list-native-string-effect.stdout").read_text().splitlines():
+        if line.endswith(": test"):
+            listed.append(line.removesuffix(": test"))
+        else:
+            require(not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
+                    "unexpected native string effect listing")
+    require(listed == [selector], "exact native string effect selector missing, duplicate or ignored")
+    require(sha(executable) == artifact["sha256"], "native string effect ELF changed after listing")
+    require(deadline - time.time() >= 205, "full 180+25 reservation unavailable after listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable after native string listing")
+    outcome["state"] = "RUNNING"
+    save(out / "native-string-effect-outcomes.json", [outcome])
+    prefix = "native-string-effect-00"
+    receipt = execute([str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+                      prefix, executable, 180, environment, budget)
+    processes.append(receipt)
+    budget -= receipt["retained_bytes"]
+    remaining = budget
+    outcome.update(exit_code=receipt["exit_code"], receipt=prefix + ".process.json",
+                   stdout=prefix + ".stdout", stderr=prefix + ".stderr")
+    require(lifecycle(receipt), "native string effect lifecycle/capture stop")
+    stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+    try:
+        outcome["state"] = original_result(stdout, receipt["exit_code"])
+    except RuntimeError:
+        outcome["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+        save(out / "native-string-effect-outcomes.json", [outcome])
+        raise
+    require(sha(executable) == artifact["sha256"], "native string effect ELF changed after execution")
+    save(out / "native-string-effect-outcomes.json", [outcome])
+    return budget
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -392,6 +454,10 @@ full_corpus_rows = [{
 string_first_gate_rows = [{
     "group": "separate_string_first_gates", "target": "spec_corpus",
     "selector": "shipped_string_pack_replays_actual_corpus_first_gates", "state": "UNRUN",
+}]
+native_string_effect_rows = [{
+    "group": "separate_native_string_effect", "target": "tcl_vm",
+    "selector": 'exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives', "state": "UNRUN",
 }]
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
@@ -774,10 +840,12 @@ try:
     )
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
     status = 2
+    remaining = native_string_effect_append(artifacts, env, remaining, processes, native_string_effect_rows[0])
+    status = 2
     remaining = string_first_gates_append(artifacts, env, remaining, processes, string_first_gate_rows[0])
     status = 2
     remaining = full_corpus_append(artifacts, env, remaining, processes, full_corpus_rows[0])
-    status = 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows) else 1
+    status = 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows + native_string_effect_rows) else 1
 except (
     RuntimeError,
     OSError,
@@ -802,6 +870,11 @@ finally:
     if string_first_gate_rows[0]["state"] in ["UNRUN", "INCOMPLETE"]:
         string_first_gate_rows[0]["unrun_reason"] = error
     save(out / "string-first-gates-outcomes.json", string_first_gate_rows)
+    if native_string_effect_rows[0]["state"] == "RUNNING":
+        native_string_effect_rows[0]["state"] = "INCOMPLETE"
+    if native_string_effect_rows[0]["state"] in ["UNRUN", "INCOMPLETE"]:
+        native_string_effect_rows[0]["unrun_reason"] = error
+    save(out / "native-string-effect-outcomes.json", native_string_effect_rows)
     seals = {}
     for name, capture, original in [
         ("source", source, before),
@@ -861,6 +934,8 @@ finally:
             "separate_hostile_outcomes": hostile_rows,
             "required_separate_native_index_tests": 3,
             "separate_native_index_outcomes": native_index_rows,
+            "required_separate_native_string_effect_tests": 1,
+            "separate_native_string_effect_outcomes": native_string_effect_rows,
             "required_separate_full_corpus_tests": 1,
             "separate_full_corpus_outcomes": full_corpus_rows,
             "required_separate_string_first_gate_tests": 1,
