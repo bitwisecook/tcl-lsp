@@ -443,7 +443,6 @@ fn collect_command_regions<'a>(
             subject.reference,
             subject.words,
             subject.input,
-            offset,
         )?;
     }
     Ok(())
