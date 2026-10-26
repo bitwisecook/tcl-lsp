@@ -13,6 +13,13 @@ use tcl_cmd_core::native_append::{
 };
 use tcl_syntax::native_object_append::NativeObjectAppendProtocol;
 
+/// Borrowed input views and the existing Copy append recipe; no object ownership.
+struct AppendInputSources<'name, 'sources> {
+    name: &'name [u8],
+    protocol: NativeObjectAppendProtocol,
+    sources: &'sources [*mut TclObj],
+}
+
 trait VariableAppendObjects:
     tcl_cmd_core::native_append::NativeAppendObjects<Value = RuntimeAppendValue>
 {
@@ -656,12 +663,14 @@ impl Interp {
                 refuse: std::rc::Rc::new(move |error| refuse_original.refuse(error)),
             };
             let code = self.append_retained_operands_using(
-                &name,
+                AppendInputSources {
+                    name: &name,
+                    protocol,
+                    sources,
+                },
                 AppendReceiverReference::Original(&selected.receiver),
                 std::borrow::Cow::Owned(home),
                 access,
-                protocol,
-                sources,
                 objects,
                 Some(owner),
             );
@@ -747,12 +756,14 @@ impl Interp {
             false,
         );
         self.append_retained_operands_using(
-            &captured.root,
+            AppendInputSources {
+                name: &captured.root,
+                protocol: protocol.recipe(),
+                sources,
+            },
             AppendReceiverReference::Original(&captured.receiver),
             std::borrow::Cow::Borrowed(&captured.home),
             access,
-            protocol.recipe(),
-            sources,
             objects,
             Some(original),
         )
@@ -779,12 +790,14 @@ impl Interp {
             binary_recipe: dialect.byte_array_string_recipe(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)),
         };
         self.append_retained_operands_using(
-            name,
+            AppendInputSources {
+                name,
+                protocol,
+                sources,
+            },
             AppendReceiverReference::Owned(receiver),
             std::borrow::Cow::Owned(home),
             access,
-            protocol,
-            sources,
             objects,
             None,
         )
@@ -792,12 +805,14 @@ impl Interp {
 
     fn append_retained_operands_using<'a, O: VariableAppendObjects>(
         &'a mut self,
-        name: &'a [u8],
+        AppendInputSources {
+            name,
+            protocol,
+            sources,
+        }: AppendInputSources<'a, '_>,
         receiver: AppendReceiverReference<'a>,
         home: std::borrow::Cow<'a, crate::vars::TraceHome>,
         access: TraceAccess,
-        protocol: NativeObjectAppendProtocol,
-        sources: &[*mut TclObj],
         objects: O,
         original: Option<OriginalAppendVariable>,
     ) -> Code {
