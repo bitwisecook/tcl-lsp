@@ -39,7 +39,8 @@
     "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "4660601c53d3fc1c90e237b7b582272758938099d62dd51e16e482ded120f29f",
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
-    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "a79722e7adfc4da8c4884ba2fc8481cf295c5a6cce7d3c8c4a70bef53def5e06"
+    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
+    "rust/tcl-compiler/src/command_binding.rs": "f9eeb988bc1255822b466814f36d7f49766c465ed8f35a7029927e30348e6a05"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -234,7 +235,7 @@
     "schema": "restored-child-analysis-owner-control1-v1",
     "expected_selected": 1,
     "source": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
-    "source_sha256": "a79722e7adfc4da8c4884ba2fc8481cf295c5a6cce7d3c8c4a70bef53def5e06",
+    "source_sha256": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
     "source_peer_reference": "LSP restored child V4 source peer aaa458e8, integrated",
     "rows": [
       {
@@ -245,7 +246,9 @@
         ],
         "target": "tcl_compiler",
         "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::restored_nested_compiler_carriers_issue_only_current_complete_source_owners",
-        "env": {}
+        "env": {
+          "TCL_LSP_TRACE_BODY_SYNTAX": "1"
+        }
       }
     ]
   }

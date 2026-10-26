@@ -2120,7 +2120,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "300a4c3cc9ccc4134f0919df1cbb9aa902d7d91282e51ca00a1e5d63fc7927fe",
+    == "e6ab0f9ddcc5de31159ddd9428bcb32da9da660fdf27c56f481aa5644e87de9c",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -2220,7 +2220,7 @@ require(restored_child_validation["schema"] == "restored-child-analysis-owner-co
     and logical_validation["source_pins"].get(restored_child_validation["source"]) == restored_child_validation["source_sha256"],
     "restored child owner control schema/count/source pin")
 restored_child_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in restored_child_validation["rows"]]
-require(restored_child_validation["rows"] == [{'group': 'diagnostic-restored-child-owner1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::compiler_inventory::original_inline_control_source_tests::restored_nested_compiler_carriers_issue_only_current_complete_source_owners', 'env': {}}]
+require(restored_child_validation["rows"] == [{'group': 'diagnostic-restored-child-owner1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::compiler_inventory::original_inline_control_source_tests::restored_nested_compiler_carriers_issue_only_current_complete_source_owners', 'env': {'TCL_LSP_TRACE_BODY_SYNTAX': '1'}}]
     and not {row["selector"] for row in restored_child_rows}.intersection(
         row["selector"] for row in rows + logical_body_rows + codec_rows + named_child_rows),
     "restored child owner exact target/selector/environment/no overlap")
