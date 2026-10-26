@@ -209,6 +209,10 @@ pub use original_math_function::OriginalMathFunctionOccurrence;
 mod math_occurrence;
 pub use math_occurrence::{SourceConditionalMathInvocation, SourceMathInvocation};
 pub(crate) mod formal_topology;
+mod native_compiler_formals;
+pub(crate) use native_compiler_formals::{
+    OriginalNativeCompilerFormalScope, OriginalNativeCompilerFormals,
+};
 mod formal_value;
 mod origin_inventory;
 pub(crate) use origin_inventory::OriginalInvocationSourcePurpose;
@@ -3913,9 +3917,10 @@ impl OriginalSourceAnalysisOwner {
 /// Segmentation purpose and the survey-only conditional source control of
 /// one whole-source interpretation.
 #[derive(Clone, Copy)]
-struct SourceInterpretationEntry {
+struct SourceInterpretationEntry<'a> {
     purpose: tcl_lexer::SourceSegmentationPurpose,
     logical_conditional_source_control: bool,
+    native_formals: Option<&'a Arc<OriginalNativeCompilerFormals>>,
 }
 
 /// Retained source-point command and substitution proofs for one analysed script.
@@ -7712,6 +7717,32 @@ impl SourceCommandBindings {
             SourceInterpretationEntry {
                 purpose,
                 logical_conditional_source_control: false,
+                native_formals: None,
+            },
+        ))
+    }
+
+    pub(crate) fn analyse_image_with_original_native_formals(
+        image: &tcl_lexer::SourceImage,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
+        native_formals: Option<&Arc<OriginalNativeCompilerFormals>>,
+    ) -> Option<Self> {
+        let source = image.try_text().ok()?;
+        Some(Self::analyse_source_in_frame_with_options(
+            source,
+            image,
+            frame,
+            config,
+            registry,
+            options,
+            SourceInterpretationEntry {
+                purpose,
+                logical_conditional_source_control: false,
+                native_formals,
             },
         ))
     }
@@ -7737,6 +7768,7 @@ impl SourceCommandBindings {
             SourceInterpretationEntry {
                 purpose: tcl_lexer::SourceSegmentationPurpose::WholeInput,
                 logical_conditional_source_control: true,
+                native_formals: None,
             },
         ))
     }
@@ -7764,12 +7796,14 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
-        entry: SourceInterpretationEntry,
+        entry: SourceInterpretationEntry<'_>,
     ) -> Self {
         let SourceInterpretationEntry {
             purpose,
             logical_conditional_source_control,
+            native_formals,
         } = entry;
+        let native_formals = native_formals.filter(|_| options.source_point_entry.is_none());
         #[cfg(any(test, debug_assertions))]
         let tracing = SourceAnalysisTrace::start();
         let config = options.native_lexer_config(config);
@@ -7778,7 +7812,7 @@ impl SourceCommandBindings {
             .map(|entry| entry.frame().clone());
         let frame = inherited_frame.as_ref().unwrap_or(frame);
         // The survey-scoped interpretation is never shared through the memo.
-        let memo_key = if logical_conditional_source_control {
+        let memo_key = if logical_conditional_source_control || native_formals.is_some() {
             None
         } else {
             source_analysis_cache::SourceAnalysisCacheKey::at_entry(
@@ -7827,20 +7861,20 @@ impl SourceCommandBindings {
         }
         #[cfg(any(test, debug_assertions))]
         tracing.phase("initial", source.len(), &bindings);
-        let root_outcomes = bindings.walk_source(
-            source,
-            0,
-            &mut state,
-            &root_source_execution_context(
-                &frame,
-                namespace,
-                &namespace_key,
-                config,
-                registry,
-                options,
-                purpose,
-            ),
+        let context = root_source_execution_context(
+            &frame,
+            namespace,
+            &namespace_key,
+            config,
+            registry,
+            options,
+            purpose,
         );
+        if let Some(owner) = native_formals {
+            let scope = owner.bind_scope(&state, context, options.incoming_formals);
+            Arc::make_mut(&mut state.source_variables).original_native_compiler_formals = scope;
+        }
+        let root_outcomes = bindings.walk_source(source, 0, &mut state, &context);
         #[cfg(any(test, debug_assertions))]
         tracing.phase_with_lookup("walk", source.len(), &bindings);
         bindings.conditional_source.root_outcomes = Some(Arc::new(root_outcomes.clone()));

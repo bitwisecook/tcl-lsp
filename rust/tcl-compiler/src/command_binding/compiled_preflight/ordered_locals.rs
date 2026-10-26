@@ -27,8 +27,33 @@ pub(crate) struct SourceCompilerLocalInventory {
     frame: crate::var_resolve::VariableExecutionFrame,
     compilation: NativeCompilationContext,
     protocol: NativeCompiledVariableProtocol,
-    formals: Arc<OriginalFormalTopology>,
+    formals: SourceCompilerFormalOwner,
     locals: Vec<Option<NameBytes>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum SourceCompilerFormalOwner {
+    Authored(Arc<OriginalFormalTopology>),
+    Native(Arc<crate::command_binding::OriginalNativeCompilerFormalScope>),
+}
+impl SourceCompilerFormalOwner {
+    fn is_live(&self) -> bool {
+        match self {
+            Self::Authored(_) => true,
+            Self::Native(scope) => scope.is_live(),
+        }
+    }
+    fn owns_source(
+        &self,
+        site: &CommandAllocationSite,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        match self {
+            Self::Authored(_) => true,
+            Self::Native(scope) => scope.owns_source(site, frame, config),
+        }
+    }
 }
 
 impl SourceCompilerLocalInventory {
@@ -44,13 +69,24 @@ impl SourceCompilerLocalInventory {
         {
             return None;
         }
-        let formals = Arc::clone(state.source_variables.original_formal_topology.as_ref()?);
-        if formals.original_input().source_image() != chunk.source.source_image()
-            || formals.original_input().lexer_config() != context.config
-            || formals.parameters().len() > MAX_SOURCE_COMPILER_LOCALS
-        {
-            return None;
-        }
+        let formals =
+            if let Some(original) = state.source_variables.original_formal_topology.as_ref() {
+                let original = Arc::clone(original);
+                if original.original_input().source_image() != chunk.source.source_image()
+                    || original.original_input().lexer_config() != context.config
+                    || original.parameters().len() > MAX_SOURCE_COMPILER_LOCALS
+                {
+                    return None;
+                }
+                SourceCompilerFormalOwner::Authored(original)
+            } else {
+                SourceCompilerFormalOwner::Native(Arc::clone(
+                    state
+                        .source_variables
+                        .original_native_compiler_formals
+                        .as_ref()?,
+                ))
+            };
         let options = crate::command_binding::SourceAnalysisOptions {
             native_entry: state.baseline.native_entry.as_deref(),
             invocation_dialect: state.baseline.dialect,
@@ -61,11 +97,19 @@ impl SourceCompilerLocalInventory {
         protocol
             .supports_environment(NativeCompiledVariableEnvironment::DeclareProcedure)
             .then_some(())?;
-        let locals = formals
-            .parameters()
-            .iter()
-            .map(|formal| Some(NameBytes::from(formal.name.as_slice())))
-            .collect();
+        let locals = match &formals {
+            SourceCompilerFormalOwner::Authored(original) => original
+                .parameters()
+                .iter()
+                .map(|formal| Some(NameBytes::from(formal.name.as_slice())))
+                .collect(),
+            SourceCompilerFormalOwner::Native(scope) => scope
+                .parameters_for_entry(&chunk, length, state, context, protocol)?
+                .iter()
+                .cloned()
+                .map(Some)
+                .collect(),
+        };
         Some(Self {
             end: chunk.offset.checked_add(u32::try_from(length).ok()?)?,
             chunk,
@@ -128,6 +172,7 @@ impl SourceCompilerLocalInventory {
             && protocol == self.protocol
             && compilation.mode == self.compilation.mode
             && compilation.frame == self.compilation.frame
+            && self.formals.owns_source(site, frame, config)
     }
 
     /// The first counted compiler entry, with the selected engine comparison.
@@ -138,7 +183,9 @@ impl SourceCompilerLocalInventory {
         requested: &[u8],
         compilation: NativeCompilationContext,
     ) -> Option<&NameBytes> {
-        (compilation.mode == self.compilation.mode && compilation.frame == self.compilation.frame)
+        (self.formals.is_live()
+            && compilation.mode == self.compilation.mode
+            && compilation.frame == self.compilation.frame)
             .then_some(())?;
         let (slot, primary) = self.locals.iter().enumerate().find_map(|(slot, local)| {
             let local = local.as_ref()?;
@@ -312,5 +359,151 @@ mod tests {
                 .flatten()
                 .all(|invocation| invocation.source_locals.is_none())
         );
+    }
+}
+
+#[cfg(test)]
+mod original_native_request_fixtures {
+    use crate as tcl_compiler;
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/support/native_compiled_fixture.rs"
+    ));
+}
+
+#[cfg(test)]
+mod original_native_request_tests {
+    use super::*;
+    use std::hash::{Hash, Hasher};
+
+    fn retained_locals(
+        fixture: &super::original_native_request_fixtures::CompiledFixture,
+    ) -> SourceCompilerLocalInventory {
+        let module = fixture.module();
+        assert!(module.source_metadata_input.is_none());
+        assert!(
+            module
+                .source_entry
+                .native_entry
+                .as_ref()
+                .unwrap()
+                .compiled_local_layout
+                .is_none()
+        );
+        let retained = module.retained_source_bindings.as_ref().unwrap();
+        let bindings = retained
+            .positioned_for_module(module, module.resolved_registry())
+            .unwrap();
+        let visits: Vec<_> = bindings.compiler_invocations.values().flatten().collect();
+        assert!(!visits.is_empty());
+        assert!(visits.iter().all(|visit| {
+            visit
+                .table
+                .state
+                .source_variables
+                .original_formal_topology
+                .is_none()
+        }));
+        visits
+            .iter()
+            .filter_map(|visit| visit.source_locals.as_deref())
+            .filter(|locals| matches!(locals.formals, SourceCompilerFormalOwner::Native(_)))
+            .max_by_key(|locals| locals.locals.len())
+            .expect("actual request-specific compiler local traversal")
+            .clone()
+    }
+
+    fn fingerprint(locals: &SourceCompilerLocalInventory) -> u64 {
+        let mut state = std::collections::hash_map::DefaultHasher::new();
+        locals.hash(&mut state);
+        state.finish()
+    }
+
+    #[test]
+    fn original_native_request_formals_keep_actual_scope_and_withdraw_after_owner_retirement() {
+        let source = "proc p {a b} {set n 1; return [expr {$a + $b}]}";
+        let mut fixture =
+            super::original_native_request_fixtures::compiled_fixture(source, "::p", &["3", "4"]);
+        let locals = retained_locals(&fixture);
+        assert!(locals.owns(
+            &locals.chunk,
+            locals.config,
+            &locals.frame,
+            locals.compilation,
+            locals.protocol
+        ));
+        for name in [b"a".as_slice(), b"b".as_slice(), b"n".as_slice()] {
+            assert_eq!(
+                locals
+                    .primary_for(name, locals.compilation)
+                    .unwrap()
+                    .as_bytes(),
+                name
+            );
+        }
+        let (_, body) = fixture.body();
+        assert!(body.params_raw.is_empty());
+        let before = fingerprint(&locals);
+        fixture.drop_owner();
+        assert_eq!(
+            fingerprint(&locals),
+            before,
+            "retirement cannot mutate an immutable key"
+        );
+        assert!(!locals.owns(
+            &locals.chunk,
+            locals.config,
+            &locals.frame,
+            locals.compilation,
+            locals.protocol
+        ));
+        assert!(locals.primary_for(b"a", locals.compilation).is_none());
+    }
+
+    #[test]
+    fn original_native_request_formals_refuse_foreign_scope_and_keep_existing_body_boundaries() {
+        let source = "proc p {a b} {set n 1; return [expr {$a + $b}]}";
+        let fixture =
+            super::original_native_request_fixtures::compiled_fixture(source, "::p", &["3", "4"]);
+        let foreign =
+            super::original_native_request_fixtures::compiled_fixture(source, "::p", &["3", "4"]);
+        let locals = retained_locals(&fixture);
+        let other = retained_locals(&foreign);
+        assert_ne!(locals.formals, other.formals);
+        assert!(!locals.owns(
+            &other.chunk,
+            locals.config,
+            &locals.frame,
+            locals.compilation,
+            locals.protocol
+        ));
+        let mut reboxed = locals.chunk.clone();
+        reboxed.source = Arc::new(locals.chunk.source.as_ref().clone());
+        assert!(!locals.owns(
+            &reboxed,
+            locals.config,
+            &locals.frame,
+            locals.compilation,
+            locals.protocol
+        ));
+        let mut changed = locals.config;
+        changed.leading_bom = if changed.leading_bom == tcl_lexer::LeadingBom::Content {
+            tcl_lexer::LeadingBom::Skip
+        } else {
+            tcl_lexer::LeadingBom::Content
+        };
+        assert!(!locals.owns(
+            &locals.chunk,
+            changed,
+            &locals.frame,
+            locals.compilation,
+            locals.protocol
+        ));
+        let mut module = fixture.module().clone();
+        module.source.push(' ');
+        assert!(fixture.refuses_module(&module));
+        assert!(fixture.refuses_foreign_entry(&foreign));
+        super::original_native_request_fixtures::assert_declaration_and_refusal_boundaries();
+        super::original_native_request_fixtures::assert_dispatched_binding_boundaries();
     }
 }
