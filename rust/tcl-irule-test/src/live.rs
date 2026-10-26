@@ -794,8 +794,17 @@ mod tests {
         assert_eq!(observed.borrow().as_slice(), &[host_policy, host_policy]);
         assert_eq!(session.vm.name_policy_protocol(), before);
         assert_eq!(session.vm.dialect_profile().name, "f5-irules");
+        // The framework blocks public exit and retains the actual host worker.
+        let blocked_exit = session
+            .eval_final_host_initialization("exit 7")
+            .unwrap_err();
+        assert!(
+            matches!(blocked_exit, SessionError::Eval(ref message) if message == "invalid command name \"exit\"")
+        );
+        assert!(session.vm.take_exit().is_none());
+        assert_eq!(session.vm.name_policy_protocol(), before);
         let exit = session
-            .eval_final_host_initialization("::tmm::_native_init_policy_probe; exit 7")
+            .eval_final_host_initialization("::tmm::_native_init_policy_probe; ::tmm::_orig_exit 7")
             .unwrap_err();
         assert!(
             matches!(exit, SessionError::Eval(ref message) if message == "script called exit 7")
