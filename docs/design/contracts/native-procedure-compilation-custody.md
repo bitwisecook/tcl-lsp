@@ -53,3 +53,16 @@ frame elision and physical relocation. Their existing guards remain required.
 Source-only readonly bodies gain no executable inlining decision. A declaration
 without body compilation issues no compiled-body result, and a refused
 compiler cannot publish a successful compiled-body result.
+
+## Profitability is independent of executable eligibility
+
+`inlining_profitability` describes only statement count and static call count.
+Its `InliningProfitability` result is inert cost data. It has no conversion to
+`InlineDecision` and does not inspect or establish escape, compiler admission,
+argument values, object effects, observer currency or physical frame ownership.
+
+`classify_proc` retains its independent semantic contract: missing compiler or
+escape eligibility returns `InlineDecision::Never` before the size policy is
+considered. Executable splice and frame-elision consumers retain their existing
+checks. A source-only cost observation, or one previously executed Native call,
+cannot supply a reusable procedure-wide relocation permission.
