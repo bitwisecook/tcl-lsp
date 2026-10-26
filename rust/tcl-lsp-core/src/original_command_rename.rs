@@ -1256,6 +1256,13 @@ mod tests {
             .result_completion_for_rename_coverage(source, &command)
             .expect("same current authored result grammar and original argument closure");
         assert!(receipt.is_for_analysis(&analysis));
+        assert_eq!(
+            receipt.invocation().effective.origins,
+            [
+                tcl_compiler::registry_invocation::InvocationWordOrigin::ResolvedHead,
+                tcl_compiler::registry_invocation::InvocationWordOrigin::Written(1),
+            ]
+        );
         assert_eq!(receipt.argument_regions().len(), 1);
         let span = receipt.argument_regions()[0];
         assert_eq!(&source[span.as_range()], "host_old 7");
