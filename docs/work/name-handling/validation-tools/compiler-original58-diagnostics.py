@@ -151,6 +151,9 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout3-",
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
+            "diagnostic-source-point-memo8-",
+            "diagnostic-own-jim-alias-firstguard1-",
+            "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
             "list-",
             "select-",
@@ -177,6 +180,9 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout3-",
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
+            "diagnostic-source-point-memo8-",
+            "diagnostic-own-jim-alias-firstguard1-",
+            "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
         )
     ):
@@ -204,6 +210,9 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout3-",
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
+            "diagnostic-source-point-memo8-",
+            "diagnostic-own-jim-alias-firstguard1-",
+            "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
         )
     ):
@@ -2708,6 +2717,232 @@ def run_advice_catalogue_controls() -> None:
         )
 
 
+def run_own_jim_alias_diagnostic() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows
+        ),
+        "own Jim alias diagnostic controls cannot precede original135 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in own_jim_alias_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "own Jim alias diagnostic controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(own_jim_alias_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "own Jim alias diagnostic current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "own Jim alias diagnostic requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "own Jim alias diagnostic artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "own-jim-alias-firstguard1"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "own-jim-alias-firstguard-outcomes.json", own_jim_alias_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "own-jim-alias-firstguard-outcomes.json", own_jim_alias_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            trace = {"seen": False, "quota": False, "tail": b"", "discard": False}
+            alias_stages = {
+                b"receipt", b"applied", b"capture.argument", b"capture.input",
+                b"capture.subject", b"source_interpreter", b"source_current",
+                b"alias_input", b"publication", b"namespace", b"target_interpreter",
+                b"target_current", b"prefix", b"prefix_input", b"prefix_word", b"target_input",
+            }
+            def observe_alias_trace(data: bytes) -> None:
+                pieces = data.split(b"\n")
+                for index, piece in enumerate(pieces):
+                    terminated = index < len(pieces) - 1
+                    if trace["discard"]:
+                        if terminated:
+                            trace["discard"] = False
+                        continue
+                    if len(trace["tail"]) + len(piece) > 256:
+                        trace["tail"] = b""
+                        trace["discard"] = not terminated
+                        continue
+                    line = trace["tail"] + piece
+                    trace["tail"] = b"" if terminated else line
+                    if not terminated:
+                        continue
+                    match = re.fullmatch(rb"JIM_SOURCE_OWNER stage=jim\.alias\.([a-z_.]+) present=(?:true|false)", line)
+                    if match and match[1] in alias_stages:
+                        trace["seen"] = True
+                    if line == b"JIM_SOURCE_OWNER stage=option_trace_quota state=UNOBSERVED limit=1024":
+                        trace["quota"] = True
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, observe_alias_trace, repeat_stage["input_bytes"]
+            )
+            if trace["tail"]:
+                observe_alias_trace(b"\n")
+            row["alias_trace_observation"] = "OBSERVED" if trace["seen"] and not trace["quota"] else "UNOBSERVED"
+            row["alias_trace_quota_reached"] = trace["quota"]
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "own-jim-alias-firstguard-outcomes.json", own_jim_alias_rows)
+            raise
+        save(out / "own-jim-alias-firstguard-outcomes.json", own_jim_alias_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 def run_native_eligibility_controls() -> None:
     global remaining
     require(
@@ -2896,6 +3131,422 @@ def run_native_eligibility_controls() -> None:
             save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
             raise
         save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
+def run_source_point_memo_controls() -> None:
+    global remaining
+    require("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" not in env, "memo8 requires diagnostic bypass absent; old environments are never mutated")
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows
+        ),
+        "source-point memo controls cannot precede original136 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in source_point_memo_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "source-point memo controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(source_point_memo_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "source-point memo current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "source-point memo requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "source-point memo artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "source-point-memo8"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
+            raise
+        save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
+def run_analyser_layout_diagnostics() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows + source_point_memo_rows
+        ),
+        "analyser layout diagnostic controls cannot precede original144 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in analyser_layout_diagnostic_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "analyser layout diagnostic controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(analyser_layout_diagnostic_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "analyser layout diagnostic current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "analyser layout diagnostic requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "analyser layout diagnostic artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "analyser-layout-firstguard3"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            trace = {"seen": False, "quota": False, "tail": b"", "discard": False}
+            alias_stages = {b"words", b"argument_count", b"origin", b"word", b"expansion", b"text", b"projection", b"argv", b"value", b"tokens", b"schema", b"hook", b"shape", b"roles", b"statics", b"positions", b"complete"}
+            def observe_alias_trace(data: bytes) -> None:
+                pieces = data.split(b"\n")
+                for index, piece in enumerate(pieces):
+                    terminated = index < len(pieces) - 1
+                    if trace["discard"]:
+                        if terminated:
+                            trace["discard"] = False
+                        continue
+                    if len(trace["tail"]) + len(piece) > 256:
+                        trace["tail"] = b""
+                        trace["discard"] = not terminated
+                        continue
+                    line = trace["tail"] + piece
+                    trace["tail"] = b"" if terminated else line
+                    if not terminated:
+                        continue
+                    match = re.fullmatch(rb"JIM_SOURCE_OWNER stage=analyser\.proc\.([a-z_.]+) present=(?:true|false)", line)
+                    if match and match[1] in alias_stages:
+                        trace["seen"] = True
+                    if line == b"JIM_SOURCE_OWNER stage=option_trace_quota state=UNOBSERVED limit=1024":
+                        trace["quota"] = True
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, observe_alias_trace, repeat_stage["input_bytes"]
+            )
+            if trace["tail"]:
+                observe_alias_trace(b"\n")
+            row["layout_trace_observation"] = "OBSERVED" if trace["seen"] and not trace["quota"] else "UNOBSERVED"
+            row["layout_trace_quota_reached"] = trace["quota"]
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
+            raise
+        save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
         require(
             sha(executable) == diagnostic_artifact["sha256"],
             "selected test artifact changed",
@@ -3302,7 +3953,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "8aab726482f7736d7350dc7a00c28dd876b27b6b24c06d80d29c08f52a614c54",
+    == "3f153ef1e86c64e97b7281d091b0beff36f21d33d6c38122394498ba7f2046cb",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -3475,6 +4126,17 @@ require(advice_catalogue_validation["rows"] == [{'group': 'diagnostic-advice-cat
 native_eligibility_validation = readonly_validation["separate_native_eligibility_controls"]
 require(native_eligibility_validation == {'schema': 'native-eligibility-control2-v1', 'expected_selected': 2, 'rows': [{'group': 'diagnostic-native-eligibility2', 'package': 'tcl-compiler', 'kind': ['test'], 'target': 'inlining', 'selector': 'native_observed_add_arguments_do_not_authorize_generic_body_relocation', 'env': {}}, {'group': 'diagnostic-native-eligibility2', 'package': 'tcl-compiler', 'kind': ['test'], 'target': 'inlining', 'selector': 'retired_native_body_custody_never_authorizes_classification', 'env': {}}]}, "exact Native eligibility2 roster")
 native_eligibility_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in native_eligibility_validation["rows"]]
+
+own_jim_alias_validation = logical_validation["separate_own_jim_alias_diagnostic"]
+require(own_jim_alias_validation["schema"] == "own-jim-alias-firstguard1-v1" and own_jim_alias_validation["expected_selected"] == 1 and own_jim_alias_validation["source"] == 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs' and own_jim_alias_validation["source"] in logical_validation["source_pins"] and own_jim_alias_validation["rows"] == [{'group': 'diagnostic-own-jim-alias-firstguard1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_refuses_rebound_class_and_replaced_initialisers', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}] and own_jim_alias_validation["repeats_existing_selector"] == 'command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_refuses_rebound_class_and_replaced_initialisers', "exact authorised alias diagnostic repeat")
+own_jim_alias_rows: list[dict[str, Any]] = [dict(row, state="UNRUN", alias_trace_observation="UNOBSERVED") for row in own_jim_alias_validation["rows"]]
+
+source_point_memo_validation = logical_validation["separate_source_point_memo_controls"]
+require(source_point_memo_validation["schema"] == "source-point-memo8-v1" and source_point_memo_validation["expected_selected"] == 8 and source_point_memo_validation["source"] in logical_validation["source_pins"] and source_point_memo_validation["required_absent_environment"] == "TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" and source_point_memo_validation["rows"] == [{'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_matches_complete_input_and_independent_builder_clones', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_keeps_supplied_metadata_generation_and_missing_tag', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_bounds_history_and_refuses_oversized_sources', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_distinguishes_channel_config_entry_frame_and_registry', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_live_lease_keeps_snapshot_acyclic_and_shares_while_live', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_retirement_drops_parent_payload_but_retains_only_history_origin', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_rejects_foreign_and_changed_context_keys', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {}}], "exact separate memo8 roster")
+source_point_memo_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in source_point_memo_validation["rows"]]
+analyser_layout_diagnostic_validation = logical_validation["separate_analyser_layout_diagnostics"]
+require(analyser_layout_diagnostic_validation["schema"] == "analyser-layout-firstguard3-v1" and analyser_layout_diagnostic_validation["expected_selected"] == 3 and analyser_layout_diagnostic_validation["source"] == 'rust/tcl-compiler/src/analyser/handlers.rs' and analyser_layout_diagnostic_validation["source"] in logical_validation["source_pins"] and analyser_layout_diagnostic_validation["rows"] == [{'group': 'diagnostic-analyser-layout-firstguard3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}, {'group': 'diagnostic-analyser-layout-firstguard3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}, {'group': 'diagnostic-analyser-layout-firstguard3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_keeps_plain_and_rooted_jim_forms', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}], "exact separate layout diagnostic3 roster")
+analyser_layout_diagnostic_rows: list[dict[str, Any]] = [dict(row, state="UNRUN", layout_trace_observation="UNOBSERVED") for row in analyser_layout_diagnostic_validation["rows"]]
 
 require(
     len(
@@ -4378,7 +5040,20 @@ try:
     status = 2
     run_native_eligibility_controls()
     require(len(native_eligibility_rows) == 2 and all(row["state"] in ["PASS", "FAIL"] for row in native_eligibility_rows), "Native eligibility controls incomplete")
+    status = 2
+    run_own_jim_alias_diagnostic()
+    require(len(own_jim_alias_rows) == 1 and all(row["state"] in ["PASS", "FAIL"] for row in own_jim_alias_rows), "alias diagnostic repeat incomplete")
+    status = 2
+    run_source_point_memo_controls()
+    require(len(source_point_memo_rows) == 8 and all(row["state"] in ["PASS", "FAIL"] for row in source_point_memo_rows), "memo8 incomplete")
+    status = 2
+    run_analyser_layout_diagnostics()
+    require(len(analyser_layout_diagnostic_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in analyser_layout_diagnostic_rows), "layout diagnostic3 incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    if any(row["state"] != "PASS" for row in source_point_memo_rows + analyser_layout_diagnostic_rows):
+        status = 1
+    if any(row["state"] != "PASS" for row in own_jim_alias_rows):
+        status = 1
     if any(row["state"] != "PASS" for row in native_eligibility_rows):
         status = 1
     if any(row["state"] != "PASS" for row in advice_catalogue_rows):
@@ -4399,6 +5074,11 @@ try:
         status = 1
     if any(row["state"] != "PASS" for row in logical_body_rows):
         status = 1
+    if any(row["alias_trace_observation"] != "OBSERVED" for row in own_jim_alias_rows):
+        status = 2
+    if any(row["layout_trace_observation"] != "OBSERVED" for row in analyser_layout_diagnostic_rows):
+        status = 2
+
 except (
     RuntimeError,
     OSError,
@@ -4459,6 +5139,9 @@ finally:
     save(out / "own-jim-member-outcomes.json", own_jim_member_rows)
     save(out / "advice-catalogue-outcomes.json", advice_catalogue_rows)
     save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
+    save(out / "own-jim-alias-firstguard-outcomes.json", own_jim_alias_rows)
+    save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
+    save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
     save(out / "outcomes.json", rows)
     save(
         out / "final.json",
@@ -4527,6 +5210,15 @@ finally:
             "required_separate_native_eligibility_controls": 2,
             "native_eligibility2_outcomes": native_eligibility_rows,
             "approved_cost_coverage_mapping": readonly_validation["approved_cost_coverage_mapping"],
+            "required_separate_own_jim_alias_diagnostics": 1,
+            "own_jim_alias_firstguard1_outcomes": own_jim_alias_rows,
+            "own_jim_alias_firstguard1_roster": own_jim_alias_validation,
+            "required_separate_source_point_memo_controls": 8,
+            "source_point_memo8_outcomes": source_point_memo_rows,
+            "source_point_memo8_roster": source_point_memo_validation,
+            "required_separate_analyser_layout_diagnostics": 3,
+            "analyser_layout_firstguard3_outcomes": analyser_layout_diagnostic_rows,
+            "analyser_layout_firstguard3_roster": analyser_layout_diagnostic_validation,
             "required_separate_advice_catalogue_controls": 3,
             "advice_catalogue_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in advice_catalogue_rows),
             "advice_catalogue3_outcomes": advice_catalogue_rows,
