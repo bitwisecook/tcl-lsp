@@ -8413,8 +8413,10 @@ impl Interp {
             return self.observed_variable_unset(name, level).unwrap_or(false);
         }
         self.remove_captured_byte_variable(
-            self.current_ns.get(),
-            Some(level),
+            native_variable_teardown::OriginalVariableLocation {
+                namespace: self.current_ns.get(),
+                level: Some(level),
+            },
             name,
             None,
             name,
@@ -9159,8 +9161,10 @@ impl Interp {
         let root = input.root().selected().to_vec();
         let element = input.element().map(|element| element.selected().to_vec());
         self.remove_captured_byte_variable(
-            self.current_ns.get(),
-            None,
+            native_variable_teardown::OriginalVariableLocation {
+                namespace: self.current_ns.get(),
+                level: None,
+            },
             &root,
             element.as_deref(),
             name,
@@ -9339,8 +9343,10 @@ impl Interp {
         spelling.extend_from_slice(key);
         spelling.push(b')');
         self.remove_captured_byte_variable(
-            self.current_ns.get(),
-            None,
+            native_variable_teardown::OriginalVariableLocation {
+                namespace: self.current_ns.get(),
+                level: None,
+            },
             name,
             Some(key),
             &spelling,
