@@ -277,6 +277,8 @@ fn unavailable_modern_commands(
     context: &ResolvedContext,
 ) -> BTreeSet<String> {
     let tcl84 = crate::environment::context_for_dialect("tcl8.4");
+    let modern_tcl =
+        ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"].map(crate::environment::context_for_dialect);
     let mut commands: BTreeSet<_> = registry
         .command_descriptor_keys()
         .filter(|descriptor| {
@@ -285,6 +287,9 @@ fn unavailable_modern_commands(
                 .specs(command)
                 .iter()
                 .any(|spec| tcl_registry::registry::spec_pack_of(spec) == Some("tcl"))
+                && modern_tcl
+                    .iter()
+                    .any(|context| context.resolve_spec(registry, command).is_some())
                 && tcl84.resolve_spec(registry, command).is_none()
                 && context.resolve_spec(registry, command).is_none()
         })
@@ -491,6 +496,10 @@ mod tests {
         let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
         let context = crate::environment::context_for_dialect(IRULES_DIALECT);
         let blocked = unavailable_modern_commands(registry, context);
+        assert!(
+            !blocked.contains("::exists"),
+            "Jim-only command is not modern Tcl"
+        );
         for command in ["::dict", "::tcl::dict::create", "::coroutine", "::lmap"] {
             assert!(
                 blocked.contains(command),
