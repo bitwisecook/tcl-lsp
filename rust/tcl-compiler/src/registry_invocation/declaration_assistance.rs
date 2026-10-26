@@ -1218,6 +1218,104 @@ mod original_alias_source_schema_tests {
         );
     }
 
+    fn assert_original_namespace_frame_has_no_execution_policy(
+        aliases: &super::OriginalSourceVariableAliasOperands,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        realm: &crate::realm::CommandBindingRealm,
+    ) {
+        let head = aliases
+            .words
+            .head_source()
+            .and_then(|head| head.word())
+            .unwrap();
+        let super::super::source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            aliases.words.source()
+        else {
+            panic!("actual original Logical alias declaration source");
+        };
+        let dialect = advice.dialect();
+        let policy = dialect.authored_name_policy().unwrap();
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let key = purpose
+            .key(
+                head,
+                tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+            )
+            .unwrap();
+        let scope = realm
+            .original_logical_variable_scope_at(
+                input,
+                head.image(),
+                head.span(),
+                &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
+            )
+            .expect("genuine independent original namespace source frame");
+        assert!(matches!(
+            scope.alias_frame().unwrap().frame().layout(),
+            crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+        ));
+        assert_eq!(dialect.variable_lookup_policy, None);
+        assert_eq!(
+            tcl_registry::VariableAliasDestination::ProcedureLocal
+                .is_active_in_frame(tcl_registry::VariableAliasFrame::Namespace, dialect,),
+            None,
+            "source geometry must not supply the missing execution policy"
+        );
+    }
+
+    fn assert_original_namespace_alias_refusals(
+        aliases: &[super::OriginalSourceVariableAliasOperands],
+        source: &str,
+        analysis: &crate::analyser::AnalysisResult,
+        operands: (tcl_lexer::Span, tcl_lexer::Span),
+        target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) {
+        let (local, target) = operands;
+        assert!(
+            aliases[0]
+                .target_namespace_scope(
+                    &source.replace("child", "other"),
+                    analysis,
+                    (local, target),
+                    target_input,
+                    current,
+                    purpose,
+                )
+                .is_none()
+        );
+        assert!(
+            aliases[0]
+                .target_namespace_scope(
+                    source,
+                    analysis,
+                    (target, local),
+                    target_input,
+                    current,
+                    purpose,
+                )
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            aliases[0]
+                .target_namespace_scope(
+                    source,
+                    &missing,
+                    (local, target),
+                    target_input,
+                    current,
+                    purpose,
+                )
+                .is_none()
+        );
+    }
+
     #[test]
     fn logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops() {
         for (source, head, target) in [
@@ -1257,47 +1355,7 @@ mod original_alias_source_schema_tests {
             )
             .expect("original unresolved alias naming receipt");
             if source == "namespace eval N {global $unknown}" {
-                let head = aliases
-                    .words
-                    .head_source()
-                    .and_then(|head| head.word())
-                    .unwrap();
-                let super::super::source_structure::OriginalRegistrySource::SourceTransitions(
-                    advice,
-                ) = aliases.words.source()
-                else {
-                    panic!("actual original Logical alias declaration source");
-                };
-                let dialect = advice.dialect();
-                let policy = dialect.authored_name_policy().unwrap();
-                let purpose = crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
-                    &input, None, policy,
-                );
-                let key = purpose
-                    .key(
-                        head,
-                        tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
-                    )
-                    .unwrap();
-                let scope = realm
-                    .original_logical_variable_scope_at(
-                        &input,
-                        head.image(),
-                        head.span(),
-                        &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
-                    )
-                    .expect("genuine independent original namespace source frame");
-                assert!(matches!(
-                    scope.alias_frame().unwrap().frame().layout(),
-                    crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
-                ));
-                assert_eq!(dialect.variable_lookup_policy, None);
-                assert_eq!(
-                    tcl_registry::VariableAliasDestination::ProcedureLocal
-                        .is_active_in_frame(tcl_registry::VariableAliasFrame::Namespace, dialect,),
-                    None,
-                    "source geometry must not supply the missing execution policy"
-                );
+                assert_original_namespace_frame_has_no_execution_policy(&aliases, &input, realm);
             }
             let spans = aliases
                 .unresolved_logical_name_spans(&input, realm)
@@ -1435,43 +1493,14 @@ mod original_alias_source_schema_tests {
         };
         assert_eq!(namespace.as_segments(), path.as_segments());
         assert_eq!(simple.as_bytes(), b"value");
-        assert!(
-            aliases[0]
-                .target_namespace_scope(
-                    &source.replace("child", "other"),
-                    &analysis,
-                    (local, target),
-                    &target_input,
-                    current,
-                    purpose,
-                )
-                .is_none()
-        );
-        assert!(
-            aliases[0]
-                .target_namespace_scope(
-                    source,
-                    &analysis,
-                    (target, local),
-                    &target_input,
-                    current,
-                    purpose,
-                )
-                .is_none()
-        );
-        let mut missing = analysis.clone();
-        missing.resolved_input = None;
-        assert!(
-            aliases[0]
-                .target_namespace_scope(
-                    source,
-                    &missing,
-                    (local, target),
-                    &target_input,
-                    current,
-                    purpose,
-                )
-                .is_none()
+        assert_original_namespace_alias_refusals(
+            &aliases,
+            source,
+            &analysis,
+            (local, target),
+            &target_input,
+            current,
+            purpose,
         );
     }
 
