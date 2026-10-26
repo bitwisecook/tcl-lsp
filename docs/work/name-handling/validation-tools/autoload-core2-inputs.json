@@ -20,7 +20,7 @@
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "6c807bd09325ae52f502f136de8db7e76b9e3ee39b54e35a5a16cb3e500222c7",
-    "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "b789cf1f779970100536fd8248ce4dfb3458713686b440809d7baa52b7e10914"
+    "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "783d67b9c56185fae40ec201a156454ef365711d30c992fcff3784fe72922f6b"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",

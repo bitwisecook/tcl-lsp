@@ -47,6 +47,6 @@
     "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
     "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
     "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "237b866157640aa8aceec41dfa287d692cce777082b611c718617eb920aa2942",
-    "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "b789cf1f779970100536fd8248ce4dfb3458713686b440809d7baa52b7e10914"
+    "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "783d67b9c56185fae40ec201a156454ef365711d30c992fcff3784fe72922f6b"
   }
 }
