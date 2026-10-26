@@ -75,6 +75,8 @@ TARGETED_PRUNE_CONTROLS = {
 AOT5_SOURCE_PATH = 'runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs'
 AOT5_SOURCE_SHA = 'e7b3122d09b5463803f2231d8cc4fd61f8a37d4306fef71ddf9f92b4b058b957'
 AOT5_SELECTORS = ['interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add', 'interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks', 'interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe', 'interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay', 'interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_follow_original_first_slot_without_a_native_strategy']
+ALLOCATION2_CONTROLS = {'interp::native_error_headers::c9_error_root_generation_tests::allocation_lease_cannot_certify_a_retired_error_header': {'path': 'runtime/rust/src/interp/native_error_headers.rs', 'sha256': '1be29b6978e2e26504dfda142fc2bb239b0e9970ce720d909347f89a6b10dc7d', 'indent': '    '}, 'interp::native_error_headers::c9_error_root_generation_tests::c9_next_entry_publishes_original_error_headers_without_stringifying_code': {'path': 'runtime/rust/src/interp/native_error_headers.rs', 'sha256': 'c88f9e164039b22db42eaed37827d7351e4ad047120bfb78bbeac681d557e26b', 'indent': '    '}}
+ALLOCATION2_SELECTORS = list(ALLOCATION2_CONTROLS)
 HEADROOM2_CONTROLS = {'codegen_abi::tests::the_native_path_holds_one_activation_per_level_and_refuses_at_the_bound': {'path': 'runtime/rust/src/codegen_abi.rs', 'sha256': '476121576749ba5d7f043960e07e55b38890e9f10ad3149d91eeee9a6a24ab38', 'indent': '    '}, 'codegen_abi::original_frame_owner::tests::generated_entry_probe_uses_held_owner_and_keeps_refusal_terminal': {'path': 'runtime/rust/src/codegen_abi/original_frame_owner.rs', 'sha256': 'b97c66f78d1dd8ba73047eb9fc3d123d53d84dc6892677d58ce16d798665f058', 'indent': '    '}}
 HEADROOM2_SELECTORS = list(HEADROOM2_CONTROLS)
 ORDINARY_ENTRY3_CONTROLS = {'interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_self_removing_trace_cannot_capture_absence_while_firing': {'path': 'runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs', 'sha256': 'ec1d5758c770b9435a7f8adaaa24e2d6df9b4d748f36813b84d332de0cb4eeb0', 'indent': '    '}, 'interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_trace_registration_removal_and_state_retirement_stale_observation': {'path': 'runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs', 'sha256': '16f574b54a282c88fa7475c970853dcae97c2e14cbdbf34dc36704f78676d140', 'indent': '    '}, 'interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_limit_mutation_refuses_old_and_new_ordinary_entry_observations': {'path': 'runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs', 'sha256': 'fbf59d42138ae91e839b5d63749cae4c4a25a7114923c4259bf4df037e9f8787', 'indent': '    '}}
@@ -588,6 +590,94 @@ def run_aot5(owner, suite, binary, prepared, environment, supplemental, source,
         "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
         "aggregate_log_cap_bytes": CAP + 65536,
         "scope": "Separate five actual AOT controls after unchanged original135; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
+    })
+    return rows, errors, used
+
+
+def allocation2_control_source():
+    for selector, control in ALLOCATION2_CONTROLS.items():
+        raw = Path(control["path"]).read_text()
+        indent = re.escape(control["indent"])
+        simple = re.escape(selector.rsplit("::", 1)[1])
+        pattern = (r"(?:^" + indent + r"#\[[^\n]*\]\n)+^" + indent
+                   + r"fn " + simple + r"\(\) \{\n.*?^" + indent + r"}\n")
+        found = re.findall(pattern, raw, re.MULTILINE | re.DOTALL)
+        require(len(found) == 1
+                and hashlib.sha256(found[0].encode()).hexdigest() == control["sha256"],
+                "reviewed allocation control required: " + selector)
+    return ALLOCATION2_CONTROLS
+
+def run_allocation2(owner, suite, binary, prepared, environment, supplemental, source,
+             used, suite_deadline, absolute, prior_closed):
+    rows = [{"group": "allocation2", "selector": name, "status": "UNRUN"}
+            for name in ALLOCATION2_SELECTORS]
+    errors = []
+    save(supplemental / "allocation2-outcomes.json", rows)
+    source_provenance = allocation2_control_source()
+    require(len(ALLOCATION2_SELECTORS) == len(set(ALLOCATION2_SELECTORS)) == 2,
+            "exact distinct allocation2 selectors required")
+    if not prior_closed:
+        errors.append("original148 process/ELF/completeness unsettled; allocation2 remains UNRUN")
+    else:
+        for index, row in enumerate(rows):
+            if not listed(suite, row["selector"]):
+                errors.append("reviewed allocation2 selector absent or ignored")
+                break
+            if suite["testcases"][row["selector"]]["filter-match"]["status"] == "matches":
+                errors.append("allocation2 cannot substitute an original selected identity")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable for allocation2")
+                break
+            if used >= CAP:
+                errors.append("remaining shared 20MiB log budget exhausted before allocation2")
+                break
+            if sha(binary) != prepared["elf_sha256"]:
+                errors.append("same original3 ELF changed before allocation2")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable after ELF hash")
+                break
+            prefix = supplemental / f"allocation2-{index}"
+            receipt = owner.run(
+                [str(binary), "--exact", row["selector"], "--nocapture", "--test-threads=1"],
+                cwd=Path(suite["cwd"]), env=environment,
+                stdout_path=str(prefix) + ".stdout", stderr_path=str(prefix) + ".stderr",
+                receipt_path=str(prefix) + ".process.json", artifact_path=binary,
+                deadline_seconds=180, cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+                disk_paths=(Path.cwd(), supplemental.parent, binary.parent, Path(os.environ["RUNNER_TEMP"])),
+            )
+            used += receipt["retained_bytes"]
+            try:
+                row["status"] = original_outcome(Path(str(prefix) + ".stdout").read_text(), receipt)
+            except (RuntimeError, ValueError) as error:
+                row["status"] = "INCOMPLETE"
+                row["error"] = str(error)
+            row["process"] = receipt
+            row["stdout_sha256"] = sha(str(prefix) + ".stdout")
+            row["stderr_sha256"] = sha(str(prefix) + ".stderr")
+            save(supplemental / "allocation2-outcomes.json", rows)
+            print(row["group"], row["selector"], row["status"], flush=True)
+            if (not receipt["group_empty_before_parent_reap"] or not receipt["artifact_unchanged"]
+                or row["status"] in ["UNRUN", "INCOMPLETE", "TIMEOUT"]):
+                errors.append("allocation2 process/ELF/completeness guard failed")
+                break
+            if time.monotonic() > suite_deadline or time.time() > absolute:
+                errors.append("shared suite or absolute deadline exceeded after allocation2")
+                break
+    for row in rows:
+        if row["status"] == "UNRUN":
+            row["unrun_reasons"] = errors
+    save(supplemental / "allocation2-outcomes.json", rows)
+    save(supplemental / "allocation2-summary.json", {
+        "source": source, "binary": str(binary), "elf_sha256": prepared["elf_sha256"],
+        "source_provenance": source_provenance, "count": 2,
+        "counts": dict(collections.Counter(row["status"] for row in rows)),
+        "errors": errors, "complete": not errors,
+        "case_budget_seconds": 180, "suite_budget_seconds": 2400,
+        "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
+        "aggregate_log_cap_bytes": CAP + 65536,
+        "scope": "Separate two owned teardown and original-header controls after unchanged original148; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
     })
     return rows, errors, used
 
@@ -1191,6 +1281,14 @@ def run(out, source):
         owner, suite, binary, prepared, environment, supplemental, source,
         used, suite_deadline, absolute, headroom_prior_closed)
     errors.extend(headroom_errors)
+    allocation_prior_closed = headroom_prior_closed and len(headroom_rows) == 2 and all(
+        row["status"] in ["PASS", "FAIL", "ABORT"]
+        and row["process"]["group_empty_before_parent_reap"]
+        and row["process"]["artifact_unchanged"] for row in headroom_rows)
+    allocation_rows, allocation_errors, used = run_allocation2(
+        owner, suite, binary, prepared, environment, supplemental, source,
+        used, suite_deadline, absolute, allocation_prior_closed)
+    errors.extend(allocation_errors)
     unchanged = sha(binary) == prepared["elf_sha256"]
     if not unchanged:
         errors.append("ELF changed after supplemental cases")
@@ -1213,6 +1311,7 @@ def run(out, source):
             "counts": counts,
             "errors": errors,
             "complete": complete,
+            "separate_allocation2_outcomes": "allocation2-outcomes.json",
             "separate_headroom2_outcomes": "headroom2-outcomes.json",
             "separate_ordinary_entry3_outcomes": "ordinary_entry3-outcomes.json",
             "separate_constructor3_outcomes": "constructor3-outcomes.json",
@@ -1278,7 +1377,8 @@ def run(out, source):
         125
         if not complete
         else 100
-        if any(row["status"] != "PASS" for row in headroom_rows)
+        if any(row["status"] != "PASS" for row in allocation_rows)
+        or any(row["status"] != "PASS" for row in headroom_rows)
         or any(row["status"] != "PASS" for row in ordinary_entry_rows)
         or any(row["status"] != "PASS" for row in constructor_rows)
         or any(row["status"] != "PASS" for row in aot_rows)
@@ -1328,6 +1428,19 @@ def main():
         if args.phase == "run":
             directory = out / "supplement"
             directory.mkdir(exist_ok=True)
+            constructor_path = directory / "allocation2-outcomes.json"
+            constructor_rows = json.loads(constructor_path.read_text()) if constructor_path.exists() else [
+                {"group": "allocation2", "selector": name, "status": "UNRUN"}
+                for name in ALLOCATION2_SELECTORS]
+            for row in constructor_rows:
+                if row["status"] == "UNRUN":
+                    row["unrun_reasons"] = [repr(error)]
+            save(constructor_path, constructor_rows)
+            save(directory / "allocation2-summary.json", {
+                "source": args.sha, "count": 2, "complete": False, "errors": [repr(error)],
+                "counts": dict(collections.Counter(row["status"] for row in constructor_rows)),
+                "scope": "Allocation2 unadmitted/incomplete; original148 remain separately reported.",
+            })
             constructor_path = directory / "headroom2-outcomes.json"
             constructor_rows = json.loads(constructor_path.read_text()) if constructor_path.exists() else [
                 {"group": "headroom2", "selector": name, "status": "UNRUN"}
