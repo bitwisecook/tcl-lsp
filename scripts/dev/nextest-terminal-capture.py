@@ -59,7 +59,10 @@ def safe_testcase_name(name):
         if not part.startswith("r#"):
             return False
         identifier = part[2:]
-        if identifier in {"_", "crate", "self", "super", "Self"} or not identifier.isidentifier():
+        if (
+            identifier in {"_", "crate", "self", "super", "Self"}
+            or not identifier.isidentifier()
+        ):
             return False
         parts[index] = identifier
     return SAFE_NAME.fullmatch("::".join(parts)) is not None
