@@ -35,7 +35,7 @@
     "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
     "rust/tcl-compiler/src/registry_invocation.rs": "1a0239d001d6664aa913efe6c1b45a384864fb801b76e9f4e255a15a99e3b213",
     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
-    "rust/tcl-compiler/src/value_transfer.rs": "ba49df86ebff93f1f1f3a0eefff54382f22f1d2ebafa54d344ad77b7bf474c87",
+    "rust/tcl-compiler/src/value_transfer.rs": "46d2a07d9282795a78378bf7c0268b1924eb9ec0d0b76d0747d36ee3e53d3956",
     "rust/tcl-registry/src/model/context.rs": "84b8adfdf3397c393b6ee83742f3cbaa49e837555be87348255828ccc6bc8e65",
     "rust/tcl-registry/src/registry.rs": "faf1dff8ebc7a7911a99079229b0044373b6658f94a7e940faab9e41e54f4b76",
     "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d",
@@ -57,7 +57,7 @@
     "samples/wasm/t0-straight-line/01_string_interp.tcl": "27b384c56b23d56e2039f9934839f95e0cd4888503f19b455337e03148af7b8a",
     "samples/diagnostics/W102_subst_injection/example.tcl": "4f88d2bf5f94ad8656366223e1b34292a51631d47beac15806779ea145e3855c",
     "samples/for_screenshots/07-formatting-side-by-side.tcl": "4efec3442af3803acbb2da3ea71ea68b19094d3fc83d05d063cda1021028af37",
-    "rust/tcl-compiler/src/command_binding.rs": "d73bce17f4e5c89e2b08c4b83f6df6ae340e5155eb7e18055a44e9f86344a9e2",
+    "rust/tcl-compiler/src/command_binding.rs": "213051a3a2c2e8d9d908074b07b086392e2170d3f72fb5910158adc1d211f84c",
     "rust/tcl-compiler/src/command_binding/evaluated_word.rs": "bbdcbaa87ff68b5550e57adc683fe40a96337b926bbe2f8cc662e0927ddd464c",
     "rust/tcl-compiler/src/command_binding/literal_object_pool.rs": "1193653ff6d4df0c2c77834b818bb41e189ca2f64e78ca3207920cd864312db9",
     "rust/tcl-compiler/src/command_binding/native_list_assignment.rs": "534d8e12a2c6a5285dde2fe867f777847d5c879e2cf75ae0c2b616b6c61e6c43",
@@ -74,7 +74,8 @@
     "rust/tcl-compiler/src/lowering/mod.rs": "a4ce038783d4537cb4b707df38ea6e8008393c7b46e95b3aaa71310a5cfe4465",
     "rust/tcl-compiler/src/var_resolve.rs": "ec47b8fd33df4371dc738a5d7a16f7267ad8988d7cd23e1ab62235df46939c57",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "f3136dad7d1caba8dedaa2ff2c765a990907f90e1fb9bb29d86bf6e23b587543",
-    "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f"
+    "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",

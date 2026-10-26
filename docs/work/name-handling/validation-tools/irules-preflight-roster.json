@@ -106,8 +106,8 @@
     "rust/tcl-compiler/src/codegen/statements.rs": "ca84ff3c1434d6bc3a1adaceec74febe557713d5c724ea1ece8c9f9f25d2a070",
     "rust/tcl-compiler/src/codegen/statements/native_scalar.rs": "13e1b5bcd159c2e0c0eabf33ff4e4b1be958899b9554ce1a37c59753e6c91679",
     "rust/tcl-compiler/src/command_binding/compiled_invocation.rs": "0f7df1316b69bfe67e2ccd2db05dbc9d87016dced08de8d45fbcef747966e9bb",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "9ec3e1755eb069361ef39dd8352dee8d2e2ea2ffea1898e159f56ee2506468b6",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "52d098fe22cf00feadde3d2a92a6b0d64a0cc1962409abfc532d7a1a65f3a6f6",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "63cd5e4da9af8af12e7b4b55f2e75512ae03417d4bcf4b8d6d5c26cfcfa788ce",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "e42da67808e8636a66fb683af319cc0ccfd0b1b00e2e9f9bddd8250545e5e8d6",
     "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": "2c6f1dd1b96fd9dc6260eda29290ecb57fc57bcd0d5abe1974f887ef6b65f715",
     "rust/tcl-compiler/src/compile_service.rs": "9c8b354617f9beb8462f14705371bb38028df0dd2b01a712077f3a253fed0a93",
     "rust/tcl-fuzz/Cargo.toml": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16",
@@ -142,7 +142,8 @@
     "runtime/rust/src/interp/native_i64_body.rs": "af692628f8ab54252fd09d5507a17c0c1bdd5723201e6949149f8c72d831e749",
     "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
     "runtime/rust/src/interp.rs": "70ca18a19244ddf2c8e70d329ec042b668aa2388f942d750e1b60ca38ebcb019",
-    "rust/tcl-runtime-api/src/codegen_abi.rs": "a8442a8bbf9734ed3ee7b6541c2702f01c4f59ed14a67b19ae085dc225437a96"
+    "rust/tcl-runtime-api/src/codegen_abi.rs": "a8442a8bbf9734ed3ee7b6541c2702f01c4f59ed14a67b19ae085dc225437a96",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",
