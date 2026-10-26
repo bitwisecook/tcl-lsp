@@ -18,6 +18,21 @@ fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
     }
 }
 
+fn cut_value_stage<T>(trace: bool, stage: &'static str, value: Option<T>) -> Option<T> {
+    if trace {
+        crate::registry_invocation::source_cut_stage(stage, value)
+    } else {
+        value
+    }
+}
+fn cut_value_refuses(trace: bool, stage: &'static str, refused: bool) -> bool {
+    if trace {
+        crate::registry_invocation::source_cut_refuses(stage, refused)
+    } else {
+        refused
+    }
+}
+
 type SourceAdviceCacheEntry = (
     ResolvedContext,
     tcl_registry::RegistrySemanticKey,
@@ -1740,7 +1755,7 @@ impl super::CommandBindingRealm {
         {
             return None;
         }
-        let advice = self.retained_source_transition_value_advice(context, tokens)?;
+        let advice = self.retained_source_transition_value_advice(context, tokens, false)?;
         if logical.is_none()
             && binding.lookup_state.is_some()
             && (!binding.unknown || !binding.targets.is_empty())
@@ -1764,12 +1779,13 @@ impl super::CommandBindingRealm {
         &self,
         context: &ContextRegistry,
         tokens: &crate::ir::CommandTokens,
+        trace_cut: bool,
     ) -> Option<OriginalSourceCommandTransitionAdvice> {
-        tokens.source_binding.as_ref()?;
-        if tokens.synthetic.is_some() {
+        cut_value_stage(trace_cut, "value.binding", tokens.source_binding.as_ref())?;
+        if cut_value_refuses(trace_cut, "value.synthetic", tokens.synthetic.is_some()) {
             return None;
         }
-        self.retained_source_transition_value_advice(context, tokens)
+        self.retained_source_transition_value_advice(context, tokens, trace_cut)
     }
 
     #[cfg(test)]
@@ -1844,26 +1860,131 @@ impl super::CommandBindingRealm {
         }
     }
 
+    #[cfg(test)]
+    fn trace_retained_source_value(
+        context: &ContextRegistry,
+        binding: &crate::command_binding::SourceInvocationBinding,
+        logical: Option<&crate::analyser::ResolvedAnalysisInput>,
+        source: (&tcl_lexer::SourceImage, tcl_lexer::LexerConfig, u32),
+        original: &[tcl_lexer::NativeWord],
+        advice: &OriginalSourceCommandTransitionAdvice,
+    ) {
+        let (image, config, offset) = source;
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            trace_original_child_guard(
+                "retained.advice_context",
+                Some(offset),
+                advice.matches_context(context),
+            );
+            trace_original_child_guard(
+                "retained.advice_source",
+                Some(offset),
+                advice.matches_source(image, config),
+            );
+            trace_original_child_guard(
+                "retained.advice_vector",
+                Some(offset),
+                original == advice.original_words(),
+            );
+            Self::trace_retained_source_vector(original, advice, offset);
+            trace_original_child_guard(
+                "retained.target_match",
+                Some(offset),
+                logical.is_none()
+                    || crate::command_binding::source_targets_match_advice(
+                        context, binding, advice,
+                    ),
+            );
+        }
+    }
+
+    fn retained_source_value_matches(
+        context: &ContextRegistry,
+        tokens: &crate::ir::CommandTokens,
+        binding: &crate::command_binding::SourceInvocationBinding,
+        logical: Option<&crate::analyser::ResolvedAnalysisInput>,
+        source: (&tcl_lexer::SourceImage, tcl_lexer::LexerConfig, u32),
+        advice: &OriginalSourceCommandTransitionAdvice,
+        trace_cut: bool,
+    ) -> Option<()> {
+        let (image, config, offset) = source;
+        if cut_value_refuses(
+            trace_cut,
+            "value.advice-context",
+            !advice.matches_context(context),
+        ) || cut_value_refuses(
+            trace_cut,
+            "value.advice-source",
+            !advice.matches_source(image, config),
+        ) || cut_value_refuses(
+            trace_cut,
+            "value.advice-vector",
+            cut_value_stage(
+                trace_cut,
+                "value.final-native-vector",
+                crate::registry_invocation::original_native_compiler_words(
+                    image,
+                    tokens.words(),
+                    offset,
+                    config,
+                ),
+            )?
+            .as_slice()
+                != advice.original_words(),
+        ) {
+            return None;
+        }
+        if logical.is_some()
+            && cut_value_refuses(
+                trace_cut,
+                "value.logical-target",
+                !crate::command_binding::source_targets_match_advice(context, binding, advice),
+            )
+        {
+            return None;
+        }
+        Some(())
+    }
+
     fn retained_source_transition_value_advice(
         &self,
         context: &ContextRegistry,
         tokens: &crate::ir::CommandTokens,
+        trace_cut: bool,
     ) -> Option<OriginalSourceCommandTransitionAdvice> {
         let binding = tokens.source_binding.as_ref()?;
         let logical = self.bindings.original_logical_source_name_advice_input();
         #[cfg(test)]
         self.trace_retained_source_input(context, tokens, binding, logical);
         if let Some(input) = logical
-            && (!self.matches_resolved_analysis_input(input)
-                || !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context))
+            && (cut_value_refuses(
+                trace_cut,
+                "value.logical-owner",
+                !self.matches_resolved_analysis_input(input),
+            ) || cut_value_refuses(
+                trace_cut,
+                "value.logical-context",
+                !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context),
+            ))
         {
             return None;
         }
-        let config = self.bindings.original_source_lexer_config()?;
-        let image = self.original_source_image()?;
-        self.matches_original_source_image(image, config)
-            .then_some(())?;
-        let offset = tokens.words().first()?.source().span.start();
+        let config = cut_value_stage(
+            trace_cut,
+            "value.lexer",
+            self.bindings.original_source_lexer_config(),
+        )?;
+        let image = cut_value_stage(trace_cut, "value.image", self.original_source_image())?;
+        cut_value_stage(
+            trace_cut,
+            "value.image-current",
+            self.matches_original_source_image(image, config)
+                .then_some(()),
+        )?;
+        let offset = cut_value_stage(trace_cut, "value.head", tokens.words().first())?
+            .source()
+            .span
+            .start();
         let prepared = self.source_advice.get_or_prepare(context, || {
             self.bindings
                 .original_source_transition_advice_tape(context)
@@ -1883,14 +2004,17 @@ impl super::CommandBindingRealm {
             );
             trace_original_child_guard("retained.native_vector", Some(offset), original.is_some());
         }
-        let original = original?;
-        let advice = match prepared.as_ref().as_ref()?.lookup(offset) {
+        let original = cut_value_stage(trace_cut, "value.native-vector", original)?;
+        let advice = match cut_value_stage(trace_cut, "value.tape", prepared.as_ref().as_ref())?
+            .lookup(offset)
+        {
             OriginalSourceTransitionAdviceLookup::Advice(advice) => {
                 #[cfg(test)]
                 trace_original_child_guard("retained.represented_advice", Some(offset), true);
                 advice.clone()
             }
             OriginalSourceTransitionAdviceLookup::Refused => {
+                cut_value_refuses(trace_cut, "value.represented-refusal", true);
                 #[cfg(test)]
                 trace_original_child_guard("retained.represented_refusal", Some(offset), false);
                 return None;
@@ -1898,56 +2022,33 @@ impl super::CommandBindingRealm {
             OriginalSourceTransitionAdviceLookup::Unrepresented => {
                 #[cfg(test)]
                 trace_original_child_guard("retained.unrepresented", Some(offset), false);
-                logical?;
-                self.bindings
-                    .original_logical_declaration_advice(context, &original)?
+                cut_value_stage(trace_cut, "value.unrepresented-logical", logical)?;
+                cut_value_stage(
+                    trace_cut,
+                    "value.logical-declaration",
+                    self.bindings
+                        .original_logical_declaration_advice(context, &original),
+                )?
             }
         };
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-            trace_original_child_guard(
-                "retained.advice_context",
-                Some(offset),
-                advice.matches_context(context),
-            );
-            trace_original_child_guard(
-                "retained.advice_source",
-                Some(offset),
-                advice.matches_source(image, config),
-            );
-            trace_original_child_guard(
-                "retained.advice_vector",
-                Some(offset),
-                original.as_slice() == advice.original_words(),
-            );
-            Self::trace_retained_source_vector(&original, &advice, offset);
-            trace_original_child_guard(
-                "retained.target_match",
-                Some(offset),
-                logical.is_none()
-                    || crate::command_binding::source_targets_match_advice(
-                        context, binding, &advice,
-                    ),
-            );
-        }
-        if !advice.matches_context(context)
-            || !advice.matches_source(image, config)
-            || crate::registry_invocation::original_native_compiler_words(
-                image,
-                tokens.words(),
-                offset,
-                config,
-            )?
-            .as_slice()
-                != advice.original_words()
-        {
-            return None;
-        }
-        if logical.is_some()
-            && !crate::command_binding::source_targets_match_advice(context, binding, &advice)
-        {
-            return None;
-        }
+        Self::trace_retained_source_value(
+            context,
+            binding,
+            logical,
+            (image, config, offset),
+            &original,
+            &advice,
+        );
+        Self::retained_source_value_matches(
+            context,
+            tokens,
+            binding,
+            logical,
+            (image, config, offset),
+            &advice,
+            trace_cut,
+        )?;
         Some(advice)
     }
 }

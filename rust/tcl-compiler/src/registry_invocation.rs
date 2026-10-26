@@ -1605,7 +1605,7 @@ fn source_cut_resolved_head_correspondence(
     }
     let advice = source_cut_stage(
         "pair.value-advice",
-        realm.original_source_transition_value_advice(context, tokens),
+        realm.original_source_transition_value_advice(context, tokens, true),
     )?;
     let original = source_cut_stage(
         "pair.words",
@@ -1632,12 +1632,12 @@ fn source_cut_resolved_head_correspondence(
     .map(|heads| SourceCutDeclarationWordCorrespondence { heads })
 }
 
-fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Option<T> {
+pub(crate) fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Option<T> {
     source_cut_refuses(stage, value.is_none());
     value
 }
 
-fn source_cut_refuses(stage: &'static str, refused: bool) -> bool {
+pub(crate) fn source_cut_refuses(stage: &'static str, refused: bool) -> bool {
     if refused && option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1") {
         static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         if ROWS

@@ -1180,7 +1180,7 @@ fn selected_captured_argument_values(
         segment,
     );
     realm.stamp_original_tokens(&mut tokens);
-    let advice = realm.original_source_transition_value_advice(context, &tokens)?;
+    let advice = realm.original_source_transition_value_advice(context, &tokens, false)?;
     let values = source_transition_words_with_segment(source, config, context, segment, advice)?;
     if values.command != selected.command
         || values.dialect != selected.dialect
