@@ -735,7 +735,7 @@ mod tests {
     fn point_in(source: &str, head: &str, profile: &str) -> SourceInvocationBinding {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
         let selected = registry.profile().unwrap();
-        let result = super::super::SourceCommandBindings::analyse_with_options(
+        super::super::SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::for_profile(Some(selected)),
             registry,
@@ -760,8 +760,7 @@ mod tests {
             } else {
                 u32::try_from(source.rfind(head).unwrap()).unwrap()
             },
-        );
-        result
+        )
     }
 
     #[test]
