@@ -821,7 +821,8 @@ mod tests {
             .eval_final_host_initialization("::tmm::_native_init_policy_probe; exit 7")
             .unwrap_err();
         assert!(
-            matches!(exit, SessionError::Eval(ref message) if message == "script called exit 7")
+            matches!(exit, SessionError::Eval(ref message) if message == "script called exit 7"),
+            "unexpected final host initialization exit settlement: {exit:?}"
         );
         assert!(session.vm.take_exit().is_none());
         assert_eq!(
