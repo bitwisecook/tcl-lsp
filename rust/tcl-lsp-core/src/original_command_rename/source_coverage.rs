@@ -625,7 +625,7 @@ mod tests {
                 proof.cuts[0].child.analysis,
                 documents[1].analysis
             ));
-            assert!(std::ptr::eq(documents[2].analysis, &fixture.peer));
+            assert!(std::ptr::eq(documents[2].analysis, &raw const fixture.peer));
         });
     }
     fn assert_foreign_source_membership_refused(
