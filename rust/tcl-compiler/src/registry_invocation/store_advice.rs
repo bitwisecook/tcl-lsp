@@ -314,8 +314,8 @@ fn original_gap_is_empty(first: &CommandTokens, next: &CommandTokens) -> bool {
 mod tests {
     use crate::interprocedural::test_body_identity::fixture_id;
 
-    fn standalone_context() -> Option<super::InvocationMetadataContext<'static>> {
-        Some(tcl_registry::model::ingress::static_context_for("tcl8.6").into())
+    fn standalone_context() -> super::InvocationMetadataContext<'static> {
+        tcl_registry::model::ingress::static_context_for("tcl8.6").into()
     }
 
     fn setters(source: &str) -> Vec<crate::ir::CommandTokens> {
@@ -379,7 +379,7 @@ mod tests {
                 eprintln!("overwrite {label}: no original binding");
                 continue;
             };
-            let place = super::original_literal_store(registry, standalone_context(), tokens);
+            let place = super::original_literal_store(registry, Some(standalone_context()), tokens);
             let normal =
                 crate::registry_invocation::normal_transfer_invocation(registry, None, tokens);
             eprintln!(
@@ -532,7 +532,7 @@ mod tests {
             let advice = report.as_ref().and_then(|report| {
                 super::conditional_unread_local_store_advice(
                     registry,
-                    standalone_context(),
+                    Some(standalone_context()),
                     &tokens,
                     report,
                 )
@@ -544,7 +544,7 @@ mod tests {
                 eprintln!(
                     "conditional unread setter: unobserved={} local_literal={}",
                     binding.unobserved_native_dispatch(),
-                    super::original_literal_store(registry, standalone_context(), &tokens)
+                    super::original_literal_store(registry, Some(standalone_context()), &tokens)
                         .is_some()
                 );
                 if let Some(site) = binding.invocation_site()
@@ -571,7 +571,7 @@ mod tests {
         assert_eq!(tokens.len(), 3);
         let advice = super::conditional_overwritten_local_store_advice(
             registry,
-            standalone_context(),
+            Some(standalone_context()),
             &tokens[1],
             &tokens[2],
         );
@@ -593,7 +593,7 @@ mod tests {
         assert!(
             super::overwritten_local_store_advice(
                 registry,
-                standalone_context(),
+                Some(standalone_context()),
                 &tokens[0],
                 &tokens[1]
             )
@@ -602,7 +602,7 @@ mod tests {
         );
         let advice = super::conditional_overwritten_local_store_advice(
             registry,
-            standalone_context(),
+            Some(standalone_context()),
             &tokens[0],
             &tokens[1],
         );
@@ -623,7 +623,7 @@ mod tests {
             assert!(
                 super::conditional_overwritten_local_store_advice(
                     registry,
-                    standalone_context(),
+                    Some(standalone_context()),
                     &tokens[0],
                     &tokens[1]
                 )

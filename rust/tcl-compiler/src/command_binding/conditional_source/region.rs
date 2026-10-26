@@ -952,7 +952,7 @@ mod controls {
         assert!(actual.final_state.baseline.native_entry.is_none());
         assert_eq!(
             actual.final_state.baseline.native_compilation,
-            Default::default()
+            tcl_registry::native_compilation::NativeCompilationContext::default()
         );
         assert!(actual.original_completed_command_world().is_none());
         assert!(actual.projection_at_source("set", 0).unknown);

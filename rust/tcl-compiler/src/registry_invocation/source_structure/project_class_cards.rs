@@ -1120,7 +1120,8 @@ mod tests {
     #[test]
     fn project_class_cards_require_selected_constructor_shape_and_compatible_inputs() {
         for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
-            for body in ["self method new {} {}"] {
+            {
+                let body = "self method new {} {}";
                 let providers = vec![cards(
                     &format!("oo::class create C {{{body}; method ping {{}} {{}}}}"),
                     dialect,

@@ -1200,7 +1200,7 @@ mod tests {
             assert_eq!(
                 original
                     .iter()
-                    .map(|input| input.bytes())
+                    .map(super::source_transition_advice::OriginalLogicalSourceNameInput::bytes)
                     .collect::<Vec<_>>(),
                 [b"index".as_slice(), b"held".as_slice()]
             );

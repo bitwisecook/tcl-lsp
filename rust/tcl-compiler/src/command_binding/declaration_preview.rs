@@ -4762,7 +4762,7 @@ mod tests {
         }
         if std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
             let mut first = None;
-            for (site, rows) in cached.declaration_layouts.iter() {
+            for (site, rows) in &cached.declaration_layouts {
                 let Some(originals) = original_declaration_layouts(rows) else {
                     continue;
                 };
@@ -5831,7 +5831,7 @@ mod original_argument_declaration_tests {
                 }
                 3 => {
                     changed.root_origin =
-                        logical("proc foreign {} {puts [package require Tcl]}").root_origin
+                        logical("proc foreign {} {puts [package require Tcl]}").root_origin;
                 }
                 4 => {
                     let snapshot = Arc::make_mut(&mut originals[0].snapshot);
