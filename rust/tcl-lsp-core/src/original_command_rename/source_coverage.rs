@@ -484,6 +484,7 @@ mod tests {
         ordinary_child: AnalysisResult,
         suffix: AnalysisResult,
         region: OriginalSourceConditionalRegion,
+        region_count: usize,
         outcome: OriginalSourceConditionalOutcome,
         peer: AnalysisResult,
     }
@@ -513,6 +514,7 @@ mod tests {
                 child_source,
                 ordinary_child: Analyser::new().analyse(child_source, "tcl8.6"),
                 outcome: regions.normal_outcome().unwrap(),
+                region_count: regions.regions().len(),
                 region,
                 prefix,
                 child,
@@ -789,11 +791,14 @@ mod tests {
                 "proc helper {} {source hidden.tcl}",
             ),
             (
-                "namespace eval N {source child.tcl}; proc run {} {return VALUE}",
+                "namespace eval :: {source child.tcl}; proc run {} {return VALUE}",
                 "proc helper {} {return VALUE}",
             ),
         ] {
             let fixture = Fixture::new(source, child_source);
+            if source.starts_with("namespace") {
+                assert!(fixture.region_count > 1);
+            }
             let documents = fixture.documents();
             let identity = fixture.identity();
             let worlds = [OriginalConditionalCommandWorld {
