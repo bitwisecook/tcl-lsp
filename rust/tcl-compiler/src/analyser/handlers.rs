@@ -2626,6 +2626,97 @@ impl Analyser {
         }
     }
 
+    fn procedure_words_for_analyser(
+        &self,
+        command: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        source_head: Option<Token>,
+    ) -> Option<tcl_registry::ProcedureWords> {
+        if let Some(head) = source_head {
+            return self.original_procedure_source_words_at(head, args, arg_tokens);
+        }
+        // Legacy direct callers retain their existing Native-shape projection.
+        let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
+        Some(
+            self.registry
+                .as_deref()
+                .and_then(|registry| registry.procedure_definition_words(command, &arg_words))
+                .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC),
+        )
+    }
+
+    fn original_procedure_source_words_at(
+        &self,
+        head: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<tcl_registry::ProcedureWords> {
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            head.span.start(),
+        )?;
+        if words.arguments().len() != args.len() || arg_tokens.len() != args.len() {
+            return None;
+        }
+        for (index, (text, token)) in args.iter().zip(arg_tokens).enumerate() {
+            if words.origins().get(index + 1)
+                != Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                    index + 1,
+                ))
+            {
+                return None;
+            }
+            let word = words.original_argument_word(index)?;
+            if word.group().expand {
+                return None;
+            }
+            let projection = crate::segmenter::segment_commands_with_offset_and_config(
+                word.try_text().ok()?,
+                word.word_span().start(),
+                word.config().nested(),
+            );
+            let [original] = projection.as_slice() else {
+                return None;
+            };
+            if original.argv != [*token]
+                || original.texts != [text.as_str()]
+                || original.all_tokens != word.tokens()
+            {
+                return None;
+            }
+        }
+        let context = self.analysis_context();
+        let positions = words.with_source_schema(&context, |schema| {
+            (schema.semantics.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::Proc))
+                .then_some(())?;
+            schema.authored_source_procedure_arguments()
+        })??;
+        let mut statics = words.roles()?.iter().filter_map(|&(position, role)| {
+            (role == tcl_registry::ArgRole::StaticVarList).then_some(position)
+        });
+        let static_at = statics.next();
+        if statics.next().is_some() {
+            return None;
+        }
+        let required = [positions.name, positions.parameters, positions.body];
+        if required.iter().any(|&index| index >= args.len())
+            || required[0] == required[1]
+            || required[0] == required[2]
+            || required[1] == required[2]
+            || static_at.is_some_and(|index| index >= args.len() || required.contains(&index))
+        {
+            return None;
+        }
+        Some(tcl_registry::ProcedureWords {
+            name: positions.name,
+            params: positions.parameters,
+            statics: static_at,
+            body: positions.body,
+        })
+    }
+
     /// Handle a `proc name params body` definition: record the procedure
     /// (name, parameter list, body, and harvested doc-comment) in the
     /// analysis result and run per-parameter trait inference. Returns `true`
@@ -2641,6 +2732,39 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
+        self.handle_proc_command_with_source_head(
+            cmd_name, args, arg_tokens, arg_single, scope_path, None,
+        )
+    }
+
+    pub(super) fn handle_proc_command_at(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        source_head: Token,
+    ) -> bool {
+        self.handle_proc_command_with_source_head(
+            cmd_name,
+            args,
+            arg_tokens,
+            arg_single,
+            scope_path,
+            Some(source_head),
+        )
+    }
+
+    fn handle_proc_command_with_source_head(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        source_head: Option<Token>,
+    ) -> bool {
         // iRules procedures are declaration-only, exact three-word forms at
         // file scope. An invalid declaration is consumed but deliberately
         // contributes no symbol, binding, scope, or executable body facts.
@@ -2649,15 +2773,11 @@ impl Analyser {
         {
             return true;
         }
-        // Where the name, parameter list, static-variable list and body sit is
-        // the definer's own role data: `proc name args body` puts the body at
-        // 2, a definer that also takes a static-variable list puts it at 3.
-        let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let words = self
-            .registry
-            .as_deref()
-            .and_then(|registry| registry.procedure_definition_words(cmd_name, &arg_words))
-            .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
+        let Some(words) =
+            self.procedure_words_for_analyser(cmd_name, args, arg_tokens, source_head)
+        else {
+            return false;
+        };
         let last = words.name.max(words.params).max(words.body);
         if args.len() <= last || arg_tokens.len() <= last {
             return false;
@@ -5404,12 +5524,13 @@ impl Analyser {
                 let arg_single = seg.arg_single_token();
                 match hook {
                     Hook::Proc => {
-                        self.handle_proc_command(
+                        self.handle_proc_command_at(
                             seg.name(),
                             args,
                             arg_tokens,
                             arg_single,
                             scope_path,
+                            seg.argv[0],
                         );
                     }
                     Hook::Rename => {
@@ -20545,6 +20666,188 @@ mod constructed_projection_tests {
             );
             candidate.name_word = "C".to_owned();
             assert!(Analyser::unresolved_class_name(&candidate).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_proc_source_layout_tests {
+    use crate::analyser::{Analyser, ResolvedAnalysisInput};
+    use std::sync::Arc;
+
+    fn fixture(
+        source: &str,
+    ) -> (
+        Analyser,
+        crate::analyser::AnalysisResult,
+        Vec<crate::segmenter::SegmentedCommand>,
+    ) {
+        tcl_spectcl::core_surfaces::ensure();
+        let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
+        let profile = environment.analyser_profile();
+        let context = Arc::new(
+            environment
+                .default_context_registry()
+                .with_command_store(Arc::new(tcl_registry::CommandRegistry::build_default())),
+        );
+        assert!(context.commands().profile().is_none());
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let mut analyser = Analyser::new().with_resolved_input(input);
+        let analysis = analyser
+            .analyse_and_retain_result_for_test(source, "jimtcl")
+            .clone();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analyser.file_lexer_config(),
+        );
+        (analyser, analysis, commands)
+    }
+
+    #[test]
+    fn original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry() {
+        let source = "proc counter {} {{n 0}} {not_a_command_anywhere $n}; counter";
+        let (analyser, analysis, commands) = fixture(source);
+        let command = &commands[0];
+        let args = command.args();
+        let args_text: Vec<_> = args.iter().map(String::as_str).collect();
+        assert!(
+            analyser
+                .analysis_context()
+                .commands()
+                .procedure_definition_words("proc", &args_text)
+                .is_none()
+        );
+        let layout = analyser
+            .original_procedure_source_words_at(command.argv[0], args, command.arg_tokens())
+            .expect("same original authored Jim declaration shape");
+        assert_eq!(
+            layout,
+            tcl_registry::ProcedureWords {
+                name: 0,
+                params: 1,
+                statics: Some(2),
+                body: 3
+            }
+        );
+        let procedure = analysis
+            .all_procs
+            .values()
+            .find(|procedure| procedure.name == "counter")
+            .unwrap();
+        assert_eq!(procedure.body_span, command.arg_tokens()[3].span);
+        assert!(
+            analysis
+                .command_invocations
+                .iter()
+                .any(|invocation| invocation.name == "not_a_command_anywhere")
+        );
+    }
+
+    #[test]
+    fn original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion() {
+        let source = "proc counter {} {{n 0}} {return $n}";
+        let (mut analyser, _analysis, commands) = fixture(source);
+        let command = &commands[0];
+        assert!(
+            analyser
+                .original_procedure_source_words_at(
+                    command.argv[0],
+                    command.args(),
+                    command.arg_tokens()
+                )
+                .is_some()
+        );
+        let mut args = command.args().to_vec();
+        args[3] = "return FOREIGN".to_owned();
+        assert!(
+            analyser
+                .original_procedure_source_words_at(command.argv[0], &args, command.arg_tokens())
+                .is_none()
+        );
+        let mut tokens = command.arg_tokens().to_vec();
+        tokens.swap(2, 3);
+        assert!(
+            analyser
+                .original_procedure_source_words_at(command.argv[0], command.args(), &tokens)
+                .is_none()
+        );
+        analyser.source.push_str(
+            "
+# changed complete source",
+        );
+        assert!(
+            analyser
+                .original_procedure_source_words_at(
+                    command.argv[0],
+                    command.args(),
+                    command.arg_tokens()
+                )
+                .is_none()
+        );
+        let source = "proc counter {} {*}$body";
+        let (analyser, _analysis, commands) = fixture(source);
+        let command = &commands[0];
+        assert!(
+            analyser
+                .original_procedure_source_words_at(
+                    command.argv[0],
+                    command.args(),
+                    command.arg_tokens()
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_procedure_source_layout_keeps_plain_and_rooted_jim_forms() {
+        let source = "foreach name {a b} {proc $name {} {{n 0}} {not_a_command_anywhere $n}}";
+        let (_analyser, analysis, _commands) = fixture(source);
+        let start = source.find("{not_a_command_anywhere").unwrap();
+        let end = start + "{not_a_command_anywhere $n}".len();
+        let expected =
+            tcl_lexer::Span::new(u32::try_from(start).unwrap(), u32::try_from(end).unwrap());
+        for name in ["a", "b"] {
+            let procedure = analysis
+                .all_procs
+                .values()
+                .find(|procedure| procedure.name == name)
+                .expect("both finite foreach declarations retain their genuine source body");
+            assert_eq!(procedure.body_span, expected);
+        }
+        assert!(
+            analysis
+                .command_invocations
+                .iter()
+                .any(|invocation| invocation.name == "not_a_command_anywhere"
+                    && invocation.range.start() > expected.start()
+                    && invocation.range.end() < expected.end())
+        );
+        for source in [
+            "proc counter {} {return VALUE}",
+            "::proc counter {} {{n 0}} {return $n}",
+        ] {
+            let (analyser, analysis, commands) = fixture(source);
+            let command = &commands[0];
+            let layout = analyser
+                .original_procedure_source_words_at(
+                    command.argv[0],
+                    command.args(),
+                    command.arg_tokens(),
+                )
+                .unwrap();
+            assert_eq!(layout.body, command.args().len() - 1);
+            let procedure = analysis
+                .all_procs
+                .values()
+                .find(|procedure| procedure.name == "counter")
+                .unwrap();
+            assert_eq!(procedure.body_span, command.arg_tokens()[layout.body].span);
         }
     }
 }
