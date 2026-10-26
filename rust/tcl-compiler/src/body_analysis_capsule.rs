@@ -1688,6 +1688,94 @@ mod native_source_lattice_tests {
         );
     }
 
+    fn check_native_source_request_dependencies(
+        req: &LatticeRequest<'_>,
+        context: &tcl_registry::model::ContextRegistry,
+        foreign_input: &crate::analyser::ResolvedAnalysisInput,
+        foreign_context: &tcl_registry::model::ContextRegistry,
+        foreign_script: &crate::ir::Script,
+    ) -> FunctionUnit {
+        let source_card = req
+            .module
+            .original_native_declaration_body_units
+            .get(&req.body_id)
+            .unwrap();
+        assert!(
+            source_card
+                .matches_procedure(req.module, req.module.body_units.get(&req.body_id).unwrap())
+        );
+        if req.body_source == Some("set value $x; return $value") {
+            assert!(BodyLatticeInputs::retain(req, context.commands()).is_some());
+            let foreign_source_input = LatticeRequest {
+                source_metadata_input: Some(foreign_input),
+                ..*req
+            };
+            assert!(BodyLatticeInputs::retain(&foreign_source_input, context.commands()).is_none());
+            assert!(BodyLatticeInputs::retain(req, foreign_context.commands()).is_none());
+            let mut changed_store = req.module.clone();
+            changed_store.body_units.get_mut(&req.body_id).unwrap().body = foreign_script.clone();
+            let foreign_store_request = LatticeRequest {
+                module: &changed_store,
+                ..*req
+            };
+            assert!(
+                BodyLatticeInputs::retain(&foreign_store_request, context.commands()).is_none()
+            );
+        } else {
+            assert!(
+                BodyLatticeInputs::retain(req, context.commands()).is_none(),
+                "{}",
+                req.body_source.unwrap()
+            );
+        }
+        build_current(req, context.commands())
+    }
+
+    fn check_logical_source_request_without_publication(
+        req: &LatticeRequest<'_>,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> FunctionUnit {
+        let input = BodyLatticeInputs::retain(req, context.commands()).unwrap();
+        assert!(input.certified_native_source_body_id().is_none());
+        assert!(
+            req.command_bindings
+                .prepare_native_source_body_correspondence(
+                    req.body,
+                    crate::command_binding::BodyProofScope {
+                        source: req.source,
+                        body_source: req.body_source.unwrap(),
+                        original_body_offset: req.original_body_offset,
+                        executable_body_offset: req.executable_body_offset,
+                        metadata:
+                            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                                req.source_metadata_input
+                            ),
+                        config: req.lexer_config,
+                    },
+                    req.module,
+                    req.body_id,
+                    context.commands()
+                )
+                .is_none()
+        );
+        build_current(req, context.commands())
+    }
+
+    fn capsule_test_options<'a>(
+        registry: &'a CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> crate::compilation_unit::UnitBuildOptions<'a> {
+        crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        }
+    }
+
     #[test]
     fn native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes() {
         let context =
@@ -1711,14 +1799,7 @@ mod native_source_lattice_tests {
         );
         let foreign_store = CompilationUnit::build_with_analysis_input(
             "proc a {x} {return FOREIGN}\n",
-            crate::compilation_unit::UnitBuildOptions {
-                registry: context.commands(),
-                defer_top_level: false,
-                config,
-                dialect: Some(profile),
-                external_call_sites: None,
-                declared_commands: None,
-            },
+            capsule_test_options(context.commands(), config, profile),
             Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
             &input,
         );
@@ -1733,59 +1814,20 @@ mod native_source_lattice_tests {
         let mut visited = 0;
         let mut memo = |req: &LatticeRequest<'_>| {
             visited += 1;
-            let source_card = req
-                .module
-                .original_native_declaration_body_units
-                .get(&req.body_id)
-                .unwrap();
-            assert!(
-                source_card.matches_procedure(
-                    req.module,
-                    req.module.body_units.get(&req.body_id).unwrap()
-                )
-            );
-            if req.body_source == Some("set value $x; return $value") {
-                assert!(BodyLatticeInputs::retain(req, context.commands()).is_some());
-                let foreign_source_input = LatticeRequest {
-                    source_metadata_input: Some(&foreign_input),
-                    ..*req
-                };
-                assert!(
-                    BodyLatticeInputs::retain(&foreign_source_input, context.commands()).is_none()
-                );
-                assert!(BodyLatticeInputs::retain(req, foreign_context.commands()).is_none());
-                let mut changed_store = req.module.clone();
-                changed_store.body_units.get_mut(&req.body_id).unwrap().body =
-                    foreign_script.clone();
-                let foreign_store_request = LatticeRequest {
-                    module: &changed_store,
-                    ..*req
-                };
-                assert!(
-                    BodyLatticeInputs::retain(&foreign_store_request, context.commands()).is_none()
-                );
-            } else {
-                assert!(
-                    BodyLatticeInputs::retain(req, context.commands()).is_none(),
-                    "{}",
-                    req.body_source.unwrap()
-                );
-            }
-            build_current(req, context.commands())
+            check_native_source_request_dependencies(
+                req,
+                &context,
+                &foreign_input,
+                &foreign_context,
+                &foreign_script,
+            )
         };
         let unavailable_body_cache =
             |_: &str, _: &str| -> crate::ir::Script { panic!("source-only body cache") };
         let source = "proc a {x} {set value $x; return $value}\nproc store {x} {upvar 0 outside local; return $local}\nproc observer {x} {trace add execution return enter hook; return $x}\nproc tracing {x} {trace add variable x read hook; return $x}\nproc document {x} {helper $x}\n";
         let unit = CompilationUnit::build_memoized_with_analysis_input(
             source,
-            crate::compilation_unit::UnitBuildOptions {
-                registry: context.commands(),
-                defer_top_level: false,
-                config,
-                dialect: Some(profile),
-                external_call_sites: None,
-                declared_commands: None,
-            },
+            capsule_test_options(context.commands(), config, profile),
             &mut memo,
             &unavailable_body_cache,
             None,
@@ -1807,41 +1849,15 @@ mod native_source_lattice_tests {
         let mut logical_seen = 0;
         let mut logical_memo = |req: &LatticeRequest<'_>| {
             logical_seen += 1;
-            let input = BodyLatticeInputs::retain(req, context.commands()).unwrap();
-            assert!(input.certified_native_source_body_id().is_none());
-            assert!(
-                req.command_bindings
-                    .prepare_native_source_body_correspondence(
-                        req.body,
-                        crate::command_binding::BodyProofScope {
-                            source: req.source,
-                            body_source: req.body_source.unwrap(),
-                            original_body_offset: req.original_body_offset,
-                            executable_body_offset: req.executable_body_offset,
-                            metadata:
-                                crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
-                                    req.source_metadata_input
-                                ),
-                            config: req.lexer_config,
-                        },
-                        req.module,
-                        req.body_id,
-                        context.commands()
-                    )
-                    .is_none()
-            );
-            build_current(req, context.commands())
+            check_logical_source_request_without_publication(req, &context)
         };
         let _ = CompilationUnit::build_memoized_with_analysis_input(
             "proc logical {x} {return $x}\n",
-            crate::compilation_unit::UnitBuildOptions {
-                registry: context.commands(),
-                defer_top_level: false,
-                config: logical_input.lexer_config(),
-                dialect: Some(logical_profile),
-                external_call_sites: None,
-                declared_commands: None,
-            },
+            capsule_test_options(
+                context.commands(),
+                logical_input.lexer_config(),
+                logical_profile,
+            ),
             &mut logical_memo,
             &unavailable_body_cache,
             None,
