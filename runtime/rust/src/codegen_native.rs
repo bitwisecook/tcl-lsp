@@ -33,6 +33,9 @@
 //! otherwise is one of the runtime operators below, which raises Tcl's own
 //! error if the value is not numeric at all.
 
+#[path = "codegen_native/cached_increment.rs"]
+mod cached_increment;
+
 use core::ptr;
 
 #[cfg(all(test, have_tommath, not(target_arch = "wasm32")))]

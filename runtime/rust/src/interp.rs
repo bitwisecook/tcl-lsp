@@ -56,6 +56,7 @@ mod bootstrap_context_tests;
 mod byte_store_retirement_tests;
 #[cfg(test)]
 mod c_api_error_tests;
+mod cached_increment;
 mod captured_rmw;
 mod codegen_depth_diagnostic;
 #[cfg(test)]

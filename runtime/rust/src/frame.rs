@@ -743,6 +743,28 @@ pub struct VarTable {
 }
 
 impl VarTable {
+    pub(crate) fn cached_increment_scalar_matches(
+        &self,
+        name: &[u8],
+        expected: *mut TclObj,
+    ) -> bool {
+        let Some(slot) = self.slots.get(name) else {
+            return false;
+        };
+        let Some(cell) = self.cells.get(*slot) else {
+            return false;
+        };
+        let Ok(contents) = cell.contents.try_borrow() else {
+            return false;
+        };
+        contents.check_owned_value_role().is_ok()
+            && contents.operation_refs == 0
+            && contents.native_alias_refs == 0
+            && contents.rmw_refs == 0
+            && !contents.constant
+            && matches!(contents.var.as_ref(), Some(Var::Scalar(pointer)) if *pointer == expected)
+    }
+
     /// Passive WORK diagnostic: inspect only an existing physical scalar slot.
     /// No semantic lookup, links, conversion, trace, provider or ownership change.
     pub(crate) fn inspect_existing_scalar<T>(
@@ -1771,6 +1793,15 @@ impl RetiredJimFrame {
 }
 
 impl FrameStack {
+    pub(crate) fn cached_increment_is_root(&self) -> bool {
+        self.active_level == 0
+            && self.frames.len() == 1
+            && self
+                .frames
+                .first()
+                .is_some_and(|frame| !frame.is_proc && frame.oo_variable_resolver.is_none())
+    }
+
     pub(crate) fn recycle_jim_storage(
         &mut self,
         storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,

@@ -13,6 +13,7 @@ use crate::{
 use tcl_registry::native_rmw::{NativeRmwOperation, NativeRmwReadFailure, NativeRmwReadPolicy};
 
 struct IncrementTarget<'a> {
+    cached_sum: Option<(i64, i64)>,
     name: &'a [u8],
     root: &'a [u8],
     element: Option<&'a [u8]>,
@@ -65,6 +66,7 @@ impl Interp {
         let home = self.trace_identity(base);
         self.increment_retained_receiver(
             IncrementTarget {
+                cached_sum: None,
                 name,
                 root: base,
                 element,
@@ -83,6 +85,16 @@ impl Interp {
         original: *mut TclObj,
         amount: Option<*mut TclObj>,
         legacy: Option<tcl_cmd_core::native_increment::PreparedLegacyIncrementAmount>,
+    ) -> Code {
+        self.increment_original_c_variable_with_sum(original, amount, legacy, None)
+    }
+
+    pub(crate) fn increment_original_c_variable_with_sum(
+        &mut self,
+        original: *mut TclObj,
+        amount: Option<*mut TclObj>,
+        legacy: Option<tcl_cmd_core::native_increment::PreparedLegacyIncrementAmount>,
+        cached_sum: Option<(i64, i64)>,
     ) -> Code {
         use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
         let mut originals = vec![original];
@@ -121,6 +133,7 @@ impl Interp {
             };
             let code = self.increment_retained_receiver(
                 IncrementTarget {
+                    cached_sum,
                     name: &captured.root,
                     root: &captured.root,
                     element: captured.element.as_deref(),
@@ -238,6 +251,7 @@ impl Interp {
         }
         self.increment_retained_receiver(
             IncrementTarget {
+                cached_sum: None,
                 name: &captured.root,
                 root: &captured.root,
                 element: captured.element.as_deref(),
@@ -366,7 +380,9 @@ impl Interp {
             .native_scalar_getter_protocol()
             .is_some_and(|protocol| protocol.supports_number_getter())
         {
-            let objects = match crate::value_ops::RuntimeIncrementObjects::selected(self) {
+            let objects = match crate::value_ops::RuntimeIncrementObjects::selected(self)
+                .map(|objects| objects.with_cached_sum(target.cached_sum))
+            {
                 Ok(objects) => objects,
                 Err(error) => return self.report_cmd_error(error),
             };
