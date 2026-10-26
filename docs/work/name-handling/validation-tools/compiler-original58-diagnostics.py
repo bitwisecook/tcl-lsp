@@ -5249,7 +5249,7 @@ inherited_report_validation = logical_validation["separate_inherited_point_repor
 require(inherited_report_validation["schema"] == "inherited-point-report-custody3-v1"
         and inherited_report_validation["expected_selected"] == 3
         and inherited_report_validation["source_keys"] == ['rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs', 'rust/tcl-compiler/src/command_binding/retained_source.rs']
-        and all(path in logical_validation["source_pins"] for path in inherited_report_validation["source_keys"])
+        and set(inherited_report_validation["source_keys"]).issubset(logical_validation["source_pins"])
         and inherited_report_validation["rows"] == [{'group': 'diagnostic-inherited-point-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::retained_source::inherited_point_report_tests::inherited_allocated_report_custody_keeps_generic_membership_closed', 'env': {}}, {'group': 'diagnostic-inherited-point-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_foreign_entry_store_and_detached_body', 'env': {}}, {'group': 'diagnostic-inherited-point-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_changed_header_source_namespace_and_allocation', 'env': {}}],
         "exact inherited point report custody3 descriptor/source/selector/environment")
 inherited_report_rows = [dict(row, state="UNRUN") for row in inherited_report_validation["rows"]]
