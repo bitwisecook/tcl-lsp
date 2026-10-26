@@ -48,6 +48,22 @@ MARKER = b"NEXTEST_CAPTURE_V1\t"
 SAFE_NAME = re.compile(r'^[^"\\\x00-\x1f$#@]+$')
 
 
+def safe_testcase_name(name):
+    if not isinstance(name, str):
+        return False
+    parts = name.split("::")
+    for index, part in enumerate(parts):
+        if "#" not in part:
+            continue
+        if not part.startswith("r#"):
+            return False
+        identifier = part[2:]
+        if identifier in {"_", "crate", "self", "super", "Self"} or not identifier.isidentifier():
+            return False
+        parts[index] = identifier
+    return SAFE_NAME.fullmatch("::".join(parts)) is not None
+
+
 class CaptureError(Exception):
     pass
 
@@ -246,7 +262,7 @@ def roster(path):
         if not isinstance(cases, dict):
             raise CaptureError("missing testcases")
         for name, info in cases.items():
-            if not isinstance(name, str) or not SAFE_NAME.fullmatch(name):
+            if not safe_testcase_name(name):
                 raise CaptureError("unsafe testcase name")
             if not isinstance(info, dict) or not isinstance(info.get("ignored"), bool):
                 raise CaptureError("invalid testcase entry")

@@ -235,4 +235,86 @@ if grep -Fq -- '--partition' "$tmp_dir/shard-one.args" "$tmp_dir/shard-two.args"
     exit 1
 fi
 
+# Legitimate Rust raw-identifier segments are test identity data, not filters.
+python3 - "$SCRIPT_DIR/nextest-terminal-capture.py" "$tmp_dir" <<'PY_CAPTURE'
+import copy
+import hashlib
+import importlib.util
+import json
+import pathlib
+import sys
+
+spec = importlib.util.spec_from_file_location("nextest_capture", sys.argv[1])
+capture = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(capture)
+root = pathlib.Path(sys.argv[2])
+# Exact selected names from the native Rust shard that capture previously refused.
+names = [
+    "model::r#gen::dispatch::header_quote_tests::quoted_identifier_with_space_is_not_truncated",
+    "model::r#gen::dispatch::header_quote_tests::unquoted_identifier_still_parses",
+]
+suite = {
+    "package-name": "tcl-bigip",
+    "binary-id": "tcl-bigip",
+    "binary-name": "tcl_bigip",
+    "kind": "lib",
+    "status": "listed",
+    "testcases": {
+        name: {"filter-match": {"status": "matches"}, "ignored": False}
+        for name in names
+    },
+}
+roster = {"rust-suites": {"tcl-bigip": suite}}
+path = root / "raw-identifier-selected.json"
+raw = json.dumps(roster).encode()
+path.write_bytes(raw)
+digest, _, selected, ignored = capture.roster(path)
+assert digest == hashlib.sha256(raw).hexdigest()
+assert set(selected) == {("tcl-bigip", name) for name in names}
+assert not ignored
+assert path.read_bytes() == raw
+assert all(not capture.SAFE_NAME.fullmatch(name) for name in names)
+assert capture.safe_testcase_name("plain::case")
+assert capture.safe_testcase_name("r#async::r#type::case")
+for name in [
+    "model::gen#bad::case", "model::xr#gen::case", "model::r#gen#bad::case",
+    "model::r#::case", "model::r#9gen::case", "model::r#gen-suffix::case",
+    "model::r#_::case", "model::r#self::case", "model::r#super::case",
+    "model::r#crate::case", "model::r#Self::case", "", None, 1,
+]:
+    assert not capture.safe_testcase_name(name), repr(name)
+    invalid = copy.deepcopy(roster)
+    if isinstance(name, str):
+        invalid["rust-suites"]["tcl-bigip"]["testcases"] = {
+            name: {"filter-match": {"status": "matches"}, "ignored": False}
+        }
+        path.write_text(json.dumps(invalid))
+        try:
+            capture.roster(path)
+        except capture.CaptureError as error:
+            assert str(error) == "unsafe testcase name"
+        else:
+            raise AssertionError(name)
+for unsafe in ['"', "\\", "$", "@"] + [chr(code) for code in range(32)]:
+    for name in ["plain::" + unsafe + "case", "model::r#gen::" + unsafe + "case"]:
+        assert not capture.safe_testcase_name(name), repr(name)
+# Existing names without # retain exactly the old acceptance predicate.
+for code in range(128):
+    character = chr(code)
+    if character == "#":
+        continue
+    for name in [character + "case", "mod::" + character + "case", "case" + character]:
+        assert capture.safe_testcase_name(name) == bool(capture.SAFE_NAME.fullmatch(name))
+# Raw-identifier accommodation must not broaden any suite identity validation.
+invalid = copy.deepcopy(roster)
+invalid["rust-suites"]["tcl-bigip"]["package-name"] = "r#package"
+path.write_text(json.dumps(invalid))
+try:
+    capture.roster(path)
+except capture.CaptureError as error:
+    assert str(error) == "unsafe suite identity"
+else:
+    raise AssertionError("suite validation changed")
+PY_CAPTURE
+
 echo "nextest binary shard verifier tests: ok (coverage, assignments, filters, metadata)"
