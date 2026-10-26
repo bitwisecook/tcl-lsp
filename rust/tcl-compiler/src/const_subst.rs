@@ -177,6 +177,16 @@ macro_rules! n17_live_some {
     }};
 }
 
+#[cfg(debug_assertions)]
+fn named_execution_has_unknown_alternative(
+    binding: &crate::command_binding::SourceInvocationBinding,
+) -> bool {
+    binding
+        .compiled_named_candidates
+        .iter()
+        .any(|proof| proof.unknown)
+}
+
 impl ConstSubstCtx<'_> {
     /// Fold one original substitution using its retained execution identity and
     /// effective argv. Every nested result comes from the same complete source
@@ -207,12 +217,17 @@ impl ConstSubstCtx<'_> {
         let target = binding.proved_execution_target();
         if target.is_none_or(|target| !target.registry_backed) {
             n17_live_trace!(
-                "selected-target-refusal reachability={:?} compiled_unknown={} execution_unknown={} may_be_absent={} selected_present={}",
+                "selected-target-refusal reachability={:?} compiled_unknown={} execution_unknown={} may_be_absent={} selected_present={} live_dispatch={} live_unknown={} native_count={} named_count={} any_named_unknown={}",
                 binding.runtime_reachability(),
                 binding.compiled_execution_unknown(),
                 binding.execution_is_unknown(),
                 binding.execution_may_be_absent(),
-                target.is_some()
+                target.is_some(),
+                binding.may_use_live_dispatch,
+                binding.unknown,
+                binding.compiled_candidates.len(),
+                binding.compiled_named_candidates.len(),
+                named_execution_has_unknown_alternative(binding)
             );
         }
         n17_live_some!(
