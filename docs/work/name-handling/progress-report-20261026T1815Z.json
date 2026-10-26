@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T18:15:00.541357+00:00",
+  "scheduled_report_utc": "2026-10-26T18:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T18:45:00+00:00",
+  "change_since_previous_report": [
+    "Current pushed WORK104476d/CLEANeee02dfe includes approved NUL fixture correction, HRTB lint repair, actual producer coarse receipt, preferred-yq quote, literal smoke includes, central simulator alias deny and source-point-only live lease/history. All new controls/current full gates remain UNRUN.",
+    "ba30 compiler135129P6F; all five LSP captures authenticated with unresolved SourceCut and startup scan refusal. Runtime166 added35PASS, old128 exactjoin zero PASS-to-nonPASS and three FAIL-to-PASS; 80 semantic failures remain. Broad25PASS and new8sixPASS/twoFAIL; original division oracle and new signs/MIN now actually PASS.",
+    "ba30 Spec old16/VM1/ordinary4PASS; full600 incomplete600.496s, MAP/RANGE0attempts. Earlier f231 full600 completed534.288s does not transfer acceptance. All release F/current baseline zeroPTF/fullgreen/performance/final shipping checks remain open.",
+    "Fixed memo DIAGNOSTIC40362871182 Linux medium/small terminal runner-shutdown exit143, decoded logsda73cd7b/8bb821e9; no accepted pairs or inferred CPU/memory cause. Other four preserved, no duplicate measurement. Diagnostic sourceba30 predates production cache lease5cbd.",
+    "WORK-only passive alias/Layout/source-factory observers and compiler147 coherent protocol integration proceeds before one final source pin union/peer/canonical preflight/push/new actual dispatch. Old135 observations and every old FAIL retained; added memo8 lifecycle/report controls require actual proof.",
+    "External BIGIP/perf stale beyond60minutes notified without takeover; review-triage complete. Managed network current/enforced; disk about2.4GB, no local builds or target deletion. No PR, merge, tag or release.",
+    "Three WORK-only passive observers applied75f6/63a7/9377 and combined147 protocol97f8, publishedbf8c after1745report/currentblockers docs. One final currentpin union11files13refresh6missingapproveddeps ready2e07/0ca3, RootJSONASTinversePASS, prospectiveV14/actual11fnPASS, independentCompilerpeer underway. No actualnewPASSdonation.",
+    "Finalmetadata11fileunioncanonical62848aa76f07cf91372e1f75340160d2f66e593f after independentCompiler40e87ed2 full23/18livemaps/410records/249actualsources plus RootJSONASTinverse. Alloldselectors/history/commands/env/budgetsunchanged; canonicalV14andfreshpushnextbeforeactualdispatch.",
+    "Canonical62848V14PASS13startup/30runners/20guards+freshdepth1normalpush confirmed. TennewmodePOSTs ALLcompleted beforefutureheadmutation,8focused+BroadWASM+exactCeeeprep-pr: compiler40375134626,strict40375134550,runtime40375136010,Spec40375135739,Jim40375135158,LSPstartupCore40375136032,hosts40375144179,iRules40375136324,WASM40375176737,prep40375171368. Roles ownqualifiedcaptures;dispatchdoesnotmeanPASS.",
+    "CLEANeee02 wholemainANDstandalone cargo fmt --checkPASSactual18:08:05sourceunchanged/root-clean-eee02-whole-format.json. Shippingeditorialaudit foundonecache-ownershipparagraphomission; correctedv3exactpaired151ab999 rootreviewed/applyingWORKfirst26dc/CLEANcarry, no evidence/processcontentadded. v1wrongWORKcheckoutHOLDpreserved, v2ambiguousmemoantecedentsupersededv3.",
+    "WORKdoc26dc58/CLEANcd9ab4 actualnormalpushconfirmed; exactrunningprep-prstillpinnedoldCeee andremainsqualifiedthere. NEXTcorpusV2independentCompilerreviewHOLD actualhosteddomainissuer: all15F5 inputsusedTcl8.6point; authorroutedgenuineperprofileissuerandretaineddomainassertions, no fallback/skip/acceptedparity."
+  ],
+  "committed": [
+    "ec660498b69006e31eda26a5d76cbb108ecc6341"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish coherent source+147 protocol and single current pin union, peer, canonical preflight, fresh fetch/push and hosted gates.",
+    "Resolve actual LSP SourceCut/compiler Layout/Jim refusals with current measured producer facts.",
+    "Establish strict cache lifecycle/full-report corpus equivalence before accepted shipping Tcl performance; complete required green/docs/comments/generated/package/squash review before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2524479488,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

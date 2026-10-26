@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T17:43:51Z
+Last updated: 2026-10-26T18:06:26Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T18:06:26Z: NEXT selected-target refusal facets packet ef02046b strongf39e68c1 ready Root-only; single WORKconst_subst currentbf8c preimage888533c5 exact, same selectedquery once/oldfilter/oldrows/env/budgets, fourpureborrowedgetters. Sourceproof6fbad948; countqualificationc4a15693 editedsite1/wholemodule2 unchanged. Actual MAP713..761/RANGE442..479 gatefalse remains unresolved until measured facets; native_handler_envelope only stablehandler/noentry-or-opcode grant, so no bypass. Separate audit e64d61a7 and exact80panics1ebbd0df; authoritativebaseline998 join77d3244b has0exact80identities (allUNOBSERVED, notdebt/PASS); oldprior128zeroP-to-nonP remainsseparate. Compiler currentproducerread-only queued afterfinalbf8c metadata peer. Practical next actions: RootNEXTobserverintegration+sameactualSpecprobe; authenticate only newlyassignedruns; use measuredtargetfacet torepairgenuine producer and preserveall Native eligibility. No unrelatedgeneralVMparity/canonicaledit/localbuild.
 
 Current 2026-10-26T17:43:51Z: All four assigned ba30/24fb captures terminal and authenticated. Runtime166 5de506ce: original131closed, added35ALLPASS incl Jim3/Cold2 actualsize<128, other10324P79F/prune6P1F/CFIincomplete; exact prior128 join e44f48cb zero PASS-to-nonPASS/3 FAIL-to-PASS cause unassigned. iRules e815b625 bootstrap180timeout/-2, later3UNRUN; sampler38 onlyfirst-init, no final-site attribution. Spec46ba835c old16/VM1/ordinary4PASS, LENGTH1/1 MAP/RANGE0/0 remainsFAIL, full600timeout600.496/-2 ownedcleanup preserved. Broad8 cf40cf26 419checks: original25ALLPASS; separate two-ELF whole8 CLOSED6P2F833.425s, exact individual join705ace00 identifies native-add-plan assertion672 and framinggolden612 FAIL; division and all3plansPASS. No assertion/golden/guard edits, no releasegreen/C1C2closure. Include3 source strongc1ef1032/lane payloadaddendum7f4f314c ready Root-only; actualprep retryUNRUN. User-approved NULcorrection Root-only integration, no current outcomesdonation.
 

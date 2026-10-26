@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T17:10:55.044210+00:00
+Last updated: 2026-10-26T18:09:21.538433+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Final bf8c union2e07ceed/0ca3a17d independently CLEAR40e87ed2; 11files/13refresh+6missing approved lease keys (8total across4maps), all11actualruntimeguards andprospectiveV14 PASS29ee5c98. Rootcanonicalapply now62848aa, sourcewave dispatch remains Root-owned. Actual18:01 CI Cef60 exactly3active/C47exactly4active, preserved with no duplicate artifacts. NEXT combined existing-tier diagnostic f014f869/60a452b4 is immutable WORK-only and strongpeer pending; samecompile/currentflag/global128rows, no assertion/golden changes. Existing Broad8 old25PASS/new8 6P2F leaves NativeAdd/framing open; division/3oracleplansPASS.
+
+Readonly NEXTintentobserved5cbd8:13existingstales/7maps, approvedexact8leaseproducerdeps(2files×4command_binding parentmaps), no newRustleaf. WaitRootFINALfreeze; preservecombined147protocol77c3/cdf7 structuralrows, no canonicalmetadatafromme. Centralaliasdata9b7b strong285089 resolvesgeneratorpolicywithoutfixturelabelremoval; actualparityUNRUN/clockconsumerOPEN. RuntimeBroad8solecf40 actualold25PASS,new8=6P2F: division+all3oracleplansPASS, NativeAdd/goldenFAIL. C47shard3actual3228P687F closescurrentbaselineavailable3459P911F20035unknown219notselected(raw5eb27baa); currentAPI3allPASS910ebfb4. OtherC47four/Cef60threejobsactivepreserved.
 
 ba30 strict40362616782 FULLAUTH23 3bad852d, soleonecompilerlibredundantclosure registry_invocation1452/0RustE; LSPownsrepair, later runtime259frontierstillmasked/notzero. Rootcanonicald216V2 apply/push/V14 complete; Broad8 protocol24fb canonical and run40363951715 solelyRuntime, no duplicate. NEXT Native-tier selecteddecline failurediagnostic44919fcd typeclearca027, no canonicalchangebyme. User-approvedNULfixtureprecondition intent NEXTreceived, actualRootfreeze/pincarrypending. Latest17:01 CI remainsCef603active/C47sixactive; no cancellation or source-cut projection.
 
