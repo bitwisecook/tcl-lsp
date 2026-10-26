@@ -28,6 +28,8 @@
 //!
 //! Semantics verified against tclsh 9.0.
 
+type PreparedEachLoopGroups = (Vec<EachLoopGroup>, Vec<(usize, usize)>);
+
 use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
@@ -803,7 +805,7 @@ fn prepare_each_loop_groups(
     protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
     strings: tcl_syntax::native_string::NativeStringProtocol,
     arguments: &OriginalArguments,
-) -> Result<(Vec<EachLoopGroup>, Vec<(usize, usize)>), Code> {
+) -> Result<PreparedEachLoopGroups, Code> {
     interp
         .associate_native_jim_arguments(argv)
         .map_err(|error| interp.report_cmd_error(error.into()))?;
