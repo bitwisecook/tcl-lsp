@@ -2837,9 +2837,9 @@ write_yaml_mcp_config() {
     tmp_cfg="$WORKDIR/harness-config.yaml"
     if have yq && yq --version 2>&1 | grep -qi 'mikefarah'; then
         if [ "$shape" = hermes ]; then
-            expression='.mcp_servers."tcl-lsp" = {"command": strenv(TCL_LSP_MCP_COMMAND), "args": []}'
+            expression='.mcp_servers."tcl-lsp" = {"command": strenv(TCL_LSP_MCP_COMMAND), "args": []} | .mcp_servers."tcl-lsp".command style = "double"'
         else
-            expression='.extensions."tcl-lsp" = {"type": "stdio", "name": "tcl-lsp", "enabled": true, "cmd": strenv(TCL_LSP_MCP_COMMAND), "args": [], "env_keys": [], "envs": {}, "timeout": 300}'
+            expression='.extensions."tcl-lsp" = {"type": "stdio", "name": "tcl-lsp", "enabled": true, "cmd": strenv(TCL_LSP_MCP_COMMAND), "args": [], "env_keys": [], "envs": {}, "timeout": 300} | .extensions."tcl-lsp".cmd style = "double"'
         fi
         if TCL_LSP_MCP_COMMAND="$MCP_PATH" yq "$expression" "$cfg" > "$tmp_cfg" 2>/dev/null; then
             mv "$tmp_cfg" "$cfg"
