@@ -565,6 +565,47 @@ mod tests {
         );
     }
 
+    fn assert_original_template_plan_is_source_only(
+        plans: &[&crate::sccp::TemplatePlanRecord],
+        function: &FunctionUnit,
+    ) {
+        assert_eq!(plans.len(), 1);
+        assert_eq!(
+            plans[0].switches.as_deref(),
+            Some(["-novariables".to_owned()].as_slice())
+        );
+        assert_eq!(function.sccp.template_plans.len(), 1);
+        assert_eq!(function.sccp.template_plans[0].switches, None);
+    }
+
+    fn assert_foreign_template_projection_is_populated(
+        function: &FunctionUnit,
+        foreign_function: &FunctionUnit,
+    ) {
+        assert_eq!(
+            function.source_metadata_input(),
+            foreign_function.source_metadata_input()
+        );
+        assert!(
+            foreign_function
+                .semantic_values()
+                .unwrap()
+                .contents_iter()
+                .any(|(_, value)| *value
+                    == LatticeValue::Const(crate::analyses::ConstValue::String(
+                        "-nocommands".to_owned()
+                    )))
+        );
+    }
+
+    fn original_values<'a>(
+        module: &'a Module,
+        function: &'a FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalDiagnosticValues<'a>> {
+        OriginalDiagnosticValues::for_module_function(module, function, registry)
+    }
+
     #[test]
     fn original_advisory_template_plans_keep_current_producer_and_refuse_foreign_or_missing_owners()
     {
@@ -576,64 +617,32 @@ mod tests {
         let input = input(Arc::clone(&context));
         let original = unit("proc f {x} {set opt -novariables; subst $opt $x}", &input);
         let function = original.function("::f").unwrap();
-        let values = OriginalDiagnosticValues::for_module_function(
-            &original.ir_module,
-            function,
-            context.commands(),
-        )
-        .expect("authentic current Logical producer");
+        let values = original_values(&original.ir_module, function, context.commands())
+            .expect("authentic current Logical producer");
         let plans = values.template_plans();
-        assert_eq!(plans.len(), 1);
-        assert_eq!(
-            plans[0].switches.as_deref(),
-            Some(["-novariables".to_owned()].as_slice())
-        );
-        assert_eq!(function.sccp.template_plans.len(), 1);
-        assert_eq!(function.sccp.template_plans[0].switches, None);
+        assert_original_template_plan_is_source_only(&plans, function);
         let (statement, _) = values.word_at(function.abs_span(plans[0].span)).unwrap();
         let mut cloned = function.clone();
         assert_eq!(
-            OriginalDiagnosticValues::for_module_function(
-                &original.ir_module,
-                &cloned,
-                context.commands()
-            )
-            .unwrap()
-            .template_plans(),
+            original_values(&original.ir_module, &cloned, context.commands())
+                .unwrap()
+                .template_plans(),
             plans
         );
         cloned.invalidate_semantic_values();
         assert_eq!(
-            OriginalDiagnosticValues::for_module_function(
-                &original.ir_module,
-                &cloned,
-                context.commands()
-            )
-            .unwrap()
-            .template_plans(),
+            original_values(&original.ir_module, &cloned, context.commands())
+                .unwrap()
+                .template_plans(),
             plans,
             "legitimate detached recomputation keeps its current producer"
         );
         let mut missing = function.clone();
         missing.source_metadata_input = None;
-        assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &original.ir_module,
-                &missing,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert!(original_values(&original.ir_module, &missing, context.commands()).is_none());
         let mut changed = function.clone();
         changed.source_config.strict_quoting = !changed.source_config.strict_quoting;
-        assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &original.ir_module,
-                &changed,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert!(original_values(&original.ir_module, &changed, context.commands()).is_none());
         let mut changed = function.clone();
         let Statement::Call {
             tokens: Some(tokens),
@@ -649,22 +658,15 @@ mod tests {
         };
         tokens.argv_texts[1] = "$foreign".to_owned();
         assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &original.ir_module,
-                &changed,
-                context.commands()
-            )
-            .unwrap()
-            .template_plans()
-            .is_empty(),
+            original_values(&original.ir_module, &changed, context.commands())
+                .unwrap()
+                .template_plans()
+                .is_empty(),
             "a changed original vector cannot borrow the immutable plan"
         );
         let mut missing = original.ir_module.clone();
         missing.source_metadata_input = None;
-        assert!(
-            OriginalDiagnosticValues::for_module_function(&missing, function, context.commands(),)
-                .is_none()
-        );
+        assert!(original_values(&missing, function, context.commands(),).is_none());
         let older = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
                 .with_command_store(Arc::clone(context.commands())),
@@ -677,39 +679,12 @@ mod tests {
             older,
             input.lexer_config(),
         ));
-        assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &older_module,
-                function,
-                context.commands(),
-            )
-            .is_none()
-        );
+        assert!(original_values(&older_module, function, context.commands(),).is_none());
         let foreign_registry = CommandRegistry::build_default();
-        assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &original.ir_module,
-                function,
-                &foreign_registry,
-            )
-            .is_none()
-        );
+        assert!(original_values(&original.ir_module, function, &foreign_registry,).is_none());
         let foreign = unit("proc f {x} {set opt -nocommands; subst $opt $x}", &input);
         let foreign_function = foreign.function("::f").unwrap();
-        assert_eq!(
-            function.source_metadata_input(),
-            foreign_function.source_metadata_input()
-        );
-        assert!(
-            foreign_function
-                .semantic_values()
-                .unwrap()
-                .contents_iter()
-                .any(|(_, value)| *value
-                    == LatticeValue::Const(crate::analyses::ConstValue::String(
-                        "-nocommands".to_owned()
-                    )))
-        );
+        assert_foreign_template_projection_is_populated(function, foreign_function);
         let mut swapped = function.clone();
         swapped.semantic_value_projection = Arc::clone(&foreign_function.semantic_value_projection);
         assert!(
@@ -718,19 +693,14 @@ mod tests {
                 .matches_source_input(context.commands(), &input)
         );
         assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &original.ir_module,
-                &swapped,
-                context.commands()
-            )
-            .is_none(),
+            original_values(&original.ir_module, &swapped, context.commands()).is_none(),
             "equal full inputs do not identify a foreign populated function projection"
         );
         let native = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         let native = ResolvedAnalysisInput::new(native, native, context, input.lexer_config());
         let native_unit = unit("subst $unknown", &native);
         assert!(
-            OriginalDiagnosticValues::for_module_function(
+            original_values(
                 &native_unit.ir_module,
                 &native_unit.top_level,
                 native.borrowed_context_registry().commands(),
@@ -831,14 +801,10 @@ mod tests {
         let function = unit.function("::f").unwrap();
         let (statement, word) = read(&unit);
         assert_eq!(
-            OriginalDiagnosticValues::for_module_function(
-                &unit.ir_module,
-                function,
-                context.commands()
-            )
-            .unwrap()
-            .word_contents(statement, word)
-            .as_deref(),
+            original_values(&unit.ir_module, function, context.commands())
+                .unwrap()
+                .word_contents(statement, word)
+                .as_deref(),
             Some("literal.txt")
         );
         assert!(
@@ -853,36 +819,16 @@ mod tests {
         );
         let mut changed = unit.ir_module.clone();
         changed.source_metadata_input = Some(old.clone());
-        assert!(
-            OriginalDiagnosticValues::for_module_function(&changed, function, context.commands())
-                .is_none()
-        );
+        assert!(original_values(&changed, function, context.commands()).is_none());
         let mut missing = function.clone();
         missing.source_metadata_input = None;
-        assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &unit.ir_module,
-                &missing,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert!(original_values(&unit.ir_module, &missing, context.commands()).is_none());
         let mut missing = unit.ir_module.clone();
         missing.source_metadata_input = None;
-        assert!(
-            OriginalDiagnosticValues::for_module_function(&missing, function, context.commands())
-                .is_none()
-        );
+        assert!(original_values(&missing, function, context.commands()).is_none());
         let mut stale = function.clone();
         stale.source_config.strict_quoting = !stale.source_config.strict_quoting;
-        assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &unit.ir_module,
-                &stale,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert!(original_values(&unit.ir_module, &stale, context.commands()).is_none());
         let mut changed = function.clone();
         let Statement::Call {
             tokens: Some(tokens),
@@ -898,42 +844,27 @@ mod tests {
         };
         tokens.argv_texts[word] = "$other".to_owned();
         assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &unit.ir_module,
-                &changed,
-                context.commands()
-            )
-            .unwrap()
-            .word_contents(statement, word)
-            .is_none()
+            original_values(&unit.ir_module, &changed, context.commands())
+                .unwrap()
+                .word_contents(statement, word)
+                .is_none()
         );
         let foreign =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
-        assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &unit.ir_module,
-                function,
-                foreign.commands()
-            )
-            .is_none()
-        );
+        assert!(original_values(&unit.ir_module, function, foreign.commands()).is_none());
         let old_unit = self::unit(source, &old);
         let old_function = old_unit.function("::f").unwrap();
         let (old_statement, old_word) = read(&old_unit);
         assert!(
-            OriginalDiagnosticValues::for_module_function(
-                &old_unit.ir_module,
-                old_function,
-                context.commands()
-            )
-            .unwrap()
-            .word_contents(old_statement, old_word)
-            .is_none()
+            original_values(&old_unit.ir_module, old_function, context.commands())
+                .unwrap()
+                .word_contents(old_statement, old_word)
+                .is_none()
         );
         let native = ResolvedAnalysisInput::new(profile, profile, context, current.lexer_config());
         let native_unit = self::unit(source, &native);
         assert!(
-            OriginalDiagnosticValues::for_module_function(
+            original_values(
                 &native_unit.ir_module,
                 &native_unit.top_level,
                 native.borrowed_context_registry().commands()
