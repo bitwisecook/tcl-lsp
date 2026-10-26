@@ -314,8 +314,8 @@ fn original_gap_is_empty(first: &CommandTokens, next: &CommandTokens) -> bool {
 mod tests {
     use crate::interprocedural::test_body_identity::fixture_id;
 
-    fn standalone_context() -> Option<super::InvocationMetadataContext<'static>> {
-        Some(tcl_registry::model::ingress::static_context_for("tcl8.6").into())
+    fn standalone_context() -> super::InvocationMetadataContext<'static> {
+        tcl_registry::model::ingress::static_context_for("tcl8.6").into()
     }
 
     fn setters(source: &str) -> Vec<crate::ir::CommandTokens> {
@@ -493,7 +493,7 @@ mod tests {
             let advice = report.as_ref().and_then(|report| {
                 super::conditional_unread_local_store_advice(
                     registry,
-                    standalone_context(),
+                    Some(standalone_context()),
                     &tokens,
                     report,
                 )
@@ -513,7 +513,7 @@ mod tests {
         assert_eq!(tokens.len(), 3);
         let advice = super::conditional_overwritten_local_store_advice(
             registry,
-            standalone_context(),
+            Some(standalone_context()),
             &tokens[1],
             &tokens[2],
         );
@@ -532,7 +532,7 @@ mod tests {
         assert!(
             super::overwritten_local_store_advice(
                 registry,
-                standalone_context(),
+                Some(standalone_context()),
                 &tokens[0],
                 &tokens[1]
             )
@@ -541,7 +541,7 @@ mod tests {
         );
         let advice = super::conditional_overwritten_local_store_advice(
             registry,
-            standalone_context(),
+            Some(standalone_context()),
             &tokens[0],
             &tokens[1],
         );
@@ -559,7 +559,7 @@ mod tests {
             assert!(
                 super::conditional_overwritten_local_store_advice(
                     registry,
-                    standalone_context(),
+                    Some(standalone_context()),
                     &tokens[0],
                     &tokens[1]
                 )

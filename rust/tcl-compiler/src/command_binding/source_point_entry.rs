@@ -1051,7 +1051,8 @@ mod tests {
             },
             |a| a.workspace_class_factories = Some(Arc::new(std::collections::BTreeMap::default())),
             |a| {
-                a.workspace_subclass_methods = Some(Arc::new(std::collections::BTreeMap::default()))
+                a.workspace_subclass_methods =
+                    Some(Arc::new(std::collections::BTreeMap::default()));
             },
             |a| {
                 a.library_versions = crate::analyser::Analyser::new()

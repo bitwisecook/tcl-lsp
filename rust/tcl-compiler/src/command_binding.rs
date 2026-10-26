@@ -25456,9 +25456,11 @@ mod retained_source_read_configuration_tests {
     #[test]
     fn source_entry_and_baseline_rebuild_keep_actual_full_lexer_config() {
         let registry = CommandRegistry::build_default();
-        let mut config = tcl_lexer::LexerConfig::default();
-        config.strict_quoting = true;
-        config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        let config = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let selected = ModuleCommandBindings::initial_with_options(
             &registry,
             SourceAnalysisOptions::default(),

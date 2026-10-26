@@ -88,15 +88,12 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
         // A declaration-only body uses the actual Lowerer's stamped source
         // vector. Its conditional source target does not denote dispatch.
         let tokens = nested.then(|| logical_original_statement(&input, source, offset));
-        let binding = tokens
-            .as_ref()
-            .map(|tokens| {
-                tokens
-                    .source_binding
-                    .as_ref()
-                    .expect("original declaration binding")
-            })
-            .unwrap_or(&original);
+        let binding = tokens.as_ref().map_or(&original, |tokens| {
+            tokens
+                .source_binding
+                .as_ref()
+                .expect("original declaration binding")
+        });
         let target = if let Some(tokens) = &tokens {
             let targets = binding
                 .original_logical_declaration_call_targets(tokens, &input, context.commands())
