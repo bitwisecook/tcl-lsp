@@ -3,6 +3,8 @@
 use super::*;
 use crate::obj::Owned;
 use std::cell::{Cell, RefCell};
+type OriginalCopyPhase = (Vec<Vec<u8>>, Option<u64>);
+
 thread_local! {
     static OWNER: RefCell<Option<crate::interp::WeakInterp>> = const { RefCell::new(None) };
     static MODE: Cell<u8> = const { Cell::new(0) };
@@ -10,7 +12,7 @@ thread_local! {
     static REBORN: Cell<NsId> = const { Cell::new(GLOBAL) };
     static ARMED: Cell<bool> = const { Cell::new(false) };
     static FREES: Cell<usize> = const { Cell::new(0) };
-    static COPY_PHASE: RefCell<Option<(Vec<Vec<u8>>, Option<u64>)>> = const { RefCell::new(None) };
+    static COPY_PHASE: RefCell<Option<OriginalCopyPhase>> = const { RefCell::new(None) };
 }
 struct Cleanup;
 impl Drop for Cleanup {

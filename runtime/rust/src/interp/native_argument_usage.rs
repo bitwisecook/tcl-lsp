@@ -13,6 +13,8 @@ use std::{
 use tcl_cmd_core::CmdError;
 use tcl_syntax::value::ValueError;
 
+type OriginalProcedurePrefix = (Vec<Rc<[u8]>>, usize);
+
 struct RewriteProjection {
     birth: Weak<()>,
     words: Range<usize>,
@@ -249,7 +251,7 @@ impl OriginalArgumentUsage {
         &self,
         supplied: usize,
         parameters: usize,
-    ) -> Result<Option<(Vec<Rc<[u8]>>, usize)>, CmdError> {
+    ) -> Result<Option<OriginalProcedurePrefix>, CmdError> {
         self.check()?;
         let Some(rewrite) = &self.rewrite else {
             return Ok(None);

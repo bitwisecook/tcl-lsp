@@ -4,12 +4,14 @@ use super::*;
 use crate::interp::WeakInterp;
 use std::cell::Cell;
 
+type OriginalRecordStage = (u64, bool, bool, bool, bool);
+
 thread_local! {
     static OWNER: RefCell<Option<WeakInterp>> = const { RefCell::new(None) };
     static MODE: Cell<u8> = const { Cell::new(0) };
     static TARGET: Cell<OoId> = const { Cell::new(OoId(0)) };
     static NAMESPACE: Cell<NsId> = const { Cell::new(GLOBAL) };
-    static STAGES: RefCell<Vec<(u64, bool, bool, bool, bool)>> = const { RefCell::new(Vec::new()) };
+    static STAGES: RefCell<Vec<OriginalRecordStage>> = const { RefCell::new(Vec::new()) };
 }
 extern "C" fn retire(original: *mut TclObj) {
     let Some(mut interpreter) =

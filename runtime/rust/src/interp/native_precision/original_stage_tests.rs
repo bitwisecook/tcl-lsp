@@ -14,11 +14,13 @@ use tcl_platform::{
     NumericEnvironmentUnavailable, NumericErrorState, UnsignedNumericConversion,
 };
 
+type OriginalLongCall = (Vec<u8>, usize, u32, UnsignedNumericConversion);
+
 struct ObservedNumeric {
     queries: Cell<usize>,
     abi_queries: Cell<usize>,
     resets: Cell<usize>,
-    long_calls: RefCell<Vec<(Vec<u8>, usize, u32, UnsignedNumericConversion)>>,
+    long_calls: RefCell<Vec<OriginalLongCall>>,
     owner: RefCell<Option<WeakInterp>>,
     change_after_long: Cell<bool>,
 }

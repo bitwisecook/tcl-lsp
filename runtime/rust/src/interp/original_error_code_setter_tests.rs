@@ -4,6 +4,13 @@
 use super::*;
 use crate::obj::Owned;
 
+type OriginalRetiringHeader = (
+    Owned,
+    Rc<Cell<*mut TclObj>>,
+    Rc<RefCell<Vec<HeaderRetirementRow>>>,
+    Rc<Cell<usize>>,
+);
+
 struct Original {
     interpreter: WeakInterp,
     updates: Rc<Cell<usize>>,
@@ -304,15 +311,7 @@ static HEADER_RETIREMENT: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
-fn retiring_header(
-    interpreter: &Interp,
-    mode: u8,
-) -> (
-    Owned,
-    Rc<Cell<*mut TclObj>>,
-    Rc<RefCell<Vec<HeaderRetirementRow>>>,
-    Rc<Cell<usize>>,
-) {
+fn retiring_header(interpreter: &Interp, mode: u8) -> OriginalRetiringHeader {
     let incoming = Rc::new(Cell::new(core::ptr::null_mut()));
     let rows = Rc::new(RefCell::new(Vec::new()));
     let updates = Rc::new(Cell::new(0));
