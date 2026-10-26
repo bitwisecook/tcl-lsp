@@ -92,7 +92,9 @@ impl Interp {
             limits.cmd_value.is_some(),
             limits.time_value.is_some(),
             procedure,
-            observers_absent,
+            tcl_runtime_api::native_compiler_pass::NativeOrdinaryEntryObservers::from(
+                observers_absent,
+            ),
         ))
     }
 }

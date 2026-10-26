@@ -21,6 +21,22 @@ pub struct NativeCompilerPassProcedure {
     pub namespace_full_name: crate::NameBytes,
 }
 
+/// Complete backend observer observation supplied at the actual capture site.
+/// This input is not a lifetime, frame or effect receipt on its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeOrdinaryEntryObservers {
+    /// Registered, pending or firing observer absence has not been established.
+    Unproven,
+    /// The backend inspected every applicable observer and active callback.
+    Absent,
+}
+
+impl From<bool> for NativeOrdinaryEntryObservers {
+    fn from(absent: bool) -> Self {
+        if absent { Self::Absent } else { Self::Unproven }
+    }
+}
+
 /// Metadata lifetime owner belonging to one actual interpreter state.
 /// It owns no native headers, procedure declarations or namespace resources.
 #[derive(Debug)]
@@ -74,7 +90,7 @@ impl NativeCompilerPassOwner {
         command_limit_enabled: bool,
         time_limit_enabled: bool,
         procedure: Option<NativeCompilerPassProcedure>,
-        entry_observers_absent: bool,
+        entry_observers: NativeOrdinaryEntryObservers,
     ) -> NativeCompilerPassEnvironment {
         let mut environment = self.capture(
             root_interpreter,
@@ -83,7 +99,10 @@ impl NativeCompilerPassOwner {
             procedure,
         );
         let epoch = self.ordinary_entry_epoch.load(Ordering::Acquire);
-        if entry_observers_absent && !environment.has_enabled_limits() && epoch != 0 {
+        if entry_observers == NativeOrdinaryEntryObservers::Absent
+            && !environment.has_enabled_limits()
+            && epoch != 0
+        {
             environment.ordinary_entry_observation = Some(OrdinaryEntryObservation {
                 epoch,
                 currency: Arc::downgrade(&self.ordinary_entry_epoch),
@@ -306,8 +325,13 @@ mod ordinary_entry_observation_tests {
                 .capture(true, false, false, None)
                 .ordinary_entry_observers_absent_for(id)
         );
-        let observed =
-            owner.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        let observed = owner.capture_with_ordinary_entry_observation(
+            true,
+            false,
+            false,
+            None,
+            NativeOrdinaryEntryObservers::Absent,
+        );
         assert!(observed.ordinary_entry_observers_absent_for(id));
         assert!(
             !observed.ordinary_entry_observers_absent_for(NativeInterpreterIdentity {
@@ -323,13 +347,25 @@ mod ordinary_entry_observation_tests {
         for (commands, time) in [(true, false), (false, true)] {
             assert!(
                 !owner
-                    .capture_with_ordinary_entry_observation(true, commands, time, None, true)
+                    .capture_with_ordinary_entry_observation(
+                        true,
+                        commands,
+                        time,
+                        None,
+                        NativeOrdinaryEntryObservers::Absent
+                    )
                     .ordinary_entry_observers_absent_for(id)
             );
         }
         assert!(
             !owner
-                .capture_with_ordinary_entry_observation(true, false, false, None, false)
+                .capture_with_ordinary_entry_observation(
+                    true,
+                    false,
+                    false,
+                    None,
+                    NativeOrdinaryEntryObservers::Unproven
+                )
                 .ordinary_entry_observers_absent_for(id)
         );
     }
@@ -337,37 +373,64 @@ mod ordinary_entry_observation_tests {
     fn mutation_restore_retirement_and_exhaustion_keep_captured_hash_immutable() {
         let id = interpreter();
         let owner = NativeCompilerPassOwner::new(id);
-        let original =
-            owner.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        let original = owner.capture_with_ordinary_entry_observation(
+            true,
+            false,
+            false,
+            None,
+            NativeOrdinaryEntryObservers::Absent,
+        );
         let same = original.clone();
         let before = hash(&original);
         owner.invalidate_ordinary_entry_observation();
         assert!(!original.ordinary_entry_observers_absent_for(id));
         assert_eq!(original, same);
         assert_eq!(hash(&original), before);
-        let restored =
-            owner.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        let restored = owner.capture_with_ordinary_entry_observation(
+            true,
+            false,
+            false,
+            None,
+            NativeOrdinaryEntryObservers::Absent,
+        );
         assert!(restored.ordinary_entry_observers_absent_for(id));
         assert_ne!(restored, original);
         owner.retire_ordinary_entry_observation();
         assert!(!restored.ordinary_entry_observers_absent_for(id));
         assert!(
             !owner
-                .capture_with_ordinary_entry_observation(true, false, false, None, true)
+                .capture_with_ordinary_entry_observation(
+                    true,
+                    false,
+                    false,
+                    None,
+                    NativeOrdinaryEntryObservers::Absent
+                )
                 .ordinary_entry_observers_absent_for(id)
         );
         let exhausted = NativeCompilerPassOwner::new(id);
         exhausted
             .ordinary_entry_epoch
             .store(u64::MAX, Ordering::Release);
-        let last =
-            exhausted.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        let last = exhausted.capture_with_ordinary_entry_observation(
+            true,
+            false,
+            false,
+            None,
+            NativeOrdinaryEntryObservers::Absent,
+        );
         exhausted.invalidate_ordinary_entry_observation();
         exhausted.invalidate_ordinary_entry_observation();
         assert!(!last.ordinary_entry_observers_absent_for(id));
         assert!(
             !exhausted
-                .capture_with_ordinary_entry_observation(true, false, false, None, true)
+                .capture_with_ordinary_entry_observation(
+                    true,
+                    false,
+                    false,
+                    None,
+                    NativeOrdinaryEntryObservers::Absent
+                )
                 .ordinary_entry_observers_absent_for(id)
         );
         drop(owner);

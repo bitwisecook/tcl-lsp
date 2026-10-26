@@ -1096,10 +1096,22 @@ pub(crate) struct NativeUsageScope {
     revision: u64,
 }
 
-struct DebugHookActivation<'a>(&'a std::cell::Cell<bool>);
-impl Drop for DebugHookActivation<'_> {
+struct DebugHookActivation {
+    active: Rc<std::cell::Cell<bool>>,
+    previous: bool,
+}
+impl DebugHookActivation {
+    fn enter(active: &Rc<std::cell::Cell<bool>>) -> Self {
+        let previous = active.replace(true);
+        Self {
+            active: Rc::clone(active),
+            previous,
+        }
+    }
+}
+impl Drop for DebugHookActivation {
     fn drop(&mut self) {
-        self.0.set(false);
+        self.active.set(self.previous);
     }
 }
 
@@ -1109,7 +1121,7 @@ struct InterpreterDebugHooks {
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
     debug_hook: Option<crate::debug::DebugHook>,
-    debug_hook_active: std::cell::Cell<bool>,
+    debug_hook_active: Rc<std::cell::Cell<bool>>,
     #[cfg(test)]
     observer_probe: Option<fn(&Vm)>,
     /// Optional shared cell tracking the source line of the instruction being
@@ -4984,8 +4996,7 @@ impl Vm {
         if self.debug_hooks.debug_hook.is_none() {
             return false;
         }
-        self.debug_hooks.debug_hook_active.set(true);
-        let _debug_activation = DebugHookActivation(&self.debug_hooks.debug_hook_active);
+        let _debug_activation = DebugHookActivation::enter(&self.debug_hooks.debug_hook_active);
         let snapshot = self.debug_snapshot(line, cmd_text);
         // Take the hook out so the closure can borrow `self`-derived data
         // (already captured in `snapshot`) without aliasing the field.
@@ -26399,14 +26410,16 @@ impl Vm {
                     self.limits.cmd_value.is_some(),
                     self.limits.time_value.is_some(),
                     procedure,
-                    self.exec_traces.values().all(Vec::is_empty)
-                        && self.exec_step_scopes.is_empty()
-                        && !self.trace_in_progress.get()
-                        && self.firing_cmd_traces.is_empty()
-                        && self.pending_exec_leave.is_none()
-                        && self.debug_hooks.debug_hook.is_none()
-                        && !self.debug_hooks.debug_hook_active.get()
-                        && !self.interps.get(self.cur.0).is_none_or(|slot| slot.dying),
+                    tcl_runtime_api::native_compiler_pass::NativeOrdinaryEntryObservers::from(
+                        self.exec_traces.values().all(Vec::is_empty)
+                            && self.exec_step_scopes.is_empty()
+                            && !self.trace_in_progress.get()
+                            && self.firing_cmd_traces.is_empty()
+                            && self.pending_exec_leave.is_none()
+                            && self.debug_hooks.debug_hook.is_none()
+                            && !self.debug_hooks.debug_hook_active.get()
+                            && !self.interps.get(self.cur.0).is_none_or(|slot| slot.dying),
+                    ),
                 ),
         )
     }
@@ -35845,6 +35858,14 @@ mod ordinary_entry_observer_tests {
         let (original, id) = capture(&vm);
         vm.set_line_watch(Some(Rc::new(std::cell::Cell::new(0))));
         assert!(original.ordinary_entry_observers_absent_for(id));
+        let marker = Rc::clone(&vm.debug_hooks.debug_hook_active);
+        let outer = DebugHookActivation::enter(&marker);
+        let nested = DebugHookActivation::enter(&marker);
+        assert!(!capture(&vm).0.ordinary_entry_observers_absent_for(id));
+        drop(nested);
+        assert!(marker.get());
+        drop(outer);
+        assert!(!marker.get());
         let calls = Rc::new(std::cell::Cell::new(0));
         let seen = Rc::clone(&calls);
         vm.set_debug_hook(Some(Box::new(move |_| {
@@ -35863,6 +35884,13 @@ mod ordinary_entry_observer_tests {
         vm.debug_hooks.observer_probe = None;
         assert_eq!(calls.get(), 1);
         assert!(!vm.debug_hooks.debug_hook_active.get());
+        vm.set_debug_hook(Some(Box::new(|_| panic!("controlled debug hook unwind"))));
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            vm.fire_debug_hook(2, "set x 2")
+        }));
+        assert!(unwound.is_err());
+        assert!(!marker.get());
+        assert!(!original.ordinary_entry_observers_absent_for(id));
         vm.set_debug_hook(None);
         let (restored, _) = capture(&vm);
         assert!(restored.ordinary_entry_observers_absent_for(id));
