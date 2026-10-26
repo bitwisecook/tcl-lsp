@@ -241,17 +241,17 @@ impl PreparedJimAliasCell {
         &self,
         mut link: Link,
         frame: tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
-    ) -> Result<(), (ValueError, Link)> {
+    ) -> Result<(), Box<(ValueError, Link)>> {
         if let Err(error) = self.check() {
-            return Err((error, link));
+            return Err(Box::new((error, link)));
         }
         let original = match *self.shape.borrow() {
             OriginalShape::Scalar(original) => original,
             _ => {
-                return Err((
+                return Err(Box::new((
                     ValueError::CommandProtocolUnavailable("Jim assigned scalar link frame"),
                     link,
-                ))
+                )))
             }
         };
         let contents = self.contents.upgrade().expect("checked original Jim local");

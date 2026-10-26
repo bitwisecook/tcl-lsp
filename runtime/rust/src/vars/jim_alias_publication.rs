@@ -216,7 +216,8 @@ impl PreparedJimAliasLocal {
         self.check(interpreter, currency)?;
         match self.cell.mark_link(link, frame) {
             Ok(()) => self.check(interpreter, currency),
-            Err((error, link)) => {
+            Err(failure) => {
+                let (error, link) = *failure;
                 let first = Self::error(interpreter, error);
                 drop(link);
                 let _ = currency.ensure_current_or_refuse();
