@@ -102,6 +102,8 @@ pub use original_class_configuration::OriginalSourceClassConfigurationTarget;
 pub use original_class_configuration::OriginalSourceObjectConfigurationTarget;
 pub use source_name_lookup::OriginalCommandLookup;
 mod source_command_world;
+#[cfg(debug_assertions)]
+pub(crate) mod source_world_observer;
 pub use future_bodies::{SourceFutureBodyInventory, SourceFutureCallSite};
 pub use source_command_world::{
     OriginalClassInstanceMethodRoster, OriginalCommandPublication, OriginalCommandPublicationKind,
@@ -9690,6 +9692,8 @@ impl SourceCommandBindings {
             let prefix_complete = outcomes.normal_completion;
             #[cfg(test)]
             let zz_before = continuing.opaque_domain;
+            #[cfg(debug_assertions)]
+            let n17_before = source_world_observer::before_command(&continuing);
             let command = self.walk_source_command(image, base, &mut continuing, segment, context);
             #[cfg(test)]
             if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
@@ -9709,16 +9713,15 @@ impl SourceCommandBindings {
                 );
             }
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
-                eprintln!(
-                    "ORIGINAL_COMMAND_COMPLETION site={} prefix_complete={} command_complete={} normal={} abrupt={}",
-                    segment.span.start(),
-                    prefix_complete.is_some(),
-                    command.normal_completion.is_some(),
-                    command.normal.is_some(),
-                    command.abrupt.len(),
-                );
-            }
+            source_world_observer::observe_command(
+                self,
+                context,
+                image,
+                segment,
+                n17_before,
+                &command,
+                prefix_complete.is_some(),
+            );
             #[cfg(debug_assertions)]
             command.trace_original_namespace_child("command_return", segment.span.start());
             outcomes.join(&command);

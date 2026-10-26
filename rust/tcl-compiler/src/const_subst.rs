@@ -178,13 +178,27 @@ macro_rules! n17_live_some {
 }
 
 #[cfg(debug_assertions)]
-fn named_execution_has_unknown_alternative(
+fn trace_execution_refusal(
     binding: &crate::command_binding::SourceInvocationBinding,
-) -> bool {
-    binding
-        .compiled_named_candidates
-        .iter()
-        .any(|proof| proof.unknown)
+    target: Option<&crate::command_binding::SourceCommandTarget>,
+) {
+    n17_live_trace!(
+        "selected-target-refusal reachability={:?} compiled_unknown={} execution_unknown={} may_be_absent={} selected_present={} live_dispatch={} live_unknown={} native_count={} named_count={} any_named_unknown={} source_world={:?}",
+        binding.runtime_reachability(),
+        binding.compiled_execution_unknown(),
+        binding.execution_is_unknown(),
+        binding.execution_may_be_absent(),
+        target.is_some(),
+        binding.may_use_live_dispatch,
+        binding.unknown,
+        binding.compiled_candidates.len(),
+        binding.compiled_named_candidates.len(),
+        binding
+            .compiled_named_candidates
+            .iter()
+            .any(|proof| proof.unknown),
+        crate::command_binding::source_world_observer::binding_world(binding),
+    );
 }
 
 impl ConstSubstCtx<'_> {
@@ -216,19 +230,8 @@ impl ConstSubstCtx<'_> {
         let binding = n17_live_some!(tokens.source_binding.as_ref(), "fold-binding")?;
         let target = binding.proved_execution_target();
         if target.is_none_or(|target| !target.registry_backed) {
-            n17_live_trace!(
-                "selected-target-refusal reachability={:?} compiled_unknown={} execution_unknown={} may_be_absent={} selected_present={} live_dispatch={} live_unknown={} native_count={} named_count={} any_named_unknown={}",
-                binding.runtime_reachability(),
-                binding.compiled_execution_unknown(),
-                binding.execution_is_unknown(),
-                binding.execution_may_be_absent(),
-                target.is_some(),
-                binding.may_use_live_dispatch,
-                binding.unknown,
-                binding.compiled_candidates.len(),
-                binding.compiled_named_candidates.len(),
-                named_execution_has_unknown_alternative(binding)
-            );
+            #[cfg(debug_assertions)]
+            trace_execution_refusal(binding, target);
         }
         n17_live_some!(
             target.filter(|target| target.registry_backed),
