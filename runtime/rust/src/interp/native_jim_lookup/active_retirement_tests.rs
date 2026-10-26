@@ -32,7 +32,7 @@ struct Record {
 struct Fixture {
     interpreter: Option<Interp>,
     probe: Box<Probe>,
-    records: Vec<Box<Record>>,
+    records: [Box<Record>; 4],
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
@@ -130,7 +130,7 @@ impl Fixture {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let probe = Box::new(Probe {
+        let mut probe = Box::new(Probe {
             interpreter: interpreter.downgrade(),
             current: Cell::new(std::ptr::null_mut()),
             generation: Cell::new(0),
@@ -148,17 +148,17 @@ impl Fixture {
             fail_role,
             restored: Cell::new(false),
         });
+        let records = std::array::from_fn(|role| {
+            Box::new(Record {
+                probe: &mut *probe,
+                role,
+            })
+        });
         let mut fixture = Self {
             interpreter: Some(interpreter),
             probe,
-            records: Vec::new(),
+            records,
         };
-        for role in 0..4 {
-            fixture.records.push(Box::new(Record {
-                probe: &mut *fixture.probe,
-                role,
-            }));
-        }
         let current = std::ptr::from_mut(&mut *fixture.records[0]);
         fixture.probe.current.set(current);
         let observer = std::ptr::from_mut(&mut *fixture.records[3]);
