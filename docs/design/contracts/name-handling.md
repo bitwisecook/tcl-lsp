@@ -2472,6 +2472,12 @@ The existing enriched, embedded APL/BIG-IP, unindexed and range paths retain the
 independent behavior. A coarse syntax stream or convergence marker proves no
 complete analysis, clean diagnostics, Native availability, binding or edit grant.
 
+The coarse receipt retains the input epoch and factory generation from its actual
+fresh structure-analysis seed. It does not combine an earlier host snapshot with
+a later worker result. Reconstructing a receipt from an old seed preserves the
+old generations; it cannot renew that analysis. Final source, configuration,
+publication and ownership checks still determine whether tokens can be returned.
+
 The new semantic structure purpose uses the same fresh-source capture and matcher
 as workspace readonly reporting. Its actual unchanged open orphan buffer remains
 a valid source-presentation snapshot; it does not contribute workspace facts.
