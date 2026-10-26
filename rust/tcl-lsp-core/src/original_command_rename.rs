@@ -2,6 +2,7 @@
 //! Atomic command-name edits from current original owners and byte geometry.
 
 mod linked_authoring;
+mod source_coverage;
 pub(crate) use linked_authoring::OriginalLinkedSourceSpelling;
 
 use std::collections::HashSet;
@@ -285,6 +286,12 @@ fn destination_matches(
 #[derive(Clone, Copy)]
 enum CommandLinkCoverage<'borrow, 'analysis> {
     Registry(&'borrow tcl_compiler::registry_invocation::ResolvedStatementInvocation),
+    SourceLoad {
+        receipt: &'borrow tcl_compiler::registry_invocation::OriginalConditionalSourceLoadCoverage<
+            'analysis,
+        >,
+        analysis: &'borrow tcl_compiler::analyser::AnalysisResult,
+    },
     QuietScalarStore {
         receipt: &'borrow tcl_compiler::registry_invocation::OriginalQuietScalarStoreSourceCoverage<
             'analysis,
@@ -305,6 +312,12 @@ fn reject_command_link_coverage(
     use tcl_registry::{CommandBindingTransition, NamespaceTransition, StateTransition};
     let selected = match coverage {
         CommandLinkCoverage::Registry(selected) => selected,
+        CommandLinkCoverage::SourceLoad { receipt, analysis } => {
+            if !receipt.is_for_analysis(analysis) {
+                return Err(OriginalCommandRenameRefusal::StaleSource);
+            }
+            receipt.invocation()
+        }
         CommandLinkCoverage::QuietScalarStore { receipt, analysis } => {
             if !receipt.is_for_analysis(analysis) {
                 return Err(OriginalCommandRenameRefusal::StaleSource);
@@ -325,7 +338,7 @@ fn reject_command_link_coverage(
     let transition_facts = match selected.facts.state_transitions.declared() {
         Some(transitions) => transitions.facts(),
         None => match coverage {
-            CommandLinkCoverage::Registry(_) => {
+            CommandLinkCoverage::Registry(_) | CommandLinkCoverage::SourceLoad { .. } => {
                 return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
             }
             // The exact original quiet-write proof closes only this wildcard
@@ -345,6 +358,10 @@ fn reject_command_link_coverage(
             | StateTransition::Trace(_) => {
                 return Err(OriginalCommandRenameRefusal::UneditableLinks);
             }
+            StateTransition::Package(
+                tcl_registry::model::binding::PackageTransition::SourceLoad { path },
+            ) if matches!(coverage, CommandLinkCoverage::SourceLoad { receipt, .. }
+                    if path.argument_index() == Some(receipt.path_argument())) => {}
             StateTransition::Interpreter(_)
             | StateTransition::Package(_)
             | StateTransition::Widen(_) => {
@@ -679,6 +696,36 @@ pub fn original_command_rename_edits_with_conditional_worlds(
     original_command_rename_units_with_conditional_worlds(documents, identity, &tail, conditional)
 }
 
+/// Plan edits with complete typed physical/interpretation coverage for finite
+/// source cuts. Every ordinary edit/publication guard remains independent.
+pub fn original_command_rename_edits_with_source_views<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    identity: &OriginalDeclarationIdentity,
+    new_tail: &str,
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    views: &[crate::original_source_views::OriginalSourceViewDocument<'a>],
+) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
+    let coverage =
+        source_coverage::SourceCoverage::capture(documents, identity, conditional, views)?;
+    let policy = identity
+        .input()
+        .ok_or(OriginalCommandRenameRefusal::UneditableInput)?
+        .policy();
+    let tail = tcl_syntax::backslash::native_source_literal_bytes(
+        new_tail.as_bytes(),
+        SourceImage::document(new_tail).channel(),
+        policy.string_protocol(),
+    )
+    .map_err(|_| OriginalCommandRenameRefusal::InvalidTail)?;
+    original_command_rename_units_with_source_coverage(
+        documents,
+        identity,
+        &tail,
+        conditional,
+        Some(&coverage),
+    )
+}
+
 fn rename_declaration<'a>(
     analysis: &'a tcl_compiler::analyser::AnalysisResult,
     identity: &OriginalDeclarationIdentity,
@@ -698,11 +745,56 @@ fn rename_declaration<'a>(
     })
 }
 
+fn rename_document_edits<'a>(
+    document: OriginalDeclarationDocument<'a>,
+    context: &source_coverage::RequestContext<'_, 'a>,
+    original: &SignatureSourceNameInput,
+    replacement: &[u8],
+    coverage: Option<&source_coverage::SourceCoverage<'a>>,
+) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
+    reject_readonly_math_references(document, &context.owner, context.declaration)?;
+    let mut requests = match coverage.and_then(|coverage| coverage.requests(document, context)) {
+        Some(requests) => requests?,
+        None => document_requests(
+            document,
+            context.documents,
+            context.conditional,
+            context.declaration,
+            context.destination,
+            context.tail,
+        )?,
+    };
+    if document.uri == context.owner.uri {
+        requests.push((original.clone(), NameBytes::from(replacement.to_vec())));
+    }
+    let image = SourceImage::document(document.source);
+    let source_edits = crate::original_name_edit::original_name_input_edits(&image, &requests)
+        .ok_or(OriginalCommandRenameRefusal::UneditableInput)?;
+    Ok(source_edits
+        .into_iter()
+        .map(|edit| WorkspaceTextEdit {
+            uri: document.uri.to_owned(),
+            span: edit.span(),
+            new_text: edit.text().to_owned(),
+        })
+        .collect())
+}
+
 fn original_command_rename_units_with_conditional_worlds(
     documents: &[OriginalDeclarationDocument<'_>],
     identity: &OriginalDeclarationIdentity,
     tail: &[u8],
     conditional: &[OriginalConditionalCommandWorld<'_>],
+) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
+    original_command_rename_units_with_source_coverage(documents, identity, tail, conditional, None)
+}
+
+fn original_command_rename_units_with_source_coverage<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    identity: &OriginalDeclarationIdentity,
+    tail: &[u8],
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    coverage: Option<&source_coverage::SourceCoverage<'a>>,
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
     let mut uris = HashSet::new();
     validate_rename_document_owners(documents, conditional, &mut uris)?;
@@ -771,30 +863,23 @@ fn original_command_rename_units_with_conditional_worlds(
     if actual != destination {
         return Err(OriginalCommandRenameRefusal::InvalidTail);
     }
+    let context = source_coverage::RequestContext {
+        documents,
+        conditional,
+        owner: *owner,
+        declaration: &declaration,
+        destination: &destination,
+        tail,
+    };
     let mut edits = Vec::new();
     for &document in documents {
-        reject_readonly_math_references(document, owner, &declaration)?;
-        let mut requests = document_requests(
+        edits.extend(rename_document_edits(
             document,
-            documents,
-            conditional,
-            &declaration,
-            &destination,
-            tail,
-        )?;
-        if document.uri == owner.uri {
-            requests.push((original.clone(), NameBytes::from(replacement.clone())));
-        }
-        let image = SourceImage::document(document.source);
-        let source_edits = crate::original_name_edit::original_name_input_edits(&image, &requests)
-            .ok_or(OriginalCommandRenameRefusal::UneditableInput)?;
-        for edit in source_edits {
-            edits.push(WorkspaceTextEdit {
-                uri: document.uri.to_owned(),
-                span: edit.span(),
-                new_text: edit.text().to_owned(),
-            });
-        }
+            &context,
+            original,
+            &replacement,
+            coverage,
+        )?);
     }
     validate_workspace_edit_order(&mut edits)?;
     Ok(edits)

@@ -254,7 +254,185 @@ impl PartialEq for OriginalSourceConditionalOutcome {
     }
 }
 impl Eq for OriginalSourceConditionalOutcome {}
+
+/// Exact finite source survey for one resolved whole-input load cut. This
+/// borrows three genuine analysis owners, without physical load or Native entry.
+pub struct OriginalSingleSourceCutSurvey<'a> {
+    prefix: &'a crate::analyser::AnalysisResult,
+    child: &'a crate::analyser::AnalysisResult,
+    suffix: &'a crate::analyser::AnalysisResult,
+    outcome: &'a OriginalSourceConditionalOutcome,
+    point: &'a OriginalSourcePointEntry,
+    prefix_commands: &'a [crate::segmenter::SegmentedCommand],
+    region: &'a OriginalSourceConditionalRegion,
+}
+
+impl<'a> OriginalSingleSourceCutSurvey<'a> {
+    /// Original prefix commands, including the source operation exactly once.
+    #[must_use]
+    pub const fn prefix_commands(&self) -> &'a [crate::segmenter::SegmentedCommand] {
+        self.prefix_commands
+    }
+    /// Same actual whole-input child, never another equal source analysis.
+    #[must_use]
+    pub const fn child_analysis(&self) -> &'a crate::analyser::AnalysisResult {
+        self.child
+    }
+    /// Same actual issued suffix owner.
+    #[must_use]
+    pub const fn suffix_analysis(&self) -> &'a crate::analyser::AnalysisResult {
+        self.suffix
+    }
+    /// The exact issued region, independently joined to the suffix analysis.
+    #[must_use]
+    pub const fn region(&self) -> &'a OriginalSourceConditionalRegion {
+        self.region
+    }
+    /// Issuer-owned remaining commands, not a range inferred from source bytes.
+    #[must_use]
+    pub fn suffix_commands(&self) -> &'a [crate::segmenter::SegmentedCommand] {
+        self.region.commands()
+    }
+    pub(crate) const fn outcome(&self) -> &'a OriginalSourceConditionalOutcome {
+        self.outcome
+    }
+    pub(crate) fn matches_load(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+        load: &crate::registry_invocation::source_structure::OriginalProjectSourceLoad,
+    ) -> bool {
+        std::ptr::eq(self.prefix, analysis)
+            && load
+                .source_point_entry(analysis)
+                .is_some_and(|point| &point == self.point)
+    }
+}
+
+fn unique_source_survey_analysis<'a>(
+    candidates: &[&'a crate::analyser::AnalysisResult],
+    matches: impl Fn(&crate::analyser::AnalysisResult) -> bool,
+) -> Option<&'a crate::analyser::AnalysisResult> {
+    let mut selected = candidates
+        .iter()
+        .copied()
+        .filter(|analysis| matches(analysis));
+    let first = selected.next()?;
+    selected.next().is_none().then_some(first)
+}
+fn has_other_source_cut(
+    analysis: &crate::analyser::AnalysisResult,
+    allowed: Option<&OriginalSourcePointEntry>,
+) -> bool {
+    analysis.source_targets.iter().any(|target| {
+        target.original_interpreter_source_load.is_some()
+            || target
+                .original_project_source_load
+                .as_ref()
+                .is_some_and(|load| {
+                    allowed.is_none_or(|point| {
+                        load.source_point_entry(analysis).as_ref() != Some(point)
+                    })
+                })
+    })
+}
+
 impl OriginalSourceConditionalOutcome {
+    /// Authenticate complete membership for a single whole-input source cut.
+    /// Nested/extra cuts and namespace-frame chains retain their refusals. The
+    /// host separately owns physical publication, ancestry and edit projection.
+    #[must_use]
+    pub fn single_source_cut_survey<'a>(
+        &'a self,
+        prefix: &'a crate::analyser::AnalysisResult,
+        candidates: &[&'a crate::analyser::AnalysisResult],
+    ) -> Option<OriginalSingleSourceCutSurvey<'a>> {
+        let ConditionalOutcomeKind::Regions(set) = &self.0 else {
+            return None;
+        };
+        if candidates.len() > 4096
+            || !set.complete
+            || set.normal.is_none()
+            || set.regions.len() != 1
+            || set.continuation.plan.frames.len() != 1
+            || set.continuation.conditional_outcome.is_some()
+            || prefix.original_source_region().is_some()
+            || prefix
+                .retained_command_realm()?
+                .source_bindings_ref()
+                .original_inherited_source_entry()
+                .is_some()
+        {
+            return None;
+        }
+        let frame = &set.continuation.plan.frames[0];
+        let point = &set.continuation.point;
+        if frame.base != 0
+            || frame.ordinal_start != 0
+            || frame.next == 0
+            || frame.context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
+            || frame.exit.is_some()
+            || frame.image != *point.allocation_site().source.source_image()
+            || !Arc::ptr_eq(&frame.source, &point.allocation_site().source)
+            || frame
+                .commands
+                .get(frame.next.checked_sub(1)?)?
+                .argv
+                .first()?
+                .span
+                .start()
+                != point.allocation_site().offset
+        {
+            return None;
+        }
+        self.original_completed_command_world(prefix)?;
+        let continuation = OriginalSourceConditionalContinuation(Arc::clone(&set.continuation));
+        let child = unique_source_survey_analysis(candidates, |analysis| {
+            analysis.original_source_region().is_none()
+                && continuation.matches_child_analysis(analysis)
+        })?;
+        let region = &set.regions[0];
+        let suffix = unique_source_survey_analysis(candidates, |analysis| {
+            region.matches_region_analysis(analysis)
+        })?;
+        if !region.matches_dependencies(prefix, child)
+            || !set.continuation.point.matches_parent_analysis(prefix)
+            || set.continuation.child_outcomes.normal.is_none()
+            || set.continuation.child_outcomes.normal_completion.is_none()
+            || !set.continuation.child_outcomes.abrupt.is_empty()
+            || has_other_source_cut(prefix, Some(point))
+            || has_other_source_cut(child, None)
+            || has_other_source_cut(suffix, None)
+            || frame
+                .commands
+                .get(..frame.next)?
+                .iter()
+                .filter(|command| {
+                    command
+                        .argv
+                        .first()
+                        .is_some_and(|word| word.span.start() == point.allocation_site().offset)
+                })
+                .count()
+                != 1
+        {
+            return None;
+        }
+        let origin = region.bindings().source_origin()?;
+        region
+            .0
+            .point
+            .original_region_plan(origin, region.input().lexer_config())?;
+        Some(OriginalSingleSourceCutSurvey {
+            prefix,
+            child,
+            suffix,
+            outcome: self,
+            point,
+            prefix_commands: frame.commands.get(..frame.next)?,
+            region,
+        })
+    }
+
     fn prefix_point(&self) -> &OriginalSourcePointEntry {
         match &self.0 {
             ConditionalOutcomeKind::Regions(set) => &set.continuation.point,

@@ -4050,6 +4050,35 @@ point and operand proof. Registry transition facts remain unknown, and ordinary
 consumers still refuse them. Existing trait, complete-role, command-name-role
 and declared-transition checks remain independent and unchanged.
 
+### Complete single-cut source-load coverage
+
+An atomic rename may consume a separate complete survey of one resolved
+whole-input source cut. The compiler requires one root frame, one issued suffix,
+a closed whole-root conditional outcome and no additional child cut. It lends
+the original prefix commands through the source operation exactly once, the
+same whole-input child analysis and the exact issued suffix command sequence.
+Namespace-frame chains, extra cuts and missing or ambiguous owners abstain.
+
+The host supplies all three actual source-view publications and their retained
+ancestor chains inside the existing physical-source and interpretation leases.
+Core independently joins the exact compiler owners to unique physical documents
+before collecting edits. It surveys the child under its inherited analysis and
+the suffix under its issued region; it never parses the remaining suffix under
+the old prefix owner. Genuine selected body and word descents retain their own
+owner and purpose, including in survey deduplication. An ordinary physical
+document with equal text cannot replace a missing child or region owner.
+
+Only the registered known SourceLoad transition at that exact path ordinal is
+covered. Unknown transitions, other package effects, traits, complete roles,
+command-name roles, readonly expression identifiers and all original nested
+source checks remain independent. Opaque child bodies refuse the whole edit.
+The ordinary selected declaration, collision participants and final physical
+edit owners remain unchanged; a different selected child owner cannot borrow
+its interpretation's identity. The old API without typed coverage views still
+refuses SourceLoad. This conditional source survey grants no physical file
+read, Native invocation, entered frame, operation Normal fact or arbitrary
+reflection-equivalence claim.
+
 ### Authored result-completion source coverage
 
 An exact current AuthoredSimulation invocation can retain source coverage for
