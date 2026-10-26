@@ -895,7 +895,7 @@ mod original_syntax_transport_tests {
                     interpreter.pin_context(&changed).unwrap();
                     interpreter.pin_context(&original).unwrap();
                 }
-                7 | 8 | 9 => {
+                7..=9 => {
                     // The new carried-key observer reaches the actual private
                     // slot. Its getter must run after the owner releases its borrow.
                     drop(interpreter.return_options.borrow_mut());

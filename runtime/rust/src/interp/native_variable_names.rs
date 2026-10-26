@@ -309,11 +309,10 @@ impl Interp {
         stage: OriginalCNameStage<'_>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         if let Some(check) = stage {
-            check().map_err(|error| {
+            check().inspect_err(|error| {
                 if let Some(first) = error.native_execution_refusal() {
                     self.clone().refuse_native_execution(first.clone());
                 }
-                error
             })?;
         }
         Ok(())
@@ -3527,7 +3526,7 @@ mod tests {
         assert_eq!(obj::bytes_of(canonical), b"value");
         match result {
             Ok(()) => Code::Ok,
-            Err(error) => interp.report_cmd_error(error.into()),
+            Err(error) => interp.report_cmd_error(error),
         }
     }
 

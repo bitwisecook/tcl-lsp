@@ -1195,9 +1195,8 @@ impl Interp {
             self.native_invocation_dialect(),
             Some(&check),
         );
-        let reached = reached.map_err(|error| {
+        let reached = reached.inspect_err(|error| {
             self.clone().refuse_completion_value_access(error.clone());
-            error
         });
         check()?;
         reached

@@ -495,7 +495,7 @@ impl OriginalObjectPublication {
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "original OO publication namespace retired",
                 );
-            interpreter.refuse_native_access(refusal.clone());
+            interpreter.refuse_native_access(refusal);
             Err(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(refusal).into())
         }
     }
@@ -1282,7 +1282,7 @@ fn prop_define_original(
             if let Err(error) =
                 native_properties::register_property(interp, id, class, &hyph, readable, writable)
             {
-                return interp.report_cmd_error(error.into());
+                return interp.report_cmd_error(error);
             }
         } else {
             set_property_membership(interp, &target, use_instance, false, &hyph, readable);
@@ -4845,7 +4845,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                                 Err(error) => interp.report_cmd_error(error),
                             }
                         }
-                        Err(error) => interp.report_cmd_error(error.into()),
+                        Err(error) => interp.report_cmd_error(error),
                     };
                 }
                 if interp
@@ -4861,7 +4861,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                                 Err(error) => interp.report_cmd_error(error),
                             }
                         }
-                        Err(error) => interp.report_cmd_error(error.into()),
+                        Err(error) => interp.report_cmd_error(error),
                     };
                 }
                 let props = interp.object_property_list(obj, writable, all);
@@ -5595,7 +5595,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                                 Err(error) => interp.report_cmd_error(error),
                             }
                         }
-                        Err(error) => interp.report_cmd_error(error.into()),
+                        Err(error) => interp.report_cmd_error(error),
                     };
                 }
                 if interp
@@ -5611,7 +5611,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                                 Err(error) => interp.report_cmd_error(error),
                             }
                         }
-                        Err(error) => interp.report_cmd_error(error.into()),
+                        Err(error) => interp.report_cmd_error(error),
                     };
                 }
                 let props = interp.class_property_list(cls, writable, all);
@@ -7081,7 +7081,7 @@ impl Interp {
                         oo_checked!(self, target_owner.check(self));
                         match result {
                             Ok(chain) => chain,
-                            Err(error) => return self.report_cmd_error(error.into()),
+                            Err(error) => return self.report_cmd_error(error),
                         }
                     }
                     None => native_method_cache::ReachedMethodChain::from(chain),
@@ -7105,7 +7105,7 @@ impl Interp {
                 oo_checked!(self, target_owner.check(self));
                 match result {
                     Ok(chain) => chain,
-                    Err(error) => return self.report_cmd_error(error.into()),
+                    Err(error) => return self.report_cmd_error(error),
                 }
             }
             None => native_method_cache::ReachedMethodChain::from(steps),
@@ -7899,11 +7899,6 @@ impl Interp {
         acc.dedup();
         acc
     }
-
-    /// If `word` (a forward's command name) names a command in `obj`'s instance
-    /// namespace (e.g. the per-object `my`/`myclass`), return its fully-qualified
-    /// form so it resolves while the command still runs in the caller's context;
-    /// otherwise return `word` unchanged (resolves globally).
 
     /// Whether the provider `prov` (object FQN or class FQN) defines `method`
     /// (or a constructor, when `ctor`).
