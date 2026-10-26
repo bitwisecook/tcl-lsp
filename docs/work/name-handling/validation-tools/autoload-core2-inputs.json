@@ -16,9 +16,10 @@
     "rust/tcl-lsp-core/src/refactor/mod.rs": "5db89dc16ba9c9a8ba10c08527ca491a8c2da61179b414f7dd732859b7357940",
     "rust/tcl-lsp-core/src/original_command_rename.rs": "665a4879cd946e3c5f554d5a2e8fb647b313d9bd7c75a8bbcd605bb5ebbba8a3",
     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
-    "rust/tcl-compiler/src/command_binding.rs": "213051a3a2c2e8d9d908074b07b086392e2170d3f72fb5910158adc1d211f84c",
+    "rust/tcl-compiler/src/command_binding.rs": "0bb33acb4307928b5b484020ba3a122f9926437ad4482e06327a054ae6832b11",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e"
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "34eaa3fdf6901744c46a20f0bb5965073f9f50229c1f2e21782f1774e00d8389"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",

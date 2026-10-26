@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "bbe3adbb9c8d6e794a3f281c38d224fb51a5cfe95d506919bf282483dea717f3"
+ROSTER_SHA = "55e7cf81d64b25481aa73f947fec18e03d4093cf74e2fd083eb4a4e60364f6ad"
 SCAN_RETENTION_CONTROLS = ('workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window', 'workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs', 'workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs')
 BASE = Path(__file__).resolve().parent
 

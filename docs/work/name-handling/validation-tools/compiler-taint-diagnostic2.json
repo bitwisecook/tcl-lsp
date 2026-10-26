@@ -32,7 +32,7 @@
   ],
   "scope": "Separate diagnostic2 after ALL unchanged original65 executions. Original eval_sink duplicate plus existing genuine Standalone ownership control. No assertion/purpose/Native/guard or budget changes. Actual selected compiler test profile has debug_assertions true; existing taint.rs ingress hooks remain unchanged.",
   "source_pins": {
-    "rust/tcl-compiler/src/command_binding.rs": "213051a3a2c2e8d9d908074b07b086392e2170d3f72fb5910158adc1d211f84c",
+    "rust/tcl-compiler/src/command_binding.rs": "0bb33acb4307928b5b484020ba3a122f9926437ad4482e06327a054ae6832b11",
     "rust/tcl-compiler/src/command_binding/called_static_layouts.rs": "709a9c49819d10e69a4d97f86e641e4c41c6dd9a2c7083e3d25070fa1ebad679",
     "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "567521bb72be8f7db4345e8398110f1028f8a6915844cf7ad55077b7583314c0",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "2ca7b08cb1474fa5700b26acff49ebea3fdb8d0565ab2a3de04f51be50fab5a1",
@@ -51,6 +51,7 @@
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e"
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "34eaa3fdf6901744c46a20f0bb5965073f9f50229c1f2e21782f1774e00d8389"
   }
 }
