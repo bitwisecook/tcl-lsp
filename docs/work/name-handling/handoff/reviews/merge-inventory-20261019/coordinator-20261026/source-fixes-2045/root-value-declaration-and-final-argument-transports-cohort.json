@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-26T20:24:07.352582+00:00",
+  "rows": [
+    {
+      "packet": "lsp-source-cut-declaration-value-head-v1/WORK",
+      "patch_sha256": "bd7adcb7c63d1d8057b930818dc38a519f977468496750abea488b756344bfd2",
+      "head": "d32c68473b810f94ca9c2148bbcfe244f47babb7"
+    },
+    {
+      "packet": "lsp-source-cut-declaration-value-head-v1/CLEAN",
+      "patch_sha256": "84fb9e702d5d9e56d401a9c58351f1c3e10aad8ea0ea24e7419a922c66c0349e",
+      "head": "deccaceba055fcbab5da553c495f67c9bcc1e7bd"
+    },
+    {
+      "packet": "root-vm-runtime-append-input-args1-v1-application/WORK",
+      "patch_sha256": "5dc5c611a952ffd1750014c85c6d4dd6d452f04eb97bf7b503bff2b7b29ed603",
+      "head": "de24540e2dcb28c972d66b20acbef41b60a593c2"
+    },
+    {
+      "packet": "root-vm-runtime-append-input-args1-v1-application/CLEAN",
+      "patch_sha256": "52728fc842825bbc1bec00a426ce0d4ede74d5f5d8f9c9bd2d3e8ce94cf44866",
+      "head": "f14df65ede3440cdeb758046d104186266a9be96"
+    },
+    {
+      "packet": "root-vm-runtime-variable-return-args2-v1-application/WORK",
+      "patch_sha256": "cc480f08a111f944ce6110a18c43c2ac68429a91acf4daf06d5b240befa70962",
+      "head": "e358a984569fa6ec9fbbc1e870726d6c2b64d951"
+    },
+    {
+      "packet": "root-vm-runtime-variable-return-args2-v1-application/CLEAN",
+      "patch_sha256": "893f445ab36c4de723344845ab50b74ace2a219689dbdda375340baea704a743",
+      "head": "b97e79e93957e067b6a663d8ab4452761e231215"
+    },
+    {
+      "packet": "root-vm-runtime-variable-retirement-args1-v1-application/WORK",
+      "patch_sha256": "5e9564d94a05e18bb7aa6851a1f9fbfb9f419840ee82c9cf68f5051ce4be4df5",
+      "head": "e3753c16f088c8230d4688efd3e238a0c2767820"
+    },
+    {
+      "packet": "root-vm-runtime-variable-retirement-args1-v1-application/CLEAN",
+      "patch_sha256": "224624e8aa4d55a0720528fb9444f13caa6614228a98a99dd35fec53529995c2",
+      "head": "0c2ff5913a3b813de8831835dec75eae8cf2630d"
+    }
+  ],
+  "not_part_of9fd_validation": true,
+  "actual_Rust_unrun": true
+}

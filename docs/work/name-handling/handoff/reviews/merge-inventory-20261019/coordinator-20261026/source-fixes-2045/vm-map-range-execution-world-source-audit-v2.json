@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-26T20:39:09.641544+00:00",
+  "source": "9fd86d5d0f60f2a54e5a45422f83104655152cb6",
+  "actual_evidence": {
+    "facets_sha256": "4dbae8fa6e3c50447ef0958ec033db426426e588a2eb86a9dbe325e144b17aaa",
+    "fold_order_sha256": "3dccffc5cbbd0cfe5c9b561dee0da17276bcde6564032b040dbb280d5b1665ee",
+    "Spec_fullauth_sha256": "5cbad011fbca05a2333059afc9429e77ad5d375c0fb6c46c6b4a10a56e0cf8ab"
+  },
+  "source_blobs": {
+    "rust/tcl-compiler/src/command_binding.rs": "20395bcdf1d27fdb6adb918ba020eac1a6eb9975de98eb04e5ca8e7ed8775c5e",
+    "rust/tcl-compiler/src/command_binding/compiled_invocation.rs": "0f7df1316b69bfe67e2ccd2db05dbc9d87016dced08de8d45fbcef747966e9bb",
+    "rust/tcl-compiler/src/command_binding/named_invocation.rs": "ad36384ae11f0004c376296ab3faab0a7e0fa3e492c54c59476fdcfb776803e1",
+    "rust/tcl-compiler/src/command_binding/substitution_template.rs": "517232e5f6f970b39d0fec209dcb5d0c2014add5b24fde6a318d17099f5843fb",
+    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
+    "rust/tcl-registry/src/native_compilation.rs": "8914b6ec0627b518a27cdced4122cd0ddb1166fbc7a1575dde2981e059629f48"
+  },
+  "established": [
+    "Both measured sites are Reached, compiled residual closed, execution unknown, not absent, no selected execution target.",
+    "Actual ordered MAP fold visits retain selected subst499..516 before later604..633 and MAP713..761 become execution unknown; fold-hook world-footprint abstention is separate from the source-world mutation.",
+    "execution_is_unknown OR leaves named-proof unknown and/or (live dispatch && live binding unknown) after measured Conditional/residual exclusions.",
+    "Same SourceBindingPoint projects live state then rebinds compiled named proofs with_late_lookup from that SAME state; no source of synthetic execution authority found.",
+    "source_binding_projection_in marks unknown for retained opaque_domain or unresolved exact target; with_late_lookup transports that unknown to captured private-name dispatch.",
+    "The default substituted subst template selects Generic in the selected compiler grammar; EnteredSource/non-Inline defers runtime body, whereas a later subst walker separately declines commands-enabled templates."
+  ],
+  "unobserved": [
+    "Which of named or live unknown contributes at each exact point (V4 discriminator prepared).",
+    "Exact historical widening event and the scope of its actual issuing walker; policy metadata alone does not retain that scope.",
+    "Whether default subst reached generic-body deferral or later substitution-template protocol at the measured compilation event."
+  ],
+  "rejected_inferences": [
+    "WholeModule literal8583 is in can_reuse_isolated_body, not an actual observed deferred-walker initializer.",
+    "retained_script_operand gives source/bytes provenance, not entered handler/frame/Native script-object body permission.",
+    "Known source value, command-free parsed syntax, compiler-known target, handler envelope, or a parent source-point owner cannot donate same-point execution proof."
+  ],
+  "next": "V4 passive exact OR discriminator is independently source-cleared e95dc37f; Root-only apply/dispatch. If scope/historical event remains missing, a separate actual prepare_native_target deferral-event observation is required before any producer repair. No semantic guard changed."
+}

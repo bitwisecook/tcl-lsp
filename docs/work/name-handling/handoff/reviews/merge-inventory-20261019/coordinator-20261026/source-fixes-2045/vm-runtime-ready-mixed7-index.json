@@ -1,0 +1,58 @@
+{
+  "utc": "2026-10-26T20:36:05.818591+00:00",
+  "packets": [
+    {
+      "packet": "vm-runtime-refusal-observation6-v1",
+      "manifest_sha256": "a15a3b462a108f1d4c3c7eb149a9d01a372482adcd4243625b6e35ba6e18de71",
+      "peer_receipt_sha256": "64cdd5ee59fe7a7bed8ac25ab29710b06003be39198ff655b88ffc8321a5a616",
+      "patches": {
+        "WORK": "e3c62ee6e58f7fd42e6360ccc28e348c388adf7803328f5166a281f830bce290",
+        "CLEAN": "6349a15f5d3f25cbd11ed0da48c91a9628ac766180b2e68b38cfd6bff625b665"
+      },
+      "current_checks": [
+        {
+          "lane": "WORK",
+          "path": "runtime/rust/src/state_traits.rs",
+          "actual_current_sha256": "969d879d94b28c3b4a5be1dbb6c4aa6a9c952a57e974030a15a7bcd80774b964"
+        },
+        {
+          "lane": "WORK",
+          "path": "runtime/rust/src/value_ops.rs",
+          "actual_current_sha256": "bacc3d6d5d0dba27b2e0ed66c141a60162dc8a5ae070b265e065aba6165e6219"
+        },
+        {
+          "lane": "CLEAN",
+          "path": "runtime/rust/src/state_traits.rs",
+          "actual_current_sha256": "7f10d45999256c780d6fdef1d7e1daaedf01ac4903cf215d4071c70b7f3fa208"
+        },
+        {
+          "lane": "CLEAN",
+          "path": "runtime/rust/src/value_ops.rs",
+          "actual_current_sha256": "643676742500b20d6b5b77dd70367925d6daba1554650d8055af74d80fb7904e"
+        }
+      ]
+    },
+    {
+      "packet": "vm-runtime-fixed-retirement-records1-v1",
+      "manifest_sha256": "4a2ce0b983c14c13a859becacf96f778f13584a53626878680c40c3400f6b3e4",
+      "peer_receipt_sha256": "a69da401225fd8126ef71f801509a9e5cfbf75c1d403c8869ab0afaf317e1e01",
+      "patches": {
+        "WORK": "409f7ea6d642cab8c75c0a8e4a451e5ab473afdea58eb5c17613658fc3ee0b68",
+        "CLEAN": "409f7ea6d642cab8c75c0a8e4a451e5ab473afdea58eb5c17613658fc3ee0b68"
+      },
+      "current_checks": [
+        {
+          "lane": "WORK",
+          "path": "runtime/rust/src/interp/native_jim_lookup/active_retirement_tests.rs",
+          "actual_current_sha256": "258d490580bcf8c10fcb5e0e9b0d1e79b0151200ed0ddb1bc036fe771112c714"
+        },
+        {
+          "lane": "CLEAN",
+          "path": "runtime/rust/src/interp/native_jim_lookup/active_retirement_tests.rs",
+          "actual_current_sha256": "fe620ef899e22567c4ac5eb7b32efc54342e89a0286c7b0341e2d44153982128"
+        }
+      ]
+    }
+  ],
+  "scope": "Seven source-cleared strict62848 primaries; no source equivalence or acceptance donation to current9fd execution. Root-only canonical application; actual Rust/Clippy UNRUN. Disjoint from delegated33 and diagnosticV4."
+}

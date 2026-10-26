@@ -1,0 +1,97 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T20:45:06.353692+00:00",
+  "scheduled_report_utc": "2026-10-26T20:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T21:15:00+00:00",
+  "change_since_previous_report": [
+    "1945reportactual19:45:01A66cdc pushed3d8dd6a5e61ae31a1d00fe3bd0e534feafbd82c6 at19:46:10freshfetch/shallow/normalpush. Next2015timer87087 armedimmediately; allinternalheadersunder60min/externalBIGIPperfstalereported/no takeover.",
+    "Currentvalidation9fd/C4157 alltenmodePOSTsdone19:39; source/provider/deps/ELF/process qualifiers stayactualprotocol-specific and alloutcomespending. C4157wholemainANDstandalonefmtPASSactual19:44:16sourceunchanged/root-clean-4157-whole-format.json.",
+    "ReviewedNEXT Args2V2Codegen30c933 plusArgs5V5Runtime5dbd21 appliedWORKb3208/adc139 andCLEAN39f970/8bd082; SourceCurrentNativeownership/order/currency/API/assertionspreserved, actualRustUNRUN/outside9fd. Remainingsevenarggroups+mixedmechanics Runtimeowns; state_traitsfollowsactualArgs5afterimage.",
+    "AllF/currentzerooriginrustPASS-to-FAIL/fullrequiredgreen/acceptedshippingTclperformance/finaldocs-comments-generated-fixtures-package-squashchecksOPEN. NoPR/merge/tag/release. FullC47historicalbaselinepartial6897P1466F16042unknown219absent;3healthyoldjobsretained, no current-sourceacceptance.",
+    "SourceCutgenuineheadfixandboundedpair-refusalcompanion,smoke/retainedexit/rawidentifierrepairs,fullcorpus124+reportrepeat150observations areincurrent9fd. Oldoriginalassertionsand allpriorFAILs kept. No equal/owner/effectpermissionrelaxation;actualreportfirst-leafawaitedbeforefixtureorproductionrepair.",
+    "Current9fdstrictFULLAUTHe3bc59e9 eightprimaries/0RustE primary4245478c: foursharedfixturechunks_exact_to_as_chunksVM1.99vsstandalone1.85conflict,oneWORKtiermethodclosure,threeWORKcorpusformat_push_string. StandaloneUNREACHEDnotmeasured54remaining. Minimal portablepairiteration/typedmethod/directStringwritesofftree; noallow/MSRVbump/semantic/golden/assertchange.",
+    "NEXTLayoutv3d0a381source+shippingLSPindependentCLEAR998e08:trustedCore+actualJim3/4source-onlyprojection,4newregistrycontrols,alloldNativetable66finitecases/prefix/asserts andunknown/nonJimguards keep; actualRustUNRUN. Twochangedregistryfilescurrentlyabsentlive24maps; boundedactualLogical3/JimparentroutepinproposalpendingRoot, no blindfanout or current9fddonation.",
+    "New9fdJim52FULLAUTHadb6cf18 +195members/12Git84de67 +exact51join6e3b1d89 ZEROstatuschangesvs62848:old45=36P9F/original26=17P9F/diag3P2F/newstaticPASS/rawFAIL8f7d747sameUnknownEarlierMutation. No150/corpus/performanceinference. ExactC4157prepstillactive/nogateoutcome.",
+    "Alloldba30memoDIAG6terminalFAIL/0acceptedpairs. FinalmacFull31KB9c128a86 allmembers/streamsverified,bothbuildsPASS,candidate1800.268/noresult/unobservedbypass/cleanupEPERMgroupnotclosed; baseline533.449sitsownscan/tokenannotations. Candidatetokens1051.774/refs244.515/lens231.077 diagnosticcheckpointsONLYnotratios/currentweakleaseproof. Linuxfullactualdecodedlog93eabb5dshutdown143 joinsLinuxsmall/medium, nocausalinference.",
+    "Two reviewed slices cover four of eight new workspace Clippy findings, applied by Root:WORK-onlytiermethod083b/176c peer73618 and corpusdirectwrites0141/d025 peer85d051 preserveexactallmarkers/fixtures/asserts/byteoutputs/noallow/newpanic. Fourportablepairhelpersfa8948 underCompilerurgentpeer, preserveodd-taildiscard across1.85/1.99. NewstrictretryUNRUN.",
+    "Current9fd Runtime166FULLAUTHc39ca03f old128join1d52abe1ZEROchangesvs62848/0PASS-to-nonPASS, added35ALLPASS, other10324P79F/prune6P1F/CFIincomplete. CurrentiRulesFULLAUTH5bede344 correctedretained-exitinitializationscopePASS,CLI2PASS; bootstrapresetentry.name_policy_pointremainsFAIL. No generalVM/wholegateclosure.",
+    "Current9fdCoreFULLAUTHba5edb95 old8PASS/source4same2P2F. Newpairactualfirstfalsepair.advice; allpriorimage/context/origin/static/native/expectedtokenbindingpassed. LSPpreparesgenuinevalue-onlydeclarationwordsissuer3e92underCompilerpeer, existingselectiongetterunchanged/oldWritten0unchanged/no retag/selfjoin/fallback. CurrentnewCorecauseisnotrootedsource-lengthguess.",
+    "Current9fdSpecFULLAUTH5cbad011 old16/VM1/ordinary4PASS/LENGTH1/1/MAP0/0/RANGE0/0,full600incomplete600.522s/-2ownedcleanup. NEWactualselectedtarget4dbae8fa exactMAP713..761+RANGE442..479:Reached,compiled_unknownfalse,execution_unknowntrue,may_absentfalse,selected_presentfalse. Runtimeownsactualearlierwidening/missingownerproducertrace; no blanketstock/handler/lexicalpermission.",
+    "Fourportableunhexhelpersfa8948 Compiler744ae9CLEAR4098partitioncases+floor(n/2)proof/sourceall8Git/F-RF0/fmt, samebytepairs/odd-taildiscard/nativeoracleasserts unchanged. AppliedWORK215659/CLEAN25bf1, completingall8workspaceClippyprimariesinsource(currentactualretryUNRUN). Tierc0b91/corpus5f7b2WORKonly sourcechanges,preserveCLEANomissions.",
+    "NEXTborrowedloop2+OOinvocation1 Codegen286adCLEAR parameter-pattern/privateborrowedCopy/noDrop/fulluntransportinverse, Rootpairedcohortapplyingafterall9fdPOSTs. Remainingappend1 Codegenef0fefclear13a922 pendingRoot; finalvarname/teardown/return and40mixedmechanics remainofftreeRuntimeowned. No current9fdoutcometransfer.",
+    "LSPnewvalue-onlydeclarationword3e92/e1b01 authorproofunderCompilerpeer: sameowner/tokens/nativevector original_source_transition_value_advice permits known-target VALUES; currentselectiongetterseparateandunchanged, rightselectedschema/body solelookupauthority, no retag/selfjoin/fallback/Nativegrant. Source9fdpair.adviceactualNone remainsuntilnewproducerexecution.",
+    "MAPsourceleadonly: subst$template499..516 maywidenopaque domainwhencommandsmodeenabledbeforegenuineRetainedTemplateparse; actualwalkalsohasEnteredSourceearlierdeferral. Runtimeverifiessameentry andoriginalcoercion/operand/currentnessbeforeconcreterepair; no text-onlypuritygrant/unmeasuredcauseclaim.",
+    "All5current9fdFULLAUTH finalindex4df8980b:Coreba5ed old8PASS/source2P2F actualpair.advice; Browser957a17same49directowner/maincalls0; Unitb04da1old4/coarse9PASS/source1P3F; WASI8f1fa008hostrefs2thenconditionalrename; Startupsad6b2bscan30PASS/cold52.567ms/files0/Context2complete NOWstopsEARLIERnativeprobeinitialdiagnosticbarrier -32801 501.642ms. Definitions/refs/native8UNREACHEDthisrun, doNOTtransfer628refsnull; sameversions/rev/epoch3slotNone\u2192Some3/source-currencyStale\u2192publishPending actual, no race/guardwaiverinference.",
+    "Current9fdWASM FULLAUTHdde2a7/96d292 old25ALLPASS/new8same6P2F/419seals. NEWselectedNativeAdddetail actualgeneral/no-viable-semantic-plan withCoverage excluded-surface/ClosedProgramuncovered-statement/DirectCallno-direct-call. ExistingNativeTier128rowquotareached; absentrowsUNOBSERVED. Division/planoraclespassbutframinggoldenunchangedFAIL, no goldenrewrite.",
+    "Approvedloop2+OO1cohortRootappliedWORK9ca494/b5d272 andCLEANcbddd/4c7c55, sourceerror/Nativeowner/drop/order/guard/assert/publicAPI unchanged; actualRustUNRUN/outside9fd. SourceWIPpushrunning24333before2015publication; no canonicalmutationduringmodePOSTs.",
+    "2015 report actual20:15:27 A93083b pushed4bde7d62 at20:16:52; timer6860 rearmed20:45. All14 too-many-arguments source cohorts now integrated paired, no actual strict rerun yet.",
+    "SourceCut value-purpose declaration fix independently cleared717b558c, applied WORKd32c68473/Cdeccaceba. Existing selection authority/guards/oldWritten0 unchanged; actual current9fd pair failure not retroactively closed.",
+    "Latest compiler150 artifact12686850141/12,470,573 bytes/API SHA97f18c1b6651b5788a2b7e8888cd02d62777046c72494de56008ba45410b46db available; Compiler sole authentication underway. No corpus equality or memo acceptance inferred.",
+    "Remaining runtime lint source work: seven reviewed mixed findings being applied; exact33 rows/10files delegated with Runtime independent peer. No assertions/Native guards weakened, zero new allows.",
+    "Reviewed mixed7 integrated WORK08565/d181 andCLEAN01da/369c; passive execution-facets V4 WORKda19 applied once through normalized lane adapter. Latest shipping narrative rewritten as current snapshot, historical admissions unchanged.",
+    "Current9fd compiler150 fully authenticated49a41d01/nativebb1aaed6 actual137PASS/11FAIL/2UNRUN. Report repeat capture.bodies=false after four genuine premises true; both fullcorpus children UNRUN insufficient shared budget. Dedicated corpus protocol requested without altering old150 prefix.",
+    "ExactC4157 prep setupPASS0/gateFAIL2 at original ::double smoke after typed fixture; generateddiff724B/source/index DIRTY under Names sole fullauthentication. No generator cause or gate closure inferred.",
+    "Fresh-fetch shallow normal pushes confirmed WORKda19e168 and release369c706e at20:41. No force/reset/PR.",
+    "Root review found current150 boundary ZIP digest a9818969 conflicts with main/API97f18c1b for same artifact; Compiler asked to verify actualbytes and issue immutable correction. Observed outcomes unchanged; Root authentication admission held pending reconciliation.",
+    "Actual freshness20:42:34: externalBIGIP18:08Oct22/perf21:00Oct22 remain stale beyond60min; usernotified/no takeover. Names firstheader19:43 approached60min; immediate owner refresh requested. Compiler verified current150 digest conflict was local postprocessor variable shadowing, retainedZIP/API97f18c1b correct; immutable full successor revalidation pending.",
+    "Names firstheader refreshed20:42:54 before60min. Source lead: actual allocated InheritedPoint report candidate reaches generic declaration-image iterator that correctly admits only Authored/Loaded; dedicated report custody repair proposed, Native/generic guards remain unchanged. Targeted release process-reference scan369c706e found0 matches for five exact process strings; full editorial audit still open.",
+    "Compiler independently cleared genuine-entry fixture c124918c with receipt2ebb52cc and scheduler observer0db595 with8de78021. Both await Root application; actual efficacy unrun. Native helper dependency bounded to one WASM map; observer lacks document identity so interleaved rows cannot establish same-document causality.",
+    "Current150 immutable boundary successor780f701a fully revalidated1128members/376sourcepins/source-provider-deps-tools/closedcontrols. ActualZIP/API97f18c1b matches assessment49a41d; preservedv1 output-field shadowing corrected, no outcomes/source/protocol change."
+  ],
+  "committed": [
+    "93083b96099512073bd0645170420658e00ba1e6"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticate current compiler150 and exact C4157 prep; repair observed compiler/LSP producer failures WORK first, reviewed carries to release.",
+    "Complete remaining33 lint source fixes; refresh exact24-map current-source pins and run next strict/focused gates.",
+    "Establish full-report corpus parity, accepted shipping Tcl performance, current origin/rust zero PASS-to-FAIL, all required green and final release documentation/comments/generated/package/squash checks before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2314203136,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

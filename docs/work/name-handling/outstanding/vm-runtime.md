@@ -1,10 +1,16 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T20:05:00Z
+Last updated: 2026-10-26T20:40:27Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T20:40:27Z: All four9fd captures fully authenticated and sent Root (runtimec39ca03f +same128zerochange1d52abe1; Spec5cbad011 with LENGTH1/1/MAP0/0/RANGE0/0 and600sINCOMPLETE; iRules5bede344 bootstrapnamepolicyFAIL/CLI2PASS/correctedretainedexitcontrolPASS; WASMdde2a7fc old25PASS/separate8CLOSED6P2F +actualindividual8zerochange96d29273). Canonical all14 argument groups now WORKe3753c16/CLEAN0c2ff591, actual Rust/Clippy unrun. Mixed7 readyindexff4e589a: refusal6 strong64cdd5ee and stable-record1 stronga69da401, Root applying next. Exact remaining33/10paths delegated to editorial via immutable ownership9b893efd, current hashes bind all reviewed argument afterimages; Root woke role, Runtime holds all edits on those paths and will peer final packet. MAP/RANGE measured execution_unknown formula still named/live alternatives; passive discriminatorV4 a4a428a7 strongLSPe95dc37f ready, V1firstonly/V2length/V3cfg holds retained. Source audit9b599d6f binds actual9fd evidence and six source blobs; actual walker scope/historical widening remains unobserved, no producer guard/permission change. No canonical writes/dispatch/local builds/duplicate captures.
+
+
+Current 2026-10-26T20:16:00Z: All four9fd captures FULLAUTH: Runtime166 c39ca03f old80FAIL/CFIincomplete/new35PASS, exact128join1d52abe1 ZEROchanges; iRules5bede344 originalbootstrapFAIL namepolicy/CLI2PASS and corrected retained-exit initialization control PASS; Spec5cbad011 old16/VM1/ordinary4PASS LENGTH1/1 MAP/RANGE0/0 full600INCOMPLETE600.522/-2; WASMdde2a7fc419checks old25PASS/separate8CLOSED6P2F, actualindividual8/all109streams96d29273 ZERO8changes. Actual MAP713..761/RANGE442..479 BOTH Reached, compiled_unknown=false, execution_unknown=true, may_be_absent=false, selected_present=false; proof4dbae8fa, same retained execution-world producer audit with Compiler now highest product priority. No target bypass or handler-envelope grant. Portable shared-fixture pairs4 fa8948f9 strongCompiler744ae9be ready. Remaining seven argument functions all authored: loop2/OO1 peer286ad86c; Append1 peer ef0fef3f; variable/return2 peer c4359f39; retirement1 manifest7e345637 peer pending. All NEXT source-only, no actual Rust result; remaining40 mixed lint primaries owned. Canonical edits/dispatch Root only.
+
 
 Current 2026-10-26T20:05:00Z: Current9fd Runtime166 and iRules terminal; sole ZIPs downloaded after API size/digest and fresh floor check, authentication in progress, no outcome claim. Spec and WASM remain active. Shared-fixture portable pairs4 fa8948f9 independent Compiler CLEAR744ae9be; complete-pair order and odd-tail discard preserved across standalone MSRV1.85/workspace1.99. Root has applied Args2V2 and Args5V5 after9fd, actual Rust unrun. Each-loop Args2 053f97f5 and OO Args1 938bf22a independent Codegen CLEAR286ad86c NEXT only. Remaining seven argument functions now three source-cleared and four not authored; mixed mechanisms remain owned. Separate /tmp exhaustion recovered by Root guarded retirement; no local builds or duplicate captures. Previous62848 full receipts remain scoped; NativeString147 allPASS is user-approved corrected NUL fixture coverage, not old positive effect premise.
 

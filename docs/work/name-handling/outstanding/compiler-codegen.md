@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T19:59:18.322681+00:00
+Last updated: 2026-10-26T20:33:49.864558+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+NEXT paired NativeEntry fixture c124918c (ccg-native-tier-genuine-entry-fixtures-v1) is under Compiler sole independent review. Four paths/lane; exact existing actual-program VM helper moved to private shared test support, executable tier positives capture/retain genuine entry; static refusal units and every existing assertion/program/output/framing golden unchanged. Independent pipeline positive uses existing RetainedNativeUnit issuer. Source proof b20b5e0e/F-R/F0/fmt only, no efficacy claim. NativeAdd source audit39ad956c holds retained-body promotion and registry-only repair. Runtime retirementArgs1 independent1368eaa4/fixedRecordArray a69da401/refusal6 64cdd5ee all static-only source cleared, Root informed. C47 three jobs active at20:26: Rust2/E2E1/E2E2 preserved; no duplicate capture/cancel.
+
+20:19 UTC: C47 CI40346031137 still has exactly three active jobs: Rust shard2 121653224819, E2E1 121658900154, E2E2 121658900564. Preserved, no cancellation or duplicate capture. New 9fd Broad8 authenticated by Runtime: old25 PASS, Broad8 6P2F; NativeAdd General/no-viable-semantic-plan with excluded-surface/uncovered-statement/no-direct-call. Auditing original retained-body versus callable publication route; retained analysis bodies alone grant no execution authority. Goldens/assertions remain unchanged. All small argument peers and strict8 repair source packets are static-only NEXT; no actual standalone frontier donation.
 
 Currentstrict9fd40388591379 FULLAUTH28checkse3bc59e9: EXACT8workspaceClippy/0RustE, standaloneUNRUN (prelim9arithmeticcorrected). Foursharedtestfixture chunksExact workspace1.99-vs-standalone1.85 rootRuntimeassigned; ownWORKtiermethod083b/176c independentCompiler73618ad0; corpusformat3Names0141/d025 independentpeer85d051bc. AllNEXT, no measuredfixsuccess. NEXTArgs2V2e458 independentpeer30c9335d Rootinformed, not9fdoutcomes. C47ordinary3healthyRust2/E2E1/E2E2preserved, baselineoldsourcejoin6897P1466F16042unknown219absentcf339; Cef60terminalpartialjoin9335P2447F12626unknown216absent988ace. Finalbc38224mapunion8bfd/4422 Rootpushed9fd/V15PASS andall10POSTsclosed; sourcefreezeliftedforfutureRootWIP, C4157formatbeforeCLEANedits. No canonicalwrites/localbuildbyme.
 

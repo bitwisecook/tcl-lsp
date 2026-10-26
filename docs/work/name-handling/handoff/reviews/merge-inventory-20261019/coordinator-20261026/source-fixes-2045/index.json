@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-26T20:42:17.012419+00:00",
+  "scope": "WORK-only source application and pending obligation receipts. No test or release acceptance.",
+  "files": [
+    {
+      "path": "root-value-declaration-and-final-argument-transports-cohort.json",
+      "bytes": 2008,
+      "sha256": "f448bdddd08ffea28a4eff51ee66e6ca995ed16af9e7890c1b5ef5cdb8b816b7"
+    },
+    {
+      "path": "root-mixed7-and-execution-facets-cohort.json",
+      "bytes": 1044,
+      "sha256": "fb6e88e4580dcd8fcbdb09edab956ab8bae0953f99a6748e8e12a21bb721a9e7"
+    },
+    {
+      "path": "vm-runtime-ready-mixed7-index.json",
+      "bytes": 2562,
+      "sha256": "ff4e589af504194d7912040a09f0a04dc77aac1df9d25c6b411f419bcb2715ff"
+    },
+    {
+      "path": "vm-strict62848-luna-mixed33-ownership-v1.json",
+      "bytes": 43859,
+      "sha256": "9b893efd2e2f5c568e64d83d118a326b679b27784f04bfcf1bcfecfd7462c39b"
+    },
+    {
+      "path": "vm-map-range-execution-world-source-audit-v2.json",
+      "bytes": 3420,
+      "sha256": "9b599d6f3e6f2e90b18e3090a429d061202fd1956c100127a8bcf5615c764221"
+    }
+  ]
+}

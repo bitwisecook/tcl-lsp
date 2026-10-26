@@ -1,0 +1,1137 @@
+{
+  "utc": "2026-10-26T20:29:18.460812+00:00",
+  "owner": "/root/release_editorial_audit",
+  "root_authorization": "Root explicitly delegates these exact33 unprepared mixed rows on10files after all argument transports are integrated. Runtime reserves no active edits on these paths during delegated ownership.",
+  "lanes": {
+    "WORK": {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "head": "e3753c16f088c8230d4688efd3e238a0c2767820",
+      "files": [
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "sha256": "bbcf66829133ea69b169c048146b6bc12e810ae2825ca42e931ea1c315476e2d",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "empty line after doc comment",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 7894,
+              "column": 5,
+              "lint": "empty_line_after_doc_comments"
+            },
+            {
+              "severity": "error",
+              "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 490,
+              "column": 46,
+              "lint": "clone_on_copy"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 1277,
+              "column": 48,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 4840,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 4856,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 5590,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 5606,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 7072,
+              "column": 72,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 7096,
+              "column": 64,
+              "lint": "useless_conversion"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/cmd_var.rs",
+          "sha256": "80b3d6bf782d7813c2d5bdc89ea3d35825ec1515b46e61e1c19277a4861de0b1",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "the loop variable `index` is used to index `argv`",
+              "raw_path": "src/cmd_var.rs",
+              "path": "runtime/rust/src/cmd_var.rs",
+              "line": 161,
+              "column": 22,
+              "lint": "needless_range_loop"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "sha256": "773443128517ff35b94126398f20cdaccc5ab525ef140b336954836b309474a1",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "called `expect` on `recreated_generation` after checking its variant with `is_some`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 5743,
+              "column": 21,
+              "lint": "unnecessary_unwrap"
+            },
+            {
+              "severity": "error",
+              "message": "using `map_err` over `inspect_err`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 8305,
+              "column": 21,
+              "lint": "manual_inspect"
+            },
+            {
+              "severity": "error",
+              "message": "the borrowed expression implements the required traits",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 8310,
+              "column": 39,
+              "lint": "needless_borrows_for_generic_args"
+            },
+            {
+              "severity": "error",
+              "message": "the borrowed expression implements the required traits",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 8310,
+              "column": 73,
+              "lint": "needless_borrows_for_generic_args"
+            },
+            {
+              "severity": "error",
+              "message": "usage of `bool::then` in `filter_map`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 11433,
+              "column": 14,
+              "lint": "filter_map_bool_then"
+            },
+            {
+              "severity": "error",
+              "message": "this `if` statement can be collapsed",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 12573,
+              "column": 9,
+              "lint": "collapsible_if"
+            },
+            {
+              "severity": "error",
+              "message": "unneeded `return` statement",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 13017,
+              "column": 13,
+              "lint": "needless_return"
+            },
+            {
+              "severity": "error",
+              "message": "this `match` expression can be replaced with `?`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18799,
+              "column": 17,
+              "lint": "question_mark"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18852,
+              "column": 57,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "this `match` expression can be replaced with `?`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18865,
+              "column": 38,
+              "lint": "question_mark"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18977,
+              "column": 81,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "field assignment outside of initializer for an instance created with Default::default()",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 21356,
+              "column": 13,
+              "lint": "field_reassign_with_default"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_error_headers.rs",
+          "sha256": "f7f45b4306419a7117155cb2f2021a6081bd800ccd2d056fdbc5a29c1d197cc7",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "empty lines after doc comment",
+              "raw_path": "src/interp/native_error_headers.rs",
+              "path": "runtime/rust/src/interp/native_error_headers.rs",
+              "line": 471,
+              "column": 5,
+              "lint": "empty_line_after_doc_comments"
+            },
+            {
+              "severity": "error",
+              "message": "field assignment outside of initializer for an instance created with Default::default()",
+              "raw_path": "src/interp/native_error_headers.rs",
+              "path": "runtime/rust/src/interp/native_error_headers.rs",
+              "line": 579,
+              "column": 9,
+              "lint": "field_reassign_with_default"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_jim_lookup.rs",
+          "sha256": "867dd3dba7bfc40ab529e3e32f82f940d7df836bbdbd8c7edcfcaf41d31faeaf",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "using `map_err` over `inspect_err`",
+              "raw_path": "src/interp/native_jim_lookup.rs",
+              "path": "runtime/rust/src/interp/native_jim_lookup.rs",
+              "line": 1196,
+              "column": 31,
+              "lint": "manual_inspect"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_return_instruction.rs",
+          "sha256": "a2712d7b6cd8e04ea6c0cf9f2bd41268b12cb838283cca6e720ded042790d5b6",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "this OR pattern can be rewritten using a range",
+              "raw_path": "src/interp/native_return_instruction.rs",
+              "path": "runtime/rust/src/interp/native_return_instruction.rs",
+              "line": 883,
+              "column": 17,
+              "lint": "manual_range_patterns"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names.rs",
+          "sha256": "4296de115b4a89b8a20ff15345491ff0c1c846bc6979b581f66aff5e4570afd3",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "empty line after doc comment",
+              "raw_path": "src/interp/native_variable_names.rs",
+              "path": "runtime/rust/src/interp/native_variable_names.rs",
+              "line": 949,
+              "column": 5,
+              "lint": "empty_line_after_doc_comments"
+            },
+            {
+              "severity": "error",
+              "message": "using `map_err` over `inspect_err`",
+              "raw_path": "src/interp/native_variable_names.rs",
+              "path": "runtime/rust/src/interp/native_variable_names.rs",
+              "line": 305,
+              "column": 21,
+              "lint": "manual_inspect"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/interp/native_variable_names.rs",
+              "path": "runtime/rust/src/interp/native_variable_names.rs",
+              "line": 3533,
+              "column": 51,
+              "lint": "useless_conversion"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+          "sha256": "0d379fe64a8337b4890d28c654bb7a2fd9bdc7bd6a9bbfc86e025736da6a1d62",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "this `if let` can be collapsed into the outer `if let`",
+              "raw_path": "src/interp/native_variable_teardown.rs",
+              "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+              "line": 158,
+              "column": 13,
+              "lint": "collapsible_match"
+            },
+            {
+              "severity": "error",
+              "message": "the borrowed expression implements the required traits",
+              "raw_path": "src/interp/native_variable_teardown.rs",
+              "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+              "line": 263,
+              "column": 86,
+              "lint": "needless_borrows_for_generic_args"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/stock_ensembles.rs",
+          "sha256": "087bf342fb608cd20f258a23879cb7374c0e658fce04b65c79ba46189c0c15a5",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "try not to call a closure in the expression where it is declared",
+              "raw_path": "src/interp/stock_ensembles.rs",
+              "path": "runtime/rust/src/interp/stock_ensembles.rs",
+              "line": 1387,
+              "column": 20,
+              "lint": "redundant_closure_call"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+          "sha256": "ab161e06d17e40373048a8cf94d34fbe62933a506a744ac6f400f0bd8891cecd",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "field assignment outside of initializer for an instance created with Default::default()",
+              "raw_path": "src/interp/stock_ensembles/retirement_tests.rs",
+              "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+              "line": 102,
+              "column": 9,
+              "lint": "field_reassign_with_default"
+            }
+          ]
+        }
+      ],
+      "reviewed_argument_dependencies": [
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "packet": "vm-runtime-oo-invocation-args1-v1",
+          "manifest_sha256": "938bf22af9fd33dbab947bbc0375d154a1a4ca5017294920abe802527df1b4a8",
+          "approved_after_sha256": "bbcf66829133ea69b169c048146b6bc12e810ae2825ca42e931ea1c315476e2d",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names.rs",
+          "packet": "vm-runtime-variable-return-args2-v1",
+          "manifest_sha256": "6da82c44280d4697d23517a0e3459162c9efd467e21fba463b75bfad2673c02e",
+          "approved_after_sha256": "4296de115b4a89b8a20ff15345491ff0c1c846bc6979b581f66aff5e4570afd3",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp/native_return_instruction.rs",
+          "packet": "vm-runtime-variable-return-args2-v1",
+          "manifest_sha256": "6da82c44280d4697d23517a0e3459162c9efd467e21fba463b75bfad2673c02e",
+          "approved_after_sha256": "a2712d7b6cd8e04ea6c0cf9f2bd41268b12cb838283cca6e720ded042790d5b6",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+          "packet": "vm-runtime-variable-retirement-args1-v1",
+          "manifest_sha256": "7e3456373ff50fa1860b5fcf8fc85bea447d136e12752f12d9a1a71b04521e9b",
+          "approved_after_sha256": "0d379fe64a8337b4890d28c654bb7a2fd9bdc7bd6a9bbfc86e025736da6a1d62",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "packet": "vm-runtime-variable-retirement-args1-v1",
+          "manifest_sha256": "7e3456373ff50fa1860b5fcf8fc85bea447d136e12752f12d9a1a71b04521e9b",
+          "approved_after_sha256": "773443128517ff35b94126398f20cdaccc5ab525ef140b336954836b309474a1",
+          "actual_matches": true
+        }
+      ]
+    },
+    "CLEAN": {
+      "repo": "/workspace/naming-lsp-release/tcl-lsp",
+      "head": "0c2ff5913a3b813de8831835dec75eae8cf2630d",
+      "files": [
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "sha256": "347bc3ad55d3d62a0875a8596fd4e954e558da65eab848af3173151580fbf0c0",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "empty line after doc comment",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 7894,
+              "column": 5,
+              "lint": "empty_line_after_doc_comments"
+            },
+            {
+              "severity": "error",
+              "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 490,
+              "column": 46,
+              "lint": "clone_on_copy"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 1277,
+              "column": 48,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 4840,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 4856,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 5590,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 5606,
+              "column": 63,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 7072,
+              "column": 72,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/cmd_oo.rs",
+              "path": "runtime/rust/src/cmd_oo.rs",
+              "line": 7096,
+              "column": 64,
+              "lint": "useless_conversion"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/cmd_var.rs",
+          "sha256": "8064b0bb8ae9dc15859acdc626477ef7f4fae4e3e3f5a328b767eff11f58a5ae",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "the loop variable `index` is used to index `argv`",
+              "raw_path": "src/cmd_var.rs",
+              "path": "runtime/rust/src/cmd_var.rs",
+              "line": 161,
+              "column": 22,
+              "lint": "needless_range_loop"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "sha256": "e08bc5ca5f83c4874d2e362c1f0ef6fd94ff02c4e00c10449c914d6f61bef4ea",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "called `expect` on `recreated_generation` after checking its variant with `is_some`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 5743,
+              "column": 21,
+              "lint": "unnecessary_unwrap"
+            },
+            {
+              "severity": "error",
+              "message": "using `map_err` over `inspect_err`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 8305,
+              "column": 21,
+              "lint": "manual_inspect"
+            },
+            {
+              "severity": "error",
+              "message": "the borrowed expression implements the required traits",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 8310,
+              "column": 39,
+              "lint": "needless_borrows_for_generic_args"
+            },
+            {
+              "severity": "error",
+              "message": "the borrowed expression implements the required traits",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 8310,
+              "column": 73,
+              "lint": "needless_borrows_for_generic_args"
+            },
+            {
+              "severity": "error",
+              "message": "usage of `bool::then` in `filter_map`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 11433,
+              "column": 14,
+              "lint": "filter_map_bool_then"
+            },
+            {
+              "severity": "error",
+              "message": "this `if` statement can be collapsed",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 12573,
+              "column": 9,
+              "lint": "collapsible_if"
+            },
+            {
+              "severity": "error",
+              "message": "unneeded `return` statement",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 13017,
+              "column": 13,
+              "lint": "needless_return"
+            },
+            {
+              "severity": "error",
+              "message": "this `match` expression can be replaced with `?`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18799,
+              "column": 17,
+              "lint": "question_mark"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18852,
+              "column": 57,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "this `match` expression can be replaced with `?`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18865,
+              "column": 38,
+              "lint": "question_mark"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 18977,
+              "column": 81,
+              "lint": "useless_conversion"
+            },
+            {
+              "severity": "error",
+              "message": "field assignment outside of initializer for an instance created with Default::default()",
+              "raw_path": "src/interp.rs",
+              "path": "runtime/rust/src/interp.rs",
+              "line": 21356,
+              "column": 13,
+              "lint": "field_reassign_with_default"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_error_headers.rs",
+          "sha256": "cc5768b7378ce562d1b1609b4291bb5ff472403a748cc40e82d0008435933f08",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "empty lines after doc comment",
+              "raw_path": "src/interp/native_error_headers.rs",
+              "path": "runtime/rust/src/interp/native_error_headers.rs",
+              "line": 471,
+              "column": 5,
+              "lint": "empty_line_after_doc_comments"
+            },
+            {
+              "severity": "error",
+              "message": "field assignment outside of initializer for an instance created with Default::default()",
+              "raw_path": "src/interp/native_error_headers.rs",
+              "path": "runtime/rust/src/interp/native_error_headers.rs",
+              "line": 579,
+              "column": 9,
+              "lint": "field_reassign_with_default"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_jim_lookup.rs",
+          "sha256": "867dd3dba7bfc40ab529e3e32f82f940d7df836bbdbd8c7edcfcaf41d31faeaf",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "using `map_err` over `inspect_err`",
+              "raw_path": "src/interp/native_jim_lookup.rs",
+              "path": "runtime/rust/src/interp/native_jim_lookup.rs",
+              "line": 1196,
+              "column": 31,
+              "lint": "manual_inspect"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_return_instruction.rs",
+          "sha256": "70d71df5c93f4269d2880ca9f20db1170692bdc07492b76d5d40db8c3dad7b4d",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "this OR pattern can be rewritten using a range",
+              "raw_path": "src/interp/native_return_instruction.rs",
+              "path": "runtime/rust/src/interp/native_return_instruction.rs",
+              "line": 883,
+              "column": 17,
+              "lint": "manual_range_patterns"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names.rs",
+          "sha256": "82d8d9affff8bdd37b9c111fc3c56b40805e1983ed68b1a404894791dc0dff9f",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "empty line after doc comment",
+              "raw_path": "src/interp/native_variable_names.rs",
+              "path": "runtime/rust/src/interp/native_variable_names.rs",
+              "line": 949,
+              "column": 5,
+              "lint": "empty_line_after_doc_comments"
+            },
+            {
+              "severity": "error",
+              "message": "using `map_err` over `inspect_err`",
+              "raw_path": "src/interp/native_variable_names.rs",
+              "path": "runtime/rust/src/interp/native_variable_names.rs",
+              "line": 305,
+              "column": 21,
+              "lint": "manual_inspect"
+            },
+            {
+              "severity": "error",
+              "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+              "raw_path": "src/interp/native_variable_names.rs",
+              "path": "runtime/rust/src/interp/native_variable_names.rs",
+              "line": 3533,
+              "column": 51,
+              "lint": "useless_conversion"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+          "sha256": "c44abf613629deb6731e28df37a01f8aebd8ba5e6794c7e6e75f87bc01efdc0f",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "this `if let` can be collapsed into the outer `if let`",
+              "raw_path": "src/interp/native_variable_teardown.rs",
+              "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+              "line": 158,
+              "column": 13,
+              "lint": "collapsible_match"
+            },
+            {
+              "severity": "error",
+              "message": "the borrowed expression implements the required traits",
+              "raw_path": "src/interp/native_variable_teardown.rs",
+              "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+              "line": 263,
+              "column": 86,
+              "lint": "needless_borrows_for_generic_args"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/stock_ensembles.rs",
+          "sha256": "087bf342fb608cd20f258a23879cb7374c0e658fce04b65c79ba46189c0c15a5",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "try not to call a closure in the expression where it is declared",
+              "raw_path": "src/interp/stock_ensembles.rs",
+              "path": "runtime/rust/src/interp/stock_ensembles.rs",
+              "line": 1387,
+              "column": 20,
+              "lint": "redundant_closure_call"
+            }
+          ]
+        },
+        {
+          "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+          "sha256": "0d1f1a9b8cc8d21d5924ab99e4d4ad1e9508387b4df8b93b99669ca0943a9d41",
+          "diagnostic_rows": [
+            {
+              "severity": "error",
+              "message": "field assignment outside of initializer for an instance created with Default::default()",
+              "raw_path": "src/interp/stock_ensembles/retirement_tests.rs",
+              "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+              "line": 102,
+              "column": 9,
+              "lint": "field_reassign_with_default"
+            }
+          ]
+        }
+      ],
+      "reviewed_argument_dependencies": [
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "packet": "vm-runtime-oo-invocation-args1-v1",
+          "manifest_sha256": "938bf22af9fd33dbab947bbc0375d154a1a4ca5017294920abe802527df1b4a8",
+          "approved_after_sha256": "347bc3ad55d3d62a0875a8596fd4e954e558da65eab848af3173151580fbf0c0",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names.rs",
+          "packet": "vm-runtime-variable-return-args2-v1",
+          "manifest_sha256": "6da82c44280d4697d23517a0e3459162c9efd467e21fba463b75bfad2673c02e",
+          "approved_after_sha256": "82d8d9affff8bdd37b9c111fc3c56b40805e1983ed68b1a404894791dc0dff9f",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp/native_return_instruction.rs",
+          "packet": "vm-runtime-variable-return-args2-v1",
+          "manifest_sha256": "6da82c44280d4697d23517a0e3459162c9efd467e21fba463b75bfad2673c02e",
+          "approved_after_sha256": "70d71df5c93f4269d2880ca9f20db1170692bdc07492b76d5d40db8c3dad7b4d",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+          "packet": "vm-runtime-variable-retirement-args1-v1",
+          "manifest_sha256": "7e3456373ff50fa1860b5fcf8fc85bea447d136e12752f12d9a1a71b04521e9b",
+          "approved_after_sha256": "c44abf613629deb6731e28df37a01f8aebd8ba5e6794c7e6e75f87bc01efdc0f",
+          "actual_matches": true
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "packet": "vm-runtime-variable-retirement-args1-v1",
+          "manifest_sha256": "7e3456373ff50fa1860b5fcf8fc85bea447d136e12752f12d9a1a71b04521e9b",
+          "approved_after_sha256": "e08bc5ca5f83c4874d2e362c1f0ef6fd94ff02c4e00c10449c914d6f61bef4ea",
+          "actual_matches": true
+        }
+      ]
+    }
+  },
+  "diagnostic_source": "62848 standalone strict161 unique inventory; no claim latest standalone selection reached",
+  "diagnostic_rows": [
+    {
+      "severity": "error",
+      "message": "empty line after doc comment",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 7894,
+      "column": 5,
+      "lint": "empty_line_after_doc_comments"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 490,
+      "column": 46,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 1277,
+      "column": 48,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 4840,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 4856,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 5590,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 5606,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 7072,
+      "column": 72,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 7096,
+      "column": 64,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "empty line after doc comment",
+      "raw_path": "src/interp/native_variable_names.rs",
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "line": 949,
+      "column": 5,
+      "lint": "empty_line_after_doc_comments"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/interp/native_variable_names.rs",
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "line": 305,
+      "column": 21,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_variable_names.rs",
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "line": 3533,
+      "column": 51,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "empty lines after doc comment",
+      "raw_path": "src/interp/native_error_headers.rs",
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "line": 471,
+      "column": 5,
+      "lint": "empty_line_after_doc_comments"
+    },
+    {
+      "severity": "error",
+      "message": "field assignment outside of initializer for an instance created with Default::default()",
+      "raw_path": "src/interp/native_error_headers.rs",
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "line": 579,
+      "column": 9,
+      "lint": "field_reassign_with_default"
+    },
+    {
+      "severity": "error",
+      "message": "the loop variable `index` is used to index `argv`",
+      "raw_path": "src/cmd_var.rs",
+      "path": "runtime/rust/src/cmd_var.rs",
+      "line": 161,
+      "column": 22,
+      "lint": "needless_range_loop"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/interp/native_jim_lookup.rs",
+      "path": "runtime/rust/src/interp/native_jim_lookup.rs",
+      "line": 1196,
+      "column": 31,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "this `if let` can be collapsed into the outer `if let`",
+      "raw_path": "src/interp/native_variable_teardown.rs",
+      "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "line": 158,
+      "column": 13,
+      "lint": "collapsible_match"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp/native_variable_teardown.rs",
+      "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "line": 263,
+      "column": 86,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "try not to call a closure in the expression where it is declared",
+      "raw_path": "src/interp/stock_ensembles.rs",
+      "path": "runtime/rust/src/interp/stock_ensembles.rs",
+      "line": 1387,
+      "column": 20,
+      "lint": "redundant_closure_call"
+    },
+    {
+      "severity": "error",
+      "message": "called `expect` on `recreated_generation` after checking its variant with `is_some`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 5743,
+      "column": 21,
+      "lint": "unnecessary_unwrap"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 8305,
+      "column": 21,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 8310,
+      "column": 39,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 8310,
+      "column": 73,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "usage of `bool::then` in `filter_map`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 11433,
+      "column": 14,
+      "lint": "filter_map_bool_then"
+    },
+    {
+      "severity": "error",
+      "message": "this `if` statement can be collapsed",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 12573,
+      "column": 9,
+      "lint": "collapsible_if"
+    },
+    {
+      "severity": "error",
+      "message": "unneeded `return` statement",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 13017,
+      "column": 13,
+      "lint": "needless_return"
+    },
+    {
+      "severity": "error",
+      "message": "this `match` expression can be replaced with `?`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18799,
+      "column": 17,
+      "lint": "question_mark"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18852,
+      "column": 57,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "this `match` expression can be replaced with `?`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18865,
+      "column": 38,
+      "lint": "question_mark"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18977,
+      "column": 81,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "field assignment outside of initializer for an instance created with Default::default()",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 21356,
+      "column": 13,
+      "lint": "field_reassign_with_default"
+    },
+    {
+      "severity": "error",
+      "message": "this OR pattern can be rewritten using a range",
+      "raw_path": "src/interp/native_return_instruction.rs",
+      "path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "line": 883,
+      "column": 17,
+      "lint": "manual_range_patterns"
+    },
+    {
+      "severity": "error",
+      "message": "field assignment outside of initializer for an instance created with Default::default()",
+      "raw_path": "src/interp/stock_ensembles/retirement_tests.rs",
+      "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+      "line": 102,
+      "column": 9,
+      "lint": "field_reassign_with_default"
+    }
+  ],
+  "counts": {
+    "empty_line_after_doc_comments": 3,
+    "clone_on_copy": 1,
+    "useless_conversion": 10,
+    "manual_inspect": 3,
+    "field_reassign_with_default": 3,
+    "needless_range_loop": 1,
+    "collapsible_match": 1,
+    "needless_borrows_for_generic_args": 3,
+    "redundant_closure_call": 1,
+    "unnecessary_unwrap": 1,
+    "filter_map_bool_then": 1,
+    "collapsible_if": 1,
+    "needless_return": 1,
+    "question_mark": 2,
+    "manual_range_patterns": 1
+  },
+  "disjoint_from_authored": [
+    "vm-runtime-refusal-observation6-v1: state_traits.rs and value_ops.rs",
+    "vm-runtime-fixed-retirement-records1-v1: interp/native_jim_lookup/active_retirement_tests.rs",
+    "Runtime producer work: rust/tcl-compiler/src/const_subst.rs and read-only same-point audit"
+  ],
+  "held_Runtime_old_observer": "vm-procedure-preparation-refusal-work-v1 interp.rs proposal remains unintegrated and is NOT to be carried while editorial owns interp.rs.",
+  "requirements": [
+    "OFFTREE paired immutable proposals only; Root alone canonical Git/dispatch.",
+    "Use pinned current per-lane blobs; verify reviewed argument afterimage hashes before edits; no stale whole-file replacement.",
+    "Keep every old assertion, Native retain/release, first-cause/error identity, callback/borrow/guard/post-currency and query/evaluation/Drop order. No public API, allow, skip, MSRV bump or silent test coverage loss.",
+    "Clippy recommendations are not semantic evidence. Handle manual_inspect without removing existing callback/error clones; redundant closure must preserve scope and all ?/return/Drop semantics. Preserve short-circuit and unwrap preconditions.",
+    "Actual Rust/Clippy unrun; source peer required before Root application."
+  ]
+}

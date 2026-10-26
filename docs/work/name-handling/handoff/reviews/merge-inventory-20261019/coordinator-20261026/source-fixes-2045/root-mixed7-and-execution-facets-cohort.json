@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-26T20:40:12.148391+00:00",
+  "heads": {
+    "WORK": "da19e1687051ffd723b62ea7691cc8f78a3dbdd8",
+    "CLEAN": "369c706e0c8fe5a2c14fb3d95da300d16ff2ff02"
+  },
+  "mixed7_index_sha256": "ff4e589af504194d7912040a09f0a04dc77aac1df9d25c6b411f419bcb2715ff",
+  "mixed7_commits": [
+    "08565e22c",
+    "01da21866",
+    "d1810145b",
+    "369c706e0"
+  ],
+  "trace_application": "[work da19e1687] trace: distinguish runtime execution refusal alternatives\n 1 file changed, 17 insertions(+), 2 deletions(-)\n{\"utc\": \"2026-10-26T20:40:12.104354+00:00\", \"head\": \"da19e1687051ffd723b62ea7691cc8f78a3dbdd8\", \"patch_sha256\": \"022eb12374b40620898795057beccb5db2ca65be4649683d4955fb0d90bb3eab\", \"manifest_sha256\": \"a4a428a7bfa3b916f339f839f18e505409e63187e9afed09e444e779e6ca267e\", \"files\": 1, \"runtime_or_gate_admission\": false}\n",
+  "transport_note": "Four mixed7 commits succeeded; initial trace attempt stopped before mutation on lane layout. Normalized adapter then applied exactly once.",
+  "gate_admission": false
+}
