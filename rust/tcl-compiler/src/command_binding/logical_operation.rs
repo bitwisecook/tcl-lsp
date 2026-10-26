@@ -1226,7 +1226,7 @@ mod tests {
             assert_eq!(
                 original
                     .iter()
-                    .map(super::source_transition_advice::OriginalLogicalSourceNameInput::bytes)
+                    .map(crate::command_binding::OriginalLogicalSourceNameInput::bytes)
                     .collect::<Vec<_>>(),
                 [b"index".as_slice(), b"held".as_slice()]
             );
