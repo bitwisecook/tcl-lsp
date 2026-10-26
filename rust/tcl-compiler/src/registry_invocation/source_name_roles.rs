@@ -828,6 +828,16 @@ mod tests {
         }
     }
 
+    fn assert_original_write_role_refused(
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) {
+        assert!(
+            super::original_name_role_values(registry, tokens, 0, tcl_registry::ArgRole::VarWrite)
+                .is_none()
+        );
+    }
+
     #[test]
     fn file_line_original_source_role_does_not_require_typed_execution() {
         for dialect in ["tcl9.0", "tcl9.1"] {
@@ -911,26 +921,10 @@ mod tests {
                 );
                 let mut detached = tokens.clone();
                 detached.source_binding = None;
-                assert!(
-                    original_name_role_values(
-                        context.commands(),
-                        &detached,
-                        0,
-                        tcl_registry::ArgRole::VarWrite
-                    )
-                    .is_none()
-                );
+                assert_original_write_role_refused(context.commands(), &detached);
                 let mut changed = tokens.clone();
                 changed.argv_texts[1].push('!');
-                assert!(
-                    original_name_role_values(
-                        context.commands(),
-                        &changed,
-                        0,
-                        tcl_registry::ArgRole::VarWrite
-                    )
-                    .is_none()
-                );
+                assert_original_write_role_refused(context.commands(), &changed);
             }
         }
     }
