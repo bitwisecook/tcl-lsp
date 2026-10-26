@@ -17,7 +17,8 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "aae545949f9a2f56a5fd503b0a416145c3b412b4190f5c6081ccfbb53a5e6c7e"
+ROSTER_SHA = "7e5469936e2977a9f2d451c6115f20fc551df0024f558f2eb468f0f1d12bdc66"
+RESULT_COMPLETION_CONTROLS = ('original_command_rename::tests::authored_result_completion_coverage_retains_nested_call_without_normal_grant', 'original_command_rename::tests::authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs', 'original_command_rename::tests::authored_result_completion_never_skips_nested_name_write_or_opaque_channel')
 BASE = Path(__file__).resolve().parent
 
 
@@ -131,6 +132,37 @@ def execute(argv, prefix, artifact, seconds, observation_environment=None):
     return receipt
 
 
+def validate_result_completion_controls(roster):
+    require(
+        roster.get("result_completion_control_selectors") == list(RESULT_COMPLETION_CONTROLS),
+        "exact bounded result completion controls mismatch",
+    )
+
+
+def run_result_completion_controls(roster, executable, artifact, out, cases):
+    validate_result_completion_controls(roster)
+    for index, selector in enumerate(roster["result_completion_control_selectors"]):
+        require(sha(executable) == artifact["sha256"], "selected executable changed")
+        prefix = "result-completion-control-" + str(index + 1)
+        listed = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list", executable, 180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+                == [selector + ": test"],
+            "exact result completion control missing/ambiguous",
+        )
+        receipt = execute(
+            [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix, executable, 180,
+        )
+        result = original_result((out / (prefix + ".stdout")).read_text(), receipt["exit_code"])
+        cases.append({"selector": selector, "result": result, "exit_code": receipt["exit_code"]})
+        save(out / "result-completion-control-cases.json", cases)
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -162,6 +194,7 @@ artifact = None
 integration_artifact = None
 integration_cases = []
 quiet_store_cases = []
+result_completion_cases = []
 error = None
 status = 2
 environment = os.environ.copy()
@@ -171,6 +204,7 @@ try:
     require(sha(executor) == EXECUTOR_SHA, "process owner pin changed")
     require(sha(roster_path) == ROSTER_SHA, "Core2 roster pin changed")
     roster = json.loads(roster_path.read_text())
+    validate_result_completion_controls(roster)
     require(
         roster["executor_sha256"] == EXECUTOR_SHA
         and len(roster["selectors"]) == 2
@@ -476,6 +510,16 @@ try:
         save(out / "quiet-store-control-cases.json", quiet_store_cases)
     status = 0 if old_cohort_status == 0 and len(quiet_store_cases) == 1 and all(c["result"] == "PASS" for c in quiet_store_cases) else 1
 
+    prior_result_completion_status = status
+    status = 2
+    run_result_completion_controls(roster, executable, artifact, out, result_completion_cases)
+    status = (
+        0 if prior_result_completion_status == 0
+        and len(result_completion_cases) == 3
+        and all(case["result"] == "PASS" for case in result_completion_cases)
+        else 1
+    )
+
 except (
     RuntimeError,
     OSError,
@@ -534,6 +578,8 @@ finally:
             "exact_default_minify_integration_total": len(integration_cases),
             "quiet_store_control_cases": quiet_store_cases,
             "quiet_store_control_total": len(quiet_store_cases),
+            "result_completion_control_cases": result_completion_cases,
+            "result_completion_control_total": len(result_completion_cases),
             "minify_observation_qualification": "WORK coarse-instrumented build; BODY_SYNTAX runtime enabled only exact Default integration list/test rows; old2 runtime environment unchanged. No timing/performance acceptance or new source queries.",
             "integration_qualification": "Distinct fresh integration ELF, same single Cargo invocation and shared original process/phase/aggregate limits; old Core2 selectors remain separate and unchanged.",
             "processes": processes,
