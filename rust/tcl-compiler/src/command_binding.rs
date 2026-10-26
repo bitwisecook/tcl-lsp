@@ -8239,13 +8239,7 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        self.original_compiler_syntax_visits_for_owner(
-            &original,
-            input,
-            registry,
-            owner,
-            Some(offset),
-        )?;
+        self.original_compiler_syntax_visits_for_owner(&original, input, registry, owner)?;
         Some(Arc::clone(owner))
     }
 

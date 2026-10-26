@@ -180,7 +180,7 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        self.original_compiler_syntax_visits_for_owner(tokens, input, registry, owner, offset)
+        self.original_compiler_syntax_visits_for_owner(tokens, input, registry, owner)
     }
 
     /// Shared actual-visit validation. The ordinary consumer first checks its
@@ -192,7 +192,6 @@ impl SourceCommandBindings {
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &tcl_registry::CommandRegistry,
         owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
-        offset: Option<u32>,
     ) -> Option<Vec<OriginalCompilerArgumentSyntax<'a>>> {
         if !self
             .original_analysis_owner
