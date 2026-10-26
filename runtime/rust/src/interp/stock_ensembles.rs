@@ -509,8 +509,10 @@ impl Interp {
                 let reached = self.install_proc_original_storage_publication_using(
                     helper.name().as_bytes(),
                     parameters,
-                    Some(parameters_obj.as_ptr()),
-                    body.as_ptr(),
+                    super::OriginalProcedureObjects {
+                        parameters_obj: Some(parameters_obj.as_ptr()),
+                        body_obj: body.as_ptr(),
+                    },
                     None,
                     None,
                     import_source,
