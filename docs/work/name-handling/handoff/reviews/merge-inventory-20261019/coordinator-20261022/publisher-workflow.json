@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "acc83e83b5566ed7af8fb0d0b10527a91bc9d6d1",
-  "last_published_snapshot": "7fca6bade1481c6243b2a2b55a8fa8c8433c38bc",
+  "last_source_snapshot": "c771af5603d81e3b37af0273d12ea86b518b44b0",
+  "last_published_snapshot": "ea1035527750060dc1232a19dec3afdb4faf4c33",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,7 +16,7 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-26T10:50:49.078503+00:00",
+  "last_published_utc": "2026-10-26T11:16:15.587840+00:00",
   "product_tree_diff": [
     ".claude/skills/jetbrains-plugin-compat/SKILL.md",
     ".github/workflows/ci.yml",
@@ -242,6 +242,7 @@
     "rust/tcl-compiler/src/command_binding/native_list_assignment.rs",
     "rust/tcl-compiler/src/command_binding/native_result.rs",
     "rust/tcl-compiler/src/command_binding/native_string_access.rs",
+    "rust/tcl-compiler/src/command_binding/native_string_access/append_value.rs",
     "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs",
     "rust/tcl-compiler/src/command_binding/native_variable_tables.rs",
     "rust/tcl-compiler/src/command_binding/normal_result.rs",
@@ -798,15 +799,15 @@
   ],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "Current mirror159 functional paths equal canonical published product tree; documentationcheckpoint65004\u2192b8e and active source mirror98de mapped explicitly after push. No active source rebase/checkout.",
-  "unpublished_active_base": "acc83e83b5566ed7af8fb0d0b10527a91bc9d6d1",
-  "active_current_head": "acc83e83b5566ed7af8fb0d0b10527a91bc9d6d1",
+  "unpublished_active_base": "c771af5603d81e3b37af0273d12ea86b518b44b0",
+  "active_current_head": "c771af5603d81e3b37af0273d12ea86b518b44b0",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-26T10:50:49.078503+00:00",
+  "updated_utc": "2026-10-26T11:16:15.587840+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness.",
   "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
   "external_product_static_peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
   "active_source_integration_pending": true,
-  "external_product_base": "22aa23aa6eae36fc70ec73552a755c740a707ca4",
+  "external_product_base": "d072620287a380a360996614e64c90f9d9f47386",
   "source_equivalence_checked_at": "2026-10-23T17:08:33.347195+00:00",
   "source_equivalence_published_head": "7f3d0bfe9b88422b88f394901ea53c17a26761d4"
 }

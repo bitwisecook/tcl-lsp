@@ -2,7 +2,9 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T11:01:56.923225+00:00
+Last updated: 2026-10-26T11:35:30.068447+00:00
+
+Resume 2026-10-26T11:35:30.068447+00:00: Current d072620287 Jim52 run40312532378/job121536999787 is healthy in original-test step; sole ZIP/auth ownership retained, own-route firstguard observer integrated but no actual tag yet. Latest fully authenticated22aa remains36/45, diagnostics3/5, newstaticPASS, original26=17/26, zero matched prior-pass regressions. Root-authorized OFFTREE prep-pr fixed-command transport names-prep-pr-hosted-transport-work-v1 master13676adb is under SourceProc review: documented full prerequisite installer plus exact unchanged make prep-pr through pinned owner, shared absolute3300s/20MiB/2GiB, initial/final source/tree and generation diff; tracked mutation requires review/commit/rerun. No dispatch or gate acceptance claim. Next immediate action is authenticate d072 on terminal, diagnose exact own-route first false guard without relaxing debt/owner/callback guards.
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 

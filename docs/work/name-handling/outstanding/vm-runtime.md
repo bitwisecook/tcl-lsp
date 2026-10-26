@@ -1,10 +1,13 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T10:46:13Z
+Last updated: 2026-10-26T11:15:49Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T11:15:49Z: Runtime22aa40309594233 FULLAUTHfbf732b5 sealed: all161 protocol observations closed on the same fresh fullTom ELF; getter11/ordinary3/headroom2/allocation2/AOT5/constructor3/attestation3/proc PASS. Exact approved41ff42 NativeCore checked-view positive, old strict RawString/validUTF8, and eight entry/updater/free/retired controls all reached PASS. Oldother10321P82F andprune6P1F remain; CFI incomplete/final125 retained. API3unit tests still separate actualfullCI obligation; no globalruntime/release acceptance. Currentd072runtime16140312512618/job121536932969 solecapture queued; older22aaSpec40309590610 remains healthy, so no newSpec dispatch. NEXT AppendVALUEV2 strong7ea6b246+bounds79258146 now integratede5b60af23/Cbe2527850 and finalpinsd072; actualVALUE behavior UNRUN. Original15coupled string effects remain fullyauthenticated3PASS50361243; old9fSpecFULLAUTH8659 passed effects but missingargumentVALUE. Adoptedbody-array/namecache/caller-result bridge remains HOLD; privateLiteralTable opaque actual-compilation carrier is design-only.
+
 
 Current 2026-10-26T10:46:13Z: Spec9f FULLAUTH8659bcf7: old16+VM1 PASS; observer4=3P1F first initialization positive; string probe FAIL; full600 CLOSEDFAIL101/598.295s,17873 successful of17873 attempted hooks,3boundstringhooks0attempt. Initializer policy cause is static C profile core_pointNone; narrow recipe repair8a6f strongf3dcb156/bounded1078 integratedNEXTbdab6b27d, realVM4 retry pending; newAPIprojectiontest remains actualfullCI obligation. LENGTH actual effect gate now passes, missing argument VALUE is next distinct boundary. Compiler130 independently FULLAUTH50361243 confirms NativeString3ALLPASS. NEXT appendVALUE0506d4 V1 is HELD: join oldsame-byte name-value ownerlineage/currentness and add required project header; alloldasserts preserved, SourceProc finishing review before immutableV2. Runtime9f remainsALL161UNRUN/build101/fourgetter-testnameerrors, sealedb37d; lexicalrepair77176af andAppendOptionlint436015a current. No C1C2/globalruntime/Storebody effect acceptance.
 
