@@ -827,7 +827,10 @@ puts [fib 20]
         report
     }
 
-    fn allocated_empty_body(module: &crate::ir::Module) -> ReportBodyOwner {
+    fn allocated_empty_body(
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> ReportBodyOwner {
         let (&id, _) = module
             .original_declaration_body_units
             .iter()
@@ -840,6 +843,7 @@ puts [fib 20]
             .expect("actual allocated empty declaration");
         ReportBodyInventory::procedure(
             module,
+            registry,
             id,
             module.body_units.get(&id).unwrap(),
             ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration),
@@ -863,7 +867,7 @@ puts [fib 20]
             .unit()
             .ir_module;
         let registry = left.analysis.resolved_registry().unwrap();
-        let body = allocated_empty_body(module);
+        let body = allocated_empty_body(module, registry);
         let id = body.id;
         assert!(
             body.declaration_purpose == Some(ReportDeclarationPurpose::Allocated),
@@ -909,9 +913,9 @@ puts [fib 20]
             .unit()
             .ir_module;
         let registry = report.analysis.resolved_registry().unwrap();
-        let body = allocated_empty_body(module);
+        let body = allocated_empty_body(module, registry);
         let id = body.id;
-        let mut wrong_role = allocated_empty_body(module);
+        let mut wrong_role = allocated_empty_body(module, registry);
         wrong_role.role = ReportBodyRole::Unit(ProcedureBodyKind::Installed);
         assert!(
             ReportBodyInventory::empty_allocated_declaration_body(
@@ -922,7 +926,7 @@ puts [fib 20]
             )
             .is_none()
         );
-        let mut wrong_purpose = allocated_empty_body(module);
+        let mut wrong_purpose = allocated_empty_body(module, registry);
         wrong_purpose.declaration_purpose = Some(ReportDeclarationPurpose::Native);
         assert!(
             ReportBodyInventory::empty_allocated_declaration_body(
@@ -933,7 +937,7 @@ puts [fib 20]
             )
             .is_none()
         );
-        let mut wrong_span = allocated_empty_body(module);
+        let mut wrong_span = allocated_empty_body(module, registry);
         wrong_span.declaration = Span::empty(0);
         assert!(
             ReportBodyInventory::empty_allocated_declaration_body(
@@ -951,11 +955,11 @@ puts [fib 20]
                 &changed,
                 registry,
                 id,
-                &allocated_empty_body(&changed)
+                &allocated_empty_body(&changed, registry)
             )
             .is_none()
         );
-        let mut out_of_range = allocated_empty_body(module);
+        let mut out_of_range = allocated_empty_body(module, registry);
         out_of_range.declaration =
             Span::empty(u32::try_from(module.source.bytes().len() + 1).unwrap());
         assert!(
@@ -969,7 +973,7 @@ puts [fib 20]
                 module,
                 registry,
                 id,
-                allocated_empty_body(module)
+                allocated_empty_body(module, registry)
             )
             .is_some()
         );
@@ -979,7 +983,7 @@ puts [fib 20]
                 module,
                 registry,
                 id,
-                allocated_empty_body(module)
+                allocated_empty_body(module, registry)
             )
             .is_none()
         );
@@ -1004,6 +1008,7 @@ puts [fib 20]
         let make = |module: &crate::ir::Module| {
             ReportBodyInventory::procedure(
                 module,
+                registry,
                 id,
                 module.body_units.get(&id).unwrap(),
                 ReportBodyRole::Unit(ProcedureBodyKind::Installed),
