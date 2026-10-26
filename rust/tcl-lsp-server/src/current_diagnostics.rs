@@ -2085,6 +2085,7 @@ impl Backend {
             return Err(diag_stale("report.source-version"));
         }
         if doc.publication != DocumentPublication::Indexed || self.diag_inputs_epoch() != epoch {
+            trace_diagnostic_publication_pending("report.document-publication-or-epoch");
             return Err(DiagnosticUnavailable::Pending);
         }
         let report = match purpose {
@@ -2438,6 +2439,7 @@ impl DiagnosticPass {
             return Err(diag_stale("pass.source-currency"));
         }
         if slot.is_some_and(|slot| slot.dirty) {
+            trace_diagnostic_publication_pending("pass.slot-dirty");
             return Err(DiagnosticUnavailable::Pending);
         }
         Ok(())
