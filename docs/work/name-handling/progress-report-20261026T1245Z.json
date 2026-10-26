@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T12:45:00.341073+00:00",
+  "scheduled_report_utc": "2026-10-26T12:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T13:15:00+00:00",
+  "change_since_previous_report": [
+    "CompletedreviewedWORKsourcefix03d+ONEcurrentinputunion3ca0cdc9214ae53a763493b2145bd5b0af2396ef; CLEANb7ced81a65d01f08427c87e7c23666ffd5c875adpushednormallyafterfreshdepth1workfetch. ExactWORK3lineunusedhelperremovebcec/f684retainsalllivecalls/guards/CLEAN4calls. All853eblockedcontrolsremainUNRUN; no retroactivegains.",
+    "Final03dinputunion8474/37a2 covers12files/EXACT10existingsourcehashrefreshes+derivedguards,0newkeys/protocol/env/budgetchanges; all23/17maps358records233actualGitinputs. IndependentCompilerfdaf/rootJSONASTa02; all9actualruntimefunctionguardsPASS;canonicalV14PASS13startupinputs/30runners/20wholeguardszeroFailures. Wholemain+standaloneformatPASSexactcurrentCLEANb7ced.",
+    "Current3caacceptedrunIDs:strict40324219841/121576629492;compiler13340324220484/121576631841;Spec40324222612/121576639703;startup/Core40324219753 native121576636222/Core121576636729;hosts40324224173 browser121576645224/WASI121576645501/unit121576645803. AlloldmodesactuallyterminalbeforeHTTPPOST; healthyCef60fullCI/currentpairedjobsuntouched. Newpositive4+SourceCuttrace/capacityfixtureactualresultsPENDING.",
+    "ExactcurrentCLEANb7cedprep-prrequest40324230315/job121576667757acceptedwithWORK3caownedUVinstaller-directoryfix182d/6c21. Fullsamefixedmakeinstall-test-deps+makeprep-pr/owner88125/budgets20MiB2GiB3300absolute/candidatecleanchecks; noHOMEchange/skip. FirstC43attempt737fdcc9validatesonlysetupfailure/gateUNRUN, nevergreen. NamesSOLOnewartifact/auth.",
+    "Existingirules-preflight-diagnosticsmodeALREADYexecutesoriginalHeavyfailingharness_runs_the_tmm_84_surfacewithoriginalfirst-declineflag, so NOduplicateprotocol/selectoradded. Rootprovednoactiveequivalent/unknownpendingmodebeforeacceptedcurrent3carequest. Originalbootstrap1/trace2/initcontrol+exactlisting/budgetsunchanged. Runtimeownsactualfirstdeclinecause, no hostgrammar/Nativeprovider bypass.",
+    "CurrentCef60fullCIHeavy356actual325P31F; EXACT12baselinePASS\u2192FAILreleasedasblockingledger, dominatedscenarioresetNativePreflightRequired,SCFnativesourcegrammar,DIRECToperandplan,policycurrencyand2explain-flowcases. RoutedRuntime/Compilergenuineingress, no staleexternalroletakeover/guardwaiver. All5Rust+3E2Elistingsqualified: mainbaseline24624partial299PASS12FAIL24097UNOBSERVED216NOT_IN_AVAILABLE_SELECTION; latest123bac. Gap216requiresactualsource/cfg/renamemapping, neverabsentPASS. OlderHeavy-onlysnapshotpreserved.",
+    "CurrentCef60componentpassproofsremainexactGetter11(51b184),Allocation2+Headroom2(4f36),multipleactualnativeplatformsuccess,API3selectedbf8bd591butoutcomespending. Fullstandalone2397=2306P91F/qualified998baseline747P0F251unknown. Oldf763partial8804P2248F13356unknown216notselectedhistoricalonly. Fullgreen/currentzeroPTFnotmet.",
+    "AdditionalguardedoldFROZEN88hactualDBlibtest223314728Breclaimedafterlibtestsymbol/ELF/SHA/inode/singlelink/age/repeatedreadablelivefd/maps+pgrepallzombie-onlychecks, receiptbc55bb63. No currentexe/source/evidence/ZIPdeletion;freeafter~2.42GB and freshcapturefloor+reserveenforced. No localRustworkspacebuilds/nativeELFextraction.",
+    "RuntimeJimCore/staticV1a1a6typepeerC6aa,butSourceProcHOLD2eb3: childInitStaticmustpreserveactualnamespace-helper-before-binaryorderandCLEANpatchneedsF0offsets. RuntimepreparingV2, no canonicalapply/no83closure. RealC-core4vsstatic12/sourcecontainerdistinguishederivativeproofpreserved; no counters/quiet/Normalwaiver.",
+    "Usercostcoverage/APIquestionstillPENDINGactualanswer. ProposalV36b220/review-only6d7155NEVERapplied, noselector/protocolmappingorold4failureclosure. Allotherindependentworkcontinued; previousdecisionsunchanged. ExternalBIGIP/perfstaleover60minreportedwithouttakeover,triagecomplete. F/currentzeroPTF/fullgreen/acceptedTclperf/finaldocs/comments/generated/fixtures/package/exactprep-pr/squashgatesOPEN; noPR/merge/tag/release."
+  ],
+  "committed": [
+    "9ccafe2bcf226f2c96dcbe48fff7724fcdcf88e4"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Capturecurrent3caterminalresultsandfixactualLSP/SourceCut/Jim/compiler/Spec/runtime/Heavycausespreservingallguards/assertions.",
+    "AuthenticatecurrentCef60fullCIcompletebaselineandROOTpairedTclperformance; exactcurrentprep-prsetup/gate/tree/idempotence.",
+    "Awaitactualcostcoverageanswerbeforedependentimplementation; finalshippingcleanup/gatesbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release checkbox/audit-unit admission. Root capacity delay explicit; actual reporttimestamp. No PR. Unrun/unobserved/cancelled neverpass.",
+  "disk_free_bytes": 2428190720,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

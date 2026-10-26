@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T12:27:00Z
+Last updated: 2026-10-26T12:37:50Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T12:37:50Z: Genuine Jim CoreOnly/static boundary source V1 now frozen a1a6fa1d, sixpaths/lane current/F-R/fmt; SourceProc strong and Compiler bounded type peers requested. Separates NativeCore primitive registration from9sourcehelpers, explicit existinglibrary and child InitStatic route, original parameter SOURCE-container before unchanged parser. Three helper-dependent namespace fixture setup additions preserve old assertions; two new source-selection/replacement and actual formal filename/line controls UNRUN. Actual C V3 coreempty4 vs selectedstatic12 is scoped to distinct entrypoints, no result/counter adjustment or future PASS claim. Exact two old83 first-failed numeric deltas+26 (lsearch24/regex17), full-only coreconstructor30vs4; other failures not blindly joined. New Codegen Heavy actual12 baselinePASS-to-FAIL independent of standalone998: public reset NativePreflightRequired remains releasegate; existing FunctionAsm first-decline observer can identify predicate once reached, no public eval→NativeHost grammar widening.
 
 Current 2026-10-26T12:27:00Z: d072runtime161 FULLAUTHEcae97da sealed (549member streams/126579Gitmembership/64criticalblob joins); same fresh ELF all added30 PASS, old83 failures/CFI incomplete/final125 preserved. 853eSpec ALLUNRUN/build101 unused LSP needed<T> source_coverage.rs296, build-only boundary5b932c29 seals APIZIP/all20members/source beforeafter/exactGitmembership/owned2children; no AppendVALUE execution result. Jim C oracleV3 actual2.275s/5411B supports core-only empty4 versus selected nshelper12, nine actual Proc namespace owners; simple formal names are List wrappers after Jim_ListLength, hidden source elements remain distinct from optional direct Source objects. Off-tree CoreOnly/static boundary draft5production files unfrozen; native core must not auto-source namespace helper library, explicit InitStatic child route and source-container-before-formal-parse preserve actual source boundaries. No counter/assertion changes or generic Native grants. SourceProc oracle peer pending; exact original InitStatic fixture mapping required before source packet admission.
 
