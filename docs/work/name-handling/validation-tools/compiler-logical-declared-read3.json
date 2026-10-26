@@ -54,7 +54,8 @@
     "rust/tcl-registry/src/commands/tcl/append_.rs": "6d5d900cdd46179eabdb7ef2ae64b48c5743912d180cb51ea050157fefe60923",
     "rust/tcl-registry/src/native_compilation.rs": "8914b6ec0627b518a27cdced4122cd0ddb1166fbc7a1575dde2981e059629f48",
     "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
-    "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs": "a9b23949e24dda48bd06e7ce59cce355b03df8ed2873b7c68b78bfad9549a375"
+    "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs": "a9b23949e24dda48bd06e7ce59cce355b03df8ed2873b7c68b78bfad9549a375",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "bd2aae8a744d3429a4ffe3be32b8429625e832793110899e9b14881bfc6f6cd7"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -300,6 +301,34 @@
         ],
         "target": "tcl_compiler",
         "selector": "command_binding::native_string_access::tests::captured_native_effect_owner_refuses_foreign_source_and_expires_without_fallback",
+        "env": {}
+      }
+    ]
+  },
+  "separate_native_formal_layout_controls": {
+    "schema": "native-formal-layout-control2-v1",
+    "expected_selected": 2,
+    "source": "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs",
+    "source_peer_reference": "Native formal foundation79bd50f6; current carry required before execution",
+    "rows": [
+      {
+        "group": "diagnostic-native-formal-layout2",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::compiled_preflight::ordered_locals::original_native_request_tests::original_native_request_formals_keep_actual_scope_and_withdraw_after_owner_retirement",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-native-formal-layout2",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::compiled_preflight::ordered_locals::original_native_request_tests::original_native_request_formals_refuse_foreign_scope_and_keep_existing_body_boundaries",
         "env": {}
       }
     ]
