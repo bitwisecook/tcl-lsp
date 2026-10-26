@@ -1373,12 +1373,16 @@ pub struct OriginalSourceCutProcedureDeclaration<'a> {
     analysis: &'a crate::analyser::AnalysisResult,
     selected: ResolvedStatementInvocation,
     body: OriginalSourceScriptBody,
+    head_correspondence: SourceCutStoredHead,
 }
 impl OriginalSourceCutProcedureDeclaration<'_> {
     /// Same original selected owner, never an equal-text replacement analysis.
     #[must_use]
     pub fn is_for_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
         std::ptr::eq(self.analysis, analysis)
+            && self
+                .head_correspondence
+                .matches_selected_source(self.body.source_words())
     }
     /// Source-only facts for the independent command-link coverage checks.
     #[must_use]
@@ -1417,15 +1421,7 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     let image = source_cut_stage("source-image", realm.original_source_image())?;
     if source_cut_refuses(
         "image-words-context",
-        image.channel() != tcl_lexer::SourceChannel::Document
-            || image.bytes() != source.as_bytes()
-            || !words.matches_source(image, input.lexer_config())
-            || words.context() != Some(context.context())
-            || words
-                .origins()
-                .iter()
-                .enumerate()
-                .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index)),
+        source_cut_image_words_refused(&words, image, source, input, context),
     ) {
         return None;
     }
@@ -1467,6 +1463,14 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     ) {
         return None;
     }
+    let head_correspondence = source_cut_head(
+        source,
+        input.lexer_config(),
+        realm,
+        context,
+        &tokens,
+        &words,
+    )?;
     let facts = source_cut_stage(
         "schema-facts",
         words.with_source_schema(context, source_schema_queries::facts),
@@ -1499,7 +1503,96 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
         analysis,
         selected,
         body,
+        head_correspondence,
     })
+}
+
+enum SourceCutStoredHead {
+    Written,
+    Resolved(Box<source_structure::OriginalSourceHeadCorrespondence>),
+}
+impl SourceCutStoredHead {
+    fn matches_selected_source(&self, words: &source_structure::OriginalRegistryWords) -> bool {
+        match self {
+            Self::Written => true,
+            Self::Resolved(head) => head.matches_selected_source(words),
+        }
+    }
+}
+
+fn source_cut_head(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+    words: &source_structure::OriginalRegistryWords,
+) -> Option<SourceCutStoredHead> {
+    match words.origins().first()? {
+        InvocationWordOrigin::Written(0) => Some(SourceCutStoredHead::Written),
+        InvocationWordOrigin::ResolvedHead => Some(SourceCutStoredHead::Resolved(Box::new(
+            source_cut_resolved_head_correspondence(source, config, realm, context, tokens, words)?,
+        ))),
+        _ => None,
+    }
+}
+
+fn source_cut_image_words_refused(
+    words: &source_structure::OriginalRegistryWords,
+    image: &tcl_lexer::SourceImage,
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    context: &tcl_registry::model::ContextRegistry,
+) -> bool {
+    image.channel() != tcl_lexer::SourceChannel::Document
+        || image.bytes() != source.as_bytes()
+        || !words.matches_source(image, input.lexer_config())
+        || words.context() != Some(context.context())
+        || !source_cut_declaration_origins(words)
+}
+
+fn source_cut_declaration_origins(words: &source_structure::OriginalRegistryWords) -> bool {
+    matches!(
+        words.origins().first(),
+        Some(InvocationWordOrigin::Written(0) | InvocationWordOrigin::ResolvedHead)
+    ) && words
+        .origins()
+        .iter()
+        .enumerate()
+        .skip(1)
+        .all(|(index, origin)| *origin == InvocationWordOrigin::Written(index))
+}
+
+fn source_cut_resolved_head_correspondence(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &CommandTokens,
+    words: &source_structure::OriginalRegistryWords,
+) -> Option<source_structure::OriginalSourceHeadCorrespondence> {
+    let image = realm.original_source_image()?;
+    let offset = tokens.argv.first()?.start();
+    let expected = realm.retained_original_tokens_for_command(image, config, offset, tokens)?;
+    if expected.source_binding != tokens.source_binding {
+        return None;
+    }
+    let advice = realm.original_source_transition_advice(context, tokens)?;
+    let original =
+        source_structure::source_transition_words_from_advice(source, config, context, advice)?;
+    if original.origins().len() != words.origins().len()
+        || original
+            .origins()
+            .iter()
+            .enumerate()
+            .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
+        || (0..words.arguments().len()).any(|index| {
+            original.original_argument_word(index) != words.original_argument_word(index)
+        })
+    {
+        return None;
+    }
+    original.original_source_head_correspondence(words, context)
 }
 
 fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Option<T> {

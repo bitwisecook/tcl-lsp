@@ -542,6 +542,9 @@ pub(crate) struct OriginalSourceHeadCorrespondence {
     right: OriginalRegistryWords,
 }
 impl OriginalSourceHeadCorrespondence {
+    pub(crate) fn matches_selected_source(&self, words: &OriginalRegistryWords) -> bool {
+        &self.right == words
+    }
     #[cfg(test)]
     pub(crate) const fn left(&self) -> &OriginalRegistryWords {
         &self.left
@@ -5768,6 +5771,111 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+
+    #[test]
+    fn source_cut_head_origins_keep_written_operands_and_refuse_captured_or_expanded() {
+        let input = logical_schema_input(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+        );
+        let written = last_logical_schema("proc helper {} {return HELPER}", &input).unwrap();
+        assert_eq!(
+            written.origins().first(),
+            Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                0
+            ))
+        );
+        assert!(super::super::source_cut_declaration_origins(&written));
+        let source = "proc helper {} {return HELPER}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        )
+        .pop()
+        .unwrap();
+        let selected = source_registry_words(source, &analysis, &command).unwrap();
+        assert_eq!(
+            selected.origins().first(),
+            Some(&crate::registry_invocation::InvocationWordOrigin::ResolvedHead)
+        );
+        assert!(super::super::source_cut_declaration_origins(&selected));
+        let realm = analysis.retained_command_realm().unwrap();
+        let image = realm.original_source_image().unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            config,
+            &command,
+        );
+        realm.stamp_original_tokens(&mut tokens);
+        let context = analysis
+            .resolved_input
+            .as_ref()
+            .unwrap()
+            .borrowed_context_registry();
+        let head = super::super::source_cut_resolved_head_correspondence(
+            source, config, realm, context, &tokens, &selected,
+        )
+        .unwrap();
+        assert_eq!(head.left().origins().first(), written.origins().first());
+        assert_eq!(head.right().origins().first(), selected.origins().first());
+        assert!(head.matches_selected_source(&selected));
+        assert!(!head.matches_selected_source(&written));
+        assert!(
+            super::super::source_cut_resolved_head_correspondence(
+                &(source.to_owned() + " "),
+                config,
+                realm,
+                context,
+                &tokens,
+                &selected,
+            )
+            .is_none()
+        );
+        let mut foreign_config = config;
+        foreign_config.strict_quoting = !foreign_config.strict_quoting;
+        assert!(
+            super::super::source_cut_resolved_head_correspondence(
+                source,
+                foreign_config,
+                realm,
+                context,
+                &tokens,
+                &selected,
+            )
+            .is_none()
+        );
+        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            super::super::source_cut_resolved_head_correspondence(
+                source,
+                config,
+                foreign.retained_command_realm().unwrap(),
+                context,
+                &tokens,
+                &selected,
+            )
+            .is_none()
+        );
+
+        let captured = last_logical_schema(
+            "interp alias {} pick {} list {CAPTURE $literal}; pick written",
+            &input,
+        )
+        .unwrap();
+        assert!(matches!(
+            captured.origins().get(1),
+            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(0))
+        ));
+        assert!(!super::super::source_cut_declaration_origins(&captured));
+        let expanded = last_logical_schema("list {*}{ONE TWO}", &input).unwrap();
+        assert!(matches!(
+            expanded.origins().get(1),
+            Some(crate::registry_invocation::InvocationWordOrigin::ExpandedElement { .. })
+        ));
+        assert!(!super::super::source_cut_declaration_origins(&expanded));
     }
 
     #[test]
