@@ -137,7 +137,7 @@
     "runtime/rust/src/frame.rs": "933b0f390dc1cfcfef54de8d05a3f32c08ce5f4daa1fa180eb32c1a5bd9682af",
     "runtime/rust/src/interp/guarded_definition.rs": "47a440682b92a78f12a1fc8a10071e98819032c87c2665cc1d8bb34e55464178",
     "runtime/rust/src/interp/native_body_artifact/native_control.rs": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608",
-    "runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs": "d3f59fcf720db8ce63ed008e07e4727e3f5561222635542c80a82c2a5de299c6",
+    "runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs": "e7b3122d09b5463803f2231d8cc4fd61f8a37d4306fef71ddf9f92b4b058b957",
     "runtime/rust/src/interp/native_body_artifact/native_i64_add.rs": "eaf16e7dae46408d83c406669f2ade04804969754595a98a520f8f3035bbb367",
     "runtime/rust/src/interp/native_i64_body.rs": "af692628f8ab54252fd09d5507a17c0c1bdd5723201e6949149f8c72d831e749",
     "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
