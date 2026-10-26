@@ -98,8 +98,12 @@ fn installed(public: &'static [u8], generation: u64, owns_config: bool) -> Insta
         // role. No public configuration issuer or Native chronology is claimed.
         let original = Owned::fresh(obj::alloc_typed(&CONFIG, 0));
         assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
-        let mut originals = crate::ensemble::NativeEnsembleObjects::default();
-        originals.unknown = Some(EnsembleObjectRole::new(NativeEnsembleRoot::owned(original)));
+        let default_originals = crate::ensemble::NativeEnsembleObjects::default();
+        let unknown = Some(EnsembleObjectRole::new(NativeEnsembleRoot::owned(original)));
+        let originals = crate::ensemble::NativeEnsembleObjects {
+            unknown,
+            ..default_originals
+        };
         EnsembleConfig {
             originals,
             ns: GLOBAL,

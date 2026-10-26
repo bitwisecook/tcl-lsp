@@ -1386,7 +1386,7 @@ impl Interp {
             Ok(originals) => originals,
             Err(error) => return self.report_cmd_error(error),
         };
-        let code = (|| {
+        let code = {
             let parse_prefix: Vec<_> = prefix
                 .iter()
                 .map(|word| crate::obj::Owned::fresh(super::new_string(word)))
@@ -1411,7 +1411,7 @@ impl Interp {
                 currency: originals.currency().clone(),
             };
             callback(self, &view)
-        })();
+        };
         originals.finish(code)
     }
 }

@@ -309,11 +309,10 @@ impl Interp {
         stage: OriginalCNameStage<'_>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         if let Some(check) = stage {
-            check().map_err(|error| {
+            check().inspect_err(|error| {
                 if let Some(first) = error.native_execution_refusal() {
                     self.clone().refuse_native_execution(first.clone());
                 }
-                error
             })?;
         }
         Ok(())
@@ -954,7 +953,7 @@ impl Interp {
     /// Legacy C84 existence obtains only bytes from the original name. Its
     /// selected cell and read observers remain the same receiver owners; no
     /// parsed or local primary is inspected, discarded or installed here.
-
+    ///
     fn prepare_original_c_byte_name_parts_using(
         &mut self,
         original: *mut TclObj,
@@ -3543,7 +3542,7 @@ mod tests {
         assert_eq!(obj::bytes_of(canonical), b"value");
         match result {
             Ok(()) => Code::Ok,
-            Err(error) => interp.report_cmd_error(error.into()),
+            Err(error) => interp.report_cmd_error(error),
         }
     }
 

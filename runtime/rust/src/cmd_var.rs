@@ -158,7 +158,7 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(arguments) => arguments,
                 Err(error) => return interp.report_cmd_error(error),
             };
-        for index in 1..argv.len() {
+        for (index, &argument) in argv.iter().enumerate().skip(1) {
             let name = match arguments.bytes(index) {
                 Ok(name) => name,
                 Err(error) => return interp.report_cmd_error(error),
@@ -168,7 +168,7 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             {
                 continue;
             }
-            let code = interp.link_original_jim_upvar_objects(argv[index], 0, argv[index]);
+            let code = interp.link_original_jim_upvar_objects(argument, 0, argument);
             if code != Code::Ok {
                 return arguments.finish(code);
             }

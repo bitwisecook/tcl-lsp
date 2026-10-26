@@ -5741,7 +5741,7 @@ impl Interp {
         // created by the old deleteProc. Reuse the exact creation entry, actual
         // slot generation and unique record ownership; a spelling is no proof.
         let recreated_generation = self.namespaces.borrow().command_generation(ns, tail);
-        if creates_object_command && recreated_generation.is_some() {
+        if let (true, Some(recreated_generation)) = (creates_object_command, recreated_generation) {
             let admissible = original_object_retirement
                 .as_ref()
                 .is_some_and(|original| original.completed_delete(slot_was_empty));
@@ -5757,11 +5757,7 @@ impl Interp {
             let recreated = self
                 .namespaces
                 .borrow_mut()
-                .take_recreated_object_for_creation(
-                    &native_entry,
-                    tail,
-                    recreated_generation.expect("the actual recreated slot was observed"),
-                );
+                .take_recreated_object_for_creation(&native_entry, tail, recreated_generation);
             let discarded = recreated.is_some_and(|recreated| {
                 // Release only the actual intermediate object outside the table
                 // borrow. Additional owners keep their ordinary retirement.
@@ -8322,12 +8318,11 @@ impl Interp {
                 }
                 original.check_current()
             })();
-            reached.map_err(|error| {
+            reached.inspect_err(|error| {
                 self.clone().refuse_completion_value_access(error.clone());
-                error
             })
         };
-        let reached = prepared.finish(&check).and_then(|old| old.finish(&check));
+        let reached = prepared.finish(check).and_then(|old| old.finish(check));
         if let Err(error) = reached {
             self.refuse_completion_value_access(error);
             return Err(VarError::NameProtocolUnavailable);
@@ -11456,10 +11451,8 @@ impl Interp {
         let namespaces = self.namespaces();
         Ok(names
             .iter()
-            .filter_map(|name| {
-                matches!(namespaces.command_in(id, name), Some(Command::Alias { .. }))
-                    .then(|| namespaces.command_table_report_name(id, name).to_vec())
-            })
+            .filter(|name| matches!(namespaces.command_in(id, name), Some(Command::Alias { .. })))
+            .map(|name| namespaces.command_table_report_name(id, name).to_vec())
             .collect())
     }
 
@@ -12596,13 +12589,12 @@ impl Interp {
         if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
         }
-        if self.uses_jim_error_stack() {
-            if self
+        if self.uses_jim_error_stack()
+            && self
                 .adopt_jim_stacktrace(obj::Owned::fresh(new_string(info)))
                 .is_err()
-            {
-                return Code::Error;
-            }
+        {
+            return Code::Error;
         }
         if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
@@ -13036,12 +13028,7 @@ impl Interp {
         buf.extend_from_slice(line.to_string().as_bytes());
         buf.push(b')');
         drop(exc);
-        if self
-            .update_native_error_info_checked(scope.currency())
-            .is_err()
-        {
-            return;
-        }
+        let _ = self.update_native_error_info_checked(scope.currency());
     }
 
     /// Append a frame with no `line N` suffix — `"\n    (<text>)"`, e.g.
@@ -18809,13 +18796,10 @@ impl Interp {
         let issuer_dispatch = self.native_dispatch_depth.get();
         let original_artifact =
             if let Some(procedure) = meta.c_procedure.filter(|_| !original_import) {
-                let original = match procedure
+                let original = procedure
                     .check_native_liveness()
                     .and_then(|()| procedure.body.checked_ptr())
-                {
-                    Ok(original) => original,
-                    Err(error) => return Err(self.report_cmd_error(error.into())),
-                };
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
                 match self.prepare_original_c_body(original, ns, Some(procedure)) {
                     Ok(artifact) => artifact,
                     Err(code) => return Err(code),
@@ -18869,7 +18853,7 @@ impl Interp {
             return Err(
                 match self.proc_wrong_args(usage, params, supplied, meta.quote_name) {
                     Ok(message) => self.wrong_arguments_message(&message),
-                    Err(error) => self.report_cmd_error(error.into()),
+                    Err(error) => self.report_cmd_error(error),
                 },
             );
         };
@@ -18882,7 +18866,7 @@ impl Interp {
             Ok(receiver) => receiver,
             Err(error) => return Err(self.report_cmd_error(error.into())),
         };
-        let (saved_ns, proc_frame) = match self.enter_native_procedure_frame(
+        let (saved_ns, proc_frame) = self.enter_native_procedure_frame(
             params,
             call_args,
             usage_called,
@@ -18891,10 +18875,7 @@ impl Interp {
             original_artifact
                 .as_ref()
                 .and_then(|artifact| artifact.compiled_local_layout()),
-        ) {
-            Ok(frame) => frame,
-            Err(code) => return Err(code),
-        };
+        )?;
         if tcl_registry::release_compilation::compile_procedures_modelled(self.runtime_version()) {
             let unit = crate::compiled_locals::ProcUnit::new(
                 body,
@@ -18994,7 +18975,7 @@ impl Interp {
         // flag, and it is cleared after for a body that never reached one.
         self.next_proc_body.set(true);
         let outcome = match execution {
-            Err(error) => PreparedProcedureBody::Complete(self.report_cmd_error(error.into())),
+            Err(error) => PreparedProcedureBody::Complete(self.report_cmd_error(error)),
             Ok(()) => PreparedProcedureBody::Enter(native),
         };
         Ok(Box::new(PreparedProcedureCall {
@@ -21372,10 +21353,14 @@ mod tests {
             let original = obj::Owned::fresh(obj::alloc_typed(&EXPOSURE_CONFIGURATION, 0));
             // SAFETY: this fresh owning role retains the live original.
             assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
-            let mut originals = crate::ensemble::NativeEnsembleObjects::default();
-            originals.unknown = Some(tcl_cmd_core::ensemble::EnsembleObjectRole::new(
+            let default_originals = crate::ensemble::NativeEnsembleObjects::default();
+            let unknown = Some(tcl_cmd_core::ensemble::EnsembleObjectRole::new(
                 crate::ensemble::NativeEnsembleRoot::owned(original),
             ));
+            let originals = crate::ensemble::NativeEnsembleObjects {
+                unknown,
+                ..default_originals
+            };
             let config = crate::ensemble::EnsembleConfig {
                 originals,
                 ns: GLOBAL,

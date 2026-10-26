@@ -161,11 +161,9 @@ impl Interp {
             selected.check_owner(self, scope.currency())?;
             Ok(removed)
         })();
-        if let Err(error) = &reached {
-            if let crate::frame::JimLinkStoreError::Command(error) = error {
-                if let Some(first) = error.native_execution_refusal() {
-                    self.refuse_native_execution(first.clone());
-                }
+        if let Err(crate::frame::JimLinkStoreError::Command(error)) = &reached {
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
             }
         }
         drop(selected);
@@ -267,7 +265,7 @@ impl Interp {
             }
             if let Some(array) = array {
                 if self
-                    .finish_array_unset(&reported, &base, Some(home.clone()), array, &current)
+                    .finish_array_unset(&reported, &base, Some(home.clone()), array, current)
                     .is_err()
                 {
                     refused = true;

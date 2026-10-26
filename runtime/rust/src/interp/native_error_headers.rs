@@ -471,10 +471,6 @@ impl NativeErrorStack {
         self.replace_bytes(&[tag.clone(), context.clone()]);
         self.metadata.begin_inner((), ())
     }
-    /// `TclGetInnerContext` owns its List independently of the `errorStack` reference.
-
-    /// Append actual producer objects; no child is materialized or reconstructed.
-
     #[cfg(test)]
     pub(super) fn entries(&self) -> Vec<Vec<u8>> {
         let protocol = self.protocol.expect("selected private header");
@@ -578,15 +574,20 @@ impl super::Interp {
         if self.error_stack.borrow().protocol == protocol {
             return scope.currency().ensure_current_or_refuse();
         }
-        let mut replacement = NativeErrorStack::default();
-        replacement.protocol = protocol;
-        replacement.header = protocol
+        let defaults = NativeErrorStack::default();
+        let header = protocol
             .map(|protocol| obj::Owned::fresh(crate::list::new_list_obj_native(&[], protocol)));
-        replacement.inner_context = protocol.map(|protocol| {
+        let inner_context = protocol.map(|protocol| {
             std::rc::Rc::new(std::cell::RefCell::new(obj::Owned::fresh(
                 crate::list::new_list_obj_native(&[], protocol),
             )))
         });
+        let replacement = NativeErrorStack {
+            protocol,
+            header,
+            inner_context,
+            ..defaults
+        };
         scope.currency().ensure_current_or_refuse()?;
         let ticket = std::rc::Rc::clone(&replacement.incarnation);
         let header = replacement.header.as_ref().map(obj::Owned::as_ptr);
