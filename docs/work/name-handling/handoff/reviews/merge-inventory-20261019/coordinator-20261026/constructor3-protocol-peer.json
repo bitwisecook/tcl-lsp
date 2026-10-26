@@ -1,0 +1,257 @@
+{
+  "packet": "/workspace/naming-proof-storage/vm-constructor3-runtime-protocol-work-v1",
+  "patch_sha256": "7b413f6aa352e0323c115e804e75c26df47e99b097417763c6f9bba341fafd3a",
+  "current_head": "fdb1347b995cd9ace6ecb2d511558858c740143b",
+  "current_before": true,
+  "source_pins": "Two exact approved CAPI V2 staged function bodies plus current mathfunc body; conditional on source integration",
+  "forward_reverse_exact": true,
+  "all_old_helpers_AST_exact_except_run_main": true,
+  "all_old_run_main_loops_preserved": true,
+  "actual_helper_no_child_cases": [
+    {
+      "case": "pass",
+      "mock_calls": 3,
+      "states": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "case": "prior",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "suite_short",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "absolute_short",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "boundary205",
+      "mock_calls": 3,
+      "states": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "case": "cap",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "elf",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "missing",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "ignored",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "selected",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "FAIL",
+      "mock_calls": 3,
+      "states": [
+        "FAIL",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "case": "ABORT",
+      "mock_calls": 3,
+      "states": [
+        "ABORT",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "case": "TIMEOUT",
+      "mock_calls": 1,
+      "states": [
+        "TIMEOUT",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "group",
+      "mock_calls": 1,
+      "states": [
+        "PASS",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "artifact",
+      "mock_calls": 1,
+      "states": [
+        "PASS",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "malformed",
+      "mock_calls": 1,
+      "states": [
+        "INCOMPLETE",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "owner_exception",
+      "propagates": true
+    },
+    {
+      "case": "cap_after_first",
+      "mock_calls": 1,
+      "states": [
+        "PASS",
+        "UNRUN",
+        "UNRUN"
+      ]
+    },
+    {
+      "case": "clock_after_hash",
+      "mock_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ]
+    }
+  ],
+  "actual_final_return_cases": [
+    [
+      "none",
+      true,
+      0
+    ],
+    [
+      "none",
+      false,
+      125
+    ],
+    [
+      "constructor_rows",
+      true,
+      100
+    ],
+    [
+      "constructor_rows",
+      false,
+      125
+    ],
+    [
+      "aot_rows",
+      true,
+      100
+    ],
+    [
+      "aot_rows",
+      false,
+      125
+    ],
+    [
+      "attestation_rows",
+      true,
+      100
+    ],
+    [
+      "attestation_rows",
+      false,
+      125
+    ],
+    [
+      "proc_row",
+      true,
+      100
+    ],
+    [
+      "proc_row",
+      false,
+      125
+    ],
+    [
+      "rows",
+      true,
+      100
+    ],
+    [
+      "rows",
+      false,
+      125
+    ]
+  ],
+  "actual_admission_states": 6,
+  "assessment": "CLEAR static protocol; old140 failures and CFI errors remain; constructor3 cannot make them green; same fresh ELF/environment/owner/shared budget and no reset. Actual tests UNRUN.",
+  "replacement": "Constructor2 held packet is superseded, not additionally selected",
+  "qualification": "Exception summary scope prose still says Constructor2; actual paths, rows, selectors and count are Constructor3. Descriptive typo only.",
+  "actual_source_hash_negative_controls": 3,
+  "actual_exception_default_partial_controls": [
+    [
+      "UNRUN",
+      "UNRUN",
+      "UNRUN"
+    ],
+    [
+      "PASS",
+      "UNRUN",
+      "UNRUN"
+    ]
+  ]
+}

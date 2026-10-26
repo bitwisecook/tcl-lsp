@@ -1,0 +1,34 @@
+{
+  "status": "CLEAR narrow oracle-backed cfg(test) correction, actual Rust controls UNRUN",
+  "files": [
+    {
+      "lane": "WORK",
+      "patch_sha256": "c52cf928c813cc2e31a85a32242eb152a9588f4deaedf02d794a9f7ba798726c",
+      "current_F_R_fmt_whole_inverse": true,
+      "function_noncomment_lines": {
+        "original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs": 68,
+        "error_code_keeps_unreached_original_updater": 25,
+        "generic_collection_preserves_first_refusal_before_original_updater": 39,
+        "generic_actual_c_profile_without_refusal_enters_collection_updater": 24
+      }
+    },
+    {
+      "lane": "CLEAN",
+      "patch_sha256": "e674ef3f332a2299ec3b731f1ce13ed5afbf7beb9b238e5b1496d55a5eeb1a84",
+      "current_F_R_fmt_whole_inverse": true,
+      "function_noncomment_lines": {
+        "original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs": 68,
+        "error_code_keeps_unreached_original_updater": 25,
+        "generic_collection_preserves_first_refusal_before_original_updater": 39,
+        "generic_actual_c_profile_without_refusal_enters_collection_updater": 24
+      }
+    }
+  ],
+  "oracle_receipt_sha256": "7f3466f857be3921c2bbea2b143f52f1b4a28ac452a37a13c190fadfda28a8ad",
+  "oracle_pins_verified": 17,
+  "oracle_scope": "Actual C8.6.18/C9.0.4 Tcl_SetObjErrorCode has no incoming String request: old error object decref, same incoming pointer assignment, incref. Fresh custom no-string rc1 oracle snapshots before getters show0updates/0frees/typeSame/ref2/resultSame/finalfree1. No claims about arbitrary release or Rust execution.",
+  "coverage": "All five old getter workers and every assertion remain exact; sixth void-setter case now has separate stronger header/no-updater/refcount/result/context/final-free assertions for both original actions under same original selector. No production changes.",
+  "generic_premise": "Withdraws false constructor-only refusal claim. Explicit first-refusal control preserves actual first cause; separate Generic+actualC90 no-prior-refusal positive requires updater/count/header conversion/free behavior. Existing diagnostic flag captures initial/seeded refusal booleans.",
+  "ownership": "Callback holds WeakInterp; scalar Rc counts live through assertions. Incoming header Owned retained through setter replacement then explicitdrop; private error-code retain observed2\u21921\u2192free1. Getter owners/drop order unchanged.",
+  "integration_requirement": "Runtime selector roster/function pins must be updated for renamed negative and new positive; final root source-pin union required."
+}

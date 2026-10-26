@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T05:16:14.319634+00:00",
+  "scheduled_report_utc": "2026-10-26T05:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T05:45:00+00:00",
+  "change_since_previous_report": [
+    "The 04:45 WIP snapshot was pushed normally as ad2f1585b3583754fd9896428dd88f919a38e499 at04:56:39 after a depth-one fetch of work. Product5c13fda55b9f3db13bd7213d7bfcd64076815633 and CLEANa3644931c6bfde83c03c102f84b10306d5ba0196 were pushed first. The CLEAN-only unused command_offset projection was removed under independent reviewdf653695; all guards and WORK uses remain.",
+    "Four current5c13 retries are active: compiler12440271585130/job121405361843, strict40271583523/job121405355927, Spec40271580958/job121405349351, WASM40271582013/job121405352015. These retry the source visibility/length blockers with unchanged original assertions, environment and budgets. No outcome is inferred before authentication.",
+    "Current b5fa runtime fully authenticatesc476ca3a: all five AOT controls PASS, original3/baseline14/stack/proc/attestation PASS; the old84 nonpasses and incomplete CFI remain. CAPI now genuinely reaches five getter workers, then the old sixth void setter expectation fails. Actual C8.6/C9.0 oracle7f3466/55f1 proves Tcl_SetObjErrorCode invokes no updater, retains the same header with refcount2, preserves result and frees once on replacement/drop. Matching preprocessing flags86cb/sourcepeerba6a resolves the precise header-custody qualification without rewriting prior records.",
+    "Oracle-backed CAPI correction c52cf928/e674ef3f, independently cleared849a269f, is integrated WORKfdb1347b9/CLEAN6eabb9de4. All five original getter-worker bodies/assertions remain exact; the void setter now has direct native-oracle assertions. The false Generic-constructor-only negative is replaced by an explicitly established first-refusal control plus an independent admitted Generic+realC90 positive. No production permission restriction is added. Source-peer withdrawalf740 remains explicit; old Constructor2 protocol was never integrated.",
+    "Constructor3 protocol7b413f6a/sourcepeer74e2f771 is integrated after unchanged old140 using the same fresh full-TomMath ELF, environment, shared cap/deadline and 180+205 reserve. All prior failure/error states remain in aggregation. The three new cases are source-pinned separately. Root corrected only an exception-scope word from Constructor2 toConstructor3 with AST equality; no execution or guard change.",
+    "WORK-only Jim observer V3/sourcepeer33b151a9 and Jim52 protocol/sourcepeerf6397f20 are integrated. Exactly seven identity-preserving Option observations retain the same queries/drop order. A checked shared1024-row counter emits at most1023 observations plus one UNOBSERVED marker; an actual installedRust1.99 probe96d7f116 confirms old-value try_update and nonwrapping full/MAX behavior. The separate raw-method repeat follows unchanged51 on the same listed fresh Jim ELF, with unchanged shared budgets. No original assertion or actualUnknown is overridden.",
+    "The remaining Jim class design gap is issuer-specific: AuthoredJimClass is not SourceClass, and its deferred-body call route intentionally refuses unsupported custody. A genuine authored-class/procedure-member/adoption receipt is required. Compiler Store-only summary is likewise held: own compiler slots/body custody do not exclude execution or step observers populating/aliasing locals before a store. Runtime and compiler are jointly implementing real current observer/frame authority; no optimistic branch or empty-params freshness inference is integrated.",
+    "CLEAN CAPI diagnostics were erased under independent sourcepeerf83d4ecf with all firstcause/header/output/updater/free assertions preserved. The release chaff search has zero targeted process markers. Product CAPI ownership docs now correctly state object retention and no String getter; Native formal and constructor contracts are updated without validation narratives. Current release static include closure remains zero missing paths, with three generated inputs still needing builds.",
+    "All three Linux32e performance artifacts are API-digest/size/CRC/member/stream verified: baseline release builds PASS, candidate builds exit101 at two formal visibility warnings plus CLEAN unused command_offset; zero runtime trials. Exact build-only receipt327173e5 and warning detailc4efa86c are retained. Both causes are fixed in pushed5c13/Ca364. macOS old jobs are preserved pending their actual outcomes. New final Tcl measurements remain necessary; iRules timing only is exempt.",
+    "Historical fullCI32e has actual runtime2380=2287PASS93FAIL and filtered17/1/1PASS, as Codegen reports from decoded logs; the false Generic negative is one new failure, now corrected locally. Shard builds stop at old formal visibility warnings with no selected assertion results; some native production builds remain healthy. The next ordinary/native-proof-false group is separate and will preserve those jobs. All F/current complete baseline comparison/full green/performance/generated/editor/docs/comments/fixtures/package/prep-pr gates remain open. External BIGIP/perf files remain over60min stale and are reported without takeover; triage is complete. Disk roughly2.2GiB, no local Cargo builds."
+  ],
+  "committed": [
+    "e0934b620c215f2c1085b13a1fc6c52a934ea396"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish canonical V14 and normal source pushes, run fullTom143/Jim52, separate ordinary fullCI and six-scope final Tcl performance without cancelling healthy jobs.",
+    "Finish actual modern expression visitation, LSP source/slot publication, Native observer/frame custody and Jim authored-class ownership; authenticate fixed-source retries and fix concrete failures.",
+    "Complete reviewF, zero current origin/rust PASS-to-FAIL, every mandatory gate, shipping performance and final editorial/generated/fixture/package/prep-pr checks before opening the authorised PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No F checkbox or audit-unit count changes. Component successes and source review are not global acceptance. The six-hour target was missed; no PR, merge, tag or release publication.",
+  "disk_free_bytes": 2357833728,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T04:21:03.811910+00:00
+Last updated: 2026-10-26T05:13:47.103997+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current09b/C667 source frozen, next Jim52/fullTom143/ordinaryfullCI/performance dispatch pending metadata peer and Root canonical preflight/push. Tiny union05279292 adds exactly3 approved Jim observer source dependencies plus derived roster guard,2files; all23 existing top/nested/descriptor source pins already current, NativeString15/formal5/old cohorts/limits retained. ProspectiveV14PASS13/30/20 c76c79d6; Compiler independent peer active. Current5c13 strict40271583523 andWASM40271582013 are sole-owned healthy captures, no outcomes claimed. Previousb5fa strict3warnings-as-errors andWASM ALL25UNRUN are fully authenticated; actual latest reached functional WASM remains7dc23PASS/2FAIL, unchanged allocation/depth failures. Depth witness is descriptive; deferred-tail private protocol remains off-tree design with exact retirement/order/source/frame obligations unresolved, no Native capability grant. FullCI32e standalone runtime2380=2287PASS/93FAIL observed, workspace shard3 UNRUN on already-repaired private-interface warnings;6native production jobs success by API, others healthy. No latest-source broad acceptance/performance claim.
 
 Current b2 strict FULLAUTH25 checks2ed8fbb6: four compiler-lib Clippy diagnostics, zero RustE, later stages masked. Paired exact method-pointer2/docbacktick2 source fix4cc4deb3 independently clearb6e618f9 and Root integrated. Latest source74558/C32e final union3f254f02 independently CLEAR0d491190: all23/17maps298records210Gitfiles,25old updates+10explicitformal dependencies (full5Logical3/Spec and leaf in other parent maps), current nested/descriptor/NativeString15/protocol fields retained. Adopted prospectiveV14PASS13/30/20; Root canonical preflight/push/dispatch separate. CLEAN fullCI request plan c66f0395 ready against32e, same reviewed e42 workflow/hosted/nativeprooftrue branch inputs, no publication/tag; actual current production/test typing still hosted-unrun. All remaining3 Names peers clear2e998c92/df1ac75b/93725991 and Root integrated; no active overlapping source edits. Depth witness source-only strongclear d1ad74e7 is not a functional fix: n61 refusal before dispatch remains unresolved, no handler/frame/return/ABI authority inferred.
 

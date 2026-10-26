@@ -1,10 +1,13 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T04:38:10Z
+Last updated: 2026-10-26T05:13:56Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Latestb5fa runtime40268755592 FULLAUTHc476ca3a: all140ownedprocess observationsclosed/AOT5ALLPASS; old84nonpasses/CFIincomplete125retained. CAPIgenuineconstructor nowreachesworkers0..4; setterworker5wrongupdaterexpectation corrected byactualC86/C90 oracle7f3466f8 andheaderclosure55f1eb9d plusactualflags86cb8302 (SourceProcba6a622d custodyclear, originalchronologyqualified). CAPIoraclecontrolsV2c52/e674 SourceProc849a269f integratedPfdb134/C6eabb: setterretainsheaderwithoutgetter, explicitfirstrefusalGenericnegative+admittedGenericCprofilepositive, no constructor-onlyguard. Constructor3protocol7b413f6a strong74e2f771 integratedWORK1b795 (afterunchangedold140 sameELF/budgets); allnewactualRustoutcomespending. CLEAN-onlyobserverremoval0729strongf83d4ecf stripssoleobserverquery/printf whileWORKretainsaudit; currentC667 shippinggrep0. ProductconstructorREADME e2e8e915 andCAPIownershiprow392cfd52 prepared forrootreview. CurrentSpec5c1340271580958 solecapturepending (b5faSpec10ff4c3b allUNRUN2formalvisibilityerrors fixedinretry). HIGHESTnewfunctional priority: actualquietengine-observer/freshordinaryframeissuer forNativeStorecallee summaries; CompilerformalcustodyaloneHELD. Existinginline_disable onlyactiveStepScopes andpercommandhas_execution_trace areinsufficient; designingadditiveopaqueNativeCompilerPassOwner-ownedepoch/currentabsence receipt withimmutableEqHash/currentnessquery, no publicstruct/APIbreak, no emptyformals→freshcell assumption. No canonicalnewobserverchanges.
+
 
 Current b5fa Spec40268756120 fullboundaryAUTH10ff4c3b: firstpack buildblocked by2Nativeformal private_interfaces diagnostics, ALLold16/newVM1/string3/full600UNRUN. SoleZIPretained; currentruntime40268755592 pendingartifact04:36poll. NativeStringstageseb0b9a present butnotexecuted, formalvisibilityrepair Compiler-owned. CAPIgenuineNativefixtureV2 CLEARd87e3040 integratedcurrentb5fa (positivecallbacksactualpending; Genericnegative notold135selected). Mathfuncconstructor originalsurface productionfix STRONGCLEAR9fb57fc7 integratedNEXT5b08/21ab only, notb5fa; no+26refcausalclaim. Separateconstructor2protocol8d2fdabb pendingstrongpeer: samefreshfullTomELF afterunchangedold140/sharedbudgets/env/noCargo, alloldFAIL/CFI125retained,2actualfunctionhashes,16actualhelper+16returnstatusnochildcontrols. ProductREADMEparagraph e2e8e915 readyrootreview, no newcapture/policy/coverageclaim.
 

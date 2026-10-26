@@ -1,0 +1,69 @@
+{
+  "utc": "2026-10-26T04:49:55.121102+00:00",
+  "run": 40268757339,
+  "candidate": "32e097bd517135b90690a97b39f1215f4ff595e9",
+  "baseline": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "rows": [
+    {
+      "scope": "small",
+      "platform": "linux",
+      "zip_sha256": "be28500a2ae77b27ad9b8c77c5c54fe2a367d56dda286a26b6fb37109cfbaee4",
+      "baseline_build_exit": 0,
+      "candidate_build_exit": 101,
+      "runtime_trials": 0,
+      "candidate_diagnostics": [
+        "\u001b[1m\u001b[92m   Compiling\u001b[0m thiserror v2.0.21",
+        "\u001b[1m\u001b[92m   Compiling\u001b[0m thiserror-impl v2.0.21",
+        "    \u001b[1m\u001b[94m--> \u001b[0mrust/tcl-compiler/src/command_binding/native_compiler_formals.rs:83:5",
+        "     \u001b[1m\u001b[94m= \u001b[0m\u001b[1mnote\u001b[0m: `#[warn(private_interfaces)]` on by default",
+        "    \u001b[1m\u001b[94m--> \u001b[0mrust/tcl-compiler/src/command_binding/native_compiler_formals.rs:153:5",
+        "\u001b[1m\u001b[91merror\u001b[0m: `tcl-lsp-core` (lib) generated 1 warning (run `cargo fix --lib -p tcl-lsp-core` to apply 1 suggestion)",
+        "\u001b[1m\u001b[91merror\u001b[0m: warnings are denied by `build.warnings` configuration",
+        "\u001b[1m\u001b[91merror\u001b[0m: `tcl-compiler` (lib) generated 2 warnings",
+        "\u001b[1m\u001b[91merror\u001b[0m: warnings are denied by `build.warnings` configuration"
+      ],
+      "processes_and_complete_streams_verified": true
+    },
+    {
+      "scope": "medium",
+      "platform": "linux",
+      "zip_sha256": "3e62706344e11128d745ea370540d37f02a69d1f9c563199ffbb11e7baf50d06",
+      "baseline_build_exit": 0,
+      "candidate_build_exit": 101,
+      "runtime_trials": 0,
+      "candidate_diagnostics": [
+        "\u001b[1m\u001b[92m   Compiling\u001b[0m thiserror v2.0.21",
+        "\u001b[1m\u001b[92m   Compiling\u001b[0m thiserror-impl v2.0.21",
+        "    \u001b[1m\u001b[94m--> \u001b[0mrust/tcl-compiler/src/command_binding/native_compiler_formals.rs:83:5",
+        "     \u001b[1m\u001b[94m= \u001b[0m\u001b[1mnote\u001b[0m: `#[warn(private_interfaces)]` on by default",
+        "    \u001b[1m\u001b[94m--> \u001b[0mrust/tcl-compiler/src/command_binding/native_compiler_formals.rs:153:5",
+        "\u001b[1m\u001b[91merror\u001b[0m: `tcl-lsp-core` (lib) generated 1 warning (run `cargo fix --lib -p tcl-lsp-core` to apply 1 suggestion)",
+        "\u001b[1m\u001b[91merror\u001b[0m: warnings are denied by `build.warnings` configuration",
+        "\u001b[1m\u001b[91merror\u001b[0m: `tcl-compiler` (lib) generated 2 warnings",
+        "\u001b[1m\u001b[91merror\u001b[0m: warnings are denied by `build.warnings` configuration"
+      ],
+      "processes_and_complete_streams_verified": true
+    },
+    {
+      "scope": "full",
+      "platform": "linux",
+      "zip_sha256": "33e125592911b0c4df4dffda0b739cad26ea97cb2c63da46f36afa3e7bb85a05",
+      "baseline_build_exit": 0,
+      "candidate_build_exit": 101,
+      "runtime_trials": 0,
+      "candidate_diagnostics": [
+        "\u001b[1m\u001b[92m   Compiling\u001b[0m thiserror v2.0.21",
+        "\u001b[1m\u001b[92m   Compiling\u001b[0m thiserror-impl v2.0.21",
+        "    \u001b[1m\u001b[94m--> \u001b[0mrust/tcl-compiler/src/command_binding/native_compiler_formals.rs:83:5",
+        "     \u001b[1m\u001b[94m= \u001b[0m\u001b[1mnote\u001b[0m: `#[warn(private_interfaces)]` on by default",
+        "    \u001b[1m\u001b[94m--> \u001b[0mrust/tcl-compiler/src/command_binding/native_compiler_formals.rs:153:5",
+        "\u001b[1m\u001b[91merror\u001b[0m: `tcl-lsp-core` (lib) generated 1 warning (run `cargo fix --lib -p tcl-lsp-core` to apply 1 suggestion)",
+        "\u001b[1m\u001b[91merror\u001b[0m: warnings are denied by `build.warnings` configuration",
+        "\u001b[1m\u001b[91merror\u001b[0m: `tcl-compiler` (lib) generated 2 warnings",
+        "\u001b[1m\u001b[91merror\u001b[0m: warnings are denied by `build.warnings` configuration"
+      ],
+      "processes_and_complete_streams_verified": true
+    }
+  ],
+  "scope": "Build-only qualification; no runtime latency or memory comparison, no whole semantic source/provider admission."
+}

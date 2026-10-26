@@ -1,0 +1,155 @@
+{
+  "packet_manifest_sha256": "8e152577bc80634b5fb5e1916d8c5a1e34c2290c5d355441cd018977ddba6760",
+  "patch_sha256": "43438fd46d5f1a048f6674530572b13f96f2602b4013ad6fb677dd18a8eb3d49",
+  "current_F_R": true,
+  "independent_whole_old_driver_AST_inverse": true,
+  "actual_helpers_no_child_controls": [
+    {
+      "case": "pass",
+      "mock_children": 1,
+      "error": null,
+      "state": "PASS",
+      "observation": "OBSERVED"
+    },
+    {
+      "case": "old_fail",
+      "mock_children": 1,
+      "error": null,
+      "state": "PASS",
+      "observation": "OBSERVED"
+    },
+    {
+      "case": "new_fail",
+      "mock_children": 1,
+      "error": null,
+      "state": "FAIL",
+      "observation": "OBSERVED"
+    },
+    {
+      "case": "no_trace",
+      "mock_children": 1,
+      "error": "raw-method source-owner first-refusal UNOBSERVED",
+      "state": "PASS",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "quota",
+      "mock_children": 1,
+      "error": "raw-method source-owner first-refusal UNOBSERVED",
+      "state": "PASS",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "old_unrun",
+      "mock_children": 0,
+      "error": "raw-method diagnosis requires the closed unchanged old51",
+      "state": "UNRUN",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "old_missing",
+      "mock_children": 0,
+      "error": "raw-method diagnosis requires exact old51 plus separate1 inventories",
+      "state": "UNRUN",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "cap",
+      "mock_children": 0,
+      "error": "insufficient log budget before original test",
+      "state": "UNRUN",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "short209",
+      "mock_children": 0,
+      "error": "insufficient overall time for original full test/list budget",
+      "state": "UNRUN",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "exact210",
+      "mock_children": 1,
+      "error": null,
+      "state": "PASS",
+      "observation": "OBSERVED"
+    },
+    {
+      "case": "bad_listing",
+      "mock_children": 0,
+      "error": "raw-method selector requires the same fresh listed Jim document ELF",
+      "state": "UNRUN",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "missing_selector",
+      "mock_children": 0,
+      "error": "raw-method selector requires the same fresh listed Jim document ELF",
+      "state": "UNRUN",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "missing_artifact",
+      "mock_children": 0,
+      "error": "one existing fresh Jim document ELF required",
+      "state": "UNRUN",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "changed_artifact",
+      "mock_children": 1,
+      "error": "selected test artifact changed",
+      "state": "PASS",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "group_live",
+      "mock_children": 1,
+      "error": "original test lifecycle/capture stop: a_raw_two_word_proc_is_a_method_without_the_class_variables",
+      "state": "RUNNING",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "malformed",
+      "mock_children": 1,
+      "error": "original test terminal missing/ambiguous",
+      "state": "PROTOCOL_FAILURE",
+      "observation": "UNOBSERVED"
+    },
+    {
+      "case": "owner_exception",
+      "mock_children": 1,
+      "error": "owner refused",
+      "state": "RUNNING",
+      "observation": "UNOBSERVED"
+    }
+  ],
+  "actual_final_status_controls": [
+    [
+      null,
+      0
+    ],
+    [
+      "rows",
+      1
+    ],
+    [
+      "supplemental_rows",
+      1
+    ],
+    [
+      "diagnostic_rows",
+      1
+    ],
+    [
+      "static_control_rows",
+      1
+    ],
+    [
+      "raw_method_diagnostic_rows",
+      1
+    ]
+  ],
+  "status": "CLEAR conditional on observer V3 source and final dependency union; old51 and new diagnostic remain separate; old FAIL preserved; missing trace/quota stops UNOBSERVED; new child full180 plus30 reserve, sharedcap/owner/ELF/env unchanged",
+  "actual_hosted52": "UNRUN"
+}

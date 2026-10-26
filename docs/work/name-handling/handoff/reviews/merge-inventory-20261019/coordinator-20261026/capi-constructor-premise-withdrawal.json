@@ -1,0 +1,12 @@
+{
+  "status": "HOLD new negative fixture interpretation",
+  "supersedes_qualification": "Earlier collection-native-fixture-v2 receipt d87e statically verified source mechanics and genuine selected Native constructor replacement; it did not establish a necessary constructor-only CAPI admission boundary. Any interpretation of the new negative as that proof is withdrawn.",
+  "source_facts": [
+    "Interp::set_runtime_version calls set_dialect_profile(profile_for_dialect(version.dialect_name()))",
+    "collections::Operation::protocol checks currency then selects native_string_protocol from actual native_invocation_dialect",
+    "NativeOperationCurrency::issue/ensure_current validates first refusal, actual host, context, dialect and epoch; no NativeCore constructor identity check",
+    "elements selects actual native list conversion with original object lifetime and current operation"
+  ],
+  "limitation": "Initial Generic construction/profile change may already leave a refusal. New negative does not assert initial refusal absence, so a passing no-updater result would not independently prove missing constructor authority. Actual child UNRUN. No production guard change authorized by this finding.",
+  "protocol": "Constructor2 f6af1db5 remains static transport/selection/aggregation clearance only."
+}

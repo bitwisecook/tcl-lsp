@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-26T04:44:35.586781+00:00",
+  "source": "b2b5fb38cff2d1973d4974b39d114e7573a8cca2",
+  "all_five_fullauth": true,
+  "scopes": [
+    {
+      "scope": "browser",
+      "assessment": "/workspace/naming-proof-storage/lsp-host-browser40267008551-actual-v1/assessment-v1.json",
+      "sha256": "a754a5be01da374ec2bdba0e19d16f3b0e8a8b8d28d89cc85e2931c7cf66adc1"
+    },
+    {
+      "scope": "wasi",
+      "assessment": "/workspace/naming-proof-storage/lsp-host-wasi40267008551-actual-v1/assessment-v1.json",
+      "sha256": "734bf6b368f4785aea0e47a7708684d0f331a71d3f946932ee3f3592025ac8a0"
+    },
+    {
+      "scope": "core3",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-core2-40267006442-actual-v1/assessment-v1.json",
+      "sha256": "c9219cab40d56db30d8b59ac5ccc22e71ceb8e16b0c9ff95e355395d9ce1a61b"
+    },
+    {
+      "scope": "unit",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-unit-40267008551-actual-v1/assessment-v1.json",
+      "sha256": "f2a0847069b6a416ca9aef23a5001c439b95c1e52dc8f76abef400afc728c234"
+    },
+    {
+      "scope": "startup",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-startup40267006442-actual-v1/assessment-v1.json",
+      "sha256": "771ea4359450067d9bfb699f8e5df015e2b3bfa67b13d7601251df1d27675656"
+    }
+  ],
+  "corrected_gain": "All3 Return controls PASS; browser advanced beyond112B host document to separate98B main source offset0. Full rename still refuses.",
+  "minify_frontier": "Original factorial fails; child relative-region true at74/80, before later origin/base/provider/admission terms.",
+  "startup_frontier": "Scan30 PASS; original initial diagnostic unavailable, source currency slot None->Some2 then direct.publish Pending. Context originals complete.",
+  "qualification": "No global naming, opaque77negative, shipping performance or newer source admission claim."
+}

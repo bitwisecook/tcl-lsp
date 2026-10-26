@@ -1,0 +1,493 @@
+{
+  "status": "AUTHENTICATED_HOST_TEST_BUILD_FAILURE_ALL25UNRUN",
+  "run": 40268755510,
+  "job": 121396795104,
+  "head": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+  "artifact": 12627444115,
+  "ZIP_sha256": "58f57031d7eade2c1f726f064244f5a146851b29a8c80a36fe342254fffa2916",
+  "ZIP_bytes": 11968273,
+  "check_count": 147,
+  "checks": [
+    "single selected run artifact",
+    "API exact ZIP bytes/SHA",
+    "API run/artifact identity",
+    "API exact job completed",
+    "API evidence upload success",
+    "all ZIP CRCs",
+    "ZIP no symlink members",
+    "ZIP unique safe member paths",
+    "job exact source/mode/run identity",
+    "full source before/final endpoint equality",
+    "original WORK branch identity",
+    "complete actual original roster equals exact current Git input",
+    "explicit existing native depth diagnostic flag in exact job input",
+    "exact loaded workflow blob equals requested source workflow",
+    "source exact Git tree",
+    "complete tracked source membership 126508",
+    "critical Git bytes .claude/skills/fetch-tcl-source/fetch_tcl_source.sh",
+    "critical Git bytes .github/workflows/ci.yml",
+    "critical Git bytes .github/workflows/perf.yml",
+    "critical Git bytes Cargo.lock",
+    "critical Git bytes docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py",
+    "critical Git bytes docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py",
+    "critical Git bytes docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+    "critical Git bytes runtime/rust/Cargo.lock",
+    "critical Git bytes runtime/rust/Cargo.toml",
+    "critical Git bytes runtime/rust/build.rs",
+    "critical Git bytes runtime/rust/src/capi.rs",
+    "critical Git bytes runtime/rust/src/cmd_proc.rs",
+    "critical Git bytes runtime/rust/src/codegen_abi.rs",
+    "critical Git bytes runtime/rust/src/env_trace.rs",
+    "critical Git bytes runtime/rust/src/expr.rs",
+    "critical Git bytes runtime/rust/src/expr/native_numeric.rs",
+    "critical Git bytes runtime/rust/src/frame.rs",
+    "critical Git bytes runtime/rust/src/interp.rs",
+    "critical Git bytes runtime/rust/src/interp/codegen_depth_diagnostic.rs",
+    "critical Git bytes runtime/rust/src/interp/command_guard_lookup.rs",
+    "critical Git bytes runtime/rust/src/interp/guarded_definition.rs",
+    "critical Git bytes runtime/rust/src/interp/native_body_artifact.rs",
+    "critical Git bytes runtime/rust/src/interp/native_body_artifact/native_control.rs",
+    "critical Git bytes runtime/rust/src/interp/native_body_artifact/native_i64_add.rs",
+    "critical Git bytes runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs",
+    "critical Git bytes runtime/rust/src/interp/native_error_headers.rs",
+    "critical Git bytes runtime/rust/src/interp/native_i64_body.rs",
+    "critical Git bytes runtime/rust/src/interp/native_procedure_resources.rs",
+    "critical Git bytes runtime/rust/src/namespace.rs",
+    "critical Git bytes rust-toolchain.toml",
+    "critical Git bytes rust/tcl-compiler/src/codegen/backend.rs",
+    "critical Git bytes rust/tcl-compiler/src/codegen/emitter/generate.rs",
+    "critical Git bytes rust/tcl-compiler/src/codegen/mod.rs",
+    "critical Git bytes rust/tcl-compiler/src/codegen/wasm/backend.rs",
+    "critical Git bytes rust/tcl-compiler/src/codegen/wasm/native_add.rs",
+    "critical Git bytes rust/tcl-compiler/src/codegen/wasm/native_add/retained_publication.rs",
+    "critical Git bytes rust/tcl-compiler/src/codegen/wasm/native_emit.rs",
+    "critical Git bytes rust/tcl-compiler/src/codegen/wasm/pipeline.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding/command_publication.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding/native_compiler_formals.rs",
+    "critical Git bytes rust/tcl-compiler/src/command_binding/source_execution_control.rs",
+    "critical Git bytes rust/tcl-compiler/src/common_aot_plan.rs",
+    "critical Git bytes rust/tcl-compiler/src/lowering/mod.rs",
+    "critical Git bytes rust/tcl-compiler/src/native_lowering/lower.rs",
+    "critical Git bytes rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+    "critical Git bytes rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs",
+    "critical Git bytes rust/tcl-compiler/src/var_resolve.rs",
+    "critical Git bytes rust/tcl-compiler/tests/common/wasm_link.rs",
+    "critical Git bytes rust/tcl-compiler/tests/wasm_real_link.rs",
+    "critical Git bytes rust/tcl-runtime-api/src/codegen_abi.rs",
+    "critical Git bytes rust/tcl-vm/src/compiled.rs",
+    "critical Git bytes rust/tcl-vm/src/interp/logical_uplevel_source.rs",
+    "original approved pin .claude/skills/fetch-tcl-source/fetch_tcl_source.sh",
+    "original approved pin .github/workflows/ci.yml",
+    "original approved pin Cargo.lock",
+    "original approved pin runtime/rust/Cargo.lock",
+    "original approved pin runtime/rust/Cargo.toml",
+    "original approved pin runtime/rust/build.rs",
+    "original approved pin runtime/rust/src/capi.rs",
+    "original approved pin runtime/rust/src/cmd_proc.rs",
+    "original approved pin runtime/rust/src/codegen_abi.rs",
+    "original approved pin runtime/rust/src/env_trace.rs",
+    "original approved pin runtime/rust/src/expr.rs",
+    "original approved pin runtime/rust/src/expr/native_numeric.rs",
+    "original approved pin runtime/rust/src/frame.rs",
+    "original approved pin runtime/rust/src/interp.rs",
+    "original approved pin runtime/rust/src/interp/command_guard_lookup.rs",
+    "original approved pin runtime/rust/src/interp/guarded_definition.rs",
+    "original approved pin runtime/rust/src/interp/native_body_artifact.rs",
+    "original approved pin runtime/rust/src/interp/native_body_artifact/native_control.rs",
+    "original approved pin runtime/rust/src/interp/native_body_artifact/native_i64_add.rs",
+    "original approved pin runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs",
+    "original approved pin runtime/rust/src/interp/native_error_headers.rs",
+    "original approved pin runtime/rust/src/interp/native_i64_body.rs",
+    "original approved pin runtime/rust/src/interp/native_procedure_resources.rs",
+    "original approved pin runtime/rust/src/namespace.rs",
+    "original approved pin rust-toolchain.toml",
+    "original approved pin rust/tcl-compiler/src/codegen/wasm/backend.rs",
+    "original approved pin rust/tcl-compiler/src/codegen/wasm/native_add.rs",
+    "original approved pin rust/tcl-compiler/src/codegen/wasm/native_add/retained_publication.rs",
+    "original approved pin rust/tcl-compiler/src/codegen/wasm/native_emit.rs",
+    "original approved pin rust/tcl-compiler/src/codegen/wasm/pipeline.rs",
+    "original approved pin rust/tcl-compiler/src/command_binding/command_publication.rs",
+    "original approved pin rust/tcl-compiler/src/command_binding/source_execution_control.rs",
+    "original approved pin rust/tcl-compiler/src/common_aot_plan.rs",
+    "original approved pin rust/tcl-compiler/src/native_lowering/lower.rs",
+    "original approved pin rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+    "original approved pin rust/tcl-compiler/tests/common/wasm_link.rs",
+    "original approved pin rust/tcl-compiler/tests/wasm_real_link.rs",
+    "original approved pin rust/tcl-runtime-api/src/codegen_abi.rs",
+    "full providers before-build/final equality",
+    "full dependencies before-build/final equality",
+    "all selected tools before/final equality",
+    "full provider directory/link membership retained",
+    "SDK lexical tool equals full provider /opt/wasi-sdk/bin/clang",
+    "SDK lexical tool equals full provider /opt/wasi-sdk/bin/llvm-ar",
+    "SDK lexical tool equals full provider /opt/wasi-sdk/bin/wasm-ld",
+    "SDK lexical argv0/link/target exact relation",
+    "actual original Wasmtime49.0.3",
+    "original required-link/profile strict flags",
+    "original diagnostic limits exact",
+    "exact selected-host-build failure protocol boundary",
+    "real source/tool/provider/dependency seals true; absent artifact/runtime not claimed",
+    "no selected ELF/reserved WASM/test execution",
+    "exact original25 allUNRUN; no fabricated test outcome",
+    "actual CargoJSON exact2 private_interfaces errors",
+    "exact current source method diagnostic locations",
+    "actual Cargo failed terminal",
+    "no executable artifact event for selected test",
+    "only two fetches and failed build, no listing/children",
+    "actual retained process receipt fetch-native",
+    "owned closed/empty/timer/untruncated fetch-native",
+    "full aggregate cap/floor accounting fetch-native",
+    "exact retained stream byte counts fetch-native",
+    "actual owned successful lockedfetch fetch-native",
+    "actual retained process receipt fetch-runtime",
+    "owned closed/empty/timer/untruncated fetch-runtime",
+    "full aggregate cap/floor accounting fetch-runtime",
+    "exact retained stream byte counts fetch-runtime",
+    "actual owned successful lockedfetch fetch-runtime",
+    "actual retained process receipt build-wasm_real_link",
+    "owned closed/empty/timer/untruncated build-wasm_real_link",
+    "full aggregate cap/floor accounting build-wasm_real_link",
+    "exact retained stream byte counts build-wasm_real_link",
+    "actual owned failed host build101/budget",
+    "actual failedjob and exact cap remainder"
+  ],
+  "source_tracked_files": 126508,
+  "critical_Git_bytes": {
+    ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
+    ".github/workflows/ci.yml": "9d333b7584493e31c9aa4a58cea420318ae4dd48958edd31a4c935b08f830273",
+    ".github/workflows/perf.yml": "7c5bcff1cc92156f4a43810e64c6f09f0206437f621df83a9add3ccc5fb32e48",
+    "Cargo.lock": "8f32332e549cbee4df91041a9242b00bfb254c12dcfc2e165ab275724b4d3f9e",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py": "04d032f7be8cbe86d9beebac5c024a09421d0d8f2c87906ce7665dbd0a620497",
+    "docs/work/name-handling/validation-tools/wasm-real-link-roster.json": "de4c6fbfc9998a358249c72fc4981222079575cb69202a904d5deccef5387c7f",
+    "runtime/rust/Cargo.lock": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1",
+    "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+    "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
+    "runtime/rust/src/capi.rs": "db23d766170ee455383dfa736d79f5145014a65a8512e629ebe536fe17f93465",
+    "runtime/rust/src/cmd_proc.rs": "932fa7e03eb904e4e9f0129236c936d051a6eedaca8d1d036ae590e862190bcd",
+    "runtime/rust/src/codegen_abi.rs": "316ef78608f69882bbe887ea06ab3c72b90c2e120115d6b06f431404519cf672",
+    "runtime/rust/src/env_trace.rs": "6f60caf5075ed8bd23e9d15bebefd85bdb7d30d91b3f95b5189aa4baea2a35d9",
+    "runtime/rust/src/expr.rs": "c0936fe8c9531671fa96cb613bf2842ee628e059e53f223b864ebf444286a2a6",
+    "runtime/rust/src/expr/native_numeric.rs": "03e17cfb14b1f4494bbaa5e2af00c3cc51711868dd353c60657d25b3185e7621",
+    "runtime/rust/src/frame.rs": "5fa7b7db5f5314387ee1da6bedc0ded9a7cdb178d6dc3f6d196b346242fa5ace",
+    "runtime/rust/src/interp.rs": "f020f2431b9f2dc442579b9e24fa7fb59c8a5eb3e94682f0a29f00c12617ee83",
+    "runtime/rust/src/interp/codegen_depth_diagnostic.rs": "286f8297c4978aaab0d56802e2c493f9a592a3057743a1a48bfa1884d0768350",
+    "runtime/rust/src/interp/command_guard_lookup.rs": "67f62a72049672b97b82c7459c9557553baa8a5e67d18ec04b337731c980efbf",
+    "runtime/rust/src/interp/guarded_definition.rs": "47a440682b92a78f12a1fc8a10071e98819032c87c2665cc1d8bb34e55464178",
+    "runtime/rust/src/interp/native_body_artifact.rs": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec",
+    "runtime/rust/src/interp/native_body_artifact/native_control.rs": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608",
+    "runtime/rust/src/interp/native_body_artifact/native_i64_add.rs": "eaf16e7dae46408d83c406669f2ade04804969754595a98a520f8f3035bbb367",
+    "runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs": "e7b3122d09b5463803f2231d8cc4fd61f8a37d4306fef71ddf9f92b4b058b957",
+    "runtime/rust/src/interp/native_error_headers.rs": "9a0f62e8c9b966ee4089d34bcd994feb0a59657c73d80e7fce96a766c5e1e66a",
+    "runtime/rust/src/interp/native_i64_body.rs": "af692628f8ab54252fd09d5507a17c0c1bdd5723201e6949149f8c72d831e749",
+    "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
+    "runtime/rust/src/namespace.rs": "d2b79b2daad7af30b0d963d132f2339a0612ad089dbaccbe0d9213dfa56778f9",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/tcl-compiler/src/codegen/backend.rs": "4ca3c8dedbbb17f548d5ee65716c6e44fbfcebb645a6d12a911f19b1efcd1a2e",
+    "rust/tcl-compiler/src/codegen/emitter/generate.rs": "0469a0ee50333b1242c766f9f9e72f516d6b1b27ac8743bab611a13a9a97de71",
+    "rust/tcl-compiler/src/codegen/mod.rs": "d926b1dd2e8099a11b2648ef808f2deb9723f0242a9938f821e4112fe7ae576e",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs": "65afbf14843f085f0ccb7c1ee6dabec7b5e5f83cfde11c22d7b238a246461deb",
+    "rust/tcl-compiler/src/codegen/wasm/native_add.rs": "9ed1eff1d9f4993e4cf29fc2f0a181c51de2832cf18e368d505ca6b5e0ac004a",
+    "rust/tcl-compiler/src/codegen/wasm/native_add/retained_publication.rs": "7c99c3a3510623678403da669596422da3aae3906357ee8f2dca3359fc2c9ea7",
+    "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "b23652ef2f71d9e19b20e1370d827761494ab2b1fd9ab1059b89e5d833f450b0",
+    "rust/tcl-compiler/src/codegen/wasm/pipeline.rs": "aea4e3ae171551cb3c4ab958e8d61313be0c88acf446658a026388a9ef0154f4",
+    "rust/tcl-compiler/src/command_binding.rs": "c1e655a2019f9be3a92a0f91e2199611155c5ed6bcddfdc07173b2a69e3f6854",
+    "rust/tcl-compiler/src/command_binding/command_publication.rs": "adf23ca07792588ff6ed84d648cb509f02490ad476a979933fdba081b80e7726",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "bd2aae8a744d3429a4ffe3be32b8429625e832793110899e9b14881bfc6f6cd7",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "8e890f9f009bafc9e6ba6bcf1a47229dc73fb091d8c6a197ee23bff234bae46c",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "af9be9a9fec52d1c48e5ffc142ec8a8b8ade963292ff9b348bad2f7ce4abb8b7",
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "6b5ab199812fa09fc4642ab014fb538b057e075cfb9230defc4371f9c437b7b2",
+    "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "c8a3775e706266ab9e125fa3115b1f96acf1544c7b79785d698a82c24ad29183",
+    "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
+    "rust/tcl-compiler/src/common_aot_plan.rs": "e0896166e07d78d4856900ae6de4eb97825fac115d4096da96328042aac0d8c3",
+    "rust/tcl-compiler/src/lowering/mod.rs": "a4ce038783d4537cb4b707df38ea6e8008393c7b46e95b3aaa71310a5cfe4465",
+    "rust/tcl-compiler/src/native_lowering/lower.rs": "eef08d81c0bfd6db449a92afbff717788716a7db925e5fa94df133541266d0d6",
+    "rust/tcl-compiler/src/registry_invocation/execution_trace.rs": "2b9b5b8199e2062723e38f553194619ab570e266243982f903159aba805d1032",
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
+    "rust/tcl-compiler/src/var_resolve.rs": "ec47b8fd33df4371dc738a5d7a16f7267ad8988d7cd23e1ab62235df46939c57",
+    "rust/tcl-compiler/tests/common/wasm_link.rs": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe",
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "8cbe365c66306c0d8683582e4a5a7085da67b0cf9677a9a8bd7cd9cfb3af771b",
+    "rust/tcl-runtime-api/src/codegen_abi.rs": "a8442a8bbf9734ed3ee7b6541c2702f01c4f59ed14a67b19ae085dc225437a96",
+    "rust/tcl-vm/src/compiled.rs": "00515e01e6d15d52030dbc31f1bd1aaf3bf789dc38f621910228569e88edf9ec",
+    "rust/tcl-vm/src/interp/logical_uplevel_source.rs": "0a0fa747564f7cdef1224e2d06d775a645135132761067530bc078e4c15aeb73"
+  },
+  "map_counts": {
+    "provider_files": 19589,
+    "provider_directories": 1082,
+    "dependencies": 21566,
+    "tools": 12
+  },
+  "diagnostics": [
+    {
+      "rendered": "error: type `SourceExecutionContext<'_>` is more private than the item `OriginalNativeCompilerFormals::bind_scope`\n    --> rust/tcl-compiler/src/command_binding/native_compiler_formals.rs:83:5\n     |\n  83 | /     pub(crate) fn bind_scope(\n  84 | |         self: &Arc<Self>,\n  85 | |         state: &super::ModuleCommandBindings,\n  86 | |         context: super::SourceExecutionContext<'_>,\n  87 | |         incoming: &[String],\n  88 | |     ) -> Option<Arc<OriginalNativeCompilerFormalScope>> {\n     | |_______________________________________________________^ method `OriginalNativeCompilerFormals::bind_scope` is reachable at visibility `pub(crate)`\n     |\nnote: but type `SourceExecutionContext<'_>` is only usable at visibility `pub(self)`\n    --> rust/tcl-compiler/src/command_binding.rs:4347:1\n     |\n4347 | struct SourceExecutionContext<'a> {\n     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     = note: `-D private-interfaces` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(private_interfaces)]`\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "but type `SourceExecutionContext<'_>` is only usable at visibility `pub(self)`",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 181445,
+              "byte_start": 181412,
+              "column_end": 34,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/command_binding.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 4347,
+              "line_start": 4347,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 34,
+                  "highlight_start": 1,
+                  "text": "struct SourceExecutionContext<'a> {"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "`-D private-interfaces` implied by `-D warnings`",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "to override `-D warnings` add `#[allow(private_interfaces)]`",
+          "rendered": null,
+          "spans": []
+        }
+      ],
+      "level": "error",
+      "message": "type `SourceExecutionContext<'_>` is more private than the item `OriginalNativeCompilerFormals::bind_scope`",
+      "spans": [
+        {
+          "byte_end": 3687,
+          "byte_start": 3453,
+          "column_end": 56,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs",
+          "is_primary": true,
+          "label": "method `OriginalNativeCompilerFormals::bind_scope` is reachable at visibility `pub(crate)`",
+          "line_end": 88,
+          "line_start": 83,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 30,
+              "highlight_start": 5,
+              "text": "    pub(crate) fn bind_scope("
+            },
+            {
+              "highlight_end": 26,
+              "highlight_start": 1,
+              "text": "        self: &Arc<Self>,"
+            },
+            {
+              "highlight_end": 46,
+              "highlight_start": 1,
+              "text": "        state: &super::ModuleCommandBindings,"
+            },
+            {
+              "highlight_end": 52,
+              "highlight_start": 1,
+              "text": "        context: super::SourceExecutionContext<'_>,"
+            },
+            {
+              "highlight_end": 29,
+              "highlight_start": 1,
+              "text": "        incoming: &[String],"
+            },
+            {
+              "highlight_end": 56,
+              "highlight_start": 1,
+              "text": "    ) -> Option<Arc<OriginalNativeCompilerFormalScope>> {"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "private_interfaces",
+        "explanation": null
+      }
+    },
+    {
+      "rendered": "error: type `SourceExecutionContext<'_>` is more private than the item `OriginalNativeCompilerFormalScope::parameters_for_entry`\n    --> rust/tcl-compiler/src/command_binding/native_compiler_formals.rs:153:5\n     |\n 153 | /     pub(crate) fn parameters_for_entry(\n 154 | |         &self,\n 155 | |         chunk: &super::CommandAllocationSite,\n 156 | |         length: usize,\n...    |\n 159 | |         protocol: NativeCompiledVariableProtocol,\n 160 | |     ) -> Option<&[NameBytes]> {\n     | |_____________________________^ method `OriginalNativeCompilerFormalScope::parameters_for_entry` is reachable at visibility `pub(crate)`\n     |\nnote: but type `SourceExecutionContext<'_>` is only usable at visibility `pub(self)`\n    --> rust/tcl-compiler/src/command_binding.rs:4347:1\n     |\n4347 | struct SourceExecutionContext<'a> {\n     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "but type `SourceExecutionContext<'_>` is only usable at visibility `pub(self)`",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 181445,
+              "byte_start": 181412,
+              "column_end": 34,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/command_binding.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 4347,
+              "line_start": 4347,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 34,
+                  "highlight_start": 1,
+                  "text": "struct SourceExecutionContext<'a> {"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "type `SourceExecutionContext<'_>` is more private than the item `OriginalNativeCompilerFormalScope::parameters_for_entry`",
+      "spans": [
+        {
+          "byte_end": 6572,
+          "byte_start": 6275,
+          "column_end": 30,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs",
+          "is_primary": true,
+          "label": "method `OriginalNativeCompilerFormalScope::parameters_for_entry` is reachable at visibility `pub(crate)`",
+          "line_end": 160,
+          "line_start": 153,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 40,
+              "highlight_start": 5,
+              "text": "    pub(crate) fn parameters_for_entry("
+            },
+            {
+              "highlight_end": 15,
+              "highlight_start": 1,
+              "text": "        &self,"
+            },
+            {
+              "highlight_end": 46,
+              "highlight_start": 1,
+              "text": "        chunk: &super::CommandAllocationSite,"
+            },
+            {
+              "highlight_end": 23,
+              "highlight_start": 1,
+              "text": "        length: usize,"
+            },
+            {
+              "highlight_end": 46,
+              "highlight_start": 1,
+              "text": "        state: &super::ModuleCommandBindings,"
+            },
+            {
+              "highlight_end": 52,
+              "highlight_start": 1,
+              "text": "        context: super::SourceExecutionContext<'_>,"
+            },
+            {
+              "highlight_end": 50,
+              "highlight_start": 1,
+              "text": "        protocol: NativeCompiledVariableProtocol,"
+            },
+            {
+              "highlight_end": 30,
+              "highlight_start": 1,
+              "text": "    ) -> Option<&[NameBytes]> {"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "private_interfaces",
+        "explanation": null
+      }
+    }
+  ],
+  "outcome_counts": {
+    "UNRUN": 25
+  },
+  "processes": [
+    {
+      "prefix": "fetch-native",
+      "exit_code": 0,
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--manifest-path",
+        "/home/runner/work/tcl-lsp/tcl-lsp/Cargo.toml",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "elapsed_seconds": 2.990908945,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "5b44ac7cd969c7419ecfc6bdfda42895fb02e92450ee2445f3588943d3e43bfb"
+    },
+    {
+      "prefix": "fetch-runtime",
+      "exit_code": 0,
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--manifest-path",
+        "/home/runner/work/tcl-lsp/tcl-lsp/runtime/rust/Cargo.toml",
+        "--target",
+        "wasm32-wasip1"
+      ],
+      "elapsed_seconds": 0.376555437,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "df4f3478d82b953086f384105bdf91a856795f13a5664f24e86b7fee6c330932"
+    },
+    {
+      "prefix": "build-wasm_real_link",
+      "exit_code": 101,
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "elapsed_seconds": 82.436164918,
+      "stdout_sha256": "acbfdc39b6cb900bf1547ed1d3f47e009c75f104f5b090ff92d82f6c018a7bee",
+      "stderr_sha256": "10c99cd881c5750a05fcc3f6c74219417e6b6aab55cbd97a000d7e8d7bfa3e74"
+    }
+  ],
+  "selected_ELF": null,
+  "reserved_runtime": null,
+  "limits": "No selected ELF/WASM/listing/test execution, primitive counter or functional25 claim. Source/provider/dependency/tool equality and closed owned failed host-build process only. No absent payload binary rehash, allGitblob reconstruction, performance or shipping acceptance."
+}

@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T04:18:51+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-26T04:49:15+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Latest b5fa compiler124 FULL AUTH: ALL124UNRUN, two private-interface build errors repaired in the next source.** Run40268755614/job121396794803/sourceb5fa278e05b6fd3746f7168fca6b2d47c6904902. SoleZIP12627204593/10,941,825B SHA052d906647b4a72f5afe8654ddfdf66d7caa1de2b64a5149614393d8d20aa123; main7779caf2780796771c41f80562e285016f1fef2e12b1d08d5aae4be24221d769 and Native/fullGitb367a830b72e2f23ec721b8701c83db40848f38a98761c61f56383fa837ce235 seal126508source/provider10202/deps21504/tools/currentpins/allmembers/two closed owned processes. New formal-layout producer controls remainUNRUN. The paired frontier3 repair narrows methods to parent-module visibility and extracts the unchanged owner constructor (WORK102 to96 lines), source peer c6c81f66; no context widening. Final4aa current pin union independently clearfaabc49d, prospectiveV14PASS13/30/20. Shipping Native formal contract V2 corrects exact SourceOriginId identity and registers the real five-file issuer/consumer. Latest executed semantics remain7dc98P4F, Child10PASS, NativeString2P1F, Minify1FAIL; private body/effect consumer remains off-tree and uncleared.
 
 **Latest b2 compiler122 FULL AUTH: ALL122UNRUN, exact three test-helper type build errors.** Run40267006737/job121391490802/sourceb2b5fb38cff2d1973d4974b39d114e7573a8cca2. SoleZIP12626629754/10,941,240B SHA971c327f136b85df39e9a7d13dcc36e6b2da4ca1ef26de5a63d468162e8952f1. Main307fcb350492841add1f9137c9c35d35f5833d4697e3098cdacf9266776284c1 and Native/fullGit39282e52327537534d4f8545dd92d991a7b2bb3ae8cc0559ee43b9b9720f454b authenticate126504source/provider10202/deps21504/tools/currentpins/allmembers/two closed processes. E0425 declaration_preview.rs4150/4173 CommandRegistry and4170 SourceInvocationBinding in extracted test helpers; Names owns narrow qualified-type repair. No current assertions ran; preserve7dc as latest semantic result. Native formal foundation is integrated producer-only; two controls protocol0dbcb99b clear and current sourcepin union584eadf7+independent prospectiveV14 PASS, no readonly effect closure. Private body custody/consumer remains off-tree draft.
 

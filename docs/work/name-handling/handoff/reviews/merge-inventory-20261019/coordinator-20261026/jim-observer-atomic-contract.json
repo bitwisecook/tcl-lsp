@@ -1,0 +1,44 @@
+{
+  "authorization": "Root requested exact installed Rust1.99 stdlib-only probe; no Cargo/repository build",
+  "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "pins": {
+    "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+    "/workspace/naming-proof-storage/atomic-try-update-199-contract-v1/probe.rs": "ba86fec0a21fafbb62749156d2e6ecc85f96a08cd584cbd6429bc99c53191780",
+    "/workspace/naming-proof-storage/atomic-try-update-199-contract-v1/probe": "dc0b9bd0b366f56de5427242fbdefc8cf09f0de7c3ebfb9b4a0497c416341aca"
+  },
+  "rows": [
+    {
+      "phase": "compile",
+      "argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "--edition=2024",
+        "-Dwarnings",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "strip=symbols",
+        "/workspace/naming-proof-storage/atomic-try-update-199-contract-v1/probe.rs",
+        "-o",
+        "/workspace/naming-proof-storage/atomic-try-update-199-contract-v1/probe"
+      ],
+      "exit": 0,
+      "elapsed": 1.1435960800154135,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "phase": "run",
+      "argv": [
+        "/workspace/naming-proof-storage/atomic-try-update-199-contract-v1/probe"
+      ],
+      "exit": 0,
+      "elapsed": 0.005839660007040948,
+      "stdout_sha256": "a00741a4e8e8ab313e23a8b400783b8767ed61fae2a65b4542a25bd2ddedef93",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "stdout": "try_update success returns OLD value: first=0 last=1023 stored=1024; rows=1023 marker=1; full/max refuse unchanged\n",
+  "free_before": 2365636608,
+  "free_after": 2365284352,
+  "retention": "Young executable/source/evidence retained; no cleanup requested"
+}
