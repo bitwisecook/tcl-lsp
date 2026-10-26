@@ -133,6 +133,13 @@ impl OriginalProcedureStaticReadAlternatives {
         advice: &super::super::OriginalCompilationLookupAdvice,
     ) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
         let header = &self.declaration.header;
+        if binding
+            .original_analysis_owner
+            .as_ref()
+            .is_none_or(|owner| !Arc::ptr_eq(owner, &self.owner))
+        {
+            return None;
+        }
         if !Arc::ptr_eq(&advice.site.source, &header.declaration.source) {
             return None;
         }
@@ -536,6 +543,14 @@ mod tests {
         let input = input();
         let current = unit(SOURCE, &input);
         let (receipt, child, advice) = body_frame_evidence(&current, &input);
+        let owner = child
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_analysis_owner
+            .as_ref()
+            .expect("genuine child source-analysis attachment");
+        assert!(Arc::ptr_eq(owner, &receipt.owner));
         let frame = receipt
             .original_static_child_frame(child.source_binding.as_ref().unwrap(), &advice)
             .unwrap();
@@ -565,6 +580,16 @@ mod tests {
                 }
             }
             binding.declaration_layout_observations = Some(rows.into());
+            assert!(
+                receipt
+                    .original_static_child_frame(binding, &advice)
+                    .is_none()
+            );
+        }
+        for owner in [None, Some(Arc::new((*receipt.owner).clone()))] {
+            let mut changed = child.clone();
+            let binding = changed.source_binding.as_mut().unwrap();
+            binding.original_analysis_owner = owner;
             assert!(
                 receipt
                     .original_static_child_frame(binding, &advice)
