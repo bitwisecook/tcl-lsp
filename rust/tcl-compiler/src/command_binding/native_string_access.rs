@@ -362,9 +362,7 @@ fn publish_append(
     inputs: &[Arc<SourceNativeStringAccess>],
     prepared_epoch: u64,
 ) -> Option<crate::place::Place> {
-    let Some(normal) = outcomes.normal.as_mut() else {
-        return None;
-    };
+    let normal = outcomes.normal.as_mut()?;
     let after = crate::var_resolve::resolve_literal_access(
         name,
         &normal.source_variables,
@@ -390,20 +388,12 @@ fn publish_append(
     {
         return None;
     }
-    let Some(key) = crate::var_resolve::canonical_binding_value_key(&after) else {
-        return None;
-    };
-    let Some(receipt) = SourceNativeStringAccess::from_normal(normal, inputs) else {
-        return None;
-    };
-    let Some(frozen) =
-        super::source_representation::FrozenSourceRepresentation::capture_native_string(
-            Arc::clone(&receipt),
-            &normal.source_variables,
-        )
-    else {
-        return None;
-    };
+    let key = crate::var_resolve::canonical_binding_value_key(&after)?;
+    let receipt = SourceNativeStringAccess::from_normal(normal, inputs)?;
+    let frozen = super::source_representation::FrozenSourceRepresentation::capture_native_string(
+        Arc::clone(&receipt),
+        &normal.source_variables,
+    )?;
     Arc::make_mut(&mut normal.source_variables)
         .value_representations
         .insert(
