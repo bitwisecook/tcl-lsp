@@ -133,6 +133,9 @@ impl OriginalProcedureStaticReadAlternatives {
         advice: &super::super::OriginalCompilationLookupAdvice,
     ) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
         let header = &self.declaration.header;
+        if !Arc::ptr_eq(&advice.site.source, &header.declaration.source) {
+            return None;
+        }
         if advice.snapshot.state.variable_frame == header.frame {
             return Some(&header.frame);
         }
