@@ -73,8 +73,8 @@ TARGETED_PRUNE_CONTROLS = {
     },
 }
 AOT5_SOURCE_PATH = 'runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs'
-AOT5_SOURCE_SHA = 'd3f59fcf720db8ce63ed008e07e4727e3f5561222635542c80a82c2a5de299c6'
-AOT5_SELECTORS = ['interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add', 'interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks', 'interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe', 'interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay', 'interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_keep_last_binding_without_a_native_strategy']
+AOT5_SOURCE_SHA = 'e7b3122d09b5463803f2231d8cc4fd61f8a37d4306fef71ddf9f92b4b058b957'
+AOT5_SELECTORS = ['interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add', 'interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks', 'interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe', 'interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay', 'interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_follow_original_first_slot_without_a_native_strategy']
 GROUPS = (
     "baseline14",
     "stack_abort1",
