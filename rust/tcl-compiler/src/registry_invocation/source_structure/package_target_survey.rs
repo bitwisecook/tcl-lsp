@@ -964,7 +964,11 @@ mod control_tests {
         )
         .unwrap();
         let control = body.survey().control(&child.commands[0]).unwrap();
-        assert_eq!(control._ancestors.len(), 1);
+        let OriginalPackageIndexControl {
+            _ancestors: ancestors,
+            ..
+        } = &control;
+        assert_eq!(ancestors.len(), 1);
         assert!(matches!(
             control.completion(),
             tcl_registry::registry::InvocationCompletion::ReturnsResult(_)

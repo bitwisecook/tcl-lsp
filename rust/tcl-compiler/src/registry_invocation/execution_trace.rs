@@ -275,7 +275,10 @@ mod tests {
             Some(&entry),
             std::sync::Arc::clone(&context),
         );
-        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
+        let retained = crate::environment_ingress::RetainedNativeUnit::new(unit, owner);
+        drop(entry);
+        drop(context);
+        retained
     }
 
     fn tokens_at(unit: &CompilationUnit, offset: usize) -> &crate::ir::CommandTokens {
