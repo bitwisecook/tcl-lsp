@@ -72,7 +72,11 @@ fn install_for_bootstrap(
     // `::tcl::mathfunc::*` are real commands `expr`'s function path resolves
     // through (overridable); they need the tower too.
     #[cfg(have_tommath)]
-    crate::cmd_mathfunc::install(interp);
+    if protocol
+        .is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_mathfunc)
+    {
+        crate::cmd_mathfunc::install(interp);
+    }
     // `::tcl::mathop::*` — the operators as real commands (tower-gated).
     #[cfg(have_tommath)]
     if protocol

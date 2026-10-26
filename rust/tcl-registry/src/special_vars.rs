@@ -1532,6 +1532,21 @@ impl NativeBootstrapProtocol {
         }
     }
 
+    /// Whether the original constructor installs math functions as commands.
+    /// C8.4 uses its private function table; Jim uses its expression table.
+    #[must_use]
+    pub const fn registers_core_mathfunc(self) -> bool {
+        matches!(
+            self.names,
+            tcl_syntax::naming::NativeNameProtocol::C(
+                tcl_dialect::TclVersion::V8_5
+                    | tcl_dialect::TclVersion::V8_6
+                    | tcl_dialect::TclVersion::V9_0
+                    | tcl_dialect::TclVersion::V9_1
+            )
+        )
+    }
+
     /// Whether the core constructor registers the native binary command.
     /// Jim's binary command is a distribution script over an optional pack
     /// extension, outside `Jim_RegisterCoreCommands`.

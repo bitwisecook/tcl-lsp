@@ -22842,6 +22842,41 @@ mod tests {
         });
     }
 
+    #[cfg(have_tommath)]
+    #[test]
+    fn native_math_function_commands_follow_constructor_surface() {
+        for (environment, expected) in [
+            ("jim", false),
+            ("tcl8.4", false),
+            ("tcl8.5", true),
+            ("tcl8.6", true),
+            ("tcl9.0", true),
+            ("tcl9.1", true),
+        ] {
+            let interpreter = Interp::with_native_core(
+                default_host(),
+                crate::environment::profile_for_dialect(environment),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert!(
+                interpreter.native_execution_refusal().is_none(),
+                "{environment}"
+            );
+            assert_eq!(
+                interpreter
+                    .find_command_id(GLOBAL, b"::tcl::mathfunc::abs")
+                    .is_some(),
+                expected,
+                "{environment}",
+            );
+        }
+        let generic = Interp::new();
+        assert!(generic
+            .find_command_id(GLOBAL, b"::tcl::mathfunc::abs")
+            .is_some());
+    }
+
     #[test]
     fn native_jim_core_keeps_only_constructor_empty_roles() {
         let interp = Interp::with_native_core(
