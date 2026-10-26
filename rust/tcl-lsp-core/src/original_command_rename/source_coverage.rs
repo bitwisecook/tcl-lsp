@@ -590,6 +590,52 @@ mod tests {
                 peer: Analyser::new().analyse(PEER, "tcl8.6"),
             }
         }
+
+        fn logical_namespace(source: &'static str, child_source: &'static str) -> Self {
+            let profile = tcl_dialect::DialectProfile::plain_tcl();
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::context_for_profile(profile),
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            );
+            assert!(input.has_logical_source_name_context());
+            let prefix = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            let source_offset = u32::try_from(source.find("source child").unwrap()).unwrap();
+            let load = tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                source, &prefix, source_offset,
+            ).unwrap();
+            let point = load.source_point_entry(&prefix).unwrap();
+            let child = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse_with_source_point_entry(child_source, profile.name, &point)
+                .unwrap();
+            let regions = load
+                .conditional_continuation(&prefix, &child)
+                .unwrap()
+                .source_regions(&prefix, &child)
+                .unwrap();
+            let region = regions.regions()[0].clone();
+            let suffix = Analyser::new()
+                .with_resolved_input(input)
+                .analyse_source_region(&region, &prefix, &child)
+                .unwrap();
+            Self {
+                source,
+                child_source,
+                ordinary_child: Analyser::new().analyse(child_source, "tcl8.6"),
+                outcome: regions.normal_outcome().unwrap(),
+                region_count: regions.regions().len(),
+                region,
+                prefix,
+                child,
+                suffix,
+                peer: Analyser::new().analyse(PEER, "tcl8.6"),
+            }
+        }
+
         fn documents(&self) -> Vec<OriginalDeclarationDocument<'_>> {
             vec![
                 OriginalDeclarationDocument {
@@ -942,6 +988,30 @@ mod tests {
             });
         }
     }
+
+    fn assert_native_namespace_child_entry_refused(source: &str, child_source: &str) {
+        let prefix = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
+        let load =
+            tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                source, &prefix, offset,
+            )
+            .unwrap();
+        let point = load.source_point_entry(&prefix).unwrap();
+        assert!(
+            !prefix
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .has_logical_source_name_context()
+        );
+        assert!(
+            Analyser::new()
+                .analyse_with_source_point_entry(child_source, "tcl8.6", &point)
+                .is_none()
+        );
+    }
+
     #[test]
     fn source_coverage_never_omits_extra_cuts_or_namespace_frames() {
         for (source, child_source) in [
@@ -954,7 +1024,12 @@ mod tests {
                 "proc helper {} {return VALUE}",
             ),
         ] {
-            let fixture = Fixture::new(source, child_source);
+            let fixture = if source.starts_with("namespace") {
+                assert_native_namespace_child_entry_refused(source, child_source);
+                Fixture::logical_namespace(source, child_source)
+            } else {
+                Fixture::new(source, child_source)
+            };
             if source.starts_with("namespace") {
                 assert!(fixture.region_count > 1);
             }
