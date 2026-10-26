@@ -72,6 +72,9 @@ TARGETED_PRUNE_CONTROLS = {
         "sha256": "cbf8c5d72636722e4b88f385226e2d81fc4c813442c0f29e495ee60bb25f1613",
     },
 }
+AOT5_SOURCE_PATH = 'runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs'
+AOT5_SOURCE_SHA = 'd3f59fcf720db8ce63ed008e07e4727e3f5561222635542c80a82c2a5de299c6'
+AOT5_SELECTORS = ['interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add', 'interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks', 'interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe', 'interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay', 'interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_keep_last_binding_without_a_native_strategy']
 GROUPS = (
     "baseline14",
     "stack_abort1",
@@ -507,6 +510,82 @@ def attestation_control_source():
     return {"path": str(path), "source_sha256": sha(path), "functions": ATTESTATION_CONTROLS}
 
 
+def run_aot5(owner, suite, binary, prepared, environment, supplemental, source,
+             used, suite_deadline, absolute, prior_closed):
+    rows = [{"group": "aot5", "selector": name, "status": "UNRUN"}
+            for name in AOT5_SELECTORS]
+    errors = []
+    save(supplemental / "aot5-outcomes.json", rows)
+    source_provenance = {"path": AOT5_SOURCE_PATH, "expected_sha256": AOT5_SOURCE_SHA}
+    require(len(AOT5_SELECTORS) == len(set(AOT5_SELECTORS)) == 5, "exact distinct AOT5 selectors required")
+    require(sha(AOT5_SOURCE_PATH) == AOT5_SOURCE_SHA, "reviewed actual AOT5 source changed")
+    source_provenance["actual_sha256"] = sha(AOT5_SOURCE_PATH)
+    if not prior_closed:
+        errors.append("original135 process/ELF/completeness unsettled; AOT5 remains UNRUN")
+    else:
+        for index, row in enumerate(rows):
+            if not listed(suite, row["selector"]):
+                errors.append("reviewed AOT5 selector absent or ignored")
+                break
+            if suite["testcases"][row["selector"]]["filter-match"]["status"] == "matches":
+                errors.append("AOT5 cannot substitute an original selected identity")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable for AOT5")
+                break
+            if used >= CAP:
+                errors.append("remaining shared 20MiB log budget exhausted before AOT5")
+                break
+            if sha(binary) != prepared["elf_sha256"]:
+                errors.append("same original3 ELF changed before AOT5")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable after ELF hash")
+                break
+            prefix = supplemental / f"aot5-{index}"
+            receipt = owner.run(
+                [str(binary), "--exact", row["selector"], "--nocapture", "--test-threads=1"],
+                cwd=Path(suite["cwd"]), env=environment,
+                stdout_path=str(prefix) + ".stdout", stderr_path=str(prefix) + ".stderr",
+                receipt_path=str(prefix) + ".process.json", artifact_path=binary,
+                deadline_seconds=180, cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+                disk_paths=(Path.cwd(), supplemental.parent, binary.parent, Path(os.environ["RUNNER_TEMP"])),
+            )
+            used += receipt["retained_bytes"]
+            try:
+                row["status"] = original_outcome(Path(str(prefix) + ".stdout").read_text(), receipt)
+            except (RuntimeError, ValueError) as error:
+                row["status"] = "INCOMPLETE"
+                row["error"] = str(error)
+            row["process"] = receipt
+            row["stdout_sha256"] = sha(str(prefix) + ".stdout")
+            row["stderr_sha256"] = sha(str(prefix) + ".stderr")
+            save(supplemental / "aot5-outcomes.json", rows)
+            print(row["group"], row["selector"], row["status"], flush=True)
+            if (not receipt["group_empty_before_parent_reap"] or not receipt["artifact_unchanged"]
+                or row["status"] in ["UNRUN", "INCOMPLETE", "TIMEOUT"]):
+                errors.append("AOT5 process/ELF/completeness guard failed")
+                break
+            if time.monotonic() > suite_deadline or time.time() > absolute:
+                errors.append("shared suite or absolute deadline exceeded after AOT5")
+                break
+    for row in rows:
+        if row["status"] == "UNRUN":
+            row["unrun_reasons"] = errors
+    save(supplemental / "aot5-outcomes.json", rows)
+    save(supplemental / "aot5-summary.json", {
+        "source": source, "binary": str(binary), "elf_sha256": prepared["elf_sha256"],
+        "source_provenance": source_provenance, "count": 5,
+        "counts": dict(collections.Counter(row["status"] for row in rows)),
+        "errors": errors, "complete": not errors,
+        "case_budget_seconds": 180, "suite_budget_seconds": 2400,
+        "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
+        "aggregate_log_cap_bytes": CAP + 65536,
+        "scope": "Separate five actual AOT controls after unchanged original135; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
+    })
+    return rows, errors, used
+
+
 def run(out, source):
     supplemental = out / "supplement"
     supplemental.mkdir()
@@ -809,6 +888,14 @@ def run(out, source):
         "scope": "Separate baselinePF plus2 genuine owner controls after unchanged original132; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase.",
     })
     errors.extend(attestation_errors)
+    aot_prior_closed = not errors and prior_closed and all(
+        row["status"] in ["PASS", "FAIL", "ABORT"]
+        and row["process"]["group_empty_before_parent_reap"]
+        and row["process"]["artifact_unchanged"] for row in attestation_rows)
+    aot_rows, aot_errors, used = run_aot5(
+        owner, suite, binary, prepared, environment, supplemental, source,
+        used, suite_deadline, absolute, aot_prior_closed)
+    errors.extend(aot_errors)
     unchanged = sha(binary) == prepared["elf_sha256"]
     if not unchanged:
         errors.append("ELF changed after supplemental cases")
@@ -831,6 +918,7 @@ def run(out, source):
             "counts": counts,
             "errors": errors,
             "complete": complete,
+            "separate_aot5_outcomes": "aot5-outcomes.json",
             "separate_attestation3_outcomes": "attestation3-outcomes.json",
             "separate_proc_stack_outcome": "proc-stack-outcome.json",
             "original3_receipts": "../terminal/summary.json and ../process-outcomes.json remain separate",
@@ -892,7 +980,8 @@ def run(out, source):
         125
         if not complete
         else 100
-        if any(row["status"] != "PASS" for row in attestation_rows)
+        if any(row["status"] != "PASS" for row in aot_rows)
+        or any(row["status"] != "PASS" for row in attestation_rows)
         or proc_row["status"] != "PASS" or any(row["status"] != "PASS" for row in rows)
         else 0
     )
@@ -938,6 +1027,18 @@ def main():
         if args.phase == "run":
             directory = out / "supplement"
             directory.mkdir(exist_ok=True)
+            aot_path = directory / "aot5-outcomes.json"
+            aot_rows = json.loads(aot_path.read_text()) if aot_path.exists() else [
+                {"group": "aot5", "selector": name, "status": "UNRUN"} for name in AOT5_SELECTORS]
+            for row in aot_rows:
+                if row["status"] == "UNRUN":
+                    row["unrun_reasons"] = [repr(error)]
+            save(aot_path, aot_rows)
+            save(directory / "aot5-summary.json", {
+                "source": args.sha, "count": 5, "complete": False, "errors": [repr(error)],
+                "counts": dict(collections.Counter(row["status"] for row in aot_rows)),
+                "scope": "AOT5 unadmitted/incomplete; original135 remain separately reported.",
+            })
             outcomes = directory / "outcomes.json"
             if outcomes.exists():
                 rows = json.loads(outcomes.read_text())
