@@ -150,7 +150,6 @@ pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
-pub use source_transition_advice::OriginalAuthoredJimClassCall;
 pub use source_transition_advice::{
     LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
     OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
@@ -179,6 +178,9 @@ pub use source_transition_advice::{
 };
 pub use source_transition_advice::{
     OriginalAuthoredJimClass, OriginalConditionalLambdaFormattingBody,
+};
+pub use source_transition_advice::{
+    OriginalAuthoredJimClassCall, OriginalAuthoredJimProcedureMember,
 };
 pub use source_transition_advice::{
     OriginalNativeProcedureBodyCommand, OriginalSourceProcedureCall,

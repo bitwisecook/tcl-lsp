@@ -35,6 +35,8 @@ mod source_callback;
 mod source_point;
 pub(super) use source_point::OriginalSourcePointAdviceGraph;
 mod source_class;
+mod source_jim_member;
+pub use source_jim_member::OriginalAuthoredJimProcedureMember;
 mod source_jim_class;
 pub use source_jim_class::{OriginalAuthoredJimClass, OriginalAuthoredJimClassCall};
 mod source_constructor_effects;
@@ -875,6 +877,13 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     registered_handles: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredHandleBinding>>>,
     class_declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
     authored_jim_calls: BTreeMap<u32, Option<OriginalAuthoredJimClassCall>>,
+    authored_jim_procedure_members: BTreeMap<
+        u32,
+        Vec<(
+            SignatureSourceNameInput,
+            Option<source_jim_member::AuthoredJimProcedureMemberRecipe>,
+        )>,
+    >,
     authored_jim_classes: BTreeMap<u32, Option<Arc<OriginalAuthoredJimClass>>>,
     class_declaration_facets: BTreeMap<u32, Vec<source_class::SourceClassDeclarationFacet>>,
     constructor_calls: BTreeMap<u32, Option<OriginalSourceConstructorCall>>,
@@ -1423,6 +1432,11 @@ impl OriginalSourceTransitionAdviceTape {
         for (offset, targets) in other.callback_targets {
             for (prefix, target) in targets {
                 self.merge_callback_target(offset, prefix, target);
+            }
+        }
+        for (offset, references) in other.authored_jim_procedure_members {
+            for (input, recipe) in references {
+                self.merge_authored_jim_procedure_member(offset, input, recipe);
             }
         }
         for (offset, references) in other.class_references {
@@ -3018,7 +3032,7 @@ impl AdviceInvocationContext<'_> {
         let authored_jim = self.authored_jim_class_source(graph, selected, &schema, None);
         let class = self.retain_source_class_declaration(tape, graph, selected, &schema);
         self.retain_source_configured_class(tape, graph, selected, &schema);
-        self.retain_source_class_operand_references(
+        self.retain_original_class_operand_references(
             tape,
             graph,
             class.as_ref(),
@@ -3036,6 +3050,7 @@ impl AdviceInvocationContext<'_> {
         Self::install_source_class_handle(graph, class_handle);
         self.retain_source_class_adoptions(tape, graph, class.as_ref());
         Self::install_source_class(tape, graph, class);
+        self.retain_authored_jim_procedure_adoptions(tape, graph, authored_jim.as_ref());
         Self::install_authored_jim_class(tape, graph, authored_jim);
         source_procedure::install_original_procedure(graph, procedure);
         Some(())

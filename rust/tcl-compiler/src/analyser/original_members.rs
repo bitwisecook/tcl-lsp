@@ -161,6 +161,74 @@ impl Analyser {
         .with_body_role_words(Some(parameters), Some(body), Some(advice.dialect()))
     }
 
+    pub(super) fn original_authored_jim_procedure_member(
+        &self,
+        reference: &crate::command_binding::OriginalAuthoredJimProcedureMember,
+        procedure: &crate::signature_scan::original_name::SourceDeclarationMetadata<
+            super::types::ProcDef,
+        >,
+        member: &SignatureSourceNameInput,
+        class: &ClassDef,
+    ) -> Option<OriginalSourceMethodMetadata> {
+        reference
+            .supports_member_association(&self.result)
+            .then_some(())?;
+        // naming.source.original-class-reference
+
+        (reference.source_procedure(&self.result)? == procedure).then_some(())?;
+        let canonical = reference.class_metadata(&self.result)?;
+        (class.source_name.is_none()
+            && class.name_span == canonical.name_span
+            && class.body_span == canonical.body_span)
+            .then_some(())?;
+        let whole = procedure.name_input().original_word();
+        let children = SignatureSourceNameInput::OriginalWord(procedure.name_input().clone())
+            .original_list_elements()?;
+        let [class_input, member_input] = children.as_slice() else {
+            return None;
+        };
+        (class_input == reference.class_input() && member_input == member).then_some(())?;
+        let advice = reference.procedure_advice();
+        let grammar = reference.class_grammar(&self.result)?;
+        let purpose = grammar.two_word_procedure_member_name_purpose()?;
+        let declaration = OriginalSourceMemberDeclaration::from_original_input(
+            advice.site(),
+            whole,
+            member.clone(),
+            OriginalSourceNamePurpose::for_analysis_input(
+                &self.resolved_analysis_input(),
+                self.source_analysis_entry.as_deref(),
+                member.policy(),
+            ),
+        )?;
+        let proc = procedure.metadata();
+        let method = MethodDef {
+            name: std::str::from_utf8(member.bytes()).ok()?.to_owned(),
+            params: proc.params.clone(),
+            params_computed: proc.params_computed,
+            formal_count: proc.formal_count.clone(),
+            name_span: proc.name_span,
+            body_span: proc.body_span,
+            kind: "method".to_owned(),
+            is_self_method: false,
+            visibility: "public".to_owned(),
+            doc: proc.doc.clone(),
+            forward_target: None,
+        };
+        let parameters = original_two_word_role_word(advice, ArgRole::ParamList)?;
+        let body = original_two_word_role_word(advice, ArgRole::Body)?;
+        OriginalSourceMethodMetadata::from_declaration(
+            declaration,
+            MemberSide::Instance,
+            method,
+            true,
+            false,
+            None,
+            purpose,
+        )?
+        .with_body_role_words(Some(parameters), Some(body), Some(advice.dialect()))
+    }
+
     fn original_member_source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
         self.original_source_invocation_dialect()
     }

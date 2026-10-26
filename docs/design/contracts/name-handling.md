@@ -4046,3 +4046,5 @@ allocation, frame, lexer configuration, compiler recipe and counted primary
 lookup must match. This preserves existing compiler slots; it grants no
 physical layout, runtime value, callback, effect or completion fact. Unsupported
 expression shapes and new local names withdraw the inventory.
+
+Own authored Jim procedure-member source correspondence retains the selected Jim class and original procedure as distinct issuers. The original readonly two-list-element name and selected factory replacement recipe bind raw declarations before and after the class. A weak existing analysis owner, exact canonical tape recipe and original source/configuration/registry joins authenticate reporting metadata; unknown obligations remain explicit diagnostic debt. Only the inherent unavailable-runtime-lookup and written-transition source conditions may support the new member association; mutation, arity, deferred, declaration and other applicability debts withhold both the member ledger and reporting association. This does not issue a generic SourceClass, installed method table, entered frame, quiet effect, Native result, or deferred class-call authority.

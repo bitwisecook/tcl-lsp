@@ -636,6 +636,49 @@ impl super::CommandBindingRealm {
         Some(receipt.clone())
     }
 
+    /// Own Jim source members from the exact original consumer vector and realm.
+    pub(crate) fn original_authored_jim_procedure_members(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[tcl_lexer::NativeWord],
+    ) -> Option<Vec<crate::command_binding::OriginalAuthoredJimProcedureMember>> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        self.matches_original_source_image(image, input.lexer_config())
+            .then_some(())?;
+        let context = input.context_registry();
+        let owner = self.bindings.original_analysis_owner()?;
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        Some(
+            prepared
+                .as_ref()
+                .as_ref()?
+                .authored_jim_procedure_members(original, owner),
+        )
+    }
+
+    pub(crate) fn authenticates_authored_jim_procedure_member(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        receipt: &crate::command_binding::OriginalAuthoredJimProcedureMember,
+    ) -> bool {
+        if !self.matches_resolved_analysis_input(input) {
+            return false;
+        }
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        prepared
+            .as_ref()
+            .as_ref()
+            .is_some_and(|tape| tape.authenticates_authored_jim_procedure_member(receipt))
+    }
+
     /// Conditional original list-child class reference at its actual consumer.
     pub(crate) fn original_source_class_reference(
         &self,

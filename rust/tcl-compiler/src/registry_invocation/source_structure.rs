@@ -7057,3 +7057,14 @@ pub fn source_authored_jim_call_at(
     let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
     realm.original_authored_jim_call(input, &native)
 }
+
+/// Own authored Jim member recipes; no generic class or entered body is issued.
+#[must_use]
+pub(crate) fn source_authored_jim_procedure_members_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<Vec<crate::command_binding::OriginalAuthoredJimProcedureMember>> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_authored_jim_procedure_members(input, &native)
+}
