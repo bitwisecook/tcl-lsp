@@ -29,6 +29,12 @@ interpreter-fallback path, or an explicit not-required classification.
 `cargo xtask command-backing --check` cross-checks the two and writes
 [`wasm-command-backing.md`](../../docs/generated/wasm-command-backing.md).
 
+Native core construction selects the engine's math-function entry points.
+Tcl 8.4 and Jim use their fixed expression-function tables. Tcl 8.5 and later
+publish math functions as commands in `::tcl::mathfunc` when the numeric
+backend is available. The constructor's command inventory is separate from
+library initialisation and from authority to execute a later native operation.
+
 ## Features and build gates
 
 - `wasm_stdlib` (off by default) embeds the Tcl 9 standard library and the
