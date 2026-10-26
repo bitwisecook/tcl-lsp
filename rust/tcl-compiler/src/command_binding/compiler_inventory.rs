@@ -2066,14 +2066,26 @@ impl SourceCommandBindings {
                 if trace_compiler_syntax_flag(
                     "child.region-or-provider",
                     Some(site.offset),
-                    site.offset
-                        .checked_sub(child_site.offset)
-                        .is_none_or(|offset| (offset as usize) >= child.script.text.len())
-                        || child.script.origin != child_site.source
-                        || child.script.base() != child_site.offset
-                        || self
-                            .compilation_provider_required
+                    trace_compiler_syntax_flag(
+                        "child.relative-region",
+                        Some(site.offset),
+                        site.offset
+                            .checked_sub(child_site.offset)
+                            .is_none_or(|offset| (offset as usize) >= child.script.text.len()),
+                    ) || trace_compiler_syntax_flag(
+                        "child.source-origin",
+                        Some(site.offset),
+                        child.script.origin != child_site.source,
+                    ) || trace_compiler_syntax_flag(
+                        "child.source-base",
+                        Some(site.offset),
+                        child.script.base() != child_site.offset,
+                    ) || trace_compiler_syntax_flag(
+                        "child.provider-required",
+                        Some(site.offset),
+                        self.compilation_provider_required
                             .contains(&child.enclosing),
+                    ),
                 ) {
                     continue;
                 }
