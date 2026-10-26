@@ -8,6 +8,13 @@ use super::Interp;
 use crate::obj::TclObj;
 use tcl_syntax::{naming::NativeNameContext, value::ValueError};
 
+type OriginalJimRenameOperands = (
+    Vec<u8>,
+    Vec<u8>,
+    std::rc::Rc<crate::obj::Owned>,
+    Option<std::rc::Rc<crate::obj::Owned>>,
+);
+
 impl Interp {
     /// Materialize the original operands before selecting rename's native name
     /// purposes. Jim's table owner applies its retained namespace qualification;
@@ -67,15 +74,7 @@ impl Interp {
         &mut self,
         old: *mut TclObj,
         new: *mut TclObj,
-    ) -> Result<
-        (
-            Vec<u8>,
-            Vec<u8>,
-            std::rc::Rc<crate::obj::Owned>,
-            Option<std::rc::Rc<crate::obj::Owned>>,
-        ),
-        ValueError,
-    > {
+    ) -> Result<OriginalJimRenameOperands, ValueError> {
         use tcl_syntax::naming::NativeNamePurpose;
         let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
             |first| {

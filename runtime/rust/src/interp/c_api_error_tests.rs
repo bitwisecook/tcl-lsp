@@ -3,6 +3,16 @@
 
 use super::*;
 
+type OriginalErrorObject = (*mut TclObj, Rc<Cell<usize>>, Rc<RefCell<Vec<u8>>>);
+type OriginalCaptureEvents = Rc<RefCell<Vec<(u8, Vec<u8>)>>>;
+type OriginalLazyErrorInfo = (
+    *mut TclObj,
+    Rc<Cell<usize>>,
+    Rc<Cell<usize>>,
+    Rc<Cell<obj::TclSize>>,
+    Rc<Cell<bool>>,
+);
+
 fn leak_free(body: impl FnOnce(&mut Interp)) {
     crate::counters::reset();
     {
@@ -49,10 +59,7 @@ static RETIREMENT: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
-fn original(
-    interpreter: &Interp,
-    mode: u8,
-) -> (*mut TclObj, Rc<Cell<usize>>, Rc<RefCell<Vec<u8>>>) {
+fn original(interpreter: &Interp, mode: u8) -> OriginalErrorObject {
     let calls = Rc::new(Cell::new(0));
     let observed = Rc::new(RefCell::new(Vec::new()));
     let state = Box::new(Retirement {
@@ -338,7 +345,7 @@ fn original_byte_error_authors_leave_all_effects_unreached_after_a_pending_host(
 
 struct CaptureRetirement {
     interpreter: WeakInterp,
-    events: Rc<RefCell<Vec<(u8, Vec<u8>)>>>,
+    events: OriginalCaptureEvents,
     role: u8,
     mode: u8,
 }
@@ -582,16 +589,7 @@ static ERROR_INFO_GETTER: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
-fn lazy_error_info(
-    interpreter: &Interp,
-    mode: u8,
-) -> (
-    *mut TclObj,
-    Rc<Cell<usize>>,
-    Rc<Cell<usize>>,
-    Rc<Cell<obj::TclSize>>,
-    Rc<Cell<bool>>,
-) {
+fn lazy_error_info(interpreter: &Interp, mode: u8) -> OriginalLazyErrorInfo {
     let updates = Rc::new(Cell::new(0));
     let frees = Rc::new(Cell::new(0));
     let references = Rc::new(Cell::new(0));

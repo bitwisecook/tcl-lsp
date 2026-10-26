@@ -21,6 +21,10 @@
 use super::*;
 use crate::interp::native_arguments::OriginalArguments;
 
+type OriginalOoCheck<'a> = &'a dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>;
+type OriginalOoHeadReader<'a> =
+    &'a dyn Fn(&Interp, *mut TclObj) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>;
+
 pub(super) fn with_original_arguments(
     interpreter: &mut Interp,
     argv: &[*mut TclObj],
@@ -165,7 +169,7 @@ pub(super) fn next_original_bytes_using(
     interpreter: &Interp,
     originals: &OriginalArguments,
     index: usize,
-    extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
+    extra: Option<OriginalOoCheck<'_>>,
 ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
     let Some(extra) = extra else {
         return originals.bytes(index);
@@ -649,7 +653,7 @@ impl Interp {
         class: bool,
         version: tcl_dialect::TclVersion,
         check: &dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>,
-        read_head: &dyn Fn(&Interp, *mut TclObj) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        read_head: OriginalOoHeadReader<'_>,
     ) -> Code {
         if let Err(first) = check(self) {
             return self.report_cmd_error(first);
@@ -1849,7 +1853,7 @@ impl Interp {
     pub(super) fn oo_resolve_original_object_using(
         &mut self,
         original: *mut TclObj,
-        extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
+        extra: Option<OriginalOoCheck<'_>>,
     ) -> Result<OoId, tcl_cmd_core::CmdError> {
         let originals = OriginalArguments::enter(self, &[original])?;
         if let Some(check) = extra {

@@ -9,6 +9,9 @@ use crate::{
 use tcl_runtime_api::native_command_name::{NativeCommandNameCache, NativeCommandNameLookupState};
 use tcl_syntax::value::{ValueError, ValueOps};
 
+type OriginalJimCommandKey = (std::rc::Rc<obj::Owned>, Option<std::rc::Rc<[u8]>>);
+type OriginalCommandCheck<'a> = &'a dyn Fn(&Interp) -> Result<(), ValueError>;
+
 #[derive(Clone)]
 pub(super) struct OriginalByteCommandRegistration {
     original: Vec<u8>,
@@ -171,7 +174,7 @@ impl Interp {
         origin: NsId,
         original: *mut TclObj,
         purpose: tcl_syntax::naming::NativeNamePurpose,
-    ) -> Result<Option<(std::rc::Rc<obj::Owned>, Option<std::rc::Rc<[u8]>>)>, ValueError> {
+    ) -> Result<Option<OriginalJimCommandKey>, ValueError> {
         use tcl_syntax::naming::{
             NativeJimNamespaceConstruction, NativeNameContext, NativeNamePurpose,
         };
@@ -684,7 +687,7 @@ impl Interp {
     fn original_command_lookup_bytes_using(
         &self,
         original: *mut TclObj,
-        extra: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
+        extra: Option<OriginalCommandCheck<'_>>,
     ) -> Result<std::rc::Rc<[u8]>, ValueError> {
         let Some(extra) = extra else {
             return self.native_object_string_bytes(original);
@@ -702,7 +705,7 @@ impl Interp {
         &mut self,
         current: NsId,
         original: *mut TclObj,
-        extra: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
+        extra: Option<OriginalCommandCheck<'_>>,
     ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
         let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
             |first| {

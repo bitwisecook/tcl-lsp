@@ -16,6 +16,8 @@ use tcl_engine_api::{
 };
 use tcl_syntax::naming::{NamePolicyAuthority, NamePolicyProtocol};
 
+type ConsumedHostPublication = (NsId, Rc<[u8]>, Option<u64>);
+
 #[derive(Clone)]
 pub(crate) struct HostRegistration {
     pub(crate) command: Rc<dyn HostCommand>,
@@ -274,7 +276,7 @@ pub(crate) fn consume(
     hosts: HostCommands,
     publication: &PreparedCommandPublication,
     purpose: CommandPublicationPurpose,
-) -> Result<Option<(NsId, Rc<[u8]>, Option<u64>)>, EngineError> {
+) -> Result<Option<ConsumedHostPublication>, EngineError> {
     let receipt = authenticate(interp, publication, Some(purpose))?;
     if let Some(generation) = receipt.generation {
         let service = PublicationService {

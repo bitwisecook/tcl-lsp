@@ -5,6 +5,9 @@ use crate::obj;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 use tcl_syntax::value::ValueError;
 
+type OriginalErrorString<'a, E> =
+    &'a dyn Fn(*mut obj::TclObj, &dyn Fn() -> Result<(), E>) -> Result<std::rc::Rc<[u8]>, E>;
+
 #[cfg(test)]
 mod jim_captured_error_code_tests;
 #[cfg(test)]
@@ -789,10 +792,7 @@ impl Interp {
         info: bool,
         original: *mut obj::TclObj,
         extra: &dyn Fn() -> Result<(), E>,
-        string: &dyn Fn(
-            *mut obj::TclObj,
-            &dyn Fn() -> Result<(), E>,
-        ) -> Result<std::rc::Rc<[u8]>, E>,
+        string: OriginalErrorString<'_, E>,
         refuse: &dyn Fn(ValueError) -> E,
     ) -> Result<(), E>
     where
