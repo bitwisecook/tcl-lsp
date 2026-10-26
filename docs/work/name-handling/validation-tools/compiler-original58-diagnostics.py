@@ -1940,7 +1940,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "9cc7ad71d78f889cc9bdd068cde11e9724c84eee7147f29bbfb5feb690979cf2",
+    == "66583f01f0c6ea5bc0a157c7e0523d2333ba38aa031762f60301ceba402d36ee",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -1996,7 +1996,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "d0747d728f0efbf4386b99389e4894001164c2e66a5f1b2776bdfcb58c3269d7",
+    == "f5562ca27ecfd955a9983815cbc100f66a896dfd64b46e6968de7f6c019b7367",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -2120,7 +2120,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "593b46dde60a3bddad7bf19afad60e0c586ad8fe3b76e3b832fa0b6a7326d400",
+    == "300a4c3cc9ccc4134f0919df1cbb9aa902d7d91282e51ca00a1e5d63fc7927fe",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
