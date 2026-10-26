@@ -3761,6 +3761,58 @@ def run_source_point_report_diagnostic() -> None:
         )
 
 
+def corpus_report_trace_observer(input_labels):
+    # Reporting evidence only; Rust terminals/typed corpus markers stay authoritative.
+    labels = set(input_labels)
+    state = {"state": "UNOBSERVED", "rows": 0, "first_rows": [],
+             "first_negative_by_stage": {}, "first_compare_refusal": None}
+    context = None
+
+    def observe(line):
+        nonlocal context
+        if line.startswith(b"SOURCE_POINT_CORPUS_BEGIN input="):
+            require(len(line) <= 512, "corpus trace input label width bound")
+            text = line[len(b"SOURCE_POINT_CORPUS_BEGIN input="):].decode("ascii")
+            label, end = json.JSONDecoder().raw_decode(text)
+            require(label in labels, "corpus trace input label outside exact roster")
+            tail = text[end:]
+            require(re.fullmatch(r" dialect=[a-zA-Z0-9_.-]+ original=(true|false)", tail)
+                    is not None, "corpus trace input context shape")
+            context = {"input": label, "source_context": tail.strip()}
+        if not line.startswith(b"REPORT_CAPTURE stage="):
+            return
+        require(len(line) <= 512, "corpus report trace row width bound")
+        text = line.decode("ascii")
+        stage = text[len("REPORT_CAPTURE stage="):].split(" ", 1)[0]
+        require(len(stage) <= 128 and re.fullmatch(r"[a-zA-Z0-9_.-]+", stage)
+                is not None, "corpus report trace stage bound")
+        state["state"] = "OBSERVED"
+        state["rows"] += 1
+        entry = {"context": context, "row": text}
+        if len(state["first_rows"]) < 16:
+            state["first_rows"].append(entry)
+        negative = (re.search(r"(?:available|current-owner)=false(?:$| )|refuses=true(?:$| )|result=Err\(", text)
+                    is not None)
+        if negative and stage not in state["first_negative_by_stage"]:
+            require(len(state["first_negative_by_stage"]) < 256,
+                    "corpus report negative stage bound")
+            state["first_negative_by_stage"][stage] = entry
+        if negative and stage.startswith("compare.") and state["first_compare_refusal"] is None:
+            state["first_compare_refusal"] = entry
+
+    def consume(line):
+        if state.get("error") is not None:
+            return
+        try:
+            observe(line)
+        except (RuntimeError, ValueError, TypeError, UnicodeError):
+            # Keep the actual Rust PASS/FAIL row; reject trace admission later.
+            state["state"] = "UNOBSERVED"
+            state["error"] = "bounded trace protocol failure"
+
+    return state, consume
+
+
 def run_source_point_corpus_controls() -> None:
     global remaining
     require("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" not in env, "corpus2 requires diagnostic bypass absent; old environments are never mutated")
@@ -3875,6 +3927,11 @@ def run_source_point_corpus_controls() -> None:
             "after_sha256": None,
             "unchanged": False,
         }
+        corpus_test_env = runtime_env
+        if args.source_point_corpus_only:
+            corpus_test_env = runtime_env.copy()
+            corpus_test_env["TCL_LSP_TRACE_AUTHENTICATED_REPORT"] = "1"
+            row["report_trace_child_env"] = {"TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"}
         row["state"] = "RUNNING"
         save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
         print("RUN " + group_label + " " + selector, flush=True)
@@ -3889,7 +3946,7 @@ def run_source_point_corpus_controls() -> None:
             prefix,
             executable,
             row["budget_seconds"],
-            runtime_env,
+            corpus_test_env,
             remaining,
         )
         processes.append(receipt)
@@ -3931,6 +3988,8 @@ def run_source_point_corpus_controls() -> None:
                 == hashlib.sha256(encoded_stderr).hexdigest(),
                 "transport child status or layered byte census mismatch",
             )
+            report_trace, report_trace_sink = (corpus_report_trace_observer(row["input_labels"])
+                                                if args.source_point_corpus_only else (None, None))
             marker_tail = bytearray()
             markers = []
             def corpus_marker_sink(data):
@@ -3939,6 +3998,8 @@ def run_source_point_corpus_controls() -> None:
                     require(len(marker_tail) <= 8192, "corpus marker parser line bound")
                     if marker_tail.endswith(b"\n"):
                         line = bytes(marker_tail).rstrip(b"\r\n")
+                        if report_trace_sink is not None:
+                            report_trace_sink(line)
                         if line.startswith(b"SOURCE_POINT_CORPUS input="):
                             require(len(line) <= 512, "corpus marker width bound")
                             markers.append(line.decode("ascii"))
@@ -3955,6 +4016,8 @@ def run_source_point_corpus_controls() -> None:
                 "transport diagnostic reconstruction differs from original stream",
             )
             row["transport_reconstruction"] = reconstructed
+            if report_trace is not None:
+                row["report_trace_observation"] = report_trace
         row.update(
             exit_code=receipt["exit_code"],
             receipt=prefix + ".process.json",
@@ -5841,6 +5904,9 @@ try:
             require(len(source_point_corpus_rows) == 2 and all(
                 row["state"] in ["PASS", "FAIL"] for row in source_point_corpus_rows
             ), "dedicated complete text corpus2 incomplete")
+            require(all(row.get("report_trace_observation", {}).get("state") == "OBSERVED"
+                        for row in source_point_corpus_rows),
+                    "dedicated corpus report trace UNOBSERVED; no absence inference")
             status = 0 if all(row["state"] == "PASS" for row in source_point_corpus_rows) else 1
             raise _DedicatedCorpusComplete()
         for index, row in enumerate(selected_rows):
