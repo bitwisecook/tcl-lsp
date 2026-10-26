@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-26T20:58:05.313692+00:00",
+  "old_sha256": "cee486c0f483bad03f79cf1f567ffb7f3e5c58ce4ab99d4d26447346d7e6b77b",
+  "adopted_sha256": "065d964bbff3877e426b6ecbff4834d8daa9e4ca3fe0845b669f29872166afa8",
+  "inverse": "Removing exact4-line Layout descriptor block restores full adopted V15 bytes",
+  "allowed_new_descriptor": "compiler-jim-source-layout11.json",
+  "runtime_execution": "UNRUN; usable after new descriptor integration",
+  "acceptance": false
+}

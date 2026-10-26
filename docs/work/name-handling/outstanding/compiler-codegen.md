@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T20:33:49.864558+00:00
+Last updated: 2026-10-26T21:05:44.546660+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Layout11 V2 ec391e64/2e60530c independent STATIC CLEAR9a064727: exact conditional CorpusV2 AFTER preimages; current3source hashes/all11functions/original3selectors/full byte+ASTinverse/F-R. Only dedicated Layout10800/190; old default150/corpus3600/70 unchanged. All actual11 UNRUN. Root now integrating mixed33/Names report+Layout protocol, await explicit finalfreeze for25-map union with approved4registrykeys. Adopted V16 path /tmp/naming-preflight-required-source-pins-v16.py SHA065d964b. CorpusV2 current64825d47 independently acf9207d and Root applied75fc9f92; rawparser formatting cda02050 independently a188132f and Root applied86536966/C7a199fc. Genuine-entry fixture c124918c independently2ebb52cc integrated, nextactualNativeAdd/framing remains unrun. Current7ecd measurement source immutable. Current C47 three jobs Rust2/E2E1/E2E2 still active, preserved; no duplicate download/cancel/localbuild.
+
+Current495b union99c571fc/bec94468 independently cleared9cc60b76; 24JSON/19maps534records365sources,24refresh+sole approved WASM helper leaf. Root current measurement wave7ecd complete, source unfreezing for NEXT work. Genuine NativeEntry fixture c124918c independently2ebb52cc and Root integrated; actual efficacy remains UNRUN. Dedicated corpus currentV2 64825d47/6e417274 under Compiler sole peer; source/old150 behavior inverse unchanged,11phase+288final-seal controls5f7f0a4c. Root-authorized Layout11 implementation delegated Compiler with explicit composition on corpus AFTERimage, not last-writer source. Parser format-only paired cda02050 under LSP peer. Current C47 CI three active jobs preserved at20:38; no duplicate/cancel. All Runtime small argument/record/refusal peers static clear, no standalone Clippy closure claimed.
 
 NEXT paired NativeEntry fixture c124918c (ccg-native-tier-genuine-entry-fixtures-v1) is under Compiler sole independent review. Four paths/lane; exact existing actual-program VM helper moved to private shared test support, executable tier positives capture/retain genuine entry; static refusal units and every existing assertion/program/output/framing golden unchanged. Independent pipeline positive uses existing RetainedNativeUnit issuer. Source proof b20b5e0e/F-R/F0/fmt only, no efficacy claim. NativeAdd source audit39ad956c holds retained-body promotion and registry-only repair. Runtime retirementArgs1 independent1368eaa4/fixedRecordArray a69da401/refusal6 64cdd5ee all static-only source cleared, Root informed. C47 three jobs active at20:26: Rust2/E2E1/E2E2 preserved; no duplicate capture/cancel.
 

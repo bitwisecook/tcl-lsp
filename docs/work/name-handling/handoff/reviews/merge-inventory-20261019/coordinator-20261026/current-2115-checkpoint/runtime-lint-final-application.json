@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-26T21:00:07.490602+00:00",
+  "peer_sha256": "522c300923f0c03f01661fe40ba407a2757371f6e43a572cc2442e6dbd0d33ee",
+  "rows": [
+    {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "receipt": "[work abc36e02c] refactor: resolve remaining runtime lint findings\n 10 files changed, 59 insertions(+), 78 deletions(-)\n{\"utc\": \"2026-10-26T21:00:05.345892+00:00\", \"head\": \"abc36e02c0c8fd765d2e3b8f552f6df4c347e492\", \"patch_sha256\": \"0e2c95afbd441cbd4df4f296cc36911417e9c04742113adebd4e7c18e254b4f6\", \"manifest_sha256\": \"02b04d1a22a17b28a975683959bdc8b758991510fe8801e08d8a1d201265b655\", \"files\": 10, \"runtime_or_gate_admission\": false}\n"
+    },
+    {
+      "repo": "/workspace/naming-lsp-release/tcl-lsp",
+      "receipt": "[release/lsp-naming d531c8cfd] refactor: resolve remaining runtime lint findings\n 10 files changed, 58 insertions(+), 76 deletions(-)\n{\"utc\": \"2026-10-26T21:00:07.455569+00:00\", \"head\": \"d531c8cfd481830e8c0ad6bf86dfb0bf5d898c8d\", \"patch_sha256\": \"3f876a44fa55b5a384891c3417979f4cfa04a5314156d7411a5cd5c9c2598d86\", \"manifest_sha256\": \"2e7247dca8c2436ab245b0016b67b43b7b871c98b39a5869d6199685585644a5\", \"files\": 10, \"runtime_or_gate_admission\": false}\n"
+    }
+  ],
+  "actual_rust_clippy": "UNRUN",
+  "gate_admission": false
+}

@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-26T20:42:20.144693+00:00",
+  "cause": "Local observer variable digest was reused while iterating report source pins. Initial ZIP/API digest assertion passed, but final receipt field wrote the last report source pin digest.",
+  "actual_zip_sha256": "97f18c1b6651b5788a2b7e8888cd02d62777046c72494de56008ba45410b46db",
+  "superseded_receipt": "native-boundary-authentication-v1.json",
+  "successor_script_sha256": "7bd45c7ce2373811daa3247b062404667954a7f1453982bdf71b0740a15385aa",
+  "change": "Separate zip_digest local retained through output; validation logic and outcomes unchanged. Full successor revalidation required."
+}

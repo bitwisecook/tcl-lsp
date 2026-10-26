@@ -1,0 +1,410 @@
+--- a/rust/tcl-registry/src/native_procedure.rs
++++ b/rust/tcl-registry/src/native_procedure.rs
+@@ -560,6 +560,20 @@
+         select_native_procedure_definition(arguments)
+     }
+ 
++    /// Pure argv positions for authored source. This selects no native result,
++    /// formal/static acceptance, installation, frame or execution receipt.
++    pub(crate) fn authored_source_positions(
++        self,
++        arguments: InvocationArguments<'_>,
++    ) -> Option<ProcedureArgumentPositions> {
++        match self {
++            Self::Core => procedure_argument_positions(
++                arguments.dialect()?.parameter_grammar()?,
++                arguments.exact_argv_len()?,
++            ),
++        }
++    }
++
+     /// Native definition usage without a command prefix inferred by consumers.
+     #[must_use]
+     pub fn usage(self, dialect: Option<crate::InvocationDialect>) -> Option<&'static str> {
+@@ -614,6 +628,36 @@
+     Invalid,
+     /// Native protocol or final argv length is unresolved.
+     Unknown,
++}
++
++/// Positional grammar only; carries no result, installation or execution proof.
++#[derive(Debug, Clone, Copy)]
++pub(crate) struct ProcedureArgumentPositions {
++    /// Effective post-head command-name ordinal.
++    pub name: usize,
++    /// Effective post-head formal-list ordinal.
++    pub parameters: usize,
++    /// Optional persistent-static-list ordinal, without parsing its contents.
++    pub statics: Option<usize>,
++    /// Deferred original script ordinal, without entering its body.
++    pub body: usize,
++}
++
++fn procedure_argument_positions(
++    grammar: tcl_dialect::ParameterGrammar,
++    count: usize,
++) -> Option<ProcedureArgumentPositions> {
++    let (statics, body) = match (grammar, count) {
++        (tcl_dialect::ParameterGrammar::Tcl | tcl_dialect::ParameterGrammar::Jim, 3) => (None, 2),
++        (tcl_dialect::ParameterGrammar::Jim, 4) => (Some(2), 3),
++        _ => return None,
++    };
++    Some(ProcedureArgumentPositions {
++        name: 0,
++        parameters: 1,
++        statics,
++        body,
++    })
+ }
+ 
+ /// Select the native operation's definition shape independently of its name.
+@@ -631,22 +675,18 @@
+     let Some(count) = arguments.exact_argv_len() else {
+         return Selection::Unknown;
+     };
+-    let (statics_at, body_at, result) = match (grammar, count) {
+-        (tcl_dialect::ParameterGrammar::Tcl, 3) => (None, 2, ProcedureDefinitionResult::Empty),
+-        (tcl_dialect::ParameterGrammar::Jim, 3) => {
+-            (None, 2, ProcedureDefinitionResult::NameArgument)
+-        }
+-        (tcl_dialect::ParameterGrammar::Jim, 4) => {
+-            (Some(2), 3, ProcedureDefinitionResult::NameArgument)
+-        }
+-        _ => return Selection::Invalid,
++    let Some(positions) = procedure_argument_positions(grammar, count) else {
++        return Selection::Invalid;
+     };
+     Selection::Valid(NativeProcedureDefinition {
+-        name_at: 0,
+-        parameters_at: 1,
+-        statics_at,
+-        body_at,
+-        result,
++        name_at: positions.name,
++        parameters_at: positions.parameters,
++        statics_at: positions.statics,
++        body_at: positions.body,
++        result: match grammar {
++            tcl_dialect::ParameterGrammar::Tcl => ProcedureDefinitionResult::Empty,
++            tcl_dialect::ParameterGrammar::Jim => ProcedureDefinitionResult::NameArgument,
++        },
+     })
+ }
+ 
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -3749,7 +3749,82 @@
+     pub fn authored_source_argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
+         // Implementation contract: naming.vendor.original-registry-metadata
+ 
+-        self.argument_roles_with_native_definition(false, false)
++        let (roles, complete) = self.argument_roles_with_native_definition(false, false);
++        if self.uses_authored_jim_core_layout() {
++            self.authored_jim_core_roles(roles, complete)
++        } else {
++            (roles, complete)
++        }
++    }
++
++    fn uses_authored_jim_core_layout(&self) -> bool {
++        self.semantics.procedure_definition
++            == Some(crate::native_procedure::NativeProcedureDefinitionSpec::Core)
++            && self.semantics.argument_offset == 0
++            && self.semantics.frame_effect.is_none()
++            && self
++                .semantics
++                .traits
++                .contains(Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY)
++            && self
++                .words
++                .arguments()
++                .dialect()
++                .and_then(crate::InvocationDialect::parameter_grammar)
++                == Some(tcl_dialect::ParameterGrammar::Jim)
++    }
++
++    fn authored_jim_core_roles(
++        &self,
++        mut roles: Vec<(u8, ArgRole)>,
++        complete: bool,
++    ) -> (Vec<(u8, ArgRole)>, bool) {
++        let Some(positions) = self
++            .semantics
++            .procedure_definition
++            .and_then(|descriptor| descriptor.authored_source_positions(self.words.arguments()))
++        else {
++            return (Vec::new(), false);
++        };
++        let role_at = |role| {
++            roles
++                .iter()
++                .filter_map(|&(at, actual)| (actual == role).then_some(usize::from(at)))
++                .collect::<Vec<_>>()
++        };
++        let names = role_at(ArgRole::Name);
++        let parameters = role_at(ArgRole::ParamList);
++        let bodies = role_at(ArgRole::Body);
++        let statics = role_at(ArgRole::StaticVarList);
++        if !complete
++            || names != [positions.name]
++            || parameters != [positions.parameters]
++            || bodies.len() != 1
++            || (bodies[0] != positions.body && !(positions.statics == Some(2) && bodies[0] == 2))
++            || (!statics.is_empty() && statics.as_slice() != positions.statics.as_slice())
++        {
++            return (Vec::new(), false);
++        }
++        roles.retain(|&(_, role)| !matches!(role, ArgRole::Body | ArgRole::StaticVarList));
++        if let Some(at) = positions.statics {
++            roles.push((
++                u8::try_from(at).expect("core static position"),
++                ArgRole::StaticVarList,
++            ));
++        }
++        roles.push((
++            u8::try_from(positions.body).expect("core body position"),
++            ArgRole::Body,
++        ));
++        (roles, true)
++    }
++
++    fn authored_source_procedure_arity(&self) -> Arity {
++        if self.uses_authored_jim_core_layout() {
++            self.selected_arity()
++        } else {
++            self.semantics.arity
++        }
+     }
+ 
+     /// Source-only procedure declaration shape from the selected descriptor.
+@@ -3774,8 +3849,7 @@
+                     .traits
+                     .contains(Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY))
+             || !self
+-                .semantics
+-                .arity
++                .authored_source_procedure_arity()
+                 .accepts(self.argument_count_for_arity()?)
+         {
+             return None;
+@@ -7963,6 +8037,207 @@
+     }
+ 
+     #[test]
++    fn authored_jim_core_layout_uses_source_grammar_in_shared_registry() {
++        let registry = CommandRegistry::build_default();
++        let dialect = crate::InvocationDialect::of_profile(
++            crate::model::ingress::resolve_environment("jim").analyser_profile(),
++        );
++        for (arguments, body, statics) in [
++            (vec!["p", "arg", "BODY"], 2, None),
++            (vec!["p", "arg", "{n 0}", "BODY"], 3, Some(2)),
++        ] {
++            let words = arguments
++                .iter()
++                .map(|value| InvocationWord::Literal(value))
++                .collect::<Vec<_>>();
++            let selected = registry
++                .resolve_structured_invocation(
++                    InvocationWords::structured(InvocationWord::Literal("proc"), &words)
++                        .with_dialect(dialect),
++                    dialect.authoring_query(),
++                )
++                .resolved()
++                .unwrap();
++            assert_eq!(
++                selected.authored_source_procedure_arguments(),
++                Some(AuthoredSourceProcedureArguments {
++                    name: 0,
++                    parameters: 1,
++                    body,
++                })
++            );
++            let (roles, complete) = selected.authored_source_argument_roles();
++            assert!(complete);
++            assert_eq!(
++                roles
++                    .iter()
++                    .filter_map(
++                        |&(at, role)| (role == ArgRole::StaticVarList).then_some(usize::from(at))
++                    )
++                    .collect::<Vec<_>>(),
++                statics.into_iter().collect::<Vec<_>>()
++            );
++            assert_eq!(
++                roles
++                    .iter()
++                    .filter_map(|&(at, role)| (role == ArgRole::Body).then_some(usize::from(at)))
++                    .collect::<Vec<_>>(),
++                [body]
++            );
++        }
++    }
++
++    #[test]
++    fn authored_jim_layout_preserves_c_unknown_and_expanded_refusals() {
++        let registry = CommandRegistry::build_default();
++        for dialect in [
++            None,
++            Some(crate::InvocationDialect::for_version(
++                tcl_dialect::TclVersion::V8_6,
++            )),
++        ] {
++            let arguments = [
++                InvocationWord::Literal("p"),
++                InvocationWord::Literal("arg"),
++                InvocationWord::Literal("STATIC"),
++                InvocationWord::Literal("BODY"),
++            ];
++            let mut words =
++                InvocationWords::structured(InvocationWord::Literal("proc"), &arguments);
++            if let Some(dialect) = dialect {
++                words = words.with_dialect(dialect);
++            }
++            let selected = registry
++                .resolve_structured_invocation(
++                    words,
++                    dialect.and_then(crate::InvocationDialect::authoring_query),
++                )
++                .resolved()
++                .unwrap();
++            assert!(selected.authored_source_procedure_arguments().is_none());
++        }
++        let dialect = crate::InvocationDialect::of_profile(
++            crate::model::ingress::resolve_environment("jim").analyser_profile(),
++        );
++        let arguments = [InvocationWord::Expanded];
++        let selected = registry
++            .resolve_structured_invocation(
++                InvocationWords::structured(InvocationWord::Literal("proc"), &arguments)
++                    .with_dialect(dialect),
++                dialect.authoring_query(),
++            )
++            .resolved()
++            .unwrap();
++        assert!(selected.authored_source_procedure_arguments().is_none());
++        assert!(!selected.authored_source_argument_roles().1);
++    }
++
++    #[test]
++    fn authored_jim_core_layout_refuses_conflicting_selected_roles() {
++        let dialect = crate::InvocationDialect::of_profile(
++            crate::model::ingress::resolve_environment("jim").analyser_profile(),
++        );
++        let cases: &[&[(u8, ArgRole)]] = &[
++            &[
++                (1, ArgRole::Name),
++                (0, ArgRole::ParamList),
++                (2, ArgRole::Body),
++            ],
++            &[
++                (0, ArgRole::Name),
++                (1, ArgRole::ParamList),
++                (2, ArgRole::Body),
++                (3, ArgRole::Body),
++            ],
++            &[
++                (0, ArgRole::Name),
++                (1, ArgRole::ParamList),
++                (2, ArgRole::Body),
++                (1, ArgRole::StaticVarList),
++            ],
++            &[
++                (0, ArgRole::Name),
++                (1, ArgRole::ParamList),
++                (2, ArgRole::Body),
++                (2, ArgRole::StaticVarList),
++                (2, ArgRole::StaticVarList),
++            ],
++        ];
++        for &roles in cases {
++            let mut registry = CommandRegistry::build_default();
++            registry.insert(CommandSpec {
++                name: "source-core-definer",
++                arity: Arity::exact(3),
++                arg_roles: roles,
++                traits: Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY,
++                procedure_definition: Some(
++                    crate::native_procedure::NativeProcedureDefinitionSpec::Core,
++                ),
++                ..CommandSpec::DEFAULT
++            });
++            let arguments = [
++                InvocationWord::Literal("p"),
++                InvocationWord::Literal("arg"),
++                InvocationWord::Literal("STATIC"),
++                InvocationWord::Literal("BODY"),
++            ];
++            let selected = registry
++                .resolve_structured_invocation(
++                    InvocationWords::structured(
++                        InvocationWord::Literal("source-core-definer"),
++                        &arguments,
++                    )
++                    .with_dialect(dialect),
++                    dialect.authoring_query(),
++                )
++                .resolved()
++                .unwrap();
++            assert!(selected.authored_source_procedure_arguments().is_none());
++            assert!(!selected.authored_source_argument_roles().1);
++        }
++    }
++
++    #[test]
++    fn authored_jim_layout_does_not_infer_a_core_descriptor_from_proc_hook() {
++        let mut registry = CommandRegistry::build_default();
++        registry.insert(CommandSpec {
++            name: "source-hook-definer",
++            arity: Arity::exact(4),
++            arg_roles: &[
++                (0, ArgRole::Name),
++                (1, ArgRole::ParamList),
++                (3, ArgRole::Body),
++            ],
++            analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
++            traits: Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY,
++            command_table_effect: Some(CommandTableEffect::DefinesProcedure),
++            ..CommandSpec::DEFAULT
++        });
++        let dialect = crate::InvocationDialect::of_profile(
++            crate::model::ingress::resolve_environment("jim").analyser_profile(),
++        );
++        let arguments = [
++            InvocationWord::Literal("p"),
++            InvocationWord::Literal("arg"),
++            InvocationWord::Literal("STATIC"),
++            InvocationWord::Literal("BODY"),
++        ];
++        let selected = registry
++            .resolve_structured_invocation(
++                InvocationWords::structured(
++                    InvocationWord::Literal("source-hook-definer"),
++                    &arguments,
++                )
++                .with_dialect(dialect),
++                dialect.authoring_query(),
++            )
++            .resolved()
++            .unwrap();
++        assert!(selected.semantics.procedure_definition.is_none());
++        assert!(selected.authored_source_procedure_arguments().is_none());
++    }
++
++    #[test]
+     fn authored_source_static_list_position_rejects_duplicate_or_overlapping_roles() {
+         for (roles, arguments, expected) in [
+             (
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -410,6 +410,10 @@
+ extents. Unsupported glob/regexp/nocase and missing or changed correspondence
+ decline. Readonly case advice cannot erase Native Switch evaluation without
+ an independent retained execution-obligation carrier.
++
++### Authored Core procedure source ordinals
++
++A selected typed Core procedure descriptor under the actual retained Jim source grammar projects its three-word `name parameters body` or four-word `name parameters statics body` ordinals, even when the caller retains a shared Tcl catalogue store. Complete selected Name/ParamList role consensus remains mandatory; ambiguous or conflicting roles and expanded cardinality refuse. This source-only projection shares a positional grammar kernel with native definition selection but retains no native definition result, formal/static acceptance, installation, frame, body execution or Normal receipt. Non-Jim and unknown-dialect source metadata and configured Proc hooks keep their independently declared grammar.
+ 
+ ## Conditional dictionary source phases
+ 

@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-26T21:01:56.641627+00:00",
+  "source": "eadf42c4d52c5066b88c11de2253b4535328fbde",
+  "path": "docs/design/runtime/c-api-ownership-contract.md",
+  "before_sha256": "cfd2a1b31a4a3cc722d496dd21f9f6132c5079a81ae831c6475d5961aa12266c",
+  "after_sha256": "5e77729ba9efd988f9883df2152fa183b70e6fbbdb4abfc718b26d3b2a38f477",
+  "scope": "Release-only removal of obsolete external record locator; current null-access requirement and entire subsequent ABI target/refusal contract preserved. No functional source or fixture change.",
+  "diff_check": "PASS",
+  "gate_admission": false
+}

@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-26T21:04:44.827486+00:00",
+  "rows": [
+    {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "receipt": "[work 754770cd6] fix: authenticate inherited procedure bodies for reports\n 3 files changed, 271 insertions(+), 6 deletions(-)\n create mode 100644 rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs\n{\"utc\": \"2026-10-26T21:04:42.758186+00:00\", \"head\": \"754770cd632ec2c8f1ef0da262bef9f3c804655c\", \"patch_sha256\": \"6a956fd591ff4eb41ea3eba236269e50c9ba91e18ace45e8d8792343c634e4d0\", \"manifest_sha256\": \"7b4e99e957597db22c3baa7d1c9703ac5401683b889d82bf82c67092845eb227\", \"files\": 3, \"runtime_or_gate_admission\": false}\n"
+    },
+    {
+      "repo": "/workspace/naming-lsp-release/tcl-lsp",
+      "receipt": "[release/lsp-naming f70c2d2ff] fix: authenticate inherited procedure bodies for reports\n 3 files changed, 271 insertions(+), 6 deletions(-)\n create mode 100644 rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs\n{\"utc\": \"2026-10-26T21:04:44.781598+00:00\", \"head\": \"f70c2d2ff5dac3f6e92083c14c24ec19b8617d8a\", \"patch_sha256\": \"908dc5b1d4d07843049eec3a5a40af4acdcc057ff05bd58b7cda3b633b1b20a3\", \"manifest_sha256\": \"deceabfb31ee84e42337c1c5ddb0b889c26213aee8d3d2cbf1051dd9c97aac2b\", \"files\": 3, \"runtime_or_gate_admission\": false}\n"
+    }
+  ],
+  "peer_sha256": "1a8da76e4507165b9e77000d9b9476154c2129ba9e499fa611e1374a97c6dc7e",
+  "actual_rust_controls_parity": "UNRUN",
+  "gate_admission": false
+}

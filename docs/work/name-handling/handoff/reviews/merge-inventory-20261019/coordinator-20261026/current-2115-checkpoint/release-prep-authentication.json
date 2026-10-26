@@ -1,0 +1,251 @@
+{
+  "exact_shared_cap": true,
+  "same_absolute_deadline_spread_seconds": 0.012594461441040039,
+  "candidate": "4157e63afffb0a8e76e09a96ccd35ee0738a7ea8",
+  "workflow": "9fd86d5d0f60f2a54e5a45422f83104655152cb6",
+  "run": 40388699961,
+  "artifact": 12683481213,
+  "zip_sha256": "a6720058e17dca7d9e92b90b243053d8a79c89daa8ff0bf1359ab59ccd6084a4",
+  "zip_bytes": 1771731,
+  "all_safe_unique_members_crc_pass": 59,
+  "full_tracked_source_paths_match_exact_Git": 11084,
+  "tracked_blob_bytes_hashed": 182458919,
+  "initial_final_tree": "fb7d21e887d61189c2ecbaeb25485676e0a0309f",
+  "initial_before_gate_source_index_worktree_clean": true,
+  "final_source_index_worktree_clean": false,
+  "changed_paths": [
+    "scripts/dev/nextest-terminal-capture.py"
+  ],
+  "final_status": " M scripts/dev/nextest-terminal-capture.py\n",
+  "owner_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "all_owned_process_closures_authenticated": true,
+  "total_retained_log_bytes": 2097244,
+  "phases": [
+    {
+      "phase": "identity-1",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 73830420480,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-2",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 73830412288,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-3",
+      "argv": [
+        "/usr/bin/git",
+        "ls-files",
+        "-z"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 73829765120,
+      "retained_bytes": 658443
+    },
+    {
+      "phase": "identity-4",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 73829781504,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "identity-5",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=no"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 73829777408,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "setup",
+      "argv": [
+        "/usr/bin/make",
+        "install-test-deps"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 71409446912,
+      "retained_bytes": 76563
+    },
+    {
+      "phase": "identity-6",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 71435218944,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-7",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 71435210752,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-8",
+      "argv": [
+        "/usr/bin/git",
+        "ls-files",
+        "-z"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 71434547200,
+      "retained_bytes": 658443
+    },
+    {
+      "phase": "identity-9",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 71434543104,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "identity-10",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=no"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 71434539008,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "prep-pr",
+      "argv": [
+        "/usr/bin/make",
+        "prep-pr"
+      ],
+      "complete": true,
+      "exit_code": 2,
+      "minimum_free_bytes": 49370423296,
+      "retained_bytes": 44296
+    },
+    {
+      "phase": "identity-11",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 49960345600,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-12",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 49960337408,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-13",
+      "argv": [
+        "/usr/bin/git",
+        "ls-files",
+        "-z"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 49959673856,
+      "retained_bytes": 658443
+    },
+    {
+      "phase": "identity-14",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 49959665664,
+      "retained_bytes": 43
+    },
+    {
+      "phase": "identity-15",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=no"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 49959657472,
+      "retained_bytes": 43
+    },
+    {
+      "phase": "generated-diff",
+      "argv": [
+        "/usr/bin/git",
+        "diff",
+        "--binary",
+        "HEAD",
+        "--"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 49957679104,
+      "retained_bytes": 724
+    }
+  ],
+  "actual_setup": "PASS exit0; owned UV installer correction reached",
+  "exact_make_prep_pr": "REACHED FAIL exit2: actual compiler smoke expected lowered ::double but got empty procedure set; preceding explore smoke PASS",
+  "gate_accepted": false,
+  "limitations": "Actual exact prep-pr FAIL at compiler smoke; current source/index/nonignored tree dirty only nextest-terminal-capture.py formatter line wrapping, generateddiff724B. Installer/provider tools were setup-selected and version-logged, not all authenticated matching Native runtime providers; do not infer Native authority or full rust-check/full CI from this gate."
+}

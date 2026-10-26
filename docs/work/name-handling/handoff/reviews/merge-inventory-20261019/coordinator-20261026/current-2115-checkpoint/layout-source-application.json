@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-26T20:52:29.079221+00:00",
+  "rows": [
+    {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "receipt": "[work 68c6ca95e] fix: preserve authored Jim procedure source layout\n 3 files changed, 336 insertions(+), 17 deletions(-)\n{\"utc\": \"2026-10-26T20:52:26.688155+00:00\", \"head\": \"68c6ca95e172c1eb9e7f7828ebc95f3bab72ee38\", \"patch_sha256\": \"6d7ecdccec4bf131d3fe991b6c4c97982b99806b0e48167852f1a1c8eafb2717\", \"manifest_sha256\": \"73fe41f3aeadb1021622120debd3b8bef4ec81387a891475a1953ccb1bb5cbde\", \"files\": 3, \"runtime_or_gate_admission\": false}\n"
+    },
+    {
+      "repo": "/workspace/naming-lsp-release/tcl-lsp",
+      "receipt": "[release/lsp-naming 0237a43f2] fix: preserve authored Jim procedure source layout\n 3 files changed, 336 insertions(+), 17 deletions(-)\n{\"utc\": \"2026-10-26T20:52:29.037203+00:00\", \"head\": \"0237a43f2100f78c5639164db5ca139f09c2b08c\", \"patch_sha256\": \"be94efd9330c2ac4f4210e96a38cf9bd274fa06d55f1575edad0be300e3b9233\", \"manifest_sha256\": \"587823c6e0800ef227432b578192fc3c0eb21a68c6955548b61c7a90479b8381\", \"files\": 3, \"runtime_or_gate_admission\": false}\n"
+    }
+  ],
+  "approved_dependency_request": "Exactly native_procedure.rs and resolved_invocation.rs in existing Logical3 and Jim maps after this integration; dedicated Layout11 new descriptor must bind exact two test modules.",
+  "dependency_plan_sha256": "26c55b3d67a06b3239c8603ed2d0be6df60374252b060e4845e59beeb4512f89",
+  "peer_sha256": "4d2c86a3a2fd3714ffb6960ebd49b63de03fe66fa40756413f0fd52660afa800",
+  "gate_admission": false
+}

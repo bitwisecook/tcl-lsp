@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-26T20:55:52.369741+00:00",
+  "rows": [
+    {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "packet": "/workspace/naming-proof-storage/ccg-dedicated-source-point-corpus2-protocol-work-v2",
+      "receipt": "[work 75fc9f92a] test: run complete report corpus with a dedicated budget\n 2 files changed, 149 insertions(+), 13 deletions(-)\n{\"utc\": \"2026-10-26T20:55:42.738814+00:00\", \"head\": \"75fc9f92a18ff0b03039bccf5c3ffdf111c20412\", \"patch_sha256\": \"6e4172748c8108444e38b493191f06cf5e4731328b1114aa2c9f49ef2288bd6e\", \"manifest_sha256\": \"64825d474900cf3785d2b46822fef401e245f6e9064b38c995b4e609bc26f702\", \"files\": 2, \"runtime_or_gate_admission\": false}\n"
+    },
+    {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "packet": "/workspace/naming-proof-storage/root-nextest-format-application/WORK",
+      "receipt": "[work 86536966a] style: format raw test identifier validation\n 1 file changed, 4 insertions(+), 1 deletion(-)\n{\"utc\": \"2026-10-26T20:55:50.592308+00:00\", \"head\": \"86536966a9d931a0068b8fd36c8def5b513a73b9\", \"patch_sha256\": \"4d1cc68497471f7f8a21e50f8fd77d66bdcd6ecce71780a7596f108cc3ffba41\", \"manifest_sha256\": \"97d1eb4e449d1aa949de7ea847c768bcec71029b2e836bb15bd1b5bdb562b58a\", \"files\": 1, \"runtime_or_gate_admission\": false}\n"
+    },
+    {
+      "repo": "/workspace/naming-lsp-release/tcl-lsp",
+      "packet": "/workspace/naming-proof-storage/root-nextest-format-application/CLEAN",
+      "receipt": "[release/lsp-naming 7a199fc14] style: format raw test identifier validation\n 1 file changed, 4 insertions(+), 1 deletion(-)\n{\"utc\": \"2026-10-26T20:55:52.336296+00:00\", \"head\": \"7a199fc14788b59904486f56ca58a54d6f0a48e9\", \"patch_sha256\": \"793ddf51201cc0abce825946420c4b22f27854c059f917964472e2a8d79d3862\", \"manifest_sha256\": \"92a21d8a6917f7d356b71c4c3b1eb6db449e307e6ba742aa34630302352fd71f\", \"files\": 1, \"runtime_or_gate_admission\": false}\n"
+    }
+  ],
+  "gate_admission": false
+}

@@ -1,0 +1,71 @@
+{
+  "lanes": {
+    "WORK": {
+      "base": "e3753c16f088c8230d4688efd3e238a0c2767820",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/tests/wasm_tiers.rs",
+          "before_sha256": "6c7b5d7e9c3cdf799453c890a3623518d1fa60d87b10241c619f4a3e31c16acf",
+          "after_sha256": "b9044c3bfcca6da70f76168f295aa62e21ad15ca36875bdba65875c52d0a6c68",
+          "new": false
+        },
+        {
+          "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+          "before_sha256": "ffc79c04531c11416a91db36187f88b61a9cdd7b514d41eb22d9addbd92e1893",
+          "after_sha256": "f0fac65c34175b99732dae5e6ed0109ad9b724639ba88adf4e142bfa8909b618",
+          "new": false
+        },
+        {
+          "path": "rust/tcl-compiler/src/codegen/wasm/pipeline.rs",
+          "before_sha256": "aea4e3ae171551cb3c4ab958e8d61313be0c88acf446658a026388a9ef0154f4",
+          "after_sha256": "b27d9b3e2a27aeb26721df678892068086e28de9a056f302ff5e97efef0f2fa6",
+          "new": false
+        },
+        {
+          "path": "rust/tcl-compiler/tests/common/native_whole_program.rs",
+          "before_sha256": null,
+          "after_sha256": "5a9b69a0eccba632b7db5278026c2a669a0caa5eb6a92209964afbd8d63e388e",
+          "new": true
+        }
+      ],
+      "patch_sha256": "74f1b166d322375eaa404e49afed76d938f496f34200dd562f1e5e8f4762f358",
+      "F_R_F0_fmt": true
+    },
+    "CLEAN": {
+      "base": "0c2ff5913a3b813de8831835dec75eae8cf2630d",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/tests/wasm_tiers.rs",
+          "before_sha256": "dbd5a840bab15ceb81c97eca12a398c393509d8219c0f3d33b66be65d5c47ee1",
+          "after_sha256": "bb5d105054b3c06087780843693713f841f8e190703715e6036890713002896b",
+          "new": false
+        },
+        {
+          "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+          "before_sha256": "d569ca97e087c74f92fa44112e294e1f1a3dfd2c4acfc409285cd12b00a00a21",
+          "after_sha256": "b2f5d20f6e7b0403dcb88275432af3cedc018e24468a7e50d81bd0f6c83aca56",
+          "new": false
+        },
+        {
+          "path": "rust/tcl-compiler/src/codegen/wasm/pipeline.rs",
+          "before_sha256": "346daf83fe2af6c358690a0a1ac767bb5b9d34c8b488fb42021cfb4da0ab7687",
+          "after_sha256": "cbdb6dfccd19e69ce3a80767a99920fc3029b4dd50734c3d95c1f2c443f3c432",
+          "new": false
+        },
+        {
+          "path": "rust/tcl-compiler/tests/common/native_whole_program.rs",
+          "before_sha256": null,
+          "after_sha256": "5a9b69a0eccba632b7db5278026c2a669a0caa5eb6a92209964afbd8d63e388e",
+          "new": true
+        }
+      ],
+      "patch_sha256": "97a3e7a7b3825fe4708898256396c6caf51afd8747986741346928d56e3e5435",
+      "F_R_F0_fmt": true
+    }
+  },
+  "scope": "Fixture-only actual NativeEntry issuance for existing executable whole-program Native/framing positives. Preserve all source programs/output/plan assertions/framing goldens and static refusal units. No conditional body promotion or production/public API change. Actual efficacy UNRUN.",
+  "new_dependency_intent": {
+    "path": "rust/tcl-compiler/tests/common/native_whole_program.rs",
+    "reason": "Moved exact existing wasm_real_link actual original-source entry capture and retained VM owner, shared only by the two integration targets; existing selected-test source guards must bind this new direct helper when root authorizes integration."
+  }
+}

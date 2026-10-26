@@ -1,0 +1,84 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T21:15:00.352937+00:00",
+  "scheduled_report_utc": "2026-10-26T21:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T21:45:00+00:00",
+  "change_since_previous_report": [
+    "2045 official report written actual20:45:05 A5bbb32ce, normal push35bcaee4 confirmed20:45:51; next2115 timer21208 recorded immediately. All internal headers under60min, externalBIGIP/perf stale flagged/no takeover.",
+    "Current150 actual digest discrepancy reconciled by full boundary successor780f701a and finalindex37c80e94:137P11F2UNRUN, all315groupsclosed, exactZIP/API97f18c1b; v1shadowedoutputfieldpreserved. BothcorpusUNRUNaftersharedbudget, dedicatedmodeunderCompilerpeer.",
+    "C4157 prep fully authenticated21a87515 setupPASS0/exactgateFAIL2 same double smoke; only finaldirty rawidentifierPythonformat724B AST-identical3fde4491, Codegen owns minimalformattercarry.",
+    "New fixture entry+helper independentlyclear2ebb52cc applied WORKfcc2aa/CLEANbac2e87; WORK-onlyfive-siteschedulerobserverclear8de78021 applied495bcee. No production/API/assertion/golden/guardchange fromfixture; actualNativeefficacyUNRUN. One-map WASMhelper dependency authorized.",
+    "Wholeformat369c local check initialcommanddiscoveryerror then100sINCOMPLETE; own orphancheckformatter1515956 terminated onlyafterexe/check/cwdverification, sourceclean. Standaloneunreached. No formatgateclaim.",
+    "Layoutv4 currentdocrefresh607efb16 LSPpeer4d2c86a3clear; sameRustV3, exact4registrykeysacross2parentmaps requested. Dedicated11 fresh2ELFtransport beingimplemented, all11UNRUN. Rootholdingcanonicalsource495untilfocusedmodePOSTs.",
+    "Final495 sourcepin union master99c571fc/patchbec94468 prepared14files/24refresh+1explicit WASMhelper dependency. Root independent fullJSON/ASTinverse PASS withall24preimages/row/env/budget/historypreserved; Compilerpeerpending before canonicalapply/V15/freshpush/focused5POSTs.",
+    "Final495 union applied7ecd81eb afterCompiler9cc60b76+Rootindependentinverse. ActualV15PASS13startup/30runners/21wholeguards, zero failures. Focused wave is FOURmodePOSTs producing SEVENjobs: startup/Core2,hostBrowser/Unit/WASI3,WASM1,Spec1. Earlier shorthand fivePOSTs referred incorrectly to fiveLSPscopes; no duplicate Core mode is launched. Fresh-source push pending.",
+    "Focused7ecd ALL4POSTs complete before sourceunfreeze,7jobsactuallyinprogress20:51. Startup/Core40399369923,hosts40399382734,WASM40399391998,Spec40399408829; exactjobsourceownership recordedroot-current7ecd-mode-jobs.json. No activepriorjobcancelled; old9fd terminalverified.",
+    "Layoutv4 reviewedsource appliedWORK68c6ca95/CLEAN0237a43f afterallPOSTs. Runtime guards/originalassertions preserved, genuineCore+Jimsourceprojectiononly. Exact4registrydependencykeys explicitlyauthorizedLogical3/Jim; dedicated11 driverunderCompiler+Codegenpeer,10800sabsolute/190minjob and10160conservativereservation/per-row40cleanup. All11actualpostfixUNRUN.",
+    "DedicatedcorpusV2 independentlyclearacf9207d appliedWORK75fc9f92 (no old150 changes), pairedAST-onlyparserformat appliedWORK86536966/CLEAN7a199fc1, exact prepformatdrift sourcefixed/unrun.",
+    "Guardedfour-oldELFrecovery removed579222552B, allages>81h,3build+2fd/exe/inode-map scans perfile, prehash/mtime/nlink; workspacefree2808512512B. Sources/oracles/fixtures/logs/evidence/currenttargets retained.",
+    "V16 adoptedRootindependent fullbyteinverse SHA065d964b addsONLY Layout descriptor toOLD_NAMES/REQUIRED_WHOLE; oldV15cee486 intact. ActualV16executionpendingnewdescriptor.",
+    "Allrecordedstandalonelintsourcecohortscomplete aftermixed33v12 independent522c3009; appliedWORKabc36e02/CLEANd531c8cf, actualRust/ClippyUNRUN. Fresh-fetchshallow normalpushconfirmedboth21:02. Nextstrictwillmeasureentirefrontier, no inferredwarningfreeclaim.",
+    "Releaseeditorialboundedreport5bf81af3 foundactualobsoleteexternalrecordlocator in scalarcontract. Rootrelease-onlycleanupCLEANeadf42c4d statescurrentnullissuerrequirement, entirefollowingABIwidth/unsupported/Jimrefusalcontract unchanged; functionalWORK unaffected. Fullrepository-wideeditorial remainsopen.",
+    "Namesreport-onlyinheritedbodycustodyrepair1f35d594 frozen3paths/lane incl3negative/positivecontrols; Compilerstrongpeerunderway. No genericAuthored/Loadediterator/matcher/Eq/Nativeguardchange. Actualcorpus/parity/performanceUNRUN.",
+    "Current21:10 source/gate narrative refreshed;29small immutable sourcepatches/manifests/application+validation+reclaimreceipts mirroredtoWORK-only current-2115-checkpoint187740B, noZIP/ELF/fullartifactcopy and no releaseinclusion.",
+    "Newfocused7ecd BrowserFULLAUTH0f93d1e original24priorPASS/same3softfailures,loaded49direct-procedure-owner renamefailureunchanged. CoreFULLAUTHb143af9e old8ALLPASS inclDefaultminify2; source4same2P2F, actualfirstfalseNOWpair.value-advice (notoldpair.advice); namespace609entryNone remainsprechild.",
+    "Newfocused7ecdWASI FULLAUTH3c0862c3 old9priorPASS/host112refs2, renameid12conditionaladviceunavailable/app3ownersincomplete; opaque77unreached. No measuredreadonlysourcegain donatedtoNative/editpermission. Startup/Unit remainactive; LSPownsexactinnerSourceValueadvicefailureaudit.",
+    "Default153newcustody3 independentlyclearc34b72d7 appliedafterLayoutV2; old147/reportrepeat/new3/corpus2orderpreserved, dedicatedearlyexitsunchanged. Fulltypednewcontrols actualUNRUN. NamesgenuineNativeentrysmokefixturec14a666a frozenCodegenpeer; originalscript/assertionskept."
+  ],
+  "committed": [
+    "5bbb32cefb887e9f42bf97469bfeb27aefcd8ad6"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticate current compiler150 and exact C4157 prep; repair observed compiler/LSP producer failures WORK first, reviewed carries to release.",
+    "Complete remaining33 lint source fixes; refresh exact24-map current-source pins and run next strict/focused gates.",
+    "Establish full-report corpus parity, accepted shipping Tcl performance, current origin/rust zero PASS-to-FAIL, all required green and final release documentation/comments/generated/package/squash checks before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2548686848,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

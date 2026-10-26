@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-26T20:51:56.243952+00:00",
+  "source": "7ecd81eb3255a83a44e3875e044cddf134ef0d5d",
+  "mode_requests": [
+    {
+      "previous_run": "40388588739",
+      "mode": "lsp-startup-diagnostics",
+      "label": "current7ecd-startup",
+      "receipt": "DISPATCHED lsp-startup-diagnostics 7ecd81eb3255a83a44e3875e044cddf134ef0d5d\n"
+    },
+    {
+      "previous_run": "40388592796",
+      "mode": "lsp-host-navigation-diagnostics",
+      "label": "current7ecd-hosts",
+      "receipt": "DISPATCHED lsp-host-navigation-diagnostics 7ecd81eb3255a83a44e3875e044cddf134ef0d5d\n"
+    },
+    {
+      "previous_run": "40388694328",
+      "mode": "wasm-real-link-diagnostics",
+      "label": "current7ecd-wasm",
+      "receipt": "DISPATCHED wasm-real-link-diagnostics 7ecd81eb3255a83a44e3875e044cddf134ef0d5d\n"
+    },
+    {
+      "previous_run": "40388589215",
+      "mode": "spectcl-fold-diagnostics",
+      "label": "current7ecd-spec",
+      "receipt": "DISPATCHED spectcl-fold-diagnostics 7ecd81eb3255a83a44e3875e044cddf134ef0d5d\n"
+    }
+  ],
+  "expected_jobs": 7,
+  "old_healthy_jobs_preserved": true,
+  "source_freeze_released_after_all_requests": true
+}

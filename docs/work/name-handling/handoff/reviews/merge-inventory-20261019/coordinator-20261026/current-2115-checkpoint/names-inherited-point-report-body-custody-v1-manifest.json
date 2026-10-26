@@ -1,0 +1,77 @@
+{
+  "scope": "Report-only allocated inherited-point body custody; preserve generic Authored/Loaded membership, Native/frame/completion/global Eq/hash/cachecutoffs and every original assertion. Actual current150 capture.bodies refusal narrowed to inherited allocated membership.",
+  "lanes": {
+    "WORK": {
+      "base": "68c6ca95e172c1eb9e7f7828ebc95f3bab72ee38",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          "before_sha256": "a981896963d87c0464325a8a3549a2fcb8987750ddbb6062f1d1f7bda57072f8",
+          "after_sha256": "7511016f6537f755a59fe0559b4dfea07209535bc9fdeb6cfa0a77897dbbd205",
+          "operation": "modify"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs",
+          "before_sha256": null,
+          "after_sha256": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
+          "operation": "create"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "before_sha256": "2ca7b08cb1474fa5700b26acff49ebea3fdb8d0565ab2a3de04f51be50fab5a1",
+          "after_sha256": "f2919bda0850cc0f6f2fd54fc88837686138b4d24e27ed301b03a94688800797",
+          "operation": "modify"
+        }
+      ],
+      "patch_sha256": "6a956fd591ff4eb41ea3eba236269e50c9ba91e18ace45e8d8792343c634e4d0",
+      "all_current_preimages": true,
+      "F_R_F0_whitespace_error": true,
+      "rustfmt3": [
+        "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+        "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs",
+        "rust/tcl-compiler/src/command_binding/retained_source.rs"
+      ]
+    },
+    "CLEAN": {
+      "base": "0237a43f2100f78c5639164db5ca139f09c2b08c",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          "before_sha256": "b8906b6104fbd32a0c340e91881670cbfbbf634e9ec975d660315112cb9b5557",
+          "after_sha256": "cd3212a3566b01ee5c592bc00c295010cfcade895f98d89372e5ac67ef0766ce",
+          "operation": "modify"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs",
+          "before_sha256": null,
+          "after_sha256": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
+          "operation": "create"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "before_sha256": "9b84339fc6608f4de462e684c495019598d0320f20632802f65672cba0435789",
+          "after_sha256": "10478e11babf30aa102638f7e52106d9477e557e59f228ef77392beb275748b1",
+          "operation": "modify"
+        }
+      ],
+      "patch_sha256": "908dc5b1d4d07843049eec3a5a40af4acdcc057ff05bd58b7cda3b633b1b20a3",
+      "all_current_preimages": true,
+      "F_R_F0_whitespace_error": true,
+      "rustfmt3": [
+        "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+        "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs",
+        "rust/tcl-compiler/src/command_binding/retained_source.rs"
+      ]
+    }
+  },
+  "actual_evidence": "compiler-original150-40388590997 REPORT_BODY_CANDIDATE allocated=true, InheritedPoint source; generic original_source_procedure_bodies allocation path rejects inherited kind; no REPORT_BODY_PUSH. Earlier empty-body simple reports/current-output successful.",
+  "mechanics": "All6current Rust preimages/createabsence, F/R/F0 with whitespace error, fmt6; entire retained parent inverse and entire body-report module outside three narrowly changed functions exact. Independent strong semantic/type review required.",
+  "tests": [
+    "command_binding::retained_source::inherited_point_report_tests::inherited_allocated_report_custody_keeps_generic_membership_closed",
+    "command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_foreign_entry_store_and_detached_body",
+    "command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_changed_header_source_namespace_and_allocation"
+  ],
+  "test_obligations": "Existing Memo8 strict warm/cold/report Equal control unchanged, both original124 corpusinputs still required without trim; new3 custody/generic-membership/foreign/corruption controls UNRUN. No positivity/parity/performance accepted.",
+  "runtime": "UNBUILT/UNRUN; no localbuild/canonical edits/dispatch",
+  "authority": "Retained current module/pointer exact body, full metadata/Registry/incoming point/settings/rootArc/card allocation/source/formal/default/header/ns/census joins. Borrowed original cards source-only, unique current full card required; no runtime registration or source-spelling donation."
+}

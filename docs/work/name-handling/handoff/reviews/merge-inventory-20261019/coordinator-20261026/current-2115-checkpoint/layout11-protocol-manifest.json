@@ -1,0 +1,55 @@
+{
+  "utc": "2026-10-26T20:59:54.809547+00:00",
+  "conditional_protocol_prerequisite": {
+    "packet": "ccg-dedicated-source-point-corpus2-protocol-work-v2",
+    "manifest_sha256": "64825d474900cf3785d2b46822fef401e245f6e9064b38c995b4e609bc26f702",
+    "basis": "EXACT corpus V2 AFTER images, not claimed present in old Git"
+  },
+  "source_prerequisite": {
+    "packet": "compiler-authored-jim-procedure-layout-paired-v4",
+    "manifest_sha256": "607efb16fca7479f249f41d7de2b0ba387f02e7d32c90b2c30f53c5bb9457758",
+    "independent_peer_sha256": "4d2c86a3a2fd3714ffb6960ebd49b63de03fe66fa40756413f0fd52660afa800"
+  },
+  "files": [
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "before_sha256": "029767dd58fcb3c49bb56be3b4664b16ee3e8bf6f6ef0cc42280a656837a0c45",
+      "after_sha256": "6ec137ce45703d3cbe53ca99428cffbb6cbca02e1dc1cf246b3f773516b9ccea",
+      "new": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+      "before_sha256": null,
+      "after_sha256": "674dbabcca3e63a74d19126c847b1d31282d10f459389e81c379e13062f76a0c",
+      "new": true
+    },
+    {
+      "path": ".github/workflows/perf.yml",
+      "before_sha256": "78808bcc4f698bc94eefdd1c6230e4a6b20366c395c0a7815d75e20811e4b3ae",
+      "after_sha256": "f1379c251efa03ef4333543d5e376a34f7a7d9ac901b4923c8856bfad930c952",
+      "new": false
+    }
+  ],
+  "patch_sha256": "2e60530cf64d13215fe5565bae29c5b9ac44a3cbaa2fde50b34e86b09ce439d9",
+  "expected": {
+    "filters": 11,
+    "compiler": 3,
+    "registry": 8,
+    "new_registry_controls_unrun": 4
+  },
+  "approved_dedicated_scheduling": {
+    "absolute_seconds": 10800,
+    "workflow_minutes": 190,
+    "full_reservation_seconds": 10160,
+    "existing_modes_absolute_seconds": 3600,
+    "existing_modes_workflow_minutes": 70
+  },
+  "dependency_notes": "One new dedicated Layout descriptor creates25 JSON files; its source_pins bind only exact3 test modules. Root approved4 additional registry leaf keys in existing Logical3/Jim maps; Codegen final current-source/derived guard union must bind those after source/protocol integration, with no broad fanout. No current outcome transferred.",
+  "unrun": [
+    "Actual Cargo/build/ELF/selector executions",
+    "registry4 new controls and original3 post-fix efficacy",
+    "final adopted sourcepin/derived guard composition"
+  ],
+  "predecessor_manifest_sha256": "2cd35febcb779a8463a27ef5573dcc57fbe36b71cf1d44bd37f11d908af73ad6",
+  "delta": "Layout-only full build/list/cleanup admission added at each actual target build so existing min(seconds,available) cannot silently clip2400 build budget. Default/corpus byte behavior unchanged."
+}

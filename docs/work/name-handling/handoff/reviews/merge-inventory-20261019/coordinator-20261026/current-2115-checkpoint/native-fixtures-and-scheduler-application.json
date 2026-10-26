@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-26T20:46:38.464617+00:00",
+  "rows": [
+    {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "packet": "/workspace/naming-proof-storage/root-ccg-native-tier-genuine-entry-fixtures-v1-application/WORK",
+      "receipt": "[work fcc2aa076] test: retain genuine native entries in whole-program fixtures\n 4 files changed, 179 insertions(+), 119 deletions(-)\n create mode 100644 rust/tcl-compiler/tests/common/native_whole_program.rs\n{\"utc\": \"2026-10-26T20:46:33.640369+00:00\", \"head\": \"fcc2aa076273bc8c5d344201f3173c4269102174\", \"patch_sha256\": \"74f1b166d322375eaa404e49afed76d938f496f34200dd562f1e5e8f4762f358\", \"manifest_sha256\": \"0387ba0929ff348cb61d499f49e9672eec03744be2238b3edde6b60d27e3ac24\", \"files\": 4, \"runtime_or_gate_admission\": false}\n"
+    },
+    {
+      "repo": "/workspace/naming-lsp-release/tcl-lsp",
+      "packet": "/workspace/naming-proof-storage/root-ccg-native-tier-genuine-entry-fixtures-v1-application/CLEAN",
+      "receipt": "[release/lsp-naming bac2e87df] test: retain genuine native entries in whole-program fixtures\n 4 files changed, 179 insertions(+), 119 deletions(-)\n create mode 100644 rust/tcl-compiler/tests/common/native_whole_program.rs\n{\"utc\": \"2026-10-26T20:46:34.786225+00:00\", \"head\": \"bac2e87df7699cf848d9655ecd11e8c6d0dc219a\", \"patch_sha256\": \"97a3e7a7b3825fe4708898256396c6caf51afd8747986741346928d56e3e5435\", \"manifest_sha256\": \"520581f98db4ea1db695d40d69edb41433b8883f0b30f75836cdbbe38097da17\", \"files\": 4, \"runtime_or_gate_admission\": false}\n"
+    },
+    {
+      "repo": "/workspace/naming-migration-publish/tcl-lsp",
+      "packet": "/workspace/naming-proof-storage/root-lsp-diagnostic-admission-provenance-application",
+      "receipt": "[work 495bcee0d] trace: identify diagnostic scheduler admission paths\n 1 file changed, 31 insertions(+), 5 deletions(-)\n{\"utc\": \"2026-10-26T20:46:38.338512+00:00\", \"head\": \"495bcee0d63beea1143d75a382a50a129d5f030d\", \"patch_sha256\": \"c50882b4cbb0ccdc0c3d67c517694dcbec95ad2620a17d8164ddaaf0ff6b3df0\", \"manifest_sha256\": \"0db5954678c97fa7ebb517d413f424bc7a307cfde8e3617681e5c75b5bf36c58\", \"files\": 1, \"runtime_or_gate_admission\": false}\n"
+    }
+  ],
+  "gate_admission": false
+}

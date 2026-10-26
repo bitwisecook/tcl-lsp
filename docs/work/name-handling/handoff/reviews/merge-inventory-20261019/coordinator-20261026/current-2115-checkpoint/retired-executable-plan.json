@@ -1,0 +1,43 @@
+{
+  "utc": "2026-10-26T20:57:00.786051+00:00",
+  "scope": "Only four obsolete derived test/probe ELFs from frozen old A product. Current validation uses freshly built hosted ELFs; sources, fixtures, oracles, logs, receipts and current targets retained.",
+  "files": [
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/zz_ccg_fold_probe-201ad6e95391feb4",
+      "bytes": 153938056,
+      "inode": 279219,
+      "device": 27,
+      "mtime_ns": 1792687996704218644,
+      "sha256": "ecca96266cd3d8a2e30c5e4a80cee60bd1f8bbfbe98923764c2f239b22b06a93",
+      "age_seconds": 360215.2302799225
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/zz_compiler_resume_probe-48e10932545341e8",
+      "bytes": 139340992,
+      "inode": 279231,
+      "device": 27,
+      "mtime_ns": 1792690096889475580,
+      "sha256": "0e09040aa4dc74d82ce3635f0e7a00675d0835ffcfb0ea16ba1e839ef369c5cb",
+      "age_seconds": 358116.09606289864
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/zz_compiler_names_r1_probe-947c60f2466cf643",
+      "bytes": 130200544,
+      "inode": 281199,
+      "device": 27,
+      "mtime_ns": 1792689796276891600,
+      "sha256": "a3fbe9f853ec56873a8bcbf2eb78118318dfb7adbb602f737424ea952af94f76",
+      "age_seconds": 358419.7679364681
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/pack_source_e2e-626cf81c5174631c",
+      "bytes": 155742960,
+      "inode": 298289,
+      "device": 27,
+      "mtime_ns": 1792756345365777000,
+      "sha256": "6781b0daa5951748143281b1112748a58b45207858bd2685a6233d3c512fa9ec",
+      "age_seconds": 291875.41799640656
+    }
+  ],
+  "bytes": 579222552
+}

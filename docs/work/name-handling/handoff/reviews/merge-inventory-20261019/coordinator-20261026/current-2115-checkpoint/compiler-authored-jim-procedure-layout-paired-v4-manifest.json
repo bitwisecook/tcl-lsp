@@ -1,0 +1,51 @@
+{
+  "utc": "2026-10-26T20:46:06.854209+00:00",
+  "lanes": {
+    "WORK": {
+      "base": "35bcaee4dfceb66bd0347fce215f8e54e3e53dc7",
+      "files": [
+        {
+          "path": "rust/tcl-registry/src/native_procedure.rs",
+          "before_sha256": "4926a056f44610c1dcf1654360f6653e2c7600e9e783928750fa3d5def93f4c1",
+          "after_sha256": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b"
+        },
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "before_sha256": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945",
+          "after_sha256": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867"
+        },
+        {
+          "path": "docs/design/contracts/name-handling.md",
+          "before_sha256": "698b8e956548fafc68a80b0068c78ee8caef358ac124c60025bf2cc449a8fd4a",
+          "after_sha256": "21fd7ee1617ee72c5ee2c70ed288a2f19e8222fdfc38e3268951325d7dfeb82f"
+        }
+      ],
+      "patch_sha256": "6d7ecdccec4bf131d3fe991b6c4c97982b99806b0e48167852f1a1c8eafb2717"
+    },
+    "CLEAN": {
+      "base": "369c706e0c8fe5a2c14fb3d95da300d16ff2ff02",
+      "files": [
+        {
+          "path": "rust/tcl-registry/src/native_procedure.rs",
+          "before_sha256": "b901a894fb39381e429fc92e4a7231af6df654d91eebe1089f530c03f7064f53",
+          "after_sha256": "0bffbcb683e0277d6dbbfad9a42c192ef93d3c8e1fa4eac2c1cc7ec13bf1817a"
+        },
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "before_sha256": "68ba9a0d9204127098b5d6d1104c574483346852572e44ee8090137cb1fc9b74",
+          "after_sha256": "132fb15d5a4d6393910d5ebb65a46c0a3555ed7c753a952e806c015e6fff762a"
+        },
+        {
+          "path": "docs/design/contracts/name-handling.md",
+          "before_sha256": "4466edd6968ebd86340a1fa4d6e26fefd9b4fe181c8fed26172e5190d1d2f241",
+          "after_sha256": "f98ea20f27f4389a4f12708012b169c2f41cc1cc8bd1b958c4581e46925c7c47"
+        }
+      ],
+      "patch_sha256": "be94efd9330c2ac4f4210e96a38cf9bd274fa06d55f1575edad0be300e3b9233"
+    }
+  },
+  "scope": "NEXT source-only selected Core+actual Jim3/4 positional projection. Non-Jim/unknown dialect and configured Hook-only source behavior unchanged; every existing Layout3 assertion preserved. Shared pure positional kernel preserves Native argv/result selection. No Native successful definition/frame/admission/installation grant.",
+  "status": "v3 source-identical; shipping-doc preimage refreshed only; all actual controls remain UNRUN",
+  "predecessor_manifest_sha256": "d0a38130ba2e79e58fd99787cd59875c22a92f07650b70c7d3bd26704133a30b",
+  "predecessor_independent_source_peer_sha256": "998e08b127f9bbabfd0f6e935f9821acc3fb5b6be0a3b56b83cd97339d88becf"
+}

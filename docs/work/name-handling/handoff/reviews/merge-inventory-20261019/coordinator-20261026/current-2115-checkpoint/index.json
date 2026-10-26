@@ -1,0 +1,180 @@
+{
+  "utc": "2026-10-26T21:10:00.000745+00:00",
+  "scope": "WORK-only reviewed changes, validation qualification and explicit open obligations. No audit admission or release evidence inclusion.",
+  "files": [
+    {
+      "path": "compiler150-final-index.json",
+      "source": "compiler-original150-40388590997/final-authentication-index-v1.json",
+      "bytes": 3875,
+      "sha256": "37c80e947ad84447df6d823458ab72c5f0751f4fab20fdf38526716dda8b15f0"
+    },
+    {
+      "path": "compiler150-digest-correction.json",
+      "source": "compiler-original150-40388590997/native-boundary-digest-correction.json",
+      "bytes": 645,
+      "sha256": "520cc7ed216a6b95a84dd966d9e5a3d72a80f10b426a088fd211978e1d1baefe"
+    },
+    {
+      "path": "release-prep-authentication.json",
+      "source": "names-prep-pr-40388699961-actual-v1/authentication.json",
+      "bytes": 6262,
+      "sha256": "21a875154d19bd50aa79b43ee2f224ec0701adc56c4484400fbfea522c191d79"
+    },
+    {
+      "path": "focused-dispatch-complete.json",
+      "source": "root-focused7ecd-all-posts-complete.json",
+      "bytes": 1162,
+      "sha256": "bf0907bf43e7bcd9bdd84f1927c9f9f1b609417c09f8528b467b8d8b8eea9133"
+    },
+    {
+      "path": "focused-mode-jobs.json",
+      "source": "root-current7ecd-mode-jobs.json",
+      "bytes": 2226,
+      "sha256": "766649ce7e41cfa1786ae812da66317f50448c77f25272189ef0eaccd5ee674e"
+    },
+    {
+      "path": "layout-source-application.json",
+      "source": "root-layout-v4-application-receipt.json",
+      "bytes": 1603,
+      "sha256": "315791cf29b314c86a83d301481bedba806073af87a9f3c3e5d02a64ada4213c"
+    },
+    {
+      "path": "native-fixtures-and-scheduler-application.json",
+      "source": "root-native-fixtures-and-scheduler-observer-cohort.json",
+      "bytes": 2268,
+      "sha256": "3edf54416a44b64f3ce9133c1aa52973e3e3ae199d32d0f918b82390c7924624"
+    },
+    {
+      "path": "corpus-and-parser-application.json",
+      "source": "root-corpus-mode-and-parser-format-cohort.json",
+      "bytes": 2022,
+      "sha256": "99f595948a7576e0669b5414400d9f5162edd9f302d50e58f1ee3a5f09cc2039"
+    },
+    {
+      "path": "runtime-lint-final-application.json",
+      "source": "root-runtime-mixed33-v12-application-receipt.json",
+      "bytes": 1323,
+      "sha256": "89be69a164fe8e4fb619fd49d1be3acfc2d38ca4536563692340e5bc95b5721f"
+    },
+    {
+      "path": "report-custody-application.json",
+      "source": "root-inherited-report-body-custody-application-receipt.json",
+      "bytes": 1556,
+      "sha256": "a7d0beb8530b6c3b0bc416c869e6aed424a84adcf9a49ddbf6b9a18128e367cd"
+    },
+    {
+      "path": "release-contract-cleanup.json",
+      "source": "root-release-scalar-contract-locator-cleanup.json",
+      "bytes": 594,
+      "sha256": "7ae89fb36e6c887563e38e629757662e4eda26ffaae15d65f3687dc164d25de9"
+    },
+    {
+      "path": "preflight-v16-adoption.json",
+      "source": "root-preflight-v16-additive-layout-inventory-peer.json",
+      "bytes": 474,
+      "sha256": "8762beac524e938fb711a9607ec52bb6848bf849990d4bb631e8ed3af5a47bbb"
+    },
+    {
+      "path": "source-pin-union-root-review.json",
+      "source": "root-final495b-union-json-ast-audit.json",
+      "bytes": 1639,
+      "sha256": "ce5074f72f5ffe87df942001e2894ef645ab1c26ae5864bb2def12cca0be3c5e"
+    },
+    {
+      "path": "retired-executable-plan.json",
+      "source": "root-frozen-old-four-elf-plan-2057.json",
+      "bytes": 1739,
+      "sha256": "c2c068c71e728aaa8127fe22dc3a8518378b6479f58a6cc51932e871e23d4710"
+    },
+    {
+      "path": "retired-executable-receipt-0.json",
+      "source": "root-frozen-old-four-elf-reclaim-0.json",
+      "bytes": 4512,
+      "sha256": "23e6c78fe0c4adcaaf5a6d7a0e3196702a924641ad68ac8ed6f1bf91d5b85370"
+    },
+    {
+      "path": "retired-executable-receipt-1.json",
+      "source": "root-frozen-old-four-elf-reclaim-1.json",
+      "bytes": 4520,
+      "sha256": "5581ad1b0d47bae6b9c67ba27111556f260226df2350c205ba76ccfb92855f4b"
+    },
+    {
+      "path": "retired-executable-receipt-2.json",
+      "source": "root-frozen-old-four-elf-reclaim-2.json",
+      "bytes": 4521,
+      "sha256": "5cae955456126797705f085802fc30b7176f53e875f0b867b23bb3dffdbc8fbd"
+    },
+    {
+      "path": "retired-executable-receipt-3.json",
+      "source": "root-frozen-old-four-elf-reclaim-3.json",
+      "bytes": 4511,
+      "sha256": "4134095662f9dfa2932cc940361fd52f6b160bcd65aaf66ebeb6ef008720f59b"
+    },
+    {
+      "path": "names-inherited-point-report-body-custody-v1-manifest.json",
+      "source": "names-inherited-point-report-body-custody-v1/manifest.json",
+      "bytes": 4901,
+      "sha256": "1f35d5949087aea70b8e8e2582173af9bbbdb7c623c45ccb36d3388192acb232"
+    },
+    {
+      "path": "names-inherited-point-report-body-custody-v1-WORK.patch",
+      "source": "names-inherited-point-report-body-custody-v1/WORK/proposal.patch",
+      "bytes": 13506,
+      "sha256": "6a956fd591ff4eb41ea3eba236269e50c9ba91e18ace45e8d8792343c634e4d0"
+    },
+    {
+      "path": "names-inherited-point-report-body-custody-v1-CLEAN.patch",
+      "source": "names-inherited-point-report-body-custody-v1/CLEAN/proposal.patch",
+      "bytes": 13506,
+      "sha256": "908dc5b1d4d07843049eec3a5a40af4acdcc057ff05bd58b7cda3b633b1b20a3"
+    },
+    {
+      "path": "compiler-authored-jim-procedure-layout-paired-v4-manifest.json",
+      "source": "compiler-authored-jim-procedure-layout-paired-v4/manifest.json",
+      "bytes": 2748,
+      "sha256": "607efb16fca7479f249f41d7de2b0ba387f02e7d32c90b2c30f53c5bb9457758"
+    },
+    {
+      "path": "compiler-authored-jim-procedure-layout-paired-v4-WORK.patch",
+      "source": "compiler-authored-jim-procedure-layout-paired-v4/WORK/proposal.patch",
+      "bytes": 16400,
+      "sha256": "6d7ecdccec4bf131d3fe991b6c4c97982b99806b0e48167852f1a1c8eafb2717"
+    },
+    {
+      "path": "compiler-authored-jim-procedure-layout-paired-v4-CLEAN.patch",
+      "source": "compiler-authored-jim-procedure-layout-paired-v4/CLEAN/proposal.patch",
+      "bytes": 16309,
+      "sha256": "be94efd9330c2ac4f4210e96a38cf9bd274fa06d55f1575edad0be300e3b9233"
+    },
+    {
+      "path": "ccg-native-tier-genuine-entry-fixtures-v1-manifest.json",
+      "source": "ccg-native-tier-genuine-entry-fixtures-v1/manifest.json",
+      "bytes": 3392,
+      "sha256": "c124918c81c3ae5a699a7d06de2a6741db86936bff987e9f3389408d22ebdc4e"
+    },
+    {
+      "path": "ccg-native-tier-genuine-entry-fixtures-v1-WORK.patch",
+      "source": "ccg-native-tier-genuine-entry-fixtures-v1/WORK/proposal.patch",
+      "bytes": 15310,
+      "sha256": "74f1b166d322375eaa404e49afed76d938f496f34200dd562f1e5e8f4762f358"
+    },
+    {
+      "path": "ccg-native-tier-genuine-entry-fixtures-v1-CLEAN.patch",
+      "source": "ccg-native-tier-genuine-entry-fixtures-v1/CLEAN/proposal.patch",
+      "bytes": 15226,
+      "sha256": "97a3e7a7b3825fe4708898256396c6caf51afd8747986741346928d56e3e5435"
+    },
+    {
+      "path": "layout11-protocol-manifest.json",
+      "source": "compiler-jim-source-layout11-protocol-work-v2/manifest.json",
+      "bytes": 2723,
+      "sha256": "ec391e64af226671439441d875001be2700dbfb25797c64a41ef98cd727ff096"
+    },
+    {
+      "path": "layout11-protocol.patch",
+      "source": "compiler-jim-source-layout11-protocol-work-v2/proposal.patch",
+      "bytes": 38267,
+      "sha256": "2e60530cf64d13215fe5565bae29c5b9ac44a3cbaa2fde50b34e86b09ce439d9"
+    }
+  ]
+}

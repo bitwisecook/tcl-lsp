@@ -1,0 +1,28 @@
+{
+  "utc": "2026-10-26T20:49:43.754405+00:00",
+  "source": "495bcee0d63beea1143d75a382a50a129d5f030d",
+  "result": "PASS",
+  "manifest_sha256": "99c571fc0ac1efe49500897e561c117fab1c658938a8a2c22c40c6769fa549f8",
+  "patch_sha256": "bec94468abecad48ab55f6a0ae735adedb824a3d7f17221aaaa52c359e55275a",
+  "files": [
+    "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+    "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+    "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+    "docs/work/name-handling/validation-tools/source-point-complete-text-corpus2.json",
+    "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+    "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+    "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+    "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py",
+    "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py"
+  ],
+  "source_refreshes": 24,
+  "actual_approved_missing_dependencies": 1,
+  "all24_preimages_verified": true,
+  "inverse_restores_all_rows_env_budgets_and_historical_records": true,
+  "runtime_acceptance": false
+}

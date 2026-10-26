@@ -1,0 +1,55 @@
+{
+  "utc": "2026-10-26T20:47:04.188224+00:00",
+  "run": 40388590997,
+  "job": 121803306782,
+  "source": "9fd86d5d0f60f2a54e5a45422f83104655152cb6",
+  "artifact": 12686850141,
+  "zip_bytes": 12470573,
+  "zip_sha256": "97f18c1b6651b5788a2b7e8888cd02d62777046c72494de56008ba45410b46db",
+  "assessment_sha256": "49a41d01a9e38db67ad0453aad6402e4dab43a62bc2f27a4c4920abac3c3dbcc",
+  "native_boundary_successor_sha256": "780f701a8bd1cdde2e2e342c6b850ac3a4707746417b939d0d27eaa923e8ebe3",
+  "superseded_native_boundary_v1": "Output zip_sha256 overwritten by later source pin loop variable; all initial ZIP/API checks passed. Immutable v2 reruns all validations with separate zip_digest.",
+  "actual_observations": {
+    "PASS": 137,
+    "FAIL": 11,
+    "UNRUN": 2
+  },
+  "observations_not_distinct_tests": 150,
+  "owned_processes": 315,
+  "closed_owned_processes": 315,
+  "build_diagnostics": [],
+  "final_guard_errors": [],
+  "first_error": "RuntimeError('insufficient shared time for full separate corpus list/test/cleanup budgets')",
+  "report_first_refusal": {
+    "raw_line": 148,
+    "text": "REPORT_CAPTURE stage=capture.bodies available=false"
+  },
+  "report_first_refusal_scope": "Later capture.bodies after bodies retained/positioned/source-origin/input true; does not identify inner complete-body-census leaf. Earlier output.current success is independent.",
+  "corpus2": "Both UNRUN before list/test admission because full separate budgets do not fit remaining shared absolute time; no semantic comparator result and no silent budget increase.",
+  "coverage_qualification": {
+    "nominal_original135_roster": {
+      "PASS": 130,
+      "FAIL": 5
+    },
+    "correction": "Roster membership does not prove every historical assertion unchanged. Three NativeString helper premises were explicitly corrected by recorded user decision; four cost-coverage tests have separate approved semantic-purpose mapping. Preserve those distinctions.",
+    "native_string_qualification_file": "native-string-coverage-qualification.json",
+    "approved_cost_coverage_mapping": {
+      "decision_path": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261026T143103Z.json",
+      "decision_sha256": "29da8358cc8e6bddcfc3db86a371d54fd60c5c22ea67c56c7ba4105df3b578e8",
+      "old_semantic_to_cost_selector": {
+        "classify_large_pure_leaf_one_caller_is_if_single_call": "large_body_profitability_selects_single_caller",
+        "classify_small_pure_leaf_is_always": "small_body_profitability_allows_bounded_growth",
+        "classify_threshold_boundary_is_always": "threshold_body_profitability_allows_bounded_growth",
+        "static_call_count_drives_large_proc_decision": "large_body_profitability_depends_on_static_call_count"
+      },
+      "qualification": "Changed coverage boundary approved by user; old semantic failures are not reported as passing. Existing eligibility guards and semantic refusal controls remain unchanged."
+    }
+  },
+  "limits": [
+    "No binary payload is uploaded; child ELF before/after SHA is driver-sealed from freshCargo artifact, linked to separately owned outerPython/unchangedfilter/exactselector/actualchildexit and full terminal. Independent payload rehash unavailable.",
+    "RawRUNNING without actual process/summary/terminal remains effectiveUNRUN. Interrupted child is not assertionFAIL or PASS; original58 and separate Native3/SH2/ReadFlow1 counts are separate.",
+    "No global release/Clippy/sharedprocess/performance acceptance inferred. Prior closed failures remain unless exact current selected assertions actually execute.",
+    "Only376 selected key Git contents individually rehashed; full Git file membership and source before/after hashes are checked separately. No uploaded ELF payload available to independently rehash.",
+    "No entire shipping/baseline/parity/performance acceptance."
+  ]
+}
