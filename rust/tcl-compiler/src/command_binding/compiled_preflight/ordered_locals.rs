@@ -428,6 +428,7 @@ mod tests {
 #[cfg(test)]
 mod original_native_request_fixtures {
     use crate as tcl_compiler;
+    // tcl-lsp-no-smoke-include
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/support/native_compiled_fixture.rs"
