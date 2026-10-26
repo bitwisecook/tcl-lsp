@@ -20717,6 +20717,8 @@ impl Backend {
         position: Position,
         include_declaration: bool,
     ) -> DocumentSourceResult<Vec<Location>> {
+        self.trace_host_navigation(uri, "references.retained-route", "")
+            .await;
         if let std::ops::ControlFlow::Break(selected) = tcl_lsp_core::variable_symbol::select(
             &doc.text,
             analysis,
@@ -20762,6 +20764,8 @@ impl Backend {
             .original_declaration_identity_at(uri, &doc.text, analysis, position)
             .await?
         else {
+            self.trace_host_navigation(uri, "references.identity-unavailable", "")
+                .await;
             return Ok(Vec::new());
         };
         Ok(self

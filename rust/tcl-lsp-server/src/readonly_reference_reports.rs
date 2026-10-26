@@ -1767,6 +1767,8 @@ impl Backend {
                 .capture_readonly_reference_document(&owner, source)
                 .await?
             else {
+                self.trace_host_navigation(selected, "references.document-capture-unavailable", "")
+                    .await;
                 return Ok(None);
             };
             retained.push(document);
@@ -1775,12 +1777,18 @@ impl Backend {
             .iter()
             .find(|document| document.uri.as_str() == identity.uri())
         else {
+            self.trace_host_navigation(selected, "references.owner-unavailable", "")
+                .await;
             return Ok(None);
         };
         if !identity.is_current(identity.uri(), &owner.source, &owner.analysis) {
+            self.trace_host_navigation(selected, "references.identity-not-current", "")
+                .await;
             return Ok(None);
         }
         if !original_declaration_owner_is_unique(identity, &retained) {
+            self.trace_host_navigation(selected, "references.owner-not-unique", "")
+                .await;
             return Ok(None);
         }
         let Some(report) = tcl_lsp_core::original_declaration::readonly_reference_report(
@@ -1789,6 +1797,8 @@ impl Backend {
             &owner.analysis,
             true,
         ) else {
+            self.trace_host_navigation(selected, "references.core-report-unavailable", "")
+                .await;
             return Ok(None);
         };
         let inventory = retained
@@ -1844,7 +1854,11 @@ impl Backend {
             .await?
         {
             ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
-            ControlFlow::Break(None) => return Ok(ControlFlow::Break(Vec::new())),
+            ControlFlow::Break(None) => {
+                self.trace_host_navigation(uri, "references.method-target-unavailable", "")
+                    .await;
+                return Ok(ControlFlow::Break(Vec::new()));
+            }
             ControlFlow::Break(Some(target)) => target,
         };
         let Some(owner) = target.uri().parse::<Uri>().ok() else {
