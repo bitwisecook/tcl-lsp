@@ -493,7 +493,10 @@ proc p "other {last default}" {return SECOND}"#;
                 .original_procedure_formal_name_sources(declaration, registry)
                 .expect("independent actual Logical source recipe");
             assert_eq!(
-                fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
+                fields
+                    .iter()
+                    .map(crate::signature_scan::formal_parameters::OriginalSourceFormalName::name)
+                    .collect::<Vec<_>>(),
                 expected
                     .iter()
                     .map(|name| name.as_bytes())
@@ -535,7 +538,10 @@ proc p "other {last default}" {return SECOND}"#;
             .original_procedure_formal_name_sources(declaration, registry)
             .unwrap();
         assert_eq!(
-            fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
+            fields
+                .iter()
+                .map(crate::signature_scan::formal_parameters::OriginalSourceFormalName::name)
+                .collect::<Vec<_>>(),
             [b"first".as_slice(), b"second".as_slice()]
         );
         assert!(fields.iter().all(|field| field.source_span().is_none()));
