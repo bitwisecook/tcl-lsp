@@ -15,6 +15,22 @@ const MAX_ENTRIES: usize = 16;
 const MAX_SOURCE_BYTES: usize = 64 * 1024;
 const MAX_POINTS: usize = 4096;
 
+// WORK-only isolation experiment. This changes memo retention, never source
+// authority; its workload/report results cannot certify production performance.
+fn diagnostic_source_point_memo_bypass() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        let enabled = std::env::var_os("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS")
+            .is_some_and(|value| value == "1");
+        if enabled {
+            eprintln!(
+                "SOURCE_POINT_MEMO_DIAGNOSTIC bypass=source-point-only otherwise_eligible=true fresh_process_required=true acceptance=forbidden"
+            );
+        }
+        enabled
+    })
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct SourceAnalysisCacheKey {
     source: tcl_lexer::SourceImage,
@@ -37,6 +53,9 @@ impl SourceAnalysisCacheKey {
         // Physical provider currency can change independently of an entry's
         // immutable rows. Such entries require a fresh interpretation.
         if options.native_entry.is_some() || source.len() > MAX_SOURCE_BYTES {
+            return None;
+        }
+        if options.source_point_entry.is_some() && diagnostic_source_point_memo_bypass() {
             return None;
         }
         Some(Self {
