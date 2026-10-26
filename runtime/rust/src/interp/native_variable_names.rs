@@ -382,10 +382,9 @@ impl Interp {
             }
         };
         let mut current = || {
-            selected.check(self, currency).and_then(|()| {
-                self.check_original_c_name_operation_using(&[original], stage)
-                    .map_err(Into::into)
-            })
+            selected
+                .check(self, currency)
+                .and_then(|()| self.check_original_c_name_operation_using(&[original], stage))
         };
         let _original_lifetime = obj::NativeObjectLifetime::retain(original);
         let dialect = self.native_invocation_dialect();
@@ -534,7 +533,7 @@ impl Interp {
                 let bytes = self.original_c_name_bytes_using(original, stage);
                 match bytes {
                     Ok(bytes) => self.no_such_variable_using(&bytes, None, stage),
-                    Err(error) => self.report_cmd_error_using(error.into(), stage),
+                    Err(error) => self.report_cmd_error_using(error, stage),
                 }
             })
     }
@@ -608,7 +607,7 @@ impl Interp {
         let operation = super::native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|first| self.refuse_native_execution(first))?;
         self.check_original_c_name_operation_using(&[original], stage)
-            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let _original_lifetime = obj::NativeObjectLifetime::retain(original);
         let create = purpose.creates_entries();
         let dialect = self.native_invocation_dialect();
@@ -625,7 +624,7 @@ impl Interp {
         }
         if !protocol.cache_precedes_string_getter() {
             self.original_c_name_bytes_using(original, stage)
-                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
         }
         // Project only allocation leases/bytes while the original Parsed owner
         // is borrowed. The reached element getter runs after that projection.
@@ -730,7 +729,7 @@ impl Interp {
         {
             let original_bytes = self
                 .original_c_name_bytes_using(original, stage)
-                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
             if let Some((root, element)) = protocol.parsed_array_parts(&original_bytes) {
                 let root = Owned::fresh(obj::new_string_bytes(root));
                 let element = match protocol.new_element_bytes(element) {
@@ -746,7 +745,6 @@ impl Interp {
                         .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
                         .and_then(|()| {
                             self.check_original_c_name_operation_using(&[original], stage)
-                                .map_err(Into::into)
                         })
                 };
                 let retain = |error: &tcl_cmd_core::CmdError| {
@@ -765,8 +763,8 @@ impl Interp {
                     &retain,
                 );
                 self.check_original_c_name_operation_using(&[original], stage)
-                    .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
-                result.map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
+                result.map_err(|error| self.report_cmd_error_using(error, stage))?;
                 return self.prepare_original_c_name_in_using(original, purpose, namespace, stage);
             }
         }
@@ -787,7 +785,7 @@ impl Interp {
         } else {
             let root_bytes = self
                 .original_c_name_bytes_using(root, stage)
-                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
+                .map_err(|error| self.report_cmd_error_using(error, stage))?
                 .to_vec();
             let kind = obj::obj_type_ptr(root);
             // SAFETY: a non-NULL type pointer names the live original descriptor.
@@ -801,7 +799,6 @@ impl Interp {
                         .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
                         .and_then(|()| {
                             self.check_original_c_name_operation_using(&[original, root], stage)
-                                .map_err(Into::into)
                         })
                 };
                 let result = obj::discard_native_internal_representation_with_stage_check(
@@ -809,8 +806,8 @@ impl Interp {
                     &mut current,
                 );
                 self.check_original_c_name_operation_using(&[original, root], stage)
-                    .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
-                result.map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
+                result.map_err(|error| self.report_cmd_error_using(error, stage))?;
             }
             root_bytes
         };
@@ -920,7 +917,7 @@ impl Interp {
                     .ensure_current_or_refuse()
                     .map_err(|first| self.refuse_native_execution(first))?;
                 self.check_original_c_name_operation_using(&[original, root], stage)
-                    .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
                 materialised = Some(reached.map_err(|error| {
                     let error = match error {
                         Ok(error) => return self.report_cmd_error_using(error, stage),
@@ -963,7 +960,7 @@ impl Interp {
             .map_err(|first| self.refuse_native_execution(first))?;
         let bytes = self
             .original_c_name_bytes_using(original, stage)
-            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
+            .map_err(|error| self.report_cmd_error_using(error, stage))?
             .to_vec();
         let protocol = self.native_c_variable_name_protocol().ok_or_else(|| {
             self.report_cmd_error_using(
@@ -1921,7 +1918,7 @@ impl Interp {
             return self
                 .original_c_name_bytes_using(original, stage)
                 .map(|bytes| OriginalCVariableReportingInput::Combined(bytes.to_vec()))
-                .map_err(|error| self.report_cmd_error_using(error.into(), stage));
+                .map_err(|error| self.report_cmd_error_using(error, stage));
         }
         let root = original_root
             .map_or_else(
@@ -1931,7 +1928,7 @@ impl Interp {
                         .map(|bytes| bytes.to_vec())
                 },
             )
-            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let element = original_element
             .map_or_else(
                 || Ok(fallback.1.map(<[u8]>::to_vec)),
@@ -1940,7 +1937,7 @@ impl Interp {
                         .map(|bytes| Some(bytes.to_vec()))
                 },
             )
-            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         Ok(OriginalCVariableReportingInput::Separate { root, element })
     }
 
@@ -1970,7 +1967,7 @@ impl Interp {
         }
         let bytes = match self.original_c_name_bytes_using(original, stage) {
             Ok(bytes) => bytes.to_vec(),
-            Err(error) => return self.report_cmd_error_using(error.into(), stage),
+            Err(error) => return self.report_cmd_error_using(error, stage),
         };
         self.original_c_variable_failure_using(&bytes, purpose, reason, site, stage)
     }
@@ -2191,7 +2188,7 @@ impl Interp {
                     .map(|bytes| bytes.to_vec())
             })
             .transpose()
-            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let captured = self
             .capture_original_c_parts_selection_using(root, element, &selected, purpose, stage)?;
         if purpose.creates_entries()
@@ -2565,7 +2562,7 @@ impl Interp {
         });
         let bytes = match self.original_c_name_bytes_using(original, stage) {
             Ok(bytes) => bytes.to_vec(),
-            Err(error) => return self.report_cmd_error_using(error.into(), stage),
+            Err(error) => return self.report_cmd_error_using(error, stage),
         };
         let input = tcl_syntax::naming::NativeVariableInputForm::Combined(&bytes);
         if let Some(reason) = trace_reason {
@@ -2861,7 +2858,7 @@ impl Interp {
         let Some((receiver, home)) = captured else {
             let bytes = self
                 .original_c_name_bytes_using(original, stage)
-                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
+                .map_err(|error| self.report_cmd_error_using(error, stage))?
                 .to_vec();
             return Err(self.original_c_variable_failure_using(
                 &bytes,
@@ -2874,7 +2871,7 @@ impl Interp {
         if self.original_variable_trace_requires_name(&home, selected.element.as_deref(), b"read") {
             let bytes = self
                 .original_c_name_bytes_using(original, stage)
-                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
+                .map_err(|error| self.report_cmd_error_using(error, stage))?
                 .to_vec();
             let access = self.trace_access(
                 &bytes,
