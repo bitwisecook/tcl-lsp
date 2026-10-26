@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T23:15:00.187300+00:00",
+  "scheduled_report_utc": "2026-10-26T23:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T23:45:00+00:00",
+  "change_since_previous_report": [
+    "2245officialreportactual22:45:00A1b857c94 +trackingA1c9a74e4 published01aa3e1d at22:58:19 aftersourceandcleanupnormalpush. Next2315timer68482 recorded. Counts/admissionsunchanged; allF/gatesopen.",
+    "Two tinyC-onlyeditorialchangesindependentclear: CONTRIBUTINGinventoryremoveC353 andlogicaltargetownerlocatorC4a4442; realdisclosure/ownershiplimits unchanged. Eglotbehaviorproposalstillheldpendingtestpolicy, noEmacscodechange.",
+    "Tinystrictquestionmarkc512/9b519 appliedW00220/C52033, currentsourceknownlastwarningfixunrununtilretry. Reportpredicateobserver6e2d/fc466 +dedicatedtestchildAUTHprotocol9c3f/4795 appliedW0d6c/44cb; allold153/default/list/build/117+7/markers/equality/owner/budgetsretained.",
+    "Current2c31allfiveLSP fullauthindexdc0a; actualRefused/sourcecardNone sourceproducerunderwitnessaudit, commandlookupRefusedmuststayterminal. IndependentScopesourcechallengefoundsharedVALUEhelperalsofeedscommandselection; anynewprimarydeclarationVALUEviewmuststructurallyseparateandpreserveallactualdebts/Unavailable guards. No widening/retryimplemented.",
+    "Currentcompiler1532c31fullauth24dad9/d329/4b83 allsource/ELF/processclosed,143P8F2UNRUN;original135132P3F(Layoutfiniteforeach1/OwnJim2),Memo8+reportrepeatPASS,newcustody3SETUPFAILs,corpusbudgetUNRUN. Finiteforeachhandlersactualbothcomplete55..80/127..152, truegenuinevalue/nameproducerneeded.",
+    "Release-only894file3976commentcleanupindependentc24c appliedandpushedCca453. Maincargo fmt PASS93.84s/standalonePASS102.32s,866files whitespace/reflow; diff-w showsoneclosurecollapseencoding.rs. Commitheldforindependenttoken-equivalencepeer; no claim currentfullCIgreen.",
+    "Nextsourcebatch: namescustodyfixture32479 strong14543 ready, compilerfiniteforeachv2eeab HOLD actualbodywalk/refread/depthbypass; successor required, LSPpassiveproducerwitnessedfe pendingCompilerpeer. WORK-first, releasecarryonlyafterreview; composeexact25pinuniononceafterallsourcechanges.",
+    "Runtimecached-incr6d16 off-treeprivateABI proposalreceived, threecontrolsUNRUN andpeerpending. Actualea86WASM/SpecauthenticationassignedRuntime. No acceptedperf, no runtimeparitywaiver, no PRopened.",
+    "Reviewedcustodyfixture32479/14543 appliedWORK70ea30ff9; boundedLSPproducerwitnessedfe/6ee253 appliedWORKfa5e4adb6. ActualRustgainsUNRUN; sourcefrozenforfresh25pinunion, no sourcepermissionschanged.",
+    "ea86earlyactualreceipt(notyetfulloutcomeauth): Specfull600CLOSEDPASS487.275s/0, original16+VM1+ordinary4PASS; first-gateschildstillFAIL. WASMoriginal25PASS; Broad8fullsealpending. No overallgreen or causalattribution.",
+    "ea86actualFULLAUTH: Specboundary822a0b49 full600PASS487.275s/0/19090of19090VM invocations, original16+VM1+ordinary4PASS; first-gates LENGTH1/1 MAP0/0 RANGE0/0 stillFAIL. WASMold25PASSdea6f67d/Broad8closed6P2F all109membersealb06bbc74: threeoracle-plan selectorsFAIL-to-PASSvs7ecd; onlyNativeAddpremise/framingFAIL. No overallgreen/perfacceptance.",
+    "Exactfa5e current25metadata37e8459/e4acc91 RootinversePASS all25preimages/16existingpinupdates/zero additions/unchangedrosters-env-budgets; strongCompilerpeer andauthorV16pending beforeapply. WORKsourcefa5e normalpushverified.",
+    "Finalbefore2315: sourcepins37e8459/e4acc91 strongff457d/RootinversePASS appliedWORK934c8f83c. Releaseformatterstrong2c7e706 committedC96e59433d; reviewedfixturecarryCabbbbdc4f. Bothbranchpush/preflight/newPOSTspending; no retrospectiveCIgreen."
+  ],
+  "committed": [
+    "1c9a74e49bcbb2704993c0792af261c95bc15bf5"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Integrate reviewed source fixes WORK-first, refresh exact source pins, dispatch strict and dedicated corpus diagnostics against current clean source.",
+    "Authenticate ea86 actual WASM and SpecTcl outcomes; fix LSP source producer, compiler finite foreach/Jim and runtime failures without weakening guards.",
+    "Complete final current broad CI, zero origin/rust PASS-to-FAIL, shipping Tcl performance, docs/comments/generated/package/squash checks before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2438152192,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

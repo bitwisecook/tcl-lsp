@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T22:27:00Z
+Last updated: 2026-10-26T23:06:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T23:06:00Z: 2c31 iRules scoped FULLAUTH19820a77 is final-init selector timeout180.457/-2 with CLI2/init_scope UNRUN; no procedure refusal rows, body identity remains UNOBSERVED. Existing sampled caller identity ff4ab8ca is itest::cmd::register_all→::tmm::_orig_namespace at ordinals1024/2048, not terminal declaration identity. Tiny strict2c31 question-mark c5127367 is strong Compiler CLEAR9b5191af, Root has paired patches; actual retry remains required. Root authorized OFF-TREE synchronous try-cached-incr runtime proposal coordinated with Codegen compiler/emitter/shared-ABI ownership. Runtime draft preserves same boxed delta/head/name pins/OriginalArguments/name capture/readtrace/COW/two getters/store/writetrace/result/currentness, only optional checked sum at original add stage. Pure eligibility binds actual root/simple selected C9 recipe/current scalar exact retained pointer/cache Int/origin and observer/env/resolver/link fences. Draft is UNFROZEN with tests/static review in progress; no builds, canonical changes or complete semantic clearance. N17 transition now integrated51fa; subsequent actual Spec still needed for same-owner widening cause. Host-library lifetime proposal remains held.
 
 Current 2026-10-26T22:27:00Z: Current2c31 iRules40409883883 is terminal with bootstrap INCOMPLETE selector_timeout180.457s/-2, owned SIGINT and two complete empty-group scans; CLI2/initialization_scope UNRUN. Full exact source/provider/deps/tools/fresh ELF envelope2f9e9279 authenticated; all-member/lifecycle seal completing. Only before-first/after-first/before-final-init phases, no procedure-preparation refusal rows: actual failing declaration/body remains UNOBSERVED, no host-library lifetime choice or new permission. CEE Runtime166 fullauth023c52d4 and exact128join eae4067c ZEROchanges retained. 7ecd Spec fullauth2fcb39a8 shows live_dispatch/live_unknown true, zero named/native candidates; actual world-widening/source-owner cause remains unmeasured. N17 transition V2 manifest4cdedd3b strong passive LSP5e6af323 ready NEXT, actual rows UNRUN. Tiny strict2c31 exact Result identity match→? packetc5127367 frozen paired, Compiler peer requested; no canonical edits or Rust builds. Host-library design f29fb5e3 remains held pending actual attribution. Root alone source/dispatch; sole captures and guards retained.
 
