@@ -2261,7 +2261,12 @@ jobs:
                   "PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "CI", "RUNNER_TEMP",
                   "GITHUB_WORKSPACE", "CARGO_HOME", "RUSTUP_HOME",
               ) if key in os.environ}
-              child_env["PATH"] = str(Path.home() / ".cargo/bin") + ":" + str(Path.home() / ".local/bin") + ":" + child_env.get("PATH", "")
+              # The pinned uv installer supports UV_INSTALL_DIR. Keep HOME
+              # unchanged and install its tools outside the uploaded evidence.
+              tool_bin = Path(os.environ["RUNNER_TEMP"]) / "prep-pr-tool-bin"
+              child_env["UV_INSTALL_DIR"] = str(tool_bin)
+              child_env["UV_NO_MODIFY_PATH"] = "1"
+              child_env["PATH"] = str(tool_bin) + ":" + str(Path.home() / ".cargo/bin") + ":" + str(Path.home() / ".local/bin") + ":" + child_env.get("PATH", "")
 
               metadata_counter = 0
 
@@ -2340,6 +2345,10 @@ jobs:
                   spec = importlib.util.spec_from_file_location("prep_pr_process_owner", owner_file)
                   owner = importlib.util.module_from_spec(spec)
                   spec.loader.exec_module(owner)
+                  tool_bin.mkdir(mode=0o700)
+                  if tool_bin.is_symlink() or tool_bin.stat().st_uid != os.getuid():
+                      raise RuntimeError("tool_bindir_not_owned")
+                  result["tool_bindir"] = str(tool_bin)
                   initial = snapshot("initial")
                   if initial["head"] != expected or initial["status"]:
                       raise RuntimeError("candidate_identity_or_dirty_initial_tree")
