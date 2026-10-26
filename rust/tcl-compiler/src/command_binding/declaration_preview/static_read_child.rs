@@ -588,7 +588,43 @@ mod tests {
                 .keys()
                 .filter_map(|id| foreign.body_units.get(id))
                 .find(|function| child_view(function).is_some())
-                .unwrap();
+                .unwrap_or_else(|| {
+                    let mut counts = [0_usize; 4];
+                    for function in foreign
+                        .ir_module
+                        .original_native_declaration_body_units
+                        .keys()
+                        .filter_map(|id| foreign.body_units.get(id))
+                    {
+                        for (block, body) in &function.ssa.blocks {
+                            for index in 0..=body.statements.len() {
+                                let view = if index == body.statements.len() {
+                                    crate::ssa::SsaSourceView::at_terminator(&function.ssa, *block)
+                                } else {
+                                    crate::ssa::SsaSourceView::at_statement(
+                                        &function.ssa,
+                                        *block,
+                                        index,
+                                    )
+                                };
+                                let category = match view.source_tokens() {
+                                    None => 0,
+                                    Some(tokens) if tokens.nested_bindings.is_empty() => 1,
+                                    Some(_)
+                                        if view
+                                            .source_names()
+                                            .is_none_or(|names| !names.contains_key("n")) =>
+                                    {
+                                        2
+                                    }
+                                    Some(_) => 3,
+                                };
+                                counts[category] += 1;
+                            }
+                        }
+                    }
+                    panic!("foreign child setup: no_tokens/no_nested/no_n/eligible={counts:?}");
+                });
             let (view, symbol, span) = child_view(foreign_function).unwrap();
             assert!(!receipt.may_select_direct_source_read(view, symbol, "n", span));
         }
