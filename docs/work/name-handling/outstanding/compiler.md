@@ -2,11 +2,17 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T21:09:03.182471+00:00 (report-body strong CLEAR; Layout executable protocol V2 peer CLEAR; OwnJim filtered next phase approved)
+Last updated: 2026-10-26T21:31:10.349806+00:00 (default153/alias+optional member/shape peers CLEAR; awaiting final25 union; SourceCut observer NEXT)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Immediate final-freeze status:** default153 custody3 protocol6ac3a40c strongCLEARc34b72d7382aa8d901489f455317193c9345d2b9785f2547c3b3fd385a437cb2. OwnJim sourcefilter V2 manifest9abcbd01dbb6ab584c75f5a693abc990a12acdc894f64b77d1799a83b9c6d62d LSPCLEAR079fa67fd1c665b533cf3bc5eb61c41a4570c09932b5156430582f62f8741420; Root applying. Layout-only alias+optional positive executable successor `compiler-layout-own-jim-diagnostics-protocol-work-v1` manifest0ed9992cec30d9a1c4705266bd1bcc1a663545f37459edf6ea812dcf742c0b08, authorproofb6b6e778b70d41324828216edb54fa5aa9cce7ab791a276ec029a90a3adb9ba1, CodegenCLEARd1de92f14aab906806992a3eea261994975e8f2fec16d83a3e9770df28a7cf53. Required11 fixed; requiredalias1 and best-effort positive1 separate, actual180+180+40 admission/child-only filter; guaranteed10560 reserve within10800, optional positive not guaranteed and may remain UNRUN/no coverage. Firstfalse/rawline is observational, not final failing fixture/owner identity.
+
+**Last preflight shape fix:** db5bd162 `all(path in pins for path in exact2keys)`→`set(exact2keys).issubset(pins)`, strongCLEAR8a59a326dda7a4c3d9992df32d0f0a17b57076140fcaaa025b8ab9939086e806. Earlier exact2string-list equality, full JSON/perpathSHA/source/ELF guards unchanged; no scanner ignore/key-policy waiver. Await Codegen final25 union for sole peer; no more source work will block current wave.
+
+**NEXT after current POST freeze:** SourceCut inner observer V4 manifest020a4bc2f0261580d7092ab4016aa8df77b3a5eab43483cd92d79ac75450ddc6 needs full peer; Root expressly keeps it NEXT, no canonical integration before current mode POSTs. Current Spec V4 authenticated MAP/RANGE both live_dispatch/live_unknown true, native_count/named_count0, any_named_unknown false (runtimeproof7a496662). Ordinary live-state withdrawal, not named/private-worker uncertainty. Scope remains unmeasured; actual SourceCommandBindings scope is assigned only at initialization and read at defers_runtime_body, so a same-call passive event is truthful if later authorized. No guard bypass or producerfix guessed.
 
 **Latest source peers/transport:** Names inherited report-body custody1f35d594 strong CLEAR `compiler-peer-inherited-report-body-custody-v1/receipt.json` SHA1a8da76e4507165b9e77000d9b9476154c2129ba9e499fa611e1374a97c6dc7e. Allocated-only actual point/current module/body/card/source/formal/namespace joins; generic membership and all strict assertions unchanged. Rust/positivity/parity remains UNRUN. Dedicated corpus V2 current carry64825d47 CLEARacf9207d126bea9b0934f5baa4bfb05f9ebc9b28fb93e009a955d72305487502, integrated by Root; actual150 corpus2 remains UNRUN.
 

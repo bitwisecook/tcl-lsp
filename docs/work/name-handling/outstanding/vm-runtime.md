@@ -1,10 +1,13 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T20:40:27Z
+Last updated: 2026-10-26T21:18:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T21:18:00Z: Mixed33 V12 independent STATIC CLEAR522c3009; Root reports integrated/current next source newer than7ecd, actual Rust/Clippy unrun. All14 argument groups and reviewed mixed7 already integrated; no remaining owned standalone source packet hold, no measured standalone-green claim. New sole focused7ecd source7ecd81eb3255a83a44e3875e044cddf134ef0d5d WASM40399391998/job121840894782 +Spec40399408829/job121840950803 pending actual capture; later Layout/current cleanup is outside these jobs. All four9fd previous captures FULLAUTH retain exact scoped outcomes/zero128+8 changes. Actual MAP/RANGE V4 will distinguish named/live unknown; source/input custody alone cannot supply generic entered-body permission. Genuine host-library ingress design f29fb5e3 prepared after39 recorded user-decision search: no explicit persistent host-body lifetime settlement found; two concrete alternatives distinguish genuine Logical caller-policy bridge from new opt-in exact owned host-library purpose. No profile/header/name/filename donation, no guard or policy changes; existing unsupported Native/TMM and retained exit controls remain. Root alone canonical/dispatch; no local builds/duplicate captures.
+
 
 Current 2026-10-26T20:40:27Z: All four9fd captures fully authenticated and sent Root (runtimec39ca03f +same128zerochange1d52abe1; Spec5cbad011 with LENGTH1/1/MAP0/0/RANGE0/0 and600sINCOMPLETE; iRules5bede344 bootstrapnamepolicyFAIL/CLI2PASS/correctedretainedexitcontrolPASS; WASMdde2a7fc old25PASS/separate8CLOSED6P2F +actualindividual8zerochange96d29273). Canonical all14 argument groups now WORKe3753c16/CLEAN0c2ff591, actual Rust/Clippy unrun. Mixed7 readyindexff4e589a: refusal6 strong64cdd5ee and stable-record1 stronga69da401, Root applying next. Exact remaining33/10paths delegated to editorial via immutable ownership9b893efd, current hashes bind all reviewed argument afterimages; Root woke role, Runtime holds all edits on those paths and will peer final packet. MAP/RANGE measured execution_unknown formula still named/live alternatives; passive discriminatorV4 a4a428a7 strongLSPe95dc37f ready, V1firstonly/V2length/V3cfg holds retained. Source audit9b599d6f binds actual9fd evidence and six source blobs; actual walker scope/historical widening remains unobserved, no producer guard/permission change. No canonical writes/dispatch/local builds/duplicate captures.
 

@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 26 October 2026, 21:15 UTC, on `work`. Required release gates remain open and the six-hour target has passed. Focused WASM controls pass; server host checks hit a compile error now repaired, while full runtime, compiler and navigation cases remain open. Current CI and shipping Tcl performance are running. Validated rows change only with recorded validation; the agent table is separately agent-reported, not validated.
+Updated 26 October 2026, 21:45 UTC, on `work`. Required release gates remain open and the six-hour target has passed. Focused WASM controls pass; server host checks hit a compile error now repaired, while full runtime, compiler and navigation cases remain open. Current CI and shipping Tcl performance are running. Validated rows change only with recorded validation; the agent table is separately agent-reported, not validated.
 
 ## Scope
 
@@ -64,7 +64,7 @@ Release preparation plan: [clean LSP PR plan](lsp-release-pr-plan.md). All funct
 
 Measurements below are the implementation agents' own runs on the shared working tree at the time stated (22 Oct unless noted). They are not guarded validations, admit no audit unit, and do not change the rows under "Outstanding validations". Agent notes: [handoff/reviews/merge-inventory-20261019/](handoff/reviews/merge-inventory-20261019/).
 
-| Agent | Area | Latest reported state (26 Oct, 21:15 UTC) | Rows affected | Notes |
+| Agent | Area | Latest reported state (26 Oct, 21:45 UTC) | Rows affected | Notes |
 | --- | --- | --- | --- | --- |
 | lsp | LSP crates | Five focused7ecd jobs healthy20:51,solecaptureassigned/nooutcomes. Old9fdCorepair.adviceNone/startupslotNone->Some3 retained, newvalue-purpose/schedulerobserver in7ecd unrun. Layoutv4docdelta4d2c/parsera188/filter1c4a peersstaticclear only. | 3, 4, 5, 15, 17, 18, 19, 20 | [outstanding/lsp.md](outstanding/lsp.md) |
 | compiler | Lowering, C6, iRules, itcl/snit | Current150 fullauth49a41d/780f701a/37c80e94,137P11F2UNRUN. Reportcustody1f35 independent1a8da76e integrated754770cd; LayoutV2protocol independent9a0647 applied8111. OwnJimnegative actualclass/alias/procsource measured; filteredalias+positive repeats beingprepared, no unknown-debt waiver. | 3, 6, 7, 8, 19 | [outstanding/compiler.md](outstanding/compiler.md) |

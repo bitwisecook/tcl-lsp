@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T21:05:44.546660+00:00
+Last updated: 2026-10-26T21:16:33.961498+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+21:16 UTC: Native smoke c14a666a independently STATIC CLEARbcbeb141, preserving exact ::double script/all assertions with genuine live8.6 entry and retainedVM; actual positivity/prep-pr UNRUN. Default153 custody3 protocol6ac3a40c independently c34b72d7 and Root appliedd2885f; exact old147→report1→new3→corpus2, dedicated corpus remains2, Layout acceptance11. Pending Compiler alias/positive optional diagnostic successor peer, then Root explicit final25freeze after21:15docs. AdoptedV16 exact065d964b; recipe current25/fourapprovedregistrykeys ready. All new source/protocol actualresults pending; no shared Native/counter/perf gain inferred. C47 bounded21:16poll still exactly3 active Rust2 121653224819/E2E1 121658900154/E2E2 121658900564; preserved/no duplicate or cancel.
 
 Layout11 V2 ec391e64/2e60530c independent STATIC CLEAR9a064727: exact conditional CorpusV2 AFTER preimages; current3source hashes/all11functions/original3selectors/full byte+ASTinverse/F-R. Only dedicated Layout10800/190; old default150/corpus3600/70 unchanged. All actual11 UNRUN. Root now integrating mixed33/Names report+Layout protocol, await explicit finalfreeze for25-map union with approved4registrykeys. Adopted V16 path /tmp/naming-preflight-required-source-pins-v16.py SHA065d964b. CorpusV2 current64825d47 independently acf9207d and Root applied75fc9f92; rawparser formatting cda02050 independently a188132f and Root applied86536966/C7a199fc. Genuine-entry fixture c124918c independently2ebb52cc integrated, nextactualNativeAdd/framing remains unrun. Current7ecd measurement source immutable. Current C47 three jobs Rust2/E2E1/E2E2 still active, preserved; no duplicate download/cancel/localbuild.
 
