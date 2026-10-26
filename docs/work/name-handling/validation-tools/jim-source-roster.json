@@ -106,7 +106,10 @@
     "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
     "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
     "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b",
-    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "ad05dab64004a144e48b60f96a392851e79884fc751b05f6d7cd16058ec7bb96",
+    "rust/tcl-compiler/src/analyser/oo.rs": "b2c66f53e3616aa391751b8685731f4416066cc15c4860248d916dd99d6717d3",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "1bf1d6362ad65217cccea9651f638c5eaa905bfc807cd1dcb34f909b476b0b68"
   },
   "jim_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
   "jim_patchlevel": "0.84-9-g5bac7c9",
