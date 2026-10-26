@@ -125,3 +125,33 @@ dispatches nothing and is excluded.
   `ProcDef::caller_frame_params` / `caller_frame_literals`) —
   same frame table, independent computation from source text in the
   analyser (`analyser/param_traits.rs`).
+
+## Ordinary Native procedure entry observations
+
+`NativeCompilerPassOwner` belongs to one actual interpreter. Its optional
+ordinary-entry observation records complete absence of registered, pending and
+firing execution observers, including a VM debug hook temporarily removed while
+its callback runs. Enabled command or time limits prevent that observation.
+Observer, limit and interpreter-policy mutations withdraw its nonwrapping
+generation; restoring the former configuration cannot revive an old receipt.
+Retirement permanently withdraws it. The receipt holds weak metadata owners,
+without retaining an interpreter or Native object. Equality and hashing use
+immutable captured identity and generation; currentness is queried separately.
+The original `capture` API supplies no observer-absence observation.
+
+The actual VM procedure preparation boundary can attach a separate ordinary C
+frame-initialization plan to its original declaration/body compilation request.
+The plan is bound to that request's compiler owner and captured generation. Its
+query also requires the current entry's actual C invocation and engine recipes
+to agree. The default request has no plan. This describes the existing
+fresh-frame construction, layout installation and formal-binding algorithm;
+it does not describe an already-entered frame or authenticate physical cells.
+
+A consumer must independently establish the same original body, source origin,
+namespace, nominal slots, complete body traversal, actual ordinary formals and
+absence of static or adapter bindings. An empty formal list and an observer-free
+interpreter are insufficient on their own. Every Store input, overwrite,
+cleanup, publication and completion requires its own existing proof. Neither
+receipt grants `Normal`, representation, getter or Store effects. The standalone
+runtime currently supplies the observer observation but does not issue this VM
+original-request initialization plan.
