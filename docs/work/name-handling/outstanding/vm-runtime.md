@@ -1,10 +1,19 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T09:05:45Z
+Last updated: 2026-10-26T10:11:46Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T10:11:46Z: Runtime9f run40302393778 is authenticated ALL161 UNRUN: same four getter-test E0433, build101, no selected ELF. Sole ZIPfbcc6a46; bounded build receiptb37d4794 verifies all25memberSHA/CRC and126560Gitmembership. Getter lexical repair10bad independently clear0fc4b55; Append four Option lint repaire3dc independently clearcfb7433. Root owns canonical integration/retry. Oldad0b runtime9fdb188c and Specf7fa3a29 remain scoped build-only seals. Spec9f40302394671 still active; no NativeAppend positive result or readonly Store closure. Codegen independently authenticated originalWASM25 ALLPASS2ea979fc, which does not select runtime161 controls. Disk recovery permitted new ZIP capture; no local build/deletion.
+
+
+CURRENT 2026-10-26T10:03:42Z: Oldad0b runtime161 ALL UNRUN/build101/fourgetter-testE0433, boundedsealed9fdb188c (all25memberSHA/CRC,126560Gitmembership,C84providerpostseal) andSpecALLUNRUN/twoDebugHookE0502 boundedsealedf7fa3a29 (all19members/sourcebeforeafter/ownedbuildclosure). Gettertestpath/import repair10bad strong0fc4b55 and actual9f Append4Option lint e3dc strongcfb7433 are off-tree/rootnotified; no assertions/product changes. New9f runtime40302393778 terminalFAIL/artifact12641486101 available27MB but pending shared disk margin (31MBabovefloor); Spec40302394671 remainsactive. Actual getter/Append/observer controls stillunproved. Readonly adoptedpool bridge sourceaudit now distinguishes warm actualnamecache, exactfinalpool/instruction/currentrequest and inherited/finalresult retirement obligations; no effects closure/sourcegrant.
+
+
+CURRENT 2026-10-26T09:56:28Z: Observer actual ad0b typing/Clippy repair 370eef76 is strong-cleared0584811c and bounded180a3830, integrated/pushed9f2435a08/C784 with V14PASS. New sole runtime16140302393778/job121503173635 and Spec40302394671/job121503177191 active; oldad0b runtime terminalfailure ZIP captured once, authentication pending. Compatible checked_character_view and allocation2→3/teardown are USER APPROVED and canonical; no stale policy hold. NativeAppend V3 canonical, next positive measured closure pending. Readonly Store consumer remains HELD: adopted array ownership does not close cold local-name registration getter callbacks; actual same-request/body/operand mapping and lifecycle proof remain under source audit.
+
 
 Rootrecovered08:42; USER explicitlyAPPROVEDcompatiblechecked_character_view+genuineNativegetter (Rootrecordsactualdecision), no policyreopen. Getter8currentcarry7c92/Wec698/C04478 strongc243 nowcanonicalWORK30ef/Ccarryroot; oldas_chars/try_as_str signatures/defaultadapters/RawStringstrict controls retained, newNativeCoreentry postbootstrap+finalcleanup/currentness only, stale/profile-only/foreign/free/updater/retired inputs refuse. Restoredoriginal41ff42/count3/U00ff positive nowgenuineNativeCore checkeddoor; ownedview/UTF16/NativeIndexOpscount purposes separate. Getter11sameELFproto50375990 strong265e0385 afterold150→161, READMEb555 stronga7a9c594; ownerrowWc236/Cd0bb SourceProcpeerpending. No furtherRustthiswave; actualRust/Clippy/all11controlsUNRUN. Getter8+2newleaf/caller/testdependencyintentc86ed9c8 deliveredCodegensolefinal23union. Allocation2protocol peer9c786803 clearedandrootapplying; userallocation2→3/exactteardown ownedCodegen, no stalehelddecisionclaim. AppendV3currentcarry56ac/strong298163+semantic950/bounded625 nowcanonicald8f1/Ce627, actualpositive stillUNRUN. Latestsealedruntime059143 andSpecc6a4 scopes unchanged; allretainedoldfailures/CFI/full600incomplete remainhonest.
 

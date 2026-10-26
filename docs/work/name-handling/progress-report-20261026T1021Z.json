@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T10:21:53.251017+00:00",
+  "scheduled_report_utc": "2026-10-26T10:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T10:45:00+00:00",
+  "change_since_previous_report": [
+    "RepairWORK9f2435a083972e4d3ec336adc0a4e8015d789d75/CLEAN784b2b7459e078f88c2d9bc9a79b5b0c01416575 pushednormallyaftercanonicalV14PASS13/30/20. All8previousfocusedmodesactualterminalbeforeeachreplacement. 0945report+shippingstatussupplementpushedb30ad626cf7b256c5a31e29d691d779c9ae557d609:51:14afterfreshdepth1fetch. No PR/gateadmission.",
+    "FIRSTFULLYAUTHENTICATEDWASMCLOSURE:9f40302391859 alloriginal25PASS includingallocationbalance,recursionfrontier,Nativei64exactcounter. Full368checksactualsource/providers/dependencies/tools/freshELF/listing/processseals2ea979fc28e86383eeeafd499b1a26d2d40b687df4fa42b3e50161fe047d8c99. This isfocusedWORK9facceptance,notwholecleanCI/runtime/currentzeroPTF.",
+    "Jim9f52FULLAUTHad12346d allreached: original45now36P9F,original26now17P9F;ONEactualbeforeclassprocedureadoptiongainandZEROmatchedpriorPASSregressions. Diagnostic3P2F,raw52FAILOBSERVEDstill. Originalassertions/fixturesunchanged,noerrorwaivers; laterfalsearityinterpretationwithdrawnbyexactfixture/expectedW123comparison.",
+    "LSP9fALL5FULLAUTH268ba47e: Coreold2/bothDefaultminifyincludingfactorial/Quiet1/Return3PASS,unitnav+scan3PASS. Browserstillmain98Source0directownerrefusal,WASIunrelatedapp3ownerprojectionfails. Startupfirsttokens138msbutunchanged30sscantimeout,readyat31.450s/package31.101s;nativeeditrefsUNREACHED,Context2COMPLETEandactualPending2publication-or-epochlabel. No host/shippingperformanceclosure.",
+    "Spec9fFULLAUTH8659bcf7 old16+NativeStringVM1PASS,newobserver4=3PASS1FAILpositiveordinaryinitializationrequest. Preservepositiveassertionanddiagnoseactualfirstfacet. String3probeFAIL0attempt/full600NOWCLOSEDFAIL101598.2946s:17873/17873attemptshooksuccess,threeboundstringhooks0attempt,319diagnostics86opts. This does not closeC1C2.",
+    "Currentstrict9fFULLAUTH91bc80 has5compilerlibClippy/0RustE: Namesunusedreceiver+4Optionquestionmark suggestions. AllminimalpairedfixesindependentlyclearedandnowlocalWORKfirst/CLEANcarry. Currentruntime9fboundedb37dALL161UNRUNsamefourtestonlyE0433getterimports/path; exactnarrow10bad/0fc4fixlocal. No sourceassertion/producerchanged; actualretryrequired.",
+    "NewproductiveSourceLoadsinglecutV6strongb310/bc3f landedlocallyWORK53171d358/CLEANe666f25db: exactprefix/wholechild/issuedsuffixviews,physical/ancestor/currentworldpublicationmembership,onlyexactknownSourceLoadordinal. OldPackage/unknown/roles/refusal/selectedidentitycollisionguardsremain. Fourmeaningfulpubliccontrols+3shippingdocs,actualRust/hostefficacyUNRUN. Coherentprotocolappend14541pendingstrongpeer.",
+    "NewpurecatalogueseedV6strong913649/currentcarryV7f7c6 locallyintegratingafterSourceLoaddocs: exactcommandstoreArc+semanticgeneration/fullcontext/policy/dialect,immutableemptylineageDescriptorseedonly; freshbudgets/counters/debt/handlesandNative/sourcepointoverlays. Newleafmanifestcorrectnullcreate,exactall3Rustafterimages;cache3protocolfcce samefreshELF/sharedbudgetsafterold130. No runtimeEq/cutoff/wholegraphmemochangeorperformancegainclaim.",
+    "URGENTfloorincident:pausedcaptures/writesbelow2GiB. Guardedremaining140oldnonexec.rlib67.24MBreclaimedce249b;earliernonlibtestserverELFplanabortedbeforeunlink. SeparateactualoldlibtestCoreELF258.51MBage>24h/symbol/fullSHA/inode/singlelink/twoLIVEownuidfd-exe-mapscensuses/repeatednoactivecargo/rustcverifiedbeforeunlink,receipt5eba0407free2459295744B. Allcurrentexes/source/evidence/ZIPspreserved;boundedcapturesresumed,noextractions/localbuilds.",
+    "Oldordinaryf763healthyjobsremainpreserved. CurrentC9b2aknowncompile-brokenCIandpairedcomparisonswerestoppedwithunreportedindividualsunknown;newfullCI/perfawaitcoherentnextbatch. ExternalBIGIP/perfstaleover60minreportedwithouttakeover,triagecomplete. AllreleaseF/currentbaselinezeroPTF/fullgreen/performance/finaleditorial/generated/fixtures/prep-prgatesremainOPEN."
+  ],
+  "committed": [
+    "868a6c0b6bb0200d501204f14e32ac8340d8cc3f"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finishcurrentreviewedcohortintegration, oneexactfinal23pin union+independentpeer/canonicalV14, normalpushbothbranches thenfocusedgates.",
+    "QualifyfreshcurrentwholeCI/baselinecomparison/performance; fixactualremainingLSP/runtime/Jim/bodyconsumerfailureswithoutassertionorcurrencyweakening.",
+    "Finalreleaseeditorial/generated/fixtures/package/prep-pr/F/fullgreen/performancebeforeauthorizedPR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release checkbox or audit-unit admission. Six-hour target missed, no PR. Semantic/runtime results remain scoped; queued/running/unreached are not pass.",
+  "disk_free_bytes": 2323124224,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

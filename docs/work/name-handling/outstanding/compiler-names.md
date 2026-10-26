@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T09:23:06.532659+00:00
+Last updated: 2026-10-26T09:51:48.934418+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-26T09:51:48.934418+00:00: REPAIR9f2435a08 currentJim52 run40302395602/job121503183696 NamesSOLEcapture; firstmetadata healthyNativebootstrap afterrust/checkoutSUCCESS. Rootterminalguardprovedold8modesclosed beforefreshretry, no duplicateCompiler13040302394720. PRIORad0b FULLbuildauthc139b5d6/allmemberCRCc875c07f/owned12Gitjoinbddeb200: ALL52UNRUN from2VM_E0502 only, no semanticgain/regression/currentoriginal26count. Latestreached059still35/45/original16/26 PRIORonly. Geometry629fsourcec14rootlanded; pairedRootmeasurements and3unitexecution separate, no inferredtiming/RSS gain. Remainingperfmemory/replay leads READONLY pendingSourceProc/LSP physicalcurrency/freshcounters/debts/ownerproof; no Graphmemoauthoring. Capture9f exactsourceZIPoncewhenclosed, fullseals thenoriginal51/26/priorPASScomparison onlyifgenuinelyreached.
 
 Resume 2026-10-26T09:23:06.532659+00:00: Currentad0b Jim52 run40298010636/job121488723904 healthycheckout atfirstmetadata; NamesSOLEfutureZIP/auth. AuthV3 ab2aa2f9 addsONLYapprovednewOwnJim sourcepin to exactfrozenold52contract; no oldselectors/env/budgets changed. Rootintegrated ownJim2ed6 source34a1/carrye7d484 c38382, layoutV5/protocol andown3protocol; Compiler130samefreshELF owns actualnew6controls, allUNRUNpending. Geometry629f source STATICCLEARc14e7e49 rootlanded8536/7c84; geometry3control actualfullCI40298370647 Codegenowner, pairedperformance40298285208 rootowner, no gaininferred. Readonly per-edit audit86dd808b sourcepins: repeatedwholeDocumentcopy/hash/index (productivegeometryfix), contextconstantString clones across retainedpointwrites, ownedreboundsets, boundedTLS16fullanalyses, sourceviewVec reachability; no unboundedleak/timing/RSS attribution claimed. CompilerownsAdviceGraphfactory; LSPsourceLoad workuntouched. Latestfullyauth059 still35/45/original16/26 untilnewartifact.
 
