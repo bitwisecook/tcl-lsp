@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, paired-source-point-memo-diagnostic, prep-pr-candidate-validation, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, source-point-corpus2-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
+        options: [standard, paired, paired-source-point-memo-diagnostic, prep-pr-candidate-validation, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, source-point-corpus2-diagnostics, jim-source-layout11-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'source-point-corpus2-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'source-point-corpus2-diagnostics' && inputs.mode != 'jim-source-layout11-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'source-point-corpus2-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'source-point-corpus2-diagnostics' && inputs.mode != 'jim-source-layout11-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -1482,6 +1482,89 @@ jobs:
             ${{ runner.temp }}/corpus2-output/*.json
             ${{ runner.temp }}/corpus2-output/*.stdout
             ${{ runner.temp }}/corpus2-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
+
+  jim-source-layout11-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'jim-source-layout11-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 190
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_HTTP_MULTIPLEXING: "false"
+      CARGO_TERM_COLOR: never
+      RUSTFLAGS: "-Dwarnings"
+      RUST_BACKTRACE: short
+    steps:
+      - name: Reserve time for bounded evidence upload
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(($(date +%s) + 10800))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        timeout-minutes: 10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install uncached Rust
+        timeout-minutes: 5
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Bootstrap original five Tcl references and pinned Jim
+        timeout-minutes: 15
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/layout11-reference-bin
+          TCL_LSP_JIM_ROOT: ${{ runner.temp }}/layout11-jim-provider
+          TCL_LSP_TCL_SOURCE_PARENT: ${{ github.workspace }}/tmp
+          JOBS: "2"
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_WORK_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_WORK_SHA"
+          make ensure-tcl-deps
+          bash scripts/dev/ensure-jim-oracle.sh
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          for release in $(tcl_reference_releases); do
+            reference="$(tcl_reference_resolve_tclsh "$release")"
+            compact="${release//./}"
+            printf 'TCL_LSP_TCLSH%s=%s\n' "$compact" "$reference" >> "$GITHUB_ENV"
+          done
+          printf 'TCL_LSP_TCL_BIN_DIR=%s\n' "$TCL_LSP_TCL_BIN_DIR" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_REQUIRE_TCLSH=9.0,8.6\n' >> "$GITHUB_ENV"
+          printf 'TCL_LSP_TCL_SOURCE_PARENT=%s\n' "$TCL_LSP_TCL_SOURCE_PARENT" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_JIM_ROOT=%s\n' "$TCL_LSP_JIM_ROOT" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_JIMSH=%s\n' "$TCL_LSP_JIM_ROOT/jimsh" >> "$GITHUB_ENV"
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+      - name: Run exact original compiler3 and registry8 Layout controls
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/layout11-target
+          OUT: ${{ runner.temp }}/layout11-output
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          TCL_REQUIRE_SPECTCL_COMPAT: "1"
+        run: |
+          set -euo pipefail
+          unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
+          python3 -B docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py --jim-source-layout-only --sha "$EXPECTED_WORK_SHA" --out "$OUT"
+      - name: Upload bounded dedicated Layout11 diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jim-source-layout11-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/layout11-output/*.json
+            ${{ runner.temp }}/layout11-output/*.stdout
+            ${{ runner.temp }}/layout11-output/*.stderr
           if-no-files-found: error
           retention-days: 30
 

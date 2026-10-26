@@ -157,6 +157,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-own-jim-alias-firstguard1-",
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
+            "diagnostic-jim-source-layout11-",
             "list-",
             "select-",
         )
@@ -188,6 +189,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-own-jim-alias-firstguard1-",
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
+            "diagnostic-jim-source-layout11-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -220,6 +222,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-own-jim-alias-firstguard1-",
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
+            "diagnostic-jim-source-layout11-",
         )
     ):
         require(
@@ -3999,6 +4002,206 @@ def run_analyser_layout_diagnostics() -> None:
         )
 
 
+def run_jim_source_layout_controls() -> None:
+    global remaining
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    require(len(jim_layout_rows) == 11, "exact Layout11 count required")
+    for pinned_path, pinned_digest in jim_layout_validation["source_pins"].items():
+        require(sha(root / pinned_path) == pinned_digest,
+                "Layout11 direct source pin drift: " + pinned_path)
+    for spec in jim_layout_validation["build_targets"]:
+        inventory = json.loads((out / ("roster-" + spec["name"] + ".json")).read_text())
+        selectors = [row["selector"] for row in jim_layout_rows
+                     if row["package"] == spec["package"] and row["target"] == spec["name"]]
+        require(len(selectors) == spec["expected_selected"]
+                and set(selectors).issubset(inventory["selected"]),
+                "Layout11 controls absent from matching fresh target inventory")
+    require(deadline - time.time() >= 11 * (180 + 180 + 40),
+            "insufficient shared time for ALL Layout11 list/test/cleanup budgets")
+    for index, row in enumerate(jim_layout_rows):
+        require(deadline - time.time() >= 180 + 180 + 40,
+                "insufficient shared time for full Layout11 list/test/cleanup budgets")
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "Jim source layout11 current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "Jim source layout11 requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "Jim source layout11 artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "jim-source-layout11"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "jim-source-layout-outcomes.json", jim_layout_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "jim-source-layout-outcomes.json", jim_layout_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "jim-source-layout-outcomes.json", jim_layout_rows)
+            raise
+        save(out / "jim-source-layout-outcomes.json", jim_layout_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
+
+class _DedicatedLayoutComplete(Exception):
+    """Private successful Layout phase boundary; final seals still execute."""
+
+
 class _DedicatedCorpusComplete(Exception):
     """Private successful phase boundary; final seals still execute."""
 
@@ -4007,7 +4210,13 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
 parser.add_argument("--source-point-corpus-only", action="store_true")
+parser.add_argument("--jim-source-layout-only", action="store_true")
 args = parser.parse_args()
+require(not (args.source_point_corpus_only and args.jim_source_layout_only),
+        "dedicated modes are mutually exclusive")
+require(args.jim_source_layout_only
+        == (os.environ.get("GITHUB_JOB") == "jim-source-layout11-diagnostics"),
+        "fixed Layout11 mode/job mismatch")
 require(
     args.source_point_corpus_only
     == (os.environ.get("GITHUB_JOB") == "source-point-corpus2-diagnostics"),
@@ -4021,7 +4230,7 @@ out = args.out.resolve()
 target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
 deadline = float(os.environ["DIAGNOSTIC_DEADLINE_EPOCH"])
 require(
-    time.time() < deadline <= time.time() + 3600,
+    time.time() < deadline <= time.time() + (10800 if args.jim_source_layout_only else 3600),
     "bounded absolute job deadline required",
 )
 require(
@@ -4641,6 +4850,22 @@ for package, kind, name, count in expected_targets:
         == count,
         "original selected target count differs",
     )
+jim_layout_validation = None
+jim_layout_rows = []
+if args.jim_source_layout_only:
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "674dbabcca3e63a74d19126c847b1d31282d10f459389e81c379e13062f76a0c",
+            "exact Layout11 roster/direct source pins required")
+    jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
+    require(jim_layout_validation["expected_selected"] == 11
+            and jim_layout_validation["executor_sha256"] == EXECUTOR_SHA
+            and len(jim_layout_validation["rows"]) == 11
+            and len({row["selector"] for row in jim_layout_validation["rows"]}) == 11,
+            "Layout11 fixed roster/owner count mismatch")
+    for row in jim_layout_validation["rows"]:
+        require(row["expected_selected"] == 1 and row["env"] == {}
+                and row["list_seconds"] == row["budget_seconds"] == 180,
+                "Layout11 exact row/environment/budget mismatch")
+        jim_layout_rows.append({**row, "group": "diagnostic-jim-source-layout11", "state": "UNRUN"})
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -4918,11 +5143,11 @@ try:
                 "aggregate_log_bytes": CAP,
                 "transport_filter": "Existing exact ORIGINAL_COMMAND_INSTALLED table summaries remain. Only ORIGINAL_WORD_CONFIG and REMOTE_SOURCE_WORDS repeated complete lines use bounded lossless dictionary/RLE records; each distinct full line and ordered repeat records reconstruct exact post-table stderr, verified per case. Other stderr and all stdout remain verbatim except escaped record-marker collisions, which reconstruct exactly.",
                 "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the pinned layered filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
-                "execution_order": ("Fresh compiler-lib build/list only, then pinned text117 and generated7 corpus controls with their full original180/1800/600/40 budgets; no historical test prefix or repeat." if args.source_point_corpus_only else "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged. After ALL original65 executions, separate taint diagnostic2 reuses the already freshly built compilerlib/taint artifacts. Three additional library artifacts are build/list-only until then; separate closed-consumer16 executes only after the unchanged taint2 group, within the same absolute deadline/log budget."),
+                "execution_order": ("Two fresh compiler/registry lib builds and inventories, then exact Layout11 only; historical150 and corpus2 not requested." if args.jim_source_layout_only else "Fresh compiler-lib build/list only, then pinned text117 and generated7 corpus controls with their full original180/1800/600/40 budgets; no historical test prefix or repeat." if args.source_point_corpus_only else "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged. After ALL original65 executions, separate taint diagnostic2 reuses the already freshly built compilerlib/taint artifacts. Three additional library artifacts are build/list-only until then; separate closed-consumer16 executes only after the unchanged taint2 group, within the same absolute deadline/log budget."),
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
-            "scope": ("Dedicated exact complete-text corpus2 only: 117 pinned original fixtures and 7 generated programs, unchanged full-report/type comparisons; historical150 not requested. No other gate admission." if args.source_point_corpus_only else "Exact original native58 selectors on current WORK; standalone bounded per-test diagnosis only. No shared-process/compiler-complete/eight-package/wasm/release acceptance. Historical ambient WASI SDK path retained in provenance, not used by selected native artifacts."),
+            "scope": ("Dedicated exact source-only Layout11 geometry/refusal controls; no old150/corpus outcome transfer or Native grant." if args.jim_source_layout_only else "Dedicated exact complete-text corpus2 only: 117 pinned original fixtures and 7 generated programs, unchanged full-report/type comparisons; historical150 not requested. No other gate admission." if args.source_point_corpus_only else "Exact original native58 selectors on current WORK; standalone bounded per-test diagnosis only. No shared-process/compiler-complete/eight-package/wasm/release acceptance. Historical ambient WASI SDK path retained in provenance, not used by selected native artifacts."),
             "original_roster": original,
             "original_inputs_and_environment": roster,
             "separate_closed_consumer_controls": closed_controls,
@@ -4937,6 +5162,9 @@ try:
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
+    if args.jim_source_layout_only:
+        require(deadline - time.time() >= 10160,
+                "insufficient shared time for full Layout11 fetch/build/list/test/cleanup reservation")
     fetched = execute(
         [
             str(tools["cargo"]),
@@ -4973,7 +5201,10 @@ try:
     execution_rows = (
         supplemental_rows + sh21_rows + readflow_rows + catch_rows + original_rows
     )
-    build_targets = roster["targets"] + closed_controls["build_only_targets"]
+    if args.jim_source_layout_only:
+        execution_rows = jim_layout_rows
+    build_targets = (jim_layout_validation["build_targets"] if args.jim_source_layout_only
+                     else roster["targets"] + closed_controls["build_only_targets"])
     if args.source_point_corpus_only:
         build_targets = [
             spec for spec in roster["targets"]
@@ -4982,6 +5213,9 @@ try:
         ]
         require(len(build_targets) == 1, "dedicated corpus compiler-lib target absent/ambiguous")
     for target_spec in build_targets:
+        if args.jim_source_layout_only:
+            require(deadline - time.time() >= 2400 + 180 + 40,
+                    "insufficient shared time for full Layout target build/list/cleanup")
         package = target_spec["package"]
         target_name = target_spec["name"]
         target_kind = target_spec["kind"]
@@ -5104,13 +5338,13 @@ try:
             len(listed) == len(set(listed))
             and set(selectors).issubset(listed)
             and len(selectors)
-            == target_spec["expected_selected"]
-            + sum(
-                row["target"] == target_name
-                and row["package"] == package
-                and row["kind"] == target_kind
-                for row in supplemental_rows + sh21_rows + readflow_rows + catch_rows
-            ),
+            == (target_spec["expected_selected"] if args.jim_source_layout_only else
+                target_spec["expected_selected"] + sum(
+                    row["target"] == target_name
+                    and row["package"] == package
+                    and row["kind"] == target_kind
+                    for row in supplemental_rows + sh21_rows + readflow_rows + catch_rows
+                )),
             "original actual roster mismatch: " + target_name,
         )
         save(
@@ -5122,6 +5356,8 @@ try:
                 "executable_sha256": artifact["sha256"],
             },
         )
+        if args.jim_source_layout_only:
+            continue
         if args.source_point_corpus_only:
             # No historical test prefix or diagnostic repeat consumes this mode's time.
             require(all(row["state"] == "UNRUN" for row in rows),
@@ -5292,6 +5528,16 @@ try:
             require(
                 sha(executable) == artifact["sha256"], "selected test artifact changed"
             )
+
+    if args.jim_source_layout_only:
+        require(all(row["state"] == "UNRUN" for row in rows),
+                "dedicated Layout11 unexpectedly executed historical controls")
+        run_jim_source_layout_controls()
+        require(len(jim_layout_rows) == 11 and all(
+            row["state"] in ["PASS", "FAIL"] for row in jim_layout_rows),
+            "dedicated Layout11 incomplete")
+        status = 0 if all(row["state"] == "PASS" for row in jim_layout_rows) else 1
+        raise _DedicatedLayoutComplete()
     require(
         all(row["state"] in ["PASS", "FAIL"] for row in original65_rows),
         "taint diagnostics cannot precede original65 closure",
@@ -5573,7 +5819,7 @@ try:
     if any(row["capture_observation"] != "OBSERVED" for row in source_point_report_rows):
         status = 2
 
-except _DedicatedCorpusComplete:
+except (_DedicatedCorpusComplete, _DedicatedLayoutComplete):
     pass
 except (
     RuntimeError,
@@ -5644,6 +5890,26 @@ finally:
     save(
         out / "final.json",
         {
+            "mode": "jim-source-layout11-diagnostics",
+            "finished_utc": datetime.datetime.now(datetime.UTC).isoformat(),
+            "requested_sha": args.sha,
+            "overall_exit": status,
+            "error": error,
+            "final_errors": final_errors,
+            "seals": seals,
+            "artifacts": artifacts,
+            "processes": processes,
+            "remaining_log_bytes": remaining,
+            "required_layout_tests": 11,
+            "jim_source_layout11_outcomes": jim_layout_rows,
+            "jim_source_layout11_roster": jim_layout_validation,
+            "historical150_requested": False,
+            "corpus2_requested": False,
+            "historical_outcome_transfer": False,
+            "diagnostic_only": True,
+            "full_shared_process_gate_admission": False,
+            "shipping_performance_admission": False,
+        } if args.jim_source_layout_only else {
             "mode": "source-point-corpus2-diagnostics",
             "finished_utc": datetime.datetime.now(datetime.UTC).isoformat(),
             "requested_sha": args.sha,

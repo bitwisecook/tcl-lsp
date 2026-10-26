@@ -1,0 +1,192 @@
+{
+  "schema": 1,
+  "scope": "Dedicated Layout11 source geometry:3 unchanged original compiler tests,4 existing registry boundary tests,4 new registry source geometry/refusal controls. No prior outcome transfer; all proposed post-fix outcomes UNRUN.",
+  "expected_selected": 11,
+  "expected_per_package": {
+    "tcl-compiler": 3,
+    "tcl-registry": 8
+  },
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "source_proposal_manifest_sha256": "607efb16fca7479f249f41d7de2b0ba387f02e7d32c90b2c30f53c5bb9457758",
+  "independent_source_peer_sha256": "4d2c86a3a2fd3714ffb6960ebd49b63de03fe66fa40756413f0fd52660afa800",
+  "source_pins": {
+    "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
+    "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103"
+  },
+  "build_targets": [
+    {
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "name": "tcl_compiler",
+      "expected_selected": 3
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "expected_selected": 8
+    }
+  ],
+  "rows": [
+    {
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::original_proc_source_layout_tests::original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "UNCHANGED original acceptance"
+    },
+    {
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "UNCHANGED original acceptance"
+    },
+    {
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_keeps_plain_and_rooted_jim_forms",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "UNCHANGED original acceptance"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "native_procedure::tests::evaluated_argv_shape_selects_native_body_and_result",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "UNCHANGED Native argv/result/unknown protocol acceptance"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::tests::authored_source_procedure_roles_do_not_supply_native_definition_acceptance",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "UNCHANGED prior source refusal"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::tests::authored_source_static_list_position_rejects_duplicate_or_overlapping_roles",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "UNCHANGED prior source refusal"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::tests::authored_proc_hook_declaration_requires_exact_source_roles_and_transition",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "UNCHANGED prior source refusal"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::tests::authored_jim_core_layout_uses_source_grammar_in_shared_registry",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "NEW source geometry/refusal"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::tests::authored_jim_layout_preserves_c_unknown_and_expanded_refusals",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "NEW source geometry/refusal"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::tests::authored_jim_core_layout_refuses_conflicting_selected_roles",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "NEW source geometry/refusal"
+    },
+    {
+      "package": "tcl-registry",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::tests::authored_jim_layout_does_not_infer_a_core_descriptor_from_proc_hook",
+      "expected_selected": 1,
+      "env": {},
+      "list_seconds": 180,
+      "budget_seconds": 180,
+      "coverage": "NEW source geometry/refusal"
+    }
+  ],
+  "transport_budgets": {
+    "absolute_seconds": 10800,
+    "workflow_minutes": 190,
+    "fetch_seconds": 600,
+    "build_seconds_each": 2400,
+    "full_roster_seconds_each": 180,
+    "exact_list_seconds_each": 180,
+    "exact_test_seconds_each": 180,
+    "cleanup_reservation_seconds_each": 40,
+    "pre_fetch_full_reservation_seconds": 10160
+  },
+  "semantics": "Selected trusted Core + actual Jim3/4 source grammar only. No Native definition, frame, compiler body/admission, normal or publication authority; unknown/expanded/foreign/conflicting-role refusals remain."
+}
