@@ -1266,26 +1266,95 @@ mod tests {
         assert!(!p.may.contains(RenderedProperties::HAS_CRLF));
     }
 
+    fn source_result_hint_cases() -> [(&'static str, bool); 7] {
+        [
+            ("set output [subst {VALUE}]", true),
+            (r#"set output "[subst {VALUE}]""#, true),
+            ("set output {[subst VALUE]}", false),
+            (r"set output \[subst\ VALUE\]", false),
+            ("set output prefix[subst {VALUE}]", false),
+            (
+                "interp alias {} decode {} subst; set output [decode {VALUE}]",
+                true,
+            ),
+            (
+                "proc subst args {return REPLACED}; set output [subst {VALUE}]",
+                false,
+            ),
+        ]
+    }
+
+    fn assert_changed_rendered_statement_sources(
+        statement: &Statement,
+        uses: &HashMap<Symbol, u32>,
+        props: &HashMap<ValueKey, RenderedValueProps>,
+        ssa: &SsaFunction,
+        cfg: &CfgFunction,
+        (registry, config, metadata): (
+            &CommandRegistry,
+            tcl_lexer::LexerConfig,
+            Option<InvocationMetadataContext<'_>>,
+        ),
+    ) {
+        let mut changed_statement = statement.clone();
+        if let Statement::AssignValue { value, .. } = &mut changed_statement {
+            value.push_str("CHANGED");
+        }
+        assert!(
+            !evaluate_def(
+                &changed_statement,
+                uses,
+                props,
+                registry,
+                ssa,
+                &SourceRenderedContext {
+                    cfg,
+                    registry,
+                    config: Some(config),
+                    metadata
+                }
+            )
+            .may
+            .contains(RenderedProperties::WAS_UNESCAPED)
+        );
+        let mut absent_cfg = cfg.clone();
+        absent_cfg.command_binding_sites.clear();
+        let mut absent_statement = statement.clone();
+        if let Statement::AssignValue { tokens, .. } = &mut absent_statement {
+            *tokens = None;
+        }
+        let absent = SourceRenderedContext {
+            cfg: &absent_cfg,
+            registry,
+            config: Some(config),
+            metadata,
+        };
+        assert!(
+            absent
+                .evaluate(&absent_statement, uses, props, ssa)
+                .is_none()
+        );
+    }
+
+    fn assert_source_unescaped(
+        inferred: &RenderedValueProps,
+        unescaped: bool,
+        dialect: &str,
+        source: &str,
+    ) {
+        assert_eq!(
+            inferred.may.contains(RenderedProperties::WAS_UNESCAPED),
+            unescaped,
+            "{dialect}: {source}"
+        );
+    }
+
     #[test]
     fn original_source_result_hints_use_actual_whole_words_and_current_input() {
         use crate::registry_invocation::OwnedInvocationMetadataContext;
         use std::sync::Arc;
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
-            for (source, unescaped) in [
-                ("set output [subst {VALUE}]", true),
-                (r#"set output "[subst {VALUE}]""#, true),
-                ("set output {[subst VALUE]}", false),
-                (r"set output \[subst\ VALUE\]", false),
-                ("set output prefix[subst {VALUE}]", false),
-                (
-                    "interp alias {} decode {} subst; set output [decode {VALUE}]",
-                    true,
-                ),
-                (
-                    "proc subst args {return REPLACED}; set output [subst {VALUE}]",
-                    false,
-                ),
-            ] {
+            for (source, unescaped) in source_result_hint_cases() {
                 let fixture = crate::provider_fixtures::original_native_module(source, dialect);
                 let (context, module) = &*fixture;
                 let registry = context.commands();
@@ -1307,11 +1376,7 @@ mod tests {
                 let props = HashMap::new();
                 let inferred =
                     evaluate_def(statement, &uses, &props, registry, &ssa, &source_context);
-                assert_eq!(
-                    inferred.may.contains(RenderedProperties::WAS_UNESCAPED),
-                    unescaped,
-                    "{dialect}: {source}"
-                );
+                assert_source_unescaped(&inferred, unescaped, dialect, source);
                 if !unescaped {
                     continue;
                 }
@@ -1375,43 +1440,13 @@ mod tests {
                         .may
                         .contains(RenderedProperties::WAS_UNESCAPED)
                 );
-                let mut changed_statement = statement.clone();
-                if let Statement::AssignValue { value, .. } = &mut changed_statement {
-                    value.push_str("CHANGED");
-                }
-                assert!(
-                    !evaluate_def(
-                        &changed_statement,
-                        &uses,
-                        &props,
-                        registry,
-                        &ssa,
-                        &SourceRenderedContext {
-                            cfg: &cfg,
-                            registry,
-                            config: Some(config),
-                            metadata
-                        }
-                    )
-                    .may
-                    .contains(RenderedProperties::WAS_UNESCAPED)
-                );
-                let mut absent_cfg = cfg.clone();
-                absent_cfg.command_binding_sites.clear();
-                let mut absent_statement = statement.clone();
-                if let Statement::AssignValue { tokens, .. } = &mut absent_statement {
-                    *tokens = None;
-                }
-                let absent = SourceRenderedContext {
-                    cfg: &absent_cfg,
-                    registry,
-                    config: Some(config),
-                    metadata,
-                };
-                assert!(
-                    absent
-                        .evaluate(&absent_statement, &uses, &props, &ssa)
-                        .is_none()
+                assert_changed_rendered_statement_sources(
+                    statement,
+                    &uses,
+                    &props,
+                    &ssa,
+                    &cfg,
+                    (registry, config, metadata),
                 );
             }
         }
