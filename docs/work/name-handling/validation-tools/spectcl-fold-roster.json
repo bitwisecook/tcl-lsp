@@ -75,7 +75,14 @@
     "rust/tcl-compiler/src/var_resolve.rs": "ec47b8fd33df4371dc738a5d7a16f7267ad8988d7cd23e1ab62235df46939c57",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "f3136dad7d1caba8dedaa2ff2c765a990907f90e1fb9bb29d86bf6e23b587543",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e"
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e",
+    "runtime/rust/src/interp.rs": "ae25834a79e8068caebef28fd811f72ed6854c1b2ebb85ad4faa3ca7e4f9052a",
+    "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs": "beb7e5319d5b9b9b71229fd9fbbbc672f2972c63a9b9114b201081d770ea0de1",
+    "runtime/rust/src/interp/native_children.rs": "7fa7f5787755cdb79d9774a9855628a4eea73f9bf782c2c114bd964795a61a0b",
+    "rust/tcl-runtime-api/src/native_compiler_pass.rs": "aab36490f954a623d1f24d545e7e270c6a2514be17c93e0630320d58b8453671",
+    "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "aeeb123c35ad408e2604f2153284f3d78d95a3c9f874abbc3b7574f3d22e364b",
+    "rust/tcl-vm/src/interp.rs": "7ebd35ff6816f5fc297e07686e1cbe11914e16f049bf22241707e6c9ba44814d",
+    "rust/tcl-vm/src/interp/native_operation_currency.rs": "39aa834484dbb86a04ae985527eca7fd483b212deb5d1113e642e90b88c3ba3a"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",
@@ -109,6 +116,17 @@
     "exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives"
   ],
   "native_string_effect_budget": {
+    "listing_seconds": 180,
+    "test_seconds": 180,
+    "cleanup_seconds": 25
+  },
+  "ordinary_entry": [
+    "interp::ordinary_entry_observer_tests::self_removing_execution_trace_remains_an_observer_until_callback_settles",
+    "interp::ordinary_entry_observer_tests::actual_declaration_initialization_plan_rejects_old_capture_foreign_owner_and_restore",
+    "interp::ordinary_entry_observer_tests::registered_removed_and_firing_execution_observers_never_revive_old_receipt",
+    "interp::ordinary_entry_observer_tests::debug_hooks_limits_and_retirement_withdraw_but_line_watch_does_not"
+  ],
+  "ordinary_entry_budget": {
     "listing_seconds": 180,
     "test_seconds": 180,
     "cleanup_seconds": 25

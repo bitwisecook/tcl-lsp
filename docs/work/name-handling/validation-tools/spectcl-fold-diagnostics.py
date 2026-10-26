@@ -129,7 +129,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
     if prefix.startswith(
-        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "spec_corpus-", "tcl_vm-", "list-", "full-corpus-", "string-first-gates-", "native-string-effect-")
+        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "spec_corpus-", "tcl_vm-", "list-", "full-corpus-", "string-first-gates-", "native-string-effect-", "ordinary-entry-")
     ):
         require(
             available >= seconds,
@@ -137,7 +137,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
         )
     if prefix.startswith("full-corpus-"):
         require(available >= seconds + 25, "full corpus cleanup reserve unavailable")
-    if prefix.startswith(("string-first-gates-", "native-string-effect-")):
+    if prefix.startswith(("string-first-gates-", "native-string-effect-", "ordinary-entry-")):
         require(available >= seconds + 25, "string replay cleanup reserve unavailable")
     seconds = min(seconds, available)
     return owner.run(
@@ -379,6 +379,68 @@ def native_string_effect_append(artifacts, environment, budget, processes, outco
     return budget
 
 
+def ordinary_entry_append(artifacts, environment, budget, processes, outcomes, outcome):
+    global remaining
+    require(budget == remaining, "same remaining aggregate log budget for ordinary entry issuer")
+    selector = outcome["selector"]
+    require(len(roster["ordinary_entry"]) == 4 and selector in roster["ordinary_entry"], "exact actual observer issuer selectors")
+    require(roster["ordinary_entry_budget"] == {
+        "listing_seconds": 180, "test_seconds": 180, "cleanup_seconds": 25,
+    }, "bounded separate ordinary entry issuer admission")
+    for name in ["SPECTCL_CORPUS_TMP", "SPECTCL_CORPUS_DIFF", "SPECTCL_CORPUS_BLESS"]:
+        require(name not in environment, "ordinary entry issuer keeps actual samples-only non-bless mode")
+    selected = [artifact for artifact in artifacts if artifact["target"] == "tcl_vm"]
+    require(len(selected) == 1, "one original fresh ordinary entry issuer executable")
+    artifact = selected[0]
+    event = artifact["cargo_event"]
+    require(event["fresh"] is False and event["profile"]["test"] is True
+            and event["target"]["name"] == "tcl_vm"
+            and event["target"]["kind"] == ["lib"] and artifact["strict_Rust_0w"] is True,
+            "same genuine current integration-test ELF for ordinary entry issuer")
+    executable = Path(artifact["path"])
+    require(sha(executable) == artifact["sha256"], "ordinary entry issuer ELF changed before listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable before ordinary entry issuer")
+    require(deadline - time.time() >= 385, "full 180+180+25 reservation unavailable")
+    listing = execute([str(executable), "--list", "--format", "terse", "--exact", selector],
+                      "list-ordinary-entry-" + str(roster["ordinary_entry"].index(selector)), executable, 180, environment, budget)
+    processes.append(listing)
+    budget -= listing["retained_bytes"]
+    remaining = budget
+    require(lifecycle(listing) and listing["exit_code"] == 0, "ordinary entry issuer listing unclosed")
+    listed = []
+    for line in (out / ("list-ordinary-entry-" + str(roster["ordinary_entry"].index(selector)) + ".stdout")).read_text().splitlines():
+        if line.endswith(": test"):
+            listed.append(line.removesuffix(": test"))
+        else:
+            require(not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
+                    "unexpected ordinary entry issuer listing")
+    require(listed == [selector], "exact ordinary entry issuer selector missing, duplicate or ignored")
+    require(sha(executable) == artifact["sha256"], "ordinary entry issuer ELF changed after listing")
+    require(deadline - time.time() >= 205, "full 180+25 reservation unavailable after listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable after native string listing")
+    outcome["state"] = "RUNNING"
+    save(out / "ordinary-entry-outcomes.json", outcomes)
+    prefix = "ordinary-entry-" + str(roster["ordinary_entry"].index(selector)).zfill(2)
+    receipt = execute([str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+                      prefix, executable, 180, environment, budget)
+    processes.append(receipt)
+    budget -= receipt["retained_bytes"]
+    remaining = budget
+    outcome.update(exit_code=receipt["exit_code"], receipt=prefix + ".process.json",
+                   stdout=prefix + ".stdout", stderr=prefix + ".stderr")
+    require(lifecycle(receipt), "ordinary entry issuer lifecycle/capture stop")
+    stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+    try:
+        outcome["state"] = original_result(stdout, receipt["exit_code"])
+    except RuntimeError:
+        outcome["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+        save(out / "ordinary-entry-outcomes.json", outcomes)
+        raise
+    require(sha(executable) == artifact["sha256"], "ordinary entry issuer ELF changed after execution")
+    save(out / "ordinary-entry-outcomes.json", outcomes)
+    return budget
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -455,6 +517,7 @@ string_first_gate_rows = [{
     "group": "separate_string_first_gates", "target": "spec_corpus",
     "selector": "shipped_string_pack_replays_actual_corpus_first_gates", "state": "UNRUN",
 }]
+ordinary_entry_rows = [{"group": "separate_ordinary_entry", "target": "tcl_vm", "selector": selector, "state": "UNRUN"} for selector in roster["ordinary_entry"]]
 native_string_effect_rows = [{
     "group": "separate_native_string_effect", "target": "tcl_vm",
     "selector": 'exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives', "state": "UNRUN",
@@ -841,11 +904,14 @@ try:
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
     status = 2
     remaining = native_string_effect_append(artifacts, env, remaining, processes, native_string_effect_rows[0])
+    for observer_row in ordinary_entry_rows:
+        status = 2
+        remaining = ordinary_entry_append(artifacts, env, remaining, processes, ordinary_entry_rows, observer_row)
     status = 2
     remaining = string_first_gates_append(artifacts, env, remaining, processes, string_first_gate_rows[0])
     status = 2
     remaining = full_corpus_append(artifacts, env, remaining, processes, full_corpus_rows[0])
-    status = 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows + native_string_effect_rows) else 1
+    status = 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows + native_string_effect_rows + ordinary_entry_rows) else 1
 except (
     RuntimeError,
     OSError,
@@ -860,6 +926,12 @@ except (
     error = repr(failure)
     print("SPECTCL DIAGNOSTIC STOP " + error, file=sys.stderr, flush=True)
 finally:
+    for observer_row in ordinary_entry_rows:
+        if observer_row["state"] == "RUNNING":
+            observer_row["state"] = "INCOMPLETE"
+        if observer_row["state"] in ["UNRUN", "INCOMPLETE"]:
+            observer_row["unrun_reason"] = error
+    save(out / "ordinary-entry-outcomes.json", ordinary_entry_rows)
     if full_corpus_rows[0]["state"] == "RUNNING":
         full_corpus_rows[0]["state"] = "INCOMPLETE"
     if full_corpus_rows[0]["state"] in ["UNRUN", "INCOMPLETE"]:
