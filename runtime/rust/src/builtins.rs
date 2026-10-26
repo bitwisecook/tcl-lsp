@@ -36,6 +36,9 @@ use crate::interp::{obj_bytes, Code, Interp};
 use crate::interp::drop_fresh;
 use crate::obj::{self, TclObj};
 
+#[cfg(test)]
+mod native_jim_library_tests;
+
 /// Register the starter builtins on a fresh interp.
 pub fn install(interp: &mut Interp) {
     install_for_bootstrap(interp, None);
@@ -89,7 +92,11 @@ fn install_for_bootstrap(
     crate::cmd_lseq::install(interp);
     crate::cmd_dict::install(interp);
     crate::cmd_alias::install(interp);
-    crate::cmd_namespace::install(interp);
+    if protocol.is_some() {
+        crate::cmd_namespace::install_core(interp);
+    } else {
+        crate::cmd_namespace::install(interp);
+    }
     crate::cmd_var::install(interp);
     crate::cmd_control::install(interp);
     crate::cmd_proc::install(interp);

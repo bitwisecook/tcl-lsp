@@ -64,6 +64,12 @@ pub(crate) fn install_stock_scripted_library(
     interp: &mut Interp,
     library: tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
 ) {
+    if library
+        == tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers
+    {
+        interp.install_stock_jim_namespace_helpers();
+        return;
+    }
     for wrapper in tcl_registry::native_scripted_distribution::procedures(
         interp.native_invocation_dialect(),
         library,

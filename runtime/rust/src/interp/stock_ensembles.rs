@@ -422,19 +422,6 @@ impl Interp {
                     );
                     return None;
                 }
-                let parameters_obj =
-                    crate::obj::Owned::fresh(super::new_string(helper.parameters().as_bytes()));
-                let parameters = match crate::cmd_proc::parse_params_object(
-                    self,
-                    parameters_obj.as_ptr(),
-                    b"",
-                ) {
-                    Ok(parameters) => parameters,
-                    Err(error) => {
-                        self.report_cmd_error(error);
-                        return None;
-                    }
-                };
                 let source = helper.static_extension_source();
                 let context = match self.native_jim_object_context() {
                     Ok(context) => context,
@@ -453,6 +440,36 @@ impl Interp {
                     }
                     *source_filename = Some(filename);
                 }
+                let parameters_obj =
+                    crate::obj::Owned::fresh(super::new_string(helper.parameters().as_bytes()));
+                // Like Jim's source evaluator, attach the original container
+                // before list conversion; required-name list wrappers retain
+                // their own source-bearing element through the ordinary parser.
+                if let Err(error) = crate::native_source::install_source(
+                    parameters_obj.as_ptr(),
+                    crate::native_source::NativeJimSourceInfo {
+                        filename: source_filename
+                            .as_ref()
+                            .expect("installed source filename")
+                            .clone(),
+                        line: source.first_line(),
+                    },
+                    &context,
+                ) {
+                    self.report_cmd_error(error.into());
+                    return None;
+                }
+                let parameters = match crate::cmd_proc::parse_params_object(
+                    self,
+                    parameters_obj.as_ptr(),
+                    b"",
+                ) {
+                    Ok(parameters) => parameters,
+                    Err(error) => {
+                        self.report_cmd_error(error);
+                        return None;
+                    }
+                };
                 let body = crate::obj::Owned::fresh(super::new_string(source.body().as_bytes()));
                 if let Err(error) = crate::native_source::install_source(
                     body.as_ptr(),

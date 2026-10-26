@@ -250,9 +250,13 @@ impl Interp {
                 "Jim original child distribution initialisation",
             ));
         }
-        // Namespace, package, interp and array installers are already included
-        // in this backend's supported core inventory. Binary is distribution-owned
-        // in Jim and is installed here, separately from with_native_core.
+        // Primitive namespace, package, interp and array commands are already
+        // in this backend's supported core inventory. Source helpers and binary
+        // are selected here in the original static-extension order.
+        crate::cmd_proc::install_stock_scripted_library(
+            child,
+            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+        );
         crate::cmd_binary::install(child);
         for name in initialisation.copied_parent_variables() {
             let Some(original) = self.var_get_at(name, 0) else {
