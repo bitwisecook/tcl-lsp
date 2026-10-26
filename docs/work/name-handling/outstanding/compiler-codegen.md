@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T16:08:19.488013+00:00
+Last updated: 2026-10-26T16:41:09.945393+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Finald216 metadata V2 frozen67feaf0a/19fd5c6b:15files,13existingpins+exact4approvedcolddeps+reviewedJimfnscalar+existingstartup13MEMOclientscalar;11actualruntimeguardsPASS andprospectiveV14PASS31c30f93. V1heldstartupstale. Compilerpeeractive/slowIOnoconcretehold;Rootcanonicalapplyseparate. Division7c26 stronga1fbed/boundedf156 ready actualold7+newcontrol8UNRUN. CurrentC47Heavy325P31F/E2E3581P259F fullyclosed; baseline24624available803P247F23355unknown219notselected. Two coarse semanticTokens sameidentity historicalCef60PASS→C47FAIL routedLSP; no flakewaiver. OtherC476active/Cef603active preserved. Fivegeneratorfixture consumerclock concern OPEN routedRuntime despite descriptorsourceclear; no namespacebypass. Broad8protocolNEXTnotcurrent.
 
 Productive Native division alias repair frozen7c26d13d, strong SourceProc/bounded Compiler peers pending: checked int_binary d=C loses quotient to remainder; existing I32_B preserves pure adjustment before quotient, old guards/goldens exact, new signed/overflow realwasmtime control UNRUN. Mechanical39 e34f120e independentlyclear d0ede4da; generator authoredroster7fd4 strong965200, modern-familyV2 82b5 strongf2ec, separatefivefixture2855 strong75d5 ready Root. CurrentC47 selected9 ZIPs verified head/API/digest/CRC/memberSHA, baseline24405 selected/219absent (explicitfourcostpurpose removals minusrestoredtailcall); no outcomes inferred. BroadC47 WASM tiers actual4P3F including33/3 expected vs35/0 native result; original25PASS retained. Logs losslessgzip in currentC47capture, source earlier. BothCI activepreserved.
 
