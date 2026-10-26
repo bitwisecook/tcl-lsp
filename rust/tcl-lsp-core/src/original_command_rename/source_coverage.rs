@@ -293,9 +293,6 @@ impl<'a> SourceCut<'a> {
     }
 }
 
-fn needed<T>(value: Option<T>) -> Result<T, OriginalCommandRenameRefusal> {
-    value.ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)
-}
 impl<'a> SourceCut<'a> {
     fn command_requests(
         &self,
