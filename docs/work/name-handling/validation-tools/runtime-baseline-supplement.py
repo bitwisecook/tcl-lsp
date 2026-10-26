@@ -75,6 +75,8 @@ TARGETED_PRUNE_CONTROLS = {
 AOT5_SOURCE_PATH = 'runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs'
 AOT5_SOURCE_SHA = 'e7b3122d09b5463803f2231d8cc4fd61f8a37d4306fef71ddf9f92b4b058b957'
 AOT5_SELECTORS = ['interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add', 'interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks', 'interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe', 'interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay', 'interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_follow_original_first_slot_without_a_native_strategy']
+CONSTRUCTOR3_CONTROLS = {'capi::collections::tests::generic_collection_preserves_first_refusal_before_original_updater': {'path': 'runtime/rust/src/capi/collections/tests.rs', 'sha256': '9e5e8a9e51bf614d23ae63fc41645ead6046647acc962f64a93e2d5a0d870d7f', 'indent': ''}, 'capi::collections::tests::generic_actual_c_profile_without_refusal_enters_collection_updater': {'path': 'runtime/rust/src/capi/collections/tests.rs', 'sha256': '7252f705670996d66c2dd22001072342b999a166c77a29f279b2313256ad9578', 'indent': ''}, 'interp::tests::native_math_function_commands_follow_constructor_surface': {'path': 'runtime/rust/src/interp.rs', 'sha256': '1fa06df1dca2dfec30633f0adafad1e732e0d1d49937d0abbb1e1e06be77d43f', 'indent': '    '}}
+CONSTRUCTOR3_SELECTORS = list(CONSTRUCTOR3_CONTROLS)
 GROUPS = (
     "baseline14",
     "stack_abort1",
@@ -586,6 +588,95 @@ def run_aot5(owner, suite, binary, prepared, environment, supplemental, source,
     return rows, errors, used
 
 
+def constructor3_control_source():
+    for selector, control in CONSTRUCTOR3_CONTROLS.items():
+        raw = Path(control["path"]).read_text()
+        indent = re.escape(control["indent"])
+        simple = re.escape(selector.rsplit("::", 1)[1])
+        pattern = (r"(?:^" + indent + r"#\[[^\n]*\]\n)+^" + indent
+                   + r"fn " + simple + r"\(\) \{\n.*?^" + indent + r"}\n")
+        found = re.findall(pattern, raw, re.MULTILINE | re.DOTALL)
+        require(len(found) == 1
+                and hashlib.sha256(found[0].encode()).hexdigest() == control["sha256"],
+                "unchanged reviewed constructor control required: " + selector)
+    return CONSTRUCTOR3_CONTROLS
+
+
+def run_constructor3(owner, suite, binary, prepared, environment, supplemental, source,
+             used, suite_deadline, absolute, prior_closed):
+    rows = [{"group": "constructor3", "selector": name, "status": "UNRUN"}
+            for name in CONSTRUCTOR3_SELECTORS]
+    errors = []
+    save(supplemental / "constructor3-outcomes.json", rows)
+    source_provenance = constructor3_control_source()
+    require(len(CONSTRUCTOR3_SELECTORS) == len(set(CONSTRUCTOR3_SELECTORS)) == 3,
+            "exact distinct constructor3 selectors required")
+    if not prior_closed:
+        errors.append("original140 process/ELF/completeness unsettled; constructor3 remains UNRUN")
+    else:
+        for index, row in enumerate(rows):
+            if not listed(suite, row["selector"]):
+                errors.append("reviewed constructor3 selector absent or ignored")
+                break
+            if suite["testcases"][row["selector"]]["filter-match"]["status"] == "matches":
+                errors.append("constructor3 cannot substitute an original selected identity")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable for constructor3")
+                break
+            if used >= CAP:
+                errors.append("remaining shared 20MiB log budget exhausted before constructor3")
+                break
+            if sha(binary) != prepared["elf_sha256"]:
+                errors.append("same original3 ELF changed before constructor3")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable after ELF hash")
+                break
+            prefix = supplemental / f"constructor3-{index}"
+            receipt = owner.run(
+                [str(binary), "--exact", row["selector"], "--nocapture", "--test-threads=1"],
+                cwd=Path(suite["cwd"]), env=environment,
+                stdout_path=str(prefix) + ".stdout", stderr_path=str(prefix) + ".stderr",
+                receipt_path=str(prefix) + ".process.json", artifact_path=binary,
+                deadline_seconds=180, cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+                disk_paths=(Path.cwd(), supplemental.parent, binary.parent, Path(os.environ["RUNNER_TEMP"])),
+            )
+            used += receipt["retained_bytes"]
+            try:
+                row["status"] = original_outcome(Path(str(prefix) + ".stdout").read_text(), receipt)
+            except (RuntimeError, ValueError) as error:
+                row["status"] = "INCOMPLETE"
+                row["error"] = str(error)
+            row["process"] = receipt
+            row["stdout_sha256"] = sha(str(prefix) + ".stdout")
+            row["stderr_sha256"] = sha(str(prefix) + ".stderr")
+            save(supplemental / "constructor3-outcomes.json", rows)
+            print(row["group"], row["selector"], row["status"], flush=True)
+            if (not receipt["group_empty_before_parent_reap"] or not receipt["artifact_unchanged"]
+                or row["status"] in ["UNRUN", "INCOMPLETE", "TIMEOUT"]):
+                errors.append("constructor3 process/ELF/completeness guard failed")
+                break
+            if time.monotonic() > suite_deadline or time.time() > absolute:
+                errors.append("shared suite or absolute deadline exceeded after constructor3")
+                break
+    for row in rows:
+        if row["status"] == "UNRUN":
+            row["unrun_reasons"] = errors
+    save(supplemental / "constructor3-outcomes.json", rows)
+    save(supplemental / "constructor3-summary.json", {
+        "source": source, "binary": str(binary), "elf_sha256": prepared["elf_sha256"],
+        "source_provenance": source_provenance, "count": 3,
+        "counts": dict(collections.Counter(row["status"] for row in rows)),
+        "errors": errors, "complete": not errors,
+        "case_budget_seconds": 180, "suite_budget_seconds": 2400,
+        "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
+        "aggregate_log_cap_bytes": CAP + 65536,
+        "scope": "Separate three genuine constructor controls after unchanged original140; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
+    })
+    return rows, errors, used
+
+
 def run(out, source):
     supplemental = out / "supplement"
     supplemental.mkdir()
@@ -896,6 +987,14 @@ def run(out, source):
         owner, suite, binary, prepared, environment, supplemental, source,
         used, suite_deadline, absolute, aot_prior_closed)
     errors.extend(aot_errors)
+    constructor_prior_closed = aot_prior_closed and len(aot_rows) == 5 and all(
+        row["status"] in ["PASS", "FAIL", "ABORT"]
+        and row["process"]["group_empty_before_parent_reap"]
+        and row["process"]["artifact_unchanged"] for row in aot_rows)
+    constructor_rows, constructor_errors, used = run_constructor3(
+        owner, suite, binary, prepared, environment, supplemental, source,
+        used, suite_deadline, absolute, constructor_prior_closed)
+    errors.extend(constructor_errors)
     unchanged = sha(binary) == prepared["elf_sha256"]
     if not unchanged:
         errors.append("ELF changed after supplemental cases")
@@ -918,6 +1017,7 @@ def run(out, source):
             "counts": counts,
             "errors": errors,
             "complete": complete,
+            "separate_constructor3_outcomes": "constructor3-outcomes.json",
             "separate_aot5_outcomes": "aot5-outcomes.json",
             "separate_attestation3_outcomes": "attestation3-outcomes.json",
             "separate_proc_stack_outcome": "proc-stack-outcome.json",
@@ -980,7 +1080,8 @@ def run(out, source):
         125
         if not complete
         else 100
-        if any(row["status"] != "PASS" for row in aot_rows)
+        if any(row["status"] != "PASS" for row in constructor_rows)
+        or any(row["status"] != "PASS" for row in aot_rows)
         or any(row["status"] != "PASS" for row in attestation_rows)
         or proc_row["status"] != "PASS" or any(row["status"] != "PASS" for row in rows)
         else 0
@@ -1027,6 +1128,19 @@ def main():
         if args.phase == "run":
             directory = out / "supplement"
             directory.mkdir(exist_ok=True)
+            constructor_path = directory / "constructor3-outcomes.json"
+            constructor_rows = json.loads(constructor_path.read_text()) if constructor_path.exists() else [
+                {"group": "constructor3", "selector": name, "status": "UNRUN"}
+                for name in CONSTRUCTOR3_SELECTORS]
+            for row in constructor_rows:
+                if row["status"] == "UNRUN":
+                    row["unrun_reasons"] = [repr(error)]
+            save(constructor_path, constructor_rows)
+            save(directory / "constructor3-summary.json", {
+                "source": args.sha, "count": 3, "complete": False, "errors": [repr(error)],
+                "counts": dict(collections.Counter(row["status"] for row in constructor_rows)),
+                "scope": "Constructor2 unadmitted/incomplete; original140 remain separately reported.",
+            })
             aot_path = directory / "aot5-outcomes.json"
             aot_rows = json.loads(aot_path.read_text()) if aot_path.exists() else [
                 {"group": "aot5", "selector": name, "status": "UNRUN"} for name in AOT5_SELECTORS]
