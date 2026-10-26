@@ -92,7 +92,7 @@
   "scope": "Original unchanged bootstrap1 and CLI trace2 from actual a26 heavy355 (321PASS34FAIL); distinct bounded first-decline diagnosis only. Build original heavy exact3 packages/all-features; all test binaries compiled; only3 isolated original selectors executed. No actual TMM or authored simulation authority grant.",
   "source_pins": {
     "rust/tcl-vm/src/literal_pool.rs": "92ef873b4aeae1dc7035cc6a9df2666bd104c901f0abe11f2a0398b8054532cd",
-    "rust/tcl-vm/src/command.rs": "de977a1c6d856c1520542d39ac2ff137d0e556c80cbc56d89c46f14990ec8c2f",
+    "rust/tcl-vm/src/command.rs": "0c2fe62d987e1a4faadc44a1ca8349a4ad3319eee3d4d897d46ccdc0b0f32ed2",
     ".github/workflows/ci.yml": "9d333b7584493e31c9aa4a58cea420318ae4dd48958edd31a4c935b08f830273",
     "runtime/rust/src/interp/native_body_artifact.rs": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec",
     "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs": "84311ba0625bcc1c6af12ec4bb6bf9e84152eefa374002d683a645ff48d82dc1",
@@ -128,7 +128,7 @@
     "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs": "2917cd196ed7012372e0df463e446499702567ecb18d97ca4bf245006dbc958f",
     "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002",
     "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
-    "rust/tcl-vm/src/interp.rs": "404c96f6526fa61fef6da000fed3bd2088069be1e0fb5efb8b6c85d4ac74af73",
+    "rust/tcl-vm/src/interp.rs": "d6250014deaeaedf55f48bc01a8195ab48ef0159e92951b9687132fcac30262d",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "runtime/rust/src/cmd_proc.rs": "ecf2f9416c2da5f0d49da10b34dfd33bb27203eadefa5ca3f949eb09c59d6d86",
     "runtime/rust/src/codegen_abi.rs": "041d0a6162a880b45eae81606400eaee634e702517abf97a297206e2bef174df",
