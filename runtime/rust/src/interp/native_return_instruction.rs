@@ -14,6 +14,13 @@ use tcl_syntax::{
     value::ValueError,
 };
 
+/// Existing return control scalars and a borrowed object address, without a retain.
+struct OriginalReturnControl {
+    code: i32,
+    level: i64,
+    options: *mut TclObj,
+}
+
 impl Interp {
     /// Reset a reached C9.1 compile error after both original array operands
     /// exist, publishing the actual private fields through native variable setters.
@@ -345,9 +352,11 @@ impl Interp {
         let actual = self.clone();
         let reached = self.process_original_c_return_options_using(
             purpose,
-            code,
-            level,
-            original_options,
+            OriginalReturnControl {
+                code,
+                level,
+                options: original_options,
+            },
             &|| arguments.check_original_for(&actual, 0, original_options),
             &|value, current| {
                 actual.native_object_string_bytes_using(value, current, &|error| {
@@ -373,9 +382,11 @@ impl Interp {
     ) -> Result<Code, tcl_cmd_core::CmdError> {
         self.process_original_c_return_options_using(
             purpose,
-            code,
-            level,
-            original_options,
+            OriginalReturnControl {
+                code,
+                level,
+                options: original_options,
+            },
             &|| objects.original_check(),
             &|value, current| objects.original_bytes_using(value, current),
             &|error| objects.original_refuse(error),
@@ -386,9 +397,11 @@ impl Interp {
     fn process_original_c_return_options_using(
         &mut self,
         purpose: NativeReturnOptionsApplication,
-        code: i32,
-        level: i64,
-        original_options: *mut TclObj,
+        OriginalReturnControl {
+            code,
+            level,
+            options: original_options,
+        }: OriginalReturnControl,
         extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
         string: OriginalReturnString<'_>,
         refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,

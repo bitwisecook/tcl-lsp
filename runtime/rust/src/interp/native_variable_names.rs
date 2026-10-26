@@ -24,6 +24,13 @@ use tcl_syntax::{
 
 pub(crate) type OriginalCNameStage<'a> = Option<&'a dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>;
 
+/// Non-owning original argument addresses; existing entry checks retain authority.
+struct OriginalVariableAssignmentObjects {
+    lookup: *mut TclObj,
+    original: *mut TclObj,
+    value: *mut TclObj,
+}
+
 struct OriginalCNameSelection {
     root: Vec<u8>,
     element: Option<Vec<u8>>,
@@ -2996,9 +3003,11 @@ impl Interp {
         self.check_original_c_name_stage(stage)
             .map_err(|error| self.report_cmd_error_using(error, stage))?;
         self.assign_prepared_original_c_selection_reported_using(
-            original,
-            original,
-            value,
+            OriginalVariableAssignmentObjects {
+                lookup: original,
+                original,
+                value,
+            },
             publish_result,
             purpose,
             selected,
@@ -3016,9 +3025,11 @@ impl Interp {
         selected: &OriginalCNameSelection,
     ) -> Result<(), Code> {
         self.assign_prepared_original_c_selection_reported_using(
-            lookup,
-            original,
-            value,
+            OriginalVariableAssignmentObjects {
+                lookup,
+                original,
+                value,
+            },
             publish_result,
             purpose,
             selected,
@@ -3028,9 +3039,11 @@ impl Interp {
 
     fn assign_prepared_original_c_selection_reported_using(
         &mut self,
-        lookup: *mut TclObj,
-        original: *mut TclObj,
-        value: *mut TclObj,
+        OriginalVariableAssignmentObjects {
+            lookup,
+            original,
+            value,
+        }: OriginalVariableAssignmentObjects,
         publish_result: bool,
         purpose: NativeVariableNameLookupPurpose,
         selected: &OriginalCNameSelection,
