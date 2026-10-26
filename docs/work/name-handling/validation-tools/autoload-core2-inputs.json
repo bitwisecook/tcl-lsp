@@ -24,7 +24,7 @@
     "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "4e5c1369a02ed26df4becae20580292cf0b3419fe8915c118b4644a9e9dda96d",
     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
-    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "1c5920b733e46b325166c221e862840fc13efde071946e022553380e9013ce23"
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "0a50eb68eafe10352286ab7a6821ef02d6030e07afec80a7e15d1489f457bf4c"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",

@@ -72,7 +72,9 @@
     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
     "rust/tcl-compiler/src/analyser/authenticated_report.rs": "4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd",
     "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
-    "rust/tcl-compiler/src/command_binding/retained_source.rs": "f2919bda0850cc0f6f2fd54fc88837686138b4d24e27ed301b03a94688800797"
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "f2919bda0850cc0f6f2fd54fc88837686138b4d24e27ed301b03a94688800797",
+    "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
+    "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",

@@ -4736,7 +4736,7 @@ original_rows = [
 ]
 require(
     sha(BASE / "compiler-native35-supplemental3.json")
-    == "70d1dd2bcd054963f6889dcc6b4efbe8ce03172fe7b8b8ad3e9b34f4b56234ec",
+    == "6bc89224ad489043930b1ade2a246367c734cdb8fc8fd8a96fd57330843dd6f3",
     "exact separate Native35 supplemental3 input pin",
 )
 supplemental = json.loads((BASE / "compiler-native35-supplemental3.json").read_text())
@@ -4887,7 +4887,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "407808294940c9ffb9a4fa76a64dc09e1fa9b23175eb010965dd0a46c40a6e3b",
+    == "628a344a506ea66a582c559574698daa5a28ef98399c11d4bbf9900d70d58dad",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -4943,7 +4943,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "753847c99c724eb34ec670cbe8bff20247c2d344f927ea514aad5c8eb9f4223f",
+    == "e7670a6f9250c2dc90b36b24c64fa872f017e4f395832528194bdcf3f0d119a0",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -5067,7 +5067,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "ee443023c0329dbd0c4172e9e9241c94c8bb0630d4b4a78bd8069a8f5921bfb3",
+    == "685cd63523908b0c60cb4e68b2dcb76b4178c8fb57cc52c669d055b4a5ee17ef",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -5265,7 +5265,7 @@ source_point_corpus_validation = json.loads((BASE / "source-point-complete-text-
 require(sha(BASE / "source-point-complete-text-corpus2.json") == "c0b8f8ea7c655e5cb495cd725433e84a4418c6208a4f28d3edf7efbd3e0c7818", "exact separately bounded complete text corpus roster")
 source_point_corpus_rows = [dict(row, state="UNRUN") for row in source_point_corpus_validation["rows"]]
 
-source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': 'a981896963d87c0464325a8a3549a2fcb8987750ddbb6062f1d1f7bda57072f8'}
+source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': '7511016f6537f755a59fe0559b4dfea07209535bc9fdeb6cfa0a77897dbbd205'}
 source_point_report_rows = [dict(row, state="UNRUN", capture_observation="UNOBSERVED") for row in [{'group': 'diagnostic-source-point-report-firstguard1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {'TCL_LSP_TRACE_AUTHENTICATED_REPORT': '1'}}]]
 
 require(

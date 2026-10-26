@@ -109,8 +109,10 @@
     "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
     "rust/tcl-compiler/src/analyser/handlers.rs": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103",
     "rust/tcl-compiler/src/analyser/oo.rs": "e8f674655190ef98d29d0fb746ad98648d149f5480a2381a65a01ee82d696a1e",
-    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "1c5920b733e46b325166c221e862840fc13efde071946e022553380e9013ce23",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "3af147084d8b2e1984cbf53a558faad409908d29d1337bf1c6dc7371e6f45568"
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "0a50eb68eafe10352286ab7a6821ef02d6030e07afec80a7e15d1489f457bf4c",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "3af147084d8b2e1984cbf53a558faad409908d29d1337bf1c6dc7371e6f45568",
+    "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
+    "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867"
   },
   "jim_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
   "jim_patchlevel": "0.84-9-g5bac7c9",
