@@ -271,17 +271,23 @@ mod tests {
             &memo.get(&context, &logical, dialect).unwrap()
         ));
         let bounded = AdviceCatalogueSeedMemo::default();
-        for depth in 0..9 {
+        let mut inputs: Vec<crate::analyser::ResolvedAnalysisInput> = Vec::new();
+        for index in 0..9 {
+            let next_context = Arc::new(context.with_command_store(Arc::clone(context.commands())));
+            assert!(Arc::ptr_eq(context.commands(), next_context.commands()));
+            assert_eq!(context.context(), next_context.context());
             let input = crate::analyser::ResolvedAnalysisInput::new(
                 profile,
                 profile,
-                Arc::clone(&context),
-                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar).at_depth(depth),
+                Arc::clone(&next_context),
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
             );
+            assert!(inputs.iter().all(|old| old != &input));
+            inputs.push(input.clone());
             let policy = AdviceNamingPolicy::Logical(input);
-            let first = bounded.get(&context, &policy, dialect).unwrap();
-            if depth == 8 {
-                let second = bounded.get(&context, &policy, dialect).unwrap();
+            let first = bounded.get(&next_context, &policy, dialect).unwrap();
+            if index == 8 {
+                let second = bounded.get(&next_context, &policy, dialect).unwrap();
                 assert!(!Arc::ptr_eq(&first, &second));
                 assert_eq!(first.cells, second.cells);
             }
