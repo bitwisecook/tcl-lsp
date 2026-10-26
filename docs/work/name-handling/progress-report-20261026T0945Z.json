@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T09:45:22.298599+00:00",
+  "scheduled_report_utc": "2026-10-26T09:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T10:15:00+00:00",
+  "change_since_previous_report": [
+    "Allreviewedpreviousbatch/sourcepinspushednormallyasWORKad0b1d5fd/CLEAN9b2a9741c, canonicalV14PASS13/30/20. Allaccumulated0615/0845/0915reports+lockeduserdecisionJSON+shippingstatussupplementpushed5f3eb889ca48f2cff5107b4983f7789f96becd2c09:18:38afterfreshdepth1fetch. Productanddocumentsremainseparatefromreleasechaffcleanup.",
+    "Currentad0bactualstrictFULLAUTHa96107a1hasonecompilerAPI>3boolsClippyprimary/0RustE. CurrentWASMFULLAUTH7af356b0all25UNRUNexacttwoE0502debugactivityguardborrowsVMacrossmutablehooktake/restore. Noallocation/depth/getter/NativeI64executionoutcomeinferredfromthisbuildstop.",
+    "Currentad0bJim52FULLBUILD-AUTHc139b5d6all52UNRUNatSAMEtwoVMerrors,source/provider/deps/tools/member/processsealscomplete. Compiler130decodedalsoallUNRUNsameE0502,fullauthpending. Priorc6minifygain/prior059Jim/runtimeoutcomesretainedasprioronly,nogainsorregressionsinventedonunexecutedcurrentcases.",
+    "RootactualAPIconfirmednewfullCI40298370647closedwasm/e2earchive/SpecbuildFAIL. CancelledONLYthisknowncompilerbrokennewrun;09:30terminalcancelled/artifacts0. AllunreportedindividualrowsremainUNOBSERVED. Olderordinaryf76340274598539andhealthyshard2/E2E1/2untouched. FixedsourcefullCIrepostonlyaftercoherentrepair/currentpins.",
+    "RootcancelledONLYnewpaired40298285208becauseSAMEC9b2aunconditionalVMlibraryerrorblocksitsreleasedserverDBdependency;noaccepted/unreportedbuildortrialoutcomeinferred. Allfocused/olderordinarypreserved. Previousf763qualifiedmacscan120/token1800stallsandLinuxshutdown143remainactualunacceptedperformance. Recomparefixedsourceunderallexistingbudgets/guards.",
+    "Runtimepreparednarrowpairedactualrepair370eef76:typedNativeOrdinaryEntryObserversUnproven/Absentpreservessamebackendboolean,oldcaptureAPIunchanged;debugactivityusesownedRc<Cell<bool>>,restorespreviousstateonnesting/unwindwithoutborrowingVMacrosshooktake/restore. ExistingselectedVM4controladdsrealnested/panichookassertions. Noallow/unsafeorpermissionrelaxation,maxchangedbody66lines.",
+    "ActualrepairindependentlySourceProcstrong0584811c+Compilerbounded180a3830current/hash/F-R/fmt/productioncallcensus/oldpredicatepreservationcleared. LandedWORKab69e175ca88be9ee6e63a0ce6967e4519c478acfirst,CLEAN784b2b7459e078f88c2d9bc9a79b5b0c01416575carry. Codegentinycurrentall23union1b67preserveskeys/protocols,refreshes7existingrecordsfor3actualRustpaths/derivedguards;VM4functionhasnoliteralrunnerhash,noneinvented. Rootinverse4217/prospectiveV14+all9actualruntimeguardsPASS;independentpeer/canonicalpreflight/pushpending.",
+    "Currentrelease-only40path/4Markdown/87Rustcomment/publicownerrowdeltaaudit06b35350foundNONEWchafforstaleclaim,nocanonicaldeletionproposal. DevelopmentprocessplanstaleMinifyfailurecorrectedWORKonly. Shippingcontractscontinueactualunsupported/refusalqualifications;noactualtestpassclaimfromstaticreview.",
+    "Namesread-onlyperfauditrecordedexactwholeimagecopy/hash/indexleadalreadyfixedinpreviousbatchandboundedremainingcopyretention/repeatednormalgraphwalkcandidates;actualcardinalities/RSSshareunmeasured. Compilerpurecatalogueseedmemoauthoringawaitsfinalpeer;wholegraph/counter/Nativecurrency/Eqcutoffsunchanged. LSPtypedcompleteSourceLoadsuccessorremainsofftreeheldbeforestrongreview.",
+    "All5roleheaderskeptcurrent;externalBIGIP/perfremainover60minstaleandreportedwithouttakeover,triagecomplete. Nolocalworkspacebuilds,allsource/evidence/ZIP/executablesretainedapartfrompreviousguardedderivedcachecleanup. F/currentzeroPASS-to-FAIL/allgreen/performance/docs/generated/fixtures/prep-prremainopen;noPR/merge/tag/release.",
+    "Latecycleactualcompiler130FULLAUTHece61bca/1156c848sealedALL130UNRUN, no formal/layout/ownJim gain. LSPsolead0bstartupZIPalsoactualsame2E0502/allstartupunrun/noELF, remaining4authpending. No newLSP runtime or diagnosticobserver outcome."
+  ],
+  "committed": [
+    "07d903217581915734c137386d7014b98a1afb27"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finishcurrentreviewedcohortintegration, oneexactfinal23pin union+independentpeer/canonicalV14, normalpushbothbranches thenfocusedgates.",
+    "QualifyfreshcurrentwholeCI/baselinecomparison/performance; fixactualremainingLSP/runtime/Jim/bodyconsumerfailureswithoutassertionorcurrencyweakening.",
+    "Finalreleaseeditorial/generated/fixtures/package/prep-pr/F/fullgreen/performancebeforeauthorizedPR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release checkbox or audit-unit admission. Six-hour target missed, no PR. Semantic/runtime results remain scoped; queued/running/unreached are not pass.",
+  "disk_free_bytes": 2242473984,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

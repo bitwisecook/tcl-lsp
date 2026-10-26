@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T08:42:58+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-26T09:42:49+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Latest ad0b compiler130 is build-blocked: ALL130UNRUN (provisional decoded; full authentication running).** Run40298012424/job121488728406/sourcead0b1d5fd4da4c4a73f8d71b45b69a35d607e4ea has soleZIP12640180207/10,949,172B SHA1b05f56a4142faeed59fd6eabe2cccc1d98bd46b45b892c603f8f082b0ba56cc. Two E0502 VM debug-hook guard borrows stop the selected compiler-lib build; no original124, layout3 or ownJim3 child executes. Actual repair vm-observer-ad0b-actual-repair-v1 has strong SourceProc058481 and bounded compiler180a3830d4e07340558c1f17efa2850d28b277d915ee5668d5eafab84cef5a66; root integrated ab69. The final five-file metadata carry is under independent current/all23/guard review before canonical preflight/push. Current semantic evidence remains the fully authenticated c6a4 results below; the formal expression-local repair and new controls have no executed outcome yet.
 
 **Current c6a4 compiler124 is fully authenticated: original58 and Minify1 PASS; four readonly, one NativeString and two formal controls remain FAIL.** Run40277887889/job121424452240/sourcec6a4f2fa6c9396bacc09a662d3f58a0ac9bf4000 has soleZIP12632298204/12,323,746B SHA742dc8ceaa9ce7686210557dfca3a1d8529c51122563a01b7ebfc0fbd069ae4a. Main4d5ff5bf72c69f94de6ceaa96399330d5f2c0df1fcc41e9b0075deb4b1161cbf and Native/fullGitdc95517e954c54b1b111b3f3e68e35953d9b36cac8876c793104e09d9277cf4d independently seal126554source/provider10202/deps21504/tools/currentpins/allmembers/267closed ownedprocesses, zero build diagnostics. Old102=98PASS/4FAIL, Logical3+5 PASS, codec PASS, Child10 all PASS, restored-child Minify1 now PASS, NativeString3=2PASS/1FAIL, Native formal2=0PASS/2FAIL. Readonly first gates remain owner.unavailable then three roles.metadata and one substitution.metadata (fresh54db5b17). NativeString tcl8.4 tests86 diagnostic remains unchanged. Both formal controls stop at ordered_locals.rs412 because expression-variable traversal withdraws the local inventory; source-clear8ac996 repair is NEXT, not in c6a4. No runtime effect/Normal/body consumer closure is claimed.
 

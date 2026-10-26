@@ -51,13 +51,13 @@ the reduced release branch remain separate; no PR is open. Current detailed
 outcomes and owner routing live in `current-state.md` and `outstanding/`.
 
 Current source identities, scoped results and immutable receipts are maintained in
-`current-state.md`; this plan does not duplicate a stale run ledger. By25October,
-the original expression-fold assertions and all16 closed-consumer controls pass
-in the authenticated compiler cohort. Native source-body custody, retained
-query ownership and corrected callback fixtures are integrated. All original58 compiler controls and separate Logical controls now pass in the
-recorded7dc capture. Four read-only controls, minify, a new NativeString positive,
-Jim applicability, runtime recursion and browser/WASI failures remain; narrow
-successes do not close sectionF.
+`current-state.md`; this plan does not duplicate the run ledger. The unchanged
+Default minify tests, including factorial, and the compiler minify control now
+pass in authenticated captures. Read-only compiler cases, native string effects,
+Jim applicability, runtime allocation/depth and browser/WASI/reference coverage
+remain release obligations. Later compiler errors can prevent new cases from
+running and must be repaired before any semantic result is inferred. Scoped
+successes do not close section F.
 
 Current `origin/rust` advanced to`ed694de47cbbeff0bb9f5cd5888cc336e1e8a463`.
 It is merged into both development and release branches, retaining naming

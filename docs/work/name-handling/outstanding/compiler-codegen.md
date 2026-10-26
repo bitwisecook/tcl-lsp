@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T09:15:21.615878+00:00
+Last updated: 2026-10-26T09:43:03.976658+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Actual ad0b focused STRICT FULLAUTH23 a96107a1:1too-many-bools Clippy/0RustE; WASM FULLAUTH168 7af356b0:original25ALLUNRUN due2E0502 debug activation borrow, noELF/runtime result. Rootpaired repair370eef strong058481/bounded180a nowsourcefrozenab69/C784b; finaltinyunionc536a5d5/1b67eb1b current3Rustpaths7existingrecords5metadatafiles prepared, Compilerpeeractive, V14PASS13/30/20 and all9 actualruntimefunctionguardsPASS. VM4 offlinefunctioneebe3c54 matchesintent; no nonexistent protocolscalar mutated. Prior b2a unionafae344b applied beforead0b. User-approved allocation/depth/getter remain actualUNRUN pending fixed-source hostedretry. FullCI9b2a knownVMbuildblocked run cancelledbyRoot, artifacts0; unreportedindividualtestsUNOBSERVED. Oldordinaryf763 shard2/E2E1/2 preserved; current namedbaselinepartial6902PASS1464FAIL14492unobserved1766notselected. Rootsoleperformance andcanonicalmutations.
 
 Final b2a source union frozen9358189c/5b1fb05c independently CLEARafae344b:18files,40existingrefresh+32approveddeps, full23/17maps347records227Gitfiles, full10getter3maps/OwnJimparentfanout/headroom2maps/refsHostNav, histories/protocols/env/budgets unchanged. Both prospectiveV14PASS13/30/20 and all9 actualruntime source-functionguards PASS; Root canonicalapply/push/dispatch remains separate. User-approved allocationcurrentcarry231c strong34f2 and protocolbe4f strong9c786 complete, all actualnew results stillUNRUN; original25WASM scope now2to3+teardown asapproved. Sourceheadroom075fa integrated byRoot, oldmanual63/newprobe controls scheduled. Latest ordinaryf763 CI09:14 still shard2/E2E1/E2E2 active, preserve; all current source outcomes require newhosted runs. No latestbroad acceptance/performance claim.
 

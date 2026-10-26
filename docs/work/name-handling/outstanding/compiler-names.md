@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T08:47:06.069612+00:00
+Last updated: 2026-10-26T09:23:06.532659+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-26T09:23:06.532659+00:00: Currentad0b Jim52 run40298010636/job121488723904 healthycheckout atfirstmetadata; NamesSOLEfutureZIP/auth. AuthV3 ab2aa2f9 addsONLYapprovednewOwnJim sourcepin to exactfrozenold52contract; no oldselectors/env/budgets changed. Rootintegrated ownJim2ed6 source34a1/carrye7d484 c38382, layoutV5/protocol andown3protocol; Compiler130samefreshELF owns actualnew6controls, allUNRUNpending. Geometry629f source STATICCLEARc14e7e49 rootlanded8536/7c84; geometry3control actualfullCI40298370647 Codegenowner, pairedperformance40298285208 rootowner, no gaininferred. Readonly per-edit audit86dd808b sourcepins: repeatedwholeDocumentcopy/hash/index (productivegeometryfix), contextconstantString clones across retainedpointwrites, ownedreboundsets, boundedTLS16fullanalyses, sourceviewVec reachability; no unboundedleak/timing/RSS attribution claimed. CompilerownsAdviceGraphfactory; LSPsourceLoad workuntouched. Latestfullyauth059 still35/45/original16/26 untilnewartifact.
 
 Resume 2026-10-26T08:47:06.069612+00:00: Root recovered08:42; ownJim V2 source STATIC CLEAR34a1b667, all three controls/Jimtyping/Clippy/gains UNRUN. Coherent integration carryV3 e7d48448 current formalV5docs prefix plus EXACT ownV2 appendix, newGit-absent module manifest null/create, all8Rustbytes/Rustpatch EXACT clearedV2, F-R-F0 both lanes. SourceProc minimalcarrypeer pending; root soleintegration/finalpins. LayoutV5source CLEAR0ac94e3c+protocolV2 rootintegrating; Compiler owns separateOwnJim3 protocol AFTERlayout3 on SAMEfreshlibtest, old124selectors/env/budgets/deadline/sharedcapunchanged. No competingcentraldriver/metadataauthoring, no localbuild/bigcopy/newfunctionality untilnextwave. LatestfullyauthJim05952 remains35/45/original16/26; no inferredgains.
 
