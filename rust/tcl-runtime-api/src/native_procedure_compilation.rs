@@ -112,6 +112,29 @@ struct OrdinaryFrameInitialization {
     observation: crate::native_compiler_pass::OrdinaryEntryObservation,
 }
 
+// Policy projection only. The caller independently checks the actual engine,
+// request owner and current ordinary-entry observation. Match the existing
+// InvocationDialect::execution_point recipe without borrowing registry authority.
+fn ordinary_initialization_policy_version(
+    profile: &tcl_dialect::DialectProfile,
+) -> Option<tcl_dialect::TclVersion> {
+    use tcl_dialect::model::Family;
+    let family = profile.runtime_core_family();
+    let version = profile.runtime_version();
+    if let Some(point) = profile.core_point {
+        if family.is_some_and(|family| family != point.family())
+            || (point.family() == Family::Tcl
+                && version.is_some_and(|version| point.tcl_version() != Some(version)))
+        {
+            return None;
+        }
+        return (point.family() == Family::Tcl)
+            .then_some(point.tcl_version())
+            .flatten();
+    }
+    (family == Some(Family::Tcl)).then_some(version).flatten()
+}
+
 impl OriginalProcedureCompileRequest {
     pub(crate) fn from_ledger(
         retained: &OnceCell<Arc<OriginalProcedureSource>>,
@@ -203,8 +226,7 @@ impl OriginalProcedureCompileRequest {
         let actual_engine = entry.execution_point.and_then(actual_c_version);
         let actual_policy = entry
             .invocation_policy
-            .and_then(|policy| policy.profile().core_point)
-            .and_then(actual_c_version);
+            .and_then(|policy| ordinary_initialization_policy_version(policy.profile()));
         actual_engine == Some(version)
             && actual_policy == Some(version)
             && self
@@ -331,3 +353,50 @@ impl std::fmt::Display for OriginalProcedureCompileError {
     }
 }
 impl std::error::Error for OriginalProcedureCompileError {}
+
+#[cfg(test)]
+mod ordinary_initialization_policy_tests {
+    use super::ordinary_initialization_policy_version;
+    use tcl_dialect::model::DialectPoint;
+    use tcl_dialect::{DialectProfile, TclVersion};
+
+    #[test]
+    fn static_c_policy_releases_resolve_without_borrowing_foreign_or_conflicting_points() {
+        for (name, version) in [
+            ("tcl8.4", TclVersion::V8_4),
+            ("tcl8.6", TclVersion::V8_6),
+            ("tcl9.0", TclVersion::V9_0),
+            ("tcl9.1", TclVersion::V9_1),
+        ] {
+            let profile = DialectProfile::find(name).unwrap();
+            assert!(profile.core_point.is_none());
+            assert_eq!(
+                ordinary_initialization_policy_version(profile),
+                Some(version)
+            );
+            let mut explicit = profile.clone();
+            explicit.core_point = Some(DialectPoint::for_tcl_version(version));
+            assert_eq!(
+                ordinary_initialization_policy_version(&explicit),
+                Some(version)
+            );
+            let other = if version == TclVersion::V8_6 {
+                TclVersion::V9_0
+            } else {
+                TclVersion::V8_6
+            };
+            explicit.core_point = Some(DialectPoint::for_tcl_version(other));
+            assert_eq!(ordinary_initialization_policy_version(&explicit), None);
+        }
+        let logical = DialectProfile::find("f5-irules").unwrap();
+        assert!(logical.runtime_version().is_some());
+        assert_eq!(ordinary_initialization_policy_version(logical), None);
+        let mut contradictory = logical.clone();
+        contradictory.core_point = Some(DialectPoint::for_tcl_version(TclVersion::V8_4));
+        assert_eq!(ordinary_initialization_policy_version(&contradictory), None);
+        assert_eq!(
+            ordinary_initialization_policy_version(DialectProfile::plain_tcl()),
+            None
+        );
+    }
+}
