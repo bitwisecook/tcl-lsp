@@ -809,7 +809,7 @@ fn selected_result_representation(
             context
                 .written_representations?
                 .get(index.checked_add(1)?)
-                .copied()
+                .cloned()
                 .flatten()
                 .filter(|receipt| receipt.is_current(variables))
         }

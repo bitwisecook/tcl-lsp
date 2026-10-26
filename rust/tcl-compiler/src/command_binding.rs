@@ -311,6 +311,8 @@ pub use invocation_reads::{
 };
 mod container_coercion;
 mod native_result;
+mod native_string_access;
+pub use native_string_access::SourceNativeStringAccess;
 mod numeric_operand_cache;
 mod object_instance;
 pub(crate) mod original_name_value;
@@ -4968,6 +4970,7 @@ fn finish_source_native_results(
             .map(source_representation::CapturedRangeResult::representation),
     );
     source_representation::retain_range_result_bytes(outcomes, range_result);
+    native_string_access::retain_append(outcomes, native, facts, incoming, context);
     native_result::retain_store_results(
         outcomes,
         facts,

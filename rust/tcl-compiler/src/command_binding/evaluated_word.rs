@@ -21,6 +21,7 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         let mut outcomes = SourceOutcomes::normal(state);
         let mut value = Some(String::new());
+        let mut string_inputs = super::native_string_access::TemplateInputs::new(state);
         let native = super::original_name_value::original_native_word(word, state, context.config);
         // This closes evaluation of source text only. The independent literal
         // world excludes custom object methods; value bytes do not close a
@@ -57,6 +58,7 @@ impl SourceCommandBindings {
                 }
                 _ => SourceOutcomes::normal(state),
             };
+            string_inputs.observe(part, &next, state);
             let component = template_text_component(part, &next, context.config);
             let native_component =
                 template_native_component(part, &next, native.as_ref(), &state.source_variables);
@@ -95,7 +97,7 @@ impl SourceCommandBindings {
                 .is_current(&normal.source_variables)
                 .then(|| Arc::new(value))
         });
-        outcomes.normal_representation = None;
+        outcomes.normal_representation = string_inputs.finish(&outcomes, native.is_some());
         outcomes.normal_rhs_read = None;
         outcomes.normal_value = outcomes.normal.as_ref().and(value).map(|text| {
             Arc::new(super::native_result::EvaluatedSourceValue {

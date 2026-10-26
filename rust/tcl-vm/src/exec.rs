@@ -51,6 +51,9 @@ mod native_list_operations_tests;
 mod native_namespace_string_tests;
 mod native_scalar;
 #[cfg(test)]
+#[path = "exec/native_string_result_effect_tests.rs"]
+mod native_string_result_effect_tests;
+#[cfg(test)]
 #[path = "exec/native_string_trim_tests.rs"]
 mod native_string_trim_tests;
 #[cfg(test)]

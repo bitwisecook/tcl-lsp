@@ -269,7 +269,7 @@ fn stored_representation(
             )
             .map(Arc::new)
         })
-        .map(|receipt| *receipt)
+        .map(|receipt| receipt.as_ref().clone())
 }
 
 fn publish_argument_error(

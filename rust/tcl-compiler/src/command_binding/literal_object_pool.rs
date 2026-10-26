@@ -117,6 +117,10 @@ impl SourceOrdinaryLiteralPool {
         }
     }
 
+    pub(super) fn effects_current_for(&self, source: &Arc<SourceOriginId>) -> bool {
+        self.entry == *source && self.effects_current()
+    }
+
     /// Close evaluation of original source Text components only. Jim grants
     /// no C pool reuse, object class, conversion, cache or numeric receipt.
     pub(super) fn text_effects_current(&self) -> bool {

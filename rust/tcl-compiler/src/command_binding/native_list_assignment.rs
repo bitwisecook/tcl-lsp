@@ -438,7 +438,8 @@ impl<'a> AssignmentRun<'a> {
             operand.written_arguments[0].clone();
         self.prepared.written_values[index].clone_from(&operand.written_values[0]);
         self.prepared.written_name_values[index].clone_from(&operand.written_name_values[0]);
-        self.prepared.written_representations[index] = operand.written_representations[0];
+        self.prepared.written_representations[index]
+            .clone_from(&operand.written_representations[0]);
         self.prepared.written_objects[index].clone_from(&operand.written_objects[0]);
         self.prepared.written_method_prefixes[index]
             .clone_from(&operand.written_method_prefixes[0]);
@@ -522,20 +523,23 @@ impl<'a> AssignmentRun<'a> {
                 .as_ref()
                 .is_some_and(literal_object_pool::SourceOrdinaryLiteralPool::effects_current),
             Operand::Original(index) => {
-                self.prepared.written_representations[*index].is_some_and(|receipt| {
-                    receipt.callback_input_is_closed_for(
-                        &state.source_variables,
-                        tcl_registry::list_object_methods::NativeListMethod::Index,
-                    )
-                }) || self.operand_value(self.list_operand).is_some_and(|value| {
-                    literal_object_pool::SourceOrdinaryLiteralObject::capture_original_word(
-                        &self.input.words[*index],
-                        value,
-                        state,
-                        context.config,
-                    )
-                    .is_some()
-                })
+                self.prepared.written_representations[*index]
+                    .as_ref()
+                    .is_some_and(|receipt| {
+                        receipt.callback_input_is_closed_for(
+                            &state.source_variables,
+                            tcl_registry::list_object_methods::NativeListMethod::Index,
+                        )
+                    })
+                    || self.operand_value(self.list_operand).is_some_and(|value| {
+                        literal_object_pool::SourceOrdinaryLiteralObject::capture_original_word(
+                            &self.input.words[*index],
+                            value,
+                            state,
+                            context.config,
+                        )
+                        .is_some()
+                    })
             }
         }
     }

@@ -1145,6 +1145,10 @@ pub enum SuccessfulHandlerSpec {
     CommandBindingTransition,
     /// Variable access roles describe all selected target names on success.
     VariableOperands,
+    /// Original string-append handler, with the same variable-name/observer
+    /// ordering as VariableOperands. Result header alternatives and COW retain
+    /// their original recipe; no cache/type, Normal or opcode grant is implied.
+    VariableStringAppend,
     /// Variable targets remain conditional until this native matcher proves
     /// which stores occur on the successful continuation.
     ConditionalVariableOperands(crate::variable_output::NativeVariableOutputSpec),
@@ -1287,9 +1291,9 @@ impl SuccessfulHandlerSpec {
             | Self::UserProcedureCall
             | Self::InitialiseEmptyVariable
             | Self::CommandBindingTransition => VariableOutputLookup::SingleTarget,
-            Self::VariableOperands | Self::ConditionalVariableOperands(_) => {
-                VariableOutputLookup::Sequential
-            }
+            Self::VariableOperands
+            | Self::VariableStringAppend
+            | Self::ConditionalVariableOperands(_) => VariableOutputLookup::Sequential,
             Self::CatchOutputs => VariableOutputLookup::CatchSelected,
             Self::DictionaryScope => VariableOutputLookup::BodyProtocol,
         }
@@ -1308,6 +1312,7 @@ impl SuccessfulHandlerSpec {
             | Self::EnsembleLeaf { .. }
             | Self::EnsemblePathLeaf { .. }
             | Self::VariableOperands
+            | Self::VariableStringAppend
             | Self::ConditionalVariableOperands(_)
             | Self::InitialiseEmptyVariable
             | Self::PossibleBodies
@@ -1575,6 +1580,7 @@ impl crate::InvocationFacts {
                 self.command_binding_handler_admitted()?;
             }
             SuccessfulHandlerSpec::VariableOperands
+            | SuccessfulHandlerSpec::VariableStringAppend
             | SuccessfulHandlerSpec::ConditionalVariableOperands(_)
             | SuccessfulHandlerSpec::InitialiseEmptyVariable => {
                 if frame == crate::VariableAliasFrame::Unknown

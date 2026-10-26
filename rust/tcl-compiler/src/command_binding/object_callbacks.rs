@@ -310,7 +310,7 @@ fn current_input_protocol(
         return ObjectInputProtocol::Unknown;
     };
     let final_operand = native.invocation.arguments().exact_argv_len() == argument.checked_add(1);
-    if let Some(receipt) = representations.get(argument + 1).copied().flatten()
+    if let Some(receipt) = representations.get(argument + 1).and_then(Option::as_ref)
         && (receipt.is_current(variables)
             || (final_operand && receipt.is_immediate_created_result()))
         && receipt.callback_input_is_closed_for(variables, method)
@@ -399,8 +399,7 @@ pub(super) fn scalar_math_input_is_closed(
             && context
                 .written_representations
                 .and_then(|receipts| receipts.get(argument + 1))
-                .copied()
-                .flatten()
+                .and_then(Option::as_ref)
                 .is_some_and(|receipt| receipt.numeric_input_is_closed(&state.source_variables)))
         || super::literal_object_pool::SourceOrdinaryLiteralObject::capture(
             native, argument, state, context,
