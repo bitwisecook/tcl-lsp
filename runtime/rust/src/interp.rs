@@ -6332,6 +6332,11 @@ impl Interp {
         self.current_ns.set(ns);
     }
 
+    /// Whether an already entered compiled body has room for one ABI activation.
+    pub(crate) fn codegen_body_has_invoke_headroom(&self) -> bool {
+        !NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get().saturating_add(1))
+    }
+
     /// Enter a **compiled activation** — the eval-loop activation a generated
     /// function or ABI dispatch stands in for.
     ///

@@ -316,6 +316,14 @@ pub extern "C" fn tcl_codegen_call_frame_outstanding() -> i32 {
     i32::try_from(call_frames_outstanding()).unwrap_or(i32::MAX)
 }
 
+/// Probe generated procedure-entry eligibility on its existing entered owner.
+/// Returns the unchanged Native procedure run, decline or Host-refused status.
+/// It acquires no activation, object reference, getter or completion storage.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_native_body_entry_status() -> i32 {
+    original_frame_owner::native_body_entry_status()
+}
+
 /// Convert the shared semantic completion to its object-handle ABI form.
 fn completion_abi(completion: tcl_runtime_api::Completion<*mut TclObj>) -> TclCompletionAbi {
     let code = match completion.code {
