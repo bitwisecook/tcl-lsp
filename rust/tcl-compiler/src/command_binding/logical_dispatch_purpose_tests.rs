@@ -50,6 +50,37 @@ fn logical_original_statement(
     found.pop().unwrap()
 }
 
+fn assert_deferred_logical_bindings_have_no_execution(
+    original: &crate::command_binding::SourceInvocationBinding,
+    binding: &crate::command_binding::SourceInvocationBinding,
+) {
+    assert!(original.lookup_state.is_none());
+    assert_ne!(
+        original.runtime_reachability(),
+        SourceRuntimeReachability::Conditional
+    );
+    assert_ne!(
+        original.runtime_reachability(),
+        SourceRuntimeReachability::Reached
+    );
+    assert!(original.proved_target().is_none());
+    assert!(original.unknown);
+    assert!(original.targets.is_empty());
+    assert!(binding.proved_target().is_none());
+    assert!(binding.unknown);
+    assert!(binding.targets.is_empty());
+    assert!(binding.lookup_state.is_none());
+    assert!(binding.logical_source_name_advice_input().is_none());
+    assert_ne!(
+        binding.runtime_reachability(),
+        SourceRuntimeReachability::Conditional
+    );
+    assert_ne!(
+        binding.runtime_reachability(),
+        SourceRuntimeReachability::Reached
+    );
+}
+
 #[test]
 fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_original_owners() {
     // naming.source.logical-original-operation-transfer
@@ -101,31 +132,7 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
             let [target] = targets.as_slice() else {
                 panic!("one original source target")
             };
-            assert!(original.lookup_state.is_none());
-            assert_ne!(
-                original.runtime_reachability(),
-                SourceRuntimeReachability::Conditional
-            );
-            assert_ne!(
-                original.runtime_reachability(),
-                SourceRuntimeReachability::Reached
-            );
-            assert!(original.proved_target().is_none());
-            assert!(original.unknown);
-            assert!(original.targets.is_empty());
-            assert!(binding.proved_target().is_none());
-            assert!(binding.unknown);
-            assert!(binding.targets.is_empty());
-            assert!(binding.lookup_state.is_none());
-            assert!(binding.logical_source_name_advice_input().is_none());
-            assert_ne!(
-                binding.runtime_reachability(),
-                SourceRuntimeReachability::Conditional
-            );
-            assert_ne!(
-                binding.runtime_reachability(),
-                SourceRuntimeReachability::Reached
-            );
+            assert_deferred_logical_bindings_have_no_execution(&original, binding);
             let metadata = binding
                 .original_invocation_metadata_for_input(tokens, &input, context.commands())
                 .expect("complete original Logical source owner");
