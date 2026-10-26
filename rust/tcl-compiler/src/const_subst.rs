@@ -322,6 +322,36 @@ impl ConstSubstCtx<'_> {
         )
     }
 
+    /// Observe the existing variable-word refusal without additional queries.
+    fn retained_argument_variable_access_closed(
+        &self,
+        access: &crate::command_binding::SourceVariableAccess,
+    ) -> bool {
+        let alternatives = access.context_alternatives().len();
+        if alternatives == 0 {
+            n17_live_trace!("argument-variable alternatives=0");
+            return false;
+        }
+        let residual = access.context_residual();
+        if residual != crate::command_binding::SourceVariableReadResidual::Closed {
+            n17_live_trace!("argument-variable alternatives={alternatives} residual={residual:?}");
+            return false;
+        }
+        access.context_alternatives().iter().all(|context| {
+            let place = access.place_in_context(context, self.registry);
+            let produces = context.read_produces_value(&place, self.registry);
+            if !produces {
+                n17_live_trace!("argument-variable alternatives={alternatives} residual=Closed read-produces=false native-string=UNREACHED");
+                return false;
+            }
+            let native_closed = context.contents_native_string_access_closed_at(&place, self.registry);
+            if !native_closed {
+                n17_live_trace!("argument-variable alternatives={alternatives} residual=Closed read-produces=true native-string=false");
+            }
+            native_closed
+        })
+    }
+
     fn retained_token_arguments_at_depth(
         &self,
         tokens: &crate::ir::CommandTokens,
@@ -395,18 +425,7 @@ impl ConstSubstCtx<'_> {
                     }
                     crate::ir::WordExpr::Variable { spelling, source } => {
                         let access = n17_live_some!(tokens.variable_access_at(source, spelling), "argument-variable-access")?;
-                        if access.context_alternatives().is_empty()
-                            || access.context_residual()
-                                != crate::command_binding::SourceVariableReadResidual::Closed
-                            || !access.context_alternatives().iter().all(|context| {
-                                let place = access.place_in_context(context, self.registry);
-                                context.read_produces_value(&place, self.registry)
-                                    && context.contents_native_string_access_closed_at(
-                                        &place,
-                                        self.registry,
-                                    )
-                            })
-                        {
+                        if !self.retained_argument_variable_access_closed(access) {
                             n17_live_trace!("decline=argument-effect-or-child-uniqueness");
                     return None;
                         }
