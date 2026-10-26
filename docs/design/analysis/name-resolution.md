@@ -70,6 +70,13 @@ separate memos. Warmth changes no semantic equality, hash, ordering or Debug
 representation. Original point, full input, availability, lookup, frame and
 native admission guards remain independent.
 
+A separate bounded cache reuses source-point analyses. The history retains a
+bounded matching key and a weak lease; it does not retain the analysis
+snapshot. A hit requires upgrading a live lease and matching the complete
+original cache key before the snapshot is cloned. History alone cannot
+serve a result or reissue its source-point owner. Ordinary root entries
+keep their existing strong snapshot.
+
 Deferred procedure namespace selection uses another derived index over an
 exact immutable command-table `Arc`. The existing procedure kind, original
 token origin, implementation generation and allocation select all matching
