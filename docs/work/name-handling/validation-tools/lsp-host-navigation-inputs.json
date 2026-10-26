@@ -39,7 +39,7 @@
     "rust/tcl-lsp-server-wasm/build-wasm.sh": "de4eea75a94680cc2fd50a6f6c098dcbfad3b1a717fdad7c3321ede6f52cb4c6",
     "rust/tcl-lsp-server-wasm/test/e2e.mjs": "66a6de736f4eaf6fd5c434dcf56652aafa2eda12e7d004cb7b2d93f747d33170",
     "rust/tcl-lsp-server-wasm/worker.js": "fbff4236144aad622f61c42f3455c1ec517fa9e59d1aa698c4e8c20d30e0417e",
-    "rust/tcl-lsp-server/src/lib.rs": "717aa395916cd343ea4f9e3ec15cdf815c62c5f7eb4f28d52aaf447c36c28b55",
+    "rust/tcl-lsp-server/src/lib.rs": "965c8ac9171c3d2644aa1867edc6ec0271fde7a7c23f5aca0e318c41bb102e7d",
     "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "0c5c8b266a9de8a24f689f8cdd4b28cba0bc96206301d12ec2e069e60e0a754f",
     "scripts/dev/lsp-naming-host-proof.mjs": "a82a55ba4d76a703f0afff1f92b2e5387f1d7b06023efcb3cc6ca37a712eacf8",
     "scripts/dev/wasm-cc-env.sh": "6d541058ef79aa09981eb7345540b7bcc61174423250c08128ee8b6cbb400b89",

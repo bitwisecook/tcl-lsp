@@ -36,7 +36,7 @@
   "source_pins": {
     "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "c2c865b13092f54623843bc08984458eb4825e52f350a327bda508ed11dd3f03",
     "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "9ba965233c04a1eb696deadbcda1e772ef6b8e70bcf4db4775cd9c99cac0cc50",
-    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "164bf2e50827bde0aaad69544b805478986bf231f4e08053f18dcff7704800d7",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "50f563827b25b80b0efa7bc7366ea0e7723f27a82acea66ed0ceea35ac01eb84",
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5"
   },
@@ -224,7 +224,7 @@
       }
     ],
     "source_pins": {
-      "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "164bf2e50827bde0aaad69544b805478986bf231f4e08053f18dcff7704800d7"
+      "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "50f563827b25b80b0efa7bc7366ea0e7723f27a82acea66ed0ceea35ac01eb84"
     },
     "source_peer_reference": "source-peer-known-child-live-producer-v4/receipt.json sha256:571eb418358d3ba0483bb0ec5bbbd59f2df50de4482e0e96d943a4ebdfaa278e",
     "scope": "Separate appended source controls AFTER unchanged old108; SAME existing freshly built compiler library ELF; no extra build, env, flags, budget/reset or acceptance claim"
