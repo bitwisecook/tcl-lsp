@@ -55,7 +55,7 @@
     "rust/tcl-registry/src/native_compilation.rs": "8914b6ec0627b518a27cdced4122cd0ddb1166fbc7a1575dde2981e059629f48",
     "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
     "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs": "40b0c53c26aaae623c1fc695603a7c5aee2623278d19e5cda6aebf867aa716ac",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "a548b5d4a2b1c5b87ff95565286cbcac3976ce9e087cb39e6fdeb0268d81b39d",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "1e64637ff88c0193a7ba7e76ab09d85d9fce432bb286cf3237e96d7a7f814c2d",
     "rust/tcl-compiler/src/lowering/mod.rs": "a4ce038783d4537cb4b707df38ea6e8008393c7b46e95b3aaa71310a5cfe4465",
     "rust/tcl-compiler/src/var_resolve.rs": "ec47b8fd33df4371dc738a5d7a16f7267ad8988d7cd23e1ab62235df46939c57",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",

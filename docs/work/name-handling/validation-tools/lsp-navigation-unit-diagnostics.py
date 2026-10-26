@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "be14107a4095e6cc02c364b2bb2f29a8811dd0ae0c9b682e82cd1c11d9fe4887"
+ROSTER_SHA = "d03f65d6e6778ea065308aa0d3316cb0bd67a51a7537b94bf019d7401eae985c"
 SCAN_RETENTION_CONTROLS = ('workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window', 'workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs', 'workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs')
 POSITIVE_REFERENCE_CONTROLS = ('readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_all_live_views_without_unrelated_completion', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_selected_and_dependent_unknown_mutation', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_foreign_publication_and_changed_input', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_unrelated_child_physical_lease')
 BASE = Path(__file__).resolve().parent

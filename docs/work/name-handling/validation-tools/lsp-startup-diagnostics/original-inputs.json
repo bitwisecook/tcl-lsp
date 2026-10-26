@@ -1,5 +1,5 @@
 {
-  ".claude/skills/lsp-client/lsp_client.py": "c10be772eca42e36970aa90dc86908fa4457967130080b897b15f045d18dccc0",
+  ".claude/skills/lsp-client/lsp_client.py": "72fa92435d43a53fd5a4a3b42e1450db8d38090e6caa10202840bcd22e3324dc",
   ".github/workflows/ci.yml": "9d333b7584493e31c9aa4a58cea420318ae4dd48958edd31a4c935b08f830273",
   "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
   "docs/design/rust/engineering-guide.md": "04d61fc6541c126cf12eca781ca4621894a3277b0b563f94b657e9cc3f773648",

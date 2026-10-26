@@ -27,7 +27,7 @@
     "runtime/rust/src/namespace.rs": "d2b79b2daad7af30b0d963d132f2339a0612ad089dbaccbe0d9213dfa56778f9",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-compiler/src/codegen/wasm/backend.rs": "65afbf14843f085f0ccb7c1ee6dabec7b5e5f83cfde11c22d7b238a246461deb",
-    "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "6d5046ec4f0c32eb4f047cd7983d15779571a7218b1e528f8697bb18dcfa565a",
+    "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "5c13341f5a29f16918e71dbbfd4c4e152d0b1799277ae5537d308d42755a196f",
     "rust/tcl-compiler/src/command_binding/command_publication.rs": "adf23ca07792588ff6ed84d648cb509f02490ad476a979933fdba081b80e7726",
     "rust/tcl-compiler/src/common_aot_plan.rs": "e0896166e07d78d4856900ae6de4eb97825fac115d4096da96328042aac0d8c3",
     "rust/tcl-compiler/src/native_lowering/lower.rs": "eef08d81c0bfd6db449a92afbff717788716a7db925e5fa94df133541266d0d6",
@@ -42,7 +42,7 @@
     "runtime/rust/src/cmd_proc.rs": "ecf2f9416c2da5f0d49da10b34dfd33bb27203eadefa5ca3f949eb09c59d6d86",
     "runtime/rust/src/codegen_abi.rs": "041d0a6162a880b45eae81606400eaee634e702517abf97a297206e2bef174df",
     "runtime/rust/src/expr/native_numeric.rs": "03e17cfb14b1f4494bbaa5e2af00c3cc51711868dd353c60657d25b3185e7621",
-    "runtime/rust/src/expr.rs": "c0936fe8c9531671fa96cb613bf2842ee628e059e53f223b864ebf444286a2a6",
+    "runtime/rust/src/expr.rs": "9b94590b4bfb1b53dda8dbfac66a1d9db4ceabf07c517859c7c634c279a96ff1",
     "runtime/rust/src/frame.rs": "5fa7b7db5f5314387ee1da6bedc0ded9a7cdb178d6dc3f6d196b346242fa5ace",
     "runtime/rust/src/interp/guarded_definition.rs": "47a440682b92a78f12a1fc8a10071e98819032c87c2665cc1d8bb34e55464178",
     "runtime/rust/src/interp/native_body_artifact/native_control.rs": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608",
@@ -62,7 +62,7 @@
     "runtime/rust/src/interp/native_operation_currency.rs": "34e3ec3901eefaaeb6d3c2063beaa1f36a107890dd61fd5dcb1cde35ad09f759",
     "runtime/rust/src/obj.rs": "1acc6e6ea079c6a2d5689f5d59667bead93a47edd6b29a21ef896015140baa69",
     "runtime/rust/src/builtins.rs": "c0dd46465d168fed6a24945fe4d881ca0cb4b0c663ef9909ad33943dfec1e823",
-    "runtime/rust/src/builtins/native_jim_library_tests.rs": "aebfc4d7bf161e46bc3e3b9a73d3b4abaa9f714755d797b80b7fdca3a18db502",
+    "runtime/rust/src/builtins/native_jim_library_tests.rs": "2d73084d31a96266bd613091f4124127b6250d97372740e29ea5e9ba18d0a72f",
     "runtime/rust/src/cmd_namespace.rs": "75e054ab052d138c69d2d78c3c2b624570a0e7e522ac713b3db565f259224099",
     "runtime/rust/src/interp/native_children.rs": "2878cfc001c34588f2ca51464e37ed70e042c8e5905e4b4c1052891d741028f3",
     "runtime/rust/src/interp/stock_ensembles.rs": "6a7ca25de663cae8185fa0cb1f0d22de2041f24fec8d61877c4e051a3d502204",
@@ -70,7 +70,9 @@
     "runtime/rust/src/list.rs": "26602ee76813d56b5de2b166219cbfad7bd975c904ddd91ad7798388cf2ce01c",
     "rust/tcl-registry/src/native_jim_lookup.rs": "d356b797d12d016aaa4582f7e24903dcdd1344f6108d548d479169e4cd114b6e",
     "rust/tcl-registry/src/native_scripted_distribution.rs": "c133b365882176043c4407e1f8ad6184afd983d6ef4fde89585c663648417fe0",
-    "rust/tcl-registry/src/special_vars.rs": "fa947073fd7be9a58edd48eb8242253150669a1ac423469531a6c15efc696c41"
+    "rust/tcl-registry/src/special_vars.rs": "fa947073fd7be9a58edd48eb8242253150669a1ac423469531a6c15efc696c41",
+    "runtime/rust/src/expr_error.rs": "86c1eeff660d490e560bf6cefa827a19fd62a558ff47ff8e2a0493128f76e535",
+    "runtime/rust/src/expr_error/cold_state.rs": "f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1"
   },
   "wasm_real_link": [
     "a_compiled_proc_body_runs_through_the_runtimes_function_table",
