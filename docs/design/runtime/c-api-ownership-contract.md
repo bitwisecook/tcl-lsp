@@ -147,12 +147,9 @@ An earlier host refusal remains the first cause. The checked Rust
 failures separately from a guest conversion failure; the C status channel
 returns `TCL_ERROR` for these unavailable routes.
 
-The recorded external C null-interpreter observations in
-numeric-original-capi-scalar-publication-width
-come from objects constructed by those actual native libraries. Those rows do
-not bind application objects or supply a missing engine/ABI issuer. The
-application's unissued null route remains unavailable. Current ABI recipes
-cover the measured eight-bit-byte, 32-bit-int, 64-bit-long target; other target
+Null-interpreter access requires an issuer for the application object and the
+selected engine/ABI. An unissued application route remains unavailable. Current
+ABI recipes cover the measured eight-bit-byte, 32-bit-int, 64-bit-long target; other target
 layouts require their own selected recipe and evidence. An unsupported
 engine/getter pair remains unavailable; the ABI descriptor cannot supply a
 missing primitive. Jim numeric access also joins the existing original object
