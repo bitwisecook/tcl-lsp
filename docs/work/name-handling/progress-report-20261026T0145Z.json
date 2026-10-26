@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T01:45:01.228583+00:00",
+  "scheduled_report_utc": "2026-10-26T01:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T02:15:00+00:00",
+  "change_since_previous_report": [
+    "Currentreviewedbatch PUSHED work3cb48b24802fff1892dbceba4216a5008ae8d69b/releasee42ef8596f64e61f8f41e1bdbffe43e6a305b85d afterdepth1workfetch/normalpush. Names19priorlintdiagnostics, CompilerCapsule1testlength, exactbackendsemicolon, runtimeAOTprior-admissionandWORK-onlyVM6first-stageobserver/guestexistingflag forwarding included. Assertions/owners/Nativeguards preserved by independent reviews.",
+    "Final2225 source-pin union0ab951/peer323eb applied:9files19current scalar updates, all23JSON/17maps257records195sources+nestedChild10current, oldprotocol/rows/env/budgets unchanged. Actual adoptedV13 preflightPASS startup13/runners30/wholeguards20. New3cb48 strict40255124007/WASM40255123549/runtimefullTom40255126104 dispatched after correspondingoldjobsclosed; b804compiler11940253047316 kepthealthy, no duplicates/cancellation.",
+    "Rootadopted reviewedV13 safe-AST extensionaae90 preservingallV12checks plus25syntheticcontrols; archivedactual staleChild10literal detected against bothJSON andGit. CorrectedcurrentconsumerPASStested, dynamickeyset/topmapjoin deliberatelynotexecuted bypreflight; independentactualrequirepositive8negativecontrols retained. Scope staticliteralconsumers only, no generalPython semantics/behavior acceptance.",
+    "B868fullTomFULLAUTH39d8789f all135ownedprocesses/source/provider/ELFsealsclosed, CFI incomplete/final125retained. Focused128 exactidentityjoin against9cf hasZEROstatusdeltas; other10320PASS83FAIL/prune6PASS1FAIL. AOT5ALLUNRUN becauseoldCFIerrorsblockedappend despiteclosedold135. One-lineactualclosed-prior correction SourceProc38da integrated without maskingoldfailures; next5mustactuallyrun.",
+    "B804strictFULLAUTHf8bf439e onebackendsemicolonlint/0Rusterrors masks laterfrontiers; exactunitsemicolon nowintegratedpaired. B868WASMFULLAUTH93103e5a all25reached22PASS3FAIL; actualADDretainedplanrunsprints6 thenoldcounterasserttraps, rawcounterunknown. SixfileVMobserverdfef+guestflagb3d3 nowcurrentWORK for actualnextfirstrefusal; no fakecounter/grant, originaloldalloc/depthassertionsheld.",
+    "Namesreviewedcohorts: small9root8f668, namespace3a963, materialized2v322f9, tail3df4e, logicalprefix2v2f2f44 integratedpaired. Two missingborrows and redundant&& werecaughtandcorrectedofftreebeforeintegration. Newsmall3ownershipclear478afc staysNEXTwave so finalfreeze waspreserved; no actual19warningclosure claimedbeforehostedClippy.",
+    "B868Core2 actualcheckouttimeout10minutes at91percent beforeCargo; NOZIP/ALLselectedUNRUN, receipt23cc43. Only failedjob121345288867 rerun201at01:29 after containingworkflowterminal, unchangedbudgets/nohealthycancel. Browserfullyauthe6c098 prior24PASS/Return91FAIL/later77UNREACHED. UnitAPI-success/scan3selected and WASI/startup outcomes undersoleLSPartifactauth; no unsealedPASSclaim.",
+    "Oldff56 partialbaseline24624 identityjoin underCodegen:6899stillPASS/1467actualFAIL/14492selectedterminalUNOBSERVED/1766notinAVAILABLEselection; no deletion/newcurrentregressioninference. Causal evidence1284fullpanicmessages/183boundedprefixcauseunknown; actualgroups include97missingbody/declaration/summary,40NativePreflightRequired,31expectedwarningsabsent,18rename refusals,15DSLsource/naming,10StringUpdaterstorage;357eqmismatchproducerunknown. Exactgroups routedtoowners, not blankettestcorrection.",
+    "Current-state front shipping summary and Outstanding5/6/9 resultcells refreshed withcopiedauthenticatedreceipts only; sectionF/auditunit/Passed unchanged. GeneralVMparitystillparked, iRules timingonlyexempt; NativecharacterAPI/allocationquestions unanswered/held. LatestrequiredfullCI/currentbaseline/performance/docs/generated/package/prep-pr gates remainopen. ExternalBIGIP/perfstale reported/nottakenover, triagecomplete.",
+    "Before01:45 LSPb868 fourcapturesFULLAUTH1f5a2cbe: UNIT3b1114c4 originalnavigation+all3newscanwindowcontrols actuallyPASS, samefreshELF/10ownedprocesses/seals. Browser e6c098 Return91sameFAIL; WASI edc3cc68 projectionFAIL; startup83b01a80 cold93.443718ms/scan30FAIL/navUNREACHED/Context2COMPLETE. Core2checkoutinfraALLUNRUN separate, failedjobonlyretry pending. Scanbehaviorproofdoesnotestablishlatencyimprovement.",
+    "LSP sixclosedoldNULmembership captures losslesslycompressed withSHA+gziproundtrip+explicitrestoremanifest d0edf04d; actualphysical/df69,500,928Brecovered. Originalflatpaths absent but exactbytesretained; no source/ZIP/testexe deletion. Compiler authorized analogous singleinode24hardlinkmembershipcompression but ROOTNOTyetperformed; currentfreeabout2.3GB, no localbuild."
+  ],
+  "committed": [
+    "fc3e293dbf9b868c503b6b007bc21c201fb9d269"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticate current3cb48 VM/WASM/strict, b804compiler119 and retriedCore2 without canceling healthyjobs; fix actualreadonly/Nativeeligibility firstleaf and any new typing frontier.",
+    "Finish remaining strict cleanup, genuine Return source-completion and Normal string-effect receipts with exactowner/callback/currentness proof; retain all oldpositive/negativeassertions.",
+    "Complete shippingTclperformance40251868353 and currentfullrustzeroPASS-to-FAIL/sectionF/generated/docs/fixtures/package/prep-pr gates beforeauthorizedPR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new release/auditadmission. Review and sourcepin checks are static; oldAOT5wereUNRUN, hostedAPI-successunsealed untilartifactauth. Historical1467PTFdoesnotmeasurecurrenttip. Six-hourtargetmissed; noPRopened.",
+  "disk_free_bytes": 2306637824,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

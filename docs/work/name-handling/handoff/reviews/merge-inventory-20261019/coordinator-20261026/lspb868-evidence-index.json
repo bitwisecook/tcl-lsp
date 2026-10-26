@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-26T01:37:41.770893+00:00",
+  "source": "b868e9f8ff1396b2fced842b3096b0551dd57260",
+  "scopes": {
+    "browser": {
+      "path": "/workspace/naming-proof-storage/lsp-host-browser40251840016-actual-v1/assessment-v1.json",
+      "sha256": "e6c098b6c550321e0387976758712ef243de76999b474ef63dbd57880a7dd65c",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL"
+    },
+    "unit": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-unit-40251840016-actual-v1/assessment-v1.json",
+      "sha256": "3b1114c405338fa3d271342e01422a2018f3942c101c7167884efa5bb77f3ef1",
+      "status": "AUTHENTIC_SEPARATE_UNIT_PASS"
+    },
+    "wasi": {
+      "path": "/workspace/naming-proof-storage/lsp-host-wasi40251840016-actual-v1/assessment-v1.json",
+      "sha256": "edc3cc685d94d37cb6c938caee8de719936121087b42a6575b2afe21d29615e1",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL"
+    },
+    "startup": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-startup40251853298-actual-v1/assessment-v1.json",
+      "sha256": "83b01a80ab754814506d79c228810843baa6c93c1faddadcc769418e45d4d687",
+      "status": "AUTHENTIC_FRESH0W_STARTUP_FUNCTIONAL_FAIL"
+    },
+    "core2_attempt1": {
+      "path": "/workspace/naming-proof-storage/lsp-b868-host-wave-evidence-index-v1/core2-checkout-failure-assessment-v1.json",
+      "sha256": "23cc43f6199c358e2c32d8647165684cab59b5a851800ca6190515e3f3a297c2",
+      "status": "AUTHENTIC_API_AND_JOBLOG_CHECKOUT_INFRA_FAIL_ALL_TESTS_UNRUN"
+    }
+  },
+  "outcomes": {
+    "unit": "Actual original navigation1 +scan retention3 allPASS, samefreshserverlib and10ownedprocesses; Sendboundscompiled",
+    "browser": "Release0E0W/24priorPASS; Set40PASS, Return91Authored direct-procedure-owner remainsFAIL; main98prepare82calls0; exact77negativeUNREACHED",
+    "wasi": "Release0E0W/9priorPASS; unrelatedapp3ownerincomplete projection stillblocksrefs",
+    "startup": "Fresh0WselectedELF; cold93.443718ms/scan30FAIL/navUNREACHED;Context2originalsCOMPLETE",
+    "core2_attempt1": "Checkout10min timeout beforeCargo/noZIP/alltestsUNRUN; exactfailedjobrerun acceptedRoot201 after containingruncompletion, attempt2pending"
+  },
+  "limits": [
+    "No old16a4 outcomes borrowed; four full source/provider/process/artifact authentic scopes plus one API/joblog-only checkout infrastructure failure.",
+    "No factorial result at b868 until exactCore2retry runs original tests.",
+    "NativepayloadZIP-only/no extraction or localrun; no shipping or performance admission frominstrumentedscopes.",
+    "Boundedwindowcontrols prove lifecycle/output behavior only, not measured latency/RSS gain."
+  ]
+}

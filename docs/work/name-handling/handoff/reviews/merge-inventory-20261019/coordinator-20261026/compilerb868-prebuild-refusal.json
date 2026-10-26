@@ -1,0 +1,20 @@
+{
+  "status": "ACTUAL PREBUILD CONSUMER REFUSAL; ALL118UNRUN; NO ARTIFACT",
+  "run": 40251854960,
+  "job": 121345293069,
+  "source": "b868e9f8ff1396b2fced842b3096b0551dd57260",
+  "decoded_joblog_sha256": "43ac652b3616cc6aa199916ee9b17964b3a7a4b2e9ecc16e415db2babf2e125e",
+  "API_jobs_sha256": "f9a58b383e937e0947936cc76c8068dc0f20431c4999956d910064bf47146734",
+  "API_artifacts_empty_sha256": "fb09a9699b26ad536855bb4263ff01baa31a107d9af48b348e96cb4a9eb2b8d9",
+  "exact_current_source_requirement_reproduces_same_refusal": true,
+  "cause": "Duplicated oldChild10sourcehash literal164 vsupdatedauthenticTop+nestedsourcepin50f; requirebeforeoutput/status/build fails.",
+  "actual_log": "2026-10-26T01:03:23 RuntimeError at main2006; uploadfailsNofiles/Noartifact.",
+  "outcomes": {
+    "original102": "UNRUN",
+    "Logical5": "UNRUN",
+    "Codec1": "UNRUN",
+    "SourceChild10": "UNRUN"
+  },
+  "limits": "Decodedjoblogs+API+exactGitsourcereproduction only. NoZIPwaspublished, nofullsource/provider/tool/dependencysealormemberauth available, noNative/semanticoutcomeorassertionFAIL.",
+  "correction": "Alreadyreviewed exactkey/authenticatedcurrenttopvalue consumer +positive/negativecontrols inunion8ff36 peer062c, cannotretroactivelyrelabelthisrun."
+}

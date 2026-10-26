@@ -1,0 +1,149 @@
+{
+  "utc": "2026-10-26T01:23:20.384569+00:00",
+  "verdict": "AUTHENTICATED_OLD135_CLOSED_AOT5_UNRUN_CFI_INCOMPLETE",
+  "run": 40251853407,
+  "job": 121345287925,
+  "source": "b868e9f8ff1396b2fced842b3096b0551dd57260",
+  "ZIP_sha256": "b1455de8c58f9975e2842d7c5d38059434b61ad50db23283b0a187b370528907",
+  "envelope_sha256": "c4bf802b5df4fd2ae09953555ab25f0049e0fa9c23beaf29a35c585ecec1e93e",
+  "all_member_SHA_inventory_sha256": "2f633d49b40bb56fe8ecc2ca60903444a3f7d5617b6759eb37c8f45da90cc067",
+  "old131_receipt_sha256": "f1e6e5ff0dca670107d82bb4381497765efc42a798e644fd56685272e86c877c",
+  "proc_receipt_sha256": "e669885239268f1fa8e27c6d24235583dbe69bad575a5c77aaaadb1f04929fdc",
+  "attestation3_receipt_sha256": "72b680104fdc136ad38eb916249b69436895f644c03b6eb1a453d6f9ca27eb61",
+  "approved_AOT_VM13_compiler6_actualGit_afterpins": {
+    "runtime/rust/src/cmd_proc.rs": "932fa7e03eb904e4e9f0129236c936d051a6eedaca8d1d036ae590e862190bcd",
+    "runtime/rust/src/codegen_abi.rs": "316ef78608f69882bbe887ea06ab3c72b90c2e120115d6b06f431404519cf672",
+    "runtime/rust/src/expr/native_numeric.rs": "03e17cfb14b1f4494bbaa5e2af00c3cc51711868dd353c60657d25b3185e7621",
+    "runtime/rust/src/expr.rs": "c0936fe8c9531671fa96cb613bf2842ee628e059e53f223b864ebf444286a2a6",
+    "runtime/rust/src/frame.rs": "ee059f685c1b6a2c79d657ad5fbfb0e2b3783e3eb3e8604d281ca4783fc9edb7",
+    "runtime/rust/src/interp/guarded_definition.rs": "47a440682b92a78f12a1fc8a10071e98819032c87c2665cc1d8bb34e55464178",
+    "runtime/rust/src/interp/native_body_artifact/native_control.rs": "057090089141ce6e7493d4d0448f9f5868eced37d97668b77756624dd7ddf92d",
+    "runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs": "d3f59fcf720db8ce63ed008e07e4727e3f5561222635542c80a82c2a5de299c6",
+    "runtime/rust/src/interp/native_body_artifact/native_i64_add.rs": "ac2a2ede0160c48dfcb36f790b9f0647cac406c2444ffeda637bdd687dce28bd",
+    "runtime/rust/src/interp/native_body_artifact.rs": "9815468884a91e2e251b4ba030a4bdd5f8cfd3e0de141e873f0be429dd9b9660",
+    "runtime/rust/src/interp/native_i64_body.rs": "79fa3d0ecb7c476e6c40bf08365b99cb687eacb64b733744d5bbbac98a1f9f2b",
+    "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
+    "runtime/rust/src/interp.rs": "72c5080834fdf53d802329da5b95282a2ef3be46a8d4bb17a4b836d51190d401",
+    "rust/tcl-runtime-api/src/codegen_abi.rs": "fd0d0f1a2a39fd9c64813871fae3e6f5322d5d6705f4e89bc6f0eb39c89b36fa",
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "c99a55601a2e2e78736091e14cf945a4ad9c9adf9894633add3782d831478a57",
+    "rust/tcl-compiler/src/codegen/wasm/pipeline.rs": "aea4e3ae171551cb3c4ab958e8d61313be0c88acf446658a026388a9ef0154f4",
+    "rust/tcl-compiler/src/codegen/wasm/native_add.rs": "9ed1eff1d9f4993e4cf29fc2f0a181c51de2832cf18e368d505ca6b5e0ac004a",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs": "f774b0f517e283b92c87b5242dc67801161427aa6d16bb1c8523d5f358ca060d",
+    "rust/tcl-compiler/src/codegen/wasm/native_add/retained_publication.rs": "7c99c3a3510623678403da669596422da3aae3906357ee8f2dca3359fc2c9ea7"
+  },
+  "same_fresh_fullTom_ELF": "3a9104378e0c6e265af09fc7385f39310ed7f5c26cc931ed8a379a585b44c2b8",
+  "all5_actual_listed_unignored_separate_from_original3": true,
+  "AOT5_outcomes": [
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add",
+      "status": "UNRUN",
+      "unrun_reasons": [
+        "original135 process/ELF/completeness unsettled; AOT5 remains UNRUN"
+      ]
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks",
+      "status": "UNRUN",
+      "unrun_reasons": [
+        "original135 process/ELF/completeness unsettled; AOT5 remains UNRUN"
+      ]
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe",
+      "status": "UNRUN",
+      "unrun_reasons": [
+        "original135 process/ELF/completeness unsettled; AOT5 remains UNRUN"
+      ]
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay",
+      "status": "UNRUN",
+      "unrun_reasons": [
+        "original135 process/ELF/completeness unsettled; AOT5 remains UNRUN"
+      ]
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_keep_last_binding_without_a_native_strategy",
+      "status": "UNRUN",
+      "unrun_reasons": [
+        "original135 process/ELF/completeness unsettled; AOT5 remains UNRUN"
+      ]
+    }
+  ],
+  "AOT5_actual_execution": "UNRUN; no child/counter/outcome evidence",
+  "old135_execution_closed": true,
+  "old128_counts": {
+    "baseline14": {
+      "PASS": 14
+    },
+    "stack_abort1": {
+      "PASS": 1
+    },
+    "other103": {
+      "FAIL": 83,
+      "PASS": 20
+    },
+    "prune_controls7": {
+      "PASS": 6,
+      "FAIL": 1
+    },
+    "targeted_prune_controls3": {
+      "PASS": 3
+    }
+  },
+  "original3": [
+    {
+      "binary_id": "tcl-runtime",
+      "test": "interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle",
+      "status": "ok",
+      "retry_count": null,
+      "exec_time": 4.090141177,
+      "reason": null,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    },
+    {
+      "binary_id": "tcl-runtime",
+      "test": "builtins::tests::native_expression_and_increment_follow_selected_numeric_towers",
+      "status": "ok",
+      "retry_count": null,
+      "exec_time": 15.62413999,
+      "reason": null,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    },
+    {
+      "binary_id": "tcl-runtime",
+      "test": "cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window",
+      "status": "ok",
+      "retry_count": null,
+      "exec_time": 170.520037769,
+      "reason": null,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    }
+  ],
+  "proc": "PASS",
+  "attestation3": "ALL PASS",
+  "CFI_capture_incomplete": true,
+  "original_errors_retained": [
+    "stack metadata unavailable, changed or incomplete",
+    "original135 process/ELF/completeness unsettled; AOT5 remains UNRUN"
+  ],
+  "aggregate_retained_log_bytes": 635443,
+  "matched_old128_comparison_sha256": "b47669e0dc58a09af889f666f9433fa6ee5382524a35b6bfe871b18698bf6100",
+  "limits": [
+    "No AOT counter0/1 inference from unrun VM controls; separate WASM actualcounter!=1 remains Codegen-owned.",
+    "All83 other103 failures and1 prune failure retained; no assertion/guard weakening.",
+    "Old135 closed doesnotmake CFI/fullprotocol/fullCI/baseline/performance green.",
+    "Scoped exact trackedNUL/sourcebeforeafter+criticalactualGit bytes/provider/header/Tool/provider/ELF reportedseals; no claim every Git object or missing raw ELF/tool bytes authenticated."
+  ]
+}

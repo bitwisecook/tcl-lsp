@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T00:58:24Z
+Last updated: 2026-10-26T01:24:27Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Runtimeb86840251853407/job121345287925 FULLAUTH final39d8789fa23646d2c80c68fc0c43ecf606a73a788555e4692fef82fdf2b95180/envelopec4bf802b: all135ownedprocesses closed, old3/baseline14/stack/proc/attestation3 PASS; unchanged other10320P83F/prune6P1F/targeted3P. Exact128 identityjoin vs9cf has0statusdeltas. CFI incomplete retained; AOT5 allLISTED but UNRUN because my extra noterrors predicate conflated priorCFI error with closedprocess admission. One-line successor8e2d15b6 independently CLEAR38da47c2 removes only thatconflation; ALL CFIerrors/global125/old135 status/sharedbudgets remain. ActualWASMb868 new retainedplan prints6 but native_proc_dispatches!=1 (rawvalueunknown); no arithmeticexecution/counter0 inferred. WORK-only sixfile fixed-stage observer433465c2 prepared; existingflag cap128 perprocess/WASMinstance, staticlabels+heldscalarvalues, whole6formatted erasure exact/current/F-R/fmt2021PASS, SourceProc strongpeer active afterNamespriority. Codegen guestflag forwarding independently CLEARb3d3e3b; no scripts/assertions/counter relaxation.
 
 Root integrated AOT VM13 + compatible compiler6 + separately labelled five-test runtime append at WORK0071b8a140b48377a74181424e16bcc48dbe5181/CLEAN69c8bf722b47ff8cac3c18cabfc6536e398dbcde; final combined source pins reviewed and pushed sourceb868e9f8ff1396b2fced842b3096b0551dd57260, V12PASS. New hosted focused fullTom gate40251853407/job121345287925 dispatched; VM sole runtime ZIP/auth owner. Metadata checked: step9 capture inventory in progress, no artifact. Original135 and newAOT5 must remain separate; all actual AOT outcomes stillUNRUN until fresh capture. Pending character-view/allocation user choices remain HOLD, no inference from AOT authorisation.
 
