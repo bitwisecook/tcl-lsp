@@ -283,7 +283,7 @@ impl Interp {
                     &capture.root,
                     Some(capture.home.clone()),
                     array,
-                    &current,
+                    current,
                 )
                 .map_err(|first| self.refuse_native_execution(first))?;
                 return Ok(Verdict::Complete);

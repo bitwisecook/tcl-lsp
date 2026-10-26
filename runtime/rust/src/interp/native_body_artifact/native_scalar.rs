@@ -129,7 +129,7 @@ impl Interp {
                             unreachable!("predicate handled above")
                         }
                     }
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                    .map_err(|error| self.report_cmd_error(error))?;
                     frame
                         .check(self, &arguments)
                         .map_err(|first| self.report_cmd_error(first))?;

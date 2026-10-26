@@ -779,7 +779,7 @@ impl PreparedArrayMember {
                             .check_member_current(element, member)
                             .map_err(&refuse)
                     };
-                    reached = searches.finish(|| check_member());
+                    reached = searches.finish(check_member);
                     if reached.is_ok() {
                         reached = check_member();
                     }

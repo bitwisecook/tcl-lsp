@@ -24,10 +24,17 @@ impl super::Interp {
         {
             return;
         }
-        let Ok(sequence) = EVENTS.try_update(Ordering::Relaxed, Ordering::Relaxed, |old| {
-            (old < 512).then_some(old + 1)
-        }) else {
-            return;
+        let mut current = EVENTS.load(Ordering::Relaxed);
+        let sequence = loop {
+            if current >= 512 {
+                return;
+            }
+            let next = current + 1;
+            match EVENTS.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed)
+            {
+                Ok(_) => break current,
+                Err(actual) => current = actual,
+            }
         };
         let dispatch = self.native_dispatch_depth.get();
         let (frame, owners) = self

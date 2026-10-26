@@ -138,7 +138,7 @@ fn scalar_context_recheck_retains_reached_cache_and_refuses_later_policy_change(
 fn scalar_context_same_profile_world_change_and_restore_cannot_revive_issuer() {
     // Software currency: naming.numeric.original-capi-scalar-publication-width
     // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
-    const OVERLAY: u64 = 0x461_C_AB1;
+    const OVERLAY: u64 = 0x0461_CAB1;
     let mut interpreter = core("tcl8.6");
     let profile = interpreter.dialect_profile();
     let original = interpreter.runtime_context();
@@ -269,7 +269,7 @@ fn scalar_context_missing_numeric_abi_and_first_host_cause_are_terminal() {
     let first = tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
         "original selected refusal",
     );
-    interpreter.refuse_native_access(first.clone());
+    interpreter.refuse_native_access(first);
     assert!(
         matches!(probe(&value, NativeScalarGetterKind::Int), Err(NativeScalarObjectAccessError::Execution(
         tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause)

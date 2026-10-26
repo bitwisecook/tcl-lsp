@@ -548,7 +548,7 @@ fn original_jim_variable_cache_retirement_refuses_before_root_conversion_and_key
             Purpose::VariableSet,
         )
         .err()
-        .expect("actual variable-cache retirement refuses");
+        .unwrap_or_else(|| panic!("actual variable-cache retirement refuses"));
         assert_eq!(failure.report(&mut interpreter), Code::Error);
         assert_eq!(FREES.with(Cell::get), 1);
         assert_eq!(READS.with(Cell::get), 0);

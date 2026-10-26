@@ -411,7 +411,7 @@ fn original_property_old_retirement_refuses_before_any_hash_getter_or_adoption()
         ACTIVE.with(|active| active.set(true));
         let failure = set_property_slot(&mut interpreter, target, true, false, input.as_ptr())
             .err()
-            .expect("reached old retirement refuses");
+            .unwrap_or_else(|| panic!("reached old retirement refuses"));
         let first_cause = interpreter.native_execution_refusal().unwrap();
         assert_eq!(failure.native_execution_refusal(), Some(&first_cause));
         let observations = OBSERVATIONS.with(|observations| observations.borrow().clone());
@@ -468,7 +468,7 @@ fn original_property_hash_refusal_preserves_reached_string_and_stops_later_keys(
         ACTIVE.with(|active| active.set(true));
         let failure = set_property_slot(&mut interpreter, target, true, false, input.as_ptr())
             .err()
-            .expect("first hash getter refuses");
+            .unwrap_or_else(|| panic!("first hash getter refuses"));
         let first_cause = interpreter.native_execution_refusal().unwrap();
         assert_eq!(failure.native_execution_refusal(), Some(&first_cause));
         let observations = OBSERVATIONS.with(|observations| observations.borrow().clone());

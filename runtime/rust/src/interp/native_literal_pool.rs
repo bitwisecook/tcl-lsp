@@ -433,10 +433,9 @@ impl Interp {
                                     .map(|epochs| epochs.0)
                                     != Some(receipt.context.entry_epoch)
                                 {
-                                    return Err((ValueError::CommandProtocolUnavailable(
+                                    return Err(ValueError::CommandProtocolUnavailable(
                                         "captured compiler command priming context",
-                                    ))
-                                    .into());
+                                    ));
                                 }
                                 Ok(())
                             };
@@ -616,7 +615,7 @@ impl Interp {
                 .push(Rc::downgrade(&array));
             Ok(array)
         })();
-        let reached = reached.map_err(&retain);
+        let reached = reached.map_err(retain);
         if let Err(error) = check() {
             let first = retain(error);
             drop(reached);

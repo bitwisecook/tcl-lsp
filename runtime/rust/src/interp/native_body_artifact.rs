@@ -372,7 +372,7 @@ impl Builder<'_> {
         if let Some(fatal) = self.parse_failure.take() {
             return self.interp.error(fatal.cut.message.as_bytes());
         }
-        self.interp.report_cmd_error(error.into())
+        self.interp.report_cmd_error(error)
     }
     fn check_compilation_stage<T>(
         &mut self,
@@ -2099,7 +2099,7 @@ impl Interp {
                 ) {
                     return Ok(None);
                 }
-                    return Err(builder.interp.report_cmd_error(error.into()));
+                    return Err(builder.interp.report_cmd_error(error));
                 }
             };
             if builder
@@ -2281,7 +2281,7 @@ impl Interp {
                 &objects,
             ) {
                 Ok(code) => code,
-                Err(error) => return self.report_cmd_error(error.into()),
+                Err(error) => return self.report_cmd_error(error),
             };
             if code != Code::Ok {
                 self.set_result(
@@ -2587,7 +2587,7 @@ impl Interp {
             &objects,
         ) {
             Ok(code) => code,
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return self.report_cmd_error(error),
         };
         self.set_result(
             artifact
@@ -2798,7 +2798,7 @@ impl Interp {
                         .map(|bytes| bytes.to_vec())
                 })
                 .transpose()
-                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
             let captured = crate::vars::capture_original_indexed_receiver(
                 &mut self.frames.borrow_mut(),
                 &mut self.namespaces.borrow_mut(),
@@ -3576,9 +3576,7 @@ impl Interp {
                                 &stage,
                                 &|error| original.refuse(error),
                             )
-                            .map_err(|error| {
-                                self.report_cmd_error_using(error.into(), Some(&stage))
-                            })?
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?
                             .ok_or_else(|| {
                                 self.report_cmd_error_using(
                                     unavailable("compiled root namespace operand lookup").into(),
@@ -3597,7 +3595,9 @@ impl Interp {
                                 tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
                                 Some(&stage),
                             )),
-                            Err(error) => return Ok(self.report_cmd_error_using(error.into(), Some(&stage))),
+                            Err(error) => {
+                                return Ok(self.report_cmd_error_using(error, Some(&stage)));
+                            }
                         }
                         } else {
                             let frames = self.frames.borrow();

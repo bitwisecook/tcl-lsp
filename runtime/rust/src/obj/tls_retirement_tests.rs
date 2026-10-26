@@ -20,7 +20,7 @@ impl Drop for RetainedObject {
 
 thread_local! {
     // Register this owner first so both metadata maps retire before its object.
-    static HOLDER: RefCell<RetainedObject> = RefCell::new(RetainedObject(None));
+    static HOLDER: RefCell<RetainedObject> = const { RefCell::new(RetainedObject(None)) };
 }
 
 #[test]

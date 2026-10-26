@@ -12,9 +12,7 @@ struct Row {
 }
 fn unhex(text: &str) -> Vec<u8> {
     text.as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
+        .chunks_exact(2)
         .map(|pair| {
             let text = core::str::from_utf8(pair).unwrap();
             u8::from_str_radix(text, 16).unwrap()

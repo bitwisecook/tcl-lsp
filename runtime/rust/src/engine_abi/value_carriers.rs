@@ -268,10 +268,8 @@ pub unsafe extern "C" fn tcl_engine_new_sequence_carrier(
                 interp.refuse_host_command("dictionary import updater issuer unavailable"); return core::ptr::null_mut();
             };
             let pairs = children
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|[key, value]| (*key, *value))
+                .chunks_exact(2)
+                .map(|pair| (pair[0], pair[1]))
                 .collect::<Vec<_>>();
             match crate::dict::new_dict_obj_native(&pairs, None, recipe.protocol()) {
                 Ok(original) => Owned::fresh(original),

@@ -21,9 +21,7 @@ struct Row {
 }
 fn unhex(hex: &str) -> Vec<u8> {
     hex.as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
+        .chunks_exact(2)
         .map(|pair| {
             let digit = |b: u8| if b <= b'9' { b - b'0' } else { b - b'a' + 10 };
             digit(pair[0]) * 16 + digit(pair[1])

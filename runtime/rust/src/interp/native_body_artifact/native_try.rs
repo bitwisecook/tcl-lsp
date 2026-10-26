@@ -281,7 +281,7 @@ impl Interp {
                     merged.options.as_ptr(),
                     &objects,
                 )
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+                .map_err(|error| self.report_cmd_error(error))?;
             self.set_result(result.as_ptr());
             Ok(code)
         })();
@@ -330,7 +330,7 @@ impl Interp {
                 },
                 &|error| original.refuse(error),
             )
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+            .map_err(|error| self.report_cmd_error(error))?;
             drop(options);
             original
                 .check(self)
@@ -352,7 +352,7 @@ impl Interp {
                     &|error| original.refuse(error),
                     &|key, current| original.bytes_using(self, key, current),
                 )
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+                .map_err(|error| self.report_cmd_error(error))?;
             Ok(BodyProtectedCompletion {
                 code: Code::Error,
                 storage: ProtectedStorage::Stack {

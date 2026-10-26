@@ -1215,7 +1215,7 @@ impl Interp {
             self.current_ns.set(saved_ns);
             self.leave_namespace_activation(popped);
             self.recursion_depth.set(self.recursion_depth.get() - 1);
-            return Err(self.report_cmd_error(error.into()));
+            return Err(self.report_cmd_error(error));
         }
 
         if let Some(resolver) = meta.oo_variable_resolver.take() {

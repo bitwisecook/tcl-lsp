@@ -37,13 +37,16 @@ pub(crate) fn observe(stage: &'static str, value: Option<u64>) {
     if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1") {
         return;
     }
-    if ROWS
-        .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-            (current < 128).then_some(current + 1)
-        })
-        .is_err()
-    {
-        return;
+    let mut current = ROWS.load(Ordering::Relaxed);
+    loop {
+        if current >= 128 {
+            return;
+        }
+        let next = current + 1;
+        match ROWS.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => break,
+            Err(actual) => current = actual,
+        }
     }
     eprintln!("CCG_NATIVE_I64_BODY stage={stage} value={value:?}");
 }

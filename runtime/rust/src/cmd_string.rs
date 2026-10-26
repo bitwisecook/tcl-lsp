@@ -891,14 +891,14 @@ fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
 
 /// Map an entire string with the given case mode (`totitle` title-cases the very
 /// first character and lower-cases the rest, like `Tcl_UtfToTitle`).
-
+///
 /// Simple (1:1) Unicode case mapping helpers, matching `Tcl_UniCharTo*`: when the
 /// full Unicode mapping is not a single code point, the character is unchanged.
-
+///
 /// Title-case equals upper-case except for the four Latin digraphs, whose
 /// title form is the mixed-case middle code point (`Tcl_UniCharToTitle`).
 /// (`char::to_titlecase` is still unstable, so these are hard-coded.)
-
+///
 /// `string trim|trimleft|trimright string ?chars?` — strip leading/trailing
 /// characters that appear in `chars` (Tcl's default whitespace set otherwise).
 /// Matching is character-based so multi-byte trim characters work.

@@ -504,7 +504,7 @@ fn original_frame_level_missing_environment_is_terminal_only_at_reached_numeric_
     let failure = protocol
         .resolve_object(0, &mut operand)
         .err()
-        .expect("temporary Int requires actual ENV");
+        .unwrap_or_else(|| panic!("temporary Int requires actual ENV"));
     assert!(failure.native_execution_refusal().is_some());
     assert!(obj::native_scalar_cache(original.as_ptr())
         .unwrap()

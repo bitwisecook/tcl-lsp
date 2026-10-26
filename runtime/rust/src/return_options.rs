@@ -185,7 +185,7 @@ impl ReturnOptionsOps for NativeReturnOps {
             Ok(Ok(NativeScalarGetterValue::Wide(integer))) => Ok(Some(integer)),
             Ok(Ok(_)) => Err(ValueError::ScalarNumericInputUnavailable.into()),
             Ok(Err(_)) => Ok(None),
-            Err(error) => Err(error.into()),
+            Err(error) => Err(error),
         }
     }
     fn completion_code_cache(&self, value: &Owned) -> Option<i32> {
@@ -355,7 +355,7 @@ pub(crate) fn publish(
                 }
                 b"-errorstack" if interp.runtime_version().has_error_stack() => {
                     if let Err(error) = interp.seed_original_error_stack(pair.value.as_ptr()) {
-                        return interp.report_cmd_error(error.into());
+                        return interp.report_cmd_error(error);
                     }
                 }
                 _ => {}

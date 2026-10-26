@@ -95,7 +95,7 @@ impl Interp {
                         tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::CopyBeforeConversion,
                         &|| original.check(self), &|error| original.refuse(error),
                     )
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                    .map_err(|error| self.report_cmd_error(error))?;
                         dictionary
                             .set_member_using(
                                 key.as_ptr(),
@@ -104,7 +104,7 @@ impl Interp {
                                 &|error| original.refuse(error),
                                 &|key, current| original.bytes_using(self, key, current),
                             )
-                            .map_err(|error| self.report_cmd_error(error.into()))?;
+                            .map_err(|error| self.report_cmd_error(error))?;
                         stack.push(dictionary.into_value());
                     }
                     ErrorStep::ReturnError => {
