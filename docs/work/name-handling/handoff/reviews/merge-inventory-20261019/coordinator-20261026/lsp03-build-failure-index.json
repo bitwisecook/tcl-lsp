@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-26T02:50:33.078004+00:00",
+  "source": "03c1087258b7037ae6aacbb5ec46e978b1f9e3a5",
+  "scopes": {
+    "browser": {
+      "path": "/workspace/naming-proof-storage/lsp-host-browser40258550987-actual-v1/assessment-v1.json",
+      "sha256": "7a42a7005245892450a3adc1ae15c75164c4f7e32e971ab4cd545dea17f7f4f5",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMPILE_FAIL_HOST_UNRUN"
+    },
+    "wasi": {
+      "path": "/workspace/naming-proof-storage/lsp-host-wasi40258550987-actual-v1/assessment-v1.json",
+      "sha256": "3ad4225c0faf4d1d3c82fb2300e1577a175371899173727e82167b58bb246f07",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMPILE_FAIL_HOST_UNRUN"
+    },
+    "unit": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-unit-40258550987-actual-v1/assessment-v1.json",
+      "sha256": "52ccd5afbb4a8cb32bde8d10aca2ad5d6900924d59d1ba1a0803d342ae6857b3",
+      "status": "AUTHENTIC_STRICT_NATIVE_BUILD_FAIL_SELECTED_TESTS_AND_SEND_UNRUN"
+    },
+    "core2": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-core2-40258550986-actual-v1/assessment-v1.json",
+      "sha256": "15189a5724181eb1486bbcba5ebd6abab45754159d603620ee3152ab0de2b615",
+      "status": "AUTHENTIC_STRICT_NATIVE_BUILD_FAIL_SELECTED_TESTS_AND_SEND_UNRUN"
+    },
+    "startup": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-startup40258550986-actual-v1/assessment-v1.json",
+      "sha256": "214ea1b796ef4253c29aa1f26c23dc15a556b019e251a1e7726f5a5695356a1a",
+      "status": "AUTHENTIC_STRICT_NATIVE_BUILD_FAIL_SELECTED_TESTS_AND_SEND_UNRUN"
+    }
+  },
+  "actual_frontier": "All5authenticated source/provider/process/buildfail captures; compiler deny(missing_docs) on2publicReturn receipt getters. No selectedELF, Sendbounds/newReturn3/scan3/oldCore2/minify2/Quiet1/host/startup/runtime outcome for03.",
+  "source_members": 126486,
+  "qualification": "Allsourcebefore/aftermembership/tree/criticalGit+rosters/provider/dependency/tools/exactoriginalprocesses authenticated; SourceRootdiagnosticfixedtool seals require no runtime/systemprovider claim because notprepared. Five soleZIPs retained/mapsinside/noextract.",
+  "root_fix": "Codegen264e822d/Compilerpeerdb4be53d exact2Rustdoc, parentintegrating. LSP duplicate64ff HELD/notintegrated."
+}

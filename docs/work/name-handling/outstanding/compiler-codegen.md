@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T02:19:19.914027+00:00
+Last updated: 2026-10-26T02:57:15.986289+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
@@ -726,3 +726,6 @@ Final5bc7 union independently STATIC DEEP CLEAR cfb4eb3af4b9e94e517ff03dfd2e4bab
 
 
 2026-10-26T02:19:19.914027+00:00 — Latest closed3cb48 actualcaptures FULLAUTH: stricta9dbee0a (24checks:1LSP102-lineClippy+1compiler-libtest E0433), WASMa66617bf (348checks:22P3F). ADDactualcandidate-request/publication-attached/entered-candidate then expression-operandsNone, so no inferred recompile loss. Runtime paired actualnameSpan-mapkey correction97a271 independently clearbffab942; originalcounter1/5controls unchanged. Root pathfixe433 independently clear9ae2e1ea; scaninit5144 clear0bd867df. Finalbcbf sourcepinunion78286a51 independently clear42333f1a: all23/17maps258records195sources,15files16topupdates+nestedChild10, prospectiveV13PASS13/30/20; root owns actualapply/push/nextdispatch. New full-CLEAN CI40255885424 e42 has actual compiler_inventory.rs183 undefinedoffset +195unusedoffset in server/shard/Python/nativebuild logs, beforetests; corrected CLEANcarry is reviewed currentcohort, not retroactiveCI success. No hugeCIartifacts downloaded; oldff56 evidence and currentcapturedZIPs retained. Pending allocation/NativeAPI userchoices remain unassumed.
+
+
+2026-10-26T02:57:15.986289+00:00 — Actual03c108 strict FULLAUTHfa071843 has2 missing_docs build errors in Return coverage methods; WASM host-build FULLAUTH77e906ba (142checks) has exactsame2errors and all25UNRUN/no selectedELF/reservedWASM. Paired docs2 fix264e822d independently cleardb4be53d. Final6bcd all23 currentpinunionb768070f independently clearaa7cfc3c and prospectiveV13PASS13/30/20; rootapplied metadata d0fc, latestlocaltip2459 isdocs, nextactualdispatchIDs notyetassigned. Runtime reports actual03 AOT5 scoped4P1F, including primitivecounter1+rename2 andcallback/currentness controlsPASS; remainingwrongduplicateformalexpectation independentlyoracle-correctedc609 after03, noWASM acceptanceinferred. Allcurrentstrict/WASMZIPs retained once; disk-aware no rawsource-map extraction. No NativeStringintegration or allocation/NativeAPI userdecision assumed.

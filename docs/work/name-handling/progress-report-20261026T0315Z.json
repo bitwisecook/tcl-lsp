@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T03:15:00.298392+00:00",
+  "scheduled_report_utc": "2026-10-26T03:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T03:45:00+00:00",
+  "change_since_previous_report": [
+    "Final03:15sourcefreeze work88faf5e2030ee550a29a72720d13833dce5a5df1/released8426c6231868df23c63c9f78e6795dc455b8bff. RootpairedNativeStringV2source15integrated3af9/03b42 afterSourceProcstrong4b908; FOURmeaningfulcontrols separatelyselected viaCompiler3protocolb2ed andVM1protocolc372, old119/old16/string3/full600 untouched. Codegen ONEcurrentall23/new15dependenciesunion+Compilerpeer underway; canonicalV13/pushafterapply. No SourceNativeformal integration.",
+    "NativeStringV2 fixes3Copy-to-Clone misses andwrong Directfixture fromHELDV1. Distinct stockappendaudited VariableStringAppend SuccessfulHandlerSpec supportsactualDirectBuiltin+recipe withallpossibleinput/producerpoolowners, sameNormalpostwritecell/sourceepoch; Inlinekeepsseparatecompilerproof. StringAccess-effectONLY, noRepresentation/Cache/Getter/Numeric/Nativeframe/Normalgrant. ExistingCommandSpec/DSL/Studio schemaunchanged; runtimeproductionappend/COWunchanged; all4actualcontrols/SpecN17stillUNRUN.",
+    "D0fc runtime scopedAOT5 FULLAUTH d5d0048c all5PASS withactualfreshfullTomELF140ownedclosed/globalCAP/source/provider/Git53pins+19AOTfiles. Positiveoriginalpublication/infoargs/body/d/e primitivecounter1+secondcall2 PASS; actualHostrawheader/cacheorder/callbackonce/terminalepoch/no-replay PASS; trace/overflow/replacement/sharedrecompile/oracleduplicate2counter0 PASS. Old128matched03ZEROstatusdeltas(3f39e9fa), old83other+1pruneFAIL and CFIincomplete/global125remain. ComponentPASSdoesnotadmitfullCI/WASM/API/performance.",
+    "D0fc strict actualFIRST2RustE0433 unqualifiedArc atstatic_read_child744/780; no actualownercontroloutcomesinlibtest. Twoexplicitstd::sync qualificationsNames65b713/Codegen748138 integratedpaired7f860/aa0ba, queries/ptrEq/new/assertionsunchanged. Oracle-corrected5AOTcontrolsindependentlypassedruntime; currentWASM capturestillpendingCodegen fullauth. PublicReturndocs2fixpreviouswaveunblockedactualbrowser/WASI/Core3runtimeexecution.",
+    "D0fc browserFULLAUTH633364ec release0RustE/prior24PASS/Return91samecoverageFAIL/later77UNREACHED. WASIFULLAUTH10280347 prior9PASS/sameapp3incompleteprojection/refs[]. Core3FULLAUTHbda11421 old2/StringExpr/Quiet1PASS,factorialFAIL; newReturnpositiveFAIL(receiptNone), two negativesPASS;18ownedprocesses/source126489/providers/deps/tools sealed. StartupFULLAUTH540a1adf fresh0W/cold61.799ms/scan30FAIL/navUNREACHED/ContextCOMPLETE. Newpositivefailurepreserved, actualfactorypremisemissingunderLSPdiagnosis.",
+    "B868retryminifyvisitcustodyfrontier1970e1fa authenticated: inner74/80 passcurrentowner/source/input/vector/head then child_visitsabsent/empty,430<1024. NoNamed/Inlineinference, no lexicalvisitdonation. NewBODYtraceonlyMinify1 incurrentd0fc needsactualcompilerartifact; Originaln-minus1/no-spacesassertunchanged. CorrectNegativeissuedSSAview700V2/ed41 integratedwithmatchedowncurrent/equalforeign/newlinepositive seeds, alloriginalfixtures/assertions/sourcepermissiongates preserved; positivesUNRUNuntilnewactualsource.",
+    "NamesmismatchfieldinventoryV2be6c integratedpaired d029/bb19 preservingcfg(test), exhaustive90fieldorder/specialcomparator/1500cap/Eq/Hash/cachecutoffs. Codegen materialized-rest2V6febf integrated88faf/d842 withalloldowners/asserts; remaining5of6longcohortsCodegensolepeer. FurtherNamesprepared40/51remainunrun/unintegrateduntilpeer; Compiler15/21preparedremaining6, genuineformal/readonlycustodyworkpriority.",
+    "CompilerNativeformal5-fileprivateprototype stillHOLDNEXT: actualrequest/entry/rootArc/frame/ns/config/immutableparameterEqHash+use-timeliveness inspected, but fullbody/consumer/effect/childclosure notyetfrozen/cleared. Authoredformal topology/sourceMetadata notfabricated, Nativeadmissiondoesnotclearunknown/Normal. NativeStringV1notused; V2onlystronglyclearedcodeintegrated.",
+    "Currentproductsourcebeforefreeze d0fc/Cf9c anddoccheckpoint2459 werepushednormallyafterdepth1workfetch; currentall6d0fcjobskept, no duplicateZIPs/healthyjobcancellations. Lastcompletecurrentbaseline/performance/F/zero-warning/generation/docs/fixtures/package/prep-prgatesremainopen. ExternalBIGIP/perfstale notified/no takeover, triagecomplete; userNativecharacterAPI/allocationchoicesunanswered/held. Disk~2.30GBafterprioritycaptures, oldnative147MBprofile remainsdeferred.",
+    "Before03:15 d0fcWASMrawactual23PASS2FAIL: originalsealedNativeI64Addcounter/publicationtestnowPASS, allocation/depthremain. FullauthCodegeninprogress; rawresultnotguardedadmissionyet. LSPd0fcall5FULLAUTH ce53: nav+scan3PASS, ReturnpositiveFAIL/twonegPASS, factorial/startup/WASI/browserdebtpersist. NativeStringall15criticaldepsrootapprovedinBOTHexistingLogical3/Specfoldtopmaps, including3newRustleafs; controlsallpreserved, metadataunionpeerpending."
+  ],
+  "committed": [
+    "0aa191606414b840549187be2989808ef4b07bfb"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "FinishfinalcurrentNativeString/sourcepinunion+peer/canonicalV13/normalpushboth; actualCompiler3/VM1+originalSpec/full600 andaffectedNativeVM/WASM/LSP/Jim/strict checks.",
+    "DiagnoseReturn/minifyactualmissingproducerpremises, completegenuineNativeformal/local/readonlyeffectcustodyandremainingstrictrefactorswithoutguard/assertweakening.",
+    "CompletecurrentfullrustbaselinezeroPASS-to-FAIL/shippingTclperformance/sectionF/allrequiredgates/docs/generated/fixtures/package/prep-prbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "OnlyscopedfullyauthenticatedAOT5componentPASSnewlyrecorded; globaloldfailures/CFIincompletepersist. NativeStringsource+protocolclearanceisnotactualexecution. No audit/F/PRadmission; six-hourtargetmissed.",
+  "disk_free_bytes": 2266484736,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

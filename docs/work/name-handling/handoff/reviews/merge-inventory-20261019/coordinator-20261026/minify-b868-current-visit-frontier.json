@@ -1,0 +1,194 @@
+{
+  "utc": "2026-10-26T02:52:11.662112+00:00",
+  "source": "b868e9f8ff1396b2fced842b3096b0551dd57260",
+  "run": 40251853298,
+  "job": 121353246738,
+  "attempt": 2,
+  "assessment_sha256": "8aa3425967de155c7d8773d8b71d738c05ee677efd7d17746758737659c4be1d",
+  "archive_sha256": "5d0ea3562f889e67b764b90f917b5761b8386dffff8ec97dfebe03a309efbcae",
+  "stderr_member": "default-minify-integration-1.stderr",
+  "stderr_sha256": "12d7e70056999d092e5d292c2bf1ace6658b037eab464867f39cd3dac5a7e43a",
+  "total_scalar_rows": 430,
+  "scalar_quota": 1024,
+  "actual_ordered_inner_first_guard_rows": {
+    "74": [
+      {
+        "line1": 115,
+        "stage": "analysis_owner",
+        "offset": 74,
+        "field": "present",
+        "value": true
+      },
+      {
+        "line1": 116,
+        "stage": "source_binding",
+        "offset": 74,
+        "field": "present",
+        "value": true
+      },
+      {
+        "line1": 117,
+        "stage": "synthetic",
+        "offset": 74,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 118,
+        "stage": "word_text_mismatch",
+        "offset": 74,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 119,
+        "stage": "logical_context",
+        "offset": 74,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 120,
+        "stage": "hosted_context",
+        "offset": 74,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 121,
+        "stage": "binding_owner_mismatch",
+        "offset": 74,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 122,
+        "stage": "owner_input_mismatch",
+        "offset": 74,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 123,
+        "stage": "source_image_mismatch",
+        "offset": 74,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 124,
+        "stage": "head_word",
+        "offset": 74,
+        "field": "present",
+        "value": true
+      },
+      {
+        "line1": 125,
+        "stage": "child_visits",
+        "offset": 74,
+        "field": "present",
+        "value": false
+      },
+      {
+        "line1": 126,
+        "stage": "visits_empty",
+        "offset": 74,
+        "field": "value",
+        "value": true
+      }
+    ],
+    "80": [
+      {
+        "line1": 130,
+        "stage": "analysis_owner",
+        "offset": 80,
+        "field": "present",
+        "value": true
+      },
+      {
+        "line1": 131,
+        "stage": "source_binding",
+        "offset": 80,
+        "field": "present",
+        "value": true
+      },
+      {
+        "line1": 132,
+        "stage": "synthetic",
+        "offset": 80,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 133,
+        "stage": "word_text_mismatch",
+        "offset": 80,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 134,
+        "stage": "logical_context",
+        "offset": 80,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 135,
+        "stage": "hosted_context",
+        "offset": 80,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 136,
+        "stage": "binding_owner_mismatch",
+        "offset": 80,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 137,
+        "stage": "owner_input_mismatch",
+        "offset": 80,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 138,
+        "stage": "source_image_mismatch",
+        "offset": 80,
+        "field": "value",
+        "value": false
+      },
+      {
+        "line1": 139,
+        "stage": "head_word",
+        "offset": 80,
+        "field": "present",
+        "value": true
+      },
+      {
+        "line1": 140,
+        "stage": "child_visits",
+        "offset": 80,
+        "field": "present",
+        "value": false
+      },
+      {
+        "line1": 141,
+        "stage": "visits_empty",
+        "offset": 80,
+        "field": "value",
+        "value": true
+      }
+    ]
+  },
+  "conclusion": "Both actual inner carriers pass current analysis/binding/word/fullinput/source/head guards. Existing current collector supplies no direct/accepted child compiler visits (child_visits absent, visits_empty true), so source syntax refuses and original factorial expected $n-1 remains FAIL.",
+  "unknown": [
+    "No actual child parent Inline/Named/filter rejection branch observed in this source.",
+    "No invented source-only or Native/compiler completion receipt.",
+    "No sole-patch causality inference across distinct source snapshots."
+  ],
+  "next_observer": "WORK source2a5f32d9 passive9e00 plus scopedBODYprotocol2ba5/de33; nextselectingrunrequired."
+}

@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T02:03:07Z
+Last updated: 2026-10-26T03:09:40Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+NativeString V2 source strong CLEAR4b908a56 integrated WORK3af9/CLEAN03b42 (15 coupled files, 3 new helpers/controls). Separate VM1 protocol26f33b7c independently CLEARc37215b1; same fresh tcl_vm lib after old16 before unchanged string3/full600, shared180/CAP/deadline/oldfailureaggregation preserved. Compiler owns separate3 controls; Codegen final all15 source dependency union. No new DSL/public/studio property: existing internal SuccessfulHandlerSpec descriptor only. Actual NativeString controls/Spec remain UNRUN. D0fc runtime40260902607 FULLAUTH d5d0048cfcb8e49b5361dabad2465e9bb6f5b68c14daba3122c708bc5bc85b65: AOT ALL5PASS (positive exactcounter1/secondcall2; Host callback cache-order; trace/overflow/replacement; sharedrecompile; oracleduplicate2/counter0). All476members/126489trackedmembership/53Gitpins/19AOTpaths/providers/tools/deps/140ownedbirths samefresh fullTomELF/caps verified. Old135 same83other+1prune FAIL/CFIincomplete/final125 retained. PubliccharacterAPI/allocation choices stillheld.
 
 NativeString central C1C2 producer implementation off-tree vm-native-string-effect-draft now contains distinct private-constructor StringAccess effect receipt retaining actual full SourceOrdinaryLiteralPool origin/currency (Authored and Native remain distinct), Clone frozen-metadata transport (noNativeobject+1), unanimous concat/append possible-donor effects, exact normal append cell/source/WriteAt checks. Normalcompletion/cache/numeric/publicValueOps unchanged. Three compilercontrols plusactualC86/C90VM COW/header control drafted; Rustfmt syntaxpass, privateCopy→Clone audit andpairedfreeze/strongpeer pending. No semantic/executionPASSclaim. Newruntime3cb40255126104/job121355220293 solecapture pending check; priorb868AOT5UNRUN/old135closedCFIincomplete remainssealed39d8789f. AOT exactvariable-name keyfix97a271d4 independentlyCLEARbffab942; actualcause expression-operandsdecline consistent, nextcounter1stillUNRUN.
 

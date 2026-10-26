@@ -1,0 +1,8 @@
+{
+  "source_before": "03c1087258b7037ae6aacbb5ec46e978b1f9e3a5",
+  "source_after": "d0fc6f18711f6ad4d4ab53aba783a8498be9e5c2",
+  "matched_identity_count": 128,
+  "identities": "exact group+selector",
+  "status_deltas": [],
+  "limit": "Original3/proc/attestation authenticated separately; this is not a fullCI or general runtime parity claim."
+}

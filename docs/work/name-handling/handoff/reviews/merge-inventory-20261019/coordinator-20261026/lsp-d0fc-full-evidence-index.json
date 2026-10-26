@@ -1,0 +1,40 @@
+{
+  "utc": "2026-10-26T03:12:14.785745+00:00",
+  "source": "d0fc6f18711f6ad4d4ab53aba783a8498be9e5c2",
+  "scopes": [
+    {
+      "scope": "browser",
+      "assessment": "/workspace/naming-proof-storage/lsp-host-browser40260902764-actual-v1/assessment-v1.json",
+      "sha256": "633364ec87bcfa0648a71c352eae2addc291ee399ecf49fc3c4bab8656222d08",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL"
+    },
+    {
+      "scope": "wasi",
+      "assessment": "/workspace/naming-proof-storage/lsp-host-wasi40260902764-actual-v1/assessment-v1.json",
+      "sha256": "10280347878015b9ab502ee5c576799532346f723c95bdf37cd2df897778f662",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL"
+    },
+    {
+      "scope": "core3",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-core2-40260902597-actual-v1/assessment-v1.json",
+      "sha256": "bda114217bdfb97bd6c200b180e1aad47dcf1d9be0b1bf01a4614661555caaa0",
+      "status": "AUTHENTIC_SEPARATE_CORE2_FAIL"
+    },
+    {
+      "scope": "startup",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-startup40260902597-actual-v1/assessment-v1.json",
+      "sha256": "540a1adf130255c14220f4873b28d1a6664dc6aab740d6c24264189ef07cf6c0",
+      "status": "AUTHENTIC_FRESH0W_STARTUP_FUNCTIONAL_FAIL"
+    },
+    {
+      "scope": "unit-nav1-and-scan3",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-unit-40260902764-actual-v1/assessment-v1.json",
+      "sha256": "cf7781d178f35bb1de139ece8c89bef3ff0c045725c9800cbdcb474ace3be2c5",
+      "status": "FULLAUTH nav1+scan3 PASS/10closedprocesses"
+    }
+  ],
+  "qualifications": [
+    "Independent exact-source results; no shipping performance or opaque-negative closure.",
+    "No extracted native payload; all maps remain inside sole ZIPs."
+  ]
+}
