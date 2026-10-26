@@ -665,38 +665,13 @@ mod event_function_owner_tests {
         );
     }
 
-    #[test]
-    fn event_function_owner_uses_actual_body_identity_and_ignores_report_names() {
-        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
-            .default_context_registry();
-        let source =
-            "proc ordinary {} {set static::fake 1}\nwhen HTTP_REQUEST {set static::counter 1}\n";
-        let unit = build_unit(source, std::sync::Arc::clone(&context));
-        let (id, original) = unit
-            .procedures
-            .iter()
-            .find(|(id, _)| unit.ir_module.irules_event_bodies.contains_key(id))
-            .unwrap();
-        let event =
-            event_body_for_function(&unit.ir_module, id, original, context.commands()).unwrap();
-        assert_eq!(event.event(), "HTTP_REQUEST");
-        let mut forged = original.clone();
-        forged.name = "::when::RULE_INIT".into();
-        assert_eq!(
-            event_body_for_function(&unit.ir_module, id, &forged, context.commands())
-                .unwrap()
-                .event(),
-            "HTTP_REQUEST"
-        );
-        let (ordinary_id, ordinary) = unit
-            .body_units
-            .iter()
-            .find(|(id, _)| {
-                unit.ir_module
-                    .original_hosted_declaration_body_units
-                    .contains_key(id)
-            })
-            .unwrap();
+    fn assert_ordinary_body_identity(
+        unit: &CompilationUnit,
+        ordinary_id: &ProcedureId,
+        ordinary: &crate::compilation_unit::FunctionUnit,
+        original: &crate::compilation_unit::FunctionUnit,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
         assert!(
             hosted_procedure_body_for_function(
                 &unit.ir_module,
@@ -714,6 +689,159 @@ mod event_function_owner_tests {
             event_body_for_function(&unit.ir_module, ordinary_id, original, context.commands())
                 .is_none()
         );
+    }
+
+    fn assert_wrong_body_identity(
+        wrong_body: &Module,
+        ordinary_id: &ProcedureId,
+        ordinary: &crate::compilation_unit::FunctionUnit,
+        saved_procedure: &Procedure,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        assert!(
+            hosted_procedure_body_for_function(
+                wrong_body,
+                ordinary_id,
+                ordinary,
+                context.commands()
+            )
+            .is_none()
+        );
+        assert!(
+            hosted_procedure_body_for_procedure(
+                wrong_body,
+                ordinary_id,
+                saved_procedure,
+                context.commands()
+            )
+            .is_none()
+        );
+    }
+
+    fn assert_reissued_body_owners(
+        unit: &CompilationUnit,
+        id: &ProcedureId,
+        original: &crate::compilation_unit::FunctionUnit,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        source: &str,
+    ) {
+        let mut changed = unit.ir_module.clone();
+        changed.source = SourceImage::document(&format!("{source} "));
+        assert!(event_body_for_function(&changed, id, original, context.commands()).is_none());
+        let foreign = build_unit(source, context.clone());
+        assert!(
+            event_body_for_function(&foreign.ir_module, id, original, context.commands()).is_none()
+        );
+        assert!(
+            event_body_for_function(
+                &unit.ir_module,
+                id,
+                original,
+                tcl_registry::default_registry()
+            )
+            .is_none()
+        );
+    }
+
+    fn assert_wrong_entry(
+        module: &Module,
+        ordinary_id: &ProcedureId,
+        ordinary: &crate::compilation_unit::FunctionUnit,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        assert!(
+            hosted_procedure_body_for_function(module, ordinary_id, ordinary, context.commands())
+                .is_none()
+        );
+    }
+
+    fn assert_wrong_kind(
+        module: &Module,
+        ordinary_id: &ProcedureId,
+        ordinary: &crate::compilation_unit::FunctionUnit,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        assert!(
+            hosted_procedure_body_for_function(module, ordinary_id, ordinary, context.commands())
+                .is_none()
+        );
+    }
+
+    fn assert_forged_event_label(
+        unit: &CompilationUnit,
+        id: &ProcedureId,
+        forged: &crate::compilation_unit::FunctionUnit,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        assert_eq!(
+            event_body_for_function(&unit.ir_module, id, forged, context.commands())
+                .unwrap()
+                .event(),
+            "HTTP_REQUEST"
+        );
+    }
+
+    fn assert_removed_body(
+        module: &Module,
+        ordinary_id: &ProcedureId,
+        saved_procedure: &Procedure,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        assert!(
+            hosted_procedure_body_for_procedure(
+                module,
+                ordinary_id,
+                saved_procedure,
+                context.commands()
+            )
+            .is_none()
+        );
+    }
+
+    fn assert_foreign_registry_body(
+        unit: &CompilationUnit,
+        ordinary_id: &ProcedureId,
+        ordinary: &crate::compilation_unit::FunctionUnit,
+    ) {
+        assert!(
+            hosted_procedure_body_for_function(
+                &unit.ir_module,
+                ordinary_id,
+                ordinary,
+                tcl_registry::default_registry()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn event_function_owner_uses_actual_body_identity_and_ignores_report_names() {
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let source =
+            "proc ordinary {} {set static::fake 1}\nwhen HTTP_REQUEST {set static::counter 1}\n";
+        let unit = build_unit(source, std::sync::Arc::clone(&context));
+        let (id, original) = unit
+            .procedures
+            .iter()
+            .find(|(id, _)| unit.ir_module.irules_event_bodies.contains_key(id))
+            .unwrap();
+        let event =
+            event_body_for_function(&unit.ir_module, id, original, context.commands()).unwrap();
+        assert_eq!(event.event(), "HTTP_REQUEST");
+        let mut forged = original.clone();
+        forged.name = "::when::RULE_INIT".into();
+        assert_forged_event_label(&unit, id, &forged, &context);
+        let (ordinary_id, ordinary) = unit
+            .body_units
+            .iter()
+            .find(|(id, _)| {
+                unit.ir_module
+                    .original_hosted_declaration_body_units
+                    .contains_key(id)
+            })
+            .unwrap();
+        assert_ordinary_body_identity(&unit, ordinary_id, ordinary, original, &context);
         let mut ordinary = ordinary.clone();
         ordinary.name = "::when::RULE_INIT".into();
         assert!(
@@ -732,27 +860,11 @@ mod event_function_owner_tests {
         let mut wrong_entry = unit.ir_module.clone();
         wrong_entry.source_entry.invocation_realm =
             tcl_dialect::model::InvocationRealm::InterpreterRuntime;
-        assert!(
-            hosted_procedure_body_for_function(
-                &wrong_entry,
-                ordinary_id,
-                &ordinary,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert_wrong_entry(&wrong_entry, ordinary_id, &ordinary, &context);
         let saved_procedure = unit.ir_module.body_units.get(ordinary_id).unwrap();
         let mut removed_body = unit.ir_module.clone();
         removed_body.body_units.remove(ordinary_id);
-        assert!(
-            hosted_procedure_body_for_procedure(
-                &removed_body,
-                ordinary_id,
-                saved_procedure,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert_removed_body(&removed_body, ordinary_id, saved_procedure, &context);
         let mut wrong_body = unit.ir_module.clone();
         wrong_body
             .body_units
@@ -761,23 +873,12 @@ mod event_function_owner_tests {
             .body
             .statements
             .clear();
-        assert!(
-            hosted_procedure_body_for_function(
-                &wrong_body,
-                ordinary_id,
-                &ordinary,
-                context.commands()
-            )
-            .is_none()
-        );
-        assert!(
-            hosted_procedure_body_for_procedure(
-                &wrong_body,
-                ordinary_id,
-                saved_procedure,
-                context.commands()
-            )
-            .is_none()
+        assert_wrong_body_identity(
+            &wrong_body,
+            ordinary_id,
+            &ordinary,
+            saved_procedure,
+            &context,
         );
         let mut wrong_kind = unit.ir_module.clone();
         wrong_kind
@@ -785,28 +886,12 @@ mod event_function_owner_tests {
             .get_mut(ordinary_id)
             .unwrap()
             .body_kind = crate::ir::ProcedureBodyKind::Named;
-        assert!(
-            hosted_procedure_body_for_function(
-                &wrong_kind,
-                ordinary_id,
-                &ordinary,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert_wrong_kind(&wrong_kind, ordinary_id, &ordinary, &context);
         assert!(
             hosted_procedure_body_for_function(&unit.ir_module, id, &ordinary, context.commands())
                 .is_none()
         );
-        assert!(
-            hosted_procedure_body_for_function(
-                &unit.ir_module,
-                ordinary_id,
-                &ordinary,
-                tcl_registry::default_registry()
-            )
-            .is_none()
-        );
+        assert_foreign_registry_body(&unit, ordinary_id, &ordinary);
         ordinary.original_hosted_procedure_body = ordinary
             .original_hosted_procedure_body
             .map(|card| std::sync::Arc::new(card.as_ref().clone()));
@@ -825,21 +910,6 @@ mod event_function_owner_tests {
         assert!(
             event_body_for_function(&unit.ir_module, id, &forged, context.commands()).is_none()
         );
-        let mut changed = unit.ir_module.clone();
-        changed.source = SourceImage::document(&format!("{source} "));
-        assert!(event_body_for_function(&changed, id, original, context.commands()).is_none());
-        let foreign = build_unit(source, context.clone());
-        assert!(
-            event_body_for_function(&foreign.ir_module, id, original, context.commands()).is_none()
-        );
-        assert!(
-            event_body_for_function(
-                &unit.ir_module,
-                id,
-                original,
-                tcl_registry::default_registry()
-            )
-            .is_none()
-        );
+        assert_reissued_body_owners(&unit, id, original, &context, source);
     }
 }
