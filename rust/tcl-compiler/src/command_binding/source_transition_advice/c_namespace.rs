@@ -338,6 +338,114 @@ mod tests {
         OriginalRegistrySource, source_registry_words_at,
     };
 
+    fn assert_closed_native_entry_cannot_import_absent_package() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let source =
+            "namespace import ::tcltest::*; test naming-1 description -body {set x 1} -result 1";
+        let analysis = Analyser::new()
+            .with_source_analysis_entry(std::sync::Arc::new(
+                crate::command_binding::SourceAnalysisEntry {
+                    native_entry: Some(std::sync::Arc::new(entry)),
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                    ..Default::default()
+                },
+            ))
+            .analyse(source, profile.name);
+        let offset = source.rfind("test naming-1").unwrap().try_into().unwrap();
+        assert!(
+            source_registry_words_at(source, &analysis, offset).is_none(),
+            "actual closed NativeBaseline cannot obtain an absent imported package command from source coordinates"
+        );
+    }
+
+    fn assert_namespace_path_mutations_keep_source_selection(dialect: &str) {
+        let prefix = "namespace eval ::provider {}; rename if ::provider::choose; namespace path ::provider; ";
+        for (mutation, expected) in [
+            ("", true),
+            ("opaque; ", false),
+            ("namespace path {}; ", false),
+            ("namespace path $unknown; ", false),
+            ("namespace path \"{\"; ", false),
+            ("proc choose args {}; ", false),
+        ] {
+            let source = format!("{prefix}{mutation}choose 1 {{puts ok}}");
+            let analysis = Analyser::new().analyse(&source, dialect);
+            let offset = source.rfind("choose 1").unwrap().try_into().unwrap();
+            let words = source_registry_words_at(&source, &analysis, offset);
+            assert_eq!(words.is_some(), expected, "{dialect}: {source}");
+            if let Some(words) = words {
+                assert_eq!(words.command(), "if");
+            }
+        }
+    }
+
+    fn assert_import_withdrawals_refuse_source_schema(dialect: &str) {
+        for prefix in [
+            "proc test args {}; namespace import ::tcltest::*; ",
+            "namespace import ::tcltest::*; namespace forget test; ",
+            "namespace import ::tcltest::*; rename ::tcltest::test {}; ",
+        ] {
+            let source = format!("{prefix}test naming-1 description -body {{set x 1}} -result 1");
+            let analysis = Analyser::new().analyse(&source, dialect);
+            let offset = source.rfind("test naming-1").unwrap().try_into().unwrap();
+            assert!(
+                source_registry_words_at(&source, &analysis, offset).is_none(),
+                "{dialect}: {source}"
+            );
+        }
+    }
+
+    fn assert_original_namespace_is_client(
+        advice: &crate::command_binding::source_transition_advice::OriginalSourceCommandTransitionAdvice,
+    ) {
+        assert_eq!(
+            advice
+                .conditional_c_source_namespace()
+                .unwrap()
+                .as_segments(),
+            &[tcl_core_types::NameBytes::from(&b"client"[..])]
+        );
+    }
+
+    fn assert_original_child_dict_schema(
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        assert_eq!(words.command(), "dict");
+        assert_eq!(
+            words.with_source_schema(input.borrowed_context_registry(), |schema| schema
+                .subcommand
+                .resolved()
+                .map(|subcommand| subcommand.canonical_name)),
+            Some(Some("get"))
+        );
+    }
+
+    fn assert_child_lifecycle_namespace_is_conditional(
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        analysis: &crate::analyser::AnalysisResult,
+    ) {
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("child must retain its conditional lifecycle caller coordinates");
+        };
+        assert!(advice.obligations().contains(
+            &SourceCommandTransitionObligation::ConditionalCapturedLifecycleSourceApplicability
+        ));
+        assert_eq!(
+            advice
+                .conditional_c_source_namespace()
+                .unwrap()
+                .as_segments(),
+            &[tcl_core_types::NameBytes::from(&b"client"[..])]
+        );
+        assert!(advice.obligations().contains(
+            &SourceCommandTransitionObligation::UnretainedCSourcePathProviderApplicability
+        ));
+        assert!(analysis.original_completed_command_world().is_none());
+    }
+
     #[test]
     fn c_source_namespace_consumer_keeps_import_path_body_and_withdrawal() {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -393,20 +501,7 @@ mod tests {
                         .is_none()
                 );
             }
-            for prefix in [
-                "proc test args {}; namespace import ::tcltest::*; ",
-                "namespace import ::tcltest::*; namespace forget test; ",
-                "namespace import ::tcltest::*; rename ::tcltest::test {}; ",
-            ] {
-                let source =
-                    format!("{prefix}test naming-1 description -body {{set x 1}} -result 1");
-                let analysis = Analyser::new().analyse(&source, dialect);
-                let offset = source.rfind("test naming-1").unwrap().try_into().unwrap();
-                assert!(
-                    source_registry_words_at(&source, &analysis, offset).is_none(),
-                    "{dialect}: {source}"
-                );
-            }
+            assert_import_withdrawals_refuse_source_schema(dialect);
             if dialect == "tcl8.4" {
                 continue;
             }
@@ -423,13 +518,7 @@ mod tests {
             let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
                 panic!("unretained provider must remain a conditional source recipe");
             };
-            assert_eq!(
-                advice
-                    .conditional_c_source_namespace()
-                    .unwrap()
-                    .as_segments(),
-                &[tcl_core_types::NameBytes::from(&b"client"[..])]
-            );
+            assert_original_namespace_is_client(advice);
             let path = advice.conditional_c_source_path().unwrap();
             assert_eq!(path.len(), 1);
             assert_eq!(
@@ -452,44 +541,9 @@ mod tests {
                 !graph.namespaces.contains(&path[0]),
                 "source coordinates must not invent provider rows"
             );
-            let prefix = "namespace eval ::provider {}; rename if ::provider::choose; namespace path ::provider; ";
-            for (mutation, expected) in [
-                ("", true),
-                ("opaque; ", false),
-                ("namespace path {}; ", false),
-                ("namespace path $unknown; ", false),
-                ("namespace path \"{\"; ", false),
-                ("proc choose args {}; ", false),
-            ] {
-                let source = format!("{prefix}{mutation}choose 1 {{puts ok}}");
-                let analysis = Analyser::new().analyse(&source, dialect);
-                let offset = source.rfind("choose 1").unwrap().try_into().unwrap();
-                let words = source_registry_words_at(&source, &analysis, offset);
-                assert_eq!(words.is_some(), expected, "{dialect}: {source}");
-                if let Some(words) = words {
-                    assert_eq!(words.command(), "if");
-                }
-            }
+            assert_namespace_path_mutations_keep_source_selection(dialect);
         }
-        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
-        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
-        let source =
-            "namespace import ::tcltest::*; test naming-1 description -body {set x 1} -result 1";
-        let analysis = Analyser::new()
-            .with_source_analysis_entry(std::sync::Arc::new(
-                crate::command_binding::SourceAnalysisEntry {
-                    native_entry: Some(std::sync::Arc::new(entry)),
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
-                    ..Default::default()
-                },
-            ))
-            .analyse(source, profile.name);
-        let offset = source.rfind("test naming-1").unwrap().try_into().unwrap();
-        assert!(
-            source_registry_words_at(source, &analysis, offset).is_none(),
-            "actual closed NativeBaseline cannot obtain an absent imported package command from source coordinates"
-        );
+        assert_closed_native_entry_cannot_import_absent_package();
     }
 
     #[test]
@@ -517,31 +571,8 @@ mod tests {
         .remove(0);
         let words = source_registry_words(source, &analysis, &child)
             .expect("bounded original child source schema");
-        assert_eq!(words.command(), "dict");
-        assert_eq!(
-            words.with_source_schema(input.borrowed_context_registry(), |schema| schema
-                .subcommand
-                .resolved()
-                .map(|subcommand| subcommand.canonical_name)),
-            Some(Some("get"))
-        );
-        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
-            panic!("child must retain its conditional lifecycle caller coordinates");
-        };
-        assert!(advice.obligations().contains(
-            &SourceCommandTransitionObligation::ConditionalCapturedLifecycleSourceApplicability
-        ));
-        assert_eq!(
-            advice
-                .conditional_c_source_namespace()
-                .unwrap()
-                .as_segments(),
-            &[tcl_core_types::NameBytes::from(&b"client"[..])]
-        );
-        assert!(advice.obligations().contains(
-            &SourceCommandTransitionObligation::UnretainedCSourcePathProviderApplicability
-        ));
-        assert!(analysis.original_completed_command_world().is_none());
+        assert_original_child_dict_schema(&words, input);
+        assert_child_lifecycle_namespace_is_conditional(&words, &analysis);
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let base = tcl_registry::model::ingress::context_for_profile(profile);
