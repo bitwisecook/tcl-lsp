@@ -16,7 +16,7 @@
     "rust/tcl-lsp-core/src/refactor/mod.rs": "5db89dc16ba9c9a8ba10c08527ca491a8c2da61179b414f7dd732859b7357940",
     "rust/tcl-lsp-core/src/original_command_rename.rs": "eded8cc8c5651ba71ae54f7860d4097cb9107417536636ce4f548d73d6113c9c",
     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
-    "rust/tcl-compiler/src/command_binding.rs": "f9eeb988bc1255822b466814f36d7f49766c465ed8f35a7029927e30348e6a05"
+    "rust/tcl-compiler/src/command_binding.rs": "48438262bede10e525fecc2caa1054e3adb83e74301e052eb39a1af2807f4179"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",

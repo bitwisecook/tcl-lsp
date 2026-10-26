@@ -36,12 +36,25 @@
   "source_pins": {
     "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "c2c865b13092f54623843bc08984458eb4825e52f350a327bda508ed11dd3f03",
     "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "b405dbbad11aae0679cc9b106010341cf795243f182c3c0e87294a0f725ab7d0",
-    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "4660601c53d3fc1c90e237b7b582272758938099d62dd51e16e482ded120f29f",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "af9be9a9fec52d1c48e5ffc142ec8a8b8ade963292ff9b348bad2f7ce4abb8b7",
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
-    "rust/tcl-compiler/src/command_binding.rs": "f9eeb988bc1255822b466814f36d7f49766c465ed8f35a7029927e30348e6a05",
-    "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs": "d772d2f482b2dda7748782bddf911e5d763735f0fb6bc619e817e1710d83f04b"
+    "rust/tcl-compiler/src/command_binding.rs": "48438262bede10e525fecc2caa1054e3adb83e74301e052eb39a1af2807f4179",
+    "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs": "d772d2f482b2dda7748782bddf911e5d763735f0fb6bc619e817e1710d83f04b",
+    "rust/tcl-compiler/src/command_binding/evaluated_word.rs": "bbdcbaa87ff68b5550e57adc683fe40a96337b926bbe2f8cc662e0927ddd464c",
+    "rust/tcl-compiler/src/command_binding/literal_object_pool.rs": "1193653ff6d4df0c2c77834b818bb41e189ca2f64e78ca3207920cd864312db9",
+    "rust/tcl-compiler/src/command_binding/native_list_assignment.rs": "534d8e12a2c6a5285dde2fe867f777847d5c879e2cf75ae0c2b616b6c61e6c43",
+    "rust/tcl-compiler/src/command_binding/native_result.rs": "03fdbd8509d4feacf90d13d46584a50bfc7d2de648eaadb5615864b1b5024f70",
+    "rust/tcl-compiler/src/command_binding/native_string_access.rs": "7c3b42c2d7029785883b586c6b0b1546862e95e2fd60289da6d4e38adbd65269",
+    "rust/tcl-compiler/src/command_binding/object_callbacks.rs": "9c92c23e2615e3252c79e21f973ac3ab7a0057467c95d48882e82cbe5aec12d4",
+    "rust/tcl-compiler/src/command_binding/source_arguments.rs": "137d651305435653dabe4d2ca063b5737399cd3e0b1d7686bb97ebb4f4666f50",
+    "rust/tcl-compiler/src/command_binding/source_representation.rs": "1c9974c00bd42a153c7a74adf636836f88952f9731d3ce1f92a97e3e46ca06df",
+    "rust/tcl-compiler/src/native_numeric.rs": "17eab22ef4d39d0b125d9ff1e3058eadab36051785fe4fe492352304003ce838",
+    "rust/tcl-registry/src/commands/tcl/append_.rs": "6d5d900cdd46179eabdb7ef2ae64b48c5743912d180cb51ea050157fefe60923",
+    "rust/tcl-registry/src/native_compilation.rs": "53d5f11361b7aafa5f3a753c57fbecd4946d4f1a6008539f70fc178075938ff3",
+    "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
+    "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs": "a9b23949e24dda48bd06e7ce59cce355b03df8ed2873b7c68b78bfad9549a375"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -227,7 +240,7 @@
       }
     ],
     "source_pins": {
-      "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "4660601c53d3fc1c90e237b7b582272758938099d62dd51e16e482ded120f29f"
+      "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "af9be9a9fec52d1c48e5ffc142ec8a8b8ade963292ff9b348bad2f7ce4abb8b7"
     },
     "source_peer_reference": "source-peer-known-child-live-producer-v4/receipt.json sha256:571eb418358d3ba0483bb0ec5bbbd59f2df50de4482e0e96d943a4ebdfaa278e",
     "scope": "Separate appended source controls AFTER unchanged old108; SAME existing freshly built compiler library ELF; no extra build, env, flags, budget/reset or acceptance claim"
