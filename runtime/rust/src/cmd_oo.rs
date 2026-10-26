@@ -42,6 +42,12 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+/// Borrowed invocation views; the existing OriginalArguments owns validation.
+struct OriginalOoInvocationView<'a> {
+    invoked: Option<&'a [u8]>,
+    original_argv: Option<&'a [*mut TclObj]>,
+}
+
 type OriginalOoStageCheck<'a> = &'a dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>;
 
 mod native_context;
@@ -6765,8 +6771,10 @@ impl Interp {
                 method,
                 args,
                 dispatch,
-                invoked,
-                original_argv,
+                OriginalOoInvocationView {
+                    invoked,
+                    original_argv,
+                },
                 originals,
             )
         })
@@ -6778,8 +6786,10 @@ impl Interp {
         method: &[u8],
         args: &[*mut TclObj],
         dispatch: MethodDispatch,
-        invoked: Option<&[u8]>,
-        original_argv: Option<&[*mut TclObj]>,
+        OriginalOoInvocationView {
+            invoked,
+            original_argv,
+        }: OriginalOoInvocationView<'_>,
         originals: &crate::interp::native_arguments::OriginalArguments,
     ) -> Code {
         let MethodDispatch { external, unknown } = dispatch;
