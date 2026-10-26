@@ -12,10 +12,10 @@
     "rust/tcl-lsp-core/src/minify/original.rs": "ab052dccc95d70df74616e927c55e80701675d2928487838ccc5eb6a67c6deaa",
     "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "af04b209661e06f5651b49b96d873a743ff7c912728c45d33971a303cc462b21",
     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs": "71ee7eb0dd995a61437f638a6f8865b6acc0c1c632761002afd3c0defa6b111e",
-    "rust/tcl-compiler/src/registry_invocation.rs": "152c23c92a00cc614290fe2749cdb2fd8a8b663500fb31512adb4836edf9ea18",
+    "rust/tcl-compiler/src/registry_invocation.rs": "7528dc264320ef2b704e7d70deb94d4726cc6b89b4496524225c5dd1af033974",
     "rust/tcl-lsp-core/src/refactor/mod.rs": "5db89dc16ba9c9a8ba10c08527ca491a8c2da61179b414f7dd732859b7357940",
-    "rust/tcl-lsp-core/src/original_command_rename.rs": "eded8cc8c5651ba71ae54f7860d4097cb9107417536636ce4f548d73d6113c9c",
-    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
+    "rust/tcl-lsp-core/src/original_command_rename.rs": "665a4879cd946e3c5f554d5a2e8fb647b313d9bd7c75a8bbcd605bb5ebbba8a3",
+    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "d1d25d76fa9f5bad3599fb3596620c6e4c8bc90013c9f5aab0ba95e544ccb897",
     "rust/tcl-compiler/src/command_binding.rs": "48438262bede10e525fecc2caa1054e3adb83e74301e052eb39a1af2807f4179"
   },
   "target": "tcl_lsp_core",

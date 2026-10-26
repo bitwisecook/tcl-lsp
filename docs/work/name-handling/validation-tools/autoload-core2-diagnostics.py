@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "bd4b80997a85030454e2deb0daf193041bf586fe2ee80f3f90ec4a7cf82219a0"
+ROSTER_SHA = "08e791bde8856b2c642b457da73e06c62ebab47ab82d1367f88f28b004955287"
 RESULT_COMPLETION_CONTROLS = ('original_command_rename::tests::authored_result_completion_coverage_retains_nested_call_without_normal_grant', 'original_command_rename::tests::authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs', 'original_command_rename::tests::authored_result_completion_never_skips_nested_name_write_or_opaque_channel')
 BASE = Path(__file__).resolve().parent
 

@@ -116,7 +116,7 @@
     "rust/tcl-registry/src/commands/tcl/format_.rs": "99ddacd3c0bf52b8bf904afbbbc1cb0844f30e16a6f334c976bdd5d0db634c04",
     "rust/tcl-registry/src/commands/tcl/string_.rs": "aa2214c1efa5cbaa939047bf71ae6ebb69f8900b9a00752bc25fc91d0d781b47",
     "rust/tcl-registry/src/lib.rs": "37756de99950f31b05129ab8a30687bec0a41a7d3573e9460e2f4ba65ff97e55",
-    "rust/tcl-registry/src/native_compilation.rs": "53d5f11361b7aafa5f3a753c57fbecd4946d4f1a6008539f70fc178075938ff3",
+    "rust/tcl-registry/src/native_compilation.rs": "8914b6ec0627b518a27cdced4122cd0ddb1166fbc7a1575dde2981e059629f48",
     "rust/tcl-registry/src/native_format_compilation.rs": "d14359a0ce6d538688d44c0c66d08fb4896b85d3b22607d7c198a89429687f41",
     "rust/tcl-registry/src/native_instruction_plan.rs": "308eb9a8297b6a8396a461a36cc534717a059a17a231f2e410389210520b4d5c",
     "rust/tcl-registry/src/native_string_map_compilation.rs": "63be149da0f0e468a35ee169066a030aced93e8c923791af39f0c55a2795529b",

@@ -35,11 +35,11 @@
   ],
   "source_pins": {
     "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "c2c865b13092f54623843bc08984458eb4825e52f350a327bda508ed11dd3f03",
-    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "b405dbbad11aae0679cc9b106010341cf795243f182c3c0e87294a0f725ab7d0",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "5d622a9121b9c680e3056005d60c4aa8799c6decd256efbff46d09ef9d03aca9",
     "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "af9be9a9fec52d1c48e5ffc142ec8a8b8ade963292ff9b348bad2f7ce4abb8b7",
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
-    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
+    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "d1d25d76fa9f5bad3599fb3596620c6e4c8bc90013c9f5aab0ba95e544ccb897",
     "rust/tcl-compiler/src/command_binding.rs": "48438262bede10e525fecc2caa1054e3adb83e74301e052eb39a1af2807f4179",
     "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs": "d772d2f482b2dda7748782bddf911e5d763735f0fb6bc619e817e1710d83f04b",
     "rust/tcl-compiler/src/command_binding/evaluated_word.rs": "bbdcbaa87ff68b5550e57adc683fe40a96337b926bbe2f8cc662e0927ddd464c",
@@ -52,7 +52,7 @@
     "rust/tcl-compiler/src/command_binding/source_representation.rs": "1c9974c00bd42a153c7a74adf636836f88952f9731d3ce1f92a97e3e46ca06df",
     "rust/tcl-compiler/src/native_numeric.rs": "17eab22ef4d39d0b125d9ff1e3058eadab36051785fe4fe492352304003ce838",
     "rust/tcl-registry/src/commands/tcl/append_.rs": "6d5d900cdd46179eabdb7ef2ae64b48c5743912d180cb51ea050157fefe60923",
-    "rust/tcl-registry/src/native_compilation.rs": "53d5f11361b7aafa5f3a753c57fbecd4946d4f1a6008539f70fc178075938ff3",
+    "rust/tcl-registry/src/native_compilation.rs": "8914b6ec0627b518a27cdced4122cd0ddb1166fbc7a1575dde2981e059629f48",
     "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
     "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs": "a9b23949e24dda48bd06e7ce59cce355b03df8ed2873b7c68b78bfad9549a375"
   },
@@ -249,7 +249,7 @@
     "schema": "restored-child-analysis-owner-control1-v1",
     "expected_selected": 1,
     "source": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
-    "source_sha256": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
+    "source_sha256": "d1d25d76fa9f5bad3599fb3596620c6e4c8bc90013c9f5aab0ba95e544ccb897",
     "source_peer_reference": "LSP restored child V4 source peer aaa458e8, integrated",
     "rows": [
       {
