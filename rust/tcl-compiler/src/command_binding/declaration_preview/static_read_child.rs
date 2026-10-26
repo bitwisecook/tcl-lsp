@@ -414,6 +414,67 @@ mod tests {
         }
     }
 
+    // A refusal query may receive an actual SSA use even when the positioned
+    // source-name owner is absent. This helper issues no source-read permission;
+    // the unchanged API must still reject the missing source-name join.
+    fn rejected_child_view(
+        function: &FunctionUnit,
+    ) -> Option<(
+        crate::ssa::SsaSourceView<'_>,
+        crate::ssa::Symbol,
+        tcl_lexer::Span,
+    )> {
+        if let Some(view) = child_view(function) {
+            return Some(view);
+        }
+        for (block, body) in &function.ssa.blocks {
+            for index in 0..=body.statements.len() {
+                let terminal = index == body.statements.len();
+                let view = if terminal {
+                    crate::ssa::SsaSourceView::at_terminator(&function.ssa, *block)
+                } else {
+                    crate::ssa::SsaSourceView::at_statement(&function.ssa, *block, index)
+                };
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                if tokens.nested_bindings.is_empty() {
+                    continue;
+                }
+                let position = if terminal {
+                    -1
+                } else {
+                    i32::try_from(index).ok()?
+                };
+                let mut uses = function
+                    .def_use
+                    .chains
+                    .values()
+                    .flat_map(|chain| &chain.uses)
+                    .filter(|site| {
+                        site.block == body.name
+                            && site.statement_index == position
+                            && site.class == crate::ssa::UseClass::Name
+                            && site.kind
+                                == if terminal {
+                                    crate::def_use::UseKind::Terminator
+                                } else {
+                                    crate::def_use::UseKind::VariableName
+                                }
+                    })
+                    .map(|site| site.variable);
+                let Some(symbol) = uses.next() else { continue };
+                if uses.any(|other| other != symbol) {
+                    continue;
+                }
+                let start = tokens.words().first()?.source().span.start();
+                let end = tokens.words().last()?.source().span.end();
+                return Some((view, symbol, tcl_lexer::Span::new(start, end)));
+            }
+        }
+        None
+    }
+
     #[test]
     fn original_nested_named_read_refuses_equal_foreign_and_stale_source_owners() {
         let input = input();
@@ -429,6 +490,24 @@ mod tests {
         let receipt = current
             .original_native_declaration_static_read_alternatives(function, registry)
             .unwrap();
+        let (seed, symbol, span) = child_view(function).unwrap();
+        assert!(receipt.may_select_direct_source_read(seed, symbol, "n", span));
+        // Same readable source geometry, but a different whole source owner.
+        let stale_source = format!("{SOURCE}\n");
+        let stale = unit(&stale_source, &input);
+        let stale_function = stale
+            .ir_module
+            .original_native_declaration_body_units
+            .keys()
+            .filter_map(|id| stale.body_units.get(id))
+            .find(|function| child_view(function).is_some())
+            .unwrap();
+        let stale_receipt = stale
+            .original_native_declaration_static_read_alternatives(stale_function, registry)
+            .unwrap();
+        let (view, symbol, span) = child_view(stale_function).unwrap();
+        assert!(stale_receipt.may_select_direct_source_read(view, symbol, "n", span));
+        assert!(!receipt.may_select_direct_source_read(view, symbol, "n", span));
         for source in [
             SOURCE,
             "proc counter {} {{n 0}} { return [incr n 2] }; counter",
@@ -439,9 +518,18 @@ mod tests {
                 .original_native_declaration_body_units
                 .keys()
                 .filter_map(|id| foreign.body_units.get(id))
-                .find(|function| child_view(function).is_some())
+                .find(|function| rejected_child_view(function).is_some())
                 .unwrap();
-            let (view, symbol, span) = child_view(foreign_function).unwrap();
+            let (view, symbol, span) = rejected_child_view(foreign_function).unwrap();
+            if source == SOURCE {
+                let own = foreign
+                    .original_native_declaration_static_read_alternatives(
+                        foreign_function,
+                        registry,
+                    )
+                    .unwrap();
+                assert!(own.may_select_direct_source_read(view, symbol, "n", span));
+            }
             assert!(!receipt.may_select_direct_source_read(view, symbol, "n", span));
         }
     }
