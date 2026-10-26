@@ -409,7 +409,23 @@ fn representation_sensitive_data_never_borrows_string_effects_as_a_value() {
                 point
                     .variable_context
                     .contents_native_string_access_closed_at(&place, registry),
-                "effect stays independent {source}"
+                "effect stays independent {source}; engine={engine}; before_effect={}; before_input={}; before_stock={}; before_string_receipt={}; epochs={:?}/{:?}",
+                append
+                    .variable_context
+                    .contents_native_string_access_closed_at(&before, registry),
+                append
+                    .variable_context
+                    .contents_native_string_result_input_closed_at(&before, registry),
+                append
+                    .variable_context
+                    .contents_stock_literal_object_at(&before, registry)
+                    .is_some(),
+                append
+                    .variable_context
+                    .contents_native_string_access_receipt_at(&before, registry)
+                    .is_some(),
+                append.variable_context.representation_epoch,
+                point.variable_context.representation_epoch,
             );
             assert!(
                 point.evaluated_written_argument_value(1).is_none(),
