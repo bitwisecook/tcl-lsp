@@ -22958,8 +22958,8 @@ impl Backend {
                 source_worlds.as_ref(),
             )
             .await?
-            .ok_or_else(stale)?
-            .map_err(original_command_rename_refusal_error)
+            .ok_or_else(stale)
+            .and_then(|planned| planned.map_err(original_command_rename_refusal_error))
         };
         let intents = match planned {
             Ok(intents) => intents,
