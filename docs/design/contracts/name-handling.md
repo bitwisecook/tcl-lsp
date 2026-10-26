@@ -1573,6 +1573,15 @@ do not change the document continuation. These are conditional compiler source
 points, with no Native invocation, entered physical frame, Normal certificate or
 publication permission.
 
+
+### Positive retained-view references
+
+Readonly retained-view references report positive exact source calls; they do not certify complete absence, execution, a completed command world or edit coverage. The selected document and every source scope that requires it must be complete without conditional obligations. An unrelated unfinished scope does not supply that completion and does not erase independently owned positive references.
+
+The reference consumer retains every currently known view ID across all scopes, including unfinished unrelated roots, their children and issued regions. The unchanged physical, full-input, publication, ancestry, index and settlement-revision leases are checked before worker computation and again before rendering the identical inventory. Missing or changed dependencies refuse the result. Each call still needs its own genuine current source owner, original lookup and target publication, with no uncertain earlier operation or lookup-operand effect. Foreign publication and changed source/configuration cannot relabel a selected identity.
+
+Only the positive-reference consumer uses this projection. Definition, call hierarchy, rename, collision worlds and complete-absence consumers retain their independent completion requirements. No Native operation, frame entry, Normal completion or edit permission follows.
+
 ## Manifest dependency source edits
 
 `original_manifest_requirements` uses the manifest owner's complete validated

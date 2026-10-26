@@ -1539,6 +1539,46 @@ impl OriginalSourceViewSettlement {
             .all(|scope| scope.complete && !scope.conditional_obligations)
     }
 
+    fn navigation_projection(
+        &self,
+        uri: &Uri,
+        references: Option<bool>,
+    ) -> Option<OriginalSourceScopeProjection> {
+        if references.is_some() {
+            self.positive_reference_projection(uri)
+        } else {
+            self.projection(uri, false)
+        }
+    }
+
+    /// Positive references require the selected dependency scopes to close,
+    /// while every currently retained producer remains leased and surveyed.
+    /// Incomplete unrelated scopes supply neither absence nor edit authority.
+    fn positive_reference_projection(&self, uri: &Uri) -> Option<OriginalSourceScopeProjection> {
+        let required = self
+            .scopes
+            .iter()
+            .filter(|scope| scope.required.contains(uri))
+            .collect::<Vec<_>>();
+        (!required.is_empty()
+            && required
+                .iter()
+                .all(|scope| scope.complete && !scope.conditional_obligations))
+        .then_some(())?;
+        let mut ids = Vec::new();
+        for scope in &self.scopes {
+            for id in &scope.ids {
+                if !ids.contains(id) {
+                    ids.push(*id);
+                }
+            }
+        }
+        (!ids.is_empty()).then_some(OriginalSourceScopeProjection {
+            ids,
+            revision: self.revision,
+        })
+    }
+
     fn projection(&self, uri: &Uri, aggregate: bool) -> Option<OriginalSourceScopeProjection> {
         let required = self
             .scopes
@@ -3225,7 +3265,7 @@ impl Backend {
         let Some(settlement) = self.refresh_original_source_view_graph().await? else {
             return Ok(std::ops::ControlFlow::Break(None));
         };
-        let Some(ids) = settlement.projection(uri, references.is_some()) else {
+        let Some(ids) = settlement.navigation_projection(uri, references) else {
             return Ok(std::ops::ControlFlow::Break(None));
         };
         let aggregate_complete = settlement.aggregate_complete();
@@ -3579,5 +3619,233 @@ mod completed_world_owner_controls {
                     .all(|row| row.uri != fixture.main.as_str())
             );
         }
+    }
+
+    const REFERENCE_SOURCE: &str = "proc host_old {value} { return $value }\nset host_marker \"🧪 café\"; proc host_caller {} {return [host_old 7]}\n";
+
+    async fn reference_fixture(
+        source_host: bool,
+        tail: &str,
+        host_source: &str,
+    ) -> (Fixture, Backend) {
+        let (mut fixture, backend, documents) = fixture(false).await;
+        drop(documents);
+        let sourced = fixture
+            .root
+            .join(if source_host { "host.tcl" } else { "child.tcl" });
+        fixture.source = format!("source {{{}}}\n{tail}", sourced.display());
+        std::fs::write(fixture.root.join("main.tcl"), &fixture.source).unwrap();
+        std::fs::write(fixture.root.join("host.tcl"), host_source).unwrap();
+        open(&backend, &fixture.main, &fixture.source).await;
+        open(&backend, &fixture.host, host_source).await;
+        (fixture, backend)
+    }
+
+    fn assert_reference_locations(host: &Uri, locations: &[tower_lsp_server::ls_types::Location]) {
+        assert_eq!(locations.len(), 2);
+        for (line, start, end) in [(0, 5, 13), (1, 56, 64)] {
+            assert!(locations.iter().any(|location| &location.uri == host
+                && location.range.start.line == line
+                && location.range.end.line == line
+                && location.range.start.character == start
+                && location.range.end.character == end));
+        }
+    }
+
+    #[tokio::test]
+    async fn positive_references_keep_all_live_views_without_unrelated_completion() {
+        assert_eq!(REFERENCE_SOURCE.len(), 112);
+        let (fixture, backend) = reference_fixture(false, "puts opaque\n", REFERENCE_SOURCE).await;
+        let settlement = backend
+            .refresh_original_source_view_graph()
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            settlement
+                .scopes
+                .iter()
+                .any(|scope| scope.root_uri == fixture.main
+                    && !scope.complete
+                    && scope.ids.len() > 1)
+        );
+        assert!(settlement.projection(&fixture.host, true).is_none());
+        let projection = settlement
+            .positive_reference_projection(&fixture.host)
+            .unwrap();
+        let expected = settlement
+            .scopes
+            .iter()
+            .flat_map(|scope| scope.ids.iter().copied())
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            projection.ids.iter().copied().collect::<HashSet<_>>(),
+            expected
+        );
+        assert_eq!(projection.revision, settlement.revision);
+        let route = backend
+            .original_source_view_navigation_route(
+                &fixture.host,
+                tower_lsp_server::ls_types::Position {
+                    line: 0,
+                    character: 6,
+                },
+                Some(true),
+            )
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(locations)) = route else {
+            panic!("positive reference inventory unavailable")
+        };
+        assert_reference_locations(&fixture.host, &locations);
+    }
+
+    #[tokio::test]
+    async fn positive_references_refuse_selected_and_dependent_unknown_mutation() {
+        for source_host in [false, true] {
+            let host = if source_host {
+                REFERENCE_SOURCE
+            } else {
+                "proc host_old {value} {return $value}\neval $unknown\nhost_old 7\n"
+            };
+            let (fixture, backend) =
+                reference_fixture(source_host, "eval $unknown\nhost_old 9\n", host).await;
+            let settlement = backend
+                .refresh_original_source_view_graph()
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(
+                settlement
+                    .scopes
+                    .iter()
+                    .any(|scope| scope.required.contains(&fixture.host) && !scope.complete)
+            );
+            assert!(
+                settlement
+                    .positive_reference_projection(&fixture.host)
+                    .is_none()
+            );
+            assert!(matches!(
+                backend
+                    .original_source_view_navigation_route(
+                        &fixture.host,
+                        tower_lsp_server::ls_types::Position {
+                            line: 0,
+                            character: 6
+                        },
+                        Some(true)
+                    )
+                    .await
+                    .unwrap(),
+                std::ops::ControlFlow::Break(None)
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn positive_references_refuse_foreign_publication_and_changed_input() {
+        let (fixture, backend) = reference_fixture(false, "puts opaque\n", REFERENCE_SOURCE).await;
+        let settlement = backend
+            .refresh_original_source_view_graph()
+            .await
+            .unwrap()
+            .unwrap();
+        let projection = settlement
+            .positive_reference_projection(&fixture.host)
+            .unwrap();
+        let checked = backend
+            .with_settled_original_source_scope(&projection, |views| {
+                let (publications, ancestors) = Backend::original_source_view_labels(views)?;
+                let inventory =
+                    Backend::original_source_view_inventory(views, &publications, &ancestors);
+                let cursor = tcl_lsp_core::original_source_views::cursor_publications(
+                    fixture.host.as_str(),
+                    6,
+                    &inventory,
+                )?;
+                let selected =
+                    tcl_lsp_core::original_source_views::prepare(cursor.first()?, 6, &inventory)?;
+                assert_eq!(
+                    tcl_lsp_core::original_source_views::references(&selected, &inventory).len(),
+                    1
+                );
+                let foreign = tcl_lsp_core::original_source_views::OriginalSourceViewDeclaration {
+                    publication:
+                        tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(
+                            "foreign publication",
+                        ),
+                    identity: selected.identity.clone(),
+                };
+                assert!(
+                    tcl_lsp_core::original_source_views::references(&foreign, &inventory)
+                        .is_empty()
+                );
+                Some(())
+            })
+            .await
+            .unwrap();
+        assert!(checked.is_some());
+        backend
+            .db_set_source(&fixture.host, REFERENCE_SOURCE, "tcl9.0".to_owned())
+            .await
+            .unwrap();
+        let mut document =
+            DocumentState::with_version(REFERENCE_SOURCE.to_owned(), "tcl9.0".to_owned(), 1);
+        document.path_admission = Some(
+            backend
+                .document_path_admission(&fixture.host)
+                .await
+                .unwrap(),
+        );
+        document.publication = DocumentPublication::Indexed;
+        backend
+            .documents
+            .lock("foreign reference input")
+            .await
+            .insert(fixture.host.clone(), document);
+        assert!(
+            backend
+                .with_settled_original_source_scope(&projection, |_| Some(()))
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn positive_references_keep_unrelated_child_physical_lease() {
+        let (fixture, backend) = reference_fixture(false, "puts opaque\n", REFERENCE_SOURCE).await;
+        let settlement = backend
+            .refresh_original_source_view_graph()
+            .await
+            .unwrap()
+            .unwrap();
+        let projection = settlement
+            .positive_reference_projection(&fixture.host)
+            .unwrap();
+        assert!(
+            backend
+                .with_settled_original_source_scope(&projection, |_| Some(()))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        std::fs::write(
+            fixture.root.join("child.tcl"),
+            "proc changed {} {return OTHER}\n",
+        )
+        .unwrap();
+        assert!(
+            backend
+                .with_settled_original_source_scope(&projection, |_| Some(()))
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            std::fs::read_to_string(fixture.root.join("host.tcl")).unwrap(),
+            REFERENCE_SOURCE
+        );
     }
 }
