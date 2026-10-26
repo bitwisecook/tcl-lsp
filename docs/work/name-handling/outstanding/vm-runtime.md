@@ -1,10 +1,13 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T10:11:46Z
+Last updated: 2026-10-26T10:46:13Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T10:46:13Z: Spec9f FULLAUTH8659bcf7: old16+VM1 PASS; observer4=3P1F first initialization positive; string probe FAIL; full600 CLOSEDFAIL101/598.295s,17873 successful of17873 attempted hooks,3boundstringhooks0attempt. Initializer policy cause is static C profile core_pointNone; narrow recipe repair8a6f strongf3dcb156/bounded1078 integratedNEXTbdab6b27d, realVM4 retry pending; newAPIprojectiontest remains actualfullCI obligation. LENGTH actual effect gate now passes, missing argument VALUE is next distinct boundary. Compiler130 independently FULLAUTH50361243 confirms NativeString3ALLPASS. NEXT appendVALUE0506d4 V1 is HELD: join oldsame-byte name-value ownerlineage/currentness and add required project header; alloldasserts preserved, SourceProc finishing review before immutableV2. Runtime9f remainsALL161UNRUN/build101/fourgetter-testnameerrors, sealedb37d; lexicalrepair77176af andAppendOptionlint436015a current. No C1C2/globalruntime/Storebody effect acceptance.
+
 
 Current 2026-10-26T10:11:46Z: Runtime9f run40302393778 is authenticated ALL161 UNRUN: same four getter-test E0433, build101, no selected ELF. Sole ZIPfbcc6a46; bounded build receiptb37d4794 verifies all25memberSHA/CRC and126560Gitmembership. Getter lexical repair10bad independently clear0fc4b55; Append four Option lint repaire3dc independently clearcfb7433. Root owns canonical integration/retry. Oldad0b runtime9fdb188c and Specf7fa3a29 remain scoped build-only seals. Spec9f40302394671 still active; no NativeAppend positive result or readonly Store closure. Codegen independently authenticated originalWASM25 ALLPASS2ea979fc, which does not select runtime161 controls. Disk recovery permitted new ZIP capture; no local build/deletion.
 

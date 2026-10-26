@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T09:51:48.934418+00:00
+Last updated: 2026-10-26T10:34:33.405034+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-26T10:34:33.405034+00:00: REPAIR9f Jim52 FULLAUTHad12346d allcontrolsPASS/all52REACHED: original45=36P9F, diagnostic3P2F/newstaticPASS/raw52FAIL OBSERVED. Exact51priorcomparison2edcb39d ONEGAIN priorproc-before-class nowPASS, ZEROpriorPASSregressions; original26=17P9F/additional8ALLPASS. SoleZIP4c2e25f8, owned12Git+transport supplementfdc50569, originalfixtures/asserts untouched. Rawafterclassnewownrejectionleaf remainsUNOBSERVED; oldgenericclassreffalse isfallback, notactualowncause. RootapprovedNEXTboundedWORKfirstguardobserver e8dbd526 SourceProcstrongpassivepeeractive viafollowup_task, existingenv/debug/shared1024cap/staticenumtag/noqueries/relaxation/CLEANdiagnostics. Current23JSONcensus30c148a1; CodegenwillincludeONLYafterrootapplynextcohort, currentbdabfreezeuntouched. Actual9f own unusedselfc356 mechanicalrepairindependentCLEAR756c0777; rootsoleintegration. Compiler130Own3/layout3actualpendingseparate, no gainsinferred. Perfremainingleadsreadonlypendingjointcurrencyproof; no fullGraphmemoauthoring.
 
 Resume 2026-10-26T09:51:48.934418+00:00: REPAIR9f2435a08 currentJim52 run40302395602/job121503183696 NamesSOLEcapture; firstmetadata healthyNativebootstrap afterrust/checkoutSUCCESS. Rootterminalguardprovedold8modesclosed beforefreshretry, no duplicateCompiler13040302394720. PRIORad0b FULLbuildauthc139b5d6/allmemberCRCc875c07f/owned12Gitjoinbddeb200: ALL52UNRUN from2VM_E0502 only, no semanticgain/regression/currentoriginal26count. Latestreached059still35/45/original16/26 PRIORonly. Geometry629fsourcec14rootlanded; pairedRootmeasurements and3unitexecution separate, no inferredtiming/RSS gain. Remainingperfmemory/replay leads READONLY pendingSourceProc/LSP physicalcurrency/freshcounters/debts/ownerproof; no Graphmemoauthoring. Capture9f exactsourceZIPoncewhenclosed, fullseals thenoriginal51/26/priorPASScomparison onlyifgenuinelyreached.
 
