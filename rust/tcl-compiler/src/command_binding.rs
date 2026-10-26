@@ -1497,6 +1497,13 @@ pub struct SourceInvocationBinding {
 }
 
 impl SourceInvocationBinding {
+    /// Passive process-local address only; this supplies no source or lookup authority.
+    pub(crate) fn source_cut_trace_dispatch_origin(&self) -> Option<*const SourceOriginId> {
+        self.dispatch_site
+            .as_ref()
+            .map(|site| Arc::as_ptr(&site.source))
+    }
+
     pub(crate) fn has_original_source_layout_owner(&self) -> bool {
         self.lookup_state.is_some()
             || self.compiler_lookup_state.is_some()

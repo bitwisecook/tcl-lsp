@@ -41,10 +41,7 @@ fn observe_cut_value_refusal(
 ) {
     cut_value_refuses(trace, "value.represented-refusal", true);
     if trace && crate::registry_invocation::source_cut_trace_admitted() {
-        let origin = binding
-            .dispatch_site
-            .as_ref()
-            .map(|site| Arc::as_ptr(&site.source));
+        let origin = binding.source_cut_trace_dispatch_origin();
         eprintln!(
             "SOURCE_CUT_VALUE_REFUSED origin={origin:?} data={:p} bytes={} offset={offset}",
             image.bytes().as_ptr(),
