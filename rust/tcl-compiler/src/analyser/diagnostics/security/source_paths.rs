@@ -453,6 +453,51 @@ mod tests {
         }
     }
 
+    fn trace_original_source_owner(
+        function: &crate::compilation_unit::FunctionUnit,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        binding: &crate::command_binding::SourceInvocationBinding,
+        point: (&crate::cfg::BlockId, usize),
+    ) {
+        let (block, index) = point;
+        let point_input = binding.logical_source_name_advice_input();
+        let function_input = function.source_metadata_input();
+        let recorded = binding.original_recorded_command_tokens();
+        let head_config = binding
+            .original_retained_written_name_input(0)
+            .and_then(|head| {
+                head.original_word_key()
+                    .map(|key| key.original_word().config())
+            });
+        eprintln!(
+            "[diagnostic-source-owner] statement={block:?}/{index} point_input={} point_equals_module={} point_equals_nested_module={} point_equals_function={} point_equals_nested_function={} module_config={:?} function_config={:?} point_config={:?} vector_config={:?} original_head_config={head_config:?} recorded_vector_equal={} point_metadata={} module_point_metadata={}",
+            point_input.is_some(),
+            point_input == module.source_metadata_input.as_ref(),
+            point_input
+                .zip(module.source_metadata_input.as_ref())
+                .is_some_and(|(point, input)| point == &input.for_nested_source()),
+            point_input == function_input,
+            point_input
+                .zip(function_input)
+                .is_some_and(|(point, input)| point == &input.for_nested_source()),
+            module.lexer_config,
+            function.source_lexer_config(),
+            point_input.map(ResolvedAnalysisInput::lexer_config),
+            binding.original_lexer_config_for_tokens(tokens),
+            recorded
+                .as_ref()
+                .is_some_and(|recorded| recorded.words() == tokens.words()),
+            binding
+                .original_invocation_metadata_at_point(tokens, registry)
+                .is_ok(),
+            binding
+                .original_invocation_metadata_for_module(tokens, module, registry)
+                .is_some(),
+        );
+    }
+
     fn trace_original_source_values(
         unit: &crate::compilation_unit::CompilationUnit,
         input: &ResolvedAnalysisInput,
@@ -505,40 +550,13 @@ mod tests {
                         .as_ref()
                         .map(|binding| (tokens, binding))
                 }) {
-                    let point_input = binding.logical_source_name_advice_input();
-                    let function_input = function.source_metadata_input();
-                    let recorded = binding.original_recorded_command_tokens();
-                    let head_config =
-                        binding
-                            .original_retained_written_name_input(0)
-                            .and_then(|head| {
-                                head.original_word_key()
-                                    .map(|key| key.original_word().config())
-                            });
-                    eprintln!(
-                        "[diagnostic-source-owner] statement={block:?}/{index} point_input={} point_equals_module={} point_equals_nested_module={} point_equals_function={} point_equals_nested_function={} module_config={:?} function_config={:?} point_config={:?} vector_config={:?} original_head_config={head_config:?} recorded_vector_equal={} point_metadata={} module_point_metadata={}",
-                        point_input.is_some(),
-                        point_input == module.source_metadata_input.as_ref(),
-                        point_input
-                            .zip(module.source_metadata_input.as_ref())
-                            .is_some_and(|(point, input)| point == &input.for_nested_source()),
-                        point_input == function_input,
-                        point_input
-                            .zip(function_input)
-                            .is_some_and(|(point, input)| point == &input.for_nested_source()),
-                        module.lexer_config,
-                        function.source_lexer_config(),
-                        point_input.map(ResolvedAnalysisInput::lexer_config),
-                        binding.original_lexer_config_for_tokens(tokens),
-                        recorded
-                            .as_ref()
-                            .is_some_and(|recorded| recorded.words() == tokens.words()),
-                        binding
-                            .original_invocation_metadata_at_point(tokens, registry)
-                            .is_ok(),
-                        binding
-                            .original_invocation_metadata_for_module(tokens, module, registry)
-                            .is_some(),
+                    trace_original_source_owner(
+                        function,
+                        module,
+                        registry,
+                        tokens,
+                        binding,
+                        (block, index),
                     );
                 }
                 eprintln!(
