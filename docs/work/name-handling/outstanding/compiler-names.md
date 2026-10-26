@@ -2,7 +2,9 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T22:13:22.048081+00:00
+Last updated: 2026-10-26T22:46:00.190144+00:00
+
+Resume 2026-10-26T22:46:00.190144+00:00: Exact2c31 dedicatedcorpus FULLAUTH25d51a2d + fullGitNUL2376dc6e: fresh0wELF/sevenclosed, bothFAIL101 after text2/234markers=6/702Equalpairs then20-folding old-old Unavailable(CompleteFieldCorrespondenceUnavailable); generated8/14markers=24/42 thenprocs41 old-old Unavailable(CurrentOwnerUnavailable). Not Different/mixedcache regression; completeparity/perf NOTaccepted. Exact C93 prep FULLAUTHa9deb9ca: canonical::double smoke genuinelyPASS, alltracked/tree/indexclean/diffEMPTY, gateFAIL2 finalLSPserver11P3F; exactpanics4fb89029 routedRoot/LSP. Approved NEXT passivecomparison observer6e2dad5f strongfc466d6d, no Eq/owner/guard/assert/cutoff changes. Dedicated-only childAUTH trace transportV2 9c3f583f frozen, actualhelper/finalgate mocks+peer pending; missing/malformedtrace UNOBSERVED while preservingraw Ruststates, subjectordinalUNOBSERVED. WASM9cc sourceclear84bd readyRoot, runtimeUNRUN. Allhostedcapturesclosed; no newbuild/dispatch/canonicaledit byNames.
 
 Resume 2026-10-26T22:13:22.048081+00:00: WASM physical export V2 9cc79c01 independently STATIC CLEAR84bd2364 (Codegen) and READY Root integration. Exact source current paired4/F-R/F0/fmt/fullbackend+IRinverse plus882output properties; typed ProcedureIds/index/table/publication argv/report labels/allbodies/exportflags unchanged. All colliding versions renamed, unique names/top preserved; no arbitrary stale canonical target. New2controlselectors sent Compiler but UNRUN/no protocol authored. New2c31 corpus/prep sole jobs remain active main phases; no typed pairs/gate outcome inferred. No canonical changes/builds/dispatch by Names.
 

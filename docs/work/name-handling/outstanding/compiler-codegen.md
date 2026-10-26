@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T22:22:23Z
+Last updated: 2026-10-26T22:45:05Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+22:45 source-only framing audit active. Root numeric-effect HOLD: ConstStr pointer/spelling does not certify current NativeInt cache or erase original conversion. No compiler/runtime implementation begun. Bounded proposal304fb515 requires genuine current typed cache or exact once-only original getter, all observer/currentness/alias/errno/representation controls; fresh String decline honest. Runtime confirms passive table inspection is not generic semantic authority and no complete quiet numeric cell receipt yet. Compile-side VM observer absence cannot certify separate emitted-WASM interpreter. Historical count correction: actual7ecd t0 native0/0/1/0 vs golden0/0/0/1 (old9fd3invoke count is not current); oldBroad8goldens/asserts untouched. All owned strict captures terminal/fullauth; next source union only on explicit Rootfreeze.
 
 22:22 UTC strict2c31 run40409841916/job121877376084 terminal FAIL, soleZIP FULLAUTH23checks SHA28bfacccd545ad8fba5f4c077ade55de4ef32e763f5099b68ae760568dcd3a34. Exactly one actual primary runtime/rust/src/interp.rs18803 question_mark; Runtime owns minimal current paired repair. No later-frontier/zero-warning inference. Strict protocol authenticates full source endpoints/tools/process/caps, not provider/dependency attestations. Final51fa25 source union2cd6232d/ec8f4aab independentlyCLEAR2f10861d, V16PASS13/30/22 and11actualfunctionguardsPASS, awaiting Root canonical apply/push/WASM+Spec POSTs only. Exact2approved additions export child onlyWASM and N17world child onlySpec; old rows/env/budgets preserved. Export9cc strongSTATICCLEAR84bd2364, actual retryUNRUN; two newbackendlibtests explicitfullCI obligation. C47 allterminal/3smallarchives retained; partial historicalqualification paused while current source gates launch. No canonical/source Git mutation or healthy-run cancellation byme.
 
