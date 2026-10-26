@@ -17,13 +17,13 @@
 ;;
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
 
-;;; experiment_333.el — differential proof + perf feel for issue #333.
+;;; experiment_333.el — timing and accumulation measurements for issue #333.
 ;;
 ;; Load the harness helpers (NOEXEC), generate a large Tcl file, and run the
-;; SAME harsh edit sequence through real eglot twice — compat OFF and compat
-;; ON — reporting (a) accumulated `eglot-semantic-*` faces at the end of each
-;; run and (b) the timings eglot actually waits on (connect→first tokens, and
-;; each edit→fresh tokens round trip).  Run:
+;; same harsh edit sequence through real eglot twice. The server ignores the
+;; compatibility option, so OFF/ON are repeat measurements, not a causal
+;; comparison. The script reports accumulated `eglot-semantic-*` faces and the
+;; timings eglot waits on (connect→first tokens and each edit→fresh tokens). Run:
 ;;
 ;;   TCL_LSP_REPO=$PWD TCL_LSP_SERVER_BIN=$PWD/target/release/tcl-lsp-server \
 ;;   TCL_LSP_T333_NOEXEC=1 emacs -Q -batch \
@@ -164,7 +164,7 @@ state while responses lag / are dropped.  Return accumulation count."
       accum)))
 
 (let ((nprocs (string-to-number (or (getenv "EXP_NPROCS") "600"))))  ; ~5400 lines
-  (princ (format "\n===== issue #333 differential + perf (nprocs=%d) =====\n" nprocs))
+  (princ (format "\n===== issue #333 timing + accumulation (nprocs=%d) =====\n" nprocs))
   (let ((off (exp333-run nil nprocs))
         (on  (exp333-run t   nprocs)))
     (exp333-report off)
@@ -173,12 +173,5 @@ state while responses lag / are dropped.  Return accumulation count."
     (let ((soff (exp333-stress nil nprocs))
           (son  (exp333-stress t   nprocs)))
       (princ (format "  stress accum: OFF=%d  ON=%d\n" soff son)))
-    (princ (format "\n  RESULT: accum OFF=%d  ON=%d  →  %s\n"
-                   (plist-get off :accum) (plist-get on :accum)
-                   (cond ((and (> (plist-get off :accum) 0)
-                               (= (plist-get on :accum) 0))
-                          "PROVEN: compat ON eliminates accumulation, off reproduces it")
-                         ((= (plist-get off :accum) (plist-get on :accum))
-                          "INCONCLUSIVE: accumulation same in both (batch paint may not reproduce)")
-                         (t "PARTIAL: accumulation differs but not cleanly")))))
+    (princ (format "\n  Measurements only: compatibility option ignored by server; OFF/ON are not a causal comparison.\n")))
   (kill-emacs 0))
