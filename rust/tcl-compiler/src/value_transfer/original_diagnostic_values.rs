@@ -395,6 +395,23 @@ mod tests {
         assert!(values.word_contents(statement, word).is_none());
     }
 
+    fn assert_native_scalar_store_refusal(
+        function: &crate::compilation_unit::FunctionUnit,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                for &symbol in statement.defs.keys() {
+                    assert!(
+                        crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index)
+                            .conditional_logical_scalar_store_contents(symbol, context.commands())
+                            .is_none()
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn original_conditional_scalar_store_contents_keep_source_definition_and_native_refusal() {
         // naming.compiler.original-analysis-metadata-context
@@ -493,17 +510,7 @@ mod tests {
             &native,
         );
         let function = original.function("::f").unwrap();
-        for (&block, body) in &function.ssa.blocks {
-            for (index, statement) in body.statements.iter().enumerate() {
-                for &symbol in statement.defs.keys() {
-                    assert!(
-                        crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index)
-                            .conditional_logical_scalar_store_contents(symbol, context.commands())
-                            .is_none()
-                    );
-                }
-            }
-        }
+        assert_native_scalar_store_refusal(function, &context);
     }
 
     #[test]
