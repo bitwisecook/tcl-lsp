@@ -1069,12 +1069,14 @@ pub fn original_authored_result_completion_for_source_coverage<'a>(
     }
     let selected = original_declared_structured_invocation(registry, context, tokens)?;
     original_structured_operands_are_supported(registry, &selected, None, tokens)?;
-    if selected
-        .effective
-        .origins
-        .iter()
-        .enumerate()
-        .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
+    if selected.effective.origins.first() != Some(&InvocationWordOrigin::ResolvedHead)
+        || selected
+            .effective
+            .origins
+            .iter()
+            .enumerate()
+            .skip(1)
+            .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
     {
         return None;
     }
