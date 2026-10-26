@@ -24,7 +24,12 @@ pub(crate) fn trace_jim_source_option<T>(stage: &str, value: Option<T>) -> Optio
         use std::sync::atomic::{AtomicU32, Ordering};
         const LIMIT: u32 = 1024;
         static ROWS: AtomicU32 = AtomicU32::new(0);
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some()
+            && jim_source_trace_stage_selected(
+                stage,
+                std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER_FILTER").as_deref(),
+            )
+        {
             match ROWS.try_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
                 if used < LIMIT { Some(used + 1) } else { None }
             }) {
@@ -43,6 +48,16 @@ pub(crate) fn trace_jim_source_option<T>(stage: &str, value: Option<T>) -> Optio
     #[cfg(not(debug_assertions))]
     let _ = stage;
     value
+}
+
+// Diagnostic selection precedes the unchanged process quota. The absent mode
+// preserves every old row; unknown modes cannot masquerade as an observation.
+#[cfg(any(debug_assertions, test))]
+fn jim_source_trace_stage_selected(stage: &str, filter: Option<&std::ffi::OsStr>) -> bool {
+    filter.is_none_or(|filter| {
+        (filter == "alias-only-v1" && stage.starts_with("jim.alias."))
+            || (filter == "member-only-v1" && stage.starts_with("jim.own_member."))
+    })
 }
 
 #[cfg(test)]
@@ -5771,6 +5786,50 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+
+    #[test]
+    fn jim_source_trace_filter_selects_only_member_stages() {
+        for stage in [
+            "constructor.image",
+            "jim.alias.receipt",
+            "jim.own_member.recipe",
+            "jim.own_member.debt.UnknownEarlierMutation",
+            "jim.own_member.supported",
+            "jim.own_members.recipe",
+        ] {
+            assert!(jim_source_trace_stage_selected(stage, None));
+            assert_eq!(
+                jim_source_trace_stage_selected(
+                    stage,
+                    Some(std::ffi::OsStr::new("member-only-v1"))
+                ),
+                stage.starts_with("jim.own_member.")
+            );
+        }
+    }
+
+    #[test]
+    fn jim_source_trace_filter_preserves_unset_mode_and_selects_only_alias_stages() {
+        for stage in [
+            "constructor.image",
+            "constructor.input",
+            "jim.alias.receipt",
+            "analyser.proc.shape",
+            "jim.alias.publication",
+        ] {
+            assert!(jim_source_trace_stage_selected(stage, None));
+            assert_eq!(
+                jim_source_trace_stage_selected(stage, Some(std::ffi::OsStr::new("alias-only-v1"))),
+                stage.starts_with("jim.alias.")
+            );
+            for unknown in ["", "all", "alias-only-v2", "ALIAS-ONLY-V1"] {
+                assert!(!jim_source_trace_stage_selected(
+                    stage,
+                    Some(std::ffi::OsStr::new(unknown))
+                ));
+            }
+        }
     }
 
     #[test]
