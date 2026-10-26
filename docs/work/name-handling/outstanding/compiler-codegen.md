@@ -2,11 +2,17 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T21:16:33.961498+00:00
+Last updated: 2026-10-26T22:14:04.991928+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+22:13 UTC new strict40409841916/job121877376084 active at original global strict capture, exactsource2c31f4ad1fdc1d7ce1cb11e804c6ee385e024bb3. No result/artifact inferred. Prior CEE2E0061 owner repair Root2a7601dc/C93bd integrated; finale2a25 38f7d824/905b6314 independentlye0b9d564/V16f5857b15/all11guardsPASS, Rootnext8POSTs complete. Export V2 9cc79c01 strong STATIC CLEAR84bd2364: only physical duplicate Procedure labels, all bodies/indices/table/pub/report/unique names unchanged, no oracle/golden/native guards waiver; actual Rust/WASM retryUNRUN. Root mayintegrateNEXT/newleaf dependencycensus pending. Historical C47 alljobs nowterminalcancelledlast3 at21:19/23/27; newsmall3ZIPs safelysolecaptured/API SHA verified, detailedpartialqualification temporarilypaused forcurrentgatework; no missingoutcomes inferred. No healthyCIcancellation byme.
+
+Current CEE strict40406146467/job121864294506 FULLAUTHaabc72e11e4aff3cf4847ceb38568a5ef3d81a4a0ba28da4c566cbc4b576eb56 CLOSEDFAIL23checks. SoleZIP4036415B/digest6e6b86f6. EXACT2RustE0061 body_correspondence.rs841/1005 oldtestcalls omit newarg2&CommandRegistry (fn365–367); libtestbuild blocked, workspacewarning/standalonefrontiersUNRUN. Namesowner+Compilerpeer+Root routed, allassertions muststayunchanged/sameactualregistry. No broadCI/semanticacceptance. Currentcompiler153/corpus use samefreshlibtest so no controls canexecuteuntilrepair; unrelatedruntime166/oldC47preserved. Next25observerrecipe approved7keys ready/unexecuted; awaitingRootexactfreezeincludingnarrowtypefix. Allold1467/259frontiernumbershistorical, no zerosinferred.
+
+21:47 UTC current CEE strict40406146467/job121864294506 remains active, sourcecee0771530e6a7cd4d81543627e238fa516fa64b, at postcapture source/tool verification; no outcome inferred/noZIPdownloadyet. Final e6f25 unione322ca74/0d380568 independently077076a8, V16cfeb6dc2/all11guardsPASS, RootpushedCEE/all6POSTsclosed. New7ecdWASM old25PASS/Broad8 3P5F: duplicateexports6samplecellsLOAD-beforeexecution, NativeAddpositiveadvances/laterstaticrefusalvectorFAIL, framingFAIL; Namesownsprimaryduplicateexportfix, mystrongpeer NEXT, no oracle/golden/guard/assert waivers. Layout12000/210 f60f85b4 independently cf41fa1a queued NEXT; existing timing/cases/seals unchanged. Root currently applying approvedLSPobserver4keys +nointernVMleaf3keys; next25recipe prepared/unexecuted pendingfinalfreeze. C47oldordinarythreejobs preserved.
 
 21:16 UTC: Native smoke c14a666a independently STATIC CLEARbcbeb141, preserving exact ::double script/all assertions with genuine live8.6 entry and retainedVM; actual positivity/prep-pr UNRUN. Default153 custody3 protocol6ac3a40c independently c34b72d7 and Root appliedd2885f; exact old147→report1→new3→corpus2, dedicated corpus remains2, Layout acceptance11. Pending Compiler alias/positive optional diagnostic successor peer, then Root explicit final25freeze after21:15docs. AdoptedV16 exact065d964b; recipe current25/fourapprovedregistrykeys ready. All new source/protocol actualresults pending; no shared Native/counter/perf gain inferred. C47 bounded21:16poll still exactly3 active Rust2 121653224819/E2E1 121658900154/E2E2 121658900564; preserved/no duplicate or cancel.
 

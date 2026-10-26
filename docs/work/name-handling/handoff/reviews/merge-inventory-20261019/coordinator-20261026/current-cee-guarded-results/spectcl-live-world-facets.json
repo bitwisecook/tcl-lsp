@@ -1,0 +1,33 @@
+{
+  "source": "7ecd81eb3255a83a44e3875e044cddf134ef0d5d",
+  "member": "string-first-gates-00.stderr",
+  "member_sha256": "80893b9942887838b0d81aedb46b9401b50f94739b820938c6e69eea8ce3bb89",
+  "sites": [
+    {
+      "span": "713, end: 761",
+      "rows": [
+        "N17G_LIVE fold-entry span=Span { start: 713, end: 761 } depth=0",
+        "N17G_LIVE gate=fold-tokens present=true",
+        "N17G_LIVE gate=fold-binding present=true",
+        "N17G_LIVE selected-target-refusal reachability=Reached compiled_unknown=false execution_unknown=true may_be_absent=false selected_present=false live_dispatch=true live_unknown=true native_count=0 named_count=0 any_named_unknown=false",
+        "N17G_LIVE gate=fold-actual-registry-target present=false",
+        "N17G_LIVE substitution-inventory-entry"
+      ]
+    },
+    {
+      "span": "442, end: 479",
+      "rows": [
+        "N17G_LIVE fold-entry span=Span { start: 442, end: 479 } depth=0",
+        "N17G_LIVE gate=fold-tokens present=true",
+        "N17G_LIVE gate=fold-binding present=true",
+        "N17G_LIVE selected-target-refusal reachability=Reached compiled_unknown=false execution_unknown=true may_be_absent=false selected_present=false live_dispatch=true live_unknown=true native_count=0 named_count=0 any_named_unknown=false",
+        "N17G_LIVE gate=fold-actual-registry-target present=false",
+        "SPECTCL_STRING_FIRST_GATE_END hook=range successes=0 attempts=0 optimisations=1"
+      ]
+    }
+  ],
+  "meaning": "Both sites have live_dispatch=true/live_unknown=true; native_count=0/named_count=0/any_named_unknown=false. This is ordinary live lookup uncertainty, not compiled-native or private named lookup uncertainty. compiled_unknown=false means only closed residual, not an existing selected native proof.",
+  "limits": [
+    "No historical widening event/scope/current native owner is established by this row. No target or execution permission granted."
+  ]
+}

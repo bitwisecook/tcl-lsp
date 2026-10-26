@@ -2,11 +2,19 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T21:31:10.349806+00:00 (default153/alias+optional member/shape peers CLEAR; awaiting final25 union; SourceCut observer NEXT)
+Last updated: 2026-10-26T22:03:44.901515+00:00 (CEE153 build-only FULLAUTH/all153UNRUN; exact caller repair CLEAR; final2a76 union CLEAR)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**CEE current compiler153 terminal FULLAUTH:** `/workspace/naming-proof-storage/compiler-original153-40406156934/authentication-v2.json` SHA f7750c6447a8e52aac53b28b0f24b5e56fdbc463f5b57aa28aa70ffc7a60d7fe. Run40406156934/job121864330390/sourcecee0771530e6a7cd4d81543627e238fa516fa64b, sole artifact12691388473/10,985,281B/ZIPb202fc8fc7799d7a09bb12c2c7e8a8120d17a57e4db8f7d46cf378d640bab6c2. All32members/fullsource membership/current25keys/source/provider/deps/tool seals verified; fetch0+compilerlib build101 both bounded/closed. Actual2E0061 body_correspondence841/1005, no warning diagnostics. No artifact/list/test, so all153UNRUN and no semanticPASS/FAIL; artifacts seal=false means none produced, not file mutation. Assessor primary-span correction preserved separately; primary841/1005 vs secondary insertion843/1007.
+
+**Compile omission repair:** Names1a80afaa source peer CLEAR81f25f61b6994ed722fef57243d1fb3b8b5f84eaf9d1339f8575a3f83357c1e3. Both direct test callers plus9 helper calls now forward existing same-fixture registry; wholeinverse/F-R/fmt/current verified, all assertions/production unchanged. My earlier report-custody source review missed those two existing direct test call sites; no prior Rust acceptance was claimed. Actual retry remains UNRUN.
+
+**Latest final25 union:** 2a76 manifest38f7d8244a0013d889d803c7bf41eb3abe769e171cb50a8633cbdadca2207cb2 strongCLEARe0b9d564e33963a1a6e51f162254b96bf4caca945f663376b5000c69e013a235. Exact14Git/F-R/25JSON/20maps/553records/370sourcecontents;7Rootapprovedobserveradds only,16refreshes,8derived JSON+onecurrentbody inline5c71 pin. All prior registry/custody/WASMhelper/lease/structure keys, rows/env/counts/budgets/history preserved. Root canonical apply/preflight/push/dispatch separate.
+
+**Other closed NEXT peers:** Layout12000/210 scheduling-only f60f85b4 CLEARcf41fa1ac51709a566097db74cea47cc054d74bd5afce84e173957e48e3729de (all2400/180/180/40 and10560 reserve retained; actualresultsUNRUN). SourceCut inner observer020a4bc2 CLEARb9a5b279b5db7966b1abd047e29a734ae7260055e0e34ca2d2c57a0fcea0ba08. Namespace resident observer9e1cf672 CLEARf5638050bfce649b53b92c24ab8abba41207143edfa822668cfb65424fcd8d16. Diagnostic additions grant no owner/Eq/Native/Normal/quietness/absence authority; actualfirstleaves remain unobserved until currentwave. Root controls all source integration.
 
 **Immediate final-freeze status:** default153 custody3 protocol6ac3a40c strongCLEARc34b72d7382aa8d901489f455317193c9345d2b9785f2547c3b3fd385a437cb2. OwnJim sourcefilter V2 manifest9abcbd01dbb6ab584c75f5a693abc990a12acdc894f64b77d1799a83b9c6d62d LSPCLEAR079fa67fd1c665b533cf3bc5eb61c41a4570c09932b5156430582f62f8741420; Root applying. Layout-only alias+optional positive executable successor `compiler-layout-own-jim-diagnostics-protocol-work-v1` manifest0ed9992cec30d9a1c4705266bd1bcc1a663545f37459edf6ea812dcf742c0b08, authorproofb6b6e778b70d41324828216edb54fa5aa9cce7ab791a276ec029a90a3adb9ba1, CodegenCLEARd1de92f14aab906806992a3eea261994975e8f2fec16d83a3e9770df28a7cf53. Required11 fixed; requiredalias1 and best-effort positive1 separate, actual180+180+40 admission/child-only filter; guaranteed10560 reserve within10800, optional positive not guaranteed and may remain UNRUN/no coverage. Firstfalse/rawline is observational, not final failing fixture/owner identity.
 

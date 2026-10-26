@@ -1,0 +1,104 @@
+{
+  "utc": "2026-10-26T21:22:59.055902+00:00",
+  "source": "7ecd81eb3255a83a44e3875e044cddf134ef0d5d",
+  "run": 40399408829,
+  "job": 121840950803,
+  "verdict": "FULLAUTH_OLD16_PASS_VM1_PASS_VM4_PASS_LENGTH_1OF1_MAP_RANGE_0_FULL600_INCOMPLETE",
+  "zip_sha256": "0d80444a34f6f83b859288d2d077877da6687844238e442d2909100d68049811",
+  "base_receipt_sha256": "332ff8a403112cf62107f1123e4e643bd248351a2701659e88b8b68266e911c3",
+  "all_member_sha_inventory": "2b5be0535e5f9ce9cab3dc9cf70c7ac13b8bd0db5a96b184bbe45804a8be50dd",
+  "members": 145,
+  "old16": "ALLPASS",
+  "added_cohorts": [
+    {
+      "selector": "exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives",
+      "state": "PASS",
+      "seconds": 4.511553081,
+      "exit_code": 0,
+      "stdout_sha256": "e26b8fe314dc126ba2937b294def1497c090394426e16d5fb4b86226f5c9b2be",
+      "stderr_sha256": "6c8d28eac2607212dc59c4bc75c3ddab83de811b54462e6bdfe6f8bf3e9cfccf"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::self_removing_execution_trace_remains_an_observer_until_callback_settles",
+      "state": "PASS",
+      "seconds": 2.770767101,
+      "exit_code": 0,
+      "stdout_sha256": "55bfd1ebeb667e698c053b147118225f8021e9ce77e1eaa82ef0716eb8dd68ac",
+      "stderr_sha256": "acb7c84842bb14f48f45a5bab6ff013ccb96327fd1814d2e2715564021f13bfb"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::actual_declaration_initialization_plan_rejects_old_capture_foreign_owner_and_restore",
+      "state": "PASS",
+      "seconds": 2.444231744,
+      "exit_code": 0,
+      "stdout_sha256": "ecfbbe91eccdc8fadb44e61f4acf4b1897d86949d22d46b69eb630b9260adc66",
+      "stderr_sha256": "7f3ad4a179cee48a04a73c90f29b1c5389c0627c505815a14b7958573582f1e4"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::registered_removed_and_firing_execution_observers_never_revive_old_receipt",
+      "state": "PASS",
+      "seconds": 2.6055665,
+      "exit_code": 0,
+      "stdout_sha256": "fb984c83751007744f4e1bec1e83b74a4b10042898c11212e349e64a671df6f3",
+      "stderr_sha256": "2fc76bb2219354680b0a7b2ae803ccec633c2b43ffe2815a98597cf823bb599b"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::debug_hooks_limits_and_retirement_withdraw_but_line_watch_does_not",
+      "state": "PASS",
+      "seconds": 2.42359283,
+      "exit_code": 0,
+      "stdout_sha256": "f43b9869262c90adb99c9fbbd13bf9ea159c352f5ba64e3862e3bad4f580682c",
+      "stderr_sha256": "a5e001e8b3ab2d9b602724ae2ec44d8b518f94d0068b53555434383ed78987b1"
+    },
+    {
+      "selector": "shipped_string_pack_replays_actual_corpus_first_gates",
+      "state": "FAIL",
+      "seconds": 14.07003225,
+      "exit_code": 101,
+      "stdout_sha256": "ae4f69513fbad0e93a48bc9376d5acbb09dfded1628f71cf582e782e250dd3b7",
+      "stderr_sha256": "80893b9942887838b0d81aedb46b9401b50f94739b820938c6e69eea8ce3bb89"
+    },
+    {
+      "selector": "every_shipped_tclspec_loads_installs_and_analyses_against_corpus",
+      "state": "INCOMPLETE",
+      "seconds": 600.504826647,
+      "exit_code": -2,
+      "stdout_sha256": "13e693a10c817b0eadf00ab63eaca5bf22e2d3aa5ed3115ee176691139f701c8",
+      "stderr_sha256": "07d73ec6accbbc5467df91b54d3c102570a6908dc86eb2a5e9d26a39dc59e749"
+    }
+  ],
+  "closed_string_first_gates": [
+    {
+      "hook": "length",
+      "successes": 1,
+      "attempts": 1,
+      "optimisations": 1
+    },
+    {
+      "hook": "map",
+      "successes": 0,
+      "attempts": 0,
+      "optimisations": 0
+    },
+    {
+      "hook": "range",
+      "successes": 0,
+      "attempts": 0,
+      "optimisations": 1
+    }
+  ],
+  "full_corpus": {
+    "state": "INCOMPLETE",
+    "complete": false,
+    "seconds": 600.504826647,
+    "stop_reason": "selector_timeout",
+    "exit_code": -2,
+    "aggregate_counts": "UNOBSERVED_UNFINISHED"
+  },
+  "limits": [
+    "Genuine LENGTH1/1 is scoped advancement, not MAP/RANGE or C1C2/full-corpus closure.",
+    "Original600 budget/lifecycle preserved; no timeout/incompletion waiver.",
+    "Compiler NUL negative remains separately authenticated failure; no test outcomes donated.",
+    "API3 actualfullCI closure belongs Codegen; no NativeStore/Normal/body permission follows."
+  ]
+}

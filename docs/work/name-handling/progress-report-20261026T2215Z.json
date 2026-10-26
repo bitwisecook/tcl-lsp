@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T22:15:00.295421+00:00",
+  "scheduled_report_utc": "2026-10-26T22:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T22:45:00+00:00",
+  "change_since_previous_report": [
+    "2145reportactual21:45:00Afb3d4a99 pluslivegate supplementA5bea8dc (draftlate28s, officialtimestampretained) publishedc3ba20c9 at21:49:51afterreviewedsourcepush; next2215timer62987recordedimmediately. Noauditadmissions; allinternalunder60min/externalBIGIPperfstale flagged.",
+    "CEEstrict FULLAUTHaabc72e1 2E0061 oldreportlibtestcallersmissingRegistry; laterwarnings/standaloneUNRUN. Compiler153 FULLAUTHf7750c64 independentlybuild101/NOELF/no testprocess/ALL153UNRUN; corpusFULLAUTH4f8d525d independentlyboth117/7UNRUN/zero702+42pairs. CurrentzeroPTF/notallgreen unaffected bymissingruns.",
+    "CEEprepFULLAUTH839e6549 setupPASS0/gateFAIL2same2E0061 BEFOREsmokeexecution; initial/beforegate/final clean andgenerateddiffEMPTY. PriorPythonformatdriftresolved; no doublepositivityinferred.",
+    "CEEJimFULLAUTHe822e7ca/supp3a6f35d6/exact5156b0dfdd ZEROstatuschangesvs9fd:old45=36P9F/original26=17P9F/additional8PASS. Runtime166 FULLAUTH023c52d4/exact128eae4067c ZEROchanges/PASS-to-nonPASS,new35ALLPASS, old80failures/CFIincomplete/globalFAILretained.",
+    "Actual2E0061 narrowpairedregistrycallerrepair1a80 independent81f25 appliedWORK2a7601dc/CLEAN93bdc7d0; sameheldfixtureRegistries/allassertions/productionunchanged, actualretryUNRUNuntilnewjobs.",
+    "Final2a76union38f7/905b independentCompilede0b9+RootfullinversePASS,14files/16refresh+exact7observerkeys,25JSON20maps553records370actualsources; inlinebodypin7511->5c71 refreshed. ActualadoptedV16PASS13/30/22/0failure,all11RuntimeguardsPASS. AppliedWORK2c31f4ad andfresh-fetchshallow normalpushwithC93bd beforelaunch.",
+    "Next2c31 eightmodePOSTsrunningonexactWork2c31/C93bd: strict/compiler153/dedicatedcorpus/Layout12000/LSPstartupCore/hosts/iRules/exactprep. Allpreviousmodejobsterminalguarded; currentCEE Runtime/Jimunchangednoredundantretry; no healthyjobcancelled. FinalPOSTcompletion/IDs pending.",
+    "Read-onlyrelease-scope-check REPORT.md/scopedependencyJSON~31KB foundgenericEvent/OOmigrationbeyondSpecwhitelistbutNOdependency-completesaferemoval. SharedNativeVM/interfaces/xtaskbacking/crossengine/WASMconsumers real; no blanketrevert/test/guardremoval/gatewaiver.",
+    "WASMtypedphysical-symbolduplicateexportfixfb520 V1heldmissinglicense; NamesV2 9cc79 underCodegenstrongpeerwithall3measuredTcl9.0samplecontrols. No simplededup/stalecanonicalexport orTcltable/indexchange; actualRust/WASMefficacyUNRUN.",
+    "Next2c31 ALLEIGHTPOSTscomplete22:06:56;11actualjobsstarted22:06: strict40409841916,compiler15340409850870,corpus40409857749,Layout40409862884,startupCore40409870355,hosts40409877322,iRules40409883883,exactprep40409890471/C93bdc7d0. FullIDsroot-next2c31-mode-jobs.json; solecaptureownersassigned, sourcefreezeheldthroughallrequests; nooutcomesyet.",
+    "IndependentcleanupreviewHOLD: frozencommentpatche7c90c94 has902actualdiffpaths vs900manifest, includingtwoexplicitlyheldsoftware_controls.rs provenancefixtures; plusactiveWASMbackendoverlap. NO canonicalcleanupapply. Reviewer sealingconcretehold, originalauthorwillregenerateexactpathset andresubmitindependentfulllexicalreview.",
+    "TypedWASMphysicalsymbolV2 9cc79 independently84bd clear; Rootpairedapplication65445inprogressafterallnext2c31POSTs, no effectonthefixedrunningvalidation. ActualRust/newtests/WASMfailcellsstillUNRUN."
+  ],
+  "committed": [
+    "5bea8dc57db1cd4878055a9fe67655924be9a8df"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticate2c31currentstrict/compiler153/corpus/Layout/LSP/iRules/exactprep and fixactualmeasuredfailuresWORK-first withreviewedreleasecarries.",
+    "FinishtypedWASMphysical-symbolfixpeer; obtainactualSourceCut/loadcard/procedurebody/N17worldwideningcauses withoutguardrelaxations.",
+    "CompletefullcurrentCI/zerooriginrustPASS-to-FAIL/acceptedshippingTclperf/releasecomment-doc-generated-fixture-package-squashchecks beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2335281152,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

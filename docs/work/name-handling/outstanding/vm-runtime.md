@@ -1,10 +1,13 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T21:18:00Z
+Last updated: 2026-10-26T21:59:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T21:59:00Z: Actual7ecd SpecFULLAUTH2fcb39a8 old16/VM1/ordinary4PASS LENGTH1/1 MAP/RANGE0/0 full600INCOMPLETE600.5048/-2. V4 exact bothsites live_dispatch=true/live_unknown=true/native0/named0: ordinary live state, not named worker. Actual7ecd WASMFULLAUTH680f7f42 old25ALLPASS/separate8CLOSED3P5F; individual78e35128 records three selectorP→F with changed genuine fixture input, six sample LOAD failures duplicate::twice/::hello beforeexecution; Names owns owner repair, no oracle/golden waiver. CEE Runtime16640406165907/job121864362764 terminalFAIL; sole API/archive floor guarded capture/auth underway, no result claim yet. Mixed33 V12 peer522c3009 integrated perRoot; all14arguments source-cleared/integrated; no standalone-green claim. Actual iRules declaration/body observerV3d79b9c62 strongLSP4e7f637c (V2hiddenprofileinternholdresolved), constrained readonly13/iRules/Spec pins only, Root NEXTintegrating after frozenPOSTs. Hostlibrarypurpose designf29fb remainsheld before actualbodyattribution, no userquestion/policychange. Ordinaryworld false→opaque observer authorized NEXT; draftV1 held authorbody103lines, V2 extraction pending, no canonical change. No localbuilds/duplicatecaptures.
+
 
 Current 2026-10-26T21:18:00Z: Mixed33 V12 independent STATIC CLEAR522c3009; Root reports integrated/current next source newer than7ecd, actual Rust/Clippy unrun. All14 argument groups and reviewed mixed7 already integrated; no remaining owned standalone source packet hold, no measured standalone-green claim. New sole focused7ecd source7ecd81eb3255a83a44e3875e044cddf134ef0d5d WASM40399391998/job121840894782 +Spec40399408829/job121840950803 pending actual capture; later Layout/current cleanup is outside these jobs. All four9fd previous captures FULLAUTH retain exact scoped outcomes/zero128+8 changes. Actual MAP/RANGE V4 will distinguish named/live unknown; source/input custody alone cannot supply generic entered-body permission. Genuine host-library ingress design f29fb5e3 prepared after39 recorded user-decision search: no explicit persistent host-body lifetime settlement found; two concrete alternatives distinguish genuine Logical caller-policy bridge from new opt-in exact owned host-library purpose. No profile/header/name/filename donation, no guard or policy changes; existing unsupported Native/TMM and retained exit controls remain. Root alone canonical/dispatch; no local builds/duplicate captures.
 

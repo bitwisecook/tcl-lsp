@@ -1,0 +1,20 @@
+[
+  {
+    "severity": "error[E0061]",
+    "message": "this function takes 5 arguments but 4 arguments were supplied",
+    "raw_path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+    "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+    "line": 841,
+    "column": 9,
+    "lint": null
+  },
+  {
+    "severity": "error[E0061]",
+    "message": "this function takes 5 arguments but 4 arguments were supplied",
+    "raw_path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+    "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+    "line": 1005,
+    "column": 13,
+    "lint": null
+  }
+]

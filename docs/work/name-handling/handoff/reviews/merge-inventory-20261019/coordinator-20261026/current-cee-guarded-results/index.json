@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-26T21:59:20.742045+00:00",
+  "scope": "Current sealed failures and limits; no audit-unit admission",
+  "files": [
+    {
+      "path": "strict-assessment.json",
+      "source": "ccg-strictcee-40406146467-actual-v1/assessment.json",
+      "sha256": "aabc72e11e4aff3cf4847ceb38568a5ef3d81a4a0ba28da4c566cbc4b576eb56",
+      "bytes": 4710
+    },
+    {
+      "path": "strict-diagnostics.json",
+      "source": "ccg-strictcee-40406146467-actual-v1/diagnostics.json",
+      "sha256": "fba2ea17c721154597c29585301f5d4c89d39ce0ebabb877f3a7e309dcf4d6f2",
+      "bytes": 717
+    },
+    {
+      "path": "spectcl-outcome.json",
+      "source": "vm-spectcl-actual-40399408829/outcome-boundary-authentication.json",
+      "sha256": "2fcb39a8a759ee64cb7bbb4664b87b8a994e60bb5afd53bc7362d16b10ec1566",
+      "bytes": 4259
+    },
+    {
+      "path": "spectcl-live-world-facets.json",
+      "source": "vm-spectcl-actual-40399408829/actual-selected-target-refusal-facets-v4.json",
+      "sha256": "7a4966625d415cccc382afd2440b49f8071bc4cece4bfe81d89281a613b025b0",
+      "bytes": 1929
+    }
+  ]
+}
