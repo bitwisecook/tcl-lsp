@@ -237,7 +237,7 @@
     "rust/tcl-compiler/src/inlining/mod.rs": "7c9038af006f50c3a52b0599427d67f2596700e1f985ce41fa8a5e7fcf0fee0f",
     "rust/tcl-runtime-api/src/lib.rs": "9daf2ba3e1927a246d9c028236028b2af023bb1b897711bf4836ba9167537d3b",
     "rust/tcl-runtime-api/src/native_compiler_pass.rs": "c4ce7a785e01be9baf83cbbb1b55a757f6b92c1962bef9e8bfe37afcc0f62d51",
-    "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "aeeb123c35ad408e2604f2153284f3d78d95a3c9f874abbc3b7574f3d22e364b",
+    "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "eb0d93173f3a83fd2e47c6f6efcd4bd7f64d34e88b234a72fba234b7173d2593",
     "rust/tcl-runtime-api/src/native_procedure_roles.rs": "3035f14f4601af2399b52a1d6fb6b063ecf5bdcfe2bd731891e1132f28dfda4a",
     "rust/tcl-vm/src/command/native_procedure.rs": "4f5ef0993bf26fe8be3ebc2f6fe7040e9d23a4cdb0a481c2b1b30e206b1202a4",
     "rust/tcl-vm/src/interp.rs": "404c96f6526fa61fef6da000fed3bd2088069be1e0fb5efb8b6c85d4ac74af73",

@@ -147,9 +147,9 @@
     "runtime/rust/src/codegen_abi/original_frame_owner.rs": "b5960c3c7fd65f33454be3c3a89e6855febeb32a3ded7ef9f72e5904cbd2773c",
     "runtime/rust/src/interp/native_unicode_getter.rs": "aac92cba1a508994749f8acafea03a1851d304f841d7f2d71714842895a0bd87",
     "runtime/rust/src/value_ops/native_coercion_tests.rs": "4944ec0074ab8e133a9b003b013664644ececbb5b270738ca2dd720bd10350fc",
-    "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs": "b94a9da44061fb9f7743dc7140c878e39dafb01ddbf76e9f92159a4d10a88819",
+    "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs": "a46337d95a7f0ea0f05be8d3165b0e6832e2128b708d7b5414a583d295f1285f",
     "rust/tcl-syntax/src/value.rs": "266e77dd381f69315fc38eb5b625fb6816ecea94934c40779a844efd35e0bf85",
-    "runtime/rust/src/value_ops.rs": "53a57ede71340a71af3956c43aded9db74c623235ce21f615ef529c9f4b50c12",
+    "runtime/rust/src/value_ops.rs": "29cb37eb33f73a3f146e7f5bf2a95db9fc8c7a88784e11764aad37aedb353d6c",
     "runtime/rust/src/cmd_string.rs": "4b5e274d7f1d6bf6146019a36551fe769e967f3d6483a1d6d8294fdcbcb718df",
     "runtime/rust/src/interp/native_operation_currency.rs": "34e3ec3901eefaaeb6d3c2063beaa1f36a107890dd61fd5dcb1cde35ad09f759",
     "runtime/rust/src/obj.rs": "1acc6e6ea079c6a2d5689f5d59667bead93a47edd6b29a21ef896015140baa69"
