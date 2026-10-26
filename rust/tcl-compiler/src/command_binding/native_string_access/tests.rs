@@ -91,6 +91,8 @@ fn same_actual_source_template_and_append_close_only_string_effects() {
             tcl_registry::TraceOperation::Read,
         );
         let stages = append_stages(&bindings, source, registry);
+        assert_selected_append_value(&bindings, source, engine, "hello, world!");
+        original_cell_values_remain_distinct_after_append(engine);
         assert!(
             stages[0].0 && stages[0].1 && stages[1].0 && stages[1].1,
             "same entered append effect {engine}"
@@ -214,6 +216,7 @@ fn replaced_handler_cannot_receive_the_stock_append_effect_receipt() {
 #[test]
 fn unknown_component_and_observers_cannot_launder_a_string_result_receipt() {
     known_name_value_requires_its_own_actual_input_effects();
+    representation_sensitive_data_never_borrows_string_effects_as_a_value();
     replaced_handler_cannot_receive_the_stock_append_effect_receipt();
 
     for source in [
@@ -303,4 +306,120 @@ fn captured_native_effect_owner_refuses_foreign_source_and_expires_without_fallb
     assert!(!frozen.is_current(&state.source_variables));
     drop(vm);
     assert!(!receipt.is_current());
+}
+
+// This checks the same frozen argument API used by the real const-fold
+// consumer, independently from the source effect and object-class receipts.
+fn assert_selected_append_value(
+    bindings: &SourceCommandBindings,
+    source: &str,
+    engine: &str,
+    expected: &str,
+) {
+    let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+    let point = bindings.invocation_at_source(
+        "string",
+        u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+    );
+    let variables = &point.variable_context;
+    let place = crate::var_resolve::resolve_literal_access(
+        "greeting",
+        variables,
+        false,
+        registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    assert_eq!(point.evaluated_written_argument_value(1), Some(expected));
+    assert_eq!(
+        variables.literal_contents_at(&place, registry),
+        Some(expected)
+    );
+    let read = variables
+        .original_name_read_result(&place, registry)
+        .expect("actual same-cell produced value");
+    assert!(read.is_current(variables, registry));
+    assert_eq!(read.value().bytes(), expected.as_bytes());
+}
+
+fn original_cell_values_remain_distinct_after_append(engine: &str) {
+    let source =
+        "set original world; set greeting $original; append greeting !; string length $greeting";
+    let bindings = analyse(source, engine);
+    assert_selected_append_value(&bindings, source, engine, "world!");
+    let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+    let point = bindings.invocation_at_source(
+        "string",
+        u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+    );
+    let place = crate::var_resolve::resolve_literal_access(
+        "original",
+        &point.variable_context,
+        false,
+        registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    assert_eq!(
+        point.variable_context.literal_contents_at(&place, registry),
+        Some("world")
+    );
+    let source = "set greeting a; append greeting $greeting b; string length $greeting";
+    let bindings = analyse(source, engine);
+    assert_selected_append_value(&bindings, source, engine, "aab");
+}
+
+fn representation_sensitive_data_never_borrows_string_effects_as_a_value() {
+    for engine in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        for source in [
+            "set greeting é; append greeting !; string length $greeting",
+            r#"set greeting "\u0000"; append greeting !; string length $greeting"#,
+        ] {
+            let bindings = analyse(source, engine);
+            let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+            let append = bindings.invocation_at_source(
+                "append",
+                u32::try_from(source.find("append greeting").unwrap()).unwrap(),
+            );
+            let before = crate::var_resolve::resolve_literal_access(
+                "greeting",
+                &append.variable_context,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            );
+            assert!(
+                append
+                    .variable_context
+                    .original_name_read_result(&before, registry)
+                    .is_some(),
+                "known original operand {source}"
+            );
+            let point = bindings.invocation_at_source(
+                "string",
+                u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+            );
+            let place = crate::var_resolve::resolve_literal_access(
+                "greeting",
+                &point.variable_context,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            );
+            assert!(
+                point
+                    .variable_context
+                    .contents_native_string_access_closed_at(&place, registry),
+                "effect stays independent {source}"
+            );
+            assert!(
+                point.evaluated_written_argument_value(1).is_none(),
+                "no unsupported value laundering {source}"
+            );
+            assert!(
+                point
+                    .variable_context
+                    .literal_contents_at(&place, registry)
+                    .is_none()
+            );
+        }
+    }
 }

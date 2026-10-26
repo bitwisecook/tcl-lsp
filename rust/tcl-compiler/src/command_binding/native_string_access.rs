@@ -204,6 +204,7 @@ pub(super) struct CapturedAppend {
     writer: crate::place::Place,
     inputs: Vec<Arc<SourceNativeStringAccess>>,
     prepared_epoch: Option<u64>,
+    value: Option<append_value::CapturedAppendValue>,
 }
 
 fn append_observers_quiet(
@@ -243,12 +244,19 @@ impl CapturedAppend {
             && SourceNativeStringAccess::current_owner(state, &self.inputs).is_some()
         {
             self.prepared_epoch = state.source_variables.representation_epoch;
+            if self
+                .value
+                .as_ref()
+                .is_some_and(|value| !value.before_write_is_current(state, context.registry))
+            {
+                self.value = None;
+            }
         }
     }
 
     pub(super) fn finish(self, outcomes: &mut SourceOutcomes, context: SourceExecutionContext<'_>) {
         if let Some(epoch) = self.prepared_epoch {
-            publish_append(
+            let after = publish_append(
                 outcomes,
                 &self.before,
                 context,
@@ -257,6 +265,9 @@ impl CapturedAppend {
                 &self.inputs,
                 epoch,
             );
+            if let (Some(value), Some(after)) = (self.value, after) {
+                value.publish(outcomes, &self.before, context, &after);
+            }
         }
     }
 }
@@ -335,6 +346,7 @@ pub(super) fn capture_append(
     Some(CapturedAppend {
         before: before.clone(),
         name: name.to_owned(),
+        value: append_value::CapturedAppendValue::capture(before, &receiver, context, from, count),
         writer,
         inputs,
         prepared_epoch: None,
@@ -349,9 +361,9 @@ fn publish_append(
     writer: &crate::place::Place,
     inputs: &[Arc<SourceNativeStringAccess>],
     prepared_epoch: u64,
-) {
+) -> Option<crate::place::Place> {
     let Some(normal) = outcomes.normal.as_mut() else {
-        return;
+        return None;
     };
     let after = crate::var_resolve::resolve_literal_access(
         name,
@@ -376,13 +388,13 @@ fn publish_append(
             .as_ref()
             .is_none_or(|source| !normal.source_variables.contents_have_source(&after, source))
     {
-        return;
+        return None;
     }
     let Some(key) = crate::var_resolve::canonical_binding_value_key(&after) else {
-        return;
+        return None;
     };
     let Some(receipt) = SourceNativeStringAccess::from_normal(normal, inputs) else {
-        return;
+        return None;
     };
     let Some(frozen) =
         super::source_representation::FrozenSourceRepresentation::capture_native_string(
@@ -390,7 +402,7 @@ fn publish_append(
             &normal.source_variables,
         )
     else {
-        return;
+        return None;
     };
     Arc::make_mut(&mut normal.source_variables)
         .value_representations
@@ -399,7 +411,10 @@ fn publish_append(
             crate::native_numeric::StoredNativeRepresentation::NativeStringAccess(receipt),
         );
     outcomes.normal_representation = Some(Arc::new(frozen));
+    Some(after)
 }
+
+mod append_value;
 
 #[cfg(test)]
 mod tests;
