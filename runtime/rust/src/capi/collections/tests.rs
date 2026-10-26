@@ -162,13 +162,41 @@ fn original_collection_rc0_views_keep_header_and_backing_copy_on_write_separate(
     });
 }
 
+fn error_code_keeps_unreached_original_updater(action: u8) {
+    leak_free(|| {
+        let mut interpreter = native(TclVersion::V9_0);
+        interpreter.set_result_bytes(b"SEEDED RESULT");
+        interpreter.set_c_error_code(b"STAMP BEFORE");
+        let result = interpreter.get_obj_result();
+        let context = interpreter.runtime_context();
+        let (value, updates, frees) = callback(&interpreter, action, false, false, b"alpha beta");
+        // Tcl_SetObjErrorCode retains the header without requesting its String.
+        // C8.6.18 tclResult.c:1103 and C9.0.4 tclResult.c:535.
+        unsafe { set_error_code(&mut interpreter, value.as_ptr()) };
+        assert_eq!(updates.get(), 0);
+        assert_eq!(frees.get(), 0);
+        assert!(!obj::has_string_rep(value.as_ptr()));
+        assert!(ptr::eq(obj::obj_type_ptr(value.as_ptr()), &CALLBACK));
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
+        assert_eq!(interpreter.get_obj_result(), result);
+        assert_eq!(interpreter.runtime_context(), context);
+        assert!(interpreter.native_execution_refusal().is_none());
+        interpreter.set_c_error_code(b"REPLACED");
+        assert_eq!(updates.get(), 0);
+        assert_eq!(frees.get(), 0);
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+        drop(value);
+        assert_eq!(frees.get(), 1);
+    });
+}
+
 #[test]
 fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs() {
     // naming.embedding.original-host-publication-and-fact-transport
 
     // Each real updater mutates/restores the original context or raises the first Host cause.
     for action in [1, 2] {
-        for worker in 0..6 {
+        for worker in 0..5 {
             leak_free(|| {
                 let mut interpreter = native(TclVersion::V9_0);
                 interpreter.set_result_bytes(b"SEEDED RESULT");
@@ -210,10 +238,7 @@ fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_out
                             );
                             TCL_ERROR
                         }
-                        _ => {
-                            set_error_code(&mut interpreter, value.as_ptr());
-                            TCL_ERROR
-                        }
+                        _ => unreachable!("five getter workers"),
                     }
                 };
                 assert_eq!(status, TCL_ERROR);
@@ -234,6 +259,7 @@ fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_out
                 assert_eq!(frees.get(), 1);
             });
         }
+        error_code_keeps_unreached_original_updater(action);
     }
 }
 
@@ -630,10 +656,21 @@ fn original_collection_dictionary_members_require_their_retained_protocol() {
 }
 
 #[test]
-fn generic_version_selection_cannot_enter_original_collection_updaters() {
+fn generic_collection_preserves_first_refusal_before_original_updater() {
     leak_free(|| {
         let mut interpreter = Interp::new();
         interpreter.set_runtime_version(TclVersion::V9_0);
+        let initial_refusal = interpreter.native_execution_refusal().is_some();
+        interpreter.set_result_bytes(b"SEEDED RESULT");
+        interpreter.set_c_error_code(b"STAMP BEFORE");
+        let seeded_refusal = interpreter.native_execution_refusal().is_some();
+        if !seeded_refusal {
+            interpreter.refuse_host_command("existing collection refusal");
+        }
+        let first = interpreter.native_execution_refusal().unwrap();
+        if std::env::var("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref() == Ok("1") {
+            eprintln!("COLLECTION_GENERIC_ENTRY initial_refusal={initial_refusal} seeded_refusal={seeded_refusal}");
+        }
         let (value, updates, frees) = callback(&interpreter, 0, false, false, b"alpha beta");
         let mut count: TclSize = -71;
         let mut window = ptr::dangling_mut::<*mut TclObj>();
@@ -652,8 +689,34 @@ fn generic_version_selection_cannot_enter_original_collection_updaters() {
         assert_eq!(frees.get(), 0);
         assert_eq!(count, -71);
         assert_eq!(window, ptr::dangling_mut());
-        assert!(interpreter.native_execution_refusal().is_some());
+        assert_eq!(interpreter.native_execution_refusal(), Some(first));
         assert!(ptr::eq(obj::obj_type_ptr(value.as_ptr()), &CALLBACK));
+        drop(value);
+        assert_eq!(frees.get(), 1);
+    });
+}
+
+#[test]
+fn generic_actual_c_profile_without_refusal_enters_collection_updater() {
+    leak_free(|| {
+        let mut interpreter = Interp::new();
+        interpreter.set_runtime_version(TclVersion::V9_0);
+        assert!(interpreter.native_execution_refusal().is_none());
+        let (value, updates, frees) = callback(&interpreter, 0, false, false, b"alpha beta");
+        let mut count: TclSize = -71;
+        assert_eq!(
+            unsafe { length(&mut interpreter, value.as_ptr(), &raw mut count) },
+            TCL_OK,
+        );
+        assert_eq!(count, 2);
+        assert_eq!(updates.get(), 1);
+        assert_eq!(frees.get(), 1);
+        assert!(ptr::eq(
+            obj::obj_type_ptr(value.as_ptr()),
+            &list::TCL_LIST_TYPE
+        ));
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+        assert!(interpreter.native_execution_refusal().is_none());
         drop(value);
         assert_eq!(frees.get(), 1);
     });
