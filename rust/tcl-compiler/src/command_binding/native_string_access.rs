@@ -272,20 +272,14 @@ pub(super) fn capture_append(
     {
         return None;
     }
-    if super::native_result::numeric_call_arguments(context, native.target).is_none() {
-        return None;
-    }
+    super::native_result::numeric_call_arguments(context, native.target)?;
     let arguments = native.invocation.arguments();
-    let Some(count) = arguments.exact_argv_len() else {
-        return None;
-    };
+    let count = arguments.exact_argv_len()?;
     let from = facts.argument_offset;
     if count < from + 2 || native.words.len() != count + 1 {
         return None;
     }
-    let Some(name) = arguments.literal_at(from) else {
-        return None;
-    };
+    let name = arguments.literal_at(from)?;
     let receiver = crate::var_resolve::resolve_literal_access(
         name,
         &before.source_variables,
@@ -312,9 +306,7 @@ pub(super) fn capture_append(
     {
         return None;
     }
-    let Some(representations) = context.written_representations else {
-        return None;
-    };
+    let representations = context.written_representations?;
     if !(from..count).all(|argument| {
         representations
             .get(argument + 1)
