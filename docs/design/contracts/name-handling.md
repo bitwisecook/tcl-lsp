@@ -350,6 +350,19 @@ admission checks. Missing or conflicting current evidence leaves the child
 unattached. Ordinary consumers still require their exact attached analysis
 owner; restoration grants no Native entry, execution, completion or effects.
 
+C8.6 eager arithmetic child syntax may additionally come from the actual retained
+Native expression program and current selected Inline Expr recipe. Exact original
+words, source image/span/channel, configuration, release, Native emission policy,
+parent registration, namespace and table remain required. Add/Sub/Mul programs
+retain their ordered compiler script visits in a separate source-syntax inventory;
+lazy, function, string, indexed-variable, recovery and other-release programs add
+no visits. Every child keeps its own current table, namespace and original vector.
+A scratch compiler snapshot contributes no caller admission, failure ordering,
+local/frame facts, runtime effects or Normal completion. Only original compiler
+syntax alternatives consume this inventory; ordinary Native attachment and
+Inline/Named selection keep their independent inventories and guards. C8.4 early
+error and math-table preflight remain unchanged.
+
 Original source lattice callbacks additionally retain the exact source-issued
 request, full prepared CFG context, optional profile and complete worker inputs.
 A data-only memo descriptor must match that recipe before the existing CFG,
