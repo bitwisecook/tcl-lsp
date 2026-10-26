@@ -40,7 +40,8 @@
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "33d126a2bebbe079376b62cd2f44d17da989335352a1c46af440638296174105",
-    "rust/tcl-compiler/src/command_binding.rs": "f9eeb988bc1255822b466814f36d7f49766c465ed8f35a7029927e30348e6a05"
+    "rust/tcl-compiler/src/command_binding.rs": "f9eeb988bc1255822b466814f36d7f49766c465ed8f35a7029927e30348e6a05",
+    "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs": "d772d2f482b2dda7748782bddf911e5d763735f0fb6bc619e817e1710d83f04b"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -249,6 +250,44 @@
         "env": {
           "TCL_LSP_TRACE_BODY_SYNTAX": "1"
         }
+      }
+    ]
+  },
+  "separate_native_string_effect_controls": {
+    "schema": "native-string-effect-control3-v1",
+    "expected_selected": 3,
+    "source": "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs",
+    "source_peer_reference": "vm-native-string-effect-v2 / SourceProc4b908 strong source clearance, integrated",
+    "rows": [
+      {
+        "group": "diagnostic-native-string-effects3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::native_string_access::tests::same_actual_source_template_and_append_close_only_string_effects",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-native-string-effects3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::native_string_access::tests::unknown_component_and_observers_cannot_launder_a_string_result_receipt",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-native-string-effects3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::native_string_access::tests::captured_native_effect_owner_refuses_foreign_source_and_expires_without_fallback",
+        "env": {}
       }
     ]
   }
