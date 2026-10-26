@@ -2756,7 +2756,7 @@ impl AdviceInvocationContext<'_> {
         callback_scope: logical_navigation::LogicalCallbackScope<'_>,
     ) -> Option<()> {
         self.retain_requested_class_relation(invocation, graph, schema);
-        self.retain_schema_advice(tape, invocation, graph, schema)?;
+        self.retain_schema_advice(tape, invocation, graph, schema, procedure.is_some())?;
         self.retain_native_expression_syntax_inventory(tape, graph, invocation, schema);
         self.retain_original_expression_catalogue(tape, graph, invocation, schema);
         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
@@ -2779,12 +2779,30 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        procedure_present: bool,
     ) -> Option<()> {
-        if graph.native_baseline
+        let retained = graph.native_baseline
             || !invocation.lineage.is_empty()
             || graph.procedure_body.is_some()
-            || matches!(self.policy, AdviceNamingPolicy::Logical(_))
+            || matches!(self.policy, AdviceNamingPolicy::Logical(_));
+        if schema.semantics.procedure_definition.is_some()
+            && crate::registry_invocation::source_cut_trace_admitted()
         {
+            let image = self.origin.source_image();
+            eprintln!(
+                "SOURCE_CUT_VALUE_ISSUER origin={:p} data={:p} bytes={} offset={:?} procedure={} native={} lineage={} body={} logical={} retained={retained}",
+                Arc::as_ptr(self.origin),
+                image.bytes().as_ptr(),
+                image.len(),
+                invocation.native.first().map(|word| word.span().start()),
+                procedure_present,
+                graph.native_baseline,
+                !invocation.lineage.is_empty(),
+                graph.procedure_body.is_some(),
+                matches!(self.policy, AdviceNamingPolicy::Logical(_)),
+            );
+        }
+        if retained {
             let advice = self.schema_advice(invocation, graph, schema)?;
             tape.advice.insert(advice.site.offset, advice);
         }

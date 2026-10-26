@@ -33,6 +33,26 @@ fn cut_value_refuses(trace: bool, stage: &'static str, refused: bool) -> bool {
     }
 }
 
+fn observe_cut_value_refusal(
+    trace: bool,
+    binding: &crate::command_binding::SourceInvocationBinding,
+    image: &tcl_lexer::SourceImage,
+    offset: u32,
+) {
+    cut_value_refuses(trace, "value.represented-refusal", true);
+    if trace && crate::registry_invocation::source_cut_trace_admitted() {
+        let origin = binding
+            .dispatch_site
+            .as_ref()
+            .map(|site| Arc::as_ptr(&site.source));
+        eprintln!(
+            "SOURCE_CUT_VALUE_REFUSED origin={origin:?} data={:p} bytes={} offset={offset}",
+            image.bytes().as_ptr(),
+            image.len(),
+        );
+    }
+}
+
 type SourceAdviceCacheEntry = (
     ResolvedContext,
     tcl_registry::RegistrySemanticKey,
@@ -2014,7 +2034,7 @@ impl super::CommandBindingRealm {
                 advice.clone()
             }
             OriginalSourceTransitionAdviceLookup::Refused => {
-                cut_value_refuses(trace_cut, "value.represented-refusal", true);
+                observe_cut_value_refusal(trace_cut, binding, image, offset);
                 #[cfg(test)]
                 trace_original_child_guard("retained.represented_refusal", Some(offset), false);
                 return None;

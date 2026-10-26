@@ -1638,20 +1638,22 @@ pub(crate) fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Opti
 }
 
 pub(crate) fn source_cut_refuses(stage: &'static str, refused: bool) -> bool {
-    if refused && option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1") {
-        static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        if ROWS
+    if refused && source_cut_trace_admitted() {
+        eprintln!("SOURCE_CUT_DECLARATION first_refusal={stage}");
+    }
+    refused
+}
+
+pub(crate) fn source_cut_trace_admitted() -> bool {
+    static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1")
+        && ROWS
             .try_update(
                 std::sync::atomic::Ordering::Relaxed,
                 std::sync::atomic::Ordering::Relaxed,
                 |rows| (rows < 64).then_some(rows + 1),
             )
             .is_ok()
-        {
-            eprintln!("SOURCE_CUT_DECLARATION first_refusal={stage}");
-        }
-    }
-    refused
 }
 
 fn source_cut_declaration_selection(
