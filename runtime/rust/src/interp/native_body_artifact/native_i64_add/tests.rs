@@ -269,13 +269,15 @@ fn reached_numeric_context_change_is_terminal_without_body_replay() {
 }
 
 #[test]
-fn duplicate_original_formals_keep_last_binding_without_a_native_strategy() {
+// Matched C8.6.18/C9.0.4: proc add {b b} {return [expr {$b + $b}]} ; add 1 2 -> 2.
+// Retained oracle receipt: 0bdff94191089813811e61b592742e455d432edbda734ed8a5a9d3e90919b271.
+fn duplicate_original_formals_follow_original_first_slot_without_a_native_strategy() {
     let mut interpreter = fixture::native("tcl9.0");
     let _current = fixture::install(&mut interpreter, 0);
     let body = b"return [expr {$b + $b}]";
     let declaration = publish_original(&mut interpreter, b"b b", body, b"b b", body).unwrap();
     assert_eq!(declaration.params[0].name, declaration.params[1].name);
     assert_eq!(interpreter.eval_str(b"add 1 2"), Code::Ok);
-    assert_eq!(result(&interpreter), b"4");
+    assert_eq!(result(&interpreter), b"2");
     assert_eq!(interpreter.native_proc_dispatches(), 0);
 }
