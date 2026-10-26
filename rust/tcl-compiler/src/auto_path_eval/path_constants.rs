@@ -218,6 +218,8 @@ impl<'a> IntoIterator for &'a PathConstantAssignments {
 pub struct FoldedPathConstants {
     policy: Option<NamePolicyProtocol>,
     globals: HashMap<String, String>,
+    // Earlier sites retain their values after the exported end view is withdrawn.
+    prior_globals: Option<HashMap<String, String>>,
     global_at: HashMap<String, u32>,
     locals: HashMap<(u32, String), String>,
     local_at: HashMap<(u32, String), u32>,
@@ -344,7 +346,7 @@ impl FoldedPathConstants {
             let current = global_key(protocol, &scope.namespace, name);
             if !scope.namespace.is_empty() && !name.starts_with("::") {
                 if self.members.contains(&(Home::Global, current.clone()))
-                    || self.globals.contains_key(&current)
+                    || self.lookup_globals().contains_key(&current)
                 {
                     return self.global_value_at(&current, at);
                 }
@@ -356,11 +358,14 @@ impl FoldedPathConstants {
         }
         self.global_value_at(&global_key(protocol, "", name), at)
     }
+    fn lookup_globals(&self) -> &HashMap<String, String> {
+        self.prior_globals.as_ref().unwrap_or(&self.globals)
+    }
     fn global_value_at(&self, key: &str, at: u32) -> Option<String> {
         if self.global_at.get(key).is_some_and(|written| *written > at) {
             return None;
         }
-        self.globals.get(key).cloned()
+        self.lookup_globals().get(key).cloned()
     }
 }
 impl<'a> IntoIterator for &'a FoldedPathConstants {
@@ -950,6 +955,9 @@ pub fn fold_constant_assignments_with_imports<I: PathConstantImports + ?Sized>(
             }
         }
     }
+    if !out.barriers.is_empty() {
+        out.prior_globals = Some(std::mem::take(&mut out.globals));
+    }
     out
 }
 
@@ -1085,6 +1093,37 @@ mod tests {
                 engine != "jim",
                 "{engine}"
             );
+        }
+    }
+
+    #[test]
+    fn imported_namespace_prefix_survives_only_before_an_alias_barrier() {
+        for engine in ["tcl8.6", "tcl9.0"] {
+            let profile = profile(engine);
+            let imports = fold_constant_assignments(
+                &constant_path_assignments("set ::n::x /N; set ::x /ROOT", profile),
+                None,
+            );
+            let source = "namespace eval n {set saved $x}; upvar 1 other lost";
+            let constants = fold_constant_assignments_with_imports(
+                &constant_path_assignments(source, profile),
+                None,
+                &imports,
+            );
+            let before = u32::try_from(source.find("set saved").unwrap()).unwrap();
+            assert_eq!(
+                constants.lookup_at("x", before).as_deref(),
+                Some("/N"),
+                "{engine}"
+            );
+            assert_eq!(
+                constants.lookup_at("x", u32::try_from(source.len()).unwrap()),
+                None,
+                "{engine}"
+            );
+            assert!(constants.is_empty(), "{engine}");
+            assert!(constants.exported().is_empty(), "{engine}");
+            assert!(!constants.contains_key("::n::x"), "{engine}");
         }
     }
 

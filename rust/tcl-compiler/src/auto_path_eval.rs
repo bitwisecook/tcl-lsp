@@ -1555,6 +1555,16 @@ mod tests {
     }
 
     #[test]
+    fn a_scope_alias_poisons_every_bound_name() {
+        let constants = constant_path_vars(
+            "set dir /a\nupvar 1 elsewhere dir\n",
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
+        assert!(!constants.contains_key("dir"), "{constants:?}");
+    }
+
+    #[test]
     fn a_scope_alias_withdraws_subsequent_lookups_and_exports() {
         let source = "set dir /a\nupvar 1 elsewhere dir\n";
         let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
@@ -1568,6 +1578,13 @@ mod tests {
             constants.lookup_at("dir", u32::try_from(source.len()).unwrap()),
             None
         );
+        assert!(!constants.contains_key("dir"), "{constants:?}");
+        assert!(constants.get("dir").is_none());
+        assert!(constants.is_empty());
+        assert_eq!(constants.len(), 0);
+        assert_eq!(constants.iter().count(), 0);
+        assert_eq!((&constants).into_iter().count(), 0);
+        assert!(std::panic::catch_unwind(|| &constants["dir"]).is_err());
         assert!(constants.exported().is_empty());
         let next = constant_path_assignments("set inherited $dir", profile);
         let imported = fold_constant_assignments_with_imports(&next, None, &constants);
