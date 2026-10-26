@@ -2,11 +2,15 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T10:34:33.405034+00:00
+Last updated: 2026-10-26T11:01:56.923225+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-26T11:01:56.923225+00:00: 22aa Jim52 FULLAUTH1eaa7e0c allcontrolsPASS/all52REACHED, original36P9F/diagnostic3P2F/newstaticPASS/raw52FAIL OBSERVED. Exact51match425132b8 ZEROgains/regressions vs9f; original26=17P9F/additional8ALLPASS. SoleZIPb4fe3c94, owned12Git+allmemberCRCtransport00cc4d6b; no duplicatedownload/maps. Rootintegrated WORKonlye8dbobserver/c2e as7c4d21a08, frozenoverallhead e5b60af2 pendingfinal23pins; NO CLEANobserver, nextJimactualtag notyetobserved. Compiler9f130 Layout0P3F/Own1P2F +Child10ALLPASS remainactualcontrols; current133Compilerowner independent. No speculativedebt/slot/lookupguardrelaxation/newNative/Normalgrant. AwaitrootnextJimID/exactsource; rootownsperfmeasurements, remainingmemo/retentionleadsreadonly.
+
+Resume 2026-10-26T10:51:47.319643+00:00: Current22aa Jim52 run40309592520/job121527152997 NamesSOLEcapture; includesSourceLoad/catalogueseed/lintrepair, NOTe8dbobserver. Observere8dbd526 independentSTATICCLEARc2e2013a, rootacceptedNEXTonly; no actualfirstcause/relaxation. Compiler9f130 FULLAUTH26c529f0/native50361243: Layout3=0P3F initialgenuinesource-shape/preconditionandforeachdefinitionfail; Own3=1P2F missingmoveassociation andnegativeempty-recipepremise fails; ALLChild10PASS. These areactualsourceadmission/controlfailures, nofixturewaiver; useCompiler soleZIP. CurrentCompiler133ownsnewunits separately; CodegenfullC396/rootpairedperformanceindependent. LatestJim9fFULLAUTHad12346d original36P9F/original17P9F (+raw-beforeclassgain/nopriorPASSregression), current22aaunmeasured. No canonicaledits/newpolicy/currentobserveradmission.
 
 Resume 2026-10-26T10:34:33.405034+00:00: REPAIR9f Jim52 FULLAUTHad12346d allcontrolsPASS/all52REACHED: original45=36P9F, diagnostic3P2F/newstaticPASS/raw52FAIL OBSERVED. Exact51priorcomparison2edcb39d ONEGAIN priorproc-before-class nowPASS, ZEROpriorPASSregressions; original26=17P9F/additional8ALLPASS. SoleZIP4c2e25f8, owned12Git+transport supplementfdc50569, originalfixtures/asserts untouched. Rawafterclassnewownrejectionleaf remainsUNOBSERVED; oldgenericclassreffalse isfallback, notactualowncause. RootapprovedNEXTboundedWORKfirstguardobserver e8dbd526 SourceProcstrongpassivepeeractive viafollowup_task, existingenv/debug/shared1024cap/staticenumtag/noqueries/relaxation/CLEANdiagnostics. Current23JSONcensus30c148a1; CodegenwillincludeONLYafterrootapplynextcohort, currentbdabfreezeuntouched. Actual9f own unusedselfc356 mechanicalrepairindependentCLEAR756c0777; rootsoleintegration. Compiler130Own3/layout3actualpendingseparate, no gainsinferred. Perfremainingleadsreadonlypendingjointcurrencyproof; no fullGraphmemoauthoring.
 

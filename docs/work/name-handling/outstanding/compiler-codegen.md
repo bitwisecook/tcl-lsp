@@ -2,13 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T10:34:07.946650+00:00
+Last updated: 2026-10-26T10:53:10.253946+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
 
-Actual 9f WASM FULLAUTH368 assessment2ea979fc: original25PASS, including approved allocation conservation, unchanged recursion frontier and Native i64 exact-counter control. Strict9f FULLAUTH24:5Clippy/0RustE; all reviewed owner fixes now integrated. Final bdab/C396 source freeze contains three tiny repairs, SourceLoadV6+4controls, catalogue seedV7+3controls and API recipe repair. ONE metadata packet691da292/940379a9 frozen18files28oldpins+1approvednewdependency+2actualGetter11 function hashes; full inverses/F-R/AST and actual9runtime sourceguard functions PASS, prospectiveV14PASS13/30/20; Compiler sole peer active. No broad CI/performance acceptance inferred. Root owns canonical integration and all performance artifacts; healthy older ordinary CI preserved.
+Current22aa strict40309591218 FULLAUTH23 assessment4739320e:2CoreClippy/0RustE (new source_coverage wildcard import/byvalue), minimal repair routed LSP; laterlibtests masked. Current22aa WASM40309593189 active, sole capture reserved. CurrentC396 fullCI40309649890 nativeprooftrue jobs genuinely materialized, selected unit listings not yet available; oldordinaryf763 same3healthy jobs preserved. Prior9f WASM FULLAUTH368 alloriginal25PASS (allocation/depth/i64 scoped); broad CI/performance still open. Finalbdab union691da292/940379a9 independentlycleareddf7d applied beforecurrentwave, V14PASS13/30/20/all9actualruntimefunctionguardsPASS. Root owns canonical mutations and all pairedperformance40309644200 artifacts.
 
 Final b2a source union frozen9358189c/5b1fb05c independently CLEARafae344b:18files,40existingrefresh+32approveddeps, full23/17maps347records227Gitfiles, full10getter3maps/OwnJimparentfanout/headroom2maps/refsHostNav, histories/protocols/env/budgets unchanged. Both prospectiveV14PASS13/30/20 and all9 actualruntime source-functionguards PASS; Root canonicalapply/push/dispatch remains separate. User-approved allocationcurrentcarry231c strong34f2 and protocolbe4f strong9c786 complete, all actualnew results stillUNRUN; original25WASM scope now2to3+teardown asapproved. Sourceheadroom075fa integrated byRoot, oldmanual63/newprobe controls scheduled. Latest ordinaryf763 CI09:14 still shard2/E2E1/E2E2 active, preserve; all current source outcomes require newhosted runs. No latestbroad acceptance/performance claim.
 

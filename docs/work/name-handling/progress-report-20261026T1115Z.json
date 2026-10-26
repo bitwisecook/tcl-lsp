@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T11:15:00.790311+00:00",
+  "scheduled_report_utc": "2026-10-26T11:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T11:45:00+00:00",
+  "change_since_previous_report": [
+    "IntegratedallreviewedNEXTfunctionalfixesonWORKfirstandCLEANcarry: source-coverage strict2V2 explicitproduction/testimports+privateborrow(552f); exactnestedservererror-domain correction(e4eb); genuineTcl9bootstrap-before-Jimsourcefixture(e751); WORK-onlypassiveJimfirstguardobserver(c2e); selectedAppendVALUEV2actualfrozenreceiver/orderedoperandvalueprovenance(7ea6+7925), sameNormalWriteAt/currentcell/effectguards. Noassertionweakening/newpolicychoice.",
+    "PUSHEDfunctionalheadsWORKd072620287a380a360996614e64c90f9d9f47386/CLEAN8e0d5f50ea42bbed111579de55d7ffe9c1e98c5f. Final23pinunion74ef/18c9 independentlyCompilerf855/rootJSONAST0c1329:15sourcehashrefresh+8actualAppendVALUEdependencykeys,358records233Gitfiles; canonicalV14PASS13/30/20zeroFailures. All9actualruntimeguardhelpersPASS. CLEANONLYdebugoffsetcarry601bfixesactualE0061withoutsemanticdelta. Normalbothpushafterfreshdepth1workfetch, noforce/historyexpansion.",
+    "Current22aaWASM25FULLAUTH60390ca46075ec4cbb66dadb5cb608418dea658b444be7f2ed33193698375efa all25originalPASS withactualsource/providers/deps/tools/freshELF/listing/closed29processes/seals/limits. Repeats9fscopedclosureoncurrentbatch, notwholeVM/fullCIadmission.",
+    "Current22aaJim52FULLAUTH1eaa7e0c1ddb26a82a061e678c95e956ba6f6bdb4e52eaa49f24f427c846eba0 all52REACHED/allcontrolsPASS,original36P9F/26=17P9F,diag3P2F/raw52observedFAIL. Exact51match425132b8 zerogains/regressionsvs9f. NewWORKobserverabsentfromthatcapture; no firstguardcauseinferred.",
+    "Current22aabrowser+WASI fullyauthenticatedbuildFAIL only2c5967c7/96059dbd. ExactE0277 nestederrorprojection means no selectedhostruntime/newSourceLoadassertionreached. Newreviewedb05c/e4eb fixpreservesouterDocumentSourceUnavailable andinnerjsonrpcrefusal, no blanketFrom/currentnesswaiver.",
+    "Current22aastrictFULLAUTH4739320e exactly2CoreClippy/0RustE; bothrepairednewbatch, V2explicitthreecfg(test)imports auditedafterV1omissionfoundbeforeintegration. Current133/161/Spec/Core/startup/unitownersretainsolearchives; pendingresultsneverpass.",
+    "Sixexactd072focusedrequestsaccepted: strict40312507121,WASM40312506311,Jim40312532378,runtime16140312512618,LSPstartup/Core40312508519,hosts40312506145; allqueued. Older22aaCompiler133+SpecstillhealthysoexplicitlyHELD(noHTTPPOST). Firstaliasdispatches422wereactualinvalidmodealias, correctedtooriginal-diagnostics inputs withallrequestsawaited; neverclaimedstarted. CurrentC396fullnativeCI40309649890otherhealthyjobsandthreeoldordinaryf763jobsPRESERVED.",
+    "Prior10:15actual10:21and10:45actual10:46reportspluscurrentshippingstatuspublishednormallyat10:50:49P7fca6badeafterfreshdepth1workfetch. This11:15reportusesactualtime,rearms11:45. ExternalBIGIP/perfremainover60minstale,usernotifiedwithouttakeover;triagecomplete. F/currentzeroPTF/allgreen/acceptedperf/finaldocs/generated/fixtures/package/prep-prOPEN; noPR/merge/tag/release.",
+    "ROOTsoleLinux3C396pairedarchivesFULLAUTHc00159c3: APIsha/size/CRC/allmembers,harnesssourcepins,both --locked --releaseargv/streams/closedgroups/20MiB validated. Baselinebuild0/candidate101exactE0061; zero trials, no performancecomparison. Mac3oldcandidatepreserved. NewdistinctcandidateC8e0dpairedrequestsentwithunchangedthreealternatingpairs/15checks/budgets. No acceptedperformanceyet.",
+    "Provisionalactualruntime22aa getter11/ordinaryentry3/headroom2/allocation2/AOT5/constructor3/attestation3ALLPASS; fullsource/provider/processauthpending, other10321P82F/prune7=6P1F/CFIincomplete. No whole-runtimeadmission. Main+standalonefmtPASSCbe252beforefinalone-lineCLEANcarry. Diskcensus-basedobsoleteexeremovalABORTEDbeforemutationonunreadableownprocess; no unsafe deletion. Codegenlosslesshistoricalevidencegzip+exactrestoresaves21MB. Freshfree~2.21GB.",
+    "Latest11:13oldC396pairedstatus: macmediumterminalFAILartifactavailable/rootsolecapturepending, macsmall+macfullstillhealthy. NewC8e0dpaired40312873539 all6queued/actualIDsrecordedroot-d072-wave-index-20261026T1110Z.json. No performance outcomeinferredfromqueue oroldbuildstop. Upcomingrootcycle timer49998 due11:15.",
+    "ROOTmacmediumoldC396FULLAUTH65a9d348: samebaseline0/candidate101E0061/zerotrials/closedgroups/actualAPIsha/harnesspins/streamhashes. Macsmall+fullremainpreserved. NewC8e0d40312873539queued, timingacceptanceopen."
+  ],
+  "committed": [
+    "acc83e83b5566ed7af8fb0d0b10527a91bc9d6d1"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Completeoneexactfinal23pinunion+independentCompilerpeer/rootJSONAST/canonicalV14, normalpushbothbranches, retryaffectedfocusedmodesonlyafteroldterminal.",
+    "QualifycurrentpairedshippingTclperformanceandfullnativeCI/baseline; preservehealthyoldordinary/currentjobs.",
+    "Fixactualremainingcompiler/Jim/LSP/Specfailureswithoutguardorassertionweakening; completefinalreleasecleanup/gatesbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release checkbox or audit-unit admission. Six-hour target missed, no PR. Semantic/runtime results remain scoped; queued/running/unreached are not pass.",
+  "disk_free_bytes": 2213371904,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

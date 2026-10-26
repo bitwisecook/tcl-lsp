@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T10:38:40+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-26T11:13:40+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Current22aa compiler133 is active, with no new result claim.** Run40309592009/job121527150774/source22aa23aa6eae36fc70ec73552a755c740a707ca4 executes unchanged old130 plus three separate catalogue controls under the same fresh compiler-lib ELF/shared cap/deadline. API confirms the original-test step is in progress. Sole artifact capture remains this role. Catalogue source/current carry and protocol are integrated; the mixed-source fixture repair5e04793e/strong e7511451 is NEXT and excluded from this snapshot. Existing readonly4 remain held; no body object/effect grant or measured performance gain follows from the seed source review.
 
 **Repaired9f compiler130 is fully authenticated: actual NativeString3 now ALLPASS; four readonly remain FAIL.** Run40302394720/job121503176342/source9f2435a083972e4d3ec336adc0a4e8015d789d75 soleZIP12642348516/12,355,131B SHA649fa8f5efd0b5267843b61b01ccf6840c2cbb2232067678cb0c8258aae86241. Main26c529f0eb54df57792c387cee6038fbdca88565b40553f1bf12a6abc92465b9 and Native/fullGit50361243e7b07d929dcf6044e61057f81aa34004e232802d39df96d487c315fa independently seal126568source/provider10202/deps21504/tools/currentpins/allmembers/279closed owned processes; zero build diagnostics. Old102=98PASS/4FAIL, all58/closed16+fold/Logical3+5/Codec/Child10/Minify1 PASS. NativeString3 ALLPASS is a measured gain. Formal2 first authentic compiler traversal control PASS; second FAIL occurs before its negative assertions at support/native_compiled_fixture.rs405 actual mixed-policy execution with CommandProtocolUnavailable("original native core source context"). Layout3=0PASS/3FAIL, OwnJim3=1PASS/2FAIL; exact initial-source/foreach/missing-method/rebound panics routed to Names. No whole-Store/value/Normal/performance closure follows. Prior ad0b ALL130UNRUN remains historical, independently ece61/1156.
 
