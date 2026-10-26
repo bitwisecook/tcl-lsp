@@ -128,7 +128,7 @@
     "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs": "2917cd196ed7012372e0df463e446499702567ecb18d97ca4bf245006dbc958f",
     "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002",
     "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
-    "rust/tcl-vm/src/interp.rs": "d6250014deaeaedf55f48bc01a8195ab48ef0159e92951b9687132fcac30262d",
+    "rust/tcl-vm/src/interp.rs": "ec0ac79f3109eddc3991419cf1d44fd005c4b3667a64e3a3dd3ad001ccecbea9",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "runtime/rust/src/cmd_proc.rs": "ecf2f9416c2da5f0d49da10b34dfd33bb27203eadefa5ca3f949eb09c59d6d86",
     "runtime/rust/src/codegen_abi.rs": "afca5f0070a763eb9fc79a5897c1218b26c7041cd3b0a6eb9eb2e9cbe0d678ab",
@@ -164,7 +164,8 @@
     "rust/tcl-registry/src/native_scripted_distribution.rs": "c133b365882176043c4407e1f8ad6184afd983d6ef4fde89585c663648417fe0",
     "rust/tcl-registry/src/special_vars.rs": "fa947073fd7be9a58edd48eb8242253150669a1ac423469531a6c15efc696c41",
     "runtime/rust/src/expr_error.rs": "86c1eeff660d490e560bf6cefa827a19fd62a558ff47ff8e2a0493128f76e535",
-    "runtime/rust/src/expr_error/cold_state.rs": "f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1"
+    "runtime/rust/src/expr_error/cold_state.rs": "f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1",
+    "rust/tcl-vm/src/interp/native_procedure_refusal_observer.rs": "5ea5a36a84c230f5563720846c1a6aba997d387c398683babaa368996ee3334a"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",

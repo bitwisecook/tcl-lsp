@@ -242,7 +242,7 @@
     "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "eb0d93173f3a83fd2e47c6f6efcd4bd7f64d34e88b234a72fba234b7173d2593",
     "rust/tcl-runtime-api/src/native_procedure_roles.rs": "3035f14f4601af2399b52a1d6fb6b063ecf5bdcfe2bd731891e1132f28dfda4a",
     "rust/tcl-vm/src/command/native_procedure.rs": "4f5ef0993bf26fe8be3ebc2f6fe7040e9d23a4cdb0a481c2b1b30e206b1202a4",
-    "rust/tcl-vm/src/interp.rs": "d6250014deaeaedf55f48bc01a8195ab48ef0159e92951b9687132fcac30262d",
+    "rust/tcl-vm/src/interp.rs": "ec0ac79f3109eddc3991419cf1d44fd005c4b3667a64e3a3dd3ad001ccecbea9",
     "rust/tcl-compiler/src/compile_service/native_procedure_source.rs": "cd4903269a528ae70414e3974c3ec53682f77794d8d8ca42e87c4b1de8bc0978",
     "rust/tcl-compiler/src/compile_service.rs": "9c8b354617f9beb8462f14705371bb38028df0dd2b01a712077f3a253fed0a93",
     "rust/tcl-compiler/src/lowering/mod.rs": "a4ce038783d4537cb4b707df38ea6e8008393c7b46e95b3aaa71310a5cfe4465",
@@ -250,7 +250,8 @@
     "rust/tcl-compiler/src/command_binding/materialized_footprint.rs": "5eccecc728a395f705f1b8860f37c476dca20d20f20cb804ba621a93b7266fc9",
     "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs": "13e57753ff1b98968034b288bdc62fcd8353770d75015c8f376b04ad5662fc97",
     "rust/tcl-compiler/src/var_escape/helpers.rs": "f6d634a28122cb0f1b860bda469a50830997e759e53559be7be8d15f564ffe4d",
-    "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f"
+    "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
+    "rust/tcl-vm/src/interp/native_procedure_refusal_observer.rs": "5ea5a36a84c230f5563720846c1a6aba997d387c398683babaa368996ee3334a"
   },
   "scope": "Approved explicit replacement of four semantic expectations by four cost-only selectors, retaining all eligibility guards and original refusal controls. Separately labelled two Native unknown-argument/retired-owner refusal controls follow the existing133 cases on the same fresh inlining ELF. Complete77 inventory required; shared budgets/environment/build unchanged. Old semantic failures are not reported as PASS. Actual new tests UNRUN.",
   "separate_native_eligibility_controls": {
