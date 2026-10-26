@@ -704,8 +704,18 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
     };
     std::fs::write(&boot, native_i64_add_bootstrap_wat(expected_dispatches))
         .expect("write native i64 bootstrap");
+    let native_diagnostic =
+        std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1");
     let out = Command::new("wasmtime")
         .arg("run")
+        .args(if native_diagnostic {
+            &[
+                "--env",
+                "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC=first-decline-v1",
+            ][..]
+        } else {
+            &[][..]
+        })
         .arg("--preload")
         .arg(format!("tcl={}", runtime.display()))
         .arg("--preload")
