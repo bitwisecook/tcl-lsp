@@ -97,6 +97,14 @@ pub(crate) struct OriginalProcedureBinding {
     declaration: Weak<ProcDef>,
 }
 
+impl OriginalProcedureBinding {
+    pub(super) fn published_declaration(&self) -> Option<Rc<ProcDef>> {
+        let declaration = self.declaration.upgrade()?;
+        declaration.check_native_liveness().ok()?;
+        Some(declaration)
+    }
+}
+
 /// A genuine method or lambda clientData role on a commandless native Proc.
 /// Query clones do not postpone the native owner's retirement. An entered
 /// ProcedureMethod keeps its clientData independently until post-call cleanup.
@@ -289,6 +297,7 @@ fn create_declaration(
         .collect();
     let jim_parameters = jim_parameters.map(&mut retain);
     Rc::new(ProcDef {
+        future_i64_add: std::cell::OnceCell::new(),
         params,
         body,
         compiler_header: Cell::new(tcl_dialect::NativeProcedureHeaderCompilation::Absent),

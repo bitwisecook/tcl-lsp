@@ -379,6 +379,61 @@ pub(super) fn unary(ctx: &mut dyn ExprCtx, op: UnaryOp, value: Owned) -> Result<
     }
 }
 
+pub(super) fn retained_i64_add(
+    ctx: &mut dyn ExprCtx,
+    left: Owned,
+    right: Owned,
+    primitive: impl FnOnce(&mut dyn ExprCtx) -> Result<bool, ExprError>,
+) -> Result<(Owned, bool), ExprError> {
+    let operation = NumericOperation::enter(ctx)?;
+    let result = operation.with_environment(|environment| {
+        if operation.dialect().arithmetic() != Some(tcl_dialect::NativeArithmetic::TclBignum) {
+            return Err(ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            ));
+        }
+        let (_, left_number) = binary_operand(
+            &operation,
+            BinOp::Add,
+            left.ptr(),
+            tcl_syntax::expr::errors::OperandSide::Left,
+            environment,
+            false,
+        )?;
+        let (_, right_number) = binary_operand(
+            &operation,
+            BinOp::Add,
+            right.ptr(),
+            tcl_syntax::expr::errors::OperandSide::Right,
+            environment,
+            false,
+        )?;
+        let integer = match (&left_number, &right_number) {
+            (Number::Int(left), Number::Int(right)) => left.checked_add(*right),
+            _ => None,
+        };
+        operation.check()?;
+        let primitive = primitive(ctx)?;
+        if let Some(integer) = integer.filter(|_| primitive) {
+            return super::native_integer_result(
+                operation.dialect(),
+                integer,
+                &[left.ptr(), right.ptr()],
+            )
+            .map(|value| (value, true));
+        }
+        // A reached Host stage may have changed an accepted operand. Complete
+        // from those same retained originals instead of replaying their reads.
+        let left_kernel = kernel_operand(left_number)?;
+        let right_kernel = kernel_operand(right_number)?;
+        operation.check()?;
+        binary_kernel(BinOp::Add, &left_kernel, &right_kernel).map(|value| (value, false))
+    });
+    drop(left);
+    drop(right);
+    operation.after(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

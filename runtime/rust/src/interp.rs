@@ -86,6 +86,7 @@ mod command_guard_lookup;
 mod guarded_definition;
 mod native_execution_constants;
 mod native_hidden_invocation;
+pub(crate) mod native_i64_body;
 mod native_index_lookup;
 mod native_jim_import;
 mod native_jim_increment;
@@ -1237,6 +1238,7 @@ pub struct ProcDef {
     /// `rename p ""` / `namespace delete` drop it with the definition. Nothing
     /// has to remember to invalidate anything.
     pub native: Option<NativeProcEntry>,
+    future_i64_add: std::cell::OnceCell<native_i64_body::FutureNativeI64AddPlan>,
     /// Persistent raw static slots retained for this command definition.
     pub(crate) jim_parameters: Option<obj::ProcedureObject>,
     pub(crate) native_resources: native_procedure_resources::NativeProcedureResources,
@@ -5179,6 +5181,48 @@ impl Interp {
             statics,
         )
         .map(|publication| publication.generation)
+    }
+
+    pub(crate) fn install_proc_chosen_storage_with_original_key_candidate(
+        &mut self,
+        name: (&[u8], Option<Rc<obj::Owned>>),
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (*mut TclObj, obj::Owned),
+        candidate: native_i64_body::NativeProcedureBodyCandidate,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<u64> {
+        let Some(plan) = candidate.i64_add else {
+            return self.install_proc_chosen_storage_with_original_key(
+                name,
+                params,
+                parameters_obj,
+                body,
+                candidate.native,
+                statics,
+            );
+        };
+        if plan.parameters().is_empty() || plan.body().is_empty() {
+            return self.install_proc_chosen_storage_with_original_key(
+                name,
+                params,
+                parameters_obj,
+                body,
+                candidate.native,
+                statics,
+            );
+        }
+        let publication = self.install_proc_chosen_storage_with_original_key_publication(
+            name,
+            params,
+            parameters_obj,
+            (body.0, body.1, None),
+            candidate.native,
+            statics,
+        )?;
+        let declaration = publication.binding.published_declaration()?;
+        declaration.future_i64_add.set(plan).ok()?;
+        Some(publication.generation)
     }
 
     fn install_proc_chosen_storage_with_original_key_publication(
@@ -19179,7 +19223,7 @@ impl Interp {
         Ok(code)
     }
 
-    /// The number of proc bodies dispatched through a [`NativeProcEntry`].
+    /// Number of actual compiled Native procedure-body executions.
     pub(crate) fn native_proc_dispatches(&self) -> u64 {
         self.native_proc_dispatches.get()
     }

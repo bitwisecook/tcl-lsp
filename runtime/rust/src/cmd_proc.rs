@@ -108,7 +108,20 @@ pub(crate) fn proc_cmd_with_native_entry(
         Ok(arguments) => arguments,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let code = proc_cmd_original(interp, argv, &arguments, native);
+    let code = proc_cmd_original(interp, argv, &arguments, native, None);
+    arguments.finish(code)
+}
+
+pub(crate) fn proc_cmd_with_i64_add_plan(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    plan: crate::interp::native_i64_body::FutureNativeI64AddPlan,
+) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = proc_cmd_original(interp, argv, &arguments, None, Some(plan));
     arguments.finish(code)
 }
 
@@ -117,6 +130,7 @@ fn proc_cmd_original(
     argv: &[*mut TclObj],
     arguments: &OriginalArguments,
     native: Option<crate::interp::NativeProcEntry>,
+    future_i64_add: Option<crate::interp::native_i64_body::FutureNativeI64AddPlan>,
 ) -> Code {
     use tcl_registry::native_procedure::{
         NativeProcedureDefinitionSelection, NativeProcedureDefinitionSpec,
@@ -313,12 +327,15 @@ fn proc_cmd_original(
     if let Err(error) = arguments.check() {
         return interp.report_cmd_error(error);
     }
-    interp.install_proc_chosen_storage_with_original_key(
+    interp.install_proc_chosen_storage_with_original_key_candidate(
         (&name, original_key),
         params,
         Some(argv[definition.parameters_at + 1]),
         (original_body, chosen_body),
-        native,
+        crate::interp::native_i64_body::NativeProcedureBodyCandidate {
+            native,
+            i64_add: future_i64_add,
+        },
         statics,
     );
     if let Err(error) = arguments.check() {

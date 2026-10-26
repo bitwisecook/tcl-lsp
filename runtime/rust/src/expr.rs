@@ -1718,6 +1718,31 @@ fn wide_error(
     }
 }
 
+#[cfg(have_tommath)]
+pub(crate) fn retained_i64_add(
+    ctx: &mut dyn ExprCtx,
+    left: Owned,
+    right: Owned,
+    primitive: impl FnOnce(&mut dyn ExprCtx) -> Result<bool, ExprError>,
+) -> Result<(Owned, bool), ExprError> {
+    native_numeric::retained_i64_add(ctx, left, right, primitive)
+}
+
+#[cfg(have_tommath)]
+pub(crate) fn eval_compiled_expression_operand(
+    node: &tcl_syntax::expr::NativeExprNode,
+    ctx: &mut dyn ExprCtx,
+) -> Result<Owned, ExprError> {
+    eval(
+        node,
+        &mut TowerOps {
+            ctx,
+            jim: None,
+            safe: false,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
