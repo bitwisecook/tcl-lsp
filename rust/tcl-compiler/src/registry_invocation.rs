@@ -1507,9 +1507,29 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     })
 }
 
+/// A value-only declaration-word join, never source command selection.
+/// The existing opaque head pair retains its original purposes; command and
+/// body selection still come only from the independently selected right side.
+struct SourceCutDeclarationWordCorrespondence {
+    heads: source_structure::OriginalSourceHeadCorrespondence,
+}
+impl SourceCutDeclarationWordCorrespondence {
+    fn matches_selected_source(&self, words: &source_structure::OriginalRegistryWords) -> bool {
+        self.heads.matches_selected_source(words)
+    }
+    #[cfg(test)]
+    fn left(&self) -> &source_structure::OriginalRegistryWords {
+        self.heads.left()
+    }
+    #[cfg(test)]
+    fn right(&self) -> &source_structure::OriginalRegistryWords {
+        self.heads.right()
+    }
+}
+
 enum SourceCutStoredHead {
     Written,
-    Resolved(Box<source_structure::OriginalSourceHeadCorrespondence>),
+    Resolved(Box<SourceCutDeclarationWordCorrespondence>),
 }
 impl SourceCutStoredHead {
     fn matches_selected_source(&self, words: &source_structure::OriginalRegistryWords) -> bool {
@@ -1570,7 +1590,7 @@ fn source_cut_resolved_head_correspondence(
     context: &tcl_registry::model::ContextRegistry,
     tokens: &CommandTokens,
     words: &source_structure::OriginalRegistryWords,
-) -> Option<source_structure::OriginalSourceHeadCorrespondence> {
+) -> Option<SourceCutDeclarationWordCorrespondence> {
     let image = source_cut_stage("pair.source-image", realm.original_source_image())?;
     let offset = source_cut_stage("pair.argv", tokens.argv.first())?.start();
     let expected = source_cut_stage(
@@ -1584,8 +1604,8 @@ fn source_cut_resolved_head_correspondence(
         return None;
     }
     let advice = source_cut_stage(
-        "pair.advice",
-        realm.original_source_transition_advice(context, tokens),
+        "pair.value-advice",
+        realm.original_source_transition_value_advice(context, tokens),
     )?;
     let original = source_cut_stage(
         "pair.words",
@@ -1609,6 +1629,7 @@ fn source_cut_resolved_head_correspondence(
         "pair.correspondence",
         original.original_source_head_correspondence(words, context),
     )
+    .map(|heads| SourceCutDeclarationWordCorrespondence { heads })
 }
 
 fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Option<T> {
