@@ -1337,7 +1337,7 @@ mod tests {
     }
 
     fn assert_source_unescaped(
-        inferred: &RenderedValueProps,
+        inferred: RenderedValueProps,
         unescaped: bool,
         dialect: &str,
         source: &str,
@@ -1376,7 +1376,7 @@ mod tests {
                 let props = HashMap::new();
                 let inferred =
                     evaluate_def(statement, &uses, &props, registry, &ssa, &source_context);
-                assert_source_unescaped(&inferred, unescaped, dialect, source);
+                assert_source_unescaped(inferred, unescaped, dialect, source);
                 if !unescaped {
                     continue;
                 }
