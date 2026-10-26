@@ -156,6 +156,12 @@ impl EnteredLink {
     }
 }
 
+struct VariableCaptureOptions<'a> {
+    element: Option<&'a [u8]>,
+    create: bool,
+    trace_registration: bool,
+}
+
 pub(crate) struct EnteredVariablePlace {
     place: Place,
     table: TableObservation,
@@ -178,9 +184,11 @@ impl EnteredVariablePlace {
             current_ns,
             level,
             name,
-            element,
-            create,
-            false,
+            VariableCaptureOptions {
+                element,
+                create,
+                trace_registration: false,
+            },
             currency,
         )
     }
@@ -196,9 +204,11 @@ impl EnteredVariablePlace {
             current_ns,
             level,
             name,
-            None,
-            false,
-            true,
+            VariableCaptureOptions {
+                element: None,
+                create: false,
+                trace_registration: true,
+            },
             currency,
         )
     }
@@ -207,11 +217,14 @@ impl EnteredVariablePlace {
         current_ns: NsId,
         level: Option<usize>,
         name: &[u8],
-        element: Option<&[u8]>,
-        create: bool,
-        trace_registration: bool,
+        options: VariableCaptureOptions<'_>,
         currency: &NativeOperationCurrency,
     ) -> Result<Self, JimLinkStoreError> {
+        let VariableCaptureOptions {
+            element,
+            create,
+            trace_registration,
+        } = options;
         current(currency)?;
         let key = element
             .map(|key| separate_element(&interpreter.namespaces(), name, key))

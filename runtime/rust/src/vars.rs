@@ -3421,6 +3421,12 @@ impl OriginalArrayMemberPreparation {
     }
 }
 
+#[cfg(test)]
+pub(crate) struct OriginalElementOptions {
+    pub(crate) original: Option<*mut TclObj>,
+    pub(crate) create_element: bool,
+}
+
 /// Same original classifier and link walk, returning before any old owner is
 /// released so the actual caller can leave its frame/namespace borrows first.
 #[cfg(test)]
@@ -3430,10 +3436,13 @@ pub(crate) fn capture_original_c_element_materialisation(
     scope: NativeOriginalNameScope,
     root: &[u8],
     element: &[u8],
-    original: Option<*mut TclObj>,
-    create_element: bool,
+    options: OriginalElementOptions,
     protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
 ) -> Result<OriginalArrayMemberPreparation, crate::frame::JimLinkStoreError> {
+    let OriginalElementOptions {
+        original,
+        create_element,
+    } = options;
     let NativeOriginalNameScope { current, namespace } = scope;
     let place = match classify_original_name(frames, ns, current, root, namespace) {
         Resolved::Place(place) => place,

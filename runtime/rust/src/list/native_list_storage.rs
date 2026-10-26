@@ -621,16 +621,25 @@ fn replace_selected_native_storage<E>(
     Ok(version >= TclVersion::V9_0 && !(delete == 0 && first + insert.len() == storage.len()))
 }
 
+pub(super) struct NativeListSplice<'a> {
+    pub(super) first: usize,
+    pub(super) delete: usize,
+    pub(super) insert: &'a [*mut TclObj],
+}
+
 pub(super) fn replace_prepared_native_elements_using<E>(
     original: *mut TclObj,
-    first: usize,
-    delete: usize,
-    insert: &[*mut TclObj],
+    splice: NativeListSplice<'_>,
     protocol: NativeStringProtocol,
     invalidate: bool,
     check: &impl Fn() -> Result<(), E>,
     refuse: &impl Fn(ValueError) -> E,
 ) -> Result<(), E> {
+    let NativeListSplice {
+        first,
+        delete,
+        insert,
+    } = splice;
     check()?;
     let version = protocol.tcl_version().ok_or_else(|| {
         refuse(ValueError::CommandProtocolUnavailable(

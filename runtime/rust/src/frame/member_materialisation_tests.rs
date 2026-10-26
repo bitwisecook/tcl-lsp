@@ -299,8 +299,10 @@ fn original_c_member_receipt_refuses_late_member_rebirth_before_receiver_capture
                 },
                 b"a",
                 b"new",
-                Some(key.as_ptr()),
-                true,
+                crate::vars::OriginalElementOptions {
+                    original: Some(key.as_ptr()),
+                    create_element: true,
+                },
                 interpreter.native_c_variable_name_protocol().unwrap(),
             )
             .unwrap_or_else(|_| panic!("actual original member preparation"));

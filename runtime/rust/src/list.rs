@@ -1295,7 +1295,16 @@ pub(crate) fn append_prepared_native_elements_using<E>(
     if protocol.tcl_version().is_some() {
         let length = unsafe { list_ref(value) }.elems.len();
         native_list_storage::replace_prepared_native_elements_using(
-            value, length, 0, elements, protocol, false, check, refuse,
+            value,
+            native_list_storage::NativeListSplice {
+                first: length,
+                delete: 0,
+                insert: elements,
+            },
+            protocol,
+            false,
+            check,
+            refuse,
         )?;
     } else {
         for &element in elements {
@@ -1723,7 +1732,16 @@ pub(crate) fn replace_prepared_native_range_using<E>(
     prepare_native_list_mutation_using(value, protocol, check, refuse)?;
     if protocol.tcl_version().is_some() {
         native_list_storage::replace_prepared_native_elements_using(
-            value, first, delete, elements, protocol, false, check, refuse,
+            value,
+            native_list_storage::NativeListSplice {
+                first,
+                delete,
+                insert: elements,
+            },
+            protocol,
+            false,
+            check,
+            refuse,
         )?;
     } else {
         let members = list_elements_native_using(value, protocol, check, refuse)?;

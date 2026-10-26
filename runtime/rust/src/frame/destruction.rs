@@ -38,6 +38,13 @@ pub struct WeakArraySearchCell {
     id: VarId,
 }
 
+pub(crate) struct NativeArraySearchInput<'a> {
+    pub(crate) handle: Option<*mut TclObj>,
+    pub(crate) bytes: Option<&'a [u8]>,
+    pub(crate) cache: Option<tcl_core_types::NativeArraySearchCache>,
+    pub(crate) protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+}
+
 impl WeakArraySearchCell {
     /// Original never-reused variable identity; not a new lookup authority.
     #[must_use]
@@ -162,16 +169,19 @@ impl RetainedArrayCell {
         &self,
         sub: &str,
         name: &[u8],
-        handle: Option<*mut TclObj>,
-        bytes: Option<&[u8]>,
-        cache: Option<tcl_core_types::NativeArraySearchCache>,
-        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+        input: NativeArraySearchInput<'_>,
         current: &dyn Fn() -> Result<(), tcl_syntax::value::ValueError>,
     ) -> Result<
         Result<*mut TclObj, tcl_syntax::native_array_search::NativeArraySearchFailure>,
         tcl_syntax::value::ValueError,
     > {
         use tcl_syntax::value::ValueError;
+        let NativeArraySearchInput {
+            handle,
+            bytes,
+            cache,
+            protocol,
+        } = input;
         let check = || {
             current()?;
             if self.search_is_current() {

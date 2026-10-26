@@ -81,6 +81,7 @@ pub(crate) use trace_shell::TraceShellState;
 mod stored_link_role_tests;
 #[cfg(test)]
 mod trace_creation_tests;
+pub(crate) use destruction::NativeArraySearchInput;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
 pub(crate) use materialisation::{
     OriginalVariableLinkObservation, PreparedArrayMember, PreparedVariableReplacement,
