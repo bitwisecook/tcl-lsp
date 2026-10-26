@@ -1278,7 +1278,7 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     {
         return None;
     }
-    let facts = words.with_source_schema(context, |schema| schema.facts())?;
+    let facts = words.with_source_schema(context, source_schema_queries::facts)?;
     let selected = source_cut_declaration_selection(&tokens, &words, facts)?;
     let mut bodies = words.source_script_bodies_for_syntax_coverage(context)?;
     if bodies.len() != 1 {
