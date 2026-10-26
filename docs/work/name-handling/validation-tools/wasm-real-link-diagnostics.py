@@ -36,7 +36,7 @@ CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
 BASE = Path(__file__).resolve().parent
-ROSTER_SHA = "47a8bbdc3c158e26ecc041c710e27c16f7c11acbfe794f5e3239fa613751b2a2"
+ROSTER_SHA = "c5b6dc665437e7f7519941a00c49e9caf13c467067a767dc36d4293ac0a1a572"
 
 
 def require(value, message):

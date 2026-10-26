@@ -5,7 +5,7 @@
   "scope": "original archived117 TEXT fixtures+7generated only; native-byte/PackSet/full performance obligations separate",
   "source_pins": {
     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
-    "rust/tcl-compiler/src/command_binding/source_analysis_cache_corpus.rs": "f9ef7772dc9db2c9e812e353bec63ae3a49658a4e1e26153d8ff9944c24ccfb6",
+    "rust/tcl-compiler/src/command_binding/source_analysis_cache_corpus.rs": "469016c4715fd719af0101913b42bb1effb64a742264a50a35852a0a37fba0eb",
     "samples/for_screenshots/27-if-to-switch-before.tcl": "e5dd34f9538533204e077f8b5e7b899c0aab1cbb2cdf6cecbd316d00d5c2d145",
     "samples/for_screenshots/20-folding.tcl": "3b73c93073a20474c67f1409d1b6a72abfc0b9c4cc96f12626323164792f5894",
     "samples/for_screenshots/32-document-links.tcl": "e5f73fe594eae869bfae81c8dc34e4c2e34c7d5466ccffbad994198d0aaac1d6",

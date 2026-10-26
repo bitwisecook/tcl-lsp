@@ -4218,7 +4218,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "4f47e192e6702ff8161ec070d001102e42adf0f94a732f6529b90694f63d7894",
+    == "407808294940c9ffb9a4fa76a64dc09e1fa9b23175eb010965dd0a46c40a6e3b",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -4584,7 +4584,7 @@ require(analyser_layout_diagnostic_validation["schema"] == "analyser-layout-firs
 analyser_layout_diagnostic_rows: list[dict[str, Any]] = [dict(row, state="UNRUN", layout_trace_observation="UNOBSERVED") for row in analyser_layout_diagnostic_validation["rows"]]
 
 source_point_corpus_validation = json.loads((BASE / "source-point-complete-text-corpus2.json").read_text())
-require(sha(BASE / "source-point-complete-text-corpus2.json") == "cd0c8f7a2746877bc073abc44f49dd0fcfc2dd0937e2cd41d00130f2079418d5", "exact separately bounded complete text corpus roster")
+require(sha(BASE / "source-point-complete-text-corpus2.json") == "c0b8f8ea7c655e5cb495cd725433e84a4418c6208a4f28d3edf7efbd3e0c7818", "exact separately bounded complete text corpus roster")
 source_point_corpus_rows = [dict(row, state="UNRUN") for row in source_point_corpus_validation["rows"]]
 
 source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': 'a981896963d87c0464325a8a3549a2fcb8987750ddbb6062f1d1f7bda57072f8'}
