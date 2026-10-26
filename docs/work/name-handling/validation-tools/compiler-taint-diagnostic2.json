@@ -52,6 +52,6 @@
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "6c807bd09325ae52f502f136de8db7e76b9e3ee39b54e35a5a16cb3e500222c7"
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "82b7feaf236d782166276a91bfe487deea173709063470c3c4151b64300b8b51"
   }
 }
