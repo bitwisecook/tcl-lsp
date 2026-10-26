@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T05:13:47.103997+00:00
+Last updated: 2026-10-26T05:45:17.887209+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current retries: strict059761 run40274596490/job121414547696 and ordinaryCf763 fullCI40274598539 are sole captures, currently pending actual qualification; Root solely owns performance40274595777. Canonical44b carry peer8af3fbb3/V14PASS and Jim09b peer757733f2/V14PASS are integrated/pushed. Latest completed functional5c13 WASM FULLAUTH348 5329a471 actual23PASS/2FAIL; depth actual n60 selected function-address row eval127 shares live frame/ProcDef pointer with body126, n61 Return ABI128 andn62ExprABI128 refuse before handler selection. No n61 handler/liveness/artifact authority inferred. Strict5c13 FULLAUTH23 e76e1ef5 only immutable SourceImage.push E0599 in newformal test; paired genuine constructor fix699 already integrated before current retries. Private deferred-tail compiler sidecar remains off-tree/incomplete with exact dynamic frame retirement/word/instruction ownership obligations, no behavior/API/budget/assert changes admitted.
 
 Current09b/C667 source frozen, next Jim52/fullTom143/ordinaryfullCI/performance dispatch pending metadata peer and Root canonical preflight/push. Tiny union05279292 adds exactly3 approved Jim observer source dependencies plus derived roster guard,2files; all23 existing top/nested/descriptor source pins already current, NativeString15/formal5/old cohorts/limits retained. ProspectiveV14PASS13/30/20 c76c79d6; Compiler independent peer active. Current5c13 strict40271583523 andWASM40271582013 are sole-owned healthy captures, no outcomes claimed. Previousb5fa strict3warnings-as-errors andWASM ALL25UNRUN are fully authenticated; actual latest reached functional WASM remains7dc23PASS/2FAIL, unchanged allocation/depth failures. Depth witness is descriptive; deferred-tail private protocol remains off-tree design with exact retirement/order/source/frame obligations unresolved, no Native capability grant. FullCI32e standalone runtime2380=2287PASS/93FAIL observed, workspace shard3 UNRUN on already-repaired private-interface warnings;6native production jobs success by API, others healthy. No latest-source broad acceptance/performance claim.
 

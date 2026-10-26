@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T05:47:30.821935+00:00",
+  "scheduled_report_utc": "2026-10-26T05:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T06:15:00+00:00",
+  "change_since_previous_report": [
+    "The scheduled05:15 report, with actual05:16 filename, and supplemental latest-shipping summary were pushed normally as e94c72007c79a7a36867e53f3750813511e248c3 at05:32:03 after a depth-one work fetch. Both product branches were pushed first. All source fixes were made on work, with release-only cleanup on the intermediate branch. No force push, merge, tag, release or PR action occurred.",
+    "Exact current pushed product is WORK0597610ff9bd631783b2ef705395c94b5e9de0f8 and CLEANf763ef56bb95331539f4279fb8b7da9edac48b55. The immutable SourceImage test API repairb645563d/sourcepeer699caea7 appends one byte while preserving original bytes/channel and all refusal assertions. Source-pin carry8af3 and canonicalV14 pass13/30/20 with zero failures; all23 rosters retain301 source records/213 actual Git files.",
+    "Fresh current modes launched05:30: compiler12440274593568/121414537994, strict40274596490/121414547696, Spec40274593084/121414536217, fullTom14340274593837/121414539380, Jim5240274594750/121414541631. Each role owns its sole artifacts. Outcomes are pending; no failed or unreached old assertion is relabelled. The last fully authenticated5c13 compiler124 remains allUNRUN exactE0599 fdc4bc06+07a5917f, repaired in current059.",
+    "Ordinary full CLEAN CI40274598539 runs exactf763 with hosted tests/native_release_build_proof:false. Its concurrency group is distinct from the previous native-proof group, and the dispatch found no active older branchCI. The native matrix is intentionally outside this ordinary run; no current native-build proof transfers. Required PR eligibility and final gates remain open.",
+    "ROOT owns new paired Tcl performance40274595777: Linux/macOS small, medium and full, same baselineed694 and harness059, all old build/bench deadlines, request counts and meaningful response guards unchanged. All six reached paired release builds/measurements at05:39; no completed artifact or current ratio was available at05:44. Previous32e Linux builds remain authenticated0/101 with zero trials; old5dd stalls remain historical. Dedicated iRules timing alone is exempt.",
+    "The productive minify source packet now has a strong reviewed V2: genuine retained C8.6 program/current Inline Expr parent, source/configuration/namespace/table joins, separate source-only child inventory, unchanged Native selection and C8.4 error paths. Actual pinned CompileExprTree source and factorial/add disassembly support eager Add/Sub/Mul visits. V1 was held for missing speculative rollback; V2 restores the new inventory on failure. Original assertions remain and new withdrawal/Native-boundary controls are added, but actual Rust and minify efficacy are unrun.",
+    "Root independent review identified two release-quality issues before minify integration: new Rust leaf lacked SPDX, and private consumer methods were listed as public owner-manifest entries with gate none. An immutable header/docs successor is requested. Root also found the earlier formal contract row added three private entries to the public manifest; actual xtask requires public declarations. Compiler is preparing a doc-only withdrawal/real internal-route correction under the existing user decision, without widening APIs or weakening the checker.",
+    "Native Store consumer remains held: actual owned compiler slots/body custody do not prove fresh cells in the presence of interpreter traces or debug hooks. Runtime has a private opaque environment receipt draft bound to actual weak pass owner/nonwrapping generation, complete registered/active trace inventories, limits and retirement. Compiler retains independent no-param/no-static/no-adapter/frame/body/overwrite/cleanup obligations. No optimistic summary is integrated. Deferred Native tail-return work similarly remains off tree, with exact owned-resource retirement and ordinary fallback requirements.",
+    "Jim source audit found a concrete analyser/IR distinction: handle_proc_command reselects native shape grammar with shared profile None and falls back to Tcl body2 for a Jim4arg proc, although IR separately visits original body3. Repair must transport the actual selected authored schema and preserve aliases/currentness, not override actualUnknown or infer effects from grammar. Distinct AuthoredJimClass member/adoption and deferred-body call receipts remain separate obligations pending52nd observations.",
+    "All prior scoped LSP gains remain: Return3 and navigation/scan controls pass; startup scan30 passes before diagnostics source-slot publication fails, and browser advances to main98/source0 but full rename remains blocked. No whole-LSP/SpecTcl/performance acceptance follows. RequiredF/current zeroPASS-to-FAIL/allmandatoryCI/generated/editor/docs/comments/fixture/package/prep-pr gates remain open. Disk around2.2GiB; external BIGIP/perf headers remain stale beyond60minutes and are reported without takeover, while triage is complete."
+  ],
+  "committed": [
+    "c4cb6bd2248ebc3329b25cc89a1364260e8ff14c"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticate current059/Cf763 focused runs, full ordinaryCI and all six shipping performance scopes; fix concrete failures without cancelling healthy work.",
+    "Finish minify SPDX/public-owner documentation successor and source integration with final pins; complete compiler formal manifest correction and genuine observer/frame/Jim/source-publication producers.",
+    "Finish sectionF, exact current baseline zero pass-to-fail, every mandatory green gate and final release cleanup/generation/format/package/prep-pr before authorised PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release checkbox or audit-unit admission. Six-hour target missed, no PR. Semantic/runtime results remain scoped; queued/running/unreached are not pass.",
+  "disk_free_bytes": 2276253696,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
