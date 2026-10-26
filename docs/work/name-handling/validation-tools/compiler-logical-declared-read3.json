@@ -70,7 +70,9 @@
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "136cfa39c8df5ac07026e31dd397d20dba9593260f136302e7caffd01031d46f",
     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
-    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd"
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd",
+    "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "f2919bda0850cc0f6f2fd54fc88837686138b4d24e27ed301b03a94688800797"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -623,5 +625,47 @@
     ],
     "source_peer_reference": "WORK passive firstguard038364b8 strongd8d22dcb; source integration/final union required",
     "qualification": "Old Layout3 outcomes and environments unchanged. Missing analyser.proc trace or any shared quota marker is UNOBSERVED, never producer proof."
+  },
+  "separate_inherited_point_report_controls": {
+    "schema": "inherited-point-report-custody3-v1",
+    "expected_selected": 3,
+    "source_keys": [
+      "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs",
+      "rust/tcl-compiler/src/command_binding/retained_source.rs"
+    ],
+    "source_peer_reference": "names-inherited-point-report-body-custody-v1 1f35 source strong1a8da76e; report-only custody, no generic callable/Native membership grant",
+    "rows": [
+      {
+        "group": "diagnostic-inherited-point-report3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::retained_source::inherited_point_report_tests::inherited_allocated_report_custody_keeps_generic_membership_closed",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-inherited-point-report3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_foreign_entry_store_and_detached_body",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-inherited-point-report3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_changed_header_source_namespace_and_allocation",
+        "env": {}
+      }
+    ],
+    "scope": "Three separately labelled report-only inherited body custody controls after existing report repeat and before unchanged corpus2. Same fresh compilerlib, source/provider/deps/tool/process/ELF/CAP/floor/deadline; old150 outcomes preserved. Default153 are observations including existing repeats, not a unique-identity claim."
   }
 }

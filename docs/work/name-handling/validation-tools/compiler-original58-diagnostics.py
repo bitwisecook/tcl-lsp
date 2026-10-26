@@ -158,6 +158,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
             "diagnostic-jim-source-layout11-",
+            "diagnostic-inherited-point-report3-",
             "list-",
             "select-",
         )
@@ -190,6 +191,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
             "diagnostic-jim-source-layout11-",
+            "diagnostic-inherited-point-report3-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -223,6 +225,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
             "diagnostic-jim-source-layout11-",
+            "diagnostic-inherited-point-report3-",
         )
     ):
         require(
@@ -2726,6 +2729,205 @@ def run_advice_catalogue_controls() -> None:
         )
 
 
+def run_inherited_point_report_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows + source_point_memo_rows + analyser_layout_diagnostic_rows + source_point_report_rows
+        ),
+        "inherited point report custody controls cannot precede existing report-repeat closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in inherited_report_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "inherited point report custody controls absent from actual fresh compiler lib inventory",
+    )
+    for pinned_path in inherited_report_validation["source_keys"]:
+        require(sha(root / pinned_path) == logical_validation["source_pins"][pinned_path],
+                "inherited point report custody source drift: " + pinned_path)
+    for index, row in enumerate(inherited_report_rows):
+        require(deadline - time.time() >= 180 + 180 + 40,
+                "insufficient full inherited-report list/test/cleanup budget")
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "inherited point report custody current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "inherited point report custody requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "inherited point report custody artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "inherited-point-report3"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "inherited-point-report-outcomes.json", inherited_report_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "inherited-point-report-outcomes.json", inherited_report_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "inherited-point-report-outcomes.json", inherited_report_rows)
+            raise
+        save(out / "inherited-point-report-outcomes.json", inherited_report_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 def run_own_jim_alias_diagnostic() -> None:
     global remaining
     require(
@@ -4618,7 +4820,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "66c0f564fd524f978210c0a2c0c0a0449f4c3d07aceb88bafb83ed0236a307de",
+    == "ee443023c0329dbd0c4172e9e9241c94c8bb0630d4b4a78bd8069a8f5921bfb3",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -4795,6 +4997,15 @@ native_eligibility_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for ro
 own_jim_alias_validation = logical_validation["separate_own_jim_alias_diagnostic"]
 require(own_jim_alias_validation["schema"] == "own-jim-alias-firstguard1-v1" and own_jim_alias_validation["expected_selected"] == 1 and own_jim_alias_validation["source"] == 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs' and own_jim_alias_validation["source"] in logical_validation["source_pins"] and own_jim_alias_validation["rows"] == [{'group': 'diagnostic-own-jim-alias-firstguard1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_refuses_rebound_class_and_replaced_initialisers', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}] and own_jim_alias_validation["repeats_existing_selector"] == 'command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_refuses_rebound_class_and_replaced_initialisers', "exact authorised alias diagnostic repeat")
 own_jim_alias_rows: list[dict[str, Any]] = [dict(row, state="UNRUN", alias_trace_observation="UNOBSERVED") for row in own_jim_alias_validation["rows"]]
+
+inherited_report_validation = logical_validation["separate_inherited_point_report_controls"]
+require(inherited_report_validation["schema"] == "inherited-point-report-custody3-v1"
+        and inherited_report_validation["expected_selected"] == 3
+        and inherited_report_validation["source_keys"] == ['rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs', 'rust/tcl-compiler/src/command_binding/retained_source.rs']
+        and all(path in logical_validation["source_pins"] for path in inherited_report_validation["source_keys"])
+        and inherited_report_validation["rows"] == [{'group': 'diagnostic-inherited-point-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::retained_source::inherited_point_report_tests::inherited_allocated_report_custody_keeps_generic_membership_closed', 'env': {}}, {'group': 'diagnostic-inherited-point-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_foreign_entry_store_and_detached_body', 'env': {}}, {'group': 'diagnostic-inherited-point-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::retained_source::inherited_point_report_tests::inherited_report_custody_refuses_changed_header_source_namespace_and_allocation', 'env': {}}],
+        "exact inherited point report custody3 descriptor/source/selector/environment")
+inherited_report_rows = [dict(row, state="UNRUN") for row in inherited_report_validation["rows"]]
 
 source_point_memo_validation = logical_validation["separate_source_point_memo_controls"]
 require(source_point_memo_validation["schema"] == "source-point-memo8-v1" and source_point_memo_validation["expected_selected"] == 8 and source_point_memo_validation["source"] in logical_validation["source_pins"] and source_point_memo_validation["required_absent_environment"] == "TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" and source_point_memo_validation["rows"] == [{'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_matches_complete_input_and_independent_builder_clones', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_keeps_supplied_metadata_generation_and_missing_tag', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_bounds_history_and_refuses_oversized_sources', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_distinguishes_channel_config_entry_frame_and_registry', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_live_lease_keeps_snapshot_acyclic_and_shares_while_live', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_retirement_drops_parent_payload_but_retains_only_history_origin', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_rejects_foreign_and_changed_context_keys', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {}}], "exact separate memo8 roster")
@@ -5781,10 +5992,14 @@ try:
     require(len(analyser_layout_diagnostic_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in analyser_layout_diagnostic_rows), "layout diagnostic3 incomplete")
     run_source_point_report_diagnostic()
     require(len(source_point_report_rows) == 1 and all(row["state"] in ["PASS", "FAIL"] for row in source_point_report_rows), "report repeat incomplete")
+    run_inherited_point_report_controls()
+    require(len(inherited_report_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in inherited_report_rows), "inherited point report custody3 incomplete")
     run_source_point_corpus_controls()
     require(len(source_point_corpus_rows) == 2 and all(row["state"] in ["PASS", "FAIL"] for row in source_point_corpus_rows), "complete text corpus2 incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
     if any(row["state"] != "PASS" for row in source_point_report_rows):
+        status = 1
+    if any(row["state"] != "PASS" for row in inherited_report_rows):
         status = 1
     if any(row["state"] != "PASS" for row in source_point_corpus_rows):
         status = 1
@@ -5884,6 +6099,7 @@ finally:
     save(out / "own-jim-alias-firstguard-outcomes.json", own_jim_alias_rows)
     save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
     save(out / "source-point-report-firstguard-outcomes.json", source_point_report_rows)
+    save(out / "inherited-point-report-outcomes.json", inherited_report_rows)
     save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
     save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
     save(out / "outcomes.json", rows)
@@ -5999,6 +6215,9 @@ finally:
             "required_separate_source_point_report_diagnostics": 1,
             "source_point_report_firstguard1_outcomes": source_point_report_rows,
             "source_point_report_firstguard1_source_pins": source_point_report_source_pins,
+            "required_inherited_point_report_custody_controls": 3,
+            "inherited_point_report_custody3_outcomes": inherited_report_rows,
+            "inherited_point_report_custody3_roster": inherited_report_validation,
             "required_separate_complete_text_corpus_tests": 2,
             "source_point_complete_text_corpus2_outcomes": source_point_corpus_rows,
             "source_point_complete_text_corpus2_roster": source_point_corpus_validation,
