@@ -7297,6 +7297,21 @@ impl SourceCommandBindings {
         }
     }
 
+    fn initial_original_analysis_owner(
+        state: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Option<Arc<OriginalSourceAnalysisOwner>> {
+        state.current_source_origin.as_ref().map(|source| {
+            Arc::new(OriginalSourceAnalysisOwner {
+                source_arguments_empty: options.incoming_formals.is_empty(),
+                source: Arc::clone(source),
+                metadata: state.baseline.metadata_context.clone(),
+                config,
+            })
+        })
+    }
+
     fn analyse_source_in_frame_with_options(
         source: &str,
         image: &tcl_lexer::SourceImage,
@@ -7344,14 +7359,8 @@ impl SourceCommandBindings {
         bindings
             .root_origin
             .clone_from(&state.current_source_origin);
-        bindings.original_analysis_owner = state.current_source_origin.as_ref().map(|source| {
-            Arc::new(OriginalSourceAnalysisOwner {
-                source_arguments_empty: options.incoming_formals.is_empty(),
-                source: Arc::clone(source),
-                metadata: state.baseline.metadata_context.clone(),
-                config,
-            })
-        });
+        bindings.original_analysis_owner =
+            Self::initial_original_analysis_owner(&state, config, options);
         let namespace_key = source_entry_namespace_key(&options, frame, namespace);
         let frame = frame.clone().with_namespace_identity(namespace_key.clone());
         // This API's supplied frame is the entry activation. It is not a
