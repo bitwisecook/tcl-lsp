@@ -68,6 +68,39 @@ is therefore listed in the root `Cargo.toml`'s `exclude`, like `editors/zed`,
 and keeps its own lockfile and `target/`. That also keeps the LSP/compiler
 `cargo test --workspace` from regressing on runtime churn.
 
+## Checked character views
+
+`ValueOps::checked_character_view` returns owned `Rc<str>` text and reports
+`ValueError`. Its default delegates to the existing `as_chars` method, preserving
+adapter implementations. Existing `try_as_str` and `as_chars` signatures and raw
+UTF-8 checks remain unchanged.
+
+The NativeCore implementation uses a private original Unicode getter entry
+issued only after selected C construction, bootstrap, final result cleanup and
+its final currency check. A profile pin or generic constructor cannot issue it.
+The entry retains weak interpreter/host currency and the actual backend getter;
+policy or context mutation permanently stales it. A present stale entry refuses
+rather than falling back to a generic ASCII or UTF-8 view.
+
+The original object must have caller-owned live allocation storage. A temporary
+allocation lease preserves that storage across updater/free callbacks without
+adding a Native object reference; it does not make an arbitrary dangling pointer
+valid. Header incarnation, original operation and constructor currency are
+checked around the getter and callbacks. Returned text owns its bytes and can
+outlive both the original object and interpreter.
+
+C8 Unicode units are decoded as checked UTF-16, and C9 units as checked Unicode
+scalars. Unsupported units refuse without inventing a UTF-8 error or replacing
+original bytes. For example, a fresh NativeCore string containing `41 ff 42`
+exposes `A`, U+00FF and `B` through the checked getter while the same raw bytes
+still fail strict UTF-8 access. Generic and profile-only construction retain the
+existing strict path.
+
+The byte-length fallback uses the checked API. Compiled Native string replacement
+uses its existing `NativeIndexOps` character count, preserving C8 UTF-16 indexing
+rather than counting Rust scalar characters. These are separate purposes; an
+owned character view grants no representation, compilation or frame authority.
+
 ## Build / test
 
 ```
