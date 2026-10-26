@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T17:11:28Z
+Last updated: 2026-10-26T17:43:51Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T17:43:51Z: All four assigned ba30/24fb captures terminal and authenticated. Runtime166 5de506ce: original131closed, added35ALLPASS incl Jim3/Cold2 actualsize<128, other10324P79F/prune6P1F/CFIincomplete; exact prior128 join e44f48cb zero PASS-to-nonPASS/3 FAIL-to-PASS cause unassigned. iRules e815b625 bootstrap180timeout/-2, later3UNRUN; sampler38 onlyfirst-init, no final-site attribution. Spec46ba835c old16/VM1/ordinary4PASS, LENGTH1/1 MAP/RANGE0/0 remainsFAIL, full600timeout600.496/-2 ownedcleanup preserved. Broad8 cf40cf26 419checks: original25ALLPASS; separate two-ELF whole8 CLOSED6P2F833.425s, exact individual join705ace00 identifies native-add-plan assertion672 and framinggolden612 FAIL; division and all3plansPASS. No assertion/golden/guard edits, no releasegreen/C1C2closure. Include3 source strongc1ef1032/lane payloadaddendum7f4f314c ready Root-only; actualprep retryUNRUN. User-approved NULcorrection Root-only integration, no current outcomesdonation.
 
 Current 2026-10-26T17:11:28Z: USER explicitlyAPPROVED NULfixturepreconditions, Rootrecord1188pending/RootALONEappliesexactV20b70bf05+technical2694; no reopenedchoice/productionguardchange or assumedNativeTemplatecapability. All3release/value-negative scripts andeligibleéeffectcontrolretained; actualcorrectedtestsUNRUN. NEWsoleba30 runtime16640362523126/job121711454987, Spec40362480519/job121711306602, iRules40362530393/job121711483493 ALLinprogress/exactba30workflowHEAD/APIrecordsretained. NEWsoleBroad8WASM40363951715/job121716472438 exact24fb5bcc sourceacceptedQUEUED; old25+new8actual2freshELFs/SAMECargo/1200+25insideold3600+20MB/floor authrequired. No duplicateCodegencapture/no currentoutcomesdonation. Broad8currentcarry847f56strong48ba RootAPPLIED24fb/V14; NULmetadataintentNEXTall15coupledLogical3/Specmaps sourcefileonly selected3bodiesunchanged. Clockread-onlyconsumerreceipt29dff960 remainsHOLD: pinnedC86/C90libraryvsVMdoor distinction, no actualclockrun/opaqueowner/genericbypass.
 

@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-26T17:15:37.389811+00:00
+Last updated: 2026-10-26T17:46:07.981738+00:00
 
 ## Resume
 
@@ -13,7 +13,7 @@ Last updated: 2026-10-26T17:15:37.389811+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed. Current checkpoints run every30 minutes; preserve actual report and push timestamps. The current cycle below records the next deadline.
 
-### Current cycle and routing (17:15 UTC)
+### Current cycle and routing (17:45 UTC)
 
 - Compiler135f231FULLAUTH2316408f/f5deb894:129PASS6FAIL/126593Git/provider10202/deps21504/tools/allmembers/289closed/0builddiag. Approvedcost4andnewNative2PASSexplicitpurposecorrection,notoldsemanticPASS. RemainingString2P1F/Layout0P3F/Own1P2F. NULactual135firstfacetCORRECTEDtcl8.4beforeeffect/input/stock/receiptALLFALSEepochs0->1,notlossaftervalidreceipt;earlierno-engineprosewasstale3caqualification.
 - ALL5f231LSPFULLAUTH3fbd Coreold8PASS/sourceLoad2P2F, Browserloadedhelperdirectpurpose, WASIrefs2PASSthenappconditionalrename, Unitold4PASS/new4 1P3F(scope-membershipsetup/diskchildleaseassumptionunknown), Startup123.862ms/scan30FAIL/Contextcomplete/native8UNREACHED. NewV3/namespacecurrentoutcomesstillUNRUN. WORKonlyfailuretupleobserverec8d/3ea3integrated767080414,onlyexistingfailuresmax8rows,noquery/sourceURI/guardchange.
@@ -50,3 +50,13 @@ Last updated: 2026-10-26T17:15:37.389811+00:00
 - OriginalupvarbaselineRESTOREDSOURCEproofc67082f8 full#[test]+fnbyteexactbaselineed694/currentAPIproducerfixpreservesoldcontains_keyabsence;actualrestoredtestUNOBSERVED/noPASS. AliasCoracleactualreplacement9e24, boundedWORKobserverdb094/da4astaticclear+separaterepeatprotocola107underpeer,NEXTnotcanonical.
 - Broad8V3rootapplied24fbV14PASS+normalfreshpush/DISPATCH40363951715job121716472438old25+new8 queued/currentunknown. Allotherba30dispatchesawaitedbeforemetadataheadmutation. CurrentproductRustsameC3281untilnewNUL/lint/coarsecohort;noactivecurrentmainCIcancelled.
 - Latestba30CoreFULLAUTH5f250cdb old8PASS/Source4same2P2F, V3newreceiptpositivefailsactualfactoryatline750(childvsuffixunobserved), namespaceLogicalsourceentryNone609beforeintendedregionguard;no V3efficacyclaim. ba30UnitFULLAUTH4ea4adccold4PASS/new1P3F, actualec8dcensus proves hostcomplete=true(ids1),maincomplete=false(ids1,required2,associations1),host_required=false,projectiontotalIDs2;childNOTretained,so notprovenlostchildlease. LSPtracinggenuineproducer/fixtureentry, no assertionwaiver.
+- Runtime166ba30FULLAUTH5de506ce:added35ALLPASSincludingCold2actualsize<128/Debug/Eq/typedcause+Jim3,old79OtherFAIL+1pruneFAIL/CFIincomplete/final125retained. Exact128priorjoin e44f48cbZEROoldPASS-to-nonPASS,3FAIL→PASSgeneric_each406/jim_lsearch24/jim_original_start_indices17;causeUNASSIGNED,noglobalRuntimegreen.
+- Broad8source24fbFULLAUTHcf40cf26/419checksold25ALLPASS,newwhole8CLOSED6P2F833.425s/twofreshELFs/sameCargo/oldsharedbounds. Exactindividualjoin705ace00 confirmsDIVnewsign+MINcontrolANDoriginalnativeplanoraclePASS,allthreeplans+divergence+linkgatePASS. NativeAddeligibilityassert672andframingbudgetgolden612remainFAIL, nooraclegoldenrewrite.
+- Latestba30compiler135FULLAUTHd63832ae+1b5014dc same129P6F/126609source/providers10202/deps21504/tools/allmembers/289closed0builddiag, no userNULfuturecorrectiondonation. Layout3firstfalseoriginalsourcewordhelper/finiteforeachstillunobserved;sourceobserver0383/d8d2andseparate3repeatNEXTapproved.
+- Latestba30Jim52FULLAUTHb5f13c01/82713555/5f247ce0same36P9F/original17P9F,exactUnknownEarlierMutation,nomatchedgains/regressions. C328prepFULLAUTHb23be016 setup0/gate2Hermesactualcorrectunquotednativecommand+3unresolvedconcatincludes,only397Bgenerated::aliasremoval;allrouted/genuineproducerfixesprepared.
+- Pairedcohortnowcommitted: userNUL2c1b/C70db,oneClippyHRTBcbaef/Cd86,actualseedcoarse49feb/Cf8c+docs8254/Cb0d+9protocol4316,preferredyqquoteonlyf30a/Cf4dd(faa3realtoolUNRUN/allassertionsunchanged),include3samepayloadliteral26e6/C8987(c1ef/7f4flanehashqualified),centralregistryhostdeny788e/Caf9(2850preservesoldaliasblock/measured31unchanged).
+- SOURCEPOINT-ONLYleasehistoryV2ab5f/a69eAPPLIEDvalidation-only5cbd/Ceee024Rust/lane421insert21delete. FulloriginalkeyunderliveWeaklease,17fieldhistorygenuinepointtokenneverlookup/reissue,snapshotleaseNone/internalbuildersNone/ordinaryrootpath/Eq/cutoffsunchanged.4old+4newlifecycle/fullreportcontrolsmustactuallyPASS;fulloldmixedcorpusproof+shippingperfstillrequired,noclaimacceptance.
+- NEXTcoherentCompiler147protocol77c3/cdf7strongpeerpendingold135+alias1+memo8+Layout3,samefreshELF/sharedbounds/nobypassenv/nobuild/originalFAILspreserved. PassiveAliasdb09/da4a,Layout0383/d8d2,SourceCutfactoryf8d/157bsourcepeer-clearednotyetcanonical. No actualfirstfalseleafguess fromlength/metadata/no guardweakening.
+- Diskguardedreclaimplanlibtestsymbols/SHA/age>80h+3nolivebuildcensuses+2fd/exe/mapscensuses reclaimed186MBolde2e+178MBoldJim (ba54/d6cb)onlyfrozenAderivedtarget. Allsource/evidence/ZIP/currentexecutablespreserved,free~2.57GB;no localRustbuilds. ExternalBIGIP/perfstalereportedwithouttakeover,triagecomplete.
+- CurrentC47shard3closed3228P687F+1ignored/3915selected,andHeavy325P31F/E2E3581P259Fqualified;main24624partial3459P911F20035unknown219notselected5eb27baa. API3all3PASS910ebfbsourceC47only. Shard1/4closedNOartifact/logtruncatedor404BlobNotFound remainUNOBSERVED. Remaining4C47+3Cef60healthy preserved.
+- Privateclockhelpers sourceConsumerHOLD4edbac/29dffpinnedC86/C90externalclock.tcl vsRustVMdoorhonest;no coupledexternalfailureclaim/namespacewhitelist/fixture rollback. Central::aliashostdeny sourceprovenexistingVM-C9exposure andoldF5policy, noNativeauthority/newVMregistration. AllsectionF/currentzeroPTF/requiredgreen/acceptedTclperformance/finaldocs-comments-generated-fixtures-package-squashgatesOPEN/noPR.
