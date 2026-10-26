@@ -445,10 +445,6 @@ fn document_requests(
         } else {
             walk.segment_nested(region, offset)
         } {
-            let command_offset = command
-                .argv
-                .first()
-                .map_or(offset, |word| word.span.start());
             let words = walk
                 .native_words(document.source, &command)
                 .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
