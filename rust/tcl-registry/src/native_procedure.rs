@@ -560,6 +560,20 @@ impl NativeProcedureDefinitionSpec {
         select_native_procedure_definition(arguments)
     }
 
+    /// Pure argv positions for authored source. This selects no native result,
+    /// formal/static acceptance, installation, frame or execution receipt.
+    pub(crate) fn authored_source_positions(
+        self,
+        arguments: InvocationArguments<'_>,
+    ) -> Option<ProcedureArgumentPositions> {
+        match self {
+            Self::Core => procedure_argument_positions(
+                arguments.dialect()?.parameter_grammar()?,
+                arguments.exact_argv_len()?,
+            ),
+        }
+    }
+
     /// Native definition usage without a command prefix inferred by consumers.
     #[must_use]
     pub fn usage(self, dialect: Option<crate::InvocationDialect>) -> Option<&'static str> {
@@ -616,6 +630,36 @@ pub enum NativeProcedureDefinitionSelection {
     Unknown,
 }
 
+/// Positional grammar only; carries no result, installation or execution proof.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ProcedureArgumentPositions {
+    /// Effective post-head command-name ordinal.
+    pub name: usize,
+    /// Effective post-head formal-list ordinal.
+    pub parameters: usize,
+    /// Optional persistent-static-list ordinal, without parsing its contents.
+    pub statics: Option<usize>,
+    /// Deferred original script ordinal, without entering its body.
+    pub body: usize,
+}
+
+fn procedure_argument_positions(
+    grammar: tcl_dialect::ParameterGrammar,
+    count: usize,
+) -> Option<ProcedureArgumentPositions> {
+    let (statics, body) = match (grammar, count) {
+        (tcl_dialect::ParameterGrammar::Tcl | tcl_dialect::ParameterGrammar::Jim, 3) => (None, 2),
+        (tcl_dialect::ParameterGrammar::Jim, 4) => (Some(2), 3),
+        _ => return None,
+    };
+    Some(ProcedureArgumentPositions {
+        name: 0,
+        parameters: 1,
+        statics,
+        body,
+    })
+}
+
 /// Select the native operation's definition shape independently of its name.
 #[must_use]
 pub fn select_native_procedure_definition(
@@ -631,22 +675,18 @@ pub fn select_native_procedure_definition(
     let Some(count) = arguments.exact_argv_len() else {
         return Selection::Unknown;
     };
-    let (statics_at, body_at, result) = match (grammar, count) {
-        (tcl_dialect::ParameterGrammar::Tcl, 3) => (None, 2, ProcedureDefinitionResult::Empty),
-        (tcl_dialect::ParameterGrammar::Jim, 3) => {
-            (None, 2, ProcedureDefinitionResult::NameArgument)
-        }
-        (tcl_dialect::ParameterGrammar::Jim, 4) => {
-            (Some(2), 3, ProcedureDefinitionResult::NameArgument)
-        }
-        _ => return Selection::Invalid,
+    let Some(positions) = procedure_argument_positions(grammar, count) else {
+        return Selection::Invalid;
     };
     Selection::Valid(NativeProcedureDefinition {
-        name_at: 0,
-        parameters_at: 1,
-        statics_at,
-        body_at,
-        result,
+        name_at: positions.name,
+        parameters_at: positions.parameters,
+        statics_at: positions.statics,
+        body_at: positions.body,
+        result: match grammar {
+            tcl_dialect::ParameterGrammar::Tcl => ProcedureDefinitionResult::Empty,
+            tcl_dialect::ParameterGrammar::Jim => ProcedureDefinitionResult::NameArgument,
+        },
     })
 }
 
