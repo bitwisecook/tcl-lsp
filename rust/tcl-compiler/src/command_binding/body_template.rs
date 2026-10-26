@@ -931,6 +931,72 @@ mod tests {
         )
     }
 
+    fn assert_native_template_owner_refusals(
+        bindings: &ModuleCommandBindings,
+        body: &Script,
+        scope: BodyProofScope<'_>,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        let mut changed_config = scope.config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        assert!(
+            bindings
+                .prepare_native_body_template(
+                    body,
+                    BodyProofScope {
+                        config: changed_config,
+                        ..scope
+                    },
+                    context.commands()
+                )
+                .is_none()
+        );
+        assert!(
+            bindings
+                .prepare_native_body_template(
+                    body,
+                    BodyProofScope {
+                        source: "proc p {} {set x OTHER; set x}; p",
+                        ..scope
+                    },
+                    context.commands()
+                )
+                .is_none()
+        );
+        let mut changed = body.clone();
+        let tokens = changed
+            .statements
+            .iter_mut()
+            .find_map(Statement::tokens_mut)
+            .unwrap();
+        tokens.word_exprs.pop();
+        assert!(
+            bindings
+                .prepare_native_body_template(&changed, scope, context.commands())
+                .is_none()
+        );
+        assert!(
+            bindings
+                .prepare_native_body_template(
+                    body,
+                    BodyProofScope {
+                        original_body_offset: scope.original_body_offset + 1,
+                        ..scope
+                    },
+                    context.commands()
+                )
+                .is_none()
+        );
+        let mut changed_bindings = bindings.clone();
+        Arc::make_mut(&mut changed_bindings.baseline).metadata_context =
+            OwnedInvocationMetadataContext::Unavailable;
+        assert!(
+            changed_bindings
+                .prepare_native_body_template(body, scope, context.commands())
+                .is_none()
+        );
+    }
+
     #[test]
     fn original_native_body_template_keeps_tagged_owner_and_original_rebased_vectors() {
         // naming.compiler.original-analysis-metadata-context
@@ -1034,64 +1100,7 @@ mod tests {
                     .is_none()
             );
         }
-        let mut changed_config = scope.config;
-        changed_config.strict_quoting = !changed_config.strict_quoting;
-        assert!(
-            bindings
-                .prepare_native_body_template(
-                    &body,
-                    BodyProofScope {
-                        config: changed_config,
-                        ..scope
-                    },
-                    context.commands()
-                )
-                .is_none()
-        );
-        assert!(
-            bindings
-                .prepare_native_body_template(
-                    &body,
-                    BodyProofScope {
-                        source: "proc p {} {set x OTHER; set x}; p",
-                        ..scope
-                    },
-                    context.commands()
-                )
-                .is_none()
-        );
-        let mut changed = body.clone();
-        let tokens = changed
-            .statements
-            .iter_mut()
-            .find_map(Statement::tokens_mut)
-            .unwrap();
-        tokens.word_exprs.pop();
-        assert!(
-            bindings
-                .prepare_native_body_template(&changed, scope, context.commands())
-                .is_none()
-        );
-        assert!(
-            bindings
-                .prepare_native_body_template(
-                    &body,
-                    BodyProofScope {
-                        original_body_offset: scope.original_body_offset + 1,
-                        ..scope
-                    },
-                    context.commands()
-                )
-                .is_none()
-        );
-        let mut changed_bindings = bindings.clone();
-        Arc::make_mut(&mut changed_bindings.baseline).metadata_context =
-            OwnedInvocationMetadataContext::Unavailable;
-        assert!(
-            changed_bindings
-                .prepare_native_body_template(&body, scope, context.commands())
-                .is_none()
-        );
+        assert_native_template_owner_refusals(&bindings, &body, scope, &context);
     }
 
     #[test]

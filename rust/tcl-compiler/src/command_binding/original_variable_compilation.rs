@@ -913,6 +913,43 @@ mod logical_substitution_tests {
         }
     }
 
+    fn assert_native_engines_refuse_logical_substitution() {
+        for engine in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-tmsh",
+        ] {
+            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+            let native = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::context_for_profile(profile),
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            );
+            inspect_original_read(
+                "consume $scalar",
+                &native,
+                |state, original, arena, context| {
+                    assert!(
+                        logical_original_substitution_access(
+                            Some(original),
+                            Some(arena),
+                            state,
+                            context
+                        )
+                        .is_none(),
+                        "{engine}"
+                    );
+                },
+            );
+        }
+    }
+
     #[test]
     fn logical_original_substitution_refuses_missing_native_and_stale_ownership() {
         // naming.source.logical-original-variable-substitution
@@ -1013,39 +1050,6 @@ mod logical_substitution_tests {
                 );
             },
         );
-        for engine in [
-            "tcl8.4",
-            "tcl8.5",
-            "tcl8.6",
-            "tcl9.0",
-            "tcl9.1",
-            "jim",
-            "f5-irules",
-            "f5-tmsh",
-        ] {
-            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
-            let native = crate::analyser::ResolvedAnalysisInput::new(
-                profile,
-                profile,
-                tcl_registry::model::ingress::context_for_profile(profile),
-                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
-            );
-            inspect_original_read(
-                "consume $scalar",
-                &native,
-                |state, original, arena, context| {
-                    assert!(
-                        logical_original_substitution_access(
-                            Some(original),
-                            Some(arena),
-                            state,
-                            context
-                        )
-                        .is_none(),
-                        "{engine}"
-                    );
-                },
-            );
-        }
+        assert_native_engines_refuse_logical_substitution();
     }
 }
