@@ -312,6 +312,8 @@ struct WasmEmitter {
     procedure_arity: HashMap<crate::ir::ProcedureId, usize>,
     direct_procs: HashSet<crate::ir::ProcedureId>,
     facts: FunctionFacts,
+    retained_i64: Option<super::native_add::retained_publication::RetainedI64Publication>,
+    retained_i64_import: Option<u32>,
 }
 
 impl WasmEmitter {
@@ -332,6 +334,8 @@ impl WasmEmitter {
             procedure_arity: HashMap::new(),
             direct_procs: HashSet::new(),
             facts: FunctionFacts::default(),
+            retained_i64: None,
+            retained_i64_import: None,
         }
     }
 
@@ -354,6 +358,8 @@ impl WasmEmitter {
             procedure_arity: HashMap::new(),
             direct_procs: HashSet::new(),
             facts: FunctionFacts::default(),
+            retained_i64: None,
+            retained_i64_import: None,
         }
     }
 
@@ -737,7 +743,12 @@ impl WasmEmitter {
 
         let abort = self.open_frame(WasmOp::Block);
         self.invocation_abort = Some(abort);
-        self.emit_invoke_node(&plan.root, &plan, argv, abort, true);
+        let candidate = self
+            .retained_i64
+            .as_ref()
+            .filter(|candidate| candidate.span == span && self.mode == FunctionMode::Top)
+            .cloned();
+        self.emit_invoke_node(&plan.root, &plan, argv, abort, true, candidate.as_ref());
         self.invocation_abort = None;
         self.close_frame();
 
@@ -773,6 +784,7 @@ impl WasmEmitter {
         argv: ArgvImports,
         abort: u32,
         outermost: bool,
+        candidate: Option<&super::native_add::retained_publication::RetainedI64Publication>,
     ) {
         for word in &node.words {
             self.emit_word_plan(word, plan, argv, abort);
@@ -783,10 +795,23 @@ impl WasmEmitter {
         self.push_i32(slot_offset(node.argv_slot));
         self.push(WasmOp::I32Add);
         self.push_i32(i64::try_from(node.words.len()).unwrap_or(i64::MAX));
+        if let Some(candidate) = candidate {
+            self.push_i64(i64::from_le_bytes(candidate.guard.value().to_le_bytes()));
+            self.push_text_pair(
+                core::str::from_utf8(&candidate.parameters).expect("original UTF-8 formal source"),
+            );
+            self.push_text_pair(
+                core::str::from_utf8(&candidate.body).expect("original UTF-8 body source"),
+            );
+        }
         self.local_get(self.frame_local);
         self.push_i32(i64::from(completion));
         self.push(WasmOp::I32Add);
-        self.call(argv.invoke_argv);
+        self.call(if candidate.is_some() {
+            self.retained_i64_import.expect("retained candidate import")
+        } else {
+            argv.invoke_argv
+        });
         self.push(WasmOp::Drop);
 
         self.local_get(self.frame_local);
@@ -847,7 +872,9 @@ impl WasmEmitter {
                 self.store_i32(slot_offset(*slot));
                 self.emit_word_error_guard(*slot, abort);
             }
-            WasmWordPlan::Invoke(node) => self.emit_invoke_node(node, plan, argv, abort, false),
+            WasmWordPlan::Invoke(node) => {
+                self.emit_invoke_node(node, plan, argv, abort, false, None)
+            }
             WasmWordPlan::Concat {
                 slot,
                 parts_slot,
@@ -2154,6 +2181,8 @@ pub(super) enum WasmEmissionMode<'a> {
     /// Common proofs selected sealed-program native i64 addition with one
     /// registry-proved boxed output boundary.
     NativeI64Add(&'a WasmNativeI64AddSelection),
+    /// Preserve all original statements and request a checked body only after actual entry.
+    RetainedNativeI64Add(&'a super::native_add::retained_publication::RetainedI64Publication),
     /// `BackendRegistry` selected one prebuilt-argv semantic invocation.
     SemanticInvoke(&'a WasmGenericInvokePlan),
     /// Common analysis selected a guarded boxed intrinsic over the semantic
@@ -2194,8 +2223,9 @@ pub(super) fn emit_wasm(
         NativeCompilationAdmissionPlan::NoRetainedObligation => mode,
         NativeCompilationAdmissionPlan::HostProcedure(_) => unreachable!("selected script scope"),
     };
-    let analysis = (matches!(mode, WasmEmissionMode::General)
+    let analysis = ((matches!(mode, WasmEmissionMode::General)
         && options.analysis_specialisations())
+        || matches!(mode, WasmEmissionMode::RetainedNativeI64Add(_)))
     .then_some((unit, registry));
     let native = (matches!(mode, WasmEmissionMode::General) && options.native_tier_enabled())
         .then_some(NativeTier {
@@ -2406,6 +2436,8 @@ fn codegen_runtime_chunk(
         procedure_arity: HashMap::new(),
         direct_procs: HashSet::new(),
         facts: FunctionFacts::default(),
+        retained_i64: None,
+        retained_i64_import: None,
     };
     if let Some(chunk) = chunk {
         wasm.source_function_ids.insert(
@@ -2456,6 +2488,13 @@ fn codegen(
         return (wasm, report);
     }
     let imports = add_general_imports(&mut wasm, analysis.is_some());
+    let retained_i64 = match mode {
+        WasmEmissionMode::RetainedNativeI64Add(publication) => Some(publication.clone()),
+        _ => None,
+    };
+    let retained_i64_import = retained_i64
+        .as_ref()
+        .map(|_| add_codegen_import(&mut wasm, CodegenAbiImportId::ProcDefineGuardedI64AddArgv));
     let native_imports: Option<NativeImports> =
         native.map(|_| native_emit::add_native_imports(&mut wasm, &mut add_codegen_import));
 
@@ -2478,9 +2517,9 @@ fn codegen(
         procs,
         indices: proc_indices,
         arity: procedure_arity,
-        direct: direct_procs,
+        direct: mut direct_procs,
     } = procedure_plan(module, analysis, top_idx);
-    let top_facts = analysis.map_or_else(FunctionFacts::default, |(unit, registry)| {
+    let mut top_facts = analysis.map_or_else(FunctionFacts::default, |(unit, registry)| {
         function_facts(
             &unit.top_level,
             module,
@@ -2490,6 +2529,13 @@ fn codegen(
         )
     });
 
+    if let Some(candidate) = &retained_i64 {
+        direct_procs.clear();
+        top_facts.direct_assignments.clear();
+        top_facts
+            .leaf_invocations
+            .insert(span_key(candidate.span), candidate.word_plan.clone());
+    }
     let mut emitter = WasmEmitter {
         imports: EmitterImports::General(imports),
         body: Vec::new(),
@@ -2506,6 +2552,8 @@ fn codegen(
         procedure_arity,
         direct_procs,
         facts: top_facts,
+        retained_i64,
+        retained_i64_import,
     };
     // Every procedure body is lowered *before* `::top` is emitted: which of
     // them lowered decides the module's window in the runtime's shared
@@ -2762,7 +2810,9 @@ fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMo
             wasm.memory_pages = required_pages(data_base, &emitter.data);
             wasm.data_segments = emitter.data;
         }
-        WasmEmissionMode::General | WasmEmissionMode::RuntimeChunk(_) => return false,
+        WasmEmissionMode::General
+        | WasmEmissionMode::RuntimeChunk(_)
+        | WasmEmissionMode::RetainedNativeI64Add(_) => return false,
     }
     true
 }

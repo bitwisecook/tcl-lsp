@@ -305,6 +305,9 @@ pub enum CodegenAbiImportId {
     ProcDefineOriginalArgv,
     /// Original dispatch with a compiled-entry candidate checked at its handler.
     ProcDefineGuardedArgv,
+    /// Request an inert future i64 body candidate while preserving original guarded publication.
+    /// The runtime derives any execution permission from the actual entered body artifact.
+    ProcDefineGuardedI64AddArgv,
     /// Log one `while executing` / `invoked from within` `errorInfo` frame for
     /// a compiled statement that completed with an error.
     ///
@@ -428,6 +431,7 @@ impl CodegenAbiImportId {
         Self::ProcDefineNative,
         Self::ProcDefineOriginalArgv,
         Self::ProcDefineGuardedArgv,
+        Self::ProcDefineGuardedI64AddArgv,
         Self::LogCommand,
         Self::ReturnState,
         Self::NativeProcDispatches,
@@ -518,6 +522,20 @@ impl CodegenAbiImportId {
             Self::ProcDefineGuardedArgv => tcl_import(
                 "tcl_codegen_proc_define_guarded_argv",
                 I32_I32_I32_I64_I32,
+                I32,
+            ),
+            Self::ProcDefineGuardedI64AddArgv => tcl_import(
+                "tcl_codegen_proc_define_guarded_i64_add_argv",
+                &[
+                    CodegenAbiValueType::I32,
+                    CodegenAbiValueType::I32,
+                    CodegenAbiValueType::I64,
+                    CodegenAbiValueType::I32,
+                    CodegenAbiValueType::I32,
+                    CodegenAbiValueType::I32,
+                    CodegenAbiValueType::I32,
+                    CodegenAbiValueType::I32,
+                ],
                 I32,
             ),
             Self::ProcDefineOriginalArgv => tcl_import(

@@ -457,19 +457,21 @@ impl WasmCodegenPlan {
     }
 }
 
-/// Exhaustively checked input to the native i64 addition emitter.
+/// Native i64 emission mode and its retained evidence.
 ///
-/// Constructed only from common proof objects. The backend receives values and
-/// an already-resolved direct function identity, never Tcl command spellings.
+/// A frame-elided mode is constructed only from complete common execution proofs.
+/// A retained-publication mode preserves every original statement and transports
+/// only an inert source candidate; its runtime actual entered artifact must
+/// independently select the checked body. It consumes no closed statements.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WasmNativeI64AddSelection {
-    /// Direct procedure identity selected by the common binding proof.
+    /// Module-issued procedure identity; retained mode uses it only for source association.
     pub callee: crate::common_aot_plan::ProcedureIdentity,
-    /// Exact first operand from covered constant and range proofs.
+    /// Exact first operand for frame-elided selection; unused for retained publication.
     pub left: i64,
-    /// Exact second operand from covered constant and range proofs.
+    /// Exact second operand for frame-elided selection; unused for retained publication.
     pub right: i64,
-    /// Registry-owned semantic operation at the boxed result boundary.
+    /// Registry semantic boundary for frame-elided mode; Invoke for retained original dispatch.
     pub boundary_operation: SemanticOperationId,
     /// The common direct-call proof discharged Tcl frame materialisation.
     pub frame_elided: bool,
@@ -583,6 +585,22 @@ pub fn compile_wasm(
         }
         Err(declines) => declines,
     };
+    if let Some(retained) = native_add::select_retained(unit, registry, options) {
+        let (module, report) = backend::emit_wasm(
+            unit,
+            registry,
+            options,
+            WasmEmissionMode::RetainedNativeI64Add(&retained.publication),
+        );
+        return WasmCompilation {
+            module,
+            plan: WasmCodegenPlan::NativeI64Add {
+                native: retained.native,
+                region_plan,
+            },
+            native: report,
+        };
+    }
     let (semantic_plan, evidence) = match select_semantic_plan(unit, options) {
         Ok(plan) => match validate_plan_layout(&plan, options.data_base) {
             Ok(()) => {
