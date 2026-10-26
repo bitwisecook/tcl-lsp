@@ -1,7 +1,7 @@
 {
   "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
   "schema": 1,
-  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance. Separately labelled three bounded scan-window lifetime controls on the same fresh server libtest; no new build or budget.",
+  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance. Separately labelled three bounded scan-window lifetime controls on the same fresh server libtest; no new build or budget. Separately labelled four positive-reference dependency/publication/lease controls use the same fresh server libtest after old navigation and scan controls, unchanged shared limits.",
   "selectors": [
     "tests::public_navigation_waits_for_live_index_before_source_view_routing"
   ],
@@ -24,5 +24,11 @@
     "workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window",
     "workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs",
     "workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs"
+  ],
+  "positive_reference_controls": [
+    "readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_all_live_views_without_unrelated_completion",
+    "readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_selected_and_dependent_unknown_mutation",
+    "readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_foreign_publication_and_changed_input",
+    "readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_unrelated_child_physical_lease"
   ]
 }

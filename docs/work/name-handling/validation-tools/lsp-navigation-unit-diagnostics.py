@@ -17,8 +17,9 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "519e4b8e05a0ef236f6fa277987f7a58be78258cee8b50c17c6f642a34d758d0"
+ROSTER_SHA = "a027cbf41f5e76d178b8ebc5af1231874df1d2d100570f9816f43a304d1d99a7"
 SCAN_RETENTION_CONTROLS = ('workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window', 'workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs', 'workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs')
+POSITIVE_REFERENCE_CONTROLS = ('readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_all_live_views_without_unrelated_completion', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_selected_and_dependent_unknown_mutation', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_foreign_publication_and_changed_input', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_unrelated_child_physical_lease')
 BASE = Path(__file__).resolve().parent
 
 
@@ -163,6 +164,37 @@ def run_scan_retention_controls(roster, executable, artifact, out, cases):
         save(out / "scan-retention-cases.json", cases)
 
 
+def validate_positive_reference_controls(roster):
+    require(
+        roster.get("positive_reference_controls") == list(POSITIVE_REFERENCE_CONTROLS),
+        "exact bounded positive reference controls mismatch",
+    )
+
+
+def run_positive_reference_controls(roster, executable, artifact, out, cases):
+    validate_positive_reference_controls(roster)
+    for index, selector in enumerate(roster["positive_reference_controls"]):
+        require(sha(executable) == artifact["sha256"], "selected executable changed")
+        prefix = "positive-reference-" + str(index + 1)
+        listed = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list", executable, 180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+                == [selector + ": test"],
+            "exact positive reference control missing/ambiguous",
+        )
+        receipt = execute(
+            [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix, executable, 180,
+        )
+        result = original_result((out / (prefix + ".stdout")).read_text(), receipt["exit_code"])
+        cases.append({"selector": selector, "result": result, "exit_code": receipt["exit_code"]})
+        save(out / "positive-reference-cases.json", cases)
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -186,6 +218,7 @@ remaining = CAP
 processes = []
 cases = []
 scan_retention_cases = []
+positive_reference_cases = []
 seals = {}
 originals = {}
 providers = []
@@ -201,6 +234,7 @@ try:
     require(sha(executor) == EXECUTOR_SHA, "process owner pin changed")
     require(sha(roster_path) == ROSTER_SHA, "navigation unit roster pin changed")
     roster = json.loads(roster_path.read_text())
+    validate_positive_reference_controls(roster)
     require(
         roster["executor_sha256"] == EXECUTOR_SHA
         and len(roster["selectors"]) == 1
@@ -427,6 +461,16 @@ try:
         and all(case["result"] == "PASS" for case in scan_retention_cases)
         else 1
     )
+
+    prior_positive_reference_status = status
+    status = 2
+    run_positive_reference_controls(roster, executable, artifact, out, positive_reference_cases)
+    status = (
+        0 if prior_positive_reference_status == 0
+        and len(positive_reference_cases) == 4
+        and all(case["result"] == "PASS" for case in positive_reference_cases)
+        else 1
+    )
 except (
     RuntimeError,
     OSError,
@@ -479,6 +523,8 @@ finally:
             "cases": cases,
             "scan_retention_cases": scan_retention_cases,
             "separate_scan_retention_total": len(scan_retention_cases),
+            "positive_reference_cases": positive_reference_cases,
+            "separate_positive_reference_total": len(positive_reference_cases),
             "separate_supplemental_total": len(cases),
             "processes": processes,
             "remaining_log_bytes": remaining,
