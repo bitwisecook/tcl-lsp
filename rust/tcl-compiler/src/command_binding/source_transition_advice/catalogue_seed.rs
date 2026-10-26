@@ -204,7 +204,10 @@ mod tests {
         assert_eq!(first.cells, original.cells);
         assert_eq!(first.namespaces, original.namespaces);
         assert_eq!(first.namespace_exports, original.namespace_exports);
-        assert!(std::ptr::eq(&*first.cells, &*second.cells));
+        assert!(std::ptr::eq(
+            std::ptr::from_ref(&*first.cells),
+            std::ptr::from_ref(&*second.cells)
+        ));
         assert!(!Arc::ptr_eq(
             &first.procedure_steps,
             &second.procedure_steps
@@ -239,7 +242,7 @@ mod tests {
         let changed_context = memo.get(&other_context, &policy, dialect).unwrap();
         let same_store = other_context.with_command_store(Arc::clone(context.commands()));
         assert!(Arc::ptr_eq(context.commands(), same_store.commands()));
-        assert!(context.context() != same_store.context());
+        assert_ne!(context.context(), same_store.context());
         let context_only = memo.get(&same_store, &policy, dialect).unwrap();
         assert!(!Arc::ptr_eq(&seed, &context_only));
         let uncached = AdviceCatalogueSeed::build(&same_store, &policy).unwrap();
