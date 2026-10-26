@@ -665,6 +665,165 @@ mod tests {
         )
     }
 
+    fn assert_hosted_source_only_admission(
+        selected: &super::SourceStructuredInvocation,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: super::InvocationMetadataContext<'_>,
+        tokens: &crate::ir::CommandTokens,
+    ) {
+        assert!(
+            crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                registry, metadata, tokens
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::admitted_native_compiler_invocation(registry, None, tokens)
+                .is_none()
+        );
+        assert!(
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens
+            )
+            .is_none()
+        );
+        assert!(
+            selected
+                .with_original_source_schema(
+                    registry,
+                    metadata,
+                    tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+                    |schema| Some(schema.facts().lowering_hook),
+                )
+                .flatten()
+                .is_some()
+        );
+        assert!(
+            selected
+                .with_metadata_schema(
+                    registry,
+                    metadata,
+                    tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+                    |_| Some(())
+                )
+                .is_none()
+        );
+        assert!(
+            selected
+                .with_metadata_schema(
+                    registry,
+                    metadata,
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                    |_| Some(())
+                )
+                .is_some()
+        );
+    }
+
+    fn assert_hosted_changed_inputs(
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        profile: &'static tcl_dialect::DialectProfile,
+        policy: tcl_syntax::naming::VendorSourceNamePolicy,
+    ) {
+        let changed_inputs = [
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                input.unit_profile(),
+                input.context_registry(),
+                input.lexer_config(),
+            ),
+            crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                profile,
+                input.context_registry(),
+                input.lexer_config(),
+            ),
+            input.clone().with_vendor_source_policy(policy),
+        ];
+        for changed in changed_inputs {
+            assert!(changed.has_hosted_source_name_context());
+            let changed_metadata =
+                super::InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
+            assert!(
+                super::original_hosted_structured_invocation(registry, changed_metadata, tokens)
+                    .is_none()
+            );
+        }
+    }
+
+    fn assert_hosted_policy_branches(
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        source: &tcl_lexer::SourceImage,
+        policy: tcl_syntax::naming::VendorSourceNamePolicy,
+    ) {
+        for (policy, accepted) in [
+                (policy, true),
+                (tcl_syntax::naming::VendorSourceNamePolicy::authored(
+                    tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::TmshCliScript
+                ).unwrap(), false),
+            ] {
+                let issued_input = input.clone().with_vendor_source_policy(policy);
+                let issued_metadata = super::InvocationMetadataContext::for_analysis_input(
+                    registry, &issued_input
+                ).unwrap();
+                let mut issued = tokens.clone();
+                issued.hosted_taint_context = Some(std::sync::Arc::new(
+                    crate::registry_invocation::HostedSourceTaintContext::from_lowering(
+                        source.clone(), issued_input.lexer_config(), issued_input.context_registry()
+                    ).unwrap().retain_source_structure_input(Some(&issued_input))
+                ));
+                assert_eq!(super::original_hosted_structured_invocation(
+                    registry, issued_metadata, &issued
+                ).is_some(), accepted);
+            }
+    }
+
+    fn assert_hosted_missing_contexts(
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        source: &tcl_lexer::SourceImage,
+        metadata: super::InvocationMetadataContext<'_>,
+    ) {
+        let mut missing_input = tokens.clone();
+        missing_input.hosted_taint_context = Some(std::sync::Arc::new(
+            crate::registry_invocation::HostedSourceTaintContext::from_lowering(
+                source.clone(),
+                input.lexer_config(),
+                input.context_registry(),
+            )
+            .unwrap(),
+        ));
+        assert!(
+            super::original_hosted_structured_invocation(registry, metadata, &missing_input)
+                .is_none()
+        );
+        let mut missing = tokens.clone();
+        missing.hosted_taint_context = None;
+        assert!(
+            super::original_hosted_structured_invocation(registry, metadata, &missing).is_none()
+        );
+        let mut stale = tokens.clone();
+        stale.argv_texts[1] = "changed".to_owned();
+        assert!(super::original_hosted_structured_invocation(registry, metadata, &stale).is_none());
+        assert!(
+            super::original_hosted_structured_invocation(
+                registry,
+                crate::registry_invocation::InvocationMetadataContext::from(input_context(
+                    registry
+                )),
+                tokens
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission() {
         for (source, switch) in [
@@ -735,146 +894,16 @@ mod tests {
                 selected.lowering_identity(),
                 crate::registry_invocation::SelectedLoweringBindingIdentity::HostedSchema(_)
             ));
-            assert!(
-                crate::registry_invocation::original_structured_invocation_with_metadata_context(
-                    registry, metadata, tokens
-                )
-                .is_none()
-            );
-            assert!(
-                crate::registry_invocation::admitted_native_compiler_invocation(
-                    registry, None, tokens
-                )
-                .is_none()
-            );
-            assert!(
-                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
-                    registry,
-                    Some(metadata),
-                    tokens
-                )
-                .is_none()
-            );
-            assert!(
-                selected
-                    .with_original_source_schema(
-                        registry,
-                        metadata,
-                        tcl_dialect::model::InvocationRealm::InterpreterRuntime,
-                        |schema| Some(schema.facts().lowering_hook),
-                    )
-                    .flatten()
-                    .is_some()
-            );
-            assert!(
-                selected
-                    .with_metadata_schema(
-                        registry,
-                        metadata,
-                        tcl_dialect::model::InvocationRealm::InterpreterRuntime,
-                        |_| Some(())
-                    )
-                    .is_none()
-            );
-            assert!(
-                selected
-                    .with_metadata_schema(
-                        registry,
-                        metadata,
-                        tcl_dialect::model::InvocationRealm::RuleLoader,
-                        |_| Some(())
-                    )
-                    .is_some()
-            );
+            assert_hosted_source_only_admission(&selected, registry, metadata, tokens);
             let input = module.source_metadata_input.as_ref().unwrap();
             let profile = tcl_dialect::DialectProfile::plain_tcl();
             let policy = tcl_syntax::naming::VendorSourceNamePolicy::authored(
                 tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::TmmIRule,
             )
             .unwrap();
-            let changed_inputs = [
-                crate::analyser::ResolvedAnalysisInput::new(
-                    profile,
-                    input.unit_profile(),
-                    input.context_registry(),
-                    input.lexer_config(),
-                ),
-                crate::analyser::ResolvedAnalysisInput::new(
-                    input.analyser_profile(),
-                    profile,
-                    input.context_registry(),
-                    input.lexer_config(),
-                ),
-                input.clone().with_vendor_source_policy(policy),
-            ];
-            for changed in changed_inputs {
-                assert!(changed.has_hosted_source_name_context());
-                let changed_metadata =
-                    super::InvocationMetadataContext::for_analysis_input(registry, &changed)
-                        .unwrap();
-                assert!(
-                    super::original_hosted_structured_invocation(
-                        registry,
-                        changed_metadata,
-                        tokens
-                    )
-                    .is_none()
-                );
-            }
-            for (policy, accepted) in [
-                (policy, true),
-                (tcl_syntax::naming::VendorSourceNamePolicy::authored(
-                    tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::TmshCliScript
-                ).unwrap(), false),
-            ] {
-                let issued_input = input.clone().with_vendor_source_policy(policy);
-                let issued_metadata = super::InvocationMetadataContext::for_analysis_input(
-                    registry, &issued_input
-                ).unwrap();
-                let mut issued = tokens.clone();
-                issued.hosted_taint_context = Some(std::sync::Arc::new(
-                    crate::registry_invocation::HostedSourceTaintContext::from_lowering(
-                        module.source.clone(), issued_input.lexer_config(), issued_input.context_registry()
-                    ).unwrap().retain_source_structure_input(Some(&issued_input))
-                ));
-                assert_eq!(super::original_hosted_structured_invocation(
-                    registry, issued_metadata, &issued
-                ).is_some(), accepted);
-            }
-            let mut missing_input = tokens.clone();
-            missing_input.hosted_taint_context = Some(std::sync::Arc::new(
-                crate::registry_invocation::HostedSourceTaintContext::from_lowering(
-                    module.source.clone(),
-                    input.lexer_config(),
-                    input.context_registry(),
-                )
-                .unwrap(),
-            ));
-            assert!(
-                super::original_hosted_structured_invocation(registry, metadata, &missing_input)
-                    .is_none()
-            );
-            let mut missing = tokens.clone();
-            missing.hosted_taint_context = None;
-            assert!(
-                super::original_hosted_structured_invocation(registry, metadata, &missing)
-                    .is_none()
-            );
-            let mut stale = tokens.clone();
-            stale.argv_texts[1] = "changed".to_owned();
-            assert!(
-                super::original_hosted_structured_invocation(registry, metadata, &stale).is_none()
-            );
-            assert!(
-                super::original_hosted_structured_invocation(
-                    registry,
-                    crate::registry_invocation::InvocationMetadataContext::from(input_context(
-                        registry
-                    )),
-                    tokens
-                )
-                .is_none()
-            );
+            assert_hosted_changed_inputs(input, registry, tokens, profile, policy);
+            assert_hosted_policy_branches(input, registry, tokens, &module.source, policy);
+            assert_hosted_missing_contexts(input, registry, tokens, &module.source, metadata);
         }
     }
 

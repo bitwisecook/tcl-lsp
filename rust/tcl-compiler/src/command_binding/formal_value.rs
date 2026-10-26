@@ -682,135 +682,13 @@ fn incoming_formal_value(
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn original_formal_copy_query_retains_full_source_metadata_and_explicit_compatibility() {
-        // naming.compiler.original-analysis-metadata-context
-
-        use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
-        use std::sync::Arc;
-        let context =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
-        let profile = context.commands().profile().unwrap();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        let input = crate::analyser::ResolvedAnalysisInput::new(
-            profile,
-            profile,
-            Arc::clone(&context),
-            config,
-        );
-        let source = "proc p {target} {set saved $target; upvar 1 $saved local}; p VALUE";
-        let (_runtime_owner, captured) =
-            crate::environment_ingress::captured_native_entry_with_owner(profile);
-        let inventory = super::SourceCommandBindings::analyse_with_options(
-            source,
-            config,
-            context.commands(),
-            super::super::SourceAnalysisOptions {
-                metadata_context: InvocationMetadataInput::SuppliedSource(Some(&input)),
-                native_entry: Some(&captured),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-                ..Default::default()
-            },
-        );
-        let origin = inventory.root_origin.as_ref().unwrap();
-        let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
-        let entry = inventory.conditional_body_entry_at(origin, offset).unwrap();
-        let tokens = inventory
-            .declaration_original_tokens_at(&entry, offset)
-            .unwrap();
-        let (spelling, site) = tokens.words()[2].sole_variable_substitution().unwrap();
-        let owner = OwnedInvocationMetadataContext::for_source_input(Some(&input));
-        assert_eq!(
-            inventory
-                .symbolic_declaration_formal_value_at(
-                    origin,
-                    site,
-                    spelling,
-                    &["target"],
-                    (context.commands(), &owner)
-                )
-                .as_deref(),
-            Some("target")
-        );
-        let older = Arc::new(
-            tcl_registry::model::ingress::static_context_for("tcl8.4")
-                .with_command_store(Arc::clone(context.commands())),
-        );
-        let foreign =
-            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
-        for context in [older, foreign] {
-            let changed =
-                crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
-            assert!(
-                inventory
-                    .symbolic_declaration_formal_value_at(
-                        origin,
-                        site,
-                        spelling,
-                        &["target"],
-                        (
-                            input.context_registry().commands(),
-                            &OwnedInvocationMetadataContext::for_source_input(Some(&changed))
-                        )
-                    )
-                    .is_none()
-            );
-        }
-        for owner in [
-            OwnedInvocationMetadataContext::Unavailable,
-            OwnedInvocationMetadataContext::Standalone,
-            OwnedInvocationMetadataContext::Supplied(Arc::clone(&context)),
-        ] {
-            assert!(
-                inventory
-                    .symbolic_declaration_formal_value_at(
-                        origin,
-                        site,
-                        spelling,
-                        &["target"],
-                        (context.commands(), &owner)
-                    )
-                    .is_none()
-            );
-        }
-        let mut changed_config = config;
-        changed_config.strict_quoting = !changed_config.strict_quoting;
-        let changed = crate::analyser::ResolvedAnalysisInput::new(
-            profile,
-            profile,
-            Arc::clone(&context),
-            changed_config,
-        );
-        assert!(
-            inventory
-                .symbolic_declaration_formal_value_at(
-                    origin,
-                    site,
-                    spelling,
-                    &["target"],
-                    (
-                        context.commands(),
-                        &OwnedInvocationMetadataContext::for_source_input(Some(&changed))
-                    )
-                )
-                .is_none()
-        );
-        let other = super::SourceCommandBindings::analyse(
-            "proc p {target} {set saved $target; upvar 1 $saved local}; p OTHER",
-            config,
-            context.commands(),
-        );
-        assert!(
-            other
-                .symbolic_declaration_formal_value_at(
-                    origin,
-                    site,
-                    spelling,
-                    &["target"],
-                    (context.commands(), &owner)
-                )
-                .is_none()
-        );
+    fn assert_standalone_original_formal_compatibility(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        context: &tcl_registry::model::ContextRegistry,
+        offset: u32,
+    ) {
+        use crate::registry_invocation::OwnedInvocationMetadataContext;
         let standalone = super::SourceCommandBindings::analyse(source, config, context.commands());
         let origin = standalone.root_origin.as_ref().unwrap();
         let entry = standalone
@@ -849,6 +727,166 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+
+    fn assert_original_formal_value_retained(
+        inventory: &super::SourceCommandBindings,
+        origin: &std::sync::Arc<super::super::SourceOriginId>,
+        site: &crate::ir::SourceSite,
+        spelling: &str,
+        context: &tcl_registry::model::ContextRegistry,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+    ) {
+        assert_eq!(
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (context.commands(), owner)
+                )
+                .as_deref(),
+            Some("target")
+        );
+    }
+
+    fn assert_changed_original_formal_input_refused(
+        inventory: &super::SourceCommandBindings,
+        origin: &std::sync::Arc<super::super::SourceOriginId>,
+        site: &crate::ir::SourceSite,
+        spelling: &str,
+        context: &tcl_registry::model::ContextRegistry,
+        changed: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        use crate::registry_invocation::OwnedInvocationMetadataContext;
+        assert!(
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (
+                        context.commands(),
+                        &OwnedInvocationMetadataContext::for_source_input(Some(changed))
+                    )
+                )
+                .is_none()
+        );
+    }
+
+    fn assert_original_formal_value_refused(
+        inventory: &super::SourceCommandBindings,
+        origin: &std::sync::Arc<super::super::SourceOriginId>,
+        site: &crate::ir::SourceSite,
+        spelling: &str,
+        context: &tcl_registry::model::ContextRegistry,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+    ) {
+        assert!(
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (context.commands(), owner),
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_formal_copy_query_retains_full_source_metadata_and_explicit_compatibility() {
+        // naming.compiler.original-analysis-metadata-context
+
+        use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "proc p {target} {set saved $target; upvar 1 $saved local}; p VALUE";
+        let (_runtime_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let inventory = super::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            context.commands(),
+            super::super::SourceAnalysisOptions {
+                metadata_context: InvocationMetadataInput::SuppliedSource(Some(&input)),
+                native_entry: Some(&captured),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                ..Default::default()
+            },
+        );
+        let origin = inventory.root_origin.as_ref().unwrap();
+        let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
+        let entry = inventory.conditional_body_entry_at(origin, offset).unwrap();
+        let tokens = inventory
+            .declaration_original_tokens_at(&entry, offset)
+            .unwrap();
+        let (spelling, site) = tokens.words()[2].sole_variable_substitution().unwrap();
+        let owner = OwnedInvocationMetadataContext::for_source_input(Some(&input));
+        assert_original_formal_value_retained(&inventory, origin, site, spelling, &context, &owner);
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for context in [older, foreign] {
+            let changed =
+                crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+            assert!(
+                inventory
+                    .symbolic_declaration_formal_value_at(
+                        origin,
+                        site,
+                        spelling,
+                        &["target"],
+                        (
+                            input.context_registry().commands(),
+                            &OwnedInvocationMetadataContext::for_source_input(Some(&changed))
+                        )
+                    )
+                    .is_none()
+            );
+        }
+        for owner in [
+            OwnedInvocationMetadataContext::Unavailable,
+            OwnedInvocationMetadataContext::Standalone,
+            OwnedInvocationMetadataContext::Supplied(Arc::clone(&context)),
+        ] {
+            assert_original_formal_value_refused(
+                &inventory, origin, site, spelling, &context, &owner,
+            );
+        }
+        let mut changed_config = config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            changed_config,
+        );
+        assert_changed_original_formal_input_refused(
+            &inventory, origin, site, spelling, &context, &changed,
+        );
+        let other = super::SourceCommandBindings::analyse(
+            "proc p {target} {set saved $target; upvar 1 $saved local}; p OTHER",
+            config,
+            context.commands(),
+        );
+        assert_original_formal_value_refused(&other, origin, site, spelling, &context, &owner);
+        assert_standalone_original_formal_compatibility(source, config, &context, offset);
     }
 
     #[test]
