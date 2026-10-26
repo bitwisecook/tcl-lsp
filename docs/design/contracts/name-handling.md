@@ -4001,3 +4001,27 @@ foreign/equal-text sources, different allocations, remapped bodies and missing
 formals refuse; neither frame is retagged or made equal to another purpose.
 
 The static-read child view keeps a weak reference to the already validated positioned source owner. A differing known Procedure frame is accepted only after the same live producer recreates the full binding, including its lookup snapshot, and the existing header context or actual body ancestry owns that frame. The independently allocated original body snapshot retains its own frame/context; header and body frames are never equated. Unknown, retired, foreign or altered producer views refuse. Original operand roles, alias/residual checks and input/source guards remain mandatory; this view grants no physical read, Native or Normal completion.
+
+## Original Native procedure compiler formals
+
+The live `OriginalProcedureCompileRequest` and its compiler-pass entry issue
+`OriginalNativeCompilerFormals` under the ordinary Tcl parameter grammar and
+selected native variable compiler protocol. The scoped receipt retains the
+ordered declaration names, exact root `SourceOriginId` allocation, native
+namespace, nominal procedure compiler frame, complete body range and lexer
+configuration. Foreign source allocations, changed configurations, inherited
+source-point entries and retired request owners refuse this compiler purpose.
+Compiler-equivalent duplicate formals and unavailable ordered inventories also
+refuse it.
+
+`SourceCompilerLocalInventory` keeps these declaration-owned compiler slots
+separate from `OriginalFormalTopology`, which requires original authored header
+syntax. The original compiler traversal supplies additional local declarations
+in order. The request receipt does not reconstruct `params_raw`, borrow a
+caller's physical local table or supply a complete source-analysis input.
+Immutable equality and hashing retain declaration data; queries independently
+check the request's weak owner and current entry before returning a primary.
+
+This receipt establishes compiler-local coordinates only. Body custody,
+handler effects, callback closure, Normal completion, entered activation,
+physical slots and frame-elision safety retain their own proof requirements.
