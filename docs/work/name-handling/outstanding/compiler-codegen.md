@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T15:07:21.515098+00:00
+Last updated: 2026-10-26T15:39:49.894669+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current generator audit: exact authored roster is incorrectly extended with every registry command; minimal paired producer/header repair ccg-generator-authored-roster-v1 master7fd4fb48 is frozen for SourceProc review, no fixture edits. User-surface six added labels remain separately unproved. Runtime mechanical conversion/borrow reservation is native_variable_names.rs + native_jim_lookup.rs; ExprError carrier remains Runtime-owned. Latest f231 strict FULLAUTH261 primaries (259 Clippy+2 Jim test Rust errors), exact Err variant136bytes; no JSON machine-applicable spans. A509 source union independently clear73323945 and Root applied8fa then intentionally advanced for next fixes; wait fresh freeze. Both CI runs remain active: Cef60 Rust2/E2E1/E2E2; C47 Heavy/all5Rust/all3E2E. No cancellation, duplicate ZIP or broad acceptance.
 
 Finalc22ec metadata118fd5a5/efeead4e independentCLEAR075c108f/all23/388pins242sources;17refresh+30explicitfull11Jimkeys,10actualruntimeguards andV14PASS. Rootcanonicalapply/preflightpending(no otherP/A Gitbyme). Usercostcoverage29da8358 locked; explicit4changedpurposes notrenameequivalence. Latest3castrict FULLAUTH26 885aae1f sixLIBTESTClippy/0RusttypeE, fixesincohort;latestWASM d072FULLAUTH368 b12d25PASS. HealthyCef60fullCI onlyRust2+E2E1/2active;all28nativejobsAPISUCCESSscoped. ClosedHeavy325P31F,shard3 3222P691F,shard5 4599P610F,E2E3 577P262F,runtime2306P91F. Main24624availablejoin8266P1969F14173unknown216notselected(raw80decbc7), explicitpartialshard4 capture_valid=false retained. Names6actualcandidatePASS butcoverageunaccepted. TailcallchangedpurposeactualFAIL, exactmismatchunobserved128bytesample/cappedstderr; restorednewcaseexecutionneeded. API3/getter11/allocation2/headroom2 scopedactualPASS. Source216ownerreports/mappingHOLDs retained;onecodegenvaluesSTATICrenamepeer39df actualpending.
 

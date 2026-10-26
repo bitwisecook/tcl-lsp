@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "3c3fb05d8d5240a9ff6f34a30dd94033c51b7cef",
-  "last_published_snapshot": "54a827804cc26dde23a386e2efecff10546ec7b5",
+  "last_source_snapshot": "3abe3d2e9d3148b225441d62a623646343fc06ca",
+  "last_published_snapshot": "a509cfbbcf4a5f3b6db190978ba88855b38e4c25",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,7 +16,7 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-26T15:10:02.066305+00:00",
+  "last_published_utc": "2026-10-26T15:19:05.312132+00:00",
   "product_tree_diff": [
     ".claude/skills/jetbrains-plugin-compat/SKILL.md",
     ".github/workflows/ci.yml",
@@ -772,6 +772,7 @@
     "rust/tcl-vm/tests/command_mutation_deopt_e2e.rs",
     "rust/tcl-vm/tests/common/mod.rs",
     "rust/tcl-vm/tests/embed_api_e2e.rs",
+    "rust/tcl-vm/tests/run_script.rs",
     "rust/tcl-vm/tests/step_trace_inline_e2e.rs",
     "rust/tcl-vm/tests/thread_exit_retirement.rs",
     "rust/xtask/src/fp_sweep.rs",
@@ -803,15 +804,15 @@
   ],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "Current mirror159 functional paths equal canonical published product tree; documentationcheckpoint65004\u2192b8e and active source mirror98de mapped explicitly after push. No active source rebase/checkout.",
-  "unpublished_active_base": "3c3fb05d8d5240a9ff6f34a30dd94033c51b7cef",
-  "active_current_head": "3c3fb05d8d5240a9ff6f34a30dd94033c51b7cef",
+  "unpublished_active_base": "3abe3d2e9d3148b225441d62a623646343fc06ca",
+  "active_current_head": "3abe3d2e9d3148b225441d62a623646343fc06ca",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-26T15:10:02.066305+00:00",
+  "updated_utc": "2026-10-26T15:19:05.312132+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness.",
   "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
   "external_product_static_peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
   "active_source_integration_pending": true,
-  "external_product_base": "be374a24802bca3d894da191070c661e986e4c35",
+  "external_product_base": "7f3fd8bf0d35ea6a2f685fac22ceb22138c0dfc1",
   "source_equivalence_checked_at": "2026-10-23T17:08:33.347195+00:00",
   "source_equivalence_published_head": "7f3d0bfe9b88422b88f394901ea53c17a26761d4"
 }
