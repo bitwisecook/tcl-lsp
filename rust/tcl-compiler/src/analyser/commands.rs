@@ -1847,9 +1847,9 @@ impl Analyser {
         match hook {
             // Early-return families: the handler owns the whole command
             // (including its body walk) when it returns `true`.
-            Hook::Proc => {
-                self.handle_proc_command(cmd_name, args, arg_tokens, arg_single, scope_path)
-            }
+            Hook::Proc => self.handle_proc_command_at(
+                cmd_name, args, arg_tokens, arg_single, scope_path, cmd_tok,
+            ),
             Hook::OptProc => self.handle_opt_proc_command(args, arg_tokens, arg_single, scope_path),
             // `interp eval path { … }` — the child interpreter's script is
             // analysed in an isolated scope; a `{}`/multi-word/dynamic shape
@@ -5145,7 +5145,9 @@ impl Analyser {
             use tcl_registry::hooks::AnalyserHookId as Hook;
             match self.resolve_analyser_hook(&cmd_name, args) {
                 Some(Hook::Proc) => {
-                    self.handle_proc_command(&cmd_name, args, arg_tokens, arg_single, scope_path);
+                    self.handle_proc_command_at(
+                        &cmd_name, args, arg_tokens, arg_single, scope_path, cmd_tok,
+                    );
                 }
                 Some(Hook::OptProc) => {
                     self.handle_opt_proc_command(args, arg_tokens, arg_single, scope_path);
