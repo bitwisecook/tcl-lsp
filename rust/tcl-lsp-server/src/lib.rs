@@ -22865,22 +22865,20 @@ impl Backend {
         let (documents, source_worlds) =
             Box::pin(self.command_source_documents(member, documents, identity.uri())).await?;
         let owners = implementation_inventory(&documents);
-        let conditional_worlds = source_worlds
-            .as_ref()
-            .map(OriginalCommandSourceWorldCapture::worlds)
-            .unwrap_or_default();
         let planned = if member {
             tcl_lsp_core::original_member_rename::original_member_rename_edits(
                 &owners, &identity, new_name,
             )
             .map_err(original_member_rename_refusal_error)
         } else {
-            original_command_rename::original_command_rename_edits_with_conditional_worlds(
+            self.original_command_plan_with_source_views(
                 &owners,
                 &identity,
                 new_name,
-                &conditional_worlds,
+                source_worlds.as_ref(),
             )
+            .await?
+            .ok_or_else(stale)?
             .map_err(original_command_rename_refusal_error)
         };
         let intents = match planned {

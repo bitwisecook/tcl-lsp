@@ -7,8 +7,8 @@
 mod region;
 pub(super) use region::SourceConditionalRegionEntry;
 pub use region::{
-    OriginalSourceConditionalOutcome, OriginalSourceConditionalRegion,
-    OriginalSourceConditionalRegionSet,
+    OriginalSingleSourceCutSurvey, OriginalSourceConditionalOutcome,
+    OriginalSourceConditionalRegion, OriginalSourceConditionalRegionSet,
 };
 
 use super::{

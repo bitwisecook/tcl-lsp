@@ -2678,6 +2678,51 @@ impl Backend {
         Ok((selected_documents, Some(capture)))
     }
 
+    /// Enclose the complete source survey in the existing physical and
+    /// interpretation publication leases. No borrowed view escapes rendering.
+    pub(crate) async fn original_command_plan_with_source_views(
+        &self,
+        documents: &[tcl_lsp_core::original_declaration::OriginalDeclarationDocument<'_>],
+        identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
+        new_tail: &str,
+        capture: Option<&OriginalCommandSourceWorldCapture>,
+    ) -> DocumentSourceResult<
+        Option<
+            Result<
+                Vec<tcl_lsp_core::rename::WorkspaceTextEdit>,
+                tcl_lsp_core::original_command_rename::OriginalCommandRenameRefusal,
+            >,
+        >,
+    > {
+        let Some(capture) = capture else {
+            return Ok(Some(tcl_lsp_core::original_command_rename::original_command_rename_edits_with_conditional_worlds(
+                documents, identity, new_tail, &[],
+            )));
+        };
+        if !self
+            .original_command_source_worlds_are_current(capture)
+            .await?
+        {
+            return Ok(None);
+        }
+        let mut ids = Vec::new();
+        for scope in &capture.settlement.scopes {
+            for id in &scope.ids {
+                if !ids.contains(id) {
+                    ids.push(*id);
+                }
+            }
+        }
+        let worlds = capture.worlds();
+        self.with_selected_original_source_views(&ids, Some(capture.settlement.revision), |views| {
+            let (publications, ancestors) = Self::original_source_view_labels(views)?;
+            let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
+            Some(tcl_lsp_core::original_command_rename::original_command_rename_edits_with_source_views(
+                documents, identity, new_tail, &worlds, &inventory,
+            ))
+        }).await
+    }
+
     pub(crate) async fn capture_original_command_source_worlds_if_needed(
         &self,
         member: bool,

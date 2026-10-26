@@ -882,6 +882,88 @@ pub fn original_authored_quiet_store_for_source_coverage<'a>(
         .then_some(OriginalQuietScalarStoreSourceCoverage { selected, analysis })
 }
 
+/// Same-owner coverage of one known source-load transition. The completed
+/// source survey remains conditional; physical leases belong to the host.
+pub struct OriginalConditionalSourceLoadCoverage<'a> {
+    selected: ResolvedStatementInvocation,
+    analysis: &'a crate::analyser::AnalysisResult,
+    outcome: &'a crate::command_binding::OriginalSourceConditionalOutcome,
+    load: source_structure::OriginalProjectSourceLoad,
+}
+impl OriginalConditionalSourceLoadCoverage<'_> {
+    /// Only this selected invocation may consume the source-load coverage.
+    #[must_use]
+    pub const fn invocation(&self) -> &ResolvedStatementInvocation {
+        &self.selected
+    }
+    /// Never attach this proof to another current analysis allocation.
+    #[must_use]
+    pub fn is_for_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
+        std::ptr::eq(self.analysis, analysis) && self.outcome.matches_prefix_analysis(analysis)
+    }
+    /// Exact original path ordinal of the registered load transition.
+    #[must_use]
+    pub const fn path_argument(&self) -> usize {
+        self.load.path_argument()
+    }
+}
+
+/// Rejoin the exact current static load with its compiler-issued finite survey.
+/// This grants no physical loading, Native invocation or operation Normal fact.
+#[must_use]
+pub fn original_conditional_source_load_for_coverage<'a>(
+    source: &str,
+    analysis: &'a crate::analyser::AnalysisResult,
+    tokens: &CommandTokens,
+    survey: &crate::command_binding::OriginalSingleSourceCutSurvey<'a>,
+) -> Option<OriginalConditionalSourceLoadCoverage<'a>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = input.lexer_config();
+    let realm = analysis.retained_command_realm()?;
+    if !analysis.matches_original_source_image(&image, config)
+        || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    let offset = tokens.argv.first()?.start();
+    let binding = tokens.source_binding.as_ref()?;
+    let expected = realm.retained_original_tokens_for_command(&image, config, offset, tokens)?;
+    if expected.source_binding.as_ref() != Some(binding) {
+        return None;
+    }
+    let load = source_structure::original_project_source_load_at(source, analysis, offset)?;
+    load.literal_path()?;
+    if !survey.matches_load(analysis, &load) {
+        return None;
+    }
+    let registry = analysis.resolved_registry()?;
+    let context = InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        analysis.resolved_profile(),
+    )?;
+    let selected = original_declared_structured_invocation(registry, context, tokens)?;
+    original_structured_operands_are_supported(registry, &selected, None, tokens)?;
+    let native = original_native_compiler_words(&image, tokens.words(), offset, config)?;
+    let name = binding.original_head_name_input(tokens)?;
+    let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        &native,
+        name.policy().string_protocol(),
+    )
+    .ok()?;
+    if native.len() != 2 || (0..native.len()).any(|ordinal| captured.literal(ordinal).is_none()) {
+        return None;
+    }
+    Some(OriginalConditionalSourceLoadCoverage {
+        selected,
+        analysis,
+        outcome: survey.outcome(),
+        load,
+    })
+}
+
 /// Exact conditional result-completion source coverage, without execution,
 /// Native admission, completed effects or Normal operation completion.
 /// Every executable argument component remains an independent source survey.

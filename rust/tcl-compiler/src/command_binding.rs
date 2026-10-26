@@ -333,8 +333,9 @@ mod source_analysis_entry;
 mod source_execution_control;
 mod source_point_entry;
 pub use conditional_source::{
-    OriginalSourceConditionalContinuation, OriginalSourceConditionalOutcome,
-    OriginalSourceConditionalRegion, OriginalSourceConditionalRegionSet,
+    OriginalSingleSourceCutSurvey, OriginalSourceConditionalContinuation,
+    OriginalSourceConditionalOutcome, OriginalSourceConditionalRegion,
+    OriginalSourceConditionalRegionSet,
 };
 mod source_argument_syntax;
 use source_analysis_entry::native_compilation_dialect;
