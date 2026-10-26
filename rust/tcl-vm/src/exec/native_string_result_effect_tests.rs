@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual selected Native source/header correspondence for the effect receipt.
 
+use tcl_syntax::value::ValueOps;
+
 #[test]
 fn actual_native_template_append_preserves_cow_and_original_header_alternatives() {
     for engine in ["tcl8.6", "tcl9.0"] {
