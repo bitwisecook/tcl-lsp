@@ -1074,6 +1074,8 @@ pub struct Lowerer<'r> {
     aliases: CommandAliasMap,
     /// Point-specific command state in the current source span space.
     source_bindings: Option<RetainedSourceBodyInventory>,
+    original_native_compiler_formals:
+        Option<std::sync::Arc<crate::command_binding::OriginalNativeCompilerFormals>>,
     /// Written geometry only while lowering an authentic body with its
     /// independently selected namespace; never an execution or lookup owner.
     original_body_word_source: Option<crate::command_binding::OriginalBodyWrittenWordOwner>,
@@ -1379,6 +1381,7 @@ impl<'r> Lowerer<'r> {
             module: Module::default(),
             aliases: CommandAliasMap::new(),
             source_bindings: None,
+            original_native_compiler_formals: None,
             original_body_word_source: None,
             module_source_bindings: None,
             compilation_scope: tcl_runtime_api::SourceCompilationScope::WholeModule,
@@ -2320,7 +2323,7 @@ impl<'r> Lowerer<'r> {
         // word and metadata joins; a missing body receipt cannot borrow them.
         let frame = self.source_entry_frame(namespace);
         let image = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
-        let Some(bindings) = SourceCommandBindings::analyse_image_in_frame_with_purpose(
+        let Some(bindings) = SourceCommandBindings::analyse_image_with_original_native_formals(
             &image,
             &frame,
             self.config,
@@ -2362,6 +2365,9 @@ impl<'r> Lowerer<'r> {
                 },
             },
             purpose,
+            self.original_native_compiler_formals
+                .as_ref()
+                .filter(|_| self.nest_depth == 1),
         ) else {
             self.source = enclosing_source;
             self.nest_depth -= 1;
@@ -6795,6 +6801,7 @@ pub fn lower_script_bytes_module_for_bytecode_with_options(
             namespace: target.namespace,
             kind: crate::ir::TopLevelKind::Script,
             ordinary_parameters: None,
+            original_request: None,
         },
         registry,
         config,
@@ -6823,6 +6830,7 @@ pub fn lower_procedure_bytes_module_for_bytecode_with_options(
             namespace: target.namespace,
             kind: crate::ir::TopLevelKind::ProcedureBody,
             ordinary_parameters: None,
+            original_request: None,
         },
         registry,
         config,
@@ -6860,6 +6868,7 @@ pub fn lower_original_procedure_bytes_module_for_bytecode_with_options(
             namespace: target.namespace,
             kind: crate::ir::TopLevelKind::ProcedureBody,
             ordinary_parameters,
+            original_request: Some(request),
         },
         registry,
         config,
@@ -6875,6 +6884,7 @@ struct NativeLoweringTarget<'a> {
     namespace: &'a tcl_core_types::ByteNamespacePath,
     kind: crate::ir::TopLevelKind,
     ordinary_parameters: Option<&'a [tcl_core_types::NameBytes]>,
+    original_request: Option<&'a tcl_runtime_api::OriginalProcedureCompileRequest>,
 }
 
 fn lower_native_target(
@@ -6890,12 +6900,21 @@ fn lower_native_target(
         namespace,
         kind,
         ordinary_parameters,
+        original_request,
     } = target;
     let mut lowerer = Lowerer::with_config(registry, config)
         .with_dialect(dialect)
         .for_bytecode_backend();
     if let Some(options) = options {
         lowerer.set_source_analysis_options(options);
+    }
+    if let (Some(request), Some(entry)) = (original_request, lowerer.native_entry.as_ref()) {
+        lowerer.original_native_compiler_formals =
+            crate::command_binding::OriginalNativeCompilerFormals::capture(
+                request,
+                std::sync::Arc::clone(entry),
+                lowerer.config,
+            );
     }
     if plain_command_dispatch {
         lowerer = lowerer.trace_visible();

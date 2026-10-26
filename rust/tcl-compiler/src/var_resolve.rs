@@ -611,6 +611,10 @@ pub struct ResolveContext {
     /// rest of a procedure's compiled-local inventory or authenticate a CPP.
     pub(crate) original_formal_topology:
         Option<std::sync::Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
+    /// Compiler formal slots from a live original Native procedure request.
+    /// This is not authored syntax, a physical layout or an entered frame.
+    pub(crate) original_native_compiler_formals:
+        Option<std::sync::Arc<crate::command_binding::OriginalNativeCompilerFormalScope>>,
     /// Actual own-provider receiver inventory, queried separately by each
     /// supplied compiler-primary or runtime-root resolver purpose.
     pub(crate) original_receiver_variable_candidates:
@@ -1596,6 +1600,7 @@ impl Hash for ResolveContext {
         self.closed_literal_contents.hash(state);
         self.original_name_values.hash(state);
         self.original_formal_topology.hash(state);
+        self.original_native_compiler_formals.hash(state);
         self.original_receiver_variable_candidates.hash(state);
         hash_map(&self.dictionary_scopes, state);
         self.value_representations.hash(state);
@@ -1669,6 +1674,7 @@ impl Default for ResolveContext {
             closed_literal_contents: VariableCellTable::default(),
             original_name_values: VariableCellTable::default(),
             original_formal_topology: None,
+            original_native_compiler_formals: None,
             original_receiver_variable_candidates: None,
             dictionary_scopes: HashMap::new(),
             value_representations: VariableCellTable::default(),
@@ -3327,6 +3333,9 @@ impl ResolveContext {
         self.join_original_name_values(other);
         if self.original_formal_topology != other.original_formal_topology {
             self.original_formal_topology = None;
+        }
+        if self.original_native_compiler_formals != other.original_native_compiler_formals {
+            self.original_native_compiler_formals = None;
         }
         if self.original_receiver_variable_candidates != other.original_receiver_variable_candidates
         {
