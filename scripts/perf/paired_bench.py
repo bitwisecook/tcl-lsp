@@ -73,9 +73,11 @@ ESCALATION = ((signal.SIGINT, 5), (signal.SIGTERM, 5), (signal.SIGKILL, 10))
 PINNED_HARNESS_FILES = {
     "scripts/perf/bench.py": "4d6dfd09a5c884b4f670f643c9cbbdb91ca9a8ed0e497b74bca67277ff53b01f",
     "scripts/perf/fetch_corpus.py": "b932f568c1194ae3858d54481c7e9568ca6987484e33677f12f41290ca4ba140",
-    ".claude/skills/lsp-client/lsp_client.py": "c10be772eca42e36970aa90dc86908fa4457967130080b897b15f045d18dccc0",
+    ".claude/skills/lsp-client/lsp_client.py": "72fa92435d43a53fd5a4a3b42e1450db8d38090e6caa10202840bcd22e3324dc",
     "scripts/perf/MANIFEST.toml": "956a8a562484da5356bfe340ec82531f699a18c65a7ea4a9e4efbdd9540b1f58",
 }
+DIAGNOSTIC_FLAG = 'TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS'
+DIAGNOSTIC_MARKER = 'SOURCE_POINT_MEMO_DIAGNOSTIC bypass=source-point-only otherwise_eligible=true fresh_process_required=true acceptance=forbidden'
 FAILURE_STATE: dict[str, object] = {"out": None, "meta": None, "phase": "startup"}
 
 
@@ -183,7 +185,13 @@ def preserve_failure(exc: Exception) -> None:
     try:
         dump(out / "paired-summary.json", meta)
         (out / "comparison.md").write_text(
-            "# Paired Tcl corpus benchmark\n\nINCOMPLETE: " + reason + "\n"
+            (
+                "# DIAGNOSTIC ONLY — NONACCEPTANCE\n\nINCOMPLETE: "
+                if meta.get("diagnostic_mode") == "source-point-memo-bypass"
+                else "# Paired Tcl corpus benchmark\n\nINCOMPLETE: "
+            )
+            + reason
+            + "\n"
         )
     except OSError:
         pass
@@ -367,6 +375,33 @@ def load_result(path: Path, scope: str) -> dict:
     return d
 
 
+def diagnostic_benchmark_env(env: dict[str, str], side: str, enabled: bool) -> dict[str, str]:
+    """Keep baseline/build inputs exact; only the fixed candidate experiment opts in."""
+    if side not in ("baseline", "candidate"):
+        raise Invalid("unknown benchmark side")
+    if enabled and side == "candidate":
+        return {**env, DIAGNOSTIC_FLAG: "1"}
+    return env
+
+
+def mark_diagnostic_nonacceptance(meta: dict[str, Any], enabled: bool) -> None:
+    if enabled:
+        meta["schema"] = "DIAGNOSTIC-source-point-memo-nonacceptance-v1"
+        meta["diagnostic_mode"] = "source-point-memo-bypass"
+        meta["acceptance_eligible"] = False
+        meta["accepted_pairs"] = 0
+        meta["comparable"] = False
+        meta["candidate_only_environment"] = {DIAGNOSTIC_FLAG: "1"}
+        meta["baseline_environment_overrides"] = {}
+        meta["fresh_candidate_process_required"] = True
+
+
+def diagnostic_marker_observed(process: dict[str, Any]) -> bool:
+    # run_bounded already caps the entire retained stream at LOG_CAP.
+    with Path(process["streams"]["stderr"]["path"]).open("rb") as stream:
+        return any(line.rstrip(b"\r\n") == DIAGNOSTIC_MARKER.encode() for line in stream)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--baseline-root", type=Path, required=True)
@@ -380,6 +415,7 @@ def main() -> int:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--bench-deadline", type=int, default=1800)
     ap.add_argument("--build-deadline", type=int, default=2700)
+    ap.add_argument("--diagnostic-source-point-memo-bypass", action="store_true")
     a = ap.parse_args()
     FAILURE_STATE["out"] = a.out.resolve()
     meta: dict[str, Any] = {
@@ -391,8 +427,11 @@ def main() -> int:
         "builds": [],
         "invalid_reasons": [],
     }
+    mark_diagnostic_nonacceptance(meta, a.diagnostic_source_point_memo_bypass)
     FAILURE_STATE["meta"] = meta
     FAILURE_STATE["phase"] = "validate inputs"
+    if DIAGNOSTIC_FLAG in os.environ:
+        raise Invalid("memo diagnostic flag must not be inherited by baseline/build parent")
     for s in (a.baseline_sha, a.candidate_sha):
         if not re.fullmatch(r"[0-9a-fA-F]{40}", s):
             raise Invalid("SHAs must be exactly 40 hex characters")
@@ -487,6 +526,7 @@ def main() -> int:
             "invalid_reasons": [],
         }
     )
+    mark_diagnostic_nonacceptance(meta, a.diagnostic_source_point_memo_bypass)
     FAILURE_STATE["meta"] = meta
     cargo = "cargo"
     env = os.environ.copy()
@@ -637,7 +677,7 @@ def main() -> int:
             pr = run_bounded(
                 argv,
                 cwd=harness,
-                env=env,
+                env=diagnostic_benchmark_env(env, side, a.diagnostic_source_point_memo_bypass),
                 out=out / "logs",
                 stem=label,
                 timeout_s=a.bench_deadline + 60,
@@ -677,6 +717,14 @@ def main() -> int:
                 if parsed
                 else None,
             }
+            if a.diagnostic_source_point_memo_bypass:
+                rec["diagnostic_only"] = True
+                rec["acceptance_eligible"] = False
+                if side == "candidate":
+                    observed = diagnostic_marker_observed(pr)
+                    rec["otherwise_eligible_bypass_observed"] = observed
+                    if not observed:
+                        meta["invalid_reasons"].append(f"{label}: diagnostic bypass UNOBSERVED")
             meta["runs"].append(rec)
             raw_runs[(pair, side)] = parsed
             if not require_group_closed(pr, label, meta, out):
@@ -729,6 +777,8 @@ def main() -> int:
                 and cc.get("note") is None
                 and counts_match
             )
+            if a.diagnostic_source_point_memo_bypass:
+                matched = False
             response_counts_present = (
                 bc.get("ops") is not None
                 and bc.get("items") is not None
@@ -800,6 +850,7 @@ def main() -> int:
             }
     meta["comparisons"] = comparisons
     meta["comparable"] = not meta["invalid_reasons"] and len(raw_runs) == 6
+    mark_diagnostic_nonacceptance(meta, a.diagnostic_source_point_memo_bypass)
     lines = [
         f"# Paired Tcl corpus benchmark: {a.scope}",
         "",
@@ -810,6 +861,9 @@ def main() -> int:
         "| Check | Paired wall Δ median (min…max, s) | Paired CPU Δ median (min…max, s) | Paired RSS-after Δ median (min…max, KiB) | comparable pairs |",
         "|---|---:|---:|---:|---:|",
     ]
+    if a.diagnostic_source_point_memo_bypass:
+        lines[0] = f"# DIAGNOSTIC ONLY source-point memo bypass: {a.scope}"
+        lines.insert(2, "NONACCEPTANCE: this experiment cannot certify production behavior or performance; accepted pairs=0.")
     for cmp in comparisons:
         ag = cmp["paired_delta_summary"]
 
@@ -845,6 +899,7 @@ def main() -> int:
                 f"{r}: benchmark modified the source checkout"
             )
     meta["comparable"] = not meta["invalid_reasons"] and len(raw_runs) == 6
+    mark_diagnostic_nonacceptance(meta, a.diagnostic_source_point_memo_bypass)
     if meta["invalid_reasons"]:
         lines += [
             "",
@@ -855,7 +910,7 @@ def main() -> int:
         dump(out / "paired-summary.json", meta)
         return 1
     dump(out / "paired-summary.json", meta)
-    return 0
+    return 2 if a.diagnostic_source_point_memo_bypass else 0
 
 
 if __name__ == "__main__":

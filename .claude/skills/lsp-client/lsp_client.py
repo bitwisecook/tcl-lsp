@@ -551,11 +551,19 @@ class LspClient:
     def _stderr_loop(self) -> None:
         """Background thread: capture server stderr lines."""
         assert self.process and self.process.stderr
+        diagnostic_marker_forwarded = False
         for raw in self.process.stderr:
             try:
                 line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
                 with self._lock:
                     self._stderr_lines.append(line)
+                if (
+                    not diagnostic_marker_forwarded
+                    and line == 'SOURCE_POINT_MEMO_DIAGNOSTIC bypass=source-point-only otherwise_eligible=true fresh_process_required=true acceptance=forbidden'
+                    and os.environ.get('TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS') == "1"
+                ):
+                    print(line, file=sys.stderr, flush=True)
+                    diagnostic_marker_forwarded = True
             except OSError:
                 break
 

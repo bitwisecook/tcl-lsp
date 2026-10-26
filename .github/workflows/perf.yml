@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, prep-pr-candidate-validation, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
+        options: [standard, paired, paired-source-point-memo-diagnostic, prep-pr-candidate-validation, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -66,7 +66,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'standard' }}-${{ inputs.candidate_sha || '' }}
-  cancel-in-progress: ${{ inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' }}
+  cancel-in-progress: ${{ inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' }}
 
 permissions:
   contents: read
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -325,8 +325,8 @@ jobs:
           echo "::warning title=Perf graphs not attached::release $tag did not appear within 20 minutes; the graphs are in this run's artefact"
 
   paired-benchmark:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'paired'
-    name: Paired ${{ matrix.scope }} / ${{ matrix.platform }}
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'paired' || inputs.mode == 'paired-source-point-memo-diagnostic')
+    name: ${{ inputs.mode == 'paired-source-point-memo-diagnostic' && 'DIAGNOSTIC ONLY memo' || 'Paired' }} ${{ matrix.scope }} / ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     permissions:
@@ -417,11 +417,16 @@ jobs:
           BASELINE_SHA: ${{ inputs.baseline_sha }}
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           SCOPE: ${{ matrix.scope }}
+          DIAGNOSTIC_MODE: ${{ inputs.mode }}
           CORPUS: ${{ runner.temp }}/paired-perf/corpus
           WORK: ${{ runner.temp }}/paired-perf/work
           OUT: ${{ runner.temp }}/paired-perf/output/${{ matrix.scope }}
         run: |
-          python3 harness/scripts/perf/paired_bench.py \
+          diagnostic_args=()
+          if [[ "$DIAGNOSTIC_MODE" == "paired-source-point-memo-diagnostic" ]]; then
+            diagnostic_args+=(--diagnostic-source-point-memo-bypass)
+          fi
+          python3 harness/scripts/perf/paired_bench.py "${diagnostic_args[@]}" \
             --baseline-root baseline --candidate-root candidate \
             --harness-root harness --corpus "$CORPUS" \
             --baseline-sha "$BASELINE_SHA" --candidate-sha "$CANDIDATE_SHA" \
@@ -439,7 +444,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: paired-perf-${{ matrix.platform }}-${{ matrix.scope }}-${{ inputs.candidate_sha }}
+          name: ${{ inputs.mode == 'paired-source-point-memo-diagnostic' && 'DIAGNOSTIC-ONLY-memo' || 'paired-perf' }}-${{ matrix.platform }}-${{ matrix.scope }}-${{ inputs.candidate_sha }}
           path: ${{ runner.temp }}/paired-perf/output/${{ matrix.scope }}
           if-no-files-found: warn
           retention-days: 30
