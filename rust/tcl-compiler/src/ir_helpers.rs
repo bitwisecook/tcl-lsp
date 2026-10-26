@@ -3473,6 +3473,63 @@ what it writes, got {got:?}"
         assert!(cond_out_vars("gets $fp line").iter().any(|v| v == "line"));
     }
 
+    fn assert_absolute_method_ir(module: &crate::ir::Module) {
+        assert!(
+            matches!(
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::exact"))
+                    .expect("authored fixture body")
+                    .body
+                    .statements
+                    .first(),
+                Some(Statement::Return { expr: Some(_), .. })
+            ),
+            "absolute nested expr must retain typed return IR: {:#?}",
+            module
+                .methods
+                .get(&fixture_id(&module.methods, "::C::exact"))
+                .expect("authored fixture body")
+                .body
+        );
+        assert!(
+            matches!(
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::exact_info"))
+                    .expect("authored fixture body")
+                    .body
+                    .statements
+                    .first(),
+                Some(Statement::If { .. })
+            ),
+            "absolute if must retain typed control IR: {:#?}",
+            module
+                .methods
+                .get(&fixture_id(&module.methods, "::C::exact_info"))
+                .expect("authored fixture body")
+                .body
+        );
+        assert!(
+            matches!(
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::exact_regex"))
+                    .expect("authored fixture body")
+                    .body
+                    .statements
+                    .first(),
+                Some(Statement::AssignConst { .. })
+            ),
+            "absolute set must retain typed assignment IR: {:#?}",
+            module
+                .methods
+                .get(&fixture_id(&module.methods, "::C::exact_regex"))
+                .expect("authored fixture body")
+                .body
+        );
+    }
+
     #[test]
     fn runtime_selected_method_namespace_inventory_requires_absolute_heads() {
         let registry = tcl_registry::default_registry();
@@ -3553,60 +3610,7 @@ what it writes, got {got:?}"
             ),
             "a relative nested binding consumed by typed lowering can be shadowed by the object namespace"
         );
-        assert!(
-            matches!(
-                module
-                    .methods
-                    .get(&fixture_id(&module.methods, "::C::exact"))
-                    .expect("authored fixture body")
-                    .body
-                    .statements
-                    .first(),
-                Some(Statement::Return { expr: Some(_), .. })
-            ),
-            "absolute nested expr must retain typed return IR: {:#?}",
-            module
-                .methods
-                .get(&fixture_id(&module.methods, "::C::exact"))
-                .expect("authored fixture body")
-                .body
-        );
-        assert!(
-            matches!(
-                module
-                    .methods
-                    .get(&fixture_id(&module.methods, "::C::exact_info"))
-                    .expect("authored fixture body")
-                    .body
-                    .statements
-                    .first(),
-                Some(Statement::If { .. })
-            ),
-            "absolute if must retain typed control IR: {:#?}",
-            module
-                .methods
-                .get(&fixture_id(&module.methods, "::C::exact_info"))
-                .expect("authored fixture body")
-                .body
-        );
-        assert!(
-            matches!(
-                module
-                    .methods
-                    .get(&fixture_id(&module.methods, "::C::exact_regex"))
-                    .expect("authored fixture body")
-                    .body
-                    .statements
-                    .first(),
-                Some(Statement::AssignConst { .. })
-            ),
-            "absolute set must retain typed assignment IR: {:#?}",
-            module
-                .methods
-                .get(&fixture_id(&module.methods, "::C::exact_regex"))
-                .expect("authored fixture body")
-                .body
-        );
+        assert_absolute_method_ir(&module);
     }
 }
 
