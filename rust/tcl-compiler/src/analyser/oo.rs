@@ -2716,6 +2716,11 @@ impl Analyser {
             class.relation_lookups.insert(base.clone(), None);
         }
         self.register_defined_class(qualified.clone(), class, scope_path);
+        self.record_authored_jim_procedure_members_at(
+            authored.factory().site().offset,
+            None,
+            scope_path,
+        );
         self.adopt_recorded_two_word_procs(&qualified, scope_path, None);
         true
     }
@@ -3026,6 +3031,17 @@ impl Analyser {
             return;
         };
         if purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+            let original_offset =
+                self.result
+                    .original_procedure_declarations()
+                    .find_map(|original| {
+                        (original.metadata() == proc).then_some(original.declaration_site().offset)
+                    });
+            if let Some(offset) = original_offset
+                && self.record_authored_jim_procedure_members_at(offset, Some(proc), scope_path)
+            {
+                return;
+            }
             let selected = self
                 .result
                 .original_procedure_declarations()
@@ -3071,6 +3087,52 @@ impl Analyser {
             return;
         };
         self.add_two_word_member(&class_q, member_word, proc, scope_path);
+    }
+
+    fn record_authored_jim_procedure_members_at(
+        &mut self,
+        offset: u32,
+        expected: Option<&super::types::ProcDef>,
+        scope_path: &[usize],
+    ) -> bool {
+        let Some(references) =
+            crate::registry_invocation::source_structure::source_authored_jim_procedure_members_at(
+                &self.source,
+                &self.result,
+                offset,
+            )
+        else {
+            return false;
+        };
+        let mut recorded = false;
+        for reference in references {
+            let Some(procedure) = reference.source_procedure(&self.result) else {
+                continue;
+            };
+            if expected.is_some_and(|expected| procedure.metadata() != expected) {
+                continue;
+            }
+            let Some(canonical) = reference.class_metadata(&self.result) else {
+                continue;
+            };
+            let mut class = canonical.clone();
+            let Some(metadata) = self.original_authored_jim_procedure_member(
+                &reference,
+                procedure,
+                reference.member(),
+                &class,
+            ) else {
+                continue;
+            };
+            let Ok(label) = std::str::from_utf8(reference.member().bytes()) else {
+                continue;
+            };
+            insert_original_two_word_member(&mut class, label, procedure.metadata());
+            class.original_members.declare(metadata);
+            self.register_defined_class(class.qualified_name.clone(), class, scope_path);
+            recorded = true;
+        }
+        recorded
     }
 
     fn add_original_two_word_member(

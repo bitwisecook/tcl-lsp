@@ -77,6 +77,26 @@ pub struct OriginalAuthoredJimClass {
 }
 
 impl OriginalAuthoredJimClass {
+    pub(super) fn authored_policy(&self) -> Option<NamePolicyProtocol> {
+        match &self.purpose {
+            JimClassSourcePurpose::Authored(policy) => Some(*policy),
+            JimClassSourcePurpose::Logical(_) => None,
+        }
+    }
+    pub(super) fn source_slot(&self) -> &ByteCommandSlot {
+        &self.slot
+    }
+    pub(crate) fn grammar(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        self.factory.matches_context(context).then_some(())?;
+        let grammar = context
+            .context()
+            .resolve_spec(context.commands(), self.factory.command())?
+            .definition_body?;
+        (grammar.family == tcl_registry::definer::DefinerFamily::JimClass).then_some(grammar)
+    }
     /// Genuine selected source schema and original complete vector, with all debts.
     #[must_use]
     pub fn factory(&self) -> &OriginalSourceCommandTransitionAdvice {
@@ -179,7 +199,7 @@ impl OriginalAuthoredJimClass {
         variables
     }
 
-    fn metadata<'a>(&self, analysis: &'a AnalysisResult) -> Option<&'a ClassDef> {
+    pub(crate) fn metadata<'a>(&self, analysis: &'a AnalysisResult) -> Option<&'a ClassDef> {
         let input = analysis.resolved_input.as_ref()?;
         let image = self.factory.original_words().first()?.image();
         if !self.matches_source_context(image, input.lexer_config(), &input.context_registry())
@@ -243,7 +263,7 @@ impl OriginalAuthoredJimClass {
         )
     }
 
-    fn statically_complete(&self) -> bool {
+    pub(super) fn statically_complete(&self) -> bool {
         self.variables
             .as_ref()
             .is_some_and(|fields| fields.len().is_multiple_of(2))
