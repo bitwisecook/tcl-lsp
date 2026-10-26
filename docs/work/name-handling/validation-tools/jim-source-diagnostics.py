@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""WORK-only original Jim45, separate static5 diagnosis and exact new control."""
+"""WORK-only original Jim45, separate static5/control1, then raw-method diagnosis1."""
 
 import argparse
 import datetime
@@ -44,6 +44,8 @@ STATIC_CONTROL_SOURCE_PIN = (
     "70929c92a61c0c07c784a8288193a3a12880be0ef6974ff7375b4cdd58c6d287"
 )
 STATIC_CONTROL_CLEANUP_RESERVE_SECONDS = 30
+RAW_METHOD_DIAGNOSTIC_SELECTOR = "a_raw_two_word_proc_is_a_method_without_the_class_variables"
+RAW_METHOD_DIAGNOSTIC_QUOTA_MARKER = "JIM_SOURCE_OWNER stage=option_trace_quota state=UNOBSERVED limit=1024"
 
 
 def require(value, message):
@@ -144,6 +146,7 @@ def execute(
             "build-jim_static_read_alternatives",
             "list-jim_static_read_alternatives",
             "jim_static_read_alternatives-control-",
+            "jim_document-raw-method-diagnostic-",
         )
     ):
         available -= STATIC_CONTROL_CLEANUP_RESERVE_SECONDS
@@ -234,6 +237,7 @@ def run_selected(
                     "supplemental-outcomes.json",
                     "diagnostic-static-outcomes.json",
                     "static-alternatives-outcomes.json",
+                    "raw-method-diagnostic-outcomes.json",
                 ]
                 else None
             ),
@@ -256,6 +260,55 @@ def run_selected(
             raise
         save(out / outcomes_name, selected_rows)
         require(sha(executable) == artifact["sha256"], "selected test artifact changed")
+
+
+def run_raw_method_diagnostic():
+    require(
+        (len(rows), len(supplemental_rows), len(diagnostic_rows), len(static_control_rows), len(raw_method_diagnostic_rows)) == (7, 38, 5, 1, 1),
+        "raw-method diagnosis requires exact old51 plus separate1 inventories",
+    )
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + supplemental_rows + diagnostic_rows + static_control_rows
+        ),
+        "raw-method diagnosis requires the closed unchanged old51",
+    )
+    document_artifacts = [item for item in artifacts if item["target"] == "jim_document"]
+    require(len(document_artifacts) == 1, "one existing fresh Jim document ELF required")
+    artifact = document_artifacts[0]
+    listing = json.loads((out / "roster-jim_document.json").read_text())
+    require(
+        RAW_METHOD_DIAGNOSTIC_SELECTOR in listing["selected"]
+        and listing["executable_sha256"] == artifact["sha256"],
+        "raw-method selector requires the same fresh listed Jim document ELF",
+    )
+    print("RUN separate raw-method source-owner diagnosis after unchanged old51", flush=True)
+    run_selected(
+        Path(artifact["path"]),
+        artifact,
+        "jim_document",
+        [RAW_METHOD_DIAGNOSTIC_SELECTOR],
+        raw_method_diagnostic_rows,
+        "raw-method-diagnostic-outcomes.json",
+        "jim_document-raw-method-diagnostic",
+    )
+    row = raw_method_diagnostic_rows[0]
+    stderr = (out / row["stderr"]).read_text(errors="replace")
+    quota = RAW_METHOD_DIAGNOSTIC_QUOTA_MARKER in stderr
+    observed = any(
+        line.startswith("JIM_SOURCE_OWNER stage=jim.raw_member.")
+        for line in stderr.splitlines()
+    )
+    row.update(
+        observation_state="OBSERVED" if observed and not quota else "UNOBSERVED",
+        option_trace_quota_reached=quota,
+    )
+    save(out / "raw-method-diagnostic-outcomes.json", raw_method_diagnostic_rows)
+    require(
+        row["observation_state"] == "OBSERVED",
+        "raw-method source-owner first-refusal UNOBSERVED",
+    )
 
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -360,6 +413,20 @@ static_control_rows = [
     }
     for _ in range(1 if args.static_alternatives_control else 0)
 ]
+require(
+    RAW_METHOD_DIAGNOSTIC_SELECTOR in roster["full_rosters"]["jim_document"],
+    "raw-method diagnostic repeats the existing original failed selector",
+)
+raw_method_diagnostic_rows = [
+    {
+        "target": "jim_document",
+        "selector": RAW_METHOD_DIAGNOSTIC_SELECTOR,
+        "env": {"TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"},
+        "state": "UNRUN",
+        "observation_state": "UNOBSERVED",
+    }
+    for _ in range(1 if args.static_alternatives_control else 0)
+]
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -371,6 +438,7 @@ save(out / "outcomes.json", rows)
 save(out / "supplemental-outcomes.json", supplemental_rows)
 save(out / "diagnostic-static-outcomes.json", diagnostic_rows)
 save(out / "static-alternatives-outcomes.json", static_control_rows)
+save(out / "raw-method-diagnostic-outcomes.json", raw_method_diagnostic_rows)
 try:
     executor = BASE / "runtime-diagnostics-exec.py"
     require(sha(executor) == EXECUTOR_SHA, "reviewed process owner changed")
@@ -599,6 +667,8 @@ try:
             "diagnostic_static_roster": diagnostic_rows,
             "static_alternatives_control_requested": args.static_alternatives_control,
             "static_alternatives_control_roster": static_control_rows,
+            "raw_method_diagnostic_requested": bool(raw_method_diagnostic_rows),
+            "raw_method_diagnostic_roster": raw_method_diagnostic_rows,
             "static_alternatives_control_source_pin": STATIC_CONTROL_SOURCE_PIN,
             "static_alternatives_cleanup_reserve_seconds": (
                 STATIC_CONTROL_CLEANUP_RESERVE_SECONDS
@@ -945,6 +1015,8 @@ try:
                 "static-alternatives-outcomes.json",
                 target_name + "-control",
             )
+    if raw_method_diagnostic_rows:
+        run_raw_method_diagnostic()
     require(
         all(row["state"] in ["PASS", "FAIL"] for row in static_control_rows),
         "new static alternatives control inventory incomplete",
@@ -965,7 +1037,7 @@ try:
         0
         if all(
             row["state"] == "PASS"
-            for row in rows + supplemental_rows + diagnostic_rows + static_control_rows
+            for row in rows + supplemental_rows + diagnostic_rows + static_control_rows + raw_method_diagnostic_rows
         )
         else 1
     )
@@ -1019,6 +1091,7 @@ finally:
     save(out / "supplemental-outcomes.json", supplemental_rows)
     save(out / "diagnostic-static-outcomes.json", diagnostic_rows)
     save(out / "static-alternatives-outcomes.json", static_control_rows)
+    save(out / "raw-method-diagnostic-outcomes.json", raw_method_diagnostic_rows)
     save(
         out / "final.json",
         {
@@ -1052,6 +1125,15 @@ finally:
             ),
             "original_tests_closed": sum(
                 row["state"] in ["PASS", "FAIL"] for row in rows
+            ),
+            "raw_method_diagnostic_requested": bool(raw_method_diagnostic_rows),
+            "required_raw_method_diagnostic_tests": len(raw_method_diagnostic_rows),
+            "raw_method_diagnostic_outcomes": raw_method_diagnostic_rows,
+            "raw_method_diagnostic_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in raw_method_diagnostic_rows
+            ),
+            "raw_method_diagnostic_observations_closed": sum(
+                row.get("observation_state") == "OBSERVED" for row in raw_method_diagnostic_rows
             ),
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
