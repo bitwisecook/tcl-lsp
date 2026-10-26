@@ -1,10 +1,16 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T14:35:16Z
+Last updated: 2026-10-26T15:11:46Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T15:11:46Z: Sole f231 capture assignments accepted: Spec40345807014/job121652297274 in-progress, WASM40346020058/job121653035852 in-progress, iRules40346123039/job121653394381 queued, runtime16440346013051 still jobs-empty at bounded API. Four artifacts-empty, no downloads/duplicate capture/cancellation. Current source includes JimV2+164; observer e5ce2d91 now strong-cleared d9867d4c but remains NEXT/out current source. Top-levelpositive dd576 SourceProc review active, out current cohort. All prior 3ca source/process outcome seals retained.
+
+Current 2026-10-26T15:02:51Z: Root-authorized NEXT final-init identity observer frozen e5ce2d91, WORK-only command.rs/interp.rs, strong SourceProc peer pending. Same sampling/flag/counter/semantic argv and limits; stored caller length+prefix32 and resident info subcommand32/receiver128 with full lengths, absent/truncated explicitly unobserved. No getter/lookup/Native reference/full-name allocation. Exact current/F0/R/fmt and symbolic limits proof7dd617e8; no actual Rust/Native execution. Current c22ec finalunion deliberately untouched. Top-level baseline restoration dd576 peer requested separately, remains outside frozen cohort.
+
+Current 2026-10-26T14:49:58Z: Heavy final-init readonly classification sealed ba3d1e21 from 3ca FULLAUTH9acc2046: final1944 headers, sampled ordinal4096 full resident ::tmm::_orig_info with truncated itest::cmd::regi caller; consistent registration info-exists path, exact subcommand/receiver and CPU attribution unobserved. Neither native_cache_stamp nor released-alias retirement scans full tables; no speculative bypass/fix. Final-init/reset incomplete remains unchanged. Root14:31 integrating strong-cleared JimV2/164, tailcall C-expectation V2 and WORK NUL diagnostic; current top-level restoration dd576 strong peer pending/OUT freeze. User cost coverage approved29da8358, separate Native eligibility proof remains required. No new captures assigned; all owned 3ca ZIPs sealed, no duplicate download/local build/canonical edits.
 
 Current 2026-10-26T14:35:16Z: ROOT recovered14:31; USER costcoveragechoice explicitly APPROVED/recorded29da8358, separateNativeproof remainsrequired. No stale pendingdecision. Rootintegrating reviewedJimV2+164/tailcallV2/NULdiagnostic withotherclearednextbatch; no canonicalRuntimeedits. TopLevelbaselinepositive dd576 preserves8originalasserts/fourversions and genuinecurrentAPI, strongpeerpending/OUTcurrentfreeze. ReadonlyHeavyfirst/finalphase cost classification next fromsealed3caiRules9acc: finalinit1944headers thenoriginal180stop; noreset/afterfinal/firstdecline, no grammarbypass orNativegrant. CurrentSpec e0ec LENGTH1/1 advancement, MAP/RANGE0/0FAIL andfull600incomplete remainhonest; no C1C2closure.
 

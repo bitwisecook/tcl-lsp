@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T15:15:01.229075+00:00",
+  "scheduled_report_utc": "2026-10-26T15:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T15:45:00+00:00",
+  "change_since_previous_report": [
+    "Reviewedfunctionalcohortandapprovedcostprotocol/currentpinunioncommittedandpushedWORKf231. Independentpeer075c108f+b4a560a4/rootinversePASS,canonicalV14PASS13startup/30runner/20guard;wholemain+standalonefmtPASSonexactC47. PreflightlaunchedbeforeapplycompletionfailedHEADguard;retainedasinvalidatedearlierattempt,rerunf231PASS.",
+    "Acceptedcurrent10focused/exactprep-prrequests+ordinaryC47fullCI40346031137 aftervalidatingremoterefsexactandoldordinarycompleted;preservesCef60nativeproofthreehealthyjobs. Noresult/gateacceptanceuntilactualcaptures. Allrequesttooljobsawaitedbeforepublishermutation.",
+    "ActualnewCef60shard5closed5209nonignored4599PASS610FAIL;main24624baselinepartialjoin8266PASS1969FAIL14173UNOBSERVED216notselected80decbc7. Names6sourcecandidatesactualPASSbutcoverageequivalenceunaccepted;changedtailcallcurrentFAILexactcausecapunobserved,restoredCexpectedselectorrequiresnewcurrentexecution.",
+    "AllsixTclpairedperformancejobsnowTERMINALFAIL. mac3fullyqualified1800timeouts/noresultJSON/noacceptedpairs. Linuxfullactualrunner-shutdownexit143at1220qualifieddecodedlog3136d938;Linuxsmallalsoshutdown/noartifact,LinuxmediumlogretrievalcurrentlyAPIerror. NoCPU/memorycauseinferred,noacceptedperformancegain. Cacheownershipproposalstillheldcycle/NativeDrop/activationparity.",
+    "SourceCutV2LSPproductivegeometryunderstrongpeerHOLDoncompletealternatives;all51baselineLSPsourceobligationsauditedffb24but0automaticmapping. Root4sourcepreimagescapturedforcoverageaudit. Runtimefinal-initboundedobserver/top-levelpositiveproposalsremainOUTcanonicalpendingpeer.",
+    "14:15lateactual14:42snapshotpublished15:08be374preservingconcurrentproduct;14:45ontimereportplus15:02currentstatesupplementpublishingnow. Userdecision29da recordedandpublished,nochoicepending. ExistingGitindexlockclearedbyownprocesswithoutdeletion;docscommitretrycompleted. ReleasebranchredundantpushauthfailedbutAPIexactremoteC47verifiedbybothacceptedcandidate/fullCIdispatchers.",
+    "AllF/currentzeroPTF/fullgreen/performance/finaldoccommentgeneratedfixturepackageprep-prsquashgatesremainOPEN/noPR. ExternalBIGIP/perfstalereported,noduplicates/takeover. Diskcheckretention/capturefloorremain."
+  ],
+  "committed": [
+    "3c3fb05d8d5240a9ff6f34a30dd94033c51b7cef"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticatecurrentf231focusedandC47mandatoryCI/prep-prresults,fixactualremainingcausesonWORKthenreviewedreleasecarry.",
+    "CloseSourceCut/Jim/runtime/compilercoverageandstrictcacheownershipperformanceblockerswithoutguardrelaxations.",
+    "Finishshippingdocumentation/comments/generated/fixtures/packageauditandzeroPTFgreen/performancebeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2256228352,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

@@ -2,13 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T14:35:25.344308+00:00
+Last updated: 2026-10-26T15:07:21.515098+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
 
-Rootrecovered14:31; explicitcostcoverage approval29da8358 nowlocked, changed4testpurposes mustnotberelabelled-equivalent. Rootintegratingreviewedcost/6strict/JimV2/tailcall/UV/projection/NULcohort; ONEpinunion awaitsfinalsourcefreeze, no stagedpins. Current3castrictFULLAUTH26 assessment885aae1f sixLIBTESTClippy/0RusttypeE, narrowfixesreviewed. LatestWASM d072FULLAUTH368 b12d25PASS. HealthyCef60CI onlyRust2/5+E2E1/2active;28nativejobsAPISUCCESSscoped,API3closedALLPASS82247c40. Currentbaselineavailable4829P1414F18165unknown216notselected includesexplicitpartialshard4capture_valid=false; fullacceptanceNOTclaimed. Names6selectedshard5alloutcomespending; Runtimecorrectlegacy-vectoractualFAILmissingC84oracle, notPASSmapping. OnecodegenvaluesexactrenameSTATICpeer39df045d actualpending. All216mappingstatusesexplicit; no absencewaivers/canonicaltakeover.
+Finalc22ec metadata118fd5a5/efeead4e independentCLEAR075c108f/all23/388pins242sources;17refresh+30explicitfull11Jimkeys,10actualruntimeguards andV14PASS. Rootcanonicalapply/preflightpending(no otherP/A Gitbyme). Usercostcoverage29da8358 locked; explicit4changedpurposes notrenameequivalence. Latest3castrict FULLAUTH26 885aae1f sixLIBTESTClippy/0RusttypeE, fixesincohort;latestWASM d072FULLAUTH368 b12d25PASS. HealthyCef60fullCI onlyRust2+E2E1/2active;all28nativejobsAPISUCCESSscoped. ClosedHeavy325P31F,shard3 3222P691F,shard5 4599P610F,E2E3 577P262F,runtime2306P91F. Main24624availablejoin8266P1969F14173unknown216notselected(raw80decbc7), explicitpartialshard4 capture_valid=false retained. Names6actualcandidatePASS butcoverageunaccepted. TailcallchangedpurposeactualFAIL, exactmismatchunobserved128bytesample/cappedstderr; restorednewcaseexecutionneeded. API3/getter11/allocation2/headroom2 scopedactualPASS. Source216ownerreports/mappingHOLDs retained;onecodegenvaluesSTATICrenamepeer39df actualpending.
 
 Final b2a source union frozen9358189c/5b1fb05c independently CLEARafae344b:18files,40existingrefresh+32approveddeps, full23/17maps347records227Gitfiles, full10getter3maps/OwnJimparentfanout/headroom2maps/refsHostNav, histories/protocols/env/budgets unchanged. Both prospectiveV14PASS13/30/20 and all9 actualruntime source-functionguards PASS; Root canonicalapply/push/dispatch remains separate. User-approved allocationcurrentcarry231c strong34f2 and protocolbe4f strong9c786 complete, all actualnew results stillUNRUN; original25WASM scope now2to3+teardown asapproved. Sourceheadroom075fa integrated byRoot, oldmanual63/newprobe controls scheduled. Latest ordinaryf763 CI09:14 still shard2/E2E1/E2E2 active, preserve; all current source outcomes require newhosted runs. No latestbroad acceptance/performance claim.
 
