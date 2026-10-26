@@ -4188,6 +4188,13 @@ impl DiagSlot {
         self.dirty = true;
         self.generation = self.generation.wrapping_add(1);
     }
+
+    // WORK-only observation of the existing scheduler mutation.
+    fn mark_dirty_with_trace(&mut self, reason: &'static str) {
+        let previous = self.generation;
+        self.mark_dirty();
+        trace_diagnostic_admission(reason, previous, self.generation);
+    }
 }
 
 /// The two independent, both-default-off cross-file-adjacent toggles,
@@ -4201,6 +4208,21 @@ impl DiagSlot {
 struct XcToggles {
     xc_diagnostics: bool,
     cross_file_resolution: bool,
+}
+
+// A process-wide independent cap; no document identity or contents are logged.
+fn trace_diagnostic_admission(reason: &'static str, previous: u64, generation: u64) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static ROWS: AtomicUsize = AtomicUsize::new(0);
+    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some()
+        && ROWS
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |rows| {
+                (rows < 64).then_some(rows + 1)
+            })
+            .is_ok()
+    {
+        eprintln!("DIAGNOSTIC_ADMISSION reason={reason} generation={previous}/{generation}");
+    }
 }
 
 /// The per-run analyser feature toggles for a diagnostics run, grouped so the
@@ -5966,7 +5988,7 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                 // refreshes otherwise compete with every queued `didChange`
                 // for the salsa database and can pin the edit-order barrier.
                 if let Some(slot) = slots.lock().await.get_mut(&uri) {
-                    slot.mark_dirty();
+                    slot.mark_dirty_with_trace("worker-retry");
                 }
                 continue;
             }
@@ -6069,7 +6091,7 @@ async fn refresh_cross_file_evidence(
             || refresh_can_change_result(&handles.db, &handles.db_files, uri).await)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
-        slot.mark_dirty();
+        slot.mark_dirty_with_trace("evidence-self-refresh");
     }
     // The subclass-provided-method view rides the same
     // refresh: computed off the workspace index the publish just updated,
@@ -6081,7 +6103,7 @@ async fn refresh_cross_file_evidence(
     if subclass_moved.iter().any(|u| u == uri)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
-        slot.mark_dirty();
+        slot.mark_dirty_with_trace("subclass-self-refresh");
     }
     for moved in subclass_moved {
         if !changed.contains(&moved) {
@@ -6286,7 +6308,7 @@ async fn reschedule_peers(
             if slot.latest_inputs.is_none() {
                 continue;
             }
-            slot.mark_dirty();
+            slot.mark_dirty_with_trace("peer-refresh");
             if !slot.running {
                 slot.running = true;
                 to_spawn.push(peer);
@@ -28530,7 +28552,11 @@ impl Backend {
                 slot.latest_inputs = Some(inputs);
                 slot.inputs_epoch = epoch;
             }
-            slot.mark_dirty();
+            slot.mark_dirty_with_trace(if force_refresh {
+                "schedule-force-refresh"
+            } else {
+                "schedule-edit"
+            });
             if slot.running {
                 false
             } else {
