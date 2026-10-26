@@ -196,10 +196,9 @@ impl AdviceInvocationContext<'_> {
         procedure: Option<&Arc<OriginalSourceProcedureBody>>,
     ) {
         self.retain_source_class_operand_references(tape, graph, class, procedure);
-        self.retain_authored_jim_procedure_reference(tape, graph, procedure);
+        Self::retain_authored_jim_procedure_reference(tape, graph, procedure);
     }
     pub(super) fn retain_authored_jim_procedure_reference(
-        &self,
         tape: &mut OriginalSourceTransitionAdviceTape,
         graph: &AdviceGraph,
         procedure: Option<&Arc<OriginalSourceProcedureBody>>,
