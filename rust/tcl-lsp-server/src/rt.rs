@@ -336,10 +336,10 @@ mod browser {
     pub struct JoinSet<T> {
         tasks: FuturesUnordered<BoxFuture<'static, Result<T, JoinError>>>,
         /// One handle per task ever added, so [`JoinSet::abort_all`] and `Drop`
-        /// can reach a detached task. Not pruned as tasks drain — a completed
-        /// task's flag is read by nothing — and every call site is
-        /// spawn-then-drain over one batch, so the vec is that batch's length
-        /// and dies with the set.
+        /// can reach a detached task. Not pruned as tasks drain: this vector
+        /// retains one small abort flag per submitted task, not its result.
+        /// Refilling a bounded scan window therefore bounds undrained results
+        /// independently of these flags. Both die with the set.
         aborts: Vec<AbortHandle>,
     }
 
