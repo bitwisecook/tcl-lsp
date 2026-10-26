@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T08:46:04.524263+00:00",
+  "scheduled_report_utc": "2026-10-26T08:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T09:15:00+00:00",
+  "change_since_previous_report": [
+    "Root recovered from selected-model capacity interruption at08:41 UTC. Scheduled06:45,07:15,07:45 and08:15 cycles were missed; this report uses its actual timestamp, not invented reports or retroactive validation. Agents preserved source-only reviewed packets; no canonical push/dispatch occurred during interruption.",
+    "User answered both previouslyheld decisions: compatible checked_character_viewAPI withgenuinegetter; allocationcalls2\u21923steadyobject/buffercounters plus exactpreinterpreterteardownconservation. Exactanswers recordeduser-decisions-20261026T084241Z.json, lockednotreopened.",
+    "Latestc6a4LSP all5fullauth11ad2 confirmsBOTH originalDefaultminifytestsPASSincludingfactorial; Core/Return/Quiet/navscanPASS. Startupscan17.185s/diagnosticretryPASS, referencesnullFAIL. Browsermain98source0/WASIprojectionremainFAIL; SourceLoadV1heldformissingcompletechildsurveymembership.",
+    "c6a4compiler124FULLAUTH4d5ff5+dc955 all267processesclosed0diagnostics: old10298P4F/all58PASS/Logical+Codec+Child10PASS/MinifyNOWPASS/String2P1F/formal2FAIL. Actual Inline scalarVar withdrawal is formalproducer cause; genuineexisting-slotsourcefix8ac996reviewedintegratednextbatch, no genericguardchange.",
+    "IntegratingclearedsourceWORKfirst/releasecarry: tinyiteratorlintfix; selectedauthoredJimlayoutV5; existingNativeexpressionslotsV5; observercontracts+runtime3/VM4protocol; layout3protocol; WORKonlyreferencefirstguardlabels; generatedheadroomV2+manual63/probecontrols. OwnJimV2+AppendV3currentcarry/newgetter/allocationfollow. NewactualcontrolsUNRUN; finalpins/pushpending.",
+    "Broadf763CI availablepartialbaselinejoin3461PASS913FAIL18484unobserved1766notselected, nevercurrentzeroPTF. Heavy325P31F/E2E3584P255F+5ignored/shard33216P694F+1ignored. Shard1runnerlostcommunication annotation, no terminalartifact/individualoutcomesinferred. ShippingTclperformancecurrentresultsneedfreshqualification, noacceptedratio.",
+    "Localdiskincidentcrossed2GiBfloorwhilecapturesstaged; allremoteCIsealsretained. CodegensafelylosslesslycompressedCLOSED ownhistoricalevidence/draftcopies withrestoremanifests, no executables/ZIPs/targets/sourceevidencedeletion. Currentabout2.2GBfree; no localworkspacebuilds/largecopies. ExternalBIGIP/perfstalerolesreportedwithouttakeover;triagecomplete."
+  ],
+  "committed": [
+    "ab5f90b6ab52aa5523686295ee914d132b2d335a"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finishcurrentreviewedcohortintegration, oneexactfinal23pin union+independentpeer/canonicalV14, normalpushbothbranches thenfocusedgates.",
+    "QualifyfreshcurrentwholeCI/baselinecomparison/performance; fixactualremainingLSP/runtime/Jim/bodyconsumerfailureswithoutassertionorcurrencyweakening.",
+    "Finalreleaseeditorial/generated/fixtures/package/prep-pr/F/fullgreen/performancebeforeauthorizedPR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release checkbox or audit-unit admission. Six-hour target missed, no PR. Semantic/runtime results remain scoped; queued/running/unreached are not pass.",
+  "disk_free_bytes": 2202951680,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

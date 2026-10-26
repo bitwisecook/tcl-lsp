@@ -1,0 +1,29 @@
+{
+  "recorded_at_utc": "2026-10-26T08:42:41.687941+00:00",
+  "question_call": "call_d05b8ea14b2e452990ac7ea898b75495",
+  "decisions": [
+    {
+      "question_item": 0,
+      "decision": "Add compatible checked_character_view API",
+      "user_answer": "Add compatible checked_character_view API",
+      "scope": [
+        "Preserve strict generic UTF-8 access.",
+        "Require genuine runtime getter capability for Native character access.",
+        "Move the invalid-UTF8 positive to the compatible checked API while preserving exact bytes and assertions."
+      ]
+    },
+    {
+      "question_item": 1,
+      "decision": "Use steady-state stability plus exact teardown conservation",
+      "user_answer": "Use steady-state stability plus exact teardown conservation",
+      "scope": [
+        "Keep all three original allocation calls.",
+        "Check object and buffer counters separately for stability between calls two and three.",
+        "Require exact restoration of pre-interpreter object and buffer counts after deletion.",
+        "Account for one-time Tcl error-global publication without permitting steady growth or teardown leaks."
+      ]
+    }
+  ],
+  "implementation": "PENDING_CURRENT_CARRY_REVIEW_AND_VALIDATION",
+  "status": "USER_DECISIONS_LOCKED_NOT_REOPENABLE"
+}
