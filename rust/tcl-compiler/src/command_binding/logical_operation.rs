@@ -1178,6 +1178,19 @@ mod tests {
         );
     }
 
+    fn assert_logical_prefix_source_anchors(
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        offset: u32,
+    ) {
+        assert_eq!(words.command(), "string");
+        assert_eq!(words.arguments().len(), 3);
+        assert!(words.operands()[0].is_none() && words.operands()[1].is_none());
+        assert_eq!(
+            words.operands()[2].as_ref().unwrap().span().start(),
+            offset + 4
+        );
+    }
+
     #[test]
     fn logical_source_prefix_words_keep_actual_alias_lineage_without_name_key_policy() {
         let mut profile = tcl_registry::model::ingress::resolve_environment("f5-irules")
@@ -1245,13 +1258,7 @@ mod tests {
                 source, &analysis, offset,
             )
             .expect("readonly original alias source schema");
-            assert_eq!(words.command(), "string");
-            assert_eq!(words.arguments().len(), 3);
-            assert!(words.operands()[0].is_none() && words.operands()[1].is_none());
-            assert_eq!(
-                words.operands()[2].as_ref().unwrap().span().start(),
-                offset + 4
-            );
+            assert_logical_prefix_source_anchors(&words, offset);
             let mut config = input.lexer_config();
             config.strict_quoting ^= true;
             assert_logical_source_prefix_inputs_refused(target, &input, &image, config);

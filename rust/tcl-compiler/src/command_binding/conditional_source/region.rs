@@ -835,6 +835,22 @@ mod controls {
         assert!(actual.original_completed_command_world().is_none());
     }
 
+    fn assert_region_view_has_no_whole_document_authority(
+        view: &crate::analyser::AnalysisResult,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        assert!(crate::source_graph::current_analysis(source, view).is_none());
+        assert!(
+            view.original_optimiser_source_unit(source, registry, None)
+                .is_none()
+        );
+        assert!(
+            view.original_source_analysis_entry(source, registry, None)
+                .is_none()
+        );
+    }
+
     #[test]
     fn suffix_view_reuses_the_same_kernel_and_refuses_whole_document_or_foreign_parent() {
         let source = "source first.tcl; set after ONE; source second.tcl";
@@ -871,16 +887,8 @@ mod controls {
             .unwrap();
         assert!(region.matches_region_analysis(&view));
         assert_eq!(view.original_source_region(), Some(region));
-        assert!(crate::source_graph::current_analysis(source, &view).is_none());
         let registry = region.input().borrowed_context_registry().commands();
-        assert!(
-            view.original_optimiser_source_unit(source, registry, None)
-                .is_none()
-        );
-        assert!(
-            view.original_source_analysis_entry(source, registry, None)
-                .is_none()
-        );
+        assert_region_view_has_no_whole_document_authority(&view, source, registry);
         let actual = view.retained_command_realm().unwrap().source_bindings_ref();
         assert!(Arc::ptr_eq(
             actual.original_analysis_owner().unwrap(),
