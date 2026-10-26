@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T18:06:26Z
+Last updated: 2026-10-26T18:50:15Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T18:50:15Z: Current62848 runtime166 FULLAUTHa6de7a8b (old80FAIL/CFIincomplete/add35PASS); exactba30->62848same128 joinc3512d7e ZEROstatuschanges. iRules FULLAUTH34d411e5 resetclosed114.436s namepolicy mismatch afterfinalinit/CLI2PASS; init_scopeFAIL113.113 actualpublicexitblocker nowmeasured. Sourceexitcause exactdisabledlist rename::exit->_orig_exit thenpublicerror; newpairedfixture77125aff strong410405a8 +finiteC86/C90oracle1d1d3000 preservespublicnegative+sameactualprivateworker pendingexit7/restorationasserts, Rootintegrating(no productionpurposechange). Spec62848 FULLAUTHb5ce5e49 old16/VM1/ordinary4PASS LENGTH1/1 MAP/RANGE0/0/full600INCOMPLETE (no oldPASStransfer). WASM25+8current40375176737 stillhealthy18:45, soleZIPpending. Strict62848 FULLAUTHCodegen161unique/0RustE: privateJimLinkErrcarrier44451117 strongf778ad93 ready; Codegenaliases17V2 strongRuntime02c81d0f ready; editorial61V2 Codegenpeerassigned; ownmixedalias11/8files91b726 frozenpeerpending, remaining14arg/mixedlintrootsinprogress. PrivateProcDefrefusalobserverdc95b273 secondaryfrozen proofa7472768 strongpeerpending; no newpurposeimplementation. NEXTselectedtargetef020 strongf39e nowRootlandedoutside62848, no currentfacet outcomes. No canonicalchanges/localbuilds/duplicatecaptures.
 
 Current 2026-10-26T18:06:26Z: NEXT selected-target refusal facets packet ef02046b strongf39e68c1 ready Root-only; single WORKconst_subst currentbf8c preimage888533c5 exact, same selectedquery once/oldfilter/oldrows/env/budgets, fourpureborrowedgetters. Sourceproof6fbad948; countqualificationc4a15693 editedsite1/wholemodule2 unchanged. Actual MAP713..761/RANGE442..479 gatefalse remains unresolved until measured facets; native_handler_envelope only stablehandler/noentry-or-opcode grant, so no bypass. Separate audit e64d61a7 and exact80panics1ebbd0df; authoritativebaseline998 join77d3244b has0exact80identities (allUNOBSERVED, notdebt/PASS); oldprior128zeroP-to-nonP remainsseparate. Compiler currentproducerread-only queued afterfinalbf8c metadata peer. Practical next actions: RootNEXTobserverintegration+sameactualSpecprobe; authenticate only newlyassignedruns; use measuredtargetfacet torepairgenuine producer and preserveall Native eligibility. No unrelatedgeneralVMparity/canonicaledit/localbuild.
 
