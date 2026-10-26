@@ -388,7 +388,9 @@ pub fn assert_dispatched_binding_boundaries() {
 
     // The declaration's Jim reference binder survives a later Tcl host entry.
     let bindings = Rc::new(RefCell::new(Vec::new()));
-    let (mut owner, _, _) = runtime_with_bindings(false, "jim", Some(Rc::clone(&bindings)));
+    let (mut owner, _, _) = runtime_with_bindings(false, "tcl9.0", Some(Rc::clone(&bindings)));
+    let source = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+    owner.set_dialect_profile(source);
     let declared = owner
         .try_eval_source("proc p {&x} {set x changed}")
         .expect("actual Jim declaration provider");
