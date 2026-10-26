@@ -1206,7 +1206,7 @@ mod inherited_registered_provider_tests {
                 assert_eq!(provider, Some((Some("Tk"), Some("8.6".to_owned()))));
             }
             assert_registered_instance_diagnostics_and_stale_source(
-                &analysis, &source, offset, selected,
+                &analysis, source, offset, selected,
             );
         }
     }
