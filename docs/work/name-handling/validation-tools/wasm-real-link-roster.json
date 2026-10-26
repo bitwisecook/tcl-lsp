@@ -26,7 +26,7 @@
     "runtime/rust/src/interp/native_error_headers.rs": "57b8011809548e7b16e34c116253568f91fea4ea310911ff8f7ee7ecb7b5e408",
     "runtime/rust/src/namespace.rs": "d2b79b2daad7af30b0d963d132f2339a0612ad089dbaccbe0d9213dfa56778f9",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
-    "rust/tcl-compiler/src/codegen/wasm/backend.rs": "65afbf14843f085f0ccb7c1ee6dabec7b5e5f83cfde11c22d7b238a246461deb",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs": "091872de79b45c5a34ef24c40b004b12a522153d081d51663992f47d765b5e06",
     "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "5c13341f5a29f16918e71dbbfd4c4e152d0b1799277ae5537d308d42755a196f",
     "rust/tcl-compiler/src/command_binding/command_publication.rs": "adf23ca07792588ff6ed84d648cb509f02490ad476a979933fdba081b80e7726",
     "rust/tcl-compiler/src/common_aot_plan.rs": "e0896166e07d78d4856900ae6de4eb97825fac115d4096da96328042aac0d8c3",
@@ -74,7 +74,8 @@
     "runtime/rust/src/expr_error.rs": "86c1eeff660d490e560bf6cefa827a19fd62a558ff47ff8e2a0493128f76e535",
     "runtime/rust/src/expr_error/cold_state.rs": "f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1",
     "rust/tcl-compiler/tests/wasm_tiers.rs": "b9044c3bfcca6da70f76168f295aa62e21ad15ca36875bdba65875c52d0a6c68",
-    "rust/tcl-compiler/tests/common/native_whole_program.rs": "5a9b69a0eccba632b7db5278026c2a669a0caa5eb6a92209964afbd8d63e388e"
+    "rust/tcl-compiler/tests/common/native_whole_program.rs": "5a9b69a0eccba632b7db5278026c2a669a0caa5eb6a92209964afbd8d63e388e",
+    "rust/tcl-compiler/src/codegen/wasm/backend/owned_function_names.rs": "77d60469df9ae8fba9e5e94f975422c5dede2b9a1632d1224e9b36bd58c63f12"
   },
   "wasm_real_link": [
     "a_compiled_proc_body_runs_through_the_runtimes_function_table",

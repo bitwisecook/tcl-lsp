@@ -40,7 +40,7 @@
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
-    "rust/tcl-compiler/src/command_binding.rs": "20395bcdf1d27fdb6adb918ba020eac1a6eb9975de98eb04e5ca8e7ed8775c5e",
+    "rust/tcl-compiler/src/command_binding.rs": "578d811a84076a9f3e251e7a21a347ed2c6a7a9cf73fa0a02d8d5f8df3a5b295",
     "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs": "bc2547d57b23050b5a8ef68545680349544a606b7229095e7cf04c33ed9f2168",
     "rust/tcl-compiler/src/command_binding/evaluated_word.rs": "bbdcbaa87ff68b5550e57adc683fe40a96337b926bbe2f8cc662e0927ddd464c",
     "rust/tcl-compiler/src/command_binding/literal_object_pool.rs": "1193653ff6d4df0c2c77834b818bb41e189ca2f64e78ca3207920cd864312db9",

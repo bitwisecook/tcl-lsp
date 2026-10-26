@@ -16,7 +16,7 @@
     "rust/tcl-lsp-core/src/refactor/mod.rs": "5db89dc16ba9c9a8ba10c08527ca491a8c2da61179b414f7dd732859b7357940",
     "rust/tcl-lsp-core/src/original_command_rename.rs": "3f827d1fd0f6d1dfccc8c29f52567f75c7ee602bc2e933fb772c606af0f8c681",
     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
-    "rust/tcl-compiler/src/command_binding.rs": "20395bcdf1d27fdb6adb918ba020eac1a6eb9975de98eb04e5ca8e7ed8775c5e",
+    "rust/tcl-compiler/src/command_binding.rs": "578d811a84076a9f3e251e7a21a347ed2c6a7a9cf73fa0a02d8d5f8df3a5b295",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "3af147084d8b2e1984cbf53a558faad409908d29d1337bf1c6dc7371e6f45568",
