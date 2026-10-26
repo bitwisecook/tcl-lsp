@@ -441,6 +441,29 @@ mod tests {
         }
     }
 
+    fn assert_unentered_authored_body(body: &crate::ir::Script) {
+        assert!(body.executed_source.is_none());
+        assert!(body.native_compilation_admission.is_none());
+        assert!(body.native_compilation_failure.is_none());
+    }
+
+    fn assert_bytecode_keeps_authored_bodies_unpublished(registry: &CommandRegistry, source: &str) {
+        let bytecode = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::new(registry).for_bytecode_backend(),
+            source,
+        );
+        assert!(bytecode.original_authored_declaration_body_units.is_empty());
+        assert!(!bytecode.top_level.statements.is_empty());
+        assert!(bytecode.top_level.statements.iter().any(|statement| {
+            bytecode
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .is_some_and(|tokens| {
+                    tokens.argv_texts == ["proc", "$literal", "value", "set out $value"]
+                })
+        }));
+    }
+
     #[test]
     fn authored_declaration_cards_retain_actual_source_bodies_without_publication() {
         let registry = CommandRegistry::build_default();
@@ -503,9 +526,7 @@ mod tests {
         assert!(scope.original_words(&stale, &registry).is_none());
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         assert!(scope.original_words(body_tokens, foreign).is_none());
-        assert!(procedure.body.executed_source.is_none());
-        assert!(procedure.body.native_compilation_admission.is_none());
-        assert!(procedure.body.native_compilation_failure.is_none());
+        assert_unentered_authored_body(&procedure.body);
         assert!(
             module
                 .original_source_procedure_bodies()
@@ -541,19 +562,6 @@ mod tests {
                 "facet {facet}"
             );
         }
-        let bytecode = crate::lowering::lower_to_ir_with(
-            crate::lowering::Lowerer::new(&registry).for_bytecode_backend(),
-            source,
-        );
-        assert!(bytecode.original_authored_declaration_body_units.is_empty());
-        assert!(!bytecode.top_level.statements.is_empty());
-        assert!(bytecode.top_level.statements.iter().any(|statement| {
-            bytecode
-                .top_level
-                .retained_source_tokens_for_statement(statement)
-                .is_some_and(|tokens| {
-                    tokens.argv_texts == ["proc", "$literal", "value", "set out $value"]
-                })
-        }));
+        assert_bytecode_keeps_authored_bodies_unpublished(&registry, source);
     }
 }

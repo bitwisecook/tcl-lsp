@@ -832,6 +832,43 @@ mod original_native_body_tests {
         }
     }
 
+    fn assert_native_source_dependency_head_refused(
+        tokens: &crate::ir::CommandTokens,
+        actual: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        assert!(
+            crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
+                tokens,
+                "forged-head",
+                actual,
+                registry
+            )
+            .is_none()
+        );
+    }
+
+    fn assert_native_source_card_refuses_foreign_bindings(
+        card: &super::OriginalNativeProcedureBody,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        source: &str,
+    ) {
+        let foreign_same_input = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_resolved_analysis_input(input.clone())
+                .with_explicit_unknown_entry(),
+            source,
+        );
+        let foreign_bindings = foreign_same_input
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .positioned_for_module(&foreign_same_input, registry)
+            .unwrap();
+        assert!(card.source_children(foreign_bindings).is_none());
+    }
+
     #[test]
     fn native_source_children_keep_actual_schema_and_open_dependency_owners() {
         let source = "proc f {x} {set value $x; return $value}\nproc caller {x} {not-declared $x; return $x}\n";
@@ -911,15 +948,7 @@ mod original_native_body_tests {
             )
             .unwrap();
         assert!(dependencies.unknown_alternatives);
-        assert!(
-            crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
-                tokens,
-                "forged-head",
-                &actual,
-                registry
-            )
-            .is_none()
-        );
+        assert_native_source_dependency_head_refused(tokens, &actual, registry);
         assert_eq!(dependencies.bodies.len(), 2);
         assert!(
             dependencies
@@ -937,19 +966,7 @@ mod original_native_body_tests {
         );
         assert!(procedure.body.executed_source.is_none());
         assert!(procedure.body.native_compilation_admission.is_none());
-        let foreign_same_input = crate::lowering::lower_to_ir_with(
-            crate::lowering::Lowerer::with_config(registry, input.lexer_config())
-                .with_resolved_analysis_input(input.clone())
-                .with_explicit_unknown_entry(),
-            source,
-        );
-        let foreign_bindings = foreign_same_input
-            .retained_source_bindings
-            .as_ref()
-            .unwrap()
-            .positioned_for_module(&foreign_same_input, registry)
-            .unwrap();
-        assert!(card.source_children(foreign_bindings).is_none());
+        assert_native_source_card_refuses_foreign_bindings(card, registry, input, source);
     }
 
     #[test]
