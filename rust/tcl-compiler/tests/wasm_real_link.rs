@@ -331,36 +331,53 @@ fn semantic_invoke_bootstrap_wat(expected_code: i32, setup: Option<&str>) -> Str
     )
 }
 
-/// Run `::top` repeatedly and prove the compiled leaf-command path balances its
-/// allocations: no outstanding transient call frame, and no residual growth
-/// across identical runs.
+/// Run `::top` three times in one owned interpreter, then prove complete
+/// allocation conservation after that interpreter is destroyed. Persistent
+/// error globals may legitimately appear between calls while it remains live.
 ///
-/// The first `::top` is a warm-up — it creates the interpreter state a compiled
-/// statement touches for the first time. Every later run is allocation-neutral
-/// unless the generated cleanup path leaks, so the residual must not move.
-/// `tcl_test_finalize` is also required to be positive, so a counter surface
-/// that read back as zero would fail loudly instead of passing vacuously.
+/// The live residual must exceed its pre-creation value, so a counter surface
+/// that always reads zero cannot pass. Every call must leave zero transient
+/// frames. The second and third live object/buffer counts must match exactly;
+/// teardown must restore each original raw count and residual and record
+/// no double free. The current pointer is cleared before its owner is deleted.
 fn leak_bootstrap_wat() -> String {
     r#"(module
   (import "tcl" "memory" (memory 1))
   (import "tcl" "tcl_runtime_create_interp" (func $create (result i32)))
   (import "tcl" "tcl_runtime_set_current_interp" (func $setcur (param i32)))
+  (import "tcl" "tcl_runtime_delete_interp" (func $delete (param i32)))
   (import "tcl" "tcl_codegen_call_frame_outstanding" (func $frames (result i32)))
   (import "tcl" "tcl_test_finalize" (func $residual (result i64)))
+  (import "tcl" "tcl_test_live_obj_count" (func $objects (result i64)))
+  (import "tcl" "tcl_test_live_buf_count" (func $buffers (result i64)))
   (import "tcl" "tcl_test_double_free_count" (func $doubles (result i64)))
   (import "user" "::top" (func $top))
   (export "memory" (memory 0))
   (func (export "_start")
     (local $interp i32) (local $before i64)
+    (local $before_objects i64) (local $before_buffers i64)
+    (local $second_objects i64) (local $second_buffers i64)
+    (local.set $before (call $residual))
+    (local.set $before_objects (call $objects))
+    (local.set $before_buffers (call $buffers))
     (local.set $interp (call $create))
     (call $setcur (local.get $interp))
     (call $top)
     (if (i32.ne (call $frames) (i32.const 0)) (then unreachable))
-    (local.set $before (call $residual))
-    (if (i64.le_s (local.get $before) (i64.const 0)) (then unreachable))
+    (if (i64.le_s (call $residual) (local.get $before)) (then unreachable))
     (call $top)
+    (if (i32.ne (call $frames) (i32.const 0)) (then unreachable))
+    (local.set $second_objects (call $objects))
+    (local.set $second_buffers (call $buffers))
     (call $top)
+    (if (i32.ne (call $frames) (i32.const 0)) (then unreachable))
+    (if (i64.ne (call $objects) (local.get $second_objects)) (then unreachable))
+    (if (i64.ne (call $buffers) (local.get $second_buffers)) (then unreachable))
+    (call $setcur (i32.const 0))
+    (call $delete (local.get $interp))
     (if (i64.ne (call $residual) (local.get $before)) (then unreachable))
+    (if (i64.ne (call $objects) (local.get $before_objects)) (then unreachable))
+    (if (i64.ne (call $buffers) (local.get $before_buffers)) (then unreachable))
     (if (i64.ne (call $doubles) (i64.const 0)) (then unreachable))
     (if (i32.ne (call $frames) (i32.const 0)) (then unreachable)))
 )"#
@@ -1054,10 +1071,10 @@ fn analysed_compound_puts_word_reaches_the_runtime_intact() {
     );
 }
 
-/// The compiled path leaks nothing in the real runtime: after repeated runs the
-/// residual allocation count is unchanged, no double free was recorded, and no
-/// transient call frame is outstanding — including for a statement that leaves
-/// through the abrupt-completion branch.
+/// The compiled path releases its allocations when the owned interpreter is
+/// destroyed after three calls. Each call leaves zero transient frames, and
+/// teardown restores the raw residual without a double free — including for
+/// a statement that leaves through the abrupt-completion branch.
 #[test]
 fn compiled_argv_balances_allocations_in_the_real_runtime() {
     let Some(runtime) = real_link_runtime() else {

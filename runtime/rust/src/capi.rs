@@ -728,6 +728,18 @@ pub unsafe extern "C" fn tcl_runtime_delete_interp(interp: *mut Interp) {
     }
 }
 
+/// Live native object headers; read-only leak-check instrumentation.
+#[no_mangle]
+pub extern "C" fn tcl_test_live_obj_count() -> i64 {
+    crate::counters::live_objs()
+}
+
+/// Live owned String buffers; read-only leak-check instrumentation.
+#[no_mangle]
+pub extern "C" fn tcl_test_live_buf_count() -> i64 {
+    crate::counters::live_bufs()
+}
+
 // leak-check test exports (the `tcl_test_*` surface)
 
 /// Reset the alloc/free/double-free counters (`tcl_test_reset_counters`).
