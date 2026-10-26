@@ -376,6 +376,229 @@ mod tests {
             .expect("whole original written body")
     }
 
+    fn assert_original_word_geometry(parent: &CommandTokens, expected: &str, config: LexerConfig) {
+        let binding = parent.source_binding.as_ref().unwrap();
+        let span = parent.words()[2].source().span;
+        let site = binding.invocation_site().unwrap();
+        let original = site
+            .source
+            .original_lexical_command(parent.words(), site.offset, config)
+            .unwrap();
+        let whole = original.native_words()[2].span();
+        assert_eq!(
+            whole,
+            tcl_lexer::word_span_at(site.source.source_image().bytes(), span)
+        );
+        if expected == "puts A" {
+            assert_ne!(
+                whole, span,
+                "nonempty braces retain their inner-end compiler span"
+            );
+        }
+        let body = body_at(parent, 2, config);
+        assert_eq!(body.text.bytes(), expected.as_bytes());
+        assert_eq!(&body.origin, &site.source);
+        assert_eq!(
+            body.mapping,
+            super::super::ExecutedScriptMapping::Contiguous { base: body.base() }
+        );
+        assert_eq!(
+            site.source
+                .source_image()
+                .bytes()
+                .get(body.base() as usize..body.base() as usize + expected.len()),
+            Some(expected.as_bytes())
+        );
+        let changed = Span::new(span.start(), span.end().checked_add(1).unwrap());
+        assert!(
+            binding
+                .original_body_source_for_word(parent, changed, config)
+                .is_none()
+        );
+        assert!(
+            binding
+                .original_body_source_for_word(
+                    parent,
+                    Span::new(span.start() + 1, span.end()),
+                    config
+                )
+                .is_none()
+        );
+    }
+
+    fn assert_original_namespace_before_entry(
+        fixture: &OriginalBodyFixture,
+        parent: &CommandTokens,
+        config: LexerConfig,
+        request: InvocationMetadataContext<'_>,
+        expected: &SourceNamespaceKey,
+        environment: &str,
+    ) {
+        let binding = parent.source_binding.as_ref().unwrap();
+        let body = body_at(parent, 2, config);
+        assert_eq!(
+            binding.original_body_namespace_context(
+                fixture.context.commands(),
+                request,
+                parent,
+                &body,
+            ),
+            Some((*expected).clone()),
+            "{environment}: {parent:?}"
+        );
+        assert!(binding.native_structured_preparation.is_none());
+        // A missing condition errors before selecting or entering this
+        // body; the original namespace syntax above remains independent.
+        assert!(
+            fixture
+                .bindings
+                .executed_script_namespace_context(&body)
+                .is_none()
+        );
+        let site = binding.invocation_site().unwrap();
+        assert!(fixture.bindings.executed_script_at(site, 1).is_none());
+        assert!(
+            fixture
+                .bindings
+                .executed_script_entry_namespace_context_at(site, 1, &body)
+                .is_none()
+        );
+        assert!(
+            fixture
+                .bindings
+                .compiled_script_namespace_context(&body)
+                .is_none()
+        );
+    }
+
+    fn assert_conditional_original_namespace(
+        fixture: &OriginalBodyFixture,
+        parent: &CommandTokens,
+        expected: &SourceNamespaceKey,
+    ) {
+        let binding = parent.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Conditional
+        );
+        let body_config = binding
+            .original_lexer_config_for_tokens(parent)
+            .expect("actual original nested body configuration");
+        let body = body_at(parent, 2, body_config);
+        // The readonly namespace query also retains conditional body
+        // syntax; it does not assert that the body entered. Pin that
+        // distinction against the exact actual-entry query.
+        assert_eq!(
+            fixture.bindings.executed_script_namespace_context(&body),
+            Some((*expected).clone())
+        );
+        let site = binding.invocation_site().unwrap();
+        // Entered-script keys use post-head argument ordinals, while
+        // body_at above consumes the whole written word ordinal.
+        assert_eq!(fixture.bindings.executed_script_at(site, 1), Some(&body));
+        assert!(
+            fixture
+                .bindings
+                .entered_scripts
+                .values()
+                .flat_map(|arguments| arguments.values().flatten())
+                .any(|observation| observation.source == body
+                    && observation.frame.is_none()
+                    && observation.namespace.is_none()
+                    && observation.conditional_namespace.as_ref() == Some(expected))
+        );
+    }
+
+    fn changed_original_namespace_inputs(
+        fixture: &OriginalBodyFixture,
+        config: LexerConfig,
+    ) -> (
+        ResolvedAnalysisInput,
+        CommandRegistry,
+        ResolvedAnalysisInput,
+        ResolvedAnalysisInput,
+    ) {
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                .default_context_registry()
+                .with_command_store(fixture.context.commands().snapshot().shared_registry()),
+        );
+        assert_eq!(
+            older_context.commands().snapshot().semantic_key(),
+            fixture.context.commands().snapshot().semantic_key()
+        );
+        assert_ne!(older_context.context(), fixture.context.context());
+        let older = ResolvedAnalysisInput::new(
+            fixture.input.analyser_profile(),
+            fixture.input.unit_profile(),
+            older_context,
+            config,
+        );
+        let mut foreign_registry = CommandRegistry::build_default();
+        foreign_registry.insert(tcl_registry::CommandSpec {
+            name: "foreign_original_body_owner",
+            ..foreign_registry.get("set").unwrap().clone()
+        });
+        let foreign_context = Arc::new(
+            fixture
+                .context
+                .with_command_store(foreign_registry.snapshot().shared_registry()),
+        );
+        let foreign = ResolvedAnalysisInput::new(
+            fixture.input.analyser_profile(),
+            fixture.input.unit_profile(),
+            foreign_context,
+            config,
+        );
+        let grammar = ResolvedAnalysisInput::new(
+            fixture.input.analyser_profile(),
+            fixture.input.unit_profile(),
+            Arc::clone(&fixture.context),
+            LexerConfig {
+                strict_quoting: !config.strict_quoting,
+                ..config
+            },
+        );
+        (older, foreign_registry, foreign, grammar)
+    }
+
+    fn assert_changed_original_namespace_refused(
+        binding: &SourceInvocationBinding,
+        fixture: &OriginalBodyFixture,
+        parent: &CommandTokens,
+        body: &ExecutedScriptSource,
+        changed: &ResolvedAnalysisInput,
+    ) {
+        assert!(
+            binding
+                .original_body_namespace_context(
+                    fixture.context.commands(),
+                    InvocationMetadataContext::for_analysis_input(
+                        changed.context_registry().commands(),
+                        changed,
+                    )
+                    .unwrap(),
+                    parent,
+                    body,
+                )
+                .is_none()
+        );
+    }
+
+    fn assert_original_namespace_refused(
+        binding: &SourceInvocationBinding,
+        fixture: &OriginalBodyFixture,
+        request: InvocationMetadataContext<'_>,
+        parent: &CommandTokens,
+        body: &ExecutedScriptSource,
+    ) {
+        assert!(
+            binding
+                .original_body_namespace_context(fixture.context.commands(), request, parent, body,)
+                .is_none()
+        );
+    }
+
     #[test]
     fn original_body_word_extent_keeps_inner_and_whole_geometry_separate() {
         // naming.source.original-point-operand-projection
@@ -397,53 +620,7 @@ mod tests {
                 "puts café",
                 "puts\nA",
             ]) {
-                let binding = parent.source_binding.as_ref().unwrap();
-                let span = parent.words()[2].source().span;
-                let site = binding.invocation_site().unwrap();
-                let original = site
-                    .source
-                    .original_lexical_command(parent.words(), site.offset, config)
-                    .unwrap();
-                let whole = original.native_words()[2].span();
-                assert_eq!(
-                    whole,
-                    tcl_lexer::word_span_at(site.source.source_image().bytes(), span)
-                );
-                if expected == "puts A" {
-                    assert_ne!(
-                        whole, span,
-                        "nonempty braces retain their inner-end compiler span"
-                    );
-                }
-                let body = body_at(parent, 2, config);
-                assert_eq!(body.text.bytes(), expected.as_bytes());
-                assert_eq!(&body.origin, &site.source);
-                assert_eq!(
-                    body.mapping,
-                    super::super::ExecutedScriptMapping::Contiguous { base: body.base() }
-                );
-                assert_eq!(
-                    site.source
-                        .source_image()
-                        .bytes()
-                        .get(body.base() as usize..body.base() as usize + expected.len()),
-                    Some(expected.as_bytes())
-                );
-                let changed = Span::new(span.start(), span.end().checked_add(1).unwrap());
-                assert!(
-                    binding
-                        .original_body_source_for_word(parent, changed, config)
-                        .is_none()
-                );
-                assert!(
-                    binding
-                        .original_body_source_for_word(
-                            parent,
-                            Span::new(span.start() + 1, span.end()),
-                            config
-                        )
-                        .is_none()
-                );
+                assert_original_word_geometry(parent, expected, config);
             }
             let continuation =
                 original_geometry_fixture("if {$condition} {puts \\\n A}", environment);
@@ -513,40 +690,13 @@ mod tests {
             .unwrap();
             assert_eq!(fixture.tokens.len(), 2);
             for parent in &fixture.tokens {
-                let binding = parent.source_binding.as_ref().unwrap();
-                let body = body_at(parent, 2, config);
-                assert_eq!(
-                    binding.original_body_namespace_context(
-                        fixture.context.commands(),
-                        request,
-                        parent,
-                        &body,
-                    ),
-                    Some(expected.clone()),
-                    "{environment}: {parent:?}"
-                );
-                assert!(binding.native_structured_preparation.is_none());
-                // A missing condition errors before selecting or entering this
-                // body; the original namespace syntax above remains independent.
-                assert!(
-                    fixture
-                        .bindings
-                        .executed_script_namespace_context(&body)
-                        .is_none()
-                );
-                let site = binding.invocation_site().unwrap();
-                assert!(fixture.bindings.executed_script_at(site, 1).is_none());
-                assert!(
-                    fixture
-                        .bindings
-                        .executed_script_entry_namespace_context_at(site, 1, &body)
-                        .is_none()
-                );
-                assert!(
-                    fixture
-                        .bindings
-                        .compiled_script_namespace_context(&body)
-                        .is_none()
+                assert_original_namespace_before_entry(
+                    &fixture,
+                    parent,
+                    config,
+                    request,
+                    &expected,
+                    environment,
                 );
             }
             // Unknown but bound formal input reaches genuine conditional body
@@ -559,37 +709,7 @@ mod tests {
             .unwrap();
             assert_eq!(fixture.tokens.len(), 2);
             for parent in &fixture.tokens {
-                let binding = parent.source_binding.as_ref().unwrap();
-                assert_eq!(
-                    binding.runtime_reachability(),
-                    super::super::SourceRuntimeReachability::Conditional
-                );
-                let body_config = binding
-                    .original_lexer_config_for_tokens(parent)
-                    .expect("actual original nested body configuration");
-                let body = body_at(parent, 2, body_config);
-                // The readonly namespace query also retains conditional body
-                // syntax; it does not assert that the body entered. Pin that
-                // distinction against the exact actual-entry query.
-                assert_eq!(
-                    fixture.bindings.executed_script_namespace_context(&body),
-                    Some(expected.clone())
-                );
-                let site = binding.invocation_site().unwrap();
-                // Entered-script keys use post-head argument ordinals, while
-                // body_at above consumes the whole written word ordinal.
-                assert_eq!(fixture.bindings.executed_script_at(site, 1), Some(&body));
-                assert!(
-                    fixture
-                        .bindings
-                        .entered_scripts
-                        .values()
-                        .flat_map(|arguments| arguments.values().flatten())
-                        .any(|observation| observation.source == body
-                            && observation.frame.is_none()
-                            && observation.namespace.is_none()
-                            && observation.conditional_namespace.as_ref() == Some(&expected))
-                );
+                assert_conditional_original_namespace(&fixture, parent, &expected);
             }
             let mut lowerer =
                 crate::lowering::Lowerer::with_config(fixture.context.commands(), config)
@@ -642,62 +762,10 @@ mod tests {
         assert!(binding.original_body_namespace_context(
             fixture.context.commands(), request, parent, &body,
         ).is_some());
-        let older_context = Arc::new(
-            tcl_registry::model::ingress::resolve_environment("tcl8.4")
-                .default_context_registry()
-                .with_command_store(fixture.context.commands().snapshot().shared_registry()),
-        );
-        assert_eq!(
-            older_context.commands().snapshot().semantic_key(),
-            fixture.context.commands().snapshot().semantic_key()
-        );
-        assert_ne!(older_context.context(), fixture.context.context());
-        let older = ResolvedAnalysisInput::new(
-            fixture.input.analyser_profile(),
-            fixture.input.unit_profile(),
-            older_context,
-            config,
-        );
-        let mut foreign_registry = CommandRegistry::build_default();
-        foreign_registry.insert(tcl_registry::CommandSpec {
-            name: "foreign_original_body_owner",
-            ..foreign_registry.get("set").unwrap().clone()
-        });
-        let foreign_context = Arc::new(
-            fixture
-                .context
-                .with_command_store(foreign_registry.snapshot().shared_registry()),
-        );
-        let foreign = ResolvedAnalysisInput::new(
-            fixture.input.analyser_profile(),
-            fixture.input.unit_profile(),
-            foreign_context,
-            config,
-        );
-        let grammar = ResolvedAnalysisInput::new(
-            fixture.input.analyser_profile(),
-            fixture.input.unit_profile(),
-            Arc::clone(&fixture.context),
-            LexerConfig {
-                strict_quoting: !config.strict_quoting,
-                ..config
-            },
-        );
+        let (older, _foreign_registry, foreign, grammar) =
+            changed_original_namespace_inputs(&fixture, config);
         for changed in [&older, &foreign, &grammar] {
-            assert!(
-                binding
-                    .original_body_namespace_context(
-                        fixture.context.commands(),
-                        InvocationMetadataContext::for_analysis_input(
-                            changed.context_registry().commands(),
-                            changed
-                        )
-                        .unwrap(),
-                        parent,
-                        &body
-                    )
-                    .is_none()
-            );
+            assert_changed_original_namespace_refused(binding, &fixture, parent, &body, changed);
         }
         for owner in [
             OwnedInvocationMetadataContext::Unavailable,
@@ -710,18 +778,12 @@ mod tests {
                 Arc::make_mut(&mut Arc::make_mut(&mut row.snapshot).state.baseline)
                     .metadata_context = owner.clone();
             }
-            assert!(
-                missing
-                    .source_binding
-                    .as_ref()
-                    .unwrap()
-                    .original_body_namespace_context(
-                        fixture.context.commands(),
-                        request,
-                        &missing,
-                        &body,
-                    )
-                    .is_none()
+            assert_original_namespace_refused(
+                missing.source_binding.as_ref().unwrap(),
+                &fixture,
+                request,
+                &missing,
+                &body,
             );
         }
         let mut missing = parent.clone();
@@ -730,64 +792,34 @@ mod tests {
             .as_mut()
             .unwrap()
             .declaration_layout_observations = None;
-        assert!(
-            missing
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_body_namespace_context(
-                    fixture.context.commands(),
-                    request,
-                    &missing,
-                    &body,
-                )
-                .is_none()
+        assert_original_namespace_refused(
+            missing.source_binding.as_ref().unwrap(),
+            &fixture,
+            request,
+            &missing,
+            &body,
         );
         let mut changed = parent.clone();
         changed.word_exprs.pop();
-        assert!(
-            binding
-                .original_body_namespace_context(
-                    fixture.context.commands(),
-                    request,
-                    &changed,
-                    &body
-                )
-                .is_none()
-        );
+        assert_original_namespace_refused(binding, &fixture, request, &changed, &body);
         let foreign_body = body_at(
             &original_fixture("if {$condition} {set result B}", "tcl8.6").tokens[0],
             2,
             config,
         );
-        assert!(
-            binding
-                .original_body_namespace_context(
-                    fixture.context.commands(),
-                    request,
-                    parent,
-                    &foreign_body
-                )
-                .is_none()
-        );
+        assert_original_namespace_refused(binding, &fixture, request, parent, &foreign_body);
         let mut missing_entry = parent.clone();
         let binding = missing_entry.source_binding.as_mut().unwrap();
         binding.lookup_state = None;
         for row in Arc::make_mut(binding.declaration_layout_observations.as_mut().unwrap()) {
             Arc::make_mut(&mut Arc::make_mut(&mut row.snapshot).state.baseline).native_entry = None;
         }
-        assert!(
-            missing_entry
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_body_namespace_context(
-                    fixture.context.commands(),
-                    request,
-                    &missing_entry,
-                    &body,
-                )
-                .is_none()
+        assert_original_namespace_refused(
+            missing_entry.source_binding.as_ref().unwrap(),
+            &fixture,
+            request,
+            &missing_entry,
+            &body,
         );
     }
 
