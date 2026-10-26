@@ -1,0 +1,111 @@
+{
+  "status": "AUTHENTICATED_BOUNDED_STRICT_FAILURE",
+  "run": 40418479110,
+  "job": 121906637115,
+  "head": "934c8f83cd790e3221b17a14f6b626d176968fe1",
+  "artifact": 12697446072,
+  "ZIP_sha256": "8f66265067da8a0bb00eec6f6d72149eaa5282e5d65258505ce4e9c203718e1e",
+  "ZIP_bytes": 4036681,
+  "check_count": 23,
+  "checks": [
+    "terminal exact source run/work/attempt1/manual failure",
+    "successful Validate revision and record source and tools",
+    "successful Verify source and tools after capture",
+    "successful Upload bounded diagnostic evidence",
+    "sole artifact exact API digest/bytes",
+    "ZIP21 CRC safe unique regular paths",
+    "exact run and Git tree",
+    "full independent Git membership",
+    "whole endpoint checksum and membership seal",
+    "Git endpoints clean",
+    "actual Git source blob .github/workflows/perf.yml",
+    "actual Git source blob Cargo.lock",
+    "actual Git source blob Cargo.toml",
+    "actual Git source blob Makefile",
+    "actual Git source blob docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py",
+    "actual Git source blob rust/tcl-compiler/src/realm/source_transition_advice.rs",
+    "actual Git source blob scripts/dev/tracked-source-snapshot.py",
+    "nine exact tools before/after",
+    "exact unchanged original strict invocation",
+    "timer before spawn, reaped empty owned group",
+    "original bounded resource limits",
+    "raw stream byte counts",
+    "actual strict exit2 source/tools postseal0"
+  ],
+  "source_file_count": 126729,
+  "diagnostic_count": 1,
+  "Rust_errors": [
+    {
+      "severity": "error[E0616]",
+      "message": "field `dispatch_site` of struct `command_binding::SourceInvocationBinding` is private",
+      "raw_path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "line": 45,
+      "column": 14,
+      "lint": null
+    }
+  ],
+  "process": {
+    "argv": [
+      "/usr/bin/make",
+      "rust-check"
+    ],
+    "artifact": "/usr/bin/make",
+    "artifact_sha256_after": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_sha256_before": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_unchanged": true,
+    "cap_bytes": 20971520,
+    "cleanup_signals": [],
+    "complete": true,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+    "deadline_seconds": 3063.3925478458405,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/home/runner/work/tcl-lsp/tcl-lsp",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp",
+      "/usr/bin/make",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output"
+    ],
+    "elapsed_seconds": 79.805722982,
+    "ended_utc": "2026-10-26T23:20:17.413628+00:00",
+    "exit_code": 2,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 74639056896,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 847766645094,
+    "parent_waitid_wnowait": {
+      "si_code": 1,
+      "si_pid": 2723,
+      "si_status": 2
+    },
+    "pid": 2723,
+    "pid_start_ticks": 76821,
+    "process_group": 2723,
+    "retained_bytes": 4328,
+    "spawn_return_monotonic_ns": 768218524549,
+    "spawn_return_utc": "2026-10-26T23:18:57.608709+00:00",
+    "stderr": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stderr",
+    "stderr_bytes": 3429,
+    "stdout": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stdout",
+    "stdout_bytes": 899,
+    "stop_reason": null,
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 768217739977,
+    "timer_armed_utc": "2026-10-26T23:18:57.607926+00:00"
+  },
+  "limits": [
+    "WORK exact run source only; no semantic/fullCI acceptance",
+    "No provider/dependency seals in strict protocol",
+    "Full source membership/checksum endpoint seal plus independent diagnostic/critical source blob authentication; source manifest streamed in memory"
+  ]
+}

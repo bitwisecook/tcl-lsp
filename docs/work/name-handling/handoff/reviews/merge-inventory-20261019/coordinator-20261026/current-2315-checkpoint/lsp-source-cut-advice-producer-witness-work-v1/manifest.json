@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-26T23:01:57.043468+00:00",
+  "base": "01aa3e1dd4060ee2b734ee5c82f14a130d59e677",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "136cfa39c8df5ac07026e31dd397d20dba9593260f136302e7caffd01031d46f",
+      "after_sha256": "8ffc8f316d84ac5880e1e0c75e326844b600842af02da6b4e02799b86e1d2255"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "2d6dd21c25ba03cc18e1ae92f60738f49afb24b335cbf96282ffda9dab6e917c",
+      "after_sha256": "94b7f054d3ea4a34706363781aa49eeede33f7404df968731b5584509fdf0cd8"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "be89c93192a3a5a2315c930234e1216a1e6198fd536fb547ec2b745ba376ae38",
+      "after_sha256": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3"
+    }
+  ],
+  "patch_sha256": "01a562bf89ff8ba22c104e54de6de3955391cce641d355a06f93a1530016e037",
+  "scope": "WORK-only actual Core-Proc schema issuer witness of computed procedure-present/four existing retain flags/result +resident source-origin/site/data. Same existing COARSE/global64 counter shared with current Refused coordinates. No lookup/analysis/getter/fallback/predicate/Native/value-selection permission change; actual cause remains UNOBSERVED until measured",
+  "unrun": [
+    "Rust/Clippy",
+    "actual issuer branch/declaration presence/coordinate join"
+  ]
+}

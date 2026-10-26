@@ -1,0 +1,38 @@
+{
+  "utc": "2026-10-26T23:11:27.704235+00:00",
+  "verdict": "CLEAR passive source-cut producer/refusal witness",
+  "manifest_sha256": "edfe866893781b6490f10225088f5dec91b37807277f80571e0452763e73a7d8",
+  "patch_sha256": "01a562bf89ff8ba22c104e54de6de3955391cce641d355a06f93a1530016e037",
+  "checks": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2024": true,
+      "whole_module_erasure_or_exact_shared_allocator_specialization": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2024": true,
+      "whole_module_erasure_or_exact_shared_allocator_specialization": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2024": true,
+      "whole_module_erasure_or_exact_shared_allocator_specialization": true
+    }
+  ],
+  "reasoning": [
+    "The original retain disjunction is computed once in the exact original lazy order; the original schema_advice call/insert/early return follows the same bool. procedure.is_some copies a held Option presence, not a second producer. Logger rereads only held Copy flags/source-origin/image/site data.",
+    "Existing refused=false short circuit and compiled COARSE switch precede the same saturating AtomicUsize try_update closure; extraction keeps one shared64 allowance. New issuer/refusal-coordinate rows consume that allowance, so old later rows may be UNOBSERVED but no quota expands.",
+    "Refused path still returns None at its original boundary, no map lookup/retry/represented fallback. Source/registry/selection/currentness/Native/value/frame/completion guards stay intact; source-image borrow ends before the original schema query, no owner clone or Native retain.",
+    "Pointers are process-local diagnostic coordinates only. A local procedureSome/retained=true neither establishes merged map membership nor removes a later registry barrier; missing/quota rows prove nothing."
+  ],
+  "limits": [
+    "Actual Rust/Clippy/new issuer/refusal coordinates and source-cut/namespace efficacy UNRUN. Pure formatting/F-R/erasure evidence is not runtime or admission proof."
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-26T23:06:32.798322+00:00",
+  "manifest_sha256": "edfe866893781b6490f10225088f5dec91b37807277f80571e0452763e73a7d8",
+  "checks": {
+    "all_current_base_whole_hashes": true,
+    "F_R_F_zero_fuzz": true,
+    "rustfmt_three_modules_exact": true,
+    "entire_three_module_erasure_inverse": true,
+    "original_retain_OR_once_same_order_and_unchanged_insert_query": true,
+    "original_Refused_return_None_and_all_lookup_selection_behavior_exact": true,
+    "same_existing_COARSE_and_combined64_output_cap": true,
+    "existing_procedure_computation_not_repeated": true,
+    "no_new_getter_analysis_lookup_or_permission": true
+  },
+  "body_counts": {
+    "retain_schema_advice": 26,
+    "retain_source_inventory": 16,
+    "source_cut_refuses": 4,
+    "source_cut_trace_admitted": 9,
+    "observe_cut_value_refusal": 12,
+    "retained_source_transition_value_advice": 98
+  },
+  "qualification": [
+    "Emitter observes only native Core-procedure schema rows via an existing stored descriptor field; it logs local procedure-present and four existing predicate flags/result, not final declaration-map membership.",
+    "The new bool argument copies an already-computed Option presence. Existing OR predicates short-circuit once in original order before observation; logger re-reads only plain held fields.",
+    "Shared allocator moves only diagnostic static counter ownership. Existing false-refusal behavior/flag/saturation is preserved; new rows consume the same global64 allowance, never additional quota.",
+    "Refused coordinate row is true-scope SourceCut only and reads held binding.dispatch_site/image pointers/length/offset. Pointers are process-local captured data, never semantic identity/currentness or a Native owner.",
+    "Local Some does not prove final merged declaration exists or registry barrier is absent. No post-merge map search/semantic lookup added; missing/quota rows remain UNOBSERVED."
+  ],
+  "unrun": [
+    "Rust/Clippy",
+    "actual producer flags/retained row/owner join",
+    "SourceCut or namespace efficacy"
+  ]
+}

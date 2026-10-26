@@ -1,0 +1,64 @@
+{
+  "status": "CLEAR_SOURCE_AND_TEST_CONTRACT_CORRECTION_ONLY",
+  "utc": "2026-10-26T23:18:31.743498+00:00",
+  "manifest_sha256": "cb566ecd73913e11ba9de5cc48b07d3a8c2d317c14348ed70c504fe2b63f0ca4",
+  "lanes": [
+    {
+      "lane": "WORK",
+      "current_head": "8e3b69a946e98c302a7c46fd01f1a756c8252a28",
+      "path": "rust/tcl-lsp-server/tests/smoke/diagnostics_delivery_smoke.rs",
+      "before_sha256": "bacd3b1f50bef8317205d11810cbc1e9f34ccf20cbe4865fa0bd6d123d9f5bbd",
+      "after_sha256": "8b858621d6e50a11fd14f2aa9f17454313403671568e2a483de5bc2e850f991b",
+      "patch_sha256": "2df3fd925225e9449bc01509eb8bac153f9c939c7ea68f571b14efcdee2c6947",
+      "mode": "100644",
+      "hunks": 3,
+      "exact_current_preimage_and_in_memory_hunk_reconstruction": true,
+      "all_other_smokes_transport_and_source_inputs_unchanged": true
+    },
+    {
+      "lane": "CLEAN",
+      "current_head": "abbbbdc4f4810107ef631c2a1af05e4974998f7f",
+      "path": "rust/tcl-lsp-server/tests/smoke/diagnostics_delivery_smoke.rs",
+      "before_sha256": "bacd3b1f50bef8317205d11810cbc1e9f34ccf20cbe4865fa0bd6d123d9f5bbd",
+      "after_sha256": "8b858621d6e50a11fd14f2aa9f17454313403671568e2a483de5bc2e850f991b",
+      "patch_sha256": "2df3fd925225e9449bc01509eb8bac153f9c939c7ea68f571b14efcdee2c6947",
+      "mode": "100644",
+      "hunks": 3,
+      "exact_current_preimage_and_in_memory_hunk_reconstruction": true,
+      "all_other_smokes_transport_and_source_inputs_unchanged": true
+    }
+  ],
+  "authority": {
+    "diagnostic": "LSP Diagnostic.code is the diagnostic identifier. Current lift_report_with_payloads sets that field and preserves finding.structured_data independently. Exact C93 output has ONE E003 Diagnostic whose metadata repeats code E003. Count actual matching diagnostic entries, not occurrences of the string anywhere.",
+    "native_lens": "Exact captured default smoke uses Native schema originalDeclaration1/token1. Current code_lens issues/retains that server-owned handle (lib.rs34863+ and retain_original_declaration_data15475+); code_lens_resolve34941+ reborrows it. Native and Logical lens schemas remain distinct. Maintained VSCode resolves actual provider-issued lenses. Name-handling2021 and resolver35000 reject fabricated legacy qname/range identity.",
+    "task_authority": "Root explicitly authorized paired narrow smoke comparator correction; user permits test correction only when existing test contradicts actual contract. This packet preserves asserted behavior and tightens actual issued-lens uniqueness/range. No product guard changes."
+  },
+  "preserved_assertions": [
+    "Exactly one E003-bearing publish and exactly one E003 diagnostic in that publish; a real duplicate diagnostic or duplicate publish still fails.",
+    "No E003 credit from data.code alone; malformed publish/diagnostic-array shape fails parsing/expect.",
+    "Actual fixture helper remains proc helper at range0:5..11; exactly one actual issued lens, with opaque originalDeclaration object.",
+    "Resolve request serializes the same complete issued lens unchanged, not a fabricated or retagged identity. Existing showReferences and references-title assertions remain exact.",
+    "All source strings, didOpen/didChange/clear expectations, transport setup/helpers, hangs/backstops, shutdown/failure behavior and unrelated tests unchanged.",
+    "Tk source/hover expectation and all production sources untouched."
+  ],
+  "typing_assessment": "serde_json::Value indexing/as_array/is_object and Value-to-str comparison are available under existing serde_json usage; Deref coercion handles referenced String frames. json! serializes &Value as the same JSON value and .to_string yields the owned request String borrowed by frame. This is static source review, not Rust compile/typecheck.",
+  "exact_actual_evidence": {
+    "path": "/workspace/naming-proof-storage/names-prep-pr-40409890471-actual-v1/lsp-smoke-first-failures.txt",
+    "sha256": "4fb890291dc17fa6add899cb13d88d48d0809b0a7677c12d65929798342482bd",
+    "scope": "Parsed two retained C93 failure payloads only; Names owns original authenticated capture/ZIP, no new capture/download/replay. No C93 pass outcome inferred."
+  },
+  "authority_pins": {
+    "name_handling_sha256": "07d5f9e5559a481cf621c47354ffbab3d495a7f371f6ecb489836d3e4b0755ea",
+    "server_lib_sha256": "9184f01235f80b21ba9a86677acaa47226d7a5b5d242d2bc0035ef981f649597",
+    "vscode_code_lens_test_sha256": "89066bfc16a964aa707cfd80edfbc3816e6b0fc1a4e7bfdfbc8936765c419eea"
+  },
+  "bounded_protocol_examples": "Single typed E003 with repeated metadata counts1; real duplicated diagnostic counts2; metadata-only E003 counts0; repeated E003-bearing publishes count2; full issued lens JSON roundtrips unchanged. These are comparator sanity checks, not repository test runs.",
+  "unrun": [
+    "Rust/Clippy compilation",
+    "smoke execution",
+    "C93 actual closure",
+    "Tk disposition",
+    "all shipping gates"
+  ],
+  "canonical_mutations": "None. Only this small review evidence directory written. Root alone integrates on WORK then carries reviewed product/test counterpart to release."
+}

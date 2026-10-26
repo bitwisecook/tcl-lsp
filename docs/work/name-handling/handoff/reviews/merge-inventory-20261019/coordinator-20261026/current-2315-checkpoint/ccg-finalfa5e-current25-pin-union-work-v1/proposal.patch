@@ -1,0 +1,234 @@
+--- a/docs/work/name-handling/validation-tools/autoload-core2-inputs.json
++++ b/docs/work/name-handling/validation-tools/autoload-core2-inputs.json
+@@ -12,7 +12,7 @@
+     "rust/tcl-lsp-core/src/minify/original.rs": "ab052dccc95d70df74616e927c55e80701675d2928487838ccc5eb6a67c6deaa",
+     "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "af04b209661e06f5651b49b96d873a743ff7c912728c45d33971a303cc462b21",
+     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs": "71ee7eb0dd995a61437f638a6f8865b6acc0c1c632761002afd3c0defa6b111e",
+-    "rust/tcl-compiler/src/registry_invocation.rs": "2d6dd21c25ba03cc18e1ae92f60738f49afb24b335cbf96282ffda9dab6e917c",
++    "rust/tcl-compiler/src/registry_invocation.rs": "94b7f054d3ea4a34706363781aa49eeede33f7404df968731b5584509fdf0cd8",
+     "rust/tcl-lsp-core/src/refactor/mod.rs": "5db89dc16ba9c9a8ba10c08527ca491a8c2da61179b414f7dd732859b7357940",
+     "rust/tcl-lsp-core/src/original_command_rename.rs": "3f827d1fd0f6d1dfccc8c29f52567f75c7ee602bc2e933fb772c606af0f8c681",
+     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
+@@ -25,7 +25,7 @@
+     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
+     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
+     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "c3f80b6ccb8139380fa0ffb15e2236c1cdca68206661c826aa01c17317a65dfd",
+-    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "be89c93192a3a5a2315c930234e1216a1e6198fd536fb547ec2b745ba376ae38"
++    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3"
+   },
+   "target": "tcl_lsp_core",
+   "integration_target": "lsp_edit_workspace",
+--- a/docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json
++++ b/docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json
+@@ -14,7 +14,7 @@
+     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
+     "rust/tcl-compiler/src/analyser/handlers.rs": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103",
+     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "3af147084d8b2e1984cbf53a558faad409908d29d1337bf1c6dc7371e6f45568",
+-    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "136cfa39c8df5ac07026e31dd397d20dba9593260f136302e7caffd01031d46f",
++    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "8ffc8f316d84ac5880e1e0c75e326844b600842af02da6b4e02799b86e1d2255",
+     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "c3f80b6ccb8139380fa0ffb15e2236c1cdca68206661c826aa01c17317a65dfd"
+   },
+   "build_targets": [
+--- a/docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json
++++ b/docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json
+@@ -67,11 +67,11 @@
+     "rust/tcl-compiler/src/command_binding/original_name_value.rs": "63d7dbdd31aa3861c0f5cfcdb555950fbaf387ff47538eb837d67456d282cd7c",
+     "rust/tcl-compiler/src/var_resolve/original_name_contents.rs": "6fa39c54f9461ca6b22d4ac772f58208b793b376b62890779158afb2e0a2d517",
+     "rust/tcl-syntax/src/native_object_append.rs": "ab8da3e07f30a14ac5d2024e7437ce1990baf101f97178c6375538d939f14290",
+-    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "136cfa39c8df5ac07026e31dd397d20dba9593260f136302e7caffd01031d46f",
++    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "8ffc8f316d84ac5880e1e0c75e326844b600842af02da6b4e02799b86e1d2255",
+     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
+     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
+-    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd",
+-    "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
++    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0",
++    "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs": "6191f6e5e3b0e96fb20fc0c95ae80527a300c01b4973d7a5a9de5adf311e1ccc",
+     "rust/tcl-compiler/src/command_binding/retained_source.rs": "f2919bda0850cc0f6f2fd54fc88837686138b4d24e27ed301b03a94688800797",
+     "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
+     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867"
+--- a/docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json
++++ b/docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json
+@@ -16,7 +16,7 @@
+   ],
+   "source_head_at_preparation": "9c034861e58e8d1245cd52e2174d95e6843f4f3e",
+   "source_pins": {
+-    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd",
++    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0",
+     "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8",
+     "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "5c71f5e71feced1fd8ec839dd7b4522d3343960e8f36f05e0813837ddcd9e27d"
+   },
+--- a/docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json
++++ b/docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json
+@@ -40,7 +40,7 @@
+     "rust/tcl-compiler/src/compilation_unit.rs": "646b630dd2ddcfb3574363e90d0b8a9a8e0b608ee856640e9db034ab719d0d6f",
+     "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
+     "rust/tcl-compiler/src/realm.rs": "95ff1fc2db0b842fd90ea7b834485a51bf5bb8a8c9f06327641ea1cfa76db083",
+-    "rust/tcl-compiler/src/registry_invocation.rs": "2d6dd21c25ba03cc18e1ae92f60738f49afb24b335cbf96282ffda9dab6e917c",
++    "rust/tcl-compiler/src/registry_invocation.rs": "94b7f054d3ea4a34706363781aa49eeede33f7404df968731b5584509fdf0cd8",
+     "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "abcd8c0af33d7f511cc01048e95c0202dbd03202a3ae3b40abd7d81e49bb9769",
+     "rust/tcl-compiler/src/ssa.rs": "8df79291dc78a1f140fbe6b1df8c63fadc88ab795038fdb9f7b536c00fce9cd0",
+     "rust/tcl-compiler/src/taint.rs": "96cd7d1b2616dd54163945a3541cccba128bfb15a80fe1d8bf7dc6da7f1d7f6b",
+@@ -57,6 +57,6 @@
+     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
+     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
+     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "c3f80b6ccb8139380fa0ffb15e2236c1cdca68206661c826aa01c17317a65dfd",
+-    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "be89c93192a3a5a2315c930234e1216a1e6198fd536fb547ec2b745ba376ae38"
++    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3"
+   }
+ }
+--- a/docs/work/name-handling/validation-tools/irules-preflight-roster.json
++++ b/docs/work/name-handling/validation-tools/irules-preflight-roster.json
+@@ -141,7 +141,7 @@
+     "runtime/rust/src/interp/native_body_artifact/native_i64_add.rs": "eaf16e7dae46408d83c406669f2ade04804969754595a98a520f8f3035bbb367",
+     "runtime/rust/src/interp/native_i64_body.rs": "77856a295a67e2c5abe57d3c246a45e7eb1efa194090cdd54e466482dc607b77",
+     "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
+-    "runtime/rust/src/interp.rs": "2807537afcff59ea4822ea8fb7a625022a16b5dcd08794af296e3cd8b0dd8906",
++    "runtime/rust/src/interp.rs": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
+     "rust/tcl-runtime-api/src/codegen_abi.rs": "227a4c817af875b971ce4772866151a5f6ee260048e045113f5352553e1fadb0",
+     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
+     "runtime/rust/src/codegen_abi/original_frame_owner.rs": "b5960c3c7fd65f33454be3c3a89e6855febeb32a3ded7ef9f72e5904cbd2773c",
+--- a/docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json
++++ b/docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json
+@@ -48,9 +48,9 @@
+     "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
+     "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "f19fcd73127acecacc3f493e83d9f4022b2142f414e7d4b08d45cdffe5ead2bc",
+     "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "19205ff1fcf10a40900681c84bf2886edcffc8265424578f33bda0c1c2a3d358",
+-    "rust/tcl-compiler/src/registry_invocation.rs": "2d6dd21c25ba03cc18e1ae92f60738f49afb24b335cbf96282ffda9dab6e917c",
++    "rust/tcl-compiler/src/registry_invocation.rs": "94b7f054d3ea4a34706363781aa49eeede33f7404df968731b5584509fdf0cd8",
+     "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "4e5c1369a02ed26df4becae20580292cf0b3419fe8915c118b4644a9e9dda96d",
+     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "c3f80b6ccb8139380fa0ffb15e2236c1cdca68206661c826aa01c17317a65dfd",
+-    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "be89c93192a3a5a2315c930234e1216a1e6198fd536fb547ec2b745ba376ae38"
++    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3"
+   }
+ }
+--- a/docs/work/name-handling/validation-tools/spectcl-fold-roster.json
++++ b/docs/work/name-handling/validation-tools/spectcl-fold-roster.json
+@@ -33,7 +33,7 @@
+     "rust/tcl-compiler/src/deferred_writes.rs": "3144418bdc9b8d8ed3f43bff6b4397e0802bf31d16defe3d9387e042093e3e4b",
+     "rust/tcl-compiler/src/deferred_writes/supplied.rs": "8815677c7b50a2ec7626d373936dee2bbf2e9768a870d0bf9ca43095ad588f79",
+     "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
+-    "rust/tcl-compiler/src/registry_invocation.rs": "2d6dd21c25ba03cc18e1ae92f60738f49afb24b335cbf96282ffda9dab6e917c",
++    "rust/tcl-compiler/src/registry_invocation.rs": "94b7f054d3ea4a34706363781aa49eeede33f7404df968731b5584509fdf0cd8",
+     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
+     "rust/tcl-compiler/src/value_transfer.rs": "46d2a07d9282795a78378bf7c0268b1924eb9ec0d0b76d0747d36ee3e53d3956",
+     "rust/tcl-registry/src/model/context.rs": "84b8adfdf3397c393b6ee83742f3cbaa49e837555be87348255828ccc6bc8e65",
+@@ -76,7 +76,7 @@
+     "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "1e64637ff88c0193a7ba7e76ab09d85d9fce432bb286cf3237e96d7a7f814c2d",
+     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
+     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
+-    "runtime/rust/src/interp.rs": "2807537afcff59ea4822ea8fb7a625022a16b5dcd08794af296e3cd8b0dd8906",
++    "runtime/rust/src/interp.rs": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
+     "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs": "84311ba0625bcc1c6af12ec4bb6bf9e84152eefa374002d683a645ff48d82dc1",
+     "runtime/rust/src/interp/native_children.rs": "2878cfc001c34588f2ca51464e37ed70e042c8e5905e4b4c1052891d741028f3",
+     "rust/tcl-runtime-api/src/native_compiler_pass.rs": "c4ce7a785e01be9baf83cbbb1b55a757f6b92c1962bef9e8bfe37afcc0f62d51",
+@@ -110,7 +110,7 @@
+     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
+     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
+     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "c3f80b6ccb8139380fa0ffb15e2236c1cdca68206661c826aa01c17317a65dfd",
+-    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "be89c93192a3a5a2315c930234e1216a1e6198fd536fb547ec2b745ba376ae38",
++    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3",
+     "rust/tcl-vm/src/interp/native_procedure_refusal_observer.rs": "5ea5a36a84c230f5563720846c1a6aba997d387c398683babaa368996ee3334a",
+     "rust/tcl-compiler/src/command_binding/source_world_observer.rs": "3fe6ee60e64313df76df23caf2bfe18ad9ff1053a5138bfc839411f22dcc329a"
+   },
+--- a/docs/work/name-handling/validation-tools/wasm-real-link-roster.json
++++ b/docs/work/name-handling/validation-tools/wasm-real-link-roster.json
+@@ -21,7 +21,7 @@
+     "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
+     "runtime/rust/src/capi.rs": "520056edff6482122be4208a3757d1fff04eaaaad10b74a54b025fc5cdf86468",
+     "runtime/rust/src/env_trace.rs": "6f60caf5075ed8bd23e9d15bebefd85bdb7d30d91b3f95b5189aa4baea2a35d9",
+-    "runtime/rust/src/interp.rs": "2807537afcff59ea4822ea8fb7a625022a16b5dcd08794af296e3cd8b0dd8906",
++    "runtime/rust/src/interp.rs": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
+     "runtime/rust/src/interp/command_guard_lookup.rs": "67f62a72049672b97b82c7459c9557553baa8a5e67d18ec04b337731c980efbf",
+     "runtime/rust/src/interp/native_error_headers.rs": "57b8011809548e7b16e34c116253568f91fea4ea310911ff8f7ee7ecb7b5e408",
+     "runtime/rust/src/namespace.rs": "d2b79b2daad7af30b0d963d132f2339a0612ad089dbaccbe0d9213dfa56778f9",
+--- a/docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py
++++ b/docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py
+@@ -4799,7 +4799,7 @@
+ ]
+ require(
+     sha(BASE / "compiler-native35-supplemental3.json")
+-    == "50f4678c0d2edfcd3efe7120f15b64b2659b34ee930df7ceed445839f54daa8a",
++    == "279bd4949e4e615ffff582e0f820d1e228456d8df4c84d3a08b67165d31bdb80",
+     "exact separate Native35 supplemental3 input pin",
+ )
+ supplemental = json.loads((BASE / "compiler-native35-supplemental3.json").read_text())
+@@ -4950,7 +4950,7 @@
+ ]
+ require(
+     sha(BASE / "compiler-taint-diagnostic2.json")
+-    == "c057599dbd9d8d7bd5f2607a2f4ce12b6ae73d36f75e0d01b122ac2ec2f10fe7",
++    == "73db193b74c2fe27297da40cc96ab6822d1aa6553b880b0d16dd6e3dfc17a0ca",
+     "exact separate taint diagnostic2 input pin",
+ )
+ taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
+@@ -5130,7 +5130,7 @@
+ )
+ require(
+     sha(BASE / "compiler-logical-declared-read3.json")
+-    == "008b4897693311f1dc86a6bf4e8d3c8fab2c214ac813e8562bc3c2112652eb25",
++    == "443f466b5a4bebe98a26113ef463c4553c07f619fd36074a0054be3781601c59",
+     "exact separate logical3 roster",
+ )
+ logical_validation = json.loads(
+@@ -5328,7 +5328,7 @@
+ require(sha(BASE / "source-point-complete-text-corpus2.json") == "c0b8f8ea7c655e5cb495cd725433e84a4418c6208a4f28d3edf7efbd3e0c7818", "exact separately bounded complete text corpus roster")
+ source_point_corpus_rows = [dict(row, state="UNRUN") for row in source_point_corpus_validation["rows"]]
+ 
+-source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': '5c71f5e71feced1fd8ec839dd7b4522d3343960e8f36f05e0813837ddcd9e27d'}
++source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': '5c71f5e71feced1fd8ec839dd7b4522d3343960e8f36f05e0813837ddcd9e27d'}
+ source_point_report_rows = [dict(row, state="UNRUN", capture_observation="UNOBSERVED") for row in [{'group': 'diagnostic-source-point-report-firstguard1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {'TCL_LSP_TRACE_AUTHENTICATED_REPORT': '1'}}]]
+ 
+ require(
+@@ -5376,7 +5376,7 @@
+ layout_jim_diagnostic_rows = []
+ layout11_acceptance_exit = None
+ if args.jim_source_layout_only:
+-    require(sha(BASE / "compiler-jim-source-layout11.json") == "11f4d8bcfe8e8bd6d2802f8785c4eb30eae98622562a0ee01c40e5c3d4b27817",
++    require(sha(BASE / "compiler-jim-source-layout11.json") == "ca5d211bb57853197df3ee31a1ac0c2fe68bec047da8e78efbf31295017c3168",
+             "exact Layout11 roster/direct source pins required")
+     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
+     require(jim_layout_validation["expected_selected"] == 11
+--- a/docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py
++++ b/docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py
+@@ -17,7 +17,7 @@
+ CAP = 20 * 1024**2
+ FLOOR = 2 * 1024**3
+ EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+-ROSTER_SHA = "5a314b4a43387b5ac629da6521c0a2206481bf7026cd705d596037b1d563587a"
++ROSTER_SHA = "a5b74de79834aa971d88713e9e4dfb333fe1d5b6393f823292203e84237b4373"
+ RESULT_COMPLETION_CONTROLS = ('original_command_rename::tests::authored_result_completion_coverage_retains_nested_call_without_normal_grant', 'original_command_rename::tests::authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs', 'original_command_rename::tests::authored_result_completion_never_skips_nested_name_write_or_opaque_channel')
+ SOURCE_LOAD_CONTROLS = ('original_command_rename::source_coverage::tests::single_cut_source_coverage_surveys_actual_child_and_issued_suffix', 'original_command_rename::source_coverage::tests::source_coverage_refuses_missing_child_reference_and_foreign_membership', 'original_command_rename::source_coverage::tests::source_coverage_keeps_selected_owner_and_opaque_body_refusals', 'original_command_rename::source_coverage::tests::source_coverage_never_omits_extra_cuts_or_namespace_frames')
+ BASE = Path(__file__).resolve().parent
+--- a/docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py
++++ b/docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py
+@@ -233,7 +233,7 @@
+ roster_path = BASE / "irules-preflight-roster.json"
+ require(
+     sha(roster_path)
+-    == "ba72cca2df2ee4be6e2ca9ee7a89bbcfb602205a46f5f285aa55b2e2f70804c4",
++    == "dee9fd9d1b184bfaf2ac1fbd1d279b77238d38fd78a70df933144818c007041e",
+     "approved original preflight3 roster changed",
+ )
+ roster = json.loads(roster_path.read_text())
+--- a/docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py
++++ b/docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py
+@@ -18,7 +18,7 @@
+ FLOOR = 2 * 1024**3
+ COMMAND_SECONDS = 3600
+ EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+-ROSTER_SHA = "8a01ece8ab9edfa2c28dea235f2abffc57ff41451ce02dcc36c881bde654e7d7"
++ROSTER_SHA = "f5e1f85cd0a6a364becf8f1519f6722d47256a24b95d36a712a680f3500ff294"
+ BASE = Path(__file__).resolve().parent
+ COMMANDS = {
+     "browser": ["make", "lsp-server-wasm-test"],
+--- a/docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py
++++ b/docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py
+@@ -36,7 +36,7 @@
+ FLOOR = 2 * 1024**3
+ EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+ BASE = Path(__file__).resolve().parent
+-ROSTER_SHA = "31a69a43b9eca235126f668bf816d0508fd07ad84b9562a1067ce919d79fb6ca"
++ROSTER_SHA = "d884b0ab3b066273070900c9fec90712816f80c55ca4b5e20f381183b9ca8b00"
+ 
+ 
+ def require(value, message):

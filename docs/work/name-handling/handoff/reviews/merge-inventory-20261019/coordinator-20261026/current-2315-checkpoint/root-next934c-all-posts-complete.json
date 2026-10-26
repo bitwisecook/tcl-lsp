@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-26T23:15:59.745595+00:00",
+  "source": "934c8f83cd790e3221b17a14f6b626d176968fe1",
+  "candidate": "abbbbdc4f4810107ef631c2a1af05e4974998f7f",
+  "requests": [
+    "release-rust-check-diagnostics",
+    "source-point-corpus2-diagnostics",
+    "lsp-startup-diagnostics",
+    "prep-pr-candidate-validation"
+  ],
+  "all_posts_completed_before_source_unfreeze": true,
+  "outcomes": "PENDING"
+}

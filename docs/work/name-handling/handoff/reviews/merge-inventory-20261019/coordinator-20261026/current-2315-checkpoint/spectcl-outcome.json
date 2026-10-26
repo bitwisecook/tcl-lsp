@@ -1,0 +1,112 @@
+{
+  "utc": "2026-10-26T23:12:34.126437+00:00",
+  "source": "ea86590bafc97ac0007a71ffadb729118fbae0bb",
+  "run": 40413140109,
+  "job": 121888656109,
+  "verdict": "FULLAUTH_OLD16_PASS_VM1_PASS_VM4_PASS_LENGTH_1OF1_MAP_RANGE_0_FULL600_CLOSED_PASS",
+  "zip_sha256": "e431db95a7835c9b700fde91f095097f4d005c5dc86647bdc6e714fcf04a5f7a",
+  "base_receipt_sha256": "96cac0472b0ecb5052904220581453768967b6f2c3dd448ee8e437ec90bb1b7a",
+  "all_member_sha_inventory": "406bf9f528350a689a9e00bef013d84257b2c7d7f1ad4067ef8211938bb90260",
+  "members": 145,
+  "old16": "ALLPASS",
+  "added_cohorts": [
+    {
+      "selector": "exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives",
+      "state": "PASS",
+      "seconds": 2.707931744,
+      "exit_code": 0,
+      "stdout_sha256": "a4848f73a8984359ea7f2702aba7d0d10dbe9fb3a36e62436012eb48dfe08d78",
+      "stderr_sha256": "6c8d28eac2607212dc59c4bc75c3ddab83de811b54462e6bdfe6f8bf3e9cfccf"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::self_removing_execution_trace_remains_an_observer_until_callback_settles",
+      "state": "PASS",
+      "seconds": 1.704256754,
+      "exit_code": 0,
+      "stdout_sha256": "d8818ade2b4603f46678c699c65192dc9ce6aa7f729d6ecc3c528a7bf6fe9183",
+      "stderr_sha256": "2bb98339001141218518d94db90ecc2b018a76e471248e82d6678c51d69dac34"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::actual_declaration_initialization_plan_rejects_old_capture_foreign_owner_and_restore",
+      "state": "PASS",
+      "seconds": 1.516230883,
+      "exit_code": 0,
+      "stdout_sha256": "a5d3cb387a3e2ca310ca84122992c65f5392621f994eaa16b9907b184913be79",
+      "stderr_sha256": "7f3ad4a179cee48a04a73c90f29b1c5389c0627c505815a14b7958573582f1e4"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::registered_removed_and_firing_execution_observers_never_revive_old_receipt",
+      "state": "PASS",
+      "seconds": 1.636427952,
+      "exit_code": 0,
+      "stdout_sha256": "71989dad5c0cd7e9972c3e66729c1b479ef1d06596329da70fa2c6384800e050",
+      "stderr_sha256": "2fc76bb2219354680b0a7b2ae803ccec633c2b43ffe2815a98597cf823bb599b"
+    },
+    {
+      "selector": "interp::ordinary_entry_observer_tests::debug_hooks_limits_and_retirement_withdraw_but_line_watch_does_not",
+      "state": "PASS",
+      "seconds": 1.458666616,
+      "exit_code": 0,
+      "stdout_sha256": "6138ea60c3ee66eb947a36dfdd1f98f12eb91e48fb9c63be57f2003cddb0fa7e",
+      "stderr_sha256": "ce0e37c790784a1d006f4d04e7c8fd52cce882e88a90824991f39f797e3116f4"
+    },
+    {
+      "selector": "shipped_string_pack_replays_actual_corpus_first_gates",
+      "state": "FAIL",
+      "seconds": 9.175203616,
+      "exit_code": 101,
+      "stdout_sha256": "151296e519168c7c2855f04454422a0ee75f15667ec9357510b23871f2fffa0e",
+      "stderr_sha256": "75e297b153791edae0d9fd34999dd3509f52e074c691ecf9c0ba2e79ed835159"
+    },
+    {
+      "selector": "every_shipped_tclspec_loads_installs_and_analyses_against_corpus",
+      "state": "PASS",
+      "seconds": 487.275446039,
+      "exit_code": 0,
+      "stdout_sha256": "e77d2de3e7b9afc8ea74c60d703cefc5ca43fcb9fa558e576a1002cb6bad0dbf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "closed_string_first_gates": [
+    {
+      "hook": "length",
+      "successes": 1,
+      "attempts": 1,
+      "optimisations": 1
+    },
+    {
+      "hook": "map",
+      "successes": 0,
+      "attempts": 0,
+      "optimisations": 0
+    },
+    {
+      "hook": "range",
+      "successes": 0,
+      "attempts": 0,
+      "optimisations": 1
+    }
+  ],
+  "full_corpus": {
+    "state": "PASS",
+    "complete": true,
+    "seconds": 487.275446039,
+    "stop_reason": null,
+    "exit_code": 0,
+    "aggregate_counts": {
+      "packs": 25,
+      "commands": 1516,
+      "hook_bodies": 24,
+      "successful_hook_invocations": 19090,
+      "attempted_hook_invocations": 19090,
+      "diagnostics": 319,
+      "optimisations": 87
+    }
+  },
+  "limits": [
+    "LENGTH1/1 and completed full600 aggregate are scoped results; MAP/RANGE attempts remain0 and C1C2 remains open.",
+    "Original600 command,600s deadline,quiet environment and owned lifecycle preserved; no timeout waiver.",
+    "Source changes exist; no causal attribution or older-source outcome donation.",
+    "API3 actualfullCI closure belongs Codegen; no NativeStore/Normal/body permission follows."
+  ]
+}

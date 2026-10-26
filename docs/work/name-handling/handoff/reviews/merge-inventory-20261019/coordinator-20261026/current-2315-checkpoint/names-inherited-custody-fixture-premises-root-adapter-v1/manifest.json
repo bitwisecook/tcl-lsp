@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-26T23:10:37.134999+00:00",
+  "lanes": {
+    "WORK": {
+      "directory": "/workspace/naming-proof-storage/names-inherited-custody-fixture-premises-root-adapter-v1/WORK",
+      "manifest_sha256": "83fc49ef698f994ff38b26963462eacaaa9c393c742ee153b75e2361c4edb7f0",
+      "patch_sha256": "dc3fb37de72fd62aa9807095f10b806ecfb0e11ff86514f3b060878fa6e82288",
+      "before_sha256": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
+      "after_sha256": "6191f6e5e3b0e96fb20fc0c95ae80527a300c01b4973d7a5a9de5adf311e1ccc",
+      "base_commit": "01aa3e1dd4060ee2b734ee5c82f14a130d59e677",
+      "fixture_formatter_overlap": false,
+      "exact_reviewed_transport": true,
+      "F_R_F0_fmt_whitespace": true,
+      "other_dirty_status_records": 0
+    },
+    "CLEAN": {
+      "directory": "/workspace/naming-proof-storage/names-inherited-custody-fixture-premises-root-adapter-v1/CLEAN",
+      "manifest_sha256": "c7155bfce06f9b9fb41c04a621452cd2c624e81849923e66cd4daf978fd56f4c",
+      "patch_sha256": "dc3fb37de72fd62aa9807095f10b806ecfb0e11ff86514f3b060878fa6e82288",
+      "before_sha256": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
+      "after_sha256": "6191f6e5e3b0e96fb20fc0c95ae80527a300c01b4973d7a5a9de5adf311e1ccc",
+      "base_commit": "ca4532618db4f232901f90720fa5033ae4ddcc74",
+      "fixture_formatter_overlap": false,
+      "exact_reviewed_transport": true,
+      "F_R_F0_fmt_whitespace": true,
+      "other_dirty_status_records": 866
+    }
+  },
+  "original_manifest_sha256": "32479d230b2366df2f06864f21f7d5fc415527f383c774d963d226ab1ff97a2d",
+  "original_peer_receipt_sha256": "14543f950d6d7a1178d7806ed63c88cfb918dd155558e815493e0de854924a2e",
+  "no_canonical_mutation": true
+}

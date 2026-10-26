@@ -1,0 +1,54 @@
+{
+  "source": "ea86590bafc97ac0007a71ffadb729118fbae0bb",
+  "prior_source_comparison": "7ecd81eb3255a83a44e3875e044cddf134ef0d5d",
+  "same_named_full_test_region_sha256": "3527d66588e760c99d70cd901a479c623a9b2e38765f8483ebe720afa191a30c",
+  "test_region_comparison": true,
+  "same_notice_baseline_sha256": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5",
+  "same_all_old_driver_function_AST": {
+    "require": true,
+    "sha": true,
+    "save": true,
+    "git": true,
+    "files": true,
+    "source": true,
+    "lifecycle": true,
+    "original_result": true,
+    "execute": true,
+    "full_corpus_append": true,
+    "string_first_gates_append": true,
+    "native_string_effect_append": true,
+    "ordinary_entry_append": true
+  },
+  "same_original_full_selector": [
+    "every_shipped_tclspec_loads_installs_and_analyses_against_corpus"
+  ],
+  "argv": [
+    "/home/runner/work/_temp/spectcl-fold-target/debug/deps/spec_corpus-2f05924058af8e65",
+    "every_shipped_tclspec_loads_installs_and_analyses_against_corpus",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "deadline_seconds": 600,
+  "environment": {
+    "SPECTCL_CORPUS_BLESS": null,
+    "SPECTCL_CORPUS_DIFF": null,
+    "SPECTCL_CORPUS_PACK_THREADS": null,
+    "SPECTCL_CORPUS_TMP": null,
+    "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": null,
+    "TCL_LSP_TRACE_DEFERRED_WRITES_ANY": null,
+    "TCL_LSP_TRACE_N17_FOLD": null
+  },
+  "stdout_sha256": "e77d2de3e7b9afc8ea74c60d703cefc5ca43fcb9fa558e576a1002cb6bad0dbf",
+  "stderr_bytes": 0,
+  "counts": {
+    "packs": 25,
+    "commands": 1516,
+    "hook_bodies": 24,
+    "successful_vm_hooks": 19090,
+    "attempted_vm_hooks": 19090,
+    "diagnostics": 319,
+    "optimisations": 87
+  },
+  "scope": "Current exact original full600 test completed under original command/quiet environment/budget and same test region+notice baseline versus prior7ecd. Product/dependency changes exist, so no causal attribution or new Native eligibility permission."
+}

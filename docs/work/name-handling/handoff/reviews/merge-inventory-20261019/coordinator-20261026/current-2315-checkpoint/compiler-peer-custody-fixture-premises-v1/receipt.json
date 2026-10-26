@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-26T23:04:21.943523+00:00",
+  "verdict": "CLEAR narrowly corrected installed/retired and eligible foreign-point fixture premises",
+  "manifest_sha256": "32479d230b2366df2f06864f21f7d5fc415527f383c774d963d226ab1ff97a2d",
+  "checks": [
+    {
+      "lane": "WORK",
+      "fixed_current_Git": true,
+      "whole_module_explicit_fixture_inverse": true,
+      "real_inherited_unit_factory_byte_identical": true,
+      "all_original_assertions_unchanged_ordered": 17,
+      "F_R_F0": true,
+      "fmt2024": true
+    },
+    {
+      "lane": "CLEAN",
+      "fixed_current_Git": true,
+      "whole_module_explicit_fixture_inverse": true,
+      "real_inherited_unit_factory_byte_identical": true,
+      "all_original_assertions_unchanged_ordered": 17,
+      "F_R_F0": true,
+      "fmt2024": true
+    }
+  ],
+  "oracle_sha256": "a355d31c6ef4a3c0692bc5306d919da6a062fc3edac0979a5da6407426739942",
+  "reasoning": [
+    "The original live programs remain explicit installed-first category assertions; retirement appends rename after exactly their original statements and selects a retained declaration category without donating Native entry/publication. Every original custody/header/body/namespace/foreign/refusal assertion remains in order.",
+    "The actual mutating-parent whole-entry refusal is now asserted directly. Foreign entry is independently issued by the unchanged genuine factory from an eligible parent; distinct point plus a positive own-body custody check precede the original cross-owner refusal. No cloned/default/retagged entry.",
+    "Registry/input originate at the genuine point as before; parent/point/entry/CU lifetime flow is unchanged. Added references borrow existing module/cards, and no production/public API/currentness/comparison/Native/frame/normal guard changes.",
+    "Author finite pinned C8.6.18 surface oracle agrees live p exists and appended rename removes it; this supplies only script surface evidence, not compiler custody/body ownership."
+  ],
+  "limits": [
+    "Actual Rust controls, installed-first category, retired allocated body and independent-point positives remain UNRUN. The real assertions must execute without weakening; static correction is not an observed PASS."
+  ]
+}

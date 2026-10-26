@@ -1,0 +1,115 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -2756,7 +2756,7 @@
+         callback_scope: logical_navigation::LogicalCallbackScope<'_>,
+     ) -> Option<()> {
+         self.retain_requested_class_relation(invocation, graph, schema);
+-        self.retain_schema_advice(tape, invocation, graph, schema)?;
++        self.retain_schema_advice(tape, invocation, graph, schema, procedure.is_some())?;
+         self.retain_native_expression_syntax_inventory(tape, graph, invocation, schema);
+         self.retain_original_expression_catalogue(tape, graph, invocation, schema);
+         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
+@@ -2779,12 +2779,30 @@
+         invocation: AdviceInvocation<'_>,
+         graph: &AdviceGraph,
+         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++        procedure_present: bool,
+     ) -> Option<()> {
+-        if graph.native_baseline
++        let retained = graph.native_baseline
+             || !invocation.lineage.is_empty()
+             || graph.procedure_body.is_some()
+-            || matches!(self.policy, AdviceNamingPolicy::Logical(_))
++            || matches!(self.policy, AdviceNamingPolicy::Logical(_));
++        if schema.semantics.procedure_definition.is_some()
++            && crate::registry_invocation::source_cut_trace_admitted()
+         {
++            let image = self.origin.source_image();
++            eprintln!(
++                "SOURCE_CUT_VALUE_ISSUER origin={:p} data={:p} bytes={} offset={:?} procedure={} native={} lineage={} body={} logical={} retained={retained}",
++                Arc::as_ptr(self.origin),
++                image.bytes().as_ptr(),
++                image.len(),
++                invocation.native.first().map(|word| word.span().start()),
++                procedure_present,
++                graph.native_baseline,
++                !invocation.lineage.is_empty(),
++                graph.procedure_body.is_some(),
++                matches!(self.policy, AdviceNamingPolicy::Logical(_)),
++            );
++        }
++        if retained {
+             let advice = self.schema_advice(invocation, graph, schema)?;
+             tape.advice.insert(advice.site.offset, advice);
+         }
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -1638,20 +1638,22 @@
+ }
+ 
+ pub(crate) fn source_cut_refuses(stage: &'static str, refused: bool) -> bool {
+-    if refused && option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1") {
+-        static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+-        if ROWS
++    if refused && source_cut_trace_admitted() {
++        eprintln!("SOURCE_CUT_DECLARATION first_refusal={stage}");
++    }
++    refused
++}
++
++pub(crate) fn source_cut_trace_admitted() -> bool {
++    static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
++    option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1")
++        && ROWS
+             .try_update(
+                 std::sync::atomic::Ordering::Relaxed,
+                 std::sync::atomic::Ordering::Relaxed,
+                 |rows| (rows < 64).then_some(rows + 1),
+             )
+             .is_ok()
+-        {
+-            eprintln!("SOURCE_CUT_DECLARATION first_refusal={stage}");
+-        }
+-    }
+-    refused
+ }
+ 
+ fn source_cut_declaration_selection(
+--- a/rust/tcl-compiler/src/realm/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/realm/source_transition_advice.rs
+@@ -30,6 +30,26 @@
+         crate::registry_invocation::source_cut_refuses(stage, refused)
+     } else {
+         refused
++    }
++}
++
++fn observe_cut_value_refusal(
++    trace: bool,
++    binding: &crate::command_binding::SourceInvocationBinding,
++    image: &tcl_lexer::SourceImage,
++    offset: u32,
++) {
++    cut_value_refuses(trace, "value.represented-refusal", true);
++    if trace && crate::registry_invocation::source_cut_trace_admitted() {
++        let origin = binding
++            .dispatch_site
++            .as_ref()
++            .map(|site| Arc::as_ptr(&site.source));
++        eprintln!(
++            "SOURCE_CUT_VALUE_REFUSED origin={origin:?} data={:p} bytes={} offset={offset}",
++            image.bytes().as_ptr(),
++            image.len(),
++        );
+     }
+ }
+ 
+@@ -2014,7 +2034,7 @@
+                 advice.clone()
+             }
+             OriginalSourceTransitionAdviceLookup::Refused => {
+-                cut_value_refuses(trace_cut, "value.represented-refusal", true);
++                observe_cut_value_refusal(trace_cut, binding, image, offset);
+                 #[cfg(test)]
+                 trace_original_child_guard("retained.represented_refusal", Some(offset), false);
+                 return None;

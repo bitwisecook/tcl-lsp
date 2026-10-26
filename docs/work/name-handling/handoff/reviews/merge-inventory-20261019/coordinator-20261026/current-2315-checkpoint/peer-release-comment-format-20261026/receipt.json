@@ -1,0 +1,21 @@
+{
+  "status": "CLEAR_SAFE_TO_COMMIT_EXACT_FORMATTER_DIFF",
+  "utc": "2026-10-26T23:14:06.622073+00:00",
+  "base": "ca4532618db4f232901f90720fa5033ae4ddcc74",
+  "patch_sha256": "0a774083fbe95a016e10e1273e526e521a3d9410bd9792a903356c04e020be2e",
+  "files": 866,
+  "all_866_before_after_hashes_modes_and_final_diff_stable": true,
+  "exact_noncomment_token_spellings_preserved_paths": 865,
+  "only_token_normalization": {
+    "path": "rust/tcl-cmd-core/src/encoding.rs",
+    "before": "|failure| { failure.command_error(version) }",
+    "after": "|failure| failure.command_error(version)",
+    "assessment": "Same closure parameter, call, capture and owned return. command_error consumes self and returns CmdError. Removed block has no locals, statements, attributes, unsafe scope, control flow, borrow or additional temporary expression; closure evaluation/result and ? propagation remain the same. No macro body is altered by this normalization."
+  },
+  "all_literal_and_comment_contents_exact": true,
+  "macro_invocation_token_spellings": "Unchanged throughout all 866 files, except the non-macro encoding closure brace normalization. Complete raw/ordinary/byte/C/char literal spellings preserved.",
+  "detected_location_macro_coordinates": "Before/after equal for every detected occurrence; comments/literals excluded.",
+  "root_formatter_receipt": "root-release-comment-format-20261026/result.json records successful main and standalone-runtime cargo fmt runs; this peer did not run them.",
+  "recommendation": "Root can commit this exact formatting diff. This is editorial source-equivalence review, not Rust typing, behavioral validation, zero-P2F, performance or release-gate acceptance.",
+  "canonical_mutations_by_reviewer": "None: no apply/source edits/index/build/test/formatter/commit/push. Only this review directory written."
+}

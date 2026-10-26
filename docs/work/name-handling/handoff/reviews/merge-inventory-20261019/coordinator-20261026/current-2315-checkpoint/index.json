@@ -1,0 +1,169 @@
+{
+  "utc": "2026-10-26T23:24:04.551451+00:00",
+  "files": [
+    {
+      "source": "/workspace/naming-proof-storage/peer-release-comment-format-20261026/receipt.json",
+      "copy": "peer-release-comment-format-20261026/receipt.json",
+      "sha256": "2c7e7067369aaeb7fde80c94c47e8167cf64d09769a60a647def763e3e615132",
+      "bytes": 1839
+    },
+    {
+      "source": "/workspace/naming-proof-storage/peer-release-comment-format-20261026/REPORT.md",
+      "copy": "peer-release-comment-format-20261026/REPORT.md",
+      "sha256": "e05a31e90ae4975ed88da9dea1bc5b0a6a87bccb52272e8ac30b2ff954db7fcf",
+      "bytes": 1552
+    },
+    {
+      "source": "/workspace/naming-proof-storage/peer-release-comment-format-20261026/manifest.json",
+      "copy": "peer-release-comment-format-20261026/manifest.json",
+      "sha256": "87bd5dcc035775f595bf96583ccc4524ea2c9d46eb2742b8b89a77d1b6edb23e",
+      "bytes": 498
+    },
+    {
+      "source": "/workspace/naming-proof-storage/peer-lsp-c93-diagnostic-lens-smoke-contract-v1/receipt.json",
+      "copy": "peer-lsp-c93-diagnostic-lens-smoke-contract-v1/receipt.json",
+      "sha256": "6799e257255962a640f7ffe7cb88270887abd2bd9e9508f11ac224cf3b7d32b3",
+      "bytes": 5121
+    },
+    {
+      "source": "/workspace/naming-proof-storage/peer-lsp-c93-diagnostic-lens-smoke-contract-v1/REPORT.md",
+      "copy": "peer-lsp-c93-diagnostic-lens-smoke-contract-v1/REPORT.md",
+      "sha256": "35f1256e6066dc5fe3dc4bbc65b9b26c2a572f8f621f9bac9ca42ac2a6659448",
+      "bytes": 1758
+    },
+    {
+      "source": "/workspace/naming-proof-storage/peer-lsp-c93-diagnostic-lens-smoke-contract-v1/manifest.json",
+      "copy": "peer-lsp-c93-diagnostic-lens-smoke-contract-v1/manifest.json",
+      "sha256": "731cdc4bc8834231d67d0e1f9dba33ed233eee92e2b09f7102b612a475fce258",
+      "bytes": 250
+    },
+    {
+      "source": "/workspace/naming-proof-storage/names-inherited-custody-fixture-premises-root-adapter-v1/manifest.json",
+      "copy": "names-inherited-custody-fixture-premises-root-adapter-v1/manifest.json",
+      "sha256": "0f49c607ae83062089a9f8bc522b017729a407504140493ba783d9969d73ff08",
+      "bytes": 1748
+    },
+    {
+      "source": "/workspace/naming-proof-storage/names-inherited-custody-fixture-premises-root-adapter-v1/CLEAN/proposal.patch",
+      "copy": "names-inherited-custody-fixture-premises-root-adapter-v1/CLEAN/proposal.patch",
+      "sha256": "dc3fb37de72fd62aa9807095f10b806ecfb0e11ff86514f3b060878fa6e82288",
+      "bytes": 5079
+    },
+    {
+      "source": "/workspace/naming-proof-storage/names-inherited-custody-fixture-premises-root-adapter-v1/CLEAN/manifest.json",
+      "copy": "names-inherited-custody-fixture-premises-root-adapter-v1/CLEAN/manifest.json",
+      "sha256": "c7155bfce06f9b9fb41c04a621452cd2c624e81849923e66cd4daf978fd56f4c",
+      "bytes": 1235
+    },
+    {
+      "source": "/workspace/naming-proof-storage/names-inherited-custody-fixture-premises-root-adapter-v1/WORK/proposal.patch",
+      "copy": "names-inherited-custody-fixture-premises-root-adapter-v1/WORK/proposal.patch",
+      "sha256": "dc3fb37de72fd62aa9807095f10b806ecfb0e11ff86514f3b060878fa6e82288",
+      "bytes": 5079
+    },
+    {
+      "source": "/workspace/naming-proof-storage/names-inherited-custody-fixture-premises-root-adapter-v1/WORK/manifest.json",
+      "copy": "names-inherited-custody-fixture-premises-root-adapter-v1/WORK/manifest.json",
+      "sha256": "83fc49ef698f994ff38b26963462eacaaa9c393c742ee153b75e2361c4edb7f0",
+      "bytes": 1232
+    },
+    {
+      "source": "/workspace/naming-proof-storage/compiler-peer-custody-fixture-premises-v1/receipt.json",
+      "copy": "compiler-peer-custody-fixture-premises-v1/receipt.json",
+      "sha256": "14543f950d6d7a1178d7806ed63c88cfb918dd155558e815493e0de854924a2e",
+      "bytes": 2228
+    },
+    {
+      "source": "/workspace/naming-proof-storage/lsp-source-cut-advice-producer-witness-work-v1/manifest.json",
+      "copy": "lsp-source-cut-advice-producer-witness-work-v1/manifest.json",
+      "sha256": "edfe866893781b6490f10225088f5dec91b37807277f80571e0452763e73a7d8",
+      "bytes": 1478
+    },
+    {
+      "source": "/workspace/naming-proof-storage/lsp-source-cut-advice-producer-witness-work-v1/author-proof.json",
+      "copy": "lsp-source-cut-advice-producer-witness-work-v1/author-proof.json",
+      "sha256": "e8a9540872464702ef94b92cb0a798dc310723fe9359fd169a381e04985f2d6f",
+      "bytes": 2062
+    },
+    {
+      "source": "/workspace/naming-proof-storage/lsp-source-cut-advice-producer-witness-work-v1/WORK/proposal.patch",
+      "copy": "lsp-source-cut-advice-producer-witness-work-v1/WORK/proposal.patch",
+      "sha256": "01a562bf89ff8ba22c104e54de6de3955391cce641d355a06f93a1530016e037",
+      "bytes": 4814
+    },
+    {
+      "source": "/workspace/naming-proof-storage/compiler-peer-sourcecut-producer-witness-v1/receipt.json",
+      "copy": "compiler-peer-sourcecut-producer-witness-v1/receipt.json",
+      "sha256": "6ee2532b12d4f8d7603339a7da12afa3d2ed5db140b9ac6672aff8cf4196f893",
+      "bytes": 2328
+    },
+    {
+      "source": "/workspace/naming-proof-storage/ccg-finalfa5e-current25-pin-union-work-v1/proposal.patch",
+      "copy": "ccg-finalfa5e-current25-pin-union-work-v1/proposal.patch",
+      "sha256": "e4acc91c5de172eef3b0b6566b74c4e53d6958f4c9280521b22d892bedddc550",
+      "bytes": 20943
+    },
+    {
+      "source": "/workspace/naming-proof-storage/ccg-finalfa5e-current25-pin-union-work-v1/manifest.json",
+      "copy": "ccg-finalfa5e-current25-pin-union-work-v1/manifest.json",
+      "sha256": "37e8459f337feebc1d5c8b009156b269c02fb5698cdc597c655e1352b757c499",
+      "bytes": 34324
+    },
+    {
+      "source": "/workspace/naming-proof-storage/compiler-peer-finalfa5e-current25-pin-union-v1/receipt.json",
+      "copy": "compiler-peer-finalfa5e-current25-pin-union-v1/receipt.json",
+      "sha256": "ff457d69960ca7aeacb05e37295c06127bf22561678456d143a016851a8f1082",
+      "bytes": 21129
+    },
+    {
+      "source": "/workspace/naming-proof-storage/root-release-comment-format-20261026/committed-result.json",
+      "copy": "root-release-comment-format-20261026/committed-result.json",
+      "sha256": "ff037e139c1a150b596bb04b132f55549a309a455341597cccae971094a6c077",
+      "bytes": 324
+    },
+    {
+      "source": "/workspace/naming-proof-storage/root-release-comment-format-20261026/result.json",
+      "copy": "root-release-comment-format-20261026/result.json",
+      "sha256": "bb88b039cd1e6d20a14e78adfee36daa9a86e326065ff598fcf0133c24f13da0",
+      "bytes": 51134
+    },
+    {
+      "source": "/workspace/naming-proof-storage/release-chaff-final-a8/REPORT.md",
+      "copy": "release-chaff-final-a8/REPORT.md",
+      "sha256": "c13f0ae155e8e7b6ea0c70dfbfdcc46d2d11055d1516c7401b1bacd218e6ffa4",
+      "bytes": 2449
+    },
+    {
+      "source": "/workspace/naming-proof-storage/root-next934c-all-posts-complete.json",
+      "copy": "root-next934c-all-posts-complete.json",
+      "sha256": "8785c08bb19fee2d35a98cec61e159bd2af87cbc6155158f94942e0126cd883e",
+      "bytes": 407
+    },
+    {
+      "source": "/workspace/naming-proof-storage/root-next934c-source-preflight-v16.json",
+      "copy": "root-next934c-source-preflight-v16.json",
+      "sha256": "47046bacce6a7ac0a13f43661040e2dcde6e2c43b236a35f1b4fd4c3e84f51f0",
+      "bytes": 22829
+    },
+    {
+      "source": "/workspace/naming-proof-storage/root-finalfa5e-union-json-ast-audit.json",
+      "copy": "root-finalfa5e-union-json-ast-audit.json",
+      "sha256": "100f48bdf4bdc1566ca8e78fe043bdcdf0386be3375504a8ba4d3b52da94a2b2",
+      "bytes": 1640
+    },
+    {
+      "source": "/workspace/naming-proof-storage/root-clean-ci-a8d34817-dispatch.json",
+      "copy": "root-clean-ci-a8d34817-dispatch.json",
+      "sha256": "afb144d6b8112d823ca4be0bf49756d2f3730385550ab43d5122aef6f6e7187d",
+      "bytes": 716
+    },
+    {
+      "source": "/workspace/naming-proof-storage/root-nexta9be-source-preflight-v16.json",
+      "copy": "root-nexta9be-source-preflight-v16.json",
+      "sha256": "921d6b932a6a1b1a32a703cdd8856f5638f94708a690a841bab2c436e51e579d",
+      "bytes": 22829
+    }
+  ],
+  "bytes": 217025,
+  "scope": "WORK-only durable small reviewed-source/protocol/dispatch receipts; current validation limited to each exact source; no release copy or gate admission; no binary/archive payload"
+}

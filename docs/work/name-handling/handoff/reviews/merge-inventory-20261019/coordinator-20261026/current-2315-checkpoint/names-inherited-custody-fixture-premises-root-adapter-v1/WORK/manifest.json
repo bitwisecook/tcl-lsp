@@ -1,0 +1,22 @@
+{
+  "schema": "root-normalized-source-integration-v1",
+  "lane": "WORK",
+  "base_commit": "01aa3e1dd4060ee2b734ee5c82f14a130d59e677",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/retained_source/inherited_point_report_tests.rs",
+      "operation": "modify",
+      "before_sha256": "5ed5a8865076914d5d4c61b3dfb37870cfc7302d31025cdd2f218eae9e1db17e",
+      "after_sha256": "6191f6e5e3b0e96fb20fc0c95ae80527a300c01b4973d7a5a9de5adf311e1ccc"
+    }
+  ],
+  "patch_sha256": "dc3fb37de72fd62aa9807095f10b806ecfb0e11ff86514f3b060878fa6e82288",
+  "reviewed_manifest_sha256": "32479d230b2366df2f06864f21f7d5fc415527f383c774d963d226ab1ff97a2d",
+  "review_receipt_sha256": "14543f950d6d7a1178d7806ed63c88cfb918dd155558e815493e0de854924a2e",
+  "source_afterimages_exact_reviewed": true,
+  "fixture_worktree_matches_HEAD": true,
+  "fixture_dirty_formatter_overlap": false,
+  "unrelated_tracked_dirty_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "unrelated_tracked_dirty_status_records": 0,
+  "scope": "Adapter only: original reviewed patch and before/after bytes unchanged. No canonical mutation or formatter carry; fixture path has no dirty formatter hunk. Rust tests UNRUN."
+}

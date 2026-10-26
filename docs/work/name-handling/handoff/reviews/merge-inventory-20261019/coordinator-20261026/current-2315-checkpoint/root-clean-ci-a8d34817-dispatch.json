@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-26T23:20:06.841797+00:00",
+  "source": "a8d34817fa7fac497c6669aea3e419e54ae5b351",
+  "work": "a9be9baa81d7d41d8476c35f9286c71b44700c17",
+  "baseline": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "request": {
+    "ref": "release/lsp-naming",
+    "inputs": {
+      "rust_tests_runner": "hosted",
+      "native_release_build_proof": true
+    }
+  },
+  "full_CI_graph": true,
+  "no_active_branch_CI_before_dispatch": true,
+  "concurrency_group": "CI-native-release-proof-refs/heads/release/lsp-naming",
+  "publish_or_release": false,
+  "branch_not_tag": true,
+  "scope": "Current complete mandatory checks, baseline inventory and read-only native builds; no validation acceptance before results."
+}
