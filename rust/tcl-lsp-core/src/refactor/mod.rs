@@ -432,6 +432,21 @@ impl<'a> FrameWalk<'a> {
         Some((selected, body.content_span().ok()?))
     }
 
+    /// Exact authored result completion plus every original command argument.
+    /// This neither reopens the ordinary structure path nor supplies Normal.
+    pub(crate) fn result_completion_for_rename_coverage(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::OriginalAuthoredResultCompletionSourceCoverage<'a>>
+    {
+        tcl_compiler::registry_invocation::original_authored_result_completion_for_source_coverage(
+            source,
+            self.analysis,
+            &self.tokens(source, command),
+        )
+    }
+
     /// Borrow complete metadata from this actual document owner. Missing,
     /// foreign or changed source policy cannot reopen standalone assistance.
     pub(crate) fn metadata_context(

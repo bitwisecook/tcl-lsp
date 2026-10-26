@@ -1053,6 +1053,233 @@ pub fn original_authored_quiet_store_for_source_coverage<'a>(
         .then_some(OriginalQuietScalarStoreSourceCoverage { selected, analysis })
 }
 
+/// Exact conditional result-completion source coverage, without execution,
+/// Native admission, completed effects or Normal operation completion.
+/// Every executable argument component remains an independent source survey.
+pub struct OriginalAuthoredResultCompletionSourceCoverage<'a> {
+    selected: ResolvedStatementInvocation,
+    analysis: &'a crate::analyser::AnalysisResult,
+    regions: Vec<tcl_lexer::Span>,
+}
+
+impl OriginalAuthoredResultCompletionSourceCoverage<'_> {
+    #[must_use]
+    pub const fn invocation(&self) -> &ResolvedStatementInvocation {
+        &self.selected
+    }
+
+    #[must_use]
+    pub fn is_for_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
+        std::ptr::eq(self.analysis, analysis)
+    }
+
+    /// All original executable command arguments, never Result text as script.
+    #[must_use]
+    pub fn argument_regions(&self) -> &[tcl_lexer::Span] {
+        &self.regions
+    }
+}
+
+fn registered_source_completion_resolvers(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> bool {
+    use tcl_registry::state_transition::LogicalSourceStateTransitionResolver;
+    use tcl_registry::world_effect::SourceWorldEffectResolver;
+    let effects = schema.semantics.world_effects;
+    let transitions = schema.semantics.state_transitions;
+    effects.is_declared()
+        && transitions.is_declared()
+        && [effects.command, effects.subcommand, effects.form]
+            .into_iter()
+            .flatten()
+            .all(|descriptor| {
+                matches!(
+                    descriptor.source_resolver,
+                    Some(SourceWorldEffectResolver::Effects(_))
+                )
+            })
+        && [
+            transitions.command,
+            transitions.subcommand,
+            transitions.form,
+        ]
+        .into_iter()
+        .flatten()
+        .all(|descriptor| {
+            matches!(
+                descriptor.logical_source_resolver,
+                Some(LogicalSourceStateTransitionResolver::CompletionState(_))
+            )
+        })
+}
+
+fn authored_result_completion_effects_are_supported(
+    selected: &ResolvedStatementInvocation,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    context: InvocationMetadataContext<'_>,
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+) -> bool {
+    use tcl_registry::world_effect::{CallbackKinds, Reentrancy, WorldStateDomain};
+    let shape = RegistryInvocationShape::from_facts(&selected.facts, selected.effective.clone());
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config());
+    shape
+        .with_source_schema(registry, context, tokens, |schema| {
+            // Proof comes only from registered source resolvers, never a
+            // Native resolver fallback or the metadata family's Native label.
+            if !registered_source_completion_resolvers(schema) {
+                return Some(false);
+            }
+            let facts = schema.facts();
+            let (roles, complete) = schema.authored_source_argument_roles();
+            let (effects, transitions) =
+                schema.authored_source_effects_and_state_transitions(dialect);
+            Some(
+                facts.descriptor_key() == selected.facts.descriptor_key()
+                    && schema.semantics.operation
+                        == tcl_registry::SemanticOperationId::StructuredLowering(
+                            tcl_registry::hooks::LoweringHookId::Return,
+                        )
+                    && schema.semantics.argument_offset == 0
+                    && facts.native_result
+                        == Some(tcl_registry::native_result::NativeResultContract::ReturnResult)
+                    && complete
+                    && match schema.words.arguments().exact_argv_len() {
+                        Some(0) => roles.is_empty(),
+                        Some(1) => roles.as_slice() == [(0, tcl_registry::ArgRole::Result)],
+                        _ => false,
+                    }
+                    && schema
+                        .words
+                        .arguments()
+                        .exact_argv_len()
+                        .is_some_and(|count| count <= 1)
+                    && facts.arity_accepts_frozen_arguments() == Some(true)
+                    && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                    && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+                    && schema.semantics.body_execution.is_none()
+                    && schema.semantics.frame_effect.is_none()
+                    && !facts.traits.intersects(
+                        tcl_registry::FRAME_REACH_TRAITS
+                            | tcl_registry::Traits::INTROSPECTS_BY_NAME
+                            | tcl_registry::Traits::TARGETS_VARIABLE_BY_NAME
+                            | tcl_registry::Traits::REFLECTS_COMMAND_NAMES
+                            | tcl_registry::Traits::CREATES_SCOPE_ALIAS
+                            | tcl_registry::Traits::CREATES_DYNAMIC_BARRIER
+                            | tcl_registry::Traits::DEFERS_BODY
+                            | tcl_registry::Traits::PERFORMS_SUBSTITUTION,
+                    )
+                    && schema.semantics.world_effects.is_declared()
+                    && schema.semantics.state_transitions.is_declared()
+                    && effects.callback().kinds == CallbackKinds::NONE
+                    && effects.callback().reentrancy == Reentrancy::Never
+                    && effects.accesses().iter().all(|access| {
+                        matches!(
+                            access.domain,
+                            WorldStateDomain::InterpreterResult
+                                | WorldStateDomain::CompletionState
+                                | WorldStateDomain::LegacyExternal(
+                                    tcl_registry::side_effects::SideEffectTarget::EventControl
+                                )
+                        )
+                    })
+                    && transitions.facts().is_empty()
+                    && transitions.command_resolution_impact()
+                        == tcl_registry::CommandResolutionImpact::None,
+            )
+        })
+        .is_some_and(|closed| closed)
+}
+
+/// Source-only result completion under the actual current authored schema.
+/// Arguments retain their independent conditional closure and nested commands;
+/// the operation's abrupt completion is never converted to Normal.
+#[must_use]
+pub fn original_authored_result_completion_for_source_coverage<'a>(
+    source: &str,
+    analysis: &'a crate::analyser::AnalysisResult,
+    tokens: &CommandTokens,
+) -> Option<OriginalAuthoredResultCompletionSourceCoverage<'a>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let image = tcl_lexer::SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    let realm = analysis.retained_command_realm()?;
+    if !realm.matches_resolved_analysis_input(input) {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let offset = tokens.argv.first()?.start();
+    let site = binding.invocation_site()?;
+    let origin = realm.source_bindings_ref().source_origin()?;
+    if site.offset != offset || !std::sync::Arc::ptr_eq(&site.source, origin) {
+        return None;
+    }
+    let expected = realm.retained_original_tokens_for_command(&image, config, offset, tokens)?;
+    if expected.source_binding.as_ref() != Some(binding) {
+        return None;
+    }
+    let registry = analysis.resolved_registry()?;
+    let context = InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        analysis.resolved_profile(),
+    )?;
+    if binding.original_source_advice_purpose(tokens, context, registry)?
+        != crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+    {
+        return None;
+    }
+    let selected = original_declared_structured_invocation(registry, context, tokens)?;
+    original_structured_operands_are_supported(registry, &selected, None, tokens)?;
+    if selected
+        .effective
+        .origins
+        .iter()
+        .enumerate()
+        .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
+    {
+        return None;
+    }
+    let native = original_native_compiler_words(&image, tokens.words(), offset, config)?;
+    if !realm
+        .source_bindings_ref()
+        .original_conditional_arguments_for_source_coverage(&native, registry)
+        || !authored_result_completion_effects_are_supported(
+            &selected, input, context, registry, tokens,
+        )
+    {
+        return None;
+    }
+    let mut regions = std::collections::BTreeSet::new();
+    for word in &native {
+        for part in word.executable_parts().all_parts() {
+            match part.part {
+                tcl_lexer::ExecutablePart::Command { body } => {
+                    regions.insert((body.start(), body.end()));
+                }
+                tcl_lexer::ExecutablePart::ParseError(_)
+                | tcl_lexer::ExecutablePart::Expression { .. } => return None,
+                _ => {}
+            }
+        }
+    }
+    Some(OriginalAuthoredResultCompletionSourceCoverage {
+        selected,
+        analysis,
+        regions: regions
+            .into_iter()
+            .map(|(a, b)| tcl_lexer::Span::new(a, b))
+            .collect(),
+    })
+}
+
 /// Original deferred procedure declaration grammar for source coverage only.
 /// This retains the exact authored source lookup and direct static operands;
 /// it grants neither body entry nor Native frame or Normal completion.
