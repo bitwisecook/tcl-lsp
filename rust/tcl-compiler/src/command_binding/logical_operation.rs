@@ -1152,6 +1152,32 @@ mod tests {
         );
     }
 
+    fn assert_logical_source_prefix_inputs_refused(
+        target: &crate::command_binding::SourceCommandTarget,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) {
+        assert!(
+            target
+                .original_logical_prepended_source_inputs(input, image, config)
+                .is_none()
+        );
+    }
+
+    fn assert_logical_name_prefix_inputs_refused(
+        target: &crate::command_binding::SourceCommandTarget,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) {
+        assert!(
+            target
+                .original_logical_prepended_name_inputs(input, image, config)
+                .is_none()
+        );
+    }
+
     #[test]
     fn logical_source_prefix_words_keep_actual_alias_lineage_without_name_key_policy() {
         let mut profile = tcl_registry::model::ingress::resolve_environment("f5-irules")
@@ -1228,19 +1254,12 @@ mod tests {
             );
             let mut config = input.lexer_config();
             config.strict_quoting ^= true;
-            assert!(
-                target
-                    .original_logical_prepended_source_inputs(&input, &image, config)
-                    .is_none()
-            );
-            assert!(
-                target
-                    .original_logical_prepended_source_inputs(
-                        &input,
-                        &tcl_lexer::SourceImage::document(&source.replace("held", "away")),
-                        input.lexer_config()
-                    )
-                    .is_none()
+            assert_logical_source_prefix_inputs_refused(target, &input, &image, config);
+            assert_logical_source_prefix_inputs_refused(
+                target,
+                &input,
+                &tcl_lexer::SourceImage::document(&source.replace("held", "away")),
+                input.lexer_config(),
             );
             let foreign = crate::analyser::ResolvedAnalysisInput::new(
                 profile,
@@ -1249,21 +1268,19 @@ mod tests {
                     .default_context_registry(),
                 input.lexer_config(),
             );
-            assert!(
-                target
-                    .original_logical_prepended_source_inputs(
-                        &foreign,
-                        &image,
-                        input.lexer_config()
-                    )
-                    .is_none()
+            assert_logical_source_prefix_inputs_refused(
+                target,
+                &foreign,
+                &image,
+                input.lexer_config(),
             );
             let mut missing = target.clone();
             missing.logical_original_prefix = None;
-            assert!(
-                missing
-                    .original_logical_prepended_source_inputs(&input, &image, input.lexer_config())
-                    .is_none()
+            assert_logical_source_prefix_inputs_refused(
+                &missing,
+                &input,
+                &image,
+                input.lexer_config(),
             );
         }
     }
@@ -1307,18 +1324,10 @@ mod tests {
             assert!(target.original_prepended_name_inputs().is_none());
             assert!(binding.proved_handler_target().is_none());
             let stale = tcl_lexer::SourceImage::document(&format!("{source} "));
-            assert!(
-                target
-                    .original_logical_prepended_name_inputs(&input, &stale, input.lexer_config())
-                    .is_none()
-            );
+            assert_logical_name_prefix_inputs_refused(target, &input, &stale, input.lexer_config());
             let mut changed = input.lexer_config();
             changed.strict_quoting = !changed.strict_quoting;
-            assert!(
-                target
-                    .original_logical_prepended_name_inputs(&input, &image, changed)
-                    .is_none()
-            );
+            assert_logical_name_prefix_inputs_refused(target, &input, &image, changed);
             let foreign = ResolvedAnalysisInput::new(
                 input.analyser_profile(),
                 input.unit_profile(),
@@ -1333,18 +1342,20 @@ mod tests {
                 ),
                 input.lexer_config(),
             );
-            assert!(
-                target
-                    .original_logical_prepended_name_inputs(&foreign, &image, input.lexer_config())
-                    .is_none()
+            assert_logical_name_prefix_inputs_refused(
+                target,
+                &foreign,
+                &image,
+                input.lexer_config(),
             );
             let mut changed = target.clone();
             changed.prepended[0] =
                 crate::registry_invocation::EffectiveInvocationWord::Literal("0".to_owned());
-            assert!(
-                changed
-                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
-                    .is_none()
+            assert_logical_name_prefix_inputs_refused(
+                &changed,
+                &input,
+                &image,
+                input.lexer_config(),
             );
             let lookup_world = &binding.lookup_state.as_ref().unwrap().state;
             let cloned = lookup_world.clone();
