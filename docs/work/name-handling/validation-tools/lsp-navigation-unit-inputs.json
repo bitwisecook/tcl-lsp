@@ -1,7 +1,7 @@
 {
   "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
   "schema": 1,
-  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance. Separately labelled three bounded scan-window lifetime controls on the same fresh server libtest; no new build or budget. Separately labelled four positive-reference dependency/publication/lease controls use the same fresh server libtest after old navigation and scan controls, unchanged shared limits.",
+  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance. Separately labelled three bounded scan-window lifetime controls on the same fresh server libtest; no new build or budget. Separately labelled four positive-reference dependency/publication/lease controls use the same fresh server libtest after old navigation and scan controls, unchanged shared limits. Separately labelled one actual coarse producer-generation control follows all old eight controls on the same fresh server libtest with unchanged shared limits.",
   "selectors": [
     "tests::public_navigation_waits_for_live_index_before_source_view_routing"
   ],
@@ -17,7 +17,8 @@
     "rust/tcl-lsp-server/Cargo.toml": "612e4f1e263b52fcbfd927bfdec99fde4dc0142ddf9939deabdbde80a6d8f913",
     "rust/tcl-lsp-server/src/lib.rs": "748ff0187804456e1ee565f9df7515fda77a6fe1e4c6a560931fb8711bd8453a",
     "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "b631df8e34385799e895b6007223397e4281dd570c2ac3490433b924de8f1300",
-    "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214"
+    "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "f19fcd73127acecacc3f493e83d9f4022b2142f414e7d4b08d45cdffe5ead2bc"
   },
   "target": "tcl_lsp_server",
   "scan_retention_controls": [
@@ -30,5 +31,8 @@
     "readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_selected_and_dependent_unknown_mutation",
     "readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_foreign_publication_and_changed_input",
     "readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_unrelated_child_physical_lease"
+  ],
+  "coarse_producer_controls": [
+    "readonly_reference_reports::coarse_semantic_source_tests::coarse_receipt_uses_actual_producer_generations_without_renewal"
   ]
 }

@@ -17,9 +17,10 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "d03f65d6e6778ea065308aa0d3316cb0bd67a51a7537b94bf019d7401eae985c"
+ROSTER_SHA = "3456e9c01a3b231eca382e0503d1c7473e0b0ddaf64cacd8f8041212248a0224"
 SCAN_RETENTION_CONTROLS = ('workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window', 'workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs', 'workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs')
 POSITIVE_REFERENCE_CONTROLS = ('readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_all_live_views_without_unrelated_completion', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_selected_and_dependent_unknown_mutation', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_foreign_publication_and_changed_input', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_unrelated_child_physical_lease')
+COARSE_PRODUCER_CONTROLS = ('readonly_reference_reports::coarse_semantic_source_tests::coarse_receipt_uses_actual_producer_generations_without_renewal',)
 BASE = Path(__file__).resolve().parent
 
 
@@ -195,6 +196,37 @@ def run_positive_reference_controls(roster, executable, artifact, out, cases):
         save(out / "positive-reference-cases.json", cases)
 
 
+def validate_coarse_producer_controls(roster):
+    require(
+        roster.get("coarse_producer_controls") == list(COARSE_PRODUCER_CONTROLS),
+        "exact bounded coarse producer controls mismatch",
+    )
+
+
+def run_coarse_producer_controls(roster, executable, artifact, out, cases):
+    validate_coarse_producer_controls(roster)
+    for index, selector in enumerate(roster["coarse_producer_controls"]):
+        require(sha(executable) == artifact["sha256"], "selected executable changed")
+        prefix = "coarse-producer-" + str(index + 1)
+        listed = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list", executable, 180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+                == [selector + ": test"],
+            "exact coarse producer control missing/ambiguous",
+        )
+        receipt = execute(
+            [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix, executable, 180,
+        )
+        result = original_result((out / (prefix + ".stdout")).read_text(), receipt["exit_code"])
+        cases.append({"selector": selector, "result": result, "exit_code": receipt["exit_code"]})
+        save(out / "coarse-producer-cases.json", cases)
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -219,6 +251,7 @@ processes = []
 cases = []
 scan_retention_cases = []
 positive_reference_cases = []
+coarse_producer_cases = []
 seals = {}
 originals = {}
 providers = []
@@ -235,6 +268,7 @@ try:
     require(sha(roster_path) == ROSTER_SHA, "navigation unit roster pin changed")
     roster = json.loads(roster_path.read_text())
     validate_positive_reference_controls(roster)
+    validate_coarse_producer_controls(roster)
     require(
         roster["executor_sha256"] == EXECUTOR_SHA
         and len(roster["selectors"]) == 1
@@ -471,6 +505,15 @@ try:
         and all(case["result"] == "PASS" for case in positive_reference_cases)
         else 1
     )
+    prior_coarse_producer_status = status
+    status = 2
+    run_coarse_producer_controls(roster, executable, artifact, out, coarse_producer_cases)
+    status = (
+        0 if prior_coarse_producer_status == 0
+        and len(coarse_producer_cases) == 1
+        and all(case["result"] == "PASS" for case in coarse_producer_cases)
+        else 1
+    )
 except (
     RuntimeError,
     OSError,
@@ -525,6 +568,8 @@ finally:
             "separate_scan_retention_total": len(scan_retention_cases),
             "positive_reference_cases": positive_reference_cases,
             "separate_positive_reference_total": len(positive_reference_cases),
+            "coarse_producer_cases": coarse_producer_cases,
+            "separate_coarse_producer_total": len(coarse_producer_cases),
             "separate_supplemental_total": len(cases),
             "processes": processes,
             "remaining_log_bytes": remaining,
