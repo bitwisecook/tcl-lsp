@@ -2,13 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T11:34:00.920605+00:00
+Last updated: 2026-10-26T12:22:40.362345+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
 
-Currentd072 strict40312507121/WASM40312506311 active, solecaptures reserved; prior22aa WASM FULLAUTH368 assessment60390ca4 alloriginal25PASS. Final7dca metadata2e832fec/0fcc5a0e clearedb1119640 andV14PASS, Rootapplied beforecorrectedCef60 CI40315313882(nativeprooftrue), currentlyqueued. ObsoleteC396 CI terminalcancelledbyRoot afterALLremaining21knownCoreE0061/builddependent classification16ededf9; completedRuntime2397=2306P91F retained,91paniccauses routedRuntime. Exactbaseline998join747P0F251unobserved(245integration+6unitnotobserved), no2295baselineconflation. All5Rust+Heavylistingmembers empty andfourterminalcaptures build101/rosterunavailable, soAPI3selectionUNOBSERVED. Olderordinaryf763 same3healthyjobs preserved. Rootsoleallperformance/canonicaledits; no newmetadata untilfreeze.
+Root model-capacity paused; canonicalP5e875/Cb7ced unchanged, no takeover/modelchange. Heldfinal5e87 metadata d256/e141 NOTforapply untilreviewedWORKdeadhelperbcec46/f684 integrated+freshfreeze. Actual853e strict FULLAUTH23 d6cad060 exactly1dead_code needed<T> source_coverage296/0Clippy/0RusttypeE, matchingpendingfix; latestd072WASM FULLAUTH368 b12d alloriginal25PASS. HealthycorrectedCef60CI40315313882 continues: runtime2397=2306P91F(exactsame91asC396);baseline998join747P0F251unknown. ActualAPI3selectedmatches/nonignored inRustshard3 listing bf8bd591, outcomespending. SmallRustlistings1/3+Heavyqualified, noELFdownload. Oldf763 finalavailable24624join8804P2248F13356unknown216notselected; partialcancellationcausesqualified, notlatestacceptance. SoleCI/strict captures remainactive; Rootsoleperformance, Namessoleprep-prarchive.
 
 Final b2a source union frozen9358189c/5b1fb05c independently CLEARafae344b:18files,40existingrefresh+32approveddeps, full23/17maps347records227Gitfiles, full10getter3maps/OwnJimparentfanout/headroom2maps/refsHostNav, histories/protocols/env/budgets unchanged. Both prospectiveV14PASS13/30/20 and all9 actualruntime source-functionguards PASS; Root canonicalapply/push/dispatch remains separate. User-approved allocationcurrentcarry231c strong34f2 and protocolbe4f strong9c786 complete, all actualnew results stillUNRUN; original25WASM scope now2to3+teardown asapproved. Sourceheadroom075fa integrated byRoot, oldmanual63/newprobe controls scheduled. Latest ordinaryf763 CI09:14 still shard2/E2E1/E2E2 active, preserve; all current source outcomes require newhosted runs. No latestbroad acceptance/performance claim.
 
