@@ -1571,28 +1571,44 @@ fn source_cut_resolved_head_correspondence(
     tokens: &CommandTokens,
     words: &source_structure::OriginalRegistryWords,
 ) -> Option<source_structure::OriginalSourceHeadCorrespondence> {
-    let image = realm.original_source_image()?;
-    let offset = tokens.argv.first()?.start();
-    let expected = realm.retained_original_tokens_for_command(image, config, offset, tokens)?;
-    if expected.source_binding != tokens.source_binding {
+    let image = source_cut_stage("pair.source-image", realm.original_source_image())?;
+    let offset = source_cut_stage("pair.argv", tokens.argv.first())?.start();
+    let expected = source_cut_stage(
+        "pair.expected-tokens",
+        realm.retained_original_tokens_for_command(image, config, offset, tokens),
+    )?;
+    if source_cut_refuses(
+        "pair.binding",
+        expected.source_binding != tokens.source_binding,
+    ) {
         return None;
     }
-    let advice = realm.original_source_transition_advice(context, tokens)?;
-    let original =
-        source_structure::source_transition_words_from_advice(source, config, context, advice)?;
-    if original.origins().len() != words.origins().len()
-        || original
-            .origins()
-            .iter()
-            .enumerate()
-            .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
-        || (0..words.arguments().len()).any(|index| {
-            original.original_argument_word(index) != words.original_argument_word(index)
-        })
-    {
+    let advice = source_cut_stage(
+        "pair.advice",
+        realm.original_source_transition_advice(context, tokens),
+    )?;
+    let original = source_cut_stage(
+        "pair.words",
+        source_structure::source_transition_words_from_advice(source, config, context, advice),
+    )?;
+    if source_cut_refuses(
+        "pair.operands",
+        original.origins().len() != words.origins().len()
+            || original
+                .origins()
+                .iter()
+                .enumerate()
+                .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
+            || (0..words.arguments().len()).any(|index| {
+                original.original_argument_word(index) != words.original_argument_word(index)
+            }),
+    ) {
         return None;
     }
-    original.original_source_head_correspondence(words, context)
+    source_cut_stage(
+        "pair.correspondence",
+        original.original_source_head_correspondence(words, context),
+    )
 }
 
 fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Option<T> {
