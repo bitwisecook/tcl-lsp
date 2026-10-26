@@ -21,24 +21,20 @@
 //! These carriers remain available when the expression backend is absent;
 //! constructing or reporting them never evaluates an expression.
 
+mod cold_state;
+use cold_state::ExprErrorState;
+
 /// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
 /// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ExprError {
     pub msg: Vec<u8>,
-    pub(crate) command_error: Option<Box<tcl_cmd_core::CmdError>>,
     pub code: Option<Vec<u8>>,
-    /// Native rejected Expression(NULL) returns error without replacing result.
-    pub(crate) preserve_result: bool,
     /// Host-only operational refusal, independent of guest message/code bytes.
     pub native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
     /// Complete first host cause retained independently of guest fields.
     pub native_execution_refusal: Option<tcl_runtime_api::NativeExecutionError>,
-    /// Selected syntax or invalid-type state updates, excluding arithmetic failures.
-    /// Reached primitive result producer, independent of diagnostic spelling.
-    pub(crate) string_result: Option<tcl_syntax::native_string::NativeStringProtocol>,
-    pub(crate) error_stage:
-        Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+    state: Option<Box<ExprErrorState>>,
 }
 
 #[cfg_attr(not(have_tommath), allow(dead_code))]
@@ -47,12 +43,9 @@ impl ExprError {
         ExprError {
             msg: s.to_vec(),
             code: None,
-            preserve_result: false,
-            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
-            string_result: None,
-            error_stage: None,
+            state: None,
         }
     }
     /// An error from owned message bytes (no `-errorcode`).
@@ -60,12 +53,9 @@ impl ExprError {
         ExprError {
             msg: m,
             code: None,
-            preserve_result: false,
-            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
-            string_result: None,
-            error_stage: None,
+            state: None,
         }
     }
     /// An error from message bytes plus an optional `-errorcode` (an empty code
@@ -74,12 +64,9 @@ impl ExprError {
         ExprError {
             msg: m,
             code: (!code.is_empty()).then_some(code),
-            preserve_result: false,
-            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
-            string_result: None,
-            error_stage: None,
+            state: None,
         }
     }
     /// An error with an explicit `-errorcode`.
@@ -87,17 +74,14 @@ impl ExprError {
         ExprError {
             msg: m.to_vec(),
             code: Some(code.to_vec()),
-            preserve_result: false,
-            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
-            string_result: None,
-            error_stage: None,
+            state: None,
         }
     }
 
     pub(crate) fn with_numeric_string_result84(mut self) -> Self {
-        self.string_result = Some(tcl_syntax::native_string::NativeStringProtocol::C(
+        self.state_mut().string_result = Some(tcl_syntax::native_string::NativeStringProtocol::C(
             tcl_dialect::TclVersion::V8_4,
         ));
         self
@@ -105,7 +89,7 @@ impl ExprError {
 
     pub(crate) fn retained_result() -> Self {
         let mut error = Self::msg(b"");
-        error.preserve_result = true;
+        error.state_mut().preserve_result = true;
         error
     }
 
@@ -114,11 +98,12 @@ impl ExprError {
         dialect: tcl_registry::InvocationDialect,
         stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
     ) -> Self {
-        self.error_stage = self.code.as_deref().and_then(|code| {
+        let stage = self.code.as_deref().and_then(|code| {
             dialect
                 .expression_invalid_type_error_code(stage, code)
                 .map(|stage| Box::new(stage.into()))
         });
+        self.state_mut().error_stage = stage;
         self
     }
 
@@ -140,12 +125,12 @@ impl ExprError {
         Self {
             msg: message,
             code,
-            preserve_result: false,
-            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
-            string_result: None,
-            error_stage: Some(Box::new(stage)),
+            state: Some(Box::new(ExprErrorState {
+                error_stage: Some(Box::new(stage)),
+                ..ExprErrorState::default()
+            })),
         }
     }
 
@@ -159,7 +144,7 @@ impl ExprError {
         if let tcl_cmd_core::CmdErrorCodeUpdate::Set(code) = details.error_code {
             result.code = Some(code);
         }
-        result.command_error = Some(Box::new(error));
+        result.state_mut().command_error = Some(Box::new(error));
         result
     }
 
@@ -181,12 +166,9 @@ impl ExprError {
         Self {
             msg: Vec::new(),
             code: None,
-            preserve_result: false,
-            command_error: None,
             native_access_refusal: Some(error),
             native_execution_refusal: None,
-            string_result: None,
-            error_stage: None,
+            state: None,
         }
     }
 }
@@ -204,13 +186,14 @@ impl crate::interp::Interp {
         if let Some(refusal) = error.native_access_refusal {
             return self.refuse_native_access(refusal);
         }
-        if let Some(error) = error.command_error {
+        let state = error.state.map(|state| *state).unwrap_or_default();
+        if let Some(error) = state.command_error {
             return self.report_cmd_error(*error);
         }
-        if error.preserve_result {
+        if state.preserve_result {
             return crate::interp::Code::Error;
         }
-        if let Some(stage) = error.error_stage {
+        if let Some(stage) = state.error_stage {
             let error_code = stage.code_update(
                 tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
             );
@@ -227,7 +210,7 @@ impl crate::interp::Interp {
             self.retain_expression_error_stage(stage);
             return code;
         }
-        if let Some(protocol) = error.string_result {
+        if let Some(protocol) = state.string_result {
             let error = match error.code {
                 Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(error.msg, code),
                 None => tcl_cmd_core::CmdError::new_bytes(error.msg),

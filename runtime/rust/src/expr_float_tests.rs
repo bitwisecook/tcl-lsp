@@ -20,8 +20,7 @@ fn assert_scalar_numeric_input_unavailable(error: &ExprError) {
     assert_eq!(error.native_execution_refusal, Some(cause.clone()));
     assert_eq!(
         error
-            .command_error
-            .as_ref()
+            .retained_command_error()
             .expect("retained scalar command error")
             .native_execution_refusal(),
         Some(&cause),

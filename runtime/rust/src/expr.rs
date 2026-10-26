@@ -1816,8 +1816,7 @@ mod tests {
         assert_eq!(error.native_execution_refusal, Some(cause.clone()));
         assert!(
             error
-                .command_error
-                .as_ref()
+                .retained_command_error()
                 .unwrap()
                 .native_execution_refusal()
                 == Some(&cause)
