@@ -2,7 +2,7 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// naming.lsp.original-document-transform-currency
+// Transform a document only while its captured source snapshot remains current.
 
 import * as vscode from "vscode";
 import {

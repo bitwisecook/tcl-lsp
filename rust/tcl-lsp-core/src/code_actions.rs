@@ -449,7 +449,7 @@ pub fn code_actions_in_program(
     let Some(analysis) = analysis else {
         return Vec::new();
     };
-    // Implementation contract: naming.editor.original-diagnostic-edit-currency
+    // Keep diagnostic edits tied to the current source.
 
     let Some(current) = DiagnosticEditSource::for_analysis(source, analysis) else {
         return Vec::new();
@@ -680,7 +680,7 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher, H: BuildHasher, I: Bu
     disabled: &std::collections::HashSet<String, S>,
     suppressed: &HashMap<i32, HashSet<String, I>, H>,
 ) -> Vec<CodeAction> {
-    // Implementation contract: naming.editor.original-diagnostic-edit-currency
+    // Keep diagnostic edits tied to the current source.
 
     let source = current.source();
     let line_index = LineIndex::new(source);
@@ -1123,7 +1123,7 @@ fn original_source_package_already_named(
     analysis: &AnalysisResult,
     package: &str,
 ) -> Option<bool> {
-    // naming.core.original-package-source-action-context
+    // Use the document’s original source context for package actions.
 
     let census = crate::source_structure::SourcePackagePresenceCensus::capture(source, analysis)?;
     crate::source_structure::SourcePackagePresenceCensus::already_names(
@@ -2724,7 +2724,7 @@ mod tests {
 
     #[test]
     fn original_source_action_metadata_uses_retained_availability_over_report_profile() {
-        // naming.consumer.original-diagnostic-source-actions
+        // Build source actions from diagnostic metadata tied to the source.
 
         // Exact metadata admission, without a Native slot/handler/effect claim.
         let catalogue = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -3464,7 +3464,7 @@ mod tests {
 
     #[test]
     fn logical_package_hint_keeps_shared_written_colon_geometry() {
-        // naming.core.original-package-source-action-context
+        // Use the document’s original source context for package actions.
 
         // Authored catalogue hints only; no package loader or callable identity.
         let catalogue = vec!["http".to_owned(), ":http".to_owned()];
@@ -4030,7 +4030,7 @@ mod tests {
 
     #[test]
     fn w115_action_uses_actual_schema_and_complete_original_unicode_lines() {
-        // naming.core.original-comment-source-context
+        // Keep comment edits anchored to their original source context.
 
         let source = "hold-script {\n    # café 😀 \\\n    puts 😀\n}\n";
         let mut registry = tcl_registry::CommandRegistry::build_default();
@@ -4087,7 +4087,7 @@ mod tests {
 
     #[test]
     fn w115_action_never_replaces_a_command_prefix_beside_a_body_comment() {
-        // naming.core.original-comment-source-context
+        // Keep comment edits anchored to their original source context.
 
         let source = "if 1 {# inline \\\nputs hidden\n}\n";
         let analysis = analyse(source);
@@ -4568,7 +4568,7 @@ mod original_docstring_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-docstring-declaration-actions
+    // Offer docstring actions only for source-backed declarations.
 
     fn original_docstrings_keep_opaque_redefinitions_without_reporting_maps() {
         let source = "proc p\\uD800 {first} {return $first}\nproc p\\uD801 {second} {return $second}\nproc p\\uD800 {third} {return $third}\n";
@@ -4608,7 +4608,7 @@ mod original_docstring_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-docstring-declaration-actions
+    // Offer docstring actions only for source-backed declarations.
 
     fn original_body_docstring_requires_its_braced_word_and_rejects_computed_body() {
         let source = "proc p {value} {return $value}\n";
@@ -4669,7 +4669,7 @@ mod original_package_suggestion_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-package-suggestion-subjects
+    // Tie package suggestions to their actual source subject.
 
     fn original_package_hint_uses_written_units_and_issuer_after_reporting_clear() {
         let source = "http::f\\uD800\n";
@@ -4711,7 +4711,7 @@ mod original_package_suggestion_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-package-suggestion-subjects
+    // Tie package suggestions to their actual source subject.
 
     fn original_package_hint_requires_own_lookup_and_canonical_package_key() {
         let source = "http::missing\n";
@@ -4749,7 +4749,7 @@ mod original_package_suggestion_tests {
     }
     #[test]
     fn original_package_action_uses_genuine_provision_and_requirement_operands() {
-        // naming.core.original-package-source-action-context
+        // Use the document’s original source context for package actions.
 
         for (source, available) in [
             ("package provide http\n", false),
@@ -4774,7 +4774,7 @@ mod original_package_suggestion_tests {
 
     #[test]
     fn original_logical_package_action_requires_its_positive_vector_and_current_input() {
-        // naming.core.original-package-source-action-context
+        // Use the document’s original source context for package actions.
 
         let profile = tcl_dialect::DialectProfile::projected_from_point(
             "logical-package-source-action",
@@ -4865,7 +4865,7 @@ mod original_package_suggestion_tests {
 
     #[test]
     fn original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling() {
-        // naming.core.original-package-source-action-context
+        // Use the document’s original source context for package actions.
 
         use std::sync::Arc;
         let input = selected_namespace_package_input();
@@ -4919,7 +4919,7 @@ mod original_package_suggestion_tests {
 
     #[test]
     fn original_package_hint_keeps_literal_position_case_and_existing_require_guards() {
-        // naming.core.original-package-source-action-context
+        // Use the document’s original source context for package actions.
 
         use std::sync::Arc;
         let input = selected_namespace_package_input();
@@ -4951,7 +4951,7 @@ mod original_package_suggestion_tests {
 
     #[test]
     fn original_package_hint_declines_conflicting_unowned_and_foreign_context_rows() {
-        // naming.core.original-package-source-action-context
+        // Use the document’s original source context for package actions.
 
         use std::sync::Arc;
         let input = selected_namespace_package_input();
@@ -5014,7 +5014,7 @@ mod original_refactor_context_tests {
 
     #[test]
     fn original_refactor_actions_keep_document_registry_and_full_source() {
-        // Implementation contract: naming.refactor.original-document-context
+        // Keep refactor actions scoped to the original document.
 
         let source = "if {$host eq \"a.com\"} {pool web_pool} elseif {$host eq \"b.com\"} {pool web_pool} elseif {$host eq \"c.com\"} {pool web_pool}";
         let range = LspRange {
@@ -5070,7 +5070,7 @@ mod original_refactor_context_tests {
 mod original_event_action_boundary_tests {
     use super::*;
 
-    // Implementation contract: naming.consumer.original-diagnostic-source-actions
+    // Build source actions from diagnostic metadata tied to the source.
 
     #[test]
     fn original_bootstrap_boundaries_exclude_nested_handler_lookalikes() {
@@ -5109,7 +5109,7 @@ mod original_expression_action_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-expression-source-selection
+    // Select expression actions from the original source position.
 
     fn original_expression_actions_separate_position_from_rewrite_equivalence() {
         let source = "expr {!(1 && 0)}";

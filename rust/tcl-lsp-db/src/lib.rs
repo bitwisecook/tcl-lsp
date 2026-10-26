@@ -1455,7 +1455,7 @@ pub fn file_external_call_sites(
 fn proc_arity(
     count: tcl_compiler::signature_scan::formal_count::SourceFormalCountProjection,
 ) -> (usize, usize) {
-    // naming.database.original-formal-count-header
+    // Project arity from the retained formal-count header.
 
     let arity = count.arity();
     let max = if arity.is_unlimited() {
@@ -2391,7 +2391,7 @@ fn project_callback_diagnostics_with_mode(
     is_disabled: impl Fn(&str) -> bool,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     let (db, project, mode) = project_input;
-    // naming.database.original-project-callback-projection
+    // Project callback diagnostics from retained project input.
 
     let Some(input) = analysis.resolved_input.as_ref() else {
         return analysis.diagnostics.clone();
@@ -5410,7 +5410,7 @@ mod tests {
 
     #[test]
     fn formal_count_project_headers_keep_the_selected_c_and_jim_contract() {
-        // naming.database.original-formal-count-header
+        // Project arity from the retained formal-count header.
 
         use salsa::Setter as _;
         use tcl_compiler::signature_scan::formal_count::SourceFormalCountOrigin;
@@ -5563,7 +5563,7 @@ proc p\uD801 {a b} {return SECOND}"
 
     #[test]
     fn original_project_diagnostics_select_opaque_call_slots_and_namespace_priority() {
-        // Implementation contract: naming.database.original-call-arity-diagnostics
+        // Report call arity from the original source contract.
 
         let db = TclDatabase::default();
         let config = cfg(&db);
@@ -5672,7 +5672,7 @@ p\uD801 A B"
 
     #[test]
     fn original_db_token_roles_keep_opaque_declarations_and_full_caller_currency() {
-        // Implementation contract: naming.database.original-token-role-consumer
+        // Use retained token roles for database consumers.
 
         use tcl_lsp_core::semantic_tokens::{
             WorkspaceTokenFacts, full_with_cu_and_facts, legend_token_types,
@@ -5810,7 +5810,7 @@ p\uD801 ordinary";
 
     #[test]
     fn original_document_policy_key_admits_actual_input_and_root_bom_geometry() {
-        // naming.source.original-configured-script-completeness
+        // Carry configured script completeness from its original input.
 
         // The actual memoised source build supplies no Native entry or execution.
         let source = "\u{feff}probe root\n\u{feff}probe later\n";
@@ -5866,7 +5866,7 @@ p\uD801 ordinary";
 
     #[test]
     fn original_document_policy_key_refuses_foreign_or_changed_full_input() {
-        // naming.source.original-configured-script-completeness
+        // Carry configured script completeness from its original input.
 
         let db = TclDatabase::default();
         let file = SourceFile::new(
@@ -5930,7 +5930,7 @@ p\uD801 ordinary";
 
     #[test]
     fn original_standalone_compiler_document_keeps_root_and_later_bom_roles() {
-        // naming.source.original-configured-script-completeness
+        // Carry configured script completeness from its original input.
 
         // The scalar diagnostics route shares this genuine fresh source builder.
         let source = "\u{feff}probe root\n\u{feff}probe later\n";
@@ -6073,9 +6073,9 @@ p\uD801 ordinary";
     }
 
     #[test]
-    // Implementation contract: naming.variable.registry-event-frame-identity
+    // Keep registry events scoped to their owning frame.
 
-    // Implementation contract: naming.compiler.original-function-lattice-mutation-identity
+    // Key function-lattice mutations to the original source identity.
 
     fn original_event_lattice_cache_retains_conditional_entry_and_reuses_same_source() {
         let source = "when HTTP_REQUEST {set local 1}";
@@ -6233,7 +6233,7 @@ p\uD801 ordinary";
     }
 
     #[test]
-    // Implementation contract: naming.variable.registry-event-frame-identity
+    // Keep registry events scoped to their owning frame.
 
     fn original_event_lattice_key_rejects_foreign_source_body_config_and_registry() {
         let source = "when HTTP_REQUEST {set local 1}";
@@ -6270,7 +6270,7 @@ p\uD801 ordinary";
             selected != plain,
             "the same name and body cannot donate event entry"
         );
-        // Implementation contract: naming.compiler.original-function-lattice-mutation-identity
+        // Key function-lattice mutations to the original source identity.
 
         let changed_mutations = original_event_changed_mutations(&db, selected);
         assert!(
@@ -6478,7 +6478,7 @@ p\uD801 ordinary";
 
     #[test]
     fn function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input() {
-        // naming.compiler.original-analysis-metadata-context
+        // Carry analysis metadata with its original input context.
 
         // Conditional source CFG completion only; no Native execution or handler grant.
         struct Capture(
@@ -6598,7 +6598,7 @@ p\uD801 ordinary";
 
     #[test]
     fn function_lattice_semantic_bundle_uses_retained_availability() {
-        // naming.compiler.original-analysis-metadata-context
+        // Carry analysis metadata with its original input context.
 
         let db = TclDatabase::default();
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -8867,7 +8867,7 @@ p\uD801 ordinary";
 
     #[test]
     fn summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads() {
-        // naming.compiler.original-summary-dependency-source-heads
+        // Track summary dependencies through original source heads.
 
         // Actual document units feed the tracked summary query. This proves
         // dependency currency, not that a procedure or substitution executes.
@@ -10365,7 +10365,7 @@ p\uD801 ordinary";
 
     #[test]
     fn original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts() {
-        // naming.diagnostic.original-callback-signature-subject
+        // Use the original callback signature as the diagnostic subject.
 
         // Current source headers only; no callback registration or execution.
         let db = TclDatabase::default();
@@ -10420,7 +10420,7 @@ p\uD801 ordinary";
 
     #[test]
     fn original_callback_signature_query_updates_headers_without_tail_substitution() {
-        // naming.diagnostic.original-callback-signature-subject
+        // Use the original callback signature as the diagnostic subject.
 
         use salsa::Setter as _;
         let mut db = TclDatabase::default();
@@ -10465,7 +10465,7 @@ p\uD801 ordinary";
 
     #[test]
     fn original_callback_signature_gap_retains_disjoint_source_headers() {
-        // naming.diagnostic.original-callback-signature-subject
+        // Use the original callback signature as the diagnostic subject.
 
         // Two current source candidates, not two installed implementations.
         let db = TclDatabase::default();
@@ -10623,7 +10623,7 @@ p\uD801 ordinary";
 
     #[test]
     fn execution_trace_source_counts_keep_unavailable_future_frame() {
-        // naming.callback.lookup-scope-owner
+        // Keep future callback lookup separate from the registration scope.
 
         // Registration syntax retains suffix metadata; it does not observe
         // the command table or namespace of a future triggering frame.
@@ -10661,7 +10661,7 @@ p\uD801 ordinary";
 
     #[test]
     fn mixed_execution_trace_source_counts_do_not_issue_a_future_lookup() {
-        // naming.callback.lookup-scope-owner
+        // Keep future callback lookup separate from the registration scope.
 
         for params in [
             "a b",
@@ -10715,7 +10715,7 @@ p\uD801 ordinary";
 
     #[test]
     fn callback_arity_namespace_unknown_zero_param_draws_e003() {
-        // naming.source.original-callback-procedure-target
+        // Keep callback diagnostics tied to the original procedure target.
 
         // The absolute head selects a conditional source declaration without
         // borrowing the unentered trigger's namespace. AtLeast(1) cannot fit
@@ -10729,7 +10729,7 @@ p\uD801 ordinary";
 
     #[test]
     fn callback_arity_namespace_unknown_relative_trigger_does_not_borrow_installer_frame() {
-        // naming.source.original-callback-procedure-target
+        // Keep callback diagnostics tied to the original procedure target.
 
         let diagnostics = callback_arity_codes("proc h {} {}; namespace unknown h");
         assert!(
@@ -11075,7 +11075,7 @@ p\uD801 ordinary";
 
     #[test]
     fn callback_arity_foreign_library_source_contexts_do_not_select_local_headers() {
-        // naming.database.original-project-callback-projection
+        // Project callback diagnostics from retained project input.
 
         let available = tcl_registry::model::ingress::static_context_for("tcl9.0");
         let commands = Arc::clone(available.commands());
@@ -11217,7 +11217,7 @@ p\uD801 ordinary";
 
     #[test]
     fn callback_arity_option_value_exactly_checked() {
-        // naming.database.original-project-callback-projection
+        // Project callback diagnostics from retained project input.
 
         // Required package metadata supplies source grammar, never loader or
         // future callback execution. The subject retains the actual prefix.
@@ -11244,7 +11244,7 @@ p\uD801 ordinary";
 
     #[test]
     fn callback_arity_mime_getbody_command_atleast_one() {
-        // naming.database.original-project-callback-projection
+        // Project callback diagnostics from retained project input.
 
         // Required package metadata supplies source grammar, never loader or
         // future callback execution. The subject retains the actual prefix.
@@ -11277,7 +11277,7 @@ p\uD801 ordinary";
 
     #[test]
     fn callback_arity_struct_graph_walk_command_checked() {
-        // naming.database.original-project-callback-projection
+        // Project callback diagnostics from retained project input.
 
         // Required package metadata supplies source grammar, never loader or
         // future callback execution. The subject retains the actual prefix.
@@ -11301,7 +11301,7 @@ p\uD801 ordinary";
 
     #[test]
     fn callback_arity_struct_tree_walkproc_checked() {
-        // naming.database.original-project-callback-projection
+        // Project callback diagnostics from retained project input.
 
         // Required package metadata supplies source grammar, never loader or
         // future callback execution. The subject retains the actual prefix.
@@ -11863,7 +11863,7 @@ mod compiler_snapshot_memo_tests {
     }
     #[test]
     fn original_callback_alias_diagnostics_keep_target_and_separate_counts() {
-        // naming.source.original-callback-procedure-target
+        // Keep callback diagnostics tied to the original procedure target.
 
         let db = TclDatabase::default();
         let source = "proc target {a b c} {}\ninterp alias {} cb {} target FIXED\nlsort -command {cb BAKED} {2 1}";
@@ -11931,7 +11931,7 @@ mod compiler_snapshot_memo_tests {
 
     #[test]
     fn original_callback_alias_external_headers_use_held_target_slot() {
-        // naming.source.original-callback-procedure-target
+        // Keep callback diagnostics tied to the original procedure target.
 
         let db = TclDatabase::default();
         let library = SourceFile::new(
@@ -11976,7 +11976,7 @@ mod compiler_snapshot_memo_tests {
 
     #[test]
     fn original_callback_alias_database_refuses_deleted_and_unowned_horizons() {
-        // naming.source.original-callback-procedure-target
+        // Keep callback diagnostics tied to the original procedure target.
 
         let db = TclDatabase::default();
         let source = "proc cb {a b c} {}\nrename cb {}\nlsort -command cb {2 1}";

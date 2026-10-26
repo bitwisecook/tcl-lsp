@@ -115,7 +115,7 @@ pub fn folding_ranges(
 /// declarations are readonly applicability; they grant no runtime body entry.
 #[must_use]
 pub fn folding_ranges_with_analysis(source: &str, analysis: &AnalysisResult) -> Vec<FoldingRange> {
-    // Implementation contract: naming.source.original-editor-body-structure
+    // Use retained source-body structure when computing folds.
 
     let Some(config) = analysis.body_lexer_config else {
         return Vec::new();
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn original_folding_uses_retained_full_config_and_body_records() {
-        // Implementation contract: naming.source.original-editor-body-structure
+        // Use retained source-body structure when computing folds.
 
         let source = "proc p {} {\n puts first\n puts second\n}\n";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -602,7 +602,7 @@ mod tests {
 
     #[test]
     fn original_folding_keeps_actual_availability_without_native_body_entry() {
-        // Implementation contract: naming.source.original-editor-body-structure
+        // Use retained source-body structure when computing folds.
 
         let source = "lmap x {a} {\n puts first\n puts second\n}\n";
         let current = logical_analysis_with_availability(source, "tcl8.6");
@@ -624,7 +624,7 @@ mod tests {
 
     #[test]
     fn original_folding_keeps_captured_body_ordinals_and_source_replacements() {
-        // Implementation contract: naming.source.original-editor-body-structure
+        // Use retained source-body structure when computing folds.
 
         let source = "interp alias {} selected {} if 1\nselected {\n puts first\n puts second\n}\n";
         let analysis = logical_analysis_with_availability(source, "tcl8.6");
