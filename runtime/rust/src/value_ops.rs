@@ -1755,6 +1755,17 @@ impl ValueOps for Interp {
         tcl_syntax::raw_string::RawString::from_bytes(obj_bytes(*v)).unicode()
     }
 
+    fn checked_character_view(&mut self, value: &*mut TclObj) -> Result<Rc<str>, ValueError> {
+        if !self.has_native_character_view_entry() {
+            return self.as_chars(value).map_err(Into::into);
+        }
+        // A ValueOps value is caller-owned live allocation storage. The lease
+        // preserves that storage across callbacks without adding a Native ref.
+        obj::check_native_liveness(*value)?;
+        let original = obj::NativeObjectLifetime::retain(*value);
+        self.native_character_view(&original)
+    }
+
     /// A character-indexed read converts the value to a string (C's
     /// `Tcl_GetUnicodeFromObj`): a canonical list is one no longer.
     fn as_chars(
@@ -2679,6 +2690,23 @@ mod tests {
     }
 
     // bytes_to_str / str_to_bytes unit coverage
+
+    /// Original invalid bytes use the checked selected Native Unicode entry.
+    #[test]
+    fn bytes_to_str_falls_back_on_invalid_utf8() {
+        for environment in ["tcl8.6", "tcl9.0"] {
+            let mut interpreter = Interp::with_native_core(
+                crate::interp::default_host(),
+                tcl_registry::model::resolve_environment(environment).unit_profile(),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let value = obj::Owned::fresh(obj::new_string_bytes(&[0x41, 0xFF, 0x42]));
+            let s = ValueOps::checked_character_view(&mut interpreter, &value.as_ptr()).unwrap();
+            assert_eq!(s.chars().count(), 3);
+            assert_eq!(s.chars().nth(1), Some('\u{00ff}'));
+        }
+    }
 
     /// Raw input cannot enter a Unicode-only operation, and retains exact bytes.
     #[test]

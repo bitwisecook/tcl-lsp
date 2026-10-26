@@ -510,7 +510,18 @@ fn compiled_string_replace(
         Settlement::Empty => interp.set_result_bytes(b""),
         Settlement::Ranges => return None,
         Settlement::Runtime => {
-            let chars = interp.as_chars(&argv[2]).ok()?.chars().count();
+            let chars = if interp
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .is_some_and(|protocol| protocol.tcl_version().is_some())
+            {
+                match tcl_cmd_core::index::NativeIndexOps::index_character_count(interp, &argv[2]) {
+                    Ok(count) => count,
+                    Err(error) => return Some(interp.report_cmd_error(error)),
+                }
+            } else {
+                interp.as_chars(&argv[2]).ok()?.chars().count()
+            };
             let numbers = release.number_syntax();
             let index = |word: *mut TclObj| {
                 tcl_cmd_core::index::resolve_with(

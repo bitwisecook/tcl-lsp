@@ -878,6 +878,12 @@ pub trait ValueOps {
         self.try_as_str(v)
     }
 
+    /// A checked character view may refuse a native entry or its currency.
+    /// Existing adapters retain their Unicode door through this default.
+    fn checked_character_view(&mut self, v: &Self::Value) -> Result<Rc<str>, ValueError> {
+        self.as_chars(v).map_err(Into::into)
+    }
+
     /// Whether C holds the value with no type or as its string type, as
     /// `TclStringMatchObj` asks before it reads both operands by character.
     /// A runtime that keeps no such distinction answers `false`.
