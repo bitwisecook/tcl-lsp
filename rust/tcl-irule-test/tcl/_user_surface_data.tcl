@@ -116,7 +116,11 @@ namespace eval ::tmm {
         ::remquo
         ::self
         ::tailcall
+        ::tcl::InitAutoPath
         ::tcl::build-info
+        ::tcl::clock::GetDateFields
+        ::tcl::clock::ParseFormatArgs
+        ::tcl::clock::getenv
         ::tcl::dict::append
         ::tcl::dict::create
         ::tcl::dict::exists
@@ -231,6 +235,7 @@ namespace eval ::tmm {
         ::tcl::process
         ::tcl::unsupported::corotype
         ::tcl::unsupported::grapheme
+        ::tcl::unsupported::representation
         ::tcl::zipfs
         ::throw
         ::timer
