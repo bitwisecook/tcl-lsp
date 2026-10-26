@@ -9793,6 +9793,101 @@ mod tests {
         );
     }
 
+    // Implementation contract: naming.dsl.incomplete-effect-descriptors.
+    // The original row-reading regression also covers malformed input. Invalid
+    // rows now withdraw the complete descriptor instead of exposing a partial
+    // EMPTY descriptor; the valid composition control remains independent.
+    #[test]
+    fn state_transition_blocks_read_every_row_world_effects_only_composition_issue_2140() {
+        assert_transition_composition_controls();
+        assert_each_malformed_transition_row_is_read();
+        assert_world_effects_rows_withdraw_complete_descriptor();
+    }
+
+    fn assert_transition_composition_controls() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 { command demo { state_transitions { \
+             composition Replace; resolver none }; \
+             world_effects { composition Replace } } }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").unwrap().spec;
+        let descriptor = spec.state_transitions.expect("a descriptor");
+        assert_eq!(
+            descriptor.composition,
+            tcl_registry::state_transition::StateTransitionComposition::Replace,
+        );
+        assert!(descriptor.resolver.is_none(), "`resolver none`");
+        assert_eq!(
+            spec.world_effects.expect("a descriptor").composition,
+            tcl_registry::world_effect::WorldEffectComposition::Replace
+        );
+    }
+
+    fn assert_each_malformed_transition_row_is_read() {
+        let transitions = evaluate_pack(
+            "speclib probe 2.2 { command demo { state_transitions { \
+             composition Replace; argument_shape whatever; resolver none; \
+             widen -operands 1; covers x; commit yes } } }",
+        );
+        assert!(
+            transitions.command("demo").is_none(),
+            "incomplete transitions must not publish a partial descriptor"
+        );
+        assert!(
+            transitions
+                .notices
+                .iter()
+                .all(|notice| !notice.message.contains("is not yet loadable; dropped")),
+            "every transition row is read"
+        );
+        let notices: Vec<&str> = transitions
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .collect();
+        for unreadable in [
+            "unknown state-transition argument shape `whatever` dropped",
+            "unreadable operand layout `1` dropped",
+            "a `covers` row needs a write source and `-domains`; row dropped",
+            "unknown state-transition commit `yes` dropped",
+        ] {
+            assert!(
+                notices.contains(&unreadable),
+                "`{unreadable}` expected; got {notices:#?}"
+            );
+        }
+        assert!(transitions.notices.iter().any(|notice| {
+            notice.class == VocabularyClass::Semantic
+                && notice.message
+                    == "incomplete state-transition row excludes this command from strong analysis"
+        }));
+    }
+
+    fn assert_world_effects_rows_withdraw_complete_descriptor() {
+        let effects = evaluate_pack(
+            "speclib probe 2.2 { command demo { world_effects { \
+             composition Replace; access read; dynamic_fallback yes; \
+             resolver none } } }",
+        );
+        assert!(
+            effects.command("demo").is_none(),
+            "unloadable world effects must not publish a partial descriptor"
+        );
+        for row in ["access", "dynamic_fallback", "resolver"] {
+            let expected = format!(
+                "`world_effects` row `{row}` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis"
+            );
+            assert!(
+                effects.notices.iter().any(|notice| {
+                    notice.class == VocabularyClass::Semantic && notice.message == expected
+                }),
+                "`{row}` should be rejected with a notice; got {:?}",
+                effects.notices
+            );
+        }
+    }
+
     #[test]
     fn case_list_loader_preserves_the_clause_shape_flags() {
         let pack = evaluate_pack(
