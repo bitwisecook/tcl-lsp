@@ -4147,7 +4147,7 @@ mod tests {
 
     fn assert_shadowed_declaration_cannot_supply_logical_operation(
         context: &Arc<tcl_registry::model::ContextRegistry>,
-        registry: &CommandRegistry,
+        registry: &tcl_registry::CommandRegistry,
     ) {
         let (_, shadowed, shadow_input) = complete_logical_declaration_tokens(
             "proc metadata_store args {return CUSTOM}; proc f {} {metadata_store p VALUE}",
@@ -4167,10 +4167,10 @@ mod tests {
     }
 
     fn assert_original_declaration_metadata_refused(
-        binding: &SourceInvocationBinding,
+        binding: &crate::command_binding::SourceInvocationBinding,
         tokens: &crate::ir::CommandTokens,
         input: &crate::analyser::ResolvedAnalysisInput,
-        registry: &CommandRegistry,
+        registry: &tcl_registry::CommandRegistry,
     ) {
         assert!(
             binding
