@@ -4038,3 +4038,11 @@ check the request's weak owner and current entry before returning a primary.
 This receipt establishes compiler-local coordinates only. Body custody,
 handler effects, callback closure, Normal completion, entered activation,
 physical slots and frame-elision safety retain their own proof requirements.
+
+Native C8.6 and C9.0 compiler-local inventories may survive an original
+expression containing only addition, subtraction, multiplication and simple
+scalar references already in the same request-issued inventory. The source
+allocation, frame, lexer configuration, compiler recipe and counted primary
+lookup must match. This preserves existing compiler slots; it grants no
+physical layout, runtime value, callback, effect or completion fact. Unsupported
+expression shapes and new local names withdraw the inventory.

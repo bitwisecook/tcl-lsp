@@ -672,7 +672,17 @@ impl CompilerTraversal<'_> {
             self.require_provider();
             return None;
         }
-        if expression_has_unretained_local_visits(&program.tree) {
+        if expression_has_unretained_local_visits(&program.tree)
+            && self.locals.as_ref().is_none_or(|locals| {
+                !locals.retains_existing_expression(
+                    program,
+                    &self.chunk,
+                    context.config,
+                    context.frame,
+                    context.compilation(),
+                )
+            })
+        {
             self.locals = None;
         }
         let (steps, prerequisite) = self.original_expression_steps(program);
