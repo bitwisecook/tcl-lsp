@@ -2,11 +2,16 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T01:40:00+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-26T01:55:13+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Actual b804119 FULL AUTH:** run40253047316/job121348885076/sourceb804741ad7cc3f92bd32fbae40950876ff4187b6 singleZIP12622670931/12,286,153B SHA2f2aa7bfc76cd2ff132687a0eca22a3a76b8c9c4c64c9f6ee3e1a0414ba8d845. Main93c6a1775eda600762c8af39638510454b8e62e6dd0b850498a120df8dee94fd and native/source13a98c866894a351b661fa041384023fad477e9d2fa8c86fb7bf12acbb414103 seal all126460source entries/fullGit domain/currentcriticalpins/provider10202/deps21504/tools/allmembers and257closedownedprocesses. ZERO Rust build diagnostics. Old10298PASS4FAIL unchanged versus129c (all58originalPASS, Logical3PASS); Logical5ALLPASS, Codec864PASS, Child10=8P2F same two named negatives; NEW Minify1FAIL atcompiler_inventory2448 positive restored_child_analysis_owner assertion. LSP owns minify followup, Names owns child negatives; exact bounded decoded stderr sent, no duplicateZIP.
+
+**Readonly measured first owner:** receiptb15d9004814a94388875d3da5d8b625936e77428f774cb81820366e7f6b8acab authenticates all4 first NATIVE_READONLY_OWNER stage=owner.unavailable. Three set cases then roles.metadata→assignment.source_roles, add case substitution.metadata. Native entry lowering legitimately has no complete source metadata input; do not fill from catalogue/profile/Standalone. Current investigation is genuine Native admitted compiler operand/fact receipt and actual local/formal/frame ownership, not source metadata fabrication or a DYNAMIC_BARRIER waiver.
+
 
 **Current 01:40 UTC:** compiler119 run40253047316/job121348885076 remains active at its main diagnostic step by last API observation; no artifact or current build/result claim. Latest fully authenticated semantic result remains129c old10298PASS4FAIL, Logical5/Codec1PASS, Child10=8P2F. Final2225 metadata union independently cleared323ebdf7d0504ffc5dca013f9dd3a02d9dbdc83cf4e4fb9072d201ebfd725289: exact9current files,19source scalar updates, all23JSON/17maps/257records/195actualGit sources, sole nestedChild10 current; fullJSON/driver byte+AST inverse andF/R/F0. Adopted V13 prospective overlay independentlyPASS13startup/30runners/20wholeguards/no failures, including corrected hardcoded-source consumers; root must run canonicalV13 after application. No build/semantic acceptance from metadata.
 

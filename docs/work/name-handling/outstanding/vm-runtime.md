@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T01:24:27Z
+Last updated: 2026-10-26T02:03:07Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+NativeString central C1C2 producer implementation off-tree vm-native-string-effect-draft now contains distinct private-constructor StringAccess effect receipt retaining actual full SourceOrdinaryLiteralPool origin/currency (Authored and Native remain distinct), Clone frozen-metadata transport (noNativeobject+1), unanimous concat/append possible-donor effects, exact normal append cell/source/WriteAt checks. Normalcompletion/cache/numeric/publicValueOps unchanged. Three compilercontrols plusactualC86/C90VM COW/header control drafted; Rustfmt syntaxpass, privateCopy→Clone audit andpairedfreeze/strongpeer pending. No semantic/executionPASSclaim. Newruntime3cb40255126104/job121355220293 solecapture pending check; priorb868AOT5UNRUN/old135closedCFIincomplete remainssealed39d8789f. AOT exactvariable-name keyfix97a271d4 independentlyCLEARbffab942; actualcause expression-operandsdecline consistent, nextcounter1stillUNRUN.
 
 Runtimeb86840251853407/job121345287925 FULLAUTH final39d8789fa23646d2c80c68fc0c43ecf606a73a788555e4692fef82fdf2b95180/envelopec4bf802b: all135ownedprocesses closed, old3/baseline14/stack/proc/attestation3 PASS; unchanged other10320P83F/prune6P1F/targeted3P. Exact128 identityjoin vs9cf has0statusdeltas. CFI incomplete retained; AOT5 allLISTED but UNRUN because my extra noterrors predicate conflated priorCFI error with closedprocess admission. One-line successor8e2d15b6 independently CLEAR38da47c2 removes only thatconflation; ALL CFIerrors/global125/old135 status/sharedbudgets remain. ActualWASMb868 new retainedplan prints6 but native_proc_dispatches!=1 (rawvalueunknown); no arithmeticexecution/counter0 inferred. WORK-only sixfile fixed-stage observer433465c2 prepared; existingflag cap128 perprocess/WASMinstance, staticlabels+heldscalarvalues, whole6formatted erasure exact/current/F-R/fmt2021PASS, SourceProc strongpeer active afterNamespriority. Codegen guestflag forwarding independently CLEARb3d3e3b; no scripts/assertions/counter relaxation.
 
