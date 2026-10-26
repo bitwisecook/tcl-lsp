@@ -572,11 +572,9 @@ canary for when eglot upstream fixes the painter."
 ;; an incremental one.  So a run that "fails" here has not caught a server
 ;; fault; it has caught eglot racing itself.
 ;;
-;; Treat a red run as noise.  If the incremental path genuinely needs a
-;; regression gate, add it as a pure-Rust reference-client e2e test (no Emacs
-;; in the loop) rather than tightening anything here — a parked, unverified
-;; sketch of both that test and a wider server-side stream cache lives on
-;; branch `worktree-agent-a800a38f74c8619c2' (commit 4b7b1e2a).
+;; This remains a regression gate: t333-main includes a failed delta check
+;; in any-fail and exits nonzero. Keep its delta assertions intact; the known
+;; upstream Eglot repaint issue is separately marked :xfail.
 (cl-defun t333-delta-test ()
   "End-to-end verification of the server's `semanticTokens/full/delta'.
 
