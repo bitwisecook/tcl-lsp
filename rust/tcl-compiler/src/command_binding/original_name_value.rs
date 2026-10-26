@@ -2386,34 +2386,123 @@ mod graph_tests {
         );
     }
 
+    fn retained_registered_instance_after_realm_drop(
+        source: &str,
+    ) -> (
+        crate::command_binding::SourceCommandBindings,
+        crate::ir::CommandTokens,
+        crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap().clone();
+        let realm = analysis.retained_command_realm().unwrap();
+        let offset = u32::try_from(source.find(".e configure").unwrap()).unwrap();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[offset as usize..],
+            offset,
+            input.lexer_config(),
+        )
+        .remove(0);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &command,
+        );
+        realm.stamp_original_tokens(&mut tokens);
+        let before = tokens.source_binding.clone();
+        realm.stamp_original_tokens(&mut tokens);
+        assert_eq!(
+            tokens.source_binding, before,
+            "cache warmth cannot change invocation identity"
+        );
+        (realm.source_bindings_ref().clone(), tokens, input)
+    }
+
+    fn assert_native_record_cannot_be_logical_geometry() {
+        let native = crate::analyser::Analyser::new().analyse("list VALUE", "tcl8.6");
+        let input = native.resolved_input.as_ref().unwrap();
+        let bindings = native
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        assert!(
+            bindings
+                .invocation_at_source("", 0)
+                .original_recorded_command()
+                .is_some()
+        );
+        assert!(
+            bindings
+                .original_logical_source_command_at_in_source(
+                    input,
+                    &tcl_lexer::SourceImage::document("list VALUE"),
+                    0,
+                    input.lexer_config()
+                )
+                .is_none()
+        );
+    }
+
+    fn assert_conflicting_receiver_geometry_refuses(
+        bindings: &crate::command_binding::SourceCommandBindings,
+        binding: &crate::command_binding::SourceInvocationBinding,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
+    ) {
+        for change_config in [true, false] {
+            let mut changed = bindings.clone();
+            let rows = changed
+                .declaration_layouts
+                .get_mut(binding.invocation_site().unwrap())
+                .unwrap();
+            let mut conflict = rows.iter().find(|row| row.issuer == super::super::declaration_layout::DeclarationLayoutIssuer::ConditionalReceiverSource).unwrap().clone();
+            if change_config {
+                conflict.config.strict_quoting = !conflict.config.strict_quoting;
+            } else {
+                conflict.words = std::sync::Arc::from(&conflict.words[..conflict.words.len() - 1]);
+            }
+            rows.push(conflict);
+            assert!(
+                changed
+                    .original_logical_source_command_at_in_source(
+                        input,
+                        image,
+                        offset,
+                        input.lexer_config()
+                    )
+                    .is_none(),
+                "conflicting retained config/vector withdraws the projection"
+            );
+        }
+    }
+
+    fn assert_receiver_original_vector(
+        original: &crate::registry_invocation::OriginalSourceCommandProjection,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        assert_eq!(
+            original
+                .native_words()
+                .iter()
+                .map(|word| word.try_text().unwrap())
+                .collect::<Vec<_>>(),
+            ["after", "idle", "$cb"]
+        );
+        assert_eq!(original.command().argv.len(), original.native_words().len());
+        assert!(
+            original
+                .native_words()
+                .iter()
+                .all(|word| word.image() == image && word.config() == input.lexer_config())
+        );
+    }
+
     #[test]
     fn registered_instance_sources_keep_original_identity_and_source_owner_lifetime() {
         let source = "entry .e; .e configure -textvariable value";
-        let (bindings, tokens, input) = {
-            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
-            let input = analysis.resolved_input.as_ref().unwrap().clone();
-            let realm = analysis.retained_command_realm().unwrap();
-            let offset = u32::try_from(source.find(".e configure").unwrap()).unwrap();
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
-                &source[offset as usize..],
-                offset,
-                input.lexer_config(),
-            )
-            .remove(0);
-            let mut tokens = crate::ir::CommandTokens::from_segmented(
-                &tcl_lexer::SourceMap::new(source),
-                input.lexer_config(),
-                &command,
-            );
-            realm.stamp_original_tokens(&mut tokens);
-            let before = tokens.source_binding.clone();
-            realm.stamp_original_tokens(&mut tokens);
-            assert_eq!(
-                tokens.source_binding, before,
-                "cache warmth cannot change invocation identity"
-            );
-            (realm.source_bindings_ref().clone(), tokens, input)
-        };
+        let (bindings, tokens, input) = retained_registered_instance_after_realm_drop(source);
         let registry = input.borrowed_context_registry().commands();
         let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
             registry, &input,
@@ -2607,21 +2696,7 @@ mod graph_tests {
                 input.lexer_config(),
             )
             .expect("one genuine complete receiver source vector");
-        assert_eq!(
-            original
-                .native_words()
-                .iter()
-                .map(|word| word.try_text().unwrap())
-                .collect::<Vec<_>>(),
-            ["after", "idle", "$cb"]
-        );
-        assert_eq!(original.command().argv.len(), original.native_words().len());
-        assert!(
-            original
-                .native_words()
-                .iter()
-                .all(|word| word.image() == &image && word.config() == input.lexer_config())
-        );
+        assert_receiver_original_vector(&original, &image, input);
         assert!(
             binding.original_recorded_command().is_none(),
             "geometry cannot promote declaration authority"
@@ -2674,53 +2749,8 @@ mod graph_tests {
                 )
                 .is_none()
         );
-        for change_config in [true, false] {
-            let mut changed = bindings.clone();
-            let rows = changed
-                .declaration_layouts
-                .get_mut(binding.invocation_site().unwrap())
-                .unwrap();
-            let mut conflict = rows.iter().find(|row| row.issuer == super::super::declaration_layout::DeclarationLayoutIssuer::ConditionalReceiverSource).unwrap().clone();
-            if change_config {
-                conflict.config.strict_quoting = !conflict.config.strict_quoting;
-            } else {
-                conflict.words = std::sync::Arc::from(&conflict.words[..conflict.words.len() - 1]);
-            }
-            rows.push(conflict);
-            assert!(
-                changed
-                    .original_logical_source_command_at_in_source(
-                        input,
-                        &image,
-                        offset,
-                        input.lexer_config()
-                    )
-                    .is_none(),
-                "conflicting retained config/vector withdraws the projection"
-            );
-        }
-        let native = crate::analyser::Analyser::new().analyse("list VALUE", "tcl8.6");
-        let input = native.resolved_input.as_ref().unwrap();
-        let bindings = native
-            .retained_command_realm()
-            .unwrap()
-            .source_bindings_ref();
-        assert!(
-            bindings
-                .invocation_at_source("", 0)
-                .original_recorded_command()
-                .is_some()
-        );
-        assert!(
-            bindings
-                .original_logical_source_command_at_in_source(
-                    input,
-                    &tcl_lexer::SourceImage::document("list VALUE"),
-                    0,
-                    input.lexer_config()
-                )
-                .is_none()
-        );
+        assert_conflicting_receiver_geometry_refuses(bindings, &binding, input, &image, offset);
+        assert_native_record_cannot_be_logical_geometry();
     }
 
     #[test]
