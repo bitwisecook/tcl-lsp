@@ -9612,18 +9612,17 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
 mod smoke {
     use crate::interprocedural::test_body_identity::fixture_id_if_present;
 
-    use tcl_registry::CommandRegistry;
-
     use super::CompilationUnit;
 
     /// The canonical "lex -> parse -> segment -> IR -> CFG -> codegen-ready"
-    /// pipeline on one tiny script, exercised through the same top-level
-    /// entry point every real caller (analyser, optimiser, explorer) uses.
+    /// pipeline on one tiny supplied Tcl document. Its genuine known dialect
+    /// and matching command store select the same fresh-document entry used by
+    /// dialect-bearing analyser, optimiser and explorer callers.
     #[test]
     fn smoke_compile_canonical_snippet() {
-        let registry = CommandRegistry::build_default();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let src = "proc double {n} { return [expr {$n * 2}] }\nset r [double 21]\n";
-        let unit = CompilationUnit::build_for(src, &registry, false);
+        let unit = CompilationUnit::build_for_dialect(src, registry, false, "tcl8.6");
         assert!(
             fixture_id_if_present(&unit.procedures, "::double").is_some(),
             "expected a lowered ::double procedure, got {:?}",
