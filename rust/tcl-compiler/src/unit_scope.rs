@@ -5316,6 +5316,31 @@ mod tests {
         assert_eq!(uniform(&evidence, "::helper", 0), None);
     }
 
+    fn assert_foreign_caller_sidecar(
+        tokens: &crate::ir::CommandTokens,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+        caller: &CallerFrame<'_>,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) {
+        let mut foreign = tokens.clone();
+        let offset = command.span.start();
+        let unrelated = tokens.source_binding.clone().unwrap();
+        foreign.nested_bindings.push((offset, unrelated));
+        let mut withdrawn = CallSiteEvidence::default();
+        record_call_site_evidence(
+            &mut withdrawn,
+            ctx,
+            caller,
+            segment.name(),
+            segment.args(),
+            Some(&foreign),
+            0,
+        );
+        assert!(withdrawn.get("::helper").unwrap().opaque_caller);
+        assert_eq!(uniform(&withdrawn, "::helper", 0), None);
+    }
+
     #[test]
     fn original_body_caller_inventory_requires_each_original_child_sidecar() {
         // naming.source.original-script-region-purpose
@@ -5412,22 +5437,7 @@ mod tests {
         );
         assert!(withdrawn.get("::helper").unwrap().opaque_caller);
         assert_eq!(uniform(&withdrawn, "::helper", 0), None);
-        let mut foreign = tokens.clone();
-        let offset = command.span.start();
-        let unrelated = tokens.source_binding.clone().unwrap();
-        foreign.nested_bindings.push((offset, unrelated));
-        let mut withdrawn = CallSiteEvidence::default();
-        record_call_site_evidence(
-            &mut withdrawn,
-            &ctx,
-            &caller,
-            segment.name(),
-            segment.args(),
-            Some(&foreign),
-            0,
-        );
-        assert!(withdrawn.get("::helper").unwrap().opaque_caller);
-        assert_eq!(uniform(&withdrawn, "::helper", 0), None);
+        assert_foreign_caller_sidecar(&tokens, command, &ctx, &caller, &segment);
     }
 
     fn native_argument_caller_unit(
