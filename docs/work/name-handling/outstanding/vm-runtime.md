@@ -1,10 +1,14 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T15:11:46Z
+Last updated: 2026-10-26T16:11:44Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T16:11:44Z: Allfourassignedf231 captures terminal/fullysealed: WASM25PASS23d591; Spec36d840 old16/VM1/VM4PASS +firstfull600PASSfe4709(unchanged8corefunctions,19090/19090hooks) butMAP/RANGEreplayFAIL; runtime164ALLUNRUN build-only50d167 twoJimE0609; iRulesa709e503 resetCLOSEDFAIL101afterfinalinit, CLI2PASS/init_scopeexitassertFAIL. CarrierV234668strong93a845 rootlanded9169/17a9; publicfieldtypes/flattenedDebug/Eq preserved, actualnewsize/ClippyUNRUN. ColdState2 after164→166 protocolV2c36e82 strongc7cf66/rootready, sameELF/nooldbudget/statusweakening. Actualcompiler135NULnowlabelledtcl8.4 beforeeffect/input/stock/receiptALLfalse/epoch0→1; staleunlabelledprose corrected, input-premiseissue notmeasuredappendreceiptloss. Strongéunsupported-value effectcontrol passedfirst; rootconcretecorrectionproposalpending, no silentNULdrop orNativegrant. Loadernegative85b1strong103cdb restoredsupported2.2 obligations rootlanded; top-level/dd576 +finalinitidentitye5ce sourcealreadyrootintegratedNEXT, no currentoutcomesdonation.
+
+Current 2026-10-26T15:55:19Z: f231WASM FULLAUTH23d59198 ALL25PASS388checks/100memberstreamSHA806a14e6. f231Spec FULLAUTH36d840b1 old16+VM1+VM4ALLPASS; FIRST full600 CLOSEDPASS534.288s, exactprior3ca eightfulltest/validation/corpus/watchdogfunctions unchanged fe4709c0,25packs1516commands24hooks19090/19090VM319diagnostics87optimisations. Separate LENGTH1/1/MAP-RANGE0/0probeFAIL retains overall1/C1C2open; causeUNASSIGNED. Runtime164 build-boundary50d16769 ALL164UNRUN twoJimE0609/build101/noELF; pairedrepair527a strong34c32 sourceonly. iRules f231CLOSED resetFAIL114.89s after-final-init, actualfactoryentry.name_policy_point mismatch→preflightProviderRequired; CLI2PASS/init_scopeexitassertFAIL112.13s, fullauthfinalrunning. ExprErrorV2 privatecoldcarrier34668d6e strong93a8454e/Compilerboundedpending; public4fields/flattenedDebug/Eq preserved, actualsize/ClippyUNRUN. V1held missingnestedfield restored. Loadernegative85b1 strong103cdb18 rootintegrating; oldpositiveuntouched. No newcanonicaledits/localRustbuild/duplicateZIP.
 
 Current 2026-10-26T15:11:46Z: Sole f231 capture assignments accepted: Spec40345807014/job121652297274 in-progress, WASM40346020058/job121653035852 in-progress, iRules40346123039/job121653394381 queued, runtime16440346013051 still jobs-empty at bounded API. Four artifacts-empty, no downloads/duplicate capture/cancellation. Current source includes JimV2+164; observer e5ce2d91 now strong-cleared d9867d4c but remains NEXT/out current source. Top-levelpositive dd576 SourceProc review active, out current cohort. All prior 3ca source/process outcome seals retained.
 

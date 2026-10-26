@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T16:15:00.218044+00:00",
+  "scheduled_report_utc": "2026-10-26T16:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T16:45:00+00:00",
+  "change_since_previous_report": [
+    "Compiler135f231FULLAUTH2316408f/f5deb894:129PASS6FAIL/126593Git/provider10202/deps21504/tools/allmembers/289closed/0builddiag. Approvedcost4andnewNative2PASSexplicitpurposecorrection,notoldsemanticPASS. RemainingString2P1F/Layout0P3F/Own1P2F. NULactual135firstfacetCORRECTEDtcl8.4beforeeffect/input/stock/receiptALLFALSEepochs0->1,notlossaftervalidreceipt;earlierno-engineprosewasstale3caqualification.",
+    "ALL5f231LSPFULLAUTH3fbd Coreold8PASS/sourceLoad2P2F, Browserloadedhelperdirectpurpose, WASIrefs2PASSthenappconditionalrename, Unitold4PASS/new4 1P3F(scope-membershipsetup/diskchildleaseassumptionunknown), Startup123.862ms/scan30FAIL/Contextcomplete/native8UNREACHED. NewV3/namespacecurrentoutcomesstillUNRUN. WORKonlyfailuretupleobserverec8d/3ea3integrated767080414,onlyexistingfailuresmax8rows,noquery/sourceURI/guardchange.",
+    "f231Runtime164ALLUNRUNBUILD101atoldJim2E0609FULLAUTH50d167;actualtypefix40aa/C2b0nowimplemented. f231Specfull600FIRSTCOMPLETEPASS36d840/fe4709byteexactoriginaltest/corpus/watchdog/livehookguards/argv/envNone/sharedlimits534.287724s/25packs1516commands24bodies19090of19090success319diag87opt;separateMAP/RANGE0attemptsprobeFAILretainsC1C2OPEN. f231WASM25ALLPASS23d591. No broadRuntime/Spec/WASMacceptancefromscopedresults.",
+    "f231iRulesFULLAUTHa709e503 originalbootstrapFAIL101114.887689s(after-final-initNOWREACHED/no180timeout),CLItrace2PASS,init_scopeFAIL101112.131391satexpectedexitmessageactualenumunobserved. ExplicitfactorymismatchphysicalC9executionpointversuslogicalF5/Tcl8.4namepolicyProviderRequired; no source_length775identity/policyswap/guardweakening. Runtime/Codegeninspectgenuineproducerreceipts.",
+    "C47broadwasm-tieroriginal25PASSbutadditionaltier4P3F;realwrong-resultnative02_arith_chainexpected33/3actual35/0successstderrEMPTY. Compiler+Codegensourceprovequotientdestinationd==fixedremainderCscratchoverwritesquotient;Codegenpreparesminimalemitterrepair+signcontrols,nooraclegoldenrewrite. Framingbudgets/nativeadmissioncontrolfailuresremainseparate. AllC47heavy/Rust/E2Eand3healthyolderCef60preserved.",
+    "PrivateExprErrorcoldstateV234668/93a845pairedintegrated9169/C17a9(public4fieldsunchanged/fulltypedcause/flattenedDebug/deepClone/strictfieldEq;privateRustdiagnosticpayloadonly). Actualoldsize136B,newtargetbelow128tofix105ClippyUNRUN;new2meaningfulcontrolsprotocol166pendingstrongreviewonSAMEfreshruntimeELF/sharedold164rows/budgets. Noallocation/performancegainclaim;Rustcoldallocationsandbufferdroptimingexplicit.",
+    "Mechanicalruntime39e34f/d0ede4pairedintegratedeab669/C5e284:22sameCmdErroridentityconversions+17Copyclosureborrowremovals,necessaryValueErrorconversions/allqueries/guards/orderunchanged. Togethernewsourceexpectedaddressobservedstrictfrontier259Clippy+2typeerrors;actualnewstrictunrun,remaininglintsmustfixwithoutallowances.",
+    "Genuinesimulatorgeneratorauthored-roster7fd4/965200pairedaf0a/C4d22removesglobalregistryextension/restoresheader/tableprojectiontest. Modern-familyV282b5/f2eccpaired7e5/C9c0 usesunionactualsupportedTcl8.5/8.6/9.0/9.1,excludesJim-onlyexistswithoutlatest-monotonicityassumption. Fivegenuinemodernunavailablelabels28555/75d5paired5e072/C4bfe,allothergeneratedbytesunchanged. Actualexactgenerationparity/prep-prnextrequired.",
+    "WORKonlymemoisolation source0431/52d5 andharnessc817/b04fpairedprotocolproven9actual-mainnochildcasesintegrated8df/74c5;candidateonlyfixedflag/eligiblemarker/freshprocess/baselineuntouched/acceptedpairs0/comparablefalse/diagnosticexit2retainedthroughallfailures. Noactualmeasurementdispatchyet;noacceptedTclperformance/noequalityrelaxation. Productionleaseproposalstillcycle/NativeDrop/activationparityHOLD.",
+    "ExactC47prep-pre1009aed originalHermesquotedcommandassert+unclassifiedsmokeincludeand2generateddriftfailurespreserved. Smokeannotationf16b/C4a3fixedparserincludecontract;Hermesfailure-onlyfixtureoutput960e/66afpairedc59/Ca4f9preservesassert/error/cleanup evenifcatfails. Localoriginal18/18PASS,hostedactualYAMLunobserved,noformattercauseclaim. Newworkflowf961requiresupdatedexacthelperbeforeactualretry.",
+    "Rootinadvertentlyqueued1545docpublisherduringExprErrorapplyunderIOstall;GitREFUSEDcherry-pickbeforeoverwritinglocalchanges,nocherry/sequencerstateafterapply. Sourceoperationfinished/rootverifiedcleantrees/noresetstashabort;sequentialfreshpush/retrypublisherrequired. I/O~1553-1556stalledallroles;newheavyscanspausedthenholdexplicitlyliftedafterdrain. ExistingremotehealthyCInevercancelled.",
+    "ProductWIPsourcecommittedandpushinflight767080414/C4bfe,normalfreshdepth1fetch/shallowretained. 1545reportactual15:45:50writtenpluscurrentsupplement151306,publicationretryafterpushpending. Next1615timer86974;rearm1645atcycle. Compilerheaderrefreshedactual15:52afterstalealert,externalBIGIP/perfstalereported/notakenover,triagecomplete. NewMCPUXchoicependinguserheldreviewed32iterationbb3c;allpreviousdecisionssettled.",
+    "WholeC2348exactprocessmarkers11ALLZERO,724contextmatchesneedcontextualauditnotautomaticfullcleanupacceptance. Lastfullmain+standalonefmtC47PASS,newRustpacketsscopefmtPASS;finalwholeformat/prep-pr/generated/package/squashtreestillrequired. Disk~2.43GBnobuildsbelow2GiB;old358MB3daylibtestonlyreclaimed65a2after3build+2usecensuses,allsource/evidence/currentexespreserved. AllF/currentzeroPTF/fullrequiredgreen/acceptedshippingTclperformanceOPEN,noPR/merge/tag/release.",
+    "LATEST1613: division7c26/a1fbedsemanticproducerrepairplus13,668signed/destinationaliasmodelandC8.6finiteoracleprepared, rootapplyingpairedSAMEoriginaloracle/goldens. Source-only166Cold2protocolV2c36e/c7cf appends2afterold164onSAMEfreshELF,alloldrows/FAILfacets/125/sharedboundsunchanged. Mechanical39eab669/C5e284,modern-five5e072/C4bfepushed767080414/C4bfe; WORKunitfailureobserverec8donlyactualfailuretuples/noqueries. Finalcurrentguardunion/newactualgatesstillrequired."
+  ],
+  "committed": [
+    "151306b776452f6b22869e5e98c881d16b042c69"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Landreviewedemitterfix/remainingprotocolappendthenONEfinalsourcepinunion+peer/canonicalpreflight/pushbeforeactualnewfocused/exactprep-pr/memodiagnosticdispatch.",
+    "AuthenticateallcurrentCI/inventories,fixremainingLSP/compiler/Jim/strict/runtime/Scopeproducersandbaseline219coverageobligationswithoutguardorassertweakening.",
+    "MCPnewUXchoicepending;performanceproductionproofandallfinalshippingdocs-comments-generated-fixtures-package-green-squashgatesremainbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2401587200,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

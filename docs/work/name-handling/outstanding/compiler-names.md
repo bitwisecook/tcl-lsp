@@ -2,7 +2,9 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T15:42:59.051091+00:00
+Last updated: 2026-10-26T16:11:48.999189+00:00
+
+Resume 2026-10-26T16:11:48.999189+00:00: Root WORK-only memo source0431/strong52d5 and harnessV2c817/strongb04f integrated8df063/74c5; no diagnostic measurement yet and productionlease5790 HOLD. Current-pinned wrapperaudit2fb01eb7 expanded indirect realms; Nativeleafaudit981aefc1 independently excludes live Native ownership only in audited prerequisite/pool branches. Value-origin audit closing14variants/LogicalLambda→RegistryWords→advice/snapshot frontier; no fullcycle/parity clearance. Fullreport command_realm retention maypin proposedlease while live, requires everyingress/actualstrictparity proof. Compiler135 fixedOwn3negative actualscript classPoint;aliasPointputs;procPointmove fails retained empty-members assertion, no semanticfix inferred. Jimf231FULLAUTH unchanged36/45/original17/26; C47prep gateFAIL2/dirtygenerated2 remainsfullyauth, Rootrolesownfixes.
 
 Resume 2026-10-26T15:42:59.051091+00:00: Current f231 Jim52 FULLAUTH30abd015/comparison13c4f8df: all52 reached/allcontrolsPASS, original45=36P9F/diag3P2F/newstaticPASS/rawrepeatFAIL; original26=17P9F, zero gain/regression vsd072. Current12Git/CRC supplement sealed; raw own route stops UnknownEarlierMutation without quota exhaustion. C47 prep-pr FULLAUTHe1009aed setupPASS/exactgateFAIL2 installerHermes+unresolvedsmokeinclude, generated2dirty/diff15951; Root/Codegen/Compiler own repairs, no gatepass. Baseline six correspondence candidates actualCef60ALLPASS perCodegen, sourcecoverage acceptance pendingRoot. Memo diagnostic0431 sourceCLEAR52d5; fixedcandidate-only harness syntaxPASS/strongpeerpending, mandatoryNONACCEPTANCE. Productionlease5790 HOLD cycles/NativeDrop/activationstrictparity.
 

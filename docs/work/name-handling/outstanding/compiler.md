@@ -2,11 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T14:46:07+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-26T15:52:01+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Current compiler135 is closed and fully authenticated:129 PASS /6 FAIL.** Run40345786284/job121652228542/sourcef231f5901450fd820cf30b34e40e71b93f95bc36; sole ZIP594d282a7934405b5686df2c76e7492e2770ecd05c065feeef8ccb8806920600/12,379,730B. Main2316408ffc079a23bff1817f4c94d0ef31dec79e737664200f275fac1995d48a plus Native/fullGitf5deb894f7bc11256883f86e72c1f8c8172001a6e8b953dcb84a20c395284904 authenticate126593source/provider10202/deps21504/tools/allmembers/currentpins/289closedprocesses and zero build diagnostics. Four approved COST cases and separate Native refusal2 PASS; this changed coverage does not count historical four semantic FAILs as P2F closure. All unchanged controls, Formal2/cache3/Child10/Minify1 PASS. Remaining String2P1F/Layout0P3F/Own1P2F. Current NUL stderr explicitly labels Tcl8.4, before_effect/input/stock/string_receipt allfalse, epochsSome(0)/Some(1); earlier abbreviated no-engine statement was stale and corrected to Root/Runtime.
+
+Final A509 metadata peer73323945/source census and prospectiveV14a47ee9c9 clear separately. Public path-export repairV2 strong4ef3df30 restores original alias absence coverage and retains prefix/site checks; smoke marker peer7e6040ae clear, actual retries pending. Mechanical39 bounded source/type peer d0ede4da clear; actual retry remains unrun. C47 arithmetic actual wrongresult33/3→35/0 is a release blocker under joint Codegen/compiler audit, no oracle/golden change.
 
 **Current 3ca compiler133 is closed and fully authenticated: 123 PASS / 10 FAIL.** Run40324220484/job121576631841/source3ca0cdc9214ae53a763493b2145bd5b0af2396ef sole ZIP SHA53ebcdcac325ab383fa1a7375b53fc81f680183a82d43760c5216f48e2346ddf. Main receipt b744c2c091c51f562860a481faa61fcd49a7159455af33c005dba867cdc7ea14 and Native/fullGit receipt98094fa24a0518b6917e0c9c4a13cc7744bcfc36a8a76cfaa5898f6c456574ab seal126585 source files, providers10202/deps21504/tools/all members and285 closed processes; zero build diagnostics. Old102 remains98PASS/4FAIL. Formal2 BOTH PASS and catalogue seed3 ALL PASS; all Child10 and Minify1 controls PASS. Layout3 remains0PASS/3FAIL; OwnJim3 remains1PASS/2FAIL. NativeString3 is2PASS/1FAIL: the new representation-sensitive NUL helper fails its independent post-append effect premise at tests.rs408; the failing engine is unobserved, and later value-refusal assertions were not reached. Runtime owns that diagnosis. No generic readonly, Native effect, frame-elision or performance closure follows.
 

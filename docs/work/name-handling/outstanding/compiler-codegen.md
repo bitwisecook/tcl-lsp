@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T15:39:49.894669+00:00
+Last updated: 2026-10-26T16:08:19.488013+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Productive Native division alias repair frozen7c26d13d, strong SourceProc/bounded Compiler peers pending: checked int_binary d=C loses quotient to remainder; existing I32_B preserves pure adjustment before quotient, old guards/goldens exact, new signed/overflow realwasmtime control UNRUN. Mechanical39 e34f120e independentlyclear d0ede4da; generator authoredroster7fd4 strong965200, modern-familyV2 82b5 strongf2ec, separatefivefixture2855 strong75d5 ready Root. CurrentC47 selected9 ZIPs verified head/API/digest/CRC/memberSHA, baseline24405 selected/219absent (explicitfourcostpurpose removals minusrestoredtailcall); no outcomes inferred. BroadC47 WASM tiers actual4P3F including33/3 expected vs35/0 native result; original25PASS retained. Logs losslessgzip in currentC47capture, source earlier. BothCI activepreserved.
 
 Current generator audit: exact authored roster is incorrectly extended with every registry command; minimal paired producer/header repair ccg-generator-authored-roster-v1 master7fd4fb48 is frozen for SourceProc review, no fixture edits. User-surface six added labels remain separately unproved. Runtime mechanical conversion/borrow reservation is native_variable_names.rs + native_jim_lookup.rs; ExprError carrier remains Runtime-owned. Latest f231 strict FULLAUTH261 primaries (259 Clippy+2 Jim test Rust errors), exact Err variant136bytes; no JSON machine-applicable spans. A509 source union independently clear73323945 and Root applied8fa then intentionally advanced for next fixes; wait fresh freeze. Both CI runs remain active: Cef60 Rust2/E2E1/E2E2; C47 Heavy/all5Rust/all3E2E. No cancellation, duplicate ZIP or broad acceptance.
 
