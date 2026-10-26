@@ -3556,13 +3556,14 @@ def run_source_point_report_diagnostic() -> None:
 def run_source_point_corpus_controls() -> None:
     global remaining
     require("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" not in env, "corpus2 requires diagnostic bypass absent; old environments are never mutated")
-    require(
-        all(
-            row["state"] in ["PASS", "FAIL"]
-            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows + source_point_memo_rows + analyser_layout_diagnostic_rows
-        ),
-        "source-point corpus controls cannot precede original147 closure",
-    )
+    if not args.source_point_corpus_only:
+        require(
+            all(
+                row["state"] in ["PASS", "FAIL"]
+                for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows + source_point_memo_rows + analyser_layout_diagnostic_rows
+            ),
+            "source-point corpus controls cannot precede original147 closure",
+        )
     require(
         files(dependency_roots) == dependencies_before
         and source() == before
@@ -3998,10 +3999,20 @@ def run_analyser_layout_diagnostics() -> None:
         )
 
 
+class _DedicatedCorpusComplete(Exception):
+    """Private successful phase boundary; final seals still execute."""
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
+parser.add_argument("--source-point-corpus-only", action="store_true")
 args = parser.parse_args()
+require(
+    args.source_point_corpus_only
+    == (os.environ.get("GITHUB_JOB") == "source-point-corpus2-diagnostics"),
+    "fixed dedicated corpus mode/job mismatch",
+)
 require(re.fullmatch("[0-9a-f]{40}", args.sha), "full exact SHA required")
 require(os.environ.get("GITHUB_SHA") == args.sha, "checkout/workflow SHA mismatch")
 require(os.environ.get("GITHUB_REF") == "refs/heads/work", "WORK only")
@@ -4907,11 +4918,11 @@ try:
                 "aggregate_log_bytes": CAP,
                 "transport_filter": "Existing exact ORIGINAL_COMMAND_INSTALLED table summaries remain. Only ORIGINAL_WORD_CONFIG and REMOTE_SOURCE_WORDS repeated complete lines use bounded lossless dictionary/RLE records; each distinct full line and ordered repeat records reconstruct exact post-table stderr, verified per case. Other stderr and all stdout remain verbatim except escaped record-marker collisions, which reconstruct exactly.",
                 "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the pinned layered filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
-                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged. After ALL original65 executions, separate taint diagnostic2 reuses the already freshly built compilerlib/taint artifacts. Three additional library artifacts are build/list-only until then; separate closed-consumer16 executes only after the unchanged taint2 group, within the same absolute deadline/log budget.",
+                "execution_order": ("Fresh compiler-lib build/list only, then pinned text117 and generated7 corpus controls with their full original180/1800/600/40 budgets; no historical test prefix or repeat." if args.source_point_corpus_only else "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged. After ALL original65 executions, separate taint diagnostic2 reuses the already freshly built compilerlib/taint artifacts. Three additional library artifacts are build/list-only until then; separate closed-consumer16 executes only after the unchanged taint2 group, within the same absolute deadline/log budget."),
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
-            "scope": "Exact original native58 selectors on current WORK; standalone bounded per-test diagnosis only. No shared-process/compiler-complete/eight-package/wasm/release acceptance. Historical ambient WASI SDK path retained in provenance, not used by selected native artifacts.",
+            "scope": ("Dedicated exact complete-text corpus2 only: 117 pinned original fixtures and 7 generated programs, unchanged full-report/type comparisons; historical150 not requested. No other gate admission." if args.source_point_corpus_only else "Exact original native58 selectors on current WORK; standalone bounded per-test diagnosis only. No shared-process/compiler-complete/eight-package/wasm/release acceptance. Historical ambient WASI SDK path retained in provenance, not used by selected native artifacts."),
             "original_roster": original,
             "original_inputs_and_environment": roster,
             "separate_closed_consumer_controls": closed_controls,
@@ -4962,7 +4973,15 @@ try:
     execution_rows = (
         supplemental_rows + sh21_rows + readflow_rows + catch_rows + original_rows
     )
-    for target_spec in roster["targets"] + closed_controls["build_only_targets"]:
+    build_targets = roster["targets"] + closed_controls["build_only_targets"]
+    if args.source_point_corpus_only:
+        build_targets = [
+            spec for spec in roster["targets"]
+            if spec["package"] == "tcl-compiler"
+            and spec["kind"] == ["lib"] and spec["name"] == "tcl_compiler"
+        ]
+        require(len(build_targets) == 1, "dedicated corpus compiler-lib target absent/ambiguous")
+    for target_spec in build_targets:
         package = target_spec["package"]
         target_name = target_spec["name"]
         target_kind = target_spec["kind"]
@@ -5103,6 +5122,19 @@ try:
                 "executable_sha256": artifact["sha256"],
             },
         )
+        if args.source_point_corpus_only:
+            # No historical test prefix or diagnostic repeat consumes this mode's time.
+            require(all(row["state"] == "UNRUN" for row in rows),
+                    "dedicated corpus unexpectedly executed historical controls")
+            require(deadline - time.time() >= sum(
+                180 + row["budget_seconds"] + 40 for row in source_point_corpus_rows
+            ), "insufficient shared time for BOTH full corpus list/test/cleanup budgets")
+            run_source_point_corpus_controls()
+            require(len(source_point_corpus_rows) == 2 and all(
+                row["state"] in ["PASS", "FAIL"] for row in source_point_corpus_rows
+            ), "dedicated complete text corpus2 incomplete")
+            status = 0 if all(row["state"] == "PASS" for row in source_point_corpus_rows) else 1
+            raise _DedicatedCorpusComplete()
         for index, row in enumerate(selected_rows):
             selector = row["selector"]
             require(
@@ -5541,6 +5573,8 @@ try:
     if any(row["capture_observation"] != "OBSERVED" for row in source_point_report_rows):
         status = 2
 
+except _DedicatedCorpusComplete:
+    pass
 except (
     RuntimeError,
     OSError,
@@ -5610,6 +5644,25 @@ finally:
     save(
         out / "final.json",
         {
+            "mode": "source-point-corpus2-diagnostics",
+            "finished_utc": datetime.datetime.now(datetime.UTC).isoformat(),
+            "requested_sha": args.sha,
+            "overall_exit": status,
+            "error": error,
+            "final_errors": final_errors,
+            "seals": seals,
+            "artifacts": artifacts,
+            "processes": processes,
+            "remaining_log_bytes": remaining,
+            "required_complete_text_corpus_tests": 2,
+            "source_point_complete_text_corpus2_outcomes": source_point_corpus_rows,
+            "source_point_complete_text_corpus2_roster": source_point_corpus_validation,
+            "historical150_requested": False,
+            "historical150_outcome_transfer": False,
+            "diagnostic_only": True,
+            "full_shared_process_gate_admission": False,
+            "shipping_performance_admission": False,
+        } if args.source_point_corpus_only else {
             "finished_utc": datetime.datetime.now(datetime.UTC).isoformat(),
             "overall_exit": status,
             "error": error,
