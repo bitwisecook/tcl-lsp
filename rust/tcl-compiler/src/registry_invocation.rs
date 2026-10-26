@@ -9856,6 +9856,70 @@ mod tests {
     use crate::ir::{SourceSite, WordOpacity};
     use crate::segmenter::segment_commands;
 
+    fn assert_hosted_source_shape_keeps_its_receipt(
+        registry: &CommandRegistry,
+        metadata: InvocationMetadataContext<'_>,
+        child: &CommandTokens,
+        source: &RegistryInvocationAssistance,
+        eligible: bool,
+    ) {
+        if eligible {
+            let shape = source
+                .candidates
+                .iter()
+                .find(|shape| shape.command == "HTTP::uri")
+                .unwrap();
+            assert!(shape.hosted_source.is_some());
+            assert!(
+                shape
+                    .source_argument_words(registry, Some(metadata), child)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                shape
+                    .with_source_schema(registry, metadata, child, |schema| {
+                        Some(schema.facts().canonical_command == "HTTP::uri")
+                    })
+                    .unwrap()
+            );
+            let mut stale = child.clone();
+            stale.argv_texts[0] = "HTTP::path".to_owned();
+            assert!(
+                original_registry_invocation_assistance_with_metadata_context(
+                    registry,
+                    Some(metadata),
+                    &stale,
+                )
+                .is_none()
+            );
+            assert!(
+                shape
+                    .source_argument_words(registry, Some(metadata), &stale)
+                    .is_none()
+            );
+            assert!(shape.source_argument_words(registry, None, child).is_none());
+            let mut changed_label = shape.clone();
+            changed_label.command = "HTTP::path".to_owned();
+            let mut changed_origin = shape.clone();
+            changed_origin.effective.origins[0] = InvocationWordOrigin::Written(0);
+            let mut changed_metadata = shape.clone();
+            changed_metadata.source_may_commit_response = !shape.source_may_commit_response;
+            for changed in [changed_label, changed_origin, changed_metadata] {
+                assert!(
+                    changed
+                        .source_argument_words(registry, Some(metadata), child)
+                        .is_none()
+                );
+                assert!(
+                    changed
+                        .with_source_schema(registry, metadata, child, |_| Some(()))
+                        .is_none()
+                );
+            }
+        }
+    }
+
     #[test]
     fn hosted_original_source_assistance_keeps_metadata_and_execution_uncertainty_separate() {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
@@ -9930,61 +9994,9 @@ mod tests {
                     .any(|shape| shape.command == "HTTP::uri"),
                 eligible
             );
-            if eligible {
-                let shape = source
-                    .candidates
-                    .iter()
-                    .find(|shape| shape.command == "HTTP::uri")
-                    .unwrap();
-                assert!(shape.hosted_source.is_some());
-                assert!(
-                    shape
-                        .source_argument_words(registry, Some(metadata), child)
-                        .unwrap()
-                        .is_empty()
-                );
-                assert!(
-                    shape
-                        .with_source_schema(registry, metadata, child, |schema| {
-                            Some(schema.facts().canonical_command == "HTTP::uri")
-                        })
-                        .unwrap()
-                );
-                let mut stale = child.clone();
-                stale.argv_texts[0] = "HTTP::path".to_owned();
-                assert!(
-                    original_registry_invocation_assistance_with_metadata_context(
-                        registry,
-                        Some(metadata),
-                        &stale,
-                    )
-                    .is_none()
-                );
-                assert!(
-                    shape
-                        .source_argument_words(registry, Some(metadata), &stale)
-                        .is_none()
-                );
-                assert!(shape.source_argument_words(registry, None, child).is_none());
-                let mut changed_label = shape.clone();
-                changed_label.command = "HTTP::path".to_owned();
-                let mut changed_origin = shape.clone();
-                changed_origin.effective.origins[0] = InvocationWordOrigin::Written(0);
-                let mut changed_metadata = shape.clone();
-                changed_metadata.source_may_commit_response = !shape.source_may_commit_response;
-                for changed in [changed_label, changed_origin, changed_metadata] {
-                    assert!(
-                        changed
-                            .source_argument_words(registry, Some(metadata), child)
-                            .is_none()
-                    );
-                    assert!(
-                        changed
-                            .with_source_schema(registry, metadata, child, |_| Some(()))
-                            .is_none()
-                    );
-                }
-            }
+            assert_hosted_source_shape_keeps_its_receipt(
+                registry, metadata, child, &source, eligible,
+            );
         }
     }
 
@@ -12915,6 +12927,72 @@ mod original_body_parameter_source_tests {
         }
     }
 
+    fn assert_jim_parameter_source_refuses_foreign_inputs(
+        source: &str,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        metadata: InvocationMetadataContext<'_>,
+        tokens: &CommandTokens,
+        bindings: &crate::command_binding::SourceCommandBindings,
+        segments: &[crate::segmenter::SegmentedCommand],
+    ) {
+        let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
+        let mut second_tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &segments[0].clone().shifted_by(second_offset),
+        );
+        bindings.stamp_original_tokens(&mut second_tokens);
+        let second = second_tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_body_parameter_source_scope(&second_tokens)
+            .expect("actual original second Jim source body scope");
+        assert!(
+            second
+                .original_words(tokens, input.lexer_config(), registry)
+                .is_none()
+        );
+        let mut changed = (*tokens).clone();
+        changed.argv_texts[2] = "foreign".to_owned();
+        assert!(
+            original_body_parameter_source_invocation(
+                registry,
+                metadata,
+                &changed,
+                bindings,
+                input.lexer_config()
+            )
+            .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(
+            original_body_parameter_source_invocation(
+                registry, metadata, tokens, bindings, config,
+            )
+            .is_none()
+        );
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
+        assert!(
+            original_body_parameter_source_invocation(
+                registry,
+                metadata,
+                tokens,
+                bindings,
+                input.lexer_config()
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals() {
         let source = "proc p {name spare} {upvar 1 $name cell; set cell VALUE}\nproc q {name spare} {upvar 1 $name cell; set cell VALUE}";
@@ -13005,60 +13083,8 @@ mod original_body_parameter_source_tests {
             )
             .is_some()
         );
-        let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
-        let mut second_tokens = CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::new(source),
-            input.lexer_config(),
-            &segments[0].clone().shifted_by(second_offset),
-        );
-        bindings.stamp_original_tokens(&mut second_tokens);
-        let second = second_tokens
-            .source_binding
-            .as_ref()
-            .unwrap()
-            .original_body_parameter_source_scope(&second_tokens)
-            .expect("actual original second Jim source body scope");
-        assert!(
-            second
-                .original_words(&tokens, input.lexer_config(), registry)
-                .is_none()
-        );
-        let mut changed = tokens.clone();
-        changed.argv_texts[2] = "foreign".to_owned();
-        assert!(
-            original_body_parameter_source_invocation(
-                registry,
-                metadata,
-                &changed,
-                bindings,
-                input.lexer_config()
-            )
-            .is_none()
-        );
-        let mut config = input.lexer_config();
-        config.strict_quoting = !config.strict_quoting;
-        assert!(
-            original_body_parameter_source_invocation(
-                registry, metadata, &tokens, bindings, config,
-            )
-            .is_none()
-        );
-        let changed = crate::analyser::ResolvedAnalysisInput::new(
-            input.analyser_profile(),
-            input.unit_profile(),
-            input.context_registry(),
-            config,
-        );
-        let metadata = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
-        assert!(
-            original_body_parameter_source_invocation(
-                registry,
-                metadata,
-                &tokens,
-                bindings,
-                input.lexer_config()
-            )
-            .is_none()
+        assert_jim_parameter_source_refuses_foreign_inputs(
+            source, registry, input, metadata, &tokens, bindings, &segments,
         );
     }
 }
