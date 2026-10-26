@@ -414,30 +414,69 @@ pub(crate) fn declaration_dictionary_scope_advice(
 
 fn declared_lookup_stable(facts: &tcl_registry::InvocationFacts) -> bool {
     use tcl_registry::world_effect::{CallbackKinds, EffectAccessMode, WorldStateDomain};
+    #[cfg(debug_assertions)]
+    let trace = |reason: &str| {
+        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+            eprintln!("RBS_DECLARED_LOOKUP refusal={reason}");
+        }
+    };
+    #[cfg(not(debug_assertions))]
+    let trace = |_reason: &str| {};
     let callbacks = facts.effects.callback().kinds;
     // Variable observers remain alternatives outside this conditional native
     // declaration. Explicit script, command-prefix and host callbacks do not.
-    !callbacks.is_unknown()
-        && !callbacks.contains(CallbackKinds::SCRIPT)
-        && !callbacks.contains(CallbackKinds::COMMAND_PREFIX)
-        && !callbacks.contains(CallbackKinds::HOST)
-        && !facts
-            .state_transitions
-            .declared()
-            .is_some_and(tcl_registry::StateTransitions::touches_command_bindings)
-        && !facts.effects.accesses().iter().any(|access| {
-            access.mode != EffectAccessMode::Read
-                && matches!(
-                    access.domain,
-                    WorldStateDomain::CommandBindings
-                        | WorldStateDomain::NamespaceLookup
-                        | WorldStateDomain::NamespaceUnknown
-                        | WorldStateDomain::InterpreterTopology
-                        | WorldStateDomain::InterpreterPolicy
-                        | WorldStateDomain::ExecutionTraces
-                        | WorldStateDomain::VariableTraces
-                )
-        })
+    if callbacks.is_unknown() {
+        trace("callback-unknown");
+        return false;
+    }
+    if callbacks.contains(CallbackKinds::SCRIPT) {
+        trace("callback-script");
+        return false;
+    }
+    if callbacks.contains(CallbackKinds::COMMAND_PREFIX) {
+        trace("callback-command-prefix");
+        return false;
+    }
+    if callbacks.contains(CallbackKinds::HOST) {
+        trace("callback-host");
+        return false;
+    }
+    if facts
+        .state_transitions
+        .declared()
+        .is_some_and(tcl_registry::StateTransitions::touches_command_bindings)
+    {
+        trace("declared-command-bindings-transition");
+        return false;
+    }
+    for access in facts.effects.accesses() {
+        if access.mode != EffectAccessMode::Read
+            && matches!(
+                access.domain,
+                WorldStateDomain::CommandBindings
+                    | WorldStateDomain::NamespaceLookup
+                    | WorldStateDomain::NamespaceUnknown
+                    | WorldStateDomain::InterpreterTopology
+                    | WorldStateDomain::InterpreterPolicy
+                    | WorldStateDomain::ExecutionTraces
+                    | WorldStateDomain::VariableTraces
+            )
+        {
+            let reason = match access.domain {
+                WorldStateDomain::CommandBindings => "write-command-bindings",
+                WorldStateDomain::NamespaceLookup => "write-namespace-lookup",
+                WorldStateDomain::NamespaceUnknown => "write-namespace-unknown",
+                WorldStateDomain::InterpreterTopology => "write-interpreter-topology",
+                WorldStateDomain::InterpreterPolicy => "write-interpreter-policy",
+                WorldStateDomain::ExecutionTraces => "write-execution-traces",
+                WorldStateDomain::VariableTraces => "write-variable-traces",
+                _ => unreachable!("matched lookup-stability domain"),
+            };
+            trace(reason);
+            return false;
+        }
+    }
+    true
 }
 
 /// Original inert operands keep their value even when an earlier abrupt route
