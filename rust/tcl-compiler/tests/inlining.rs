@@ -18,9 +18,10 @@
 
 //! Integration tests for the `inlining` and `inline_uplevel` modules.
 //!
-//! Four groups of tests exercise the compiler:
-//!   * proc classification (the inlining catalogue: size / pure-leaf /
-//!     static-call-count → ALWAYS / `IF_SINGLE_CALL` / NEVER).
+//! Five groups of tests exercise the compiler:
+//!   * explicit body-size/static-call-count profitability data, independently
+//!     of executable eligibility.
+//!   * semantic proc classification, retaining compiler and escape gates.
 //!   * the inline transform (call sites replaced by proc bodies, α-renaming to
 //!     avoid variable capture, defaults / variadics / early-return wrapping /
 //!     decline cases).
@@ -35,8 +36,9 @@
 //!
 //! ## Rust API used (all public from `tcl_compiler`)
 //!
-//!   * `inlining::{count_statements, classify_proc, inline_module,
-//!     InlineDecision, SMALL_BODY_THRESHOLD}`
+//!   * `inlining::{count_statements, inlining_profitability, classify_proc,
+//!     inline_module, InliningProfitability, InlineDecision,
+//!     SMALL_BODY_THRESHOLD}`
 //!   * `inline_uplevel::{detect_passthrough_candidates,
 //!     detect_static_passthrough, body_has_frame_reach,
 //!     inline_uplevel_passthrough, PassthroughShape}`
@@ -57,6 +59,10 @@
 //!     supplied.
 //!
 //! ## Structural vs. semantic proof split
+//!
+//! Profitability cases describe cost only. The semantic classifier's refusal
+//! cases separately retain the requirement for executable eligibility; no cost
+//! result supplies a Native argument, frame, callback or currentness proof.
 //!
 //! The classification verdicts, the spliced-IR shape (which statement kind a
 //! binding is, what the mangled `__inline_<n>__<name>` slot is named,
@@ -93,7 +99,8 @@ use tcl_compiler::inline_uplevel::{
     detect_static_passthrough, inline_uplevel_passthrough,
 };
 use tcl_compiler::inlining::{
-    InlineDecision, SMALL_BODY_THRESHOLD, classify_proc, count_statements, inline_module,
+    InlineDecision, InliningProfitability, SMALL_BODY_THRESHOLD, classify_proc, count_statements,
+    inline_module, inlining_profitability,
 };
 use tcl_compiler::ir::{Module, Statement};
 use tcl_compiler::var_escape::{
@@ -206,43 +213,37 @@ fn statement_count_nested_if_counts_inner() {
 // and is covered below.
 
 #[test]
-fn static_call_count_drives_large_proc_decision() {
-    // A pure-leaf proc bigger than the threshold: 0 callers and 2 callers
-    // both → NEVER; exactly 1 caller → IF_SINGLE_CALL. The raw count helper is
-    // internal, so this is asserted through the classifier.
+fn large_body_profitability_depends_on_static_call_count() {
+    // Above the threshold, only a single static caller is size-neutral.
+    // These are cost observations, independent of executable eligibility.
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
-    let fixture = native_compiled_fixture::compiled_fixture(
-        &format!("proc big {{}} {{\n{body}}}\n"),
-        "::big",
-        &[],
+    let module = module_for(&format!("proc big {{}} {{\n{body}}}\n"));
+    let (_, proc) = original_body_for_analysis(&module, "::big").expect("authored fixture body");
+    assert_eq!(
+        inlining_profitability(proc, 0),
+        InliningProfitability::Unprofitable
     );
-    let module = fixture.module();
-    let summaries = analyse_var_escape(module, true);
-    let (body_id, proc) = fixture.body();
-    let s = summary_for(&summaries, body_id);
-    assert_eq!(classify_proc(proc, s, 0), InlineDecision::Never);
-    assert_eq!(classify_proc(proc, s, 1), InlineDecision::IfSingleCall);
-    assert_eq!(classify_proc(proc, s, 2), InlineDecision::Never);
+    assert_eq!(
+        inlining_profitability(proc, 1),
+        InliningProfitability::SingleCallerOnly
+    );
+    assert_eq!(
+        inlining_profitability(proc, 2),
+        InliningProfitability::Unprofitable
+    );
 }
 
 // Classify.
 
 #[test]
-fn classify_small_pure_leaf_is_always() {
-    // Small + pure-leaf → ALWAYS regardless of call count.
-    // tclsh (8.6, 9.0): `proc add {a b} {expr {$a + $b}}; add 3 4` → 7, so
-    // inlining `add` must preserve that result.
-    let fixture = native_compiled_fixture::compiled_fixture(
-        "proc add {a b} { return [expr {$a + $b}] }\n",
-        "::add",
-        &["3", "4"],
-    );
-    let module = fixture.module();
-    let summaries = analyse_var_escape(module, true);
-    let (body_id, proc) = fixture.body();
+fn small_body_profitability_allows_bounded_growth() {
+    // A small body permits bounded code growth at every static call count.
+    // The separate semantic classifier still requires its escape proof.
+    let module = module_for("proc add {a b} { return [expr {$a + $b}] }\n");
+    let (_, proc) = original_body_for_analysis(&module, "::add").expect("authored fixture body");
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, body_id), 0),
-        InlineDecision::Always
+        inlining_profitability(proc, 0),
+        InliningProfitability::BoundedGrowth
     );
 }
 
@@ -265,19 +266,13 @@ fn classify_non_pure_leaf_is_never() {
 }
 
 #[test]
-fn classify_large_pure_leaf_one_caller_is_if_single_call() {
+fn large_body_profitability_selects_single_caller() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
-    let fixture = native_compiled_fixture::compiled_fixture(
-        &format!("proc big {{}} {{\n{body}}}\nbig\n"),
-        "::big",
-        &[],
-    );
-    let module = fixture.module();
-    let summaries = analyse_var_escape(module, true);
-    let (body_id, proc) = fixture.body();
+    let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\n"));
+    let (_, proc) = original_body_for_analysis(&module, "::big").expect("authored fixture body");
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, body_id), 1),
-        InlineDecision::IfSingleCall
+        inlining_profitability(proc, 1),
+        InliningProfitability::SingleCallerOnly
     );
 }
 
@@ -295,22 +290,15 @@ fn classify_large_pure_leaf_two_callers_is_never() {
 }
 
 #[test]
-fn classify_threshold_boundary_is_always() {
-    // Edge case driving the `body_size <= SMALL_BODY_THRESHOLD` branch: a
-    // pure-leaf body of *exactly* the threshold size is still ALWAYS.
+fn threshold_body_profitability_allows_bounded_growth() {
+    // A body exactly at the threshold still permits bounded code growth.
     let body = assign_body(SMALL_BODY_THRESHOLD);
-    let fixture = native_compiled_fixture::compiled_fixture(
-        &format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"),
-        "::edge",
-        &[],
-    );
-    let module = fixture.module();
-    let summaries = analyse_var_escape(module, true);
-    let (body_id, proc) = fixture.body();
+    let module = module_for(&format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"));
+    let (_, proc) = original_body_for_analysis(&module, "::edge").expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), SMALL_BODY_THRESHOLD);
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, body_id), 2),
-        InlineDecision::Always
+        inlining_profitability(proc, 2),
+        InliningProfitability::BoundedGrowth
     );
 }
 
@@ -1367,4 +1355,65 @@ fn actual_compiled_procedure_rejects_foreign_modified_and_retired_custody() {
 fn declaration_only_and_refused_body_compilation_issue_no_compiled_fixture() {
     native_compiled_fixture::assert_declaration_and_refusal_boundaries();
     native_compiled_fixture::assert_dispatched_binding_boundaries();
+}
+
+#[test]
+fn native_observed_add_arguments_do_not_authorize_generic_body_relocation() {
+    let fixture = native_compiled_fixture::compiled_fixture(
+        "proc add {a b} { return [expr {$a + $b}] }\n",
+        "::add",
+        &["3", "4"],
+    );
+    let module = fixture.module();
+    assert!(module.source_entry.native_entry.is_some());
+    let summaries = analyse_var_escape(module, true);
+    let (id, procedure) = fixture.body();
+    let escape = summary_for(&summaries, id).unwrap();
+    assert!(!escape.safe_to_inline());
+    assert!(!escape.safe_for_frame_elision());
+    for count in 0..=2 {
+        assert_eq!(
+            classify_proc(procedure, Some(escape), count),
+            InlineDecision::Never
+        );
+    }
+}
+
+#[test]
+fn retired_native_body_custody_never_authorizes_classification() {
+    let large = assign_body(SMALL_BODY_THRESHOLD + 2);
+    let edge = assign_body(SMALL_BODY_THRESHOLD);
+    for (source, name, arguments) in [
+        (
+            "proc add {a b} { return [expr {$a + $b}] }\n".to_owned(),
+            "::add",
+            &["3", "4"][..],
+        ),
+        (format!("proc big {{}} {{\n{large}}}\n"), "::big", &[][..]),
+        (
+            format!("proc big {{}} {{\n{large}}}\nbig\n"),
+            "::big",
+            &[][..],
+        ),
+        (
+            format!("proc edge {{}} {{\n{edge}}}\nedge\nedge\n"),
+            "::edge",
+            &[][..],
+        ),
+    ] {
+        let mut fixture = native_compiled_fixture::compiled_fixture(&source, name, arguments);
+        let id = fixture.body().0;
+        fixture.drop_owner();
+        let module = fixture.module();
+        assert!(fixture.refuses_module(module));
+        let procedure = module.body_units.get(&id).unwrap();
+        let summaries = analyse_var_escape(module, true);
+        assert!(!summary_for(&summaries, id).is_some_and(ProcEscapeSummary::safe_to_inline));
+        for count in 0..=2 {
+            assert_eq!(
+                classify_proc(procedure, summary_for(&summaries, id), count),
+                InlineDecision::Never
+            );
+        }
+    }
 }

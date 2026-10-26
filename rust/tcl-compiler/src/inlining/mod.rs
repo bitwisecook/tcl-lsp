@@ -138,6 +138,37 @@ pub enum InlineDecision {
     Never,
 }
 
+/// A body-size and static-call-count fact with no execution permission.
+///
+/// This type is deliberately distinct from [`InlineDecision`]. It proves no
+/// escape, argument, frame, compiler, callback or currentness condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InliningProfitability {
+    /// The body's size permits bounded code growth at any static call count.
+    BoundedGrowth,
+    /// The larger body is size-neutral only at its single static caller.
+    SingleCallerOnly,
+    /// The size and call count do not meet either profitability rule.
+    Unprofitable,
+}
+
+/// Describe only body size and static call count, independently of eligibility.
+///
+/// This function accepts an IR body as data. Its result cannot authorize a
+/// splice, frame removal, argument binding or native execution. Those consumers
+/// still require their independent semantic proofs through [`classify_proc`]
+/// and the actual transformation's existing guards.
+#[must_use]
+pub fn inlining_profitability(proc: &Procedure, static_call_count: usize) -> InliningProfitability {
+    if count_statements(&proc.body) <= SMALL_BODY_THRESHOLD {
+        InliningProfitability::BoundedGrowth
+    } else if static_call_count == 1 {
+        InliningProfitability::SingleCallerOnly
+    } else {
+        InliningProfitability::Unprofitable
+    }
+}
+
 /// A pure-leaf proc whose body has at most this many flat statements is
 /// unconditionally inlinable.
 pub const SMALL_BODY_THRESHOLD: usize = 5;
