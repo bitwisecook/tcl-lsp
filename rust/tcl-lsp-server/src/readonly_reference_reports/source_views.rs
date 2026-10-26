@@ -3783,6 +3783,22 @@ mod completed_world_owner_controls {
         std::fs::write(fixture.root.join("host.tcl"), host_source).unwrap();
         open(&backend, &fixture.main, &fixture.source).await;
         open(&backend, &fixture.host, host_source).await;
+        // Match the live navigation fixture: Indexed alone supplies no root.
+        // Publish each actual current source/input analysis to the real index.
+        for (uri, source) in [
+            (&fixture.main, fixture.source.as_str()),
+            (&fixture.host, host_source),
+        ] {
+            let analysis = backend
+                .analysis_for(uri, Arc::from(source), "tcl8.6".to_owned())
+                .await
+                .unwrap();
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
         (fixture, backend)
     }
 
