@@ -9,6 +9,62 @@ use super::*;
 use crate::analyser::Analyser;
 use crate::registry_invocation::source_structure::source_registry_words;
 
+fn assert_complete_original_member_words(
+    parent: &OriginalSourceScriptBody,
+    image: &SourceImage,
+    config: tcl_lexer::LexerConfig,
+    original: &[tcl_lexer::NativeWord],
+) -> tcl_lexer::NativeScriptWordsPlan {
+    let plan =
+        tcl_lexer::native_script_words_in(image.clone(), parent.content_span(), config).unwrap();
+    assert!(plan.fatal_tail.is_none());
+    assert_eq!(plan.commands.len(), 1);
+    assert_eq!(original, plan.commands[0].words);
+    assert_eq!(original.len(), 4);
+    assert!(
+        original
+            .iter()
+            .all(|word| word.image() == image && word.config() == config)
+    );
+    plan
+}
+
+fn assert_foreign_class_member_geometry_refused(
+    parent: &OriginalSourceScriptBody,
+    region: &OriginalSourceDefinitionMemberRegion,
+    image: &SourceImage,
+    config: tcl_lexer::LexerConfig,
+    source: &str,
+) {
+    let mut foreign_config = config;
+    foreign_config.strict_quoting = !config.strict_quoting;
+    assert!(!parent.matches_source(image, foreign_config));
+    let foreign_image = SourceImage::document(&source.replace("puts α", "puts β"));
+    assert!(!parent.matches_source(&foreign_image, config));
+    let foreign_plan =
+        tcl_lexer::native_script_words_in(foreign_image, parent.content_span(), config).unwrap();
+    assert!(
+        region
+            .script_bodies(&foreign_plan.commands[0].words)
+            .is_none()
+    );
+}
+
+fn assert_class_factory_schema(
+    head: &str,
+    selector: Option<&str>,
+    roles: &[(u8, ArgRole)],
+    complete: bool,
+    family: Option<tcl_registry::definer::DefinerFamily>,
+    dialect: &str,
+) {
+    assert_eq!(head, "oo::class");
+    assert_eq!(selector, Some("create"));
+    assert!(complete, "{dialect}: root schema roles {roles:?}");
+    assert!(roles.contains(&(1, ArgRole::Body)), "{dialect}: {roles:?}");
+    assert_eq!(family, Some(tcl_registry::definer::DefinerFamily::TclOo));
+}
+
 #[test]
 fn original_class_factory_body_and_member_joins_retain_the_complete_source_input() {
     // naming.editor.original-source-formatting
@@ -60,11 +116,7 @@ fn original_class_factory_body_and_member_joins_retain_the_complete_source_input
             let (head, selector, (roles, complete), family) = schema.unwrap_or_else(|| {
                 panic!("{dialect}: root selected source schema; prefix={prefix:?}")
             });
-            assert_eq!(head, "oo::class");
-            assert_eq!(selector, Some("create"));
-            assert!(complete, "{dialect}: root schema roles {roles:?}");
-            assert!(roles.contains(&(1, ArgRole::Body)), "{dialect}: {roles:?}");
-            assert_eq!(family, Some(tcl_registry::definer::DefinerFamily::TclOo));
+            assert_class_factory_schema(head, selector, &roles, complete, family, dialect);
 
             let bodies = words.source_script_bodies(&context);
             assert_eq!(
@@ -94,18 +146,7 @@ fn original_class_factory_body_and_member_joins_retain_the_complete_source_input
                 .unwrap_or_else(|| {
                     panic!("{dialect}: complete original method argv; prefix={prefix:?}")
                 });
-            let plan =
-                tcl_lexer::native_script_words_in(image.clone(), parent.content_span(), config)
-                    .unwrap();
-            assert!(plan.fatal_tail.is_none());
-            assert_eq!(plan.commands.len(), 1);
-            assert_eq!(original, plan.commands[0].words);
-            assert_eq!(original.len(), 4);
-            assert!(
-                original
-                    .iter()
-                    .all(|word| word.image() == &image && word.config() == config)
-            );
+            let _plan = assert_complete_original_member_words(&parent, &image, config, original);
             assert_eq!(region.member_keyword(original).unwrap().keyword, "method");
             let member_bodies = region.script_bodies(original).unwrap_or_else(|| {
                 panic!("{dialect}: selected original method body layout; prefix={prefix:?}")
@@ -121,19 +162,7 @@ fn original_class_factory_body_and_member_joins_retain_the_complete_source_input
             assert!(member_bodies[0].definition_parent().is_none());
             assert!(region.script_bodies(&original[..3]).is_none());
 
-            let mut foreign_config = config;
-            foreign_config.strict_quoting = !config.strict_quoting;
-            assert!(!parent.matches_source(&image, foreign_config));
-            let foreign_image = SourceImage::document(&source.replace("puts α", "puts β"));
-            assert!(!parent.matches_source(&foreign_image, config));
-            let foreign_plan =
-                tcl_lexer::native_script_words_in(foreign_image, parent.content_span(), config)
-                    .unwrap();
-            assert!(
-                region
-                    .script_bodies(&foreign_plan.commands[0].words)
-                    .is_none()
-            );
+            assert_foreign_class_member_geometry_refused(&parent, &region, &image, config, &source);
         }
     }
 }

@@ -558,6 +558,42 @@ mod controls {
         assert!(crate::source_graph::current_analysis(source, &stripped).is_none());
     }
 
+    fn assert_unknown_retained_frontier(frontier: &OriginalProjectSourceFrontier) {
+        assert!(matches!(frontier, OriginalProjectSourceFrontier::Unknown));
+    }
+
+    fn assert_foreign_frontier_keeps_its_own_region(
+        parent: &crate::analyser::AnalysisResult,
+        first: &OriginalProjectSourceLoad,
+        later: &OriginalProjectSourceLoad,
+        first_cut: &OriginalProjectSourceCurrentCut,
+        region: &crate::command_binding::OriginalSourceConditionalRegion,
+    ) {
+        let foreign_child = Analyser::new()
+            .analyse_with_source_point_entry("", "tcl8.6", first_cut.point())
+            .unwrap();
+        let foreign_continuation = first
+            .conditional_continuation(parent, &foreign_child)
+            .unwrap();
+        let foreign_chain = foreign_continuation
+            .source_regions(parent, &foreign_child)
+            .unwrap();
+        let foreign_region = foreign_chain.regions().first().unwrap();
+        let foreign_view = Analyser::new()
+            .analyse_source_region(foreign_region, parent, &foreign_child)
+            .unwrap();
+        assert!(
+            foreign_region
+                .reissued_source_frontier(parent, later, &foreign_view)
+                .is_some()
+        );
+        assert!(
+            region
+                .reissued_source_frontier(parent, later, &foreign_view)
+                .is_none()
+        );
+    }
+
     #[test]
     fn replayed_frontier_transfers_only_the_exact_prefix_command_debt() {
         for source in [
@@ -590,10 +626,7 @@ mod controls {
             let (held_third, held_frontier) = region
                 .reissued_source_frontier(&parent, &third, &view)
                 .unwrap();
-            assert!(matches!(
-                held_frontier,
-                OriginalProjectSourceFrontier::Unknown
-            ));
+            assert_unknown_retained_frontier(&held_frontier);
             let second_child = Analyser::new()
                 .analyse_with_source_point_entry("", "tcl8.6", replayed.point())
                 .unwrap();
@@ -658,28 +691,8 @@ mod controls {
                     .reissued_source_frontier(&parent, &later, &unavailable_view)
                     .is_none()
             );
-            let foreign_child = Analyser::new()
-                .analyse_with_source_point_entry("", "tcl8.6", first_cut.point())
-                .unwrap();
-            let foreign_continuation = first
-                .conditional_continuation(&parent, &foreign_child)
-                .unwrap();
-            let foreign_chain = foreign_continuation
-                .source_regions(&parent, &foreign_child)
-                .unwrap();
-            let foreign_region = foreign_chain.regions().first().unwrap();
-            let foreign_view = Analyser::new()
-                .analyse_source_region(foreign_region, &parent, &foreign_child)
-                .unwrap();
-            assert!(
-                foreign_region
-                    .reissued_source_frontier(&parent, &later, &foreign_view)
-                    .is_some()
-            );
-            assert!(
-                region
-                    .reissued_source_frontier(&parent, &later, &foreign_view)
-                    .is_none()
+            assert_foreign_frontier_keeps_its_own_region(
+                &parent, &first, &later, &first_cut, region,
             );
         }
     }
