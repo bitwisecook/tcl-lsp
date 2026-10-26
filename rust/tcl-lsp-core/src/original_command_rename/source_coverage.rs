@@ -557,6 +557,53 @@ mod tests {
         peer: AnalysisResult,
     }
     const PEER: &str = "proc host_old {} {return VALUE}; host_old";
+    // WORK-only failure census of data already resident in the actual fixture owner.
+    fn observe_namespace_load_card(
+        value: Option<
+            tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad,
+        >,
+        analysis: &AnalysisResult,
+        offset: u32,
+    ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad>
+    {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static EVENTS: AtomicUsize = AtomicUsize::new(0);
+        const ROW_LIMIT: usize = 8;
+        if value.is_none()
+            && option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1")
+            && EVENTS
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                    (used < 4).then_some(used + 1)
+                })
+                .is_ok()
+        {
+            let input = analysis.resolved_input.as_ref().map(std::ptr::from_ref);
+            eprintln!(
+                "SOURCE_LOAD_CARD owner={:p} offset={offset} input_slot={input:?} config_present={} unavailable={} targets={} shown={}",
+                analysis,
+                analysis.body_lexer_config.is_some(),
+                analysis.analysis_context_unavailable.is_some(),
+                analysis.source_targets.len(),
+                analysis.source_targets.len().min(ROW_LIMIT),
+            );
+            for (ordinal, target) in analysis.source_targets.iter().take(ROW_LIMIT).enumerate() {
+                let project = target
+                    .original_project_source_load
+                    .as_ref()
+                    .map(std::sync::Arc::as_ptr);
+                eprintln!(
+                    "SOURCE_LOAD_CARD_ROW owner={:p} ordinal={ordinal} range={}/{} literal={} project_card={project:?} interpreter_card={}",
+                    analysis,
+                    target.range.start(),
+                    target.range.end(),
+                    target.is_literal,
+                    target.original_interpreter_source_load.is_some(),
+                );
+            }
+        }
+        value
+    }
+
     impl Fixture {
         fn new(source: &'static str, child_source: &'static str) -> Self {
             let prefix = Analyser::new().analyse(source, "tcl8.6");
@@ -604,8 +651,12 @@ mod tests {
                 .with_resolved_input(input.clone())
                 .analyse(source, profile.name);
             let source_offset = u32::try_from(source.find("source child").unwrap()).unwrap();
-            let load = tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
-                source, &prefix, source_offset,
+            let load = observe_namespace_load_card(
+                tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                    source, &prefix, source_offset,
+                ),
+                &prefix,
+                source_offset,
             ).unwrap();
             let point = load.source_point_entry(&prefix).unwrap();
             let child = Analyser::new()
