@@ -293,6 +293,50 @@ impl<'a> OriginalSingleSourceCutSurvey<'a> {
     pub fn suffix_commands(&self) -> &'a [crate::segmenter::SegmentedCommand] {
         self.region.commands()
     }
+
+    pub(crate) fn owns_declaration_command(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+        command: &crate::segmenter::SegmentedCommand,
+    ) -> bool {
+        if std::ptr::eq(analysis, self.suffix) {
+            return self.suffix_commands().contains(command);
+        }
+        if !std::ptr::eq(analysis, self.child) {
+            return false;
+        }
+        let Some(realm) = analysis.retained_command_realm() else {
+            return false;
+        };
+        let bindings = realm.source_bindings_ref();
+        let Some(source) = bindings.source_origin() else {
+            return false;
+        };
+        let site = super::CommandAllocationSite {
+            source: Arc::clone(source),
+            offset: command.span.start(),
+        };
+        let Some(Some(plan)) = bindings.conditional_source.plans.get(&site) else {
+            return false;
+        };
+        if plan.frames.len() != 1 {
+            return false;
+        }
+        let frame = &plan.frames[0];
+        frame.base == 0
+            && frame.ordinal_start == 0
+            && frame.exit.is_none()
+            && frame.context.source_purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput
+            && analysis.body_lexer_config == Some(frame.context.config)
+            && frame.image == *source.source_image()
+            && Arc::ptr_eq(&frame.source, source)
+            && frame
+                .next
+                .checked_sub(1)
+                .and_then(|index| frame.commands.get(index))
+                == Some(command)
+    }
+
     pub(crate) const fn outcome(&self) -> &'a OriginalSourceConditionalOutcome {
         self.outcome
     }
