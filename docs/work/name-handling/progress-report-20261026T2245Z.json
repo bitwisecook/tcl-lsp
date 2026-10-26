@@ -1,0 +1,80 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T22:45:00.900563+00:00",
+  "scheduled_report_utc": "2026-10-26T22:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T23:15:00+00:00",
+  "change_since_previous_report": [
+    "2215officialreportactual22:15:00A69634b69 publishedae818bc7 at22:17:02, next2245timer61780recordedimmediately. Allinternalheadersunder60min, externalBIGIP/perfstaleflagged/no takeover, noauditadmissions.",
+    "TypedWASMsymbolfix9cc79 independently84bd appliedWORK3fbd1c43/CLEANa9ce44d0, fresh-fetchshallow normalpushconfirmedbefore2215publication. Internalcollidingfunctionlabelsunique; allactualProcedureId/body/index/table/Tclpublication/flags anduniquepublicexports/top unchanged; no assertion/goldenwaiver, actualRustretriesunrun.",
+    "Independent900-pathcleanupHARDHOLD: patchactual902Rustpaths4066deletionsvsmanifest900/4064, bothheldsoftware_controls.rs fixtures stillinpatch +activeWASMbackendoverlap. No canonicalapply; receiptpeer-release-comment-label-cleanup-v1 sealed, originaleditorialrole regeneratingexplicitpath-matchednewpacket thenindependentreview.",
+    "All8next2c31POSTscomplete22:06:56/source2c31candidate93bd;11jobsactive, exactIDsroot-next2c31-mode-jobs.json, ownersassigned. Currentchecks/nooutcomesinferredfromstepmetadata, no healthycancel.",
+    "N17ordinaryworldobserver4cdedd passivepeer5e6af sourceappliedWORK51fa afterallPOSTs; oldselectedrefusalrowjoinsheldsourcesnapshot/scopetransitions underexistingN17flag/max16head32, no lookup/Native/owner/stategrant. NewleafapprovedONLYSpecmap; ownedWASMnamesnewleafapprovedONLYWASMmap, current25unionrecipebeingcomposed.",
+    "Read-onlyscopeaudit identifiedout-of-SpecEvent/OOexecutionregionsbutNOdependency-completeremovableset; actualLSP\u2192Spec\u2192hooks\u2192engineVM Nativeowner interfaces,xtaskRuntimebacking/crossengine/WASMobligations remain. No code/test/guardrevertsor scopewaivers.",
+    "Final51fa25 union2cd6/ec8f independent2f108+RootinversePASS,8files/5refresh+ONLY2leafaddsSpec/WASM; actualV16PASS13/30/22. AppliedWORKea86590b/freshpushwithCa9ce; twoWASM+SpecPOSTscomplete (runIDs pending).",
+    "Strict2c31 FULLAUTH28bfaccc nowEXACT1question_mark standaloneprimary/noRustE, laterchecksUNRUN. TinycurrentCodeidentitypropagationc512 independently9b519 fixedpairedaftertwoPOSTs, actualretryUNRUN.",
+    "2c31corpusFULLAUTH25d51+2376fullGit: text2/234markers6/702Equalpairs then20-folding old-oldCompleteFieldCorrespondenceUnavailable; generated8/14markers24/42pairs thenprocs41 old-oldCurrentOwnerUnavailable. BOTHFAIL101, noDifferent/mixed/fullparityclaim. NamespassivecomparisonstageobserverNEXTunderCompilerpeer.",
+    "2c31LayoutFULLAUTHe3a569/08e9/e653/allGit2bd0: acceptance10P1F, actualfiniteforeacha/bmissingBEFORElaterplain/rootedforms; all8registryPASS. SeparatealiasFAIL32knownstagesalltrue/qualifiedfirstrefusalUNOBSERVED; memberFAILactualUnknownEarlierMutation false. All31ownedprocessesclosed. Compilerownsproducerrepairs.",
+    "2c31CoreFULLAUTH758e565e old8PASS/source2P2F actualvalue.represented-refusal afterallpriorgates; explicitRefusedterminalkept. Namespaceactualsameprefixowner/input target1/path26..35literaltrue/project_cardNone, point/childunissued. LSPownsactualrecording/issuanceproducerpredicate.",
+    "2c31WASIaab38a/Browserb9d7d3/Startup0cbeb4 fullauthsamefrontiers; Startupcold75.127/scan30FAIL/Context2complete/nativeprobeunreached. Unitstillpending. No shippinglatencyacceptance/causalratio.",
+    "C93prepFULLAUTHa9deb9ca canonicaldoublegenuinePASS unchangedasserts, allcompiletargetsbuild; LSPserver11P3F lensrawnameexpectvsactualtypedtoken, pushcounter2vs1, TkhoverunresolvedSourceTransition. Cleanfinal/diffEMPTY. RoutedLSPcontractauditbeforefixtureorproductionfix, no blankettestwaiver.",
+    "2c31iRulesFULLAUTH19820a77/envelope2f9: bootstrapINCOMPLETE180.457timeout/-2ownedcleanup; CLI2/init_scopeUNRUN/no refusalbodyrow. ExistingCallerSamplesff4a showregister_all/_orig_namespace only; no failedProcDefidentity orlifetimegrant.",
+    "GuardedrecoveryfourmoreobsoleteELFs585473952B/all>87h/3build+2completefd-exe-inodemapscans/hash/age/nlink, lastfree2647425024B. No currenttarget/source/oracle/evidencedeletion; earlierWASIdownloadblockedBEFOREbytes, resumedonlyafterheadroom.",
+    "Scopeindependentcommentreplacementreview894pathsunderway; BOTHheldfixtures/WASMpaths/source-location-sensitive5files excluded. Tinylogical-target/CONTRIBUTINGseparatelyclearandRootapplyingreleaseonly; Eglotscriptbehaviorproposalheld."
+  ],
+  "committed": [
+    "69634b69a68781d2bc639639c1d7de9f57e34bf6"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticate2c31currentstrict/compiler153/corpus/Layout/LSP/iRules/exactprep and fixactualmeasuredfailuresWORK-first withreviewedreleasecarries.",
+    "FinishtypedWASMphysical-symbolfixpeer; obtainactualSourceCut/loadcard/procedurebody/N17worldwideningcauses withoutguardrelaxations.",
+    "CompletefullcurrentCI/zerooriginrustPASS-to-FAIL/acceptedshippingTclperf/releasecomment-doc-generated-fixture-package-squashchecks beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2539737088,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

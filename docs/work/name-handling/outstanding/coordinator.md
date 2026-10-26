@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-26T22:15:00.144190+00:00
+Last updated: 2026-10-26T22:45:00.619073+00:00
 
 ## Resume
 
@@ -13,17 +13,21 @@ Last updated: 2026-10-26T22:15:00.144190+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed. Current checkpoints run every30 minutes; preserve actual report and push timestamps. The current cycle below records the next deadline.
 
-### Current cycle and routing (22:15 UTC)
+### Current cycle and routing (22:45 UTC)
 
-- 2145reportactual21:45:00Afb3d4a99 pluslivegate supplementA5bea8dc (draftlate28s, officialtimestampretained) publishedc3ba20c9 at21:49:51afterreviewedsourcepush; next2215timer62987recordedimmediately. Noauditadmissions; allinternalunder60min/externalBIGIPperfstale flagged.
-- CEEstrict FULLAUTHaabc72e1 2E0061 oldreportlibtestcallersmissingRegistry; laterwarnings/standaloneUNRUN. Compiler153 FULLAUTHf7750c64 independentlybuild101/NOELF/no testprocess/ALL153UNRUN; corpusFULLAUTH4f8d525d independentlyboth117/7UNRUN/zero702+42pairs. CurrentzeroPTF/notallgreen unaffected bymissingruns.
-- CEEprepFULLAUTH839e6549 setupPASS0/gateFAIL2same2E0061 BEFOREsmokeexecution; initial/beforegate/final clean andgenerateddiffEMPTY. PriorPythonformatdriftresolved; no doublepositivityinferred.
-- CEEJimFULLAUTHe822e7ca/supp3a6f35d6/exact5156b0dfdd ZEROstatuschangesvs9fd:old45=36P9F/original26=17P9F/additional8PASS. Runtime166 FULLAUTH023c52d4/exact128eae4067c ZEROchanges/PASS-to-nonPASS,new35ALLPASS, old80failures/CFIincomplete/globalFAILretained.
-- Actual2E0061 narrowpairedregistrycallerrepair1a80 independent81f25 appliedWORK2a7601dc/CLEAN93bdc7d0; sameheldfixtureRegistries/allassertions/productionunchanged, actualretryUNRUNuntilnewjobs.
-- Final2a76union38f7/905b independentCompilede0b9+RootfullinversePASS,14files/16refresh+exact7observerkeys,25JSON20maps553records370actualsources; inlinebodypin7511->5c71 refreshed. ActualadoptedV16PASS13/30/22/0failure,all11RuntimeguardsPASS. AppliedWORK2c31f4ad andfresh-fetchshallow normalpushwithC93bd beforelaunch.
-- Next2c31 eightmodePOSTsrunningonexactWork2c31/C93bd: strict/compiler153/dedicatedcorpus/Layout12000/LSPstartupCore/hosts/iRules/exactprep. Allpreviousmodejobsterminalguarded; currentCEE Runtime/Jimunchangednoredundantretry; no healthyjobcancelled. FinalPOSTcompletion/IDs pending.
-- Read-onlyrelease-scope-check REPORT.md/scopedependencyJSON~31KB foundgenericEvent/OOmigrationbeyondSpecwhitelistbutNOdependency-completesaferemoval. SharedNativeVM/interfaces/xtaskbacking/crossengine/WASMconsumers real; no blanketrevert/test/guardremoval/gatewaiver.
-- WASMtypedphysical-symbolduplicateexportfixfb520 V1heldmissinglicense; NamesV2 9cc79 underCodegenstrongpeerwithall3measuredTcl9.0samplecontrols. No simplededup/stalecanonicalexport orTcltable/indexchange; actualRust/WASMefficacyUNRUN.
-- Next2c31 ALLEIGHTPOSTscomplete22:06:56;11actualjobsstarted22:06: strict40409841916,compiler15340409850870,corpus40409857749,Layout40409862884,startupCore40409870355,hosts40409877322,iRules40409883883,exactprep40409890471/C93bdc7d0. FullIDsroot-next2c31-mode-jobs.json; solecaptureownersassigned, sourcefreezeheldthroughallrequests; nooutcomesyet.
-- IndependentcleanupreviewHOLD: frozencommentpatche7c90c94 has902actualdiffpaths vs900manifest, includingtwoexplicitlyheldsoftware_controls.rs provenancefixtures; plusactiveWASMbackendoverlap. NO canonicalcleanupapply. Reviewer sealingconcretehold, originalauthorwillregenerateexactpathset andresubmitindependentfulllexicalreview.
-- TypedWASMphysicalsymbolV2 9cc79 independently84bd clear; Rootpairedapplication65445inprogressafterallnext2c31POSTs, no effectonthefixedrunningvalidation. ActualRust/newtests/WASMfailcellsstillUNRUN.
+- 2215officialreportactual22:15:00A69634b69 publishedae818bc7 at22:17:02, next2245timer61780recordedimmediately. Allinternalheadersunder60min, externalBIGIP/perfstaleflagged/no takeover, noauditadmissions.
+- TypedWASMsymbolfix9cc79 independently84bd appliedWORK3fbd1c43/CLEANa9ce44d0, fresh-fetchshallow normalpushconfirmedbefore2215publication. Internalcollidingfunctionlabelsunique; allactualProcedureId/body/index/table/Tclpublication/flags anduniquepublicexports/top unchanged; no assertion/goldenwaiver, actualRustretriesunrun.
+- Independent900-pathcleanupHARDHOLD: patchactual902Rustpaths4066deletionsvsmanifest900/4064, bothheldsoftware_controls.rs fixtures stillinpatch +activeWASMbackendoverlap. No canonicalapply; receiptpeer-release-comment-label-cleanup-v1 sealed, originaleditorialrole regeneratingexplicitpath-matchednewpacket thenindependentreview.
+- All8next2c31POSTscomplete22:06:56/source2c31candidate93bd;11jobsactive, exactIDsroot-next2c31-mode-jobs.json, ownersassigned. Currentchecks/nooutcomesinferredfromstepmetadata, no healthycancel.
+- N17ordinaryworldobserver4cdedd passivepeer5e6af sourceappliedWORK51fa afterallPOSTs; oldselectedrefusalrowjoinsheldsourcesnapshot/scopetransitions underexistingN17flag/max16head32, no lookup/Native/owner/stategrant. NewleafapprovedONLYSpecmap; ownedWASMnamesnewleafapprovedONLYWASMmap, current25unionrecipebeingcomposed.
+- Read-onlyscopeaudit identifiedout-of-SpecEvent/OOexecutionregionsbutNOdependency-completeremovableset; actualLSP→Spec→hooks→engineVM Nativeowner interfaces,xtaskRuntimebacking/crossengine/WASMobligations remain. No code/test/guardrevertsor scopewaivers.
+- Final51fa25 union2cd6/ec8f independent2f108+RootinversePASS,8files/5refresh+ONLY2leafaddsSpec/WASM; actualV16PASS13/30/22. AppliedWORKea86590b/freshpushwithCa9ce; twoWASM+SpecPOSTscomplete (runIDs pending).
+- Strict2c31 FULLAUTH28bfaccc nowEXACT1question_mark standaloneprimary/noRustE, laterchecksUNRUN. TinycurrentCodeidentitypropagationc512 independently9b519 fixedpairedaftertwoPOSTs, actualretryUNRUN.
+- 2c31corpusFULLAUTH25d51+2376fullGit: text2/234markers6/702Equalpairs then20-folding old-oldCompleteFieldCorrespondenceUnavailable; generated8/14markers24/42pairs thenprocs41 old-oldCurrentOwnerUnavailable. BOTHFAIL101, noDifferent/mixed/fullparityclaim. NamespassivecomparisonstageobserverNEXTunderCompilerpeer.
+- 2c31LayoutFULLAUTHe3a569/08e9/e653/allGit2bd0: acceptance10P1F, actualfiniteforeacha/bmissingBEFORElaterplain/rootedforms; all8registryPASS. SeparatealiasFAIL32knownstagesalltrue/qualifiedfirstrefusalUNOBSERVED; memberFAILactualUnknownEarlierMutation false. All31ownedprocessesclosed. Compilerownsproducerrepairs.
+- 2c31CoreFULLAUTH758e565e old8PASS/source2P2F actualvalue.represented-refusal afterallpriorgates; explicitRefusedterminalkept. Namespaceactualsameprefixowner/input target1/path26..35literaltrue/project_cardNone, point/childunissued. LSPownsactualrecording/issuanceproducerpredicate.
+- 2c31WASIaab38a/Browserb9d7d3/Startup0cbeb4 fullauthsamefrontiers; Startupcold75.127/scan30FAIL/Context2complete/nativeprobeunreached. Unitstillpending. No shippinglatencyacceptance/causalratio.
+- C93prepFULLAUTHa9deb9ca canonicaldoublegenuinePASS unchangedasserts, allcompiletargetsbuild; LSPserver11P3F lensrawnameexpectvsactualtypedtoken, pushcounter2vs1, TkhoverunresolvedSourceTransition. Cleanfinal/diffEMPTY. RoutedLSPcontractauditbeforefixtureorproductionfix, no blankettestwaiver.
+- 2c31iRulesFULLAUTH19820a77/envelope2f9: bootstrapINCOMPLETE180.457timeout/-2ownedcleanup; CLI2/init_scopeUNRUN/no refusalbodyrow. ExistingCallerSamplesff4a showregister_all/_orig_namespace only; no failedProcDefidentity orlifetimegrant.
+- GuardedrecoveryfourmoreobsoleteELFs585473952B/all>87h/3build+2completefd-exe-inodemapscans/hash/age/nlink, lastfree2647425024B. No currenttarget/source/oracle/evidencedeletion; earlierWASIdownloadblockedBEFOREbytes, resumedonlyafterheadroom.
+- Scopeindependentcommentreplacementreview894pathsunderway; BOTHheldfixtures/WASMpaths/source-location-sensitive5files excluded. Tinylogical-target/CONTRIBUTINGseparatelyclearandRootapplyingreleaseonly; Eglotscriptbehaviorproposalheld.

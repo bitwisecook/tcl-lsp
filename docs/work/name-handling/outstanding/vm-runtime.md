@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T21:59:00Z
+Last updated: 2026-10-26T22:27:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T22:27:00Z: Current2c31 iRules40409883883 is terminal with bootstrap INCOMPLETE selector_timeout180.457s/-2, owned SIGINT and two complete empty-group scans; CLI2/initialization_scope UNRUN. Full exact source/provider/deps/tools/fresh ELF envelope2f9e9279 authenticated; all-member/lifecycle seal completing. Only before-first/after-first/before-final-init phases, no procedure-preparation refusal rows: actual failing declaration/body remains UNOBSERVED, no host-library lifetime choice or new permission. CEE Runtime166 fullauth023c52d4 and exact128join eae4067c ZEROchanges retained. 7ecd Spec fullauth2fcb39a8 shows live_dispatch/live_unknown true, zero named/native candidates; actual world-widening/source-owner cause remains unmeasured. N17 transition V2 manifest4cdedd3b strong passive LSP5e6af323 ready NEXT, actual rows UNRUN. Tiny strict2c31 exact Result identity match→? packetc5127367 frozen paired, Compiler peer requested; no canonical edits or Rust builds. Host-library design f29fb5e3 remains held pending actual attribution. Root alone source/dispatch; sole captures and guards retained.
 
 Current 2026-10-26T21:59:00Z: Actual7ecd SpecFULLAUTH2fcb39a8 old16/VM1/ordinary4PASS LENGTH1/1 MAP/RANGE0/0 full600INCOMPLETE600.5048/-2. V4 exact bothsites live_dispatch=true/live_unknown=true/native0/named0: ordinary live state, not named worker. Actual7ecd WASMFULLAUTH680f7f42 old25ALLPASS/separate8CLOSED3P5F; individual78e35128 records three selectorP→F with changed genuine fixture input, six sample LOAD failures duplicate::twice/::hello beforeexecution; Names owns owner repair, no oracle/golden waiver. CEE Runtime16640406165907/job121864362764 terminalFAIL; sole API/archive floor guarded capture/auth underway, no result claim yet. Mixed33 V12 peer522c3009 integrated perRoot; all14arguments source-cleared/integrated; no standalone-green claim. Actual iRules declaration/body observerV3d79b9c62 strongLSP4e7f637c (V2hiddenprofileinternholdresolved), constrained readonly13/iRules/Spec pins only, Root NEXTintegrating after frozenPOSTs. Hostlibrarypurpose designf29fb remainsheld before actualbodyattribution, no userquestion/policychange. Ordinaryworld false→opaque observer authorized NEXT; draftV1 held authorbody103lines, V2 extraction pending, no canonical change. No localbuilds/duplicatecaptures.
 

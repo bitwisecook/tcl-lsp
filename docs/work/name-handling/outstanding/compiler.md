@@ -2,11 +2,17 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T22:03:44.901515+00:00 (CEE153 build-only FULLAUTH/all153UNRUN; exact caller repair CLEAR; final2a76 union CLEAR)
+Last updated: 2026-10-26T22:30:47.948809+00:00 (actual2c31 Layout10P1F+separateOwnJim2FAIL authenticated; current153 pending; final51fa25 peer CLEAR)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Actual2c31 Layout terminal:** run40409862884/job121877453691/source2c31f4ad1fdc1d7ce1cb11e804c6ee385e024bb3; sole artifact12692933089/11,489,328B/ZIP880dd2cd7fb84912e834ebaab7ff3830c840b8cc3d04a4933d3cdd93f9152bcd. `compiler-layout11-40409862884/assessment-v1.json` SHAe3a569ba00ac58426a682fd541f53ce50fe05c291be13c76909d895bb2c8a648; boundary08e9bf5564bfe1905698abda39f566560fcfac19ce137f8d4e48d3b00550d858; exact-list/terminal e653c716a78ba00b81b46e1ceae1074604cc7fab4ab720d3bea8be9434bd20a6. Actual11 acceptance10PASS/1FAIL: first2 originalLayout PASS, all8registry PASS inclnew4; third fails handlers20867 missing finite-foreach a/b declaration metadata, before later plain/rooted checks. Separate requiredalias admittedFAIL:32knownstages alltrue/noquota, firstfalseUNOBSERVED. Optionalmember admittedFAIL: association_ownertrue then raw26UnknownEarlierMutationfalse. No guard waiver or automatic terminal fixture/owner attribution. All31owned processes/fullbounds/2freshCargo ELFs/fullrosters13exactlist/testterminals/seals/0buildwarnings-errors verified; independent ELF payload unavailable. Full rawGitcontent companion streaming. Current compiler153 run40409850870 remains independently pending.
+
+**CEE full-source strengthening closed:** all126710 recorded source SHA matched streamed79,386 unique raw fixed-source Git blobs, no extraction/network/build: `compiler-original153-40406156934/all-git-content-authentication-v1.json` SHAe4a54ea6863359985dd05f47084fe87ad1a6a2b9fed7293cc0180947d5859335. No symlinks; executable-file mode equivalence not captured by source snapshot. ActualCEE2E0061/all153UNRUN unchanged.
+
+**Latest final51fa25 union peer:** manifest2cd6232d4f711b06bda6d1967e37841d27733c0d850856bd142df8ba84e058e1 strongCLEAR2f10861d9d59bb8fe64b4a85975062a308ea7f4fc93b8ec194221237449d7c7f. Exact8Git/F-R/25JSON20maps555records372actualsourcecontents, only owned_function_names→WASM and source_world_observer→Spec adds,5refreshes4derivedJSONliterals; oldcases/env/budgets/history untouched. Root canonical/dispatch separate.
 
 **CEE current compiler153 terminal FULLAUTH:** `/workspace/naming-proof-storage/compiler-original153-40406156934/authentication-v2.json` SHA f7750c6447a8e52aac53b28b0f24b5e56fdbc463f5b57aa28aa70ffc7a60d7fe. Run40406156934/job121864330390/sourcecee0771530e6a7cd4d81543627e238fa516fa64b, sole artifact12691388473/10,985,281B/ZIPb202fc8fc7799d7a09bb12c2c7e8a8120d17a57e4db8f7d46cf378d640bab6c2. All32members/fullsource membership/current25keys/source/provider/deps/tool seals verified; fetch0+compilerlib build101 both bounded/closed. Actual2E0061 body_correspondence841/1005, no warning diagnostics. No artifact/list/test, so all153UNRUN and no semanticPASS/FAIL; artifacts seal=false means none produced, not file mutation. Assessor primary-span correction preserved separately; primary841/1005 vs secondary insertion843/1007.
 
