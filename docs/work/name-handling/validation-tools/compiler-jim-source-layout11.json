@@ -12,7 +12,10 @@
   "source_pins": {
     "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
-    "rust/tcl-compiler/src/analyser/handlers.rs": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103"
+    "rust/tcl-compiler/src/analyser/handlers.rs": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "3af147084d8b2e1984cbf53a558faad409908d29d1337bf1c6dc7371e6f45568",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "136cfa39c8df5ac07026e31dd397d20dba9593260f136302e7caffd01031d46f",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "0a50eb68eafe10352286ab7a6821ef02d6030e07afec80a7e15d1489f457bf4c"
   },
   "build_targets": [
     {
@@ -186,7 +189,102 @@
     "exact_list_seconds_each": 180,
     "exact_test_seconds_each": 180,
     "cleanup_reservation_seconds_each": 40,
-    "pre_fetch_full_reservation_seconds": 10160
+    "pre_fetch_full_reservation_seconds": 10560
   },
-  "semantics": "Selected trusted Core + actual Jim3/4 source grammar only. No Native definition, frame, compiler body/admission, normal or publication authority; unknown/expanded/foreign/conflicting-role refusals remain."
+  "semantics": "Selected trusted Core + actual Jim3/4 source grammar only. No Native definition, frame, compiler body/admission, normal or publication authority; unknown/expanded/foreign/conflicting-role refusals remain.",
+  "separate_own_jim_diagnostics": {
+    "scope": "After unchanged Layout11: required separately-labelled existing alias-negative repeat, then optional existing positive member repeat. No original11 or old153 rows/env/count changes, no Native/Normal/quiet grant.",
+    "source_filter_manifest_sha256": "9abcbd01dbb6ab584c75f5a693abc990a12acdc894f64b77d1799a83b9c6d62d",
+    "source_filter_peer_sha256": "079fa67fd1c665b533cf3bc5eb61c41a4570c09932b5156430582f62f8741420",
+    "expected_required": 1,
+    "expected_optional": 1,
+    "rows": [
+      {
+        "group": "diagnostic-layout-own-jim-alias1",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_refuses_rebound_class_and_replaced_initialisers",
+        "expected_selected": 1,
+        "env": {
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1",
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER_FILTER": "alias-only-v1"
+        },
+        "list_seconds": 180,
+        "budget_seconds": 180,
+        "cleanup_reservation_seconds": 40,
+        "optional": false,
+        "trace_prefix": "jim.alias.",
+        "trace_stages": [
+          "jim.alias.alias_input",
+          "jim.alias.applied",
+          "jim.alias.capture.argument",
+          "jim.alias.capture.input",
+          "jim.alias.capture.subject",
+          "jim.alias.namespace",
+          "jim.alias.prefix",
+          "jim.alias.prefix_input",
+          "jim.alias.prefix_word",
+          "jim.alias.publication",
+          "jim.alias.receipt",
+          "jim.alias.source_current",
+          "jim.alias.source_interpreter",
+          "jim.alias.target_current",
+          "jim.alias.target_input",
+          "jim.alias.target_interpreter"
+        ]
+      },
+      {
+        "group": "diagnostic-layout-own-jim-member1",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_keeps_before_and_after_factory_custody",
+        "expected_selected": 1,
+        "env": {
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1",
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER_FILTER": "member-only-v1"
+        },
+        "list_seconds": 180,
+        "budget_seconds": 180,
+        "cleanup_reservation_seconds": 40,
+        "optional": true,
+        "trace_prefix": "jim.own_member.",
+        "trace_stages": [
+          "jim.own_member.association_owner",
+          "jim.own_member.debt.AuthoredCommandPrefixApplicability",
+          "jim.own_member.debt.ConditionalCBodyApplicability",
+          "jim.own_member.debt.ConditionalCNamespaceApplicability",
+          "jim.own_member.debt.ConditionalCapturedLifecycleSourceApplicability",
+          "jim.own_member.debt.ConditionalDeclarationApplicability",
+          "jim.own_member.debt.ConditionalLogicalBodyApplicability",
+          "jim.own_member.debt.ConditionalMemberBodyCatalogueApplicability",
+          "jim.own_member.debt.ConditionalOriginalBodyCatalogueApplicability",
+          "jim.own_member.debt.DeferredLogicalBodyApplicability",
+          "jim.own_member.debt.ExplicitLogicalSourceApplicability",
+          "jim.own_member.debt.FutureOriginalProcedureSourceApplicability",
+          "jim.own_member.debt.NativeBaselineSourceApplicability",
+          "jim.own_member.debt.OriginalCallbackTargetApplicability",
+          "jim.own_member.debt.OriginalProcedureBodyApplicability",
+          "jim.own_member.debt.ProducedCommandPrefixApplicability",
+          "jim.own_member.debt.RegisteredFactoryApplicability",
+          "jim.own_member.debt.RegisteredHandleBindingApplicability",
+          "jim.own_member.debt.UnacceptedSourceArity",
+          "jim.own_member.debt.UnavailableActualLookup",
+          "jim.own_member.debt.UnavailableCallbackLookupFrame",
+          "jim.own_member.debt.UnknownEarlierMutation",
+          "jim.own_member.debt.UnretainedCSourcePathProviderApplicability",
+          "jim.own_member.debt.WrittenTransitionApplicability"
+        ]
+      }
+    ],
+    "observation": "Only actual decoded matching stage rows with raw line numbers. Missing/quota/oversized unclassified line remains UNOBSERVED; first observed false is not automatically the final failing fixture/owner.",
+    "optional_admission": "Positive needs full180list+180test+40cleanup actual remaining time/log budget; otherwise explicit UNRUN, no coverage gain.",
+    "guaranteed_prefetch_reservation_seconds": 10560,
+    "optional_not_in_guaranteed_reservation": true
+  }
 }

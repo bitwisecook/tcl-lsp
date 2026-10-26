@@ -158,6 +158,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
             "diagnostic-jim-source-layout11-",
+            "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
             "list-",
             "select-",
@@ -191,6 +192,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
             "diagnostic-jim-source-layout11-",
+            "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
         )
     ):
@@ -225,6 +227,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
             "diagnostic-jim-source-layout11-",
+            "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
         )
     ):
@@ -4400,6 +4403,250 @@ def run_jim_source_layout_controls() -> None:
 
 
 
+def observe_layout_jim_trace(encoded, repeat_stage, row):
+    trace = {"tail": bytearray(), "line": 0, "discard": False,
+             "quota": False, "unclassified_oversized_line": False, "rows": []}
+    known = set(row["trace_stages"])
+    def line_observation(line):
+        trace["line"] += 1
+        text = line.decode("utf-8", errors="replace").rstrip("\r\n")
+        marker = text.find("JIM_SOURCE_OWNER stage=")
+        if marker < 0:
+            return
+        text = text[marker:]
+        if text == "JIM_SOURCE_OWNER stage=option_trace_quota state=UNOBSERVED limit=1024":
+            trace["quota"] = True
+        match = re.fullmatch(r"JIM_SOURCE_OWNER stage=([A-Za-z0-9_.]+) present=(true|false)", text)
+        if match and match[1] in known:
+            trace["rows"].append({"raw_line": trace["line"], "stage": match[1],
+                                  "present": match[2] == "true"})
+            require(len(trace["rows"]) <= 1024, "Jim diagnostic trace exceeds unchanged quota")
+    def sink(data):
+        for piece in data.splitlines(keepends=True):
+            if not trace["discard"]:
+                trace["tail"].extend(piece)
+                if len(trace["tail"]) > 8192:
+                    trace["unclassified_oversized_line"] = True
+                    trace["tail"].clear()
+                    trace["discard"] = True
+            if piece.endswith(b"\n"):
+                if trace["discard"]:
+                    trace["line"] += 1
+                else:
+                    line_observation(bytes(trace["tail"]))
+                trace["tail"].clear()
+                trace["discard"] = False
+    reconstructed = transport_filter.decode_diagnostic_repeats(
+        encoded, sink, repeat_stage["input_bytes"]
+    )
+    if trace["tail"]:
+        line_observation(bytes(trace["tail"]))
+    observation = "OBSERVED" if (trace["rows"] and not trace["quota"]
+        and not trace["unclassified_oversized_line"]) else "UNOBSERVED"
+    first_false = next((value for value in trace["rows"] if not value["present"]), None)
+    row.update(jim_trace_rows=trace["rows"], jim_trace_observation=observation,
+               jim_trace_quota_reached=trace["quota"],
+               jim_trace_unclassified_oversized_line=trace["unclassified_oversized_line"],
+               first_observed_false=first_false,
+               qualified_first_refusal=first_false if observation == "OBSERVED" else None,
+               first_refusal_observation="OBSERVED" if observation == "OBSERVED" and first_false else "UNOBSERVED",
+               trace_qualification="Observed stage only; no fixture/owner identity supplied. Join original failure phase before causal attribution.")
+    return reconstructed
+
+
+def run_layout_own_jim_diagnostic(row) -> None:
+    global remaining
+    if deadline - time.time() < 180 + 180 + 40 or remaining <= 512 * 1024:
+        row["admission"] = "UNRUN_INSUFFICIENT_FULL_STAGE_BUDGET"
+        return
+    row["admission"] = "ADMITTED_FULL_LIST_TEST_CLEANUP"
+    phase_rows = [row]
+    for path, digest in jim_layout_validation["source_pins"].items():
+        require(sha(root / path) == digest, "Jim diagnostic direct source drift: " + path)
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in phase_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "layout own Jim diagnostic controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(phase_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "layout own Jim diagnostic current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "layout own Jim diagnostic requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "layout own Jim diagnostic artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "layout-own-jim"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "layout-own-jim-outcomes.json", phase_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "layout-own-jim-outcomes.json", phase_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = observe_layout_jim_trace(encoded_stderr, repeat_stage, row)
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "layout-own-jim-outcomes.json", phase_rows)
+            raise
+        save(out / "layout-own-jim-outcomes.json", phase_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
+
 class _DedicatedLayoutComplete(Exception):
     """Private successful Layout phase boundary; final seals still execute."""
 
@@ -5063,8 +5310,10 @@ for package, kind, name, count in expected_targets:
     )
 jim_layout_validation = None
 jim_layout_rows = []
+layout_jim_diagnostic_rows = []
+layout11_acceptance_exit = None
 if args.jim_source_layout_only:
-    require(sha(BASE / "compiler-jim-source-layout11.json") == "674dbabcca3e63a74d19126c847b1d31282d10f459389e81c379e13062f76a0c",
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "ec7697f4fa8db1546928a64dbe8c827102288611e13fbc99e261b2f73beb4ac9",
             "exact Layout11 roster/direct source pins required")
     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
     require(jim_layout_validation["expected_selected"] == 11
@@ -5077,6 +5326,18 @@ if args.jim_source_layout_only:
                 and row["list_seconds"] == row["budget_seconds"] == 180,
                 "Layout11 exact row/environment/budget mismatch")
         jim_layout_rows.append({**row, "group": "diagnostic-jim-source-layout11", "state": "UNRUN"})
+    diagnostic = jim_layout_validation["separate_own_jim_diagnostics"]
+    require(diagnostic["expected_required"] == diagnostic["expected_optional"] == 1
+            and len(diagnostic["rows"]) == 2,
+            "exact required alias1 plus optional positive1")
+    for row in diagnostic["rows"]:
+        require(row["list_seconds"] == row["budget_seconds"] == 180
+                and row["cleanup_reservation_seconds"] == 40
+                and row["expected_selected"] == 1,
+                "own Jim diagnostic full fixed stage budgets")
+        layout_jim_diagnostic_rows.append({**row, "state": "UNRUN",
+            "admission": "NOT_ATTEMPTED", "jim_trace_observation": "UNOBSERVED",
+            "first_refusal_observation": "UNOBSERVED"})
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -5374,7 +5635,7 @@ try:
     )
     print("FETCH locked native dependency inputs before build", flush=True)
     if args.jim_source_layout_only:
-        require(deadline - time.time() >= 10160,
+        require(deadline - time.time() >= 10560,
                 "insufficient shared time for full Layout11 fetch/build/list/test/cleanup reservation")
     fetched = execute(
         [
@@ -5747,7 +6008,14 @@ try:
         require(len(jim_layout_rows) == 11 and all(
             row["state"] in ["PASS", "FAIL"] for row in jim_layout_rows),
             "dedicated Layout11 incomplete")
-        status = 0 if all(row["state"] == "PASS" for row in jim_layout_rows) else 1
+        layout11_acceptance_exit = 0 if all(row["state"] == "PASS" for row in jim_layout_rows) else 1
+        status = layout11_acceptance_exit
+        for row in layout_jim_diagnostic_rows:
+            run_layout_own_jim_diagnostic(row)
+            if row["state"] == "FAIL":
+                status = max(status, 1)
+            elif row["state"] not in ["PASS", "FAIL"] and not row["optional"]:
+                status = 2
         raise _DedicatedLayoutComplete()
     require(
         all(row["state"] in ["PASS", "FAIL"] for row in original65_rows),
@@ -6119,6 +6387,11 @@ finally:
             "required_layout_tests": 11,
             "jim_source_layout11_outcomes": jim_layout_rows,
             "jim_source_layout11_roster": jim_layout_validation,
+            "layout11_acceptance_exit": layout11_acceptance_exit,
+            "separate_own_jim_diagnostic_rows": layout_jim_diagnostic_rows,
+            "required_alias_diagnostic_count": 1,
+            "optional_positive_diagnostic_count": 1,
+            "optional_positive_not_guaranteed_by_10800_envelope": True,
             "historical150_requested": False,
             "corpus2_requested": False,
             "historical_outcome_transfer": False,
