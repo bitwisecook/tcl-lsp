@@ -1139,7 +1139,7 @@ def main():
             save(directory / "constructor3-summary.json", {
                 "source": args.sha, "count": 3, "complete": False, "errors": [repr(error)],
                 "counts": dict(collections.Counter(row["status"] for row in constructor_rows)),
-                "scope": "Constructor2 unadmitted/incomplete; original140 remain separately reported.",
+                "scope": "Constructor3 unadmitted/incomplete; original140 remain separately reported.",
             })
             aot_path = directory / "aot5-outcomes.json"
             aot_rows = json.loads(aot_path.read_text()) if aot_path.exists() else [
