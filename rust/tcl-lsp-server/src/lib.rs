@@ -30341,6 +30341,17 @@ impl Backend {
         true
     }
 
+    fn workspace_scan_workers() -> (
+        Arc<Semaphore>,
+        WorkspaceScanTaskWindow<WorkspaceScanCandidate>,
+    ) {
+        let concurrency =
+            crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
+        let permits = Arc::new(Semaphore::new(concurrency));
+        let tasks = WorkspaceScanTaskWindow::new(concurrency);
+        (permits, tasks)
+    }
+
     fn workspace_scan_inputs_are_current(
         &self,
         scan_analyser_inputs_epoch: u64,
@@ -30385,10 +30396,7 @@ impl Backend {
         } = inputs;
         let open = Arc::new(open);
         let folder_dialects = Arc::new(folder_dialects);
-        let concurrency =
-            crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
-        let permits = Arc::new(Semaphore::new(concurrency));
-        let mut tasks = WorkspaceScanTaskWindow::new(concurrency);
+        let (permits, mut tasks) = Self::workspace_scan_workers();
         let mut coverage_complete = true;
         let mut files = files.into_iter();
         let mut files_count = 0usize;
