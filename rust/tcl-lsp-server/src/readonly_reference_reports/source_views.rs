@@ -3802,6 +3802,31 @@ mod completed_world_owner_controls {
         (fixture, backend)
     }
 
+    type ReferenceScopeCensusRow = (bool, bool, bool, bool, bool, usize, bool, usize, usize);
+    fn reference_scope_census(
+        settlement: &OriginalSourceViewSettlement,
+        fixture: &Fixture,
+    ) -> Vec<ReferenceScopeCensusRow> {
+        settlement
+            .scopes
+            .iter()
+            .take(8)
+            .map(|scope| {
+                (
+                    scope.root_uri == fixture.main,
+                    scope.root_uri == fixture.host,
+                    scope.root.is_some(),
+                    scope.complete,
+                    scope.conditional_obligations,
+                    scope.ids.len(),
+                    scope.required.contains(&fixture.host),
+                    scope.required.len(),
+                    scope.association_owners.len(),
+                )
+            })
+            .collect()
+    }
+
     fn assert_reference_locations(host: &Uri, locations: &[tower_lsp_server::ls_types::Location]) {
         assert_eq!(locations.len(), 2);
         for (line, start, end) in [(0, 5, 13), (1, 56, 64)] {
@@ -3828,7 +3853,10 @@ mod completed_world_owner_controls {
                 .iter()
                 .any(|scope| scope.root_uri == fixture.main
                     && !scope.complete
-                    && scope.ids.len() > 1)
+                    && scope.ids.len() > 1),
+            "scope_count={} census(main,host,published,complete,conditional,ids,host_required,required,associations)={:?}",
+            settlement.scopes.len(),
+            reference_scope_census(&settlement, &fixture),
         );
         assert!(settlement.projection(&fixture.host, true).is_none());
         let projection = settlement
@@ -3880,7 +3908,10 @@ mod completed_world_owner_controls {
                 settlement
                     .scopes
                     .iter()
-                    .any(|scope| scope.required.contains(&fixture.host) && !scope.complete)
+                    .any(|scope| scope.required.contains(&fixture.host) && !scope.complete),
+                "source_host={source_host} scope_count={} census(main,host,published,complete,conditional,ids,host_required,required,associations)={:?}",
+                settlement.scopes.len(),
+                reference_scope_census(&settlement, &fixture),
             );
             assert!(
                 settlement
@@ -4002,7 +4033,11 @@ mod completed_world_owner_controls {
                 .with_settled_original_source_scope(&projection, |_| Some(()))
                 .await
                 .unwrap()
-                .is_none()
+                .is_none(),
+            "projection_ids={} scope_count={} census(main,host,published,complete,conditional,ids,host_required,required,associations)={:?}",
+            projection.ids.len(),
+            settlement.scopes.len(),
+            reference_scope_census(&settlement, &fixture),
         );
         assert_eq!(
             std::fs::read_to_string(fixture.root.join("host.tcl")).unwrap(),
