@@ -2580,3 +2580,81 @@ fn original_trace_facades_keep_the_full_pending_host_cause() {
         first
     );
 }
+
+// Restore every original four-release top-level completion observation.
+// Only the genuine constructor and checked result projection replace retired
+// generic setup; original source, expected bytes, release set and assertions stay.
+fn settle_original_top_level(vm: &mut Vm, source: &str) -> (Code, String) {
+    let completion = vm
+        .try_eval_source(source)
+        .expect("original source provider");
+    let settled = vm.settle_top_level(completion);
+    let code = settled.code;
+    let original = vm
+        .capture_original_operand_projection()
+        .expect("actual selected core projection");
+    let text = vm
+        .original_operand_unicode(&original, &settled.result)
+        .expect("original top-level result Unicode");
+    drop(settled);
+    vm.check_original_operand_projection(&original)
+        .expect("projection current through completion retirement");
+    vm.finish_original_operand_projection(original)
+        .expect("original projection settlement");
+    (code, text)
+}
+
+#[test]
+fn a_top_level_completion_settles_as_tclsh_reports_it() {
+    use tcl_dialect::TclVersion;
+    for (version, unexpected) in [
+        (TclVersion::V8_4, "NONE"),
+        (TclVersion::V8_5, "NONE"),
+        (TclVersion::V8_6, "TCL UNEXPECTED_RESULT_CODE 3"),
+        (TclVersion::V9_0, "TCL UNEXPECTED_RESULT_CODE 3"),
+    ] {
+        let profile = tcl_vm::test_support::profile(version.dialect_name());
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_release(version, Box::new(std::io::sink()));
+        vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+        let settle = settle_original_top_level;
+        assert_eq!(
+            settle(&mut vm, "break"),
+            (
+                Code::Error,
+                "invoked \"break\" outside of a loop".to_owned()
+            ),
+        );
+        assert_eq!(
+            settle(&mut vm, "set errorCode"),
+            (Code::Ok, unexpected.to_owned()),
+            "{version:?}"
+        );
+        assert_eq!(
+            settle(&mut vm, "continue"),
+            (
+                Code::Error,
+                "invoked \"continue\" outside of a loop".to_owned()
+            ),
+        );
+        assert_eq!(
+            settle(&mut vm, "return -code 7 x"),
+            (Code::Error, "command returned bad code: 7".to_owned()),
+        );
+        assert_eq!(settle(&mut vm, "return x"), (Code::Ok, "x".to_owned()));
+        if version != TclVersion::V8_4 {
+            assert_eq!(
+                settle(&mut vm, "return -level 2 x"),
+                (Code::Error, "command returned bad code: 2".to_owned()),
+            );
+        }
+        assert_eq!(
+            settle(&mut vm, "error boom {} {X Y}; set q 1"),
+            (Code::Error, "boom".to_owned()),
+        );
+        assert_eq!(
+            settle(&mut vm, "set errorCode"),
+            (Code::Ok, "X Y".to_owned())
+        );
+    }
+}
