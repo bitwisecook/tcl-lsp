@@ -379,7 +379,6 @@ impl Builder<'_> {
                                 error.native_execution_refusal.clone().or_else(|| {
                                     error
                                         .native_access_refusal
-                                        .clone()
                                         .map(tcl_runtime_api::NativeExecutionError::from)
                                 })
                             {
@@ -410,7 +409,7 @@ impl Builder<'_> {
                         {
                             self.literals.retain_syntax_error_info(options, message);
                         }
-                        Err(((message, options)).into())
+                        Err((message, options))
                     }
                 };
                 prepared.folded.insert(node.clone(), folded);
@@ -965,7 +964,7 @@ impl Interp {
                     options,
                     &objects,
                 )
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+                .map_err(|error| self.report_cmd_error(error))?;
             self.set_result(
                 artifact
                     .literals
@@ -1394,7 +1393,7 @@ impl Interp {
                     variable_original
                         .check(self)
                         .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
-                    return Ok(Code::Ok);
+                    Ok(Code::Ok)
                 })();
                 variable_original
                     .check(self)

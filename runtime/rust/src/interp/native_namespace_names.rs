@@ -286,7 +286,7 @@ impl Interp {
         }
         let reference_ns = if bytes
             .as_ref()
-            .is_some_and(|bytes| tcl_syntax::naming::written_command_parts(&bytes).absolute)
+            .is_some_and(|bytes| tcl_syntax::naming::written_command_parts(bytes).absolute)
         {
             GLOBAL
         } else {

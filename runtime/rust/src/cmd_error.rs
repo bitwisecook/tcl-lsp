@@ -500,15 +500,12 @@ pub(crate) fn completion_options(
         if let Some((original, strings)) =
             interp.duplicate_original_return_options(scope.currency())?
         {
-            let snapshot = match crate::dict::PreparedNativeDictionary::prepare_using(
+            let snapshot = crate::dict::PreparedNativeDictionary::prepare_using(
                 Some(original.as_ptr()),
                 strings,
                 &|| scope.currency().ensure_current_or_refuse(),
                 &|error| interp.clone().refuse_completion_value_access(error),
-            ) {
-                Ok(snapshot) => snapshot,
-                Err(first) => return Err(first),
-            };
+            )?;
             drop(original);
             scope.currency().ensure_current_or_refuse()?;
             let original_currency = scope.currency().clone();

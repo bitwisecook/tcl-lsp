@@ -386,24 +386,25 @@ pub(crate) fn forget_context(value: *mut TclObj) {
 }
 
 pub(crate) fn context(value: *mut TclObj) -> Result<Rc<NativeJimObjectContext>, ValueError> {
-    OBJECT_CONTEXTS
-        .with(|contexts| {
-            contexts
-                .borrow()
-                .get(&(value as usize))
-                .and_then(Weak::upgrade)
-                .filter(|context| context.is_live())
-        })
-        .ok_or_else(|| {
-            #[cfg(test)]
-            if std::env::var_os("TCL_RUNTIME_TRACE_MISSING_JIM_CONTEXT").is_some() {
-                eprintln!(
-                    "missing original Jim object context for {value:p}:\n{}",
-                    std::backtrace::Backtrace::force_capture()
-                );
-            }
-            ValueError::CommandProtocolUnavailable("Jim original source context")
-        })
+    let Some(context) = OBJECT_CONTEXTS.with(|contexts| {
+        contexts
+            .borrow()
+            .get(&(value as usize))
+            .and_then(Weak::upgrade)
+            .filter(|context| context.is_live())
+    }) else {
+        #[cfg(test)]
+        if std::env::var_os("TCL_RUNTIME_TRACE_MISSING_JIM_CONTEXT").is_some() {
+            eprintln!(
+                "missing original Jim object context for {value:p}:\n{}",
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim original source context",
+        ));
+    };
+    Ok(context)
 }
 
 /// Inspect the actual Source primary without falling back to an unlocated script.
