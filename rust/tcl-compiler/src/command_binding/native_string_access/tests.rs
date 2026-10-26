@@ -23,6 +23,33 @@ fn analyse(source: &str, engine: &str) -> SourceCommandBindings {
     )
 }
 
+fn append_stages(
+    bindings: &SourceCommandBindings,
+    source: &str,
+    registry: &tcl_registry::CommandRegistry,
+) -> [(bool, bool, Option<u64>); 2] {
+    ["append greeting", "puts $greeting"].map(|spelling| {
+        let head = spelling.split_once(' ').unwrap().0;
+        let earlier = bindings
+            .invocation_at_source(head, u32::try_from(source.find(spelling).unwrap()).unwrap());
+        let variables = &earlier.variable_context;
+        let access = crate::var_resolve::resolve_literal_access(
+            "greeting",
+            variables,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        (
+            variables.contents_native_string_access_closed_at(&access, registry),
+            variables
+                .contents_native_string_access_receipt_at(&access, registry)
+                .is_some(),
+            variables.representation_epoch,
+        )
+    })
+}
+
 #[test]
 fn same_actual_source_template_and_append_close_only_string_effects() {
     let source = r#"set name world; set greeting "hello, $name"; append greeting "!"; puts $greeting; string length $greeting"#;
@@ -63,6 +90,15 @@ fn same_actual_source_template_and_append_close_only_string_effects() {
             registry,
             tcl_registry::TraceOperation::Read,
         );
+        let stages = append_stages(&bindings, source, registry);
+        assert!(
+            stages[0].0 && stages[0].1 && stages[1].0 && stages[1].1,
+            "same entered append effect {engine}"
+        );
+        assert!(
+            matches!((stages[0].2, stages[1].2), (Some(before), Some(after)) if after > before),
+            "cache withdrawal remains {engine}"
+        );
         assert!(
             context.contents_native_string_access_closed_at(&place, registry),
             "{engine}"
@@ -90,13 +126,102 @@ fn same_actual_source_template_and_append_close_only_string_effects() {
     }
 }
 
+fn known_name_value_requires_its_own_actual_input_effects() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+    for (source, closed) in [
+        (
+            r#"set name world; set greeting "hello, $name"; set receiver greeting; append $receiver !; string length $greeting"#,
+            true,
+        ),
+        (
+            r#"set name world; set greeting "hello, $name"; set receiver [list greeting]; append $receiver !; string length $greeting"#,
+            false,
+        ),
+    ] {
+        let bindings = analyse(source, "tcl9.0");
+        let append = bindings.invocation_at_source(
+            "append",
+            u32::try_from(source.find("append $").unwrap()).unwrap(),
+        );
+        assert_eq!(append.evaluated_written_argument_value(0), Some("greeting"));
+        let receiver = crate::var_resolve::resolve_literal_access(
+            "receiver",
+            &append.variable_context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        assert_eq!(
+            append
+                .variable_context
+                .contents_native_string_result_input_closed_at(&receiver, registry),
+            closed
+        );
+        let point = bindings.invocation_at_source(
+            "string",
+            u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+        );
+        let greeting = crate::var_resolve::resolve_literal_access(
+            "greeting",
+            &point.variable_context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        assert_eq!(
+            point
+                .variable_context
+                .contents_native_string_access_receipt_at(&greeting, registry)
+                .is_some(),
+            closed
+        );
+    }
+}
+
+fn replaced_handler_cannot_receive_the_stock_append_effect_receipt() {
+    let source = r#"set name world; set greeting "hello, $name"; rename append saved_append; proc append args {uplevel 1 {set greeting changed}}; append greeting !; string length $greeting"#;
+    let bindings = analyse(source, "tcl9.0");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+    let append = bindings.invocation_at_source(
+        "append",
+        u32::try_from(source.find("append greeting !").unwrap()).unwrap(),
+    );
+    assert_eq!(
+        append.proved_execution_target().unwrap().kind,
+        crate::command_binding::BindingKind::Proc
+    );
+    let point = bindings.invocation_at_source(
+        "string",
+        u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+    );
+    let greeting = crate::var_resolve::resolve_literal_access(
+        "greeting",
+        &point.variable_context,
+        false,
+        registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    // A different producer may independently close ordinary string access.
+    // It cannot borrow the stock append's distinct effect receipt.
+    assert!(
+        point
+            .variable_context
+            .contents_native_string_access_receipt_at(&greeting, registry)
+            .is_none()
+    );
+}
+
 #[test]
 fn unknown_component_and_observers_cannot_launder_a_string_result_receipt() {
+    known_name_value_requires_its_own_actual_input_effects();
+    replaced_handler_cannot_receive_the_stock_append_effect_receipt();
+
     for source in [
         r#"set name [external_factory]; set greeting "hello, $name"; append greeting !; string length $greeting"#,
         r#"set name world; trace add variable name read external_callback; set greeting "hello, $name"; append greeting !; string length $greeting"#,
         r#"set name world; set greeting "hello, $name"; trace add variable greeting write external_callback; append greeting !; string length $greeting"#,
         r#"external_callback; set name world; set greeting "hello, $name"; append greeting !; string length $greeting"#,
+        r#"set name world; set greeting "hello, $name"; trace add execution append enter external_callback; append greeting !; string length $greeting"#,
     ] {
         let bindings = analyse(source, "tcl9.0");
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
