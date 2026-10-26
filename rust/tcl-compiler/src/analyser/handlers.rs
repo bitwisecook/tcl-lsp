@@ -2652,52 +2652,40 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) -> Option<tcl_registry::ProcedureWords> {
-        let words = crate::registry_invocation::source_structure::source_registry_words_at(
-            &self.source,
-            &self.result,
-            head.span.start(),
+        use crate::registry_invocation::source_structure::trace_jim_source_option as observed;
+        let words = observed(
+            "analyser.proc.words",
+            crate::registry_invocation::source_structure::source_registry_words_at(
+                &self.source,
+                &self.result,
+                head.span.start(),
+            ),
         )?;
-        if words.arguments().len() != args.len() || arg_tokens.len() != args.len() {
-            return None;
-        }
-        for (index, (text, token)) in args.iter().zip(arg_tokens).enumerate() {
-            if words.origins().get(index + 1)
-                != Some(&crate::registry_invocation::InvocationWordOrigin::Written(
-                    index + 1,
-                ))
-            {
-                return None;
-            }
-            let word = words.original_argument_word(index)?;
-            if word.group().expand {
-                return None;
-            }
-            let projection = crate::segmenter::segment_commands_with_offset_and_config(
-                word.try_text().ok()?,
-                word.word_span().start(),
-                word.config().nested(),
-            );
-            let [original] = projection.as_slice() else {
-                return None;
-            };
-            if original.argv != [*token]
-                || original.texts != [text.as_str()]
-                || original.all_tokens != word.tokens()
-            {
-                return None;
-            }
-        }
+        Self::original_procedure_source_arguments_match(&words, args, arg_tokens)?;
         let context = self.analysis_context();
-        let positions = words.with_source_schema(&context, |schema| {
-            (schema.semantics.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::Proc))
-                .then_some(())?;
-            schema.authored_source_procedure_arguments()
-        })??;
-        let mut statics = words.roles()?.iter().filter_map(|&(position, role)| {
-            (role == tcl_registry::ArgRole::StaticVarList).then_some(position)
-        });
+        let positions = observed(
+            "analyser.proc.schema",
+            words.with_source_schema(&context, |schema| {
+                observed(
+                    "analyser.proc.hook",
+                    (schema.semantics.analyser_hook
+                        == Some(tcl_registry::hooks::AnalyserHookId::Proc))
+                    .then_some(()),
+                )?;
+                observed(
+                    "analyser.proc.shape",
+                    schema.authored_source_procedure_arguments(),
+                )
+            }),
+        )??;
+        let mut statics = observed("analyser.proc.roles", words.roles())?
+            .iter()
+            .filter_map(|&(position, role)| {
+                (role == tcl_registry::ArgRole::StaticVarList).then_some(position)
+            });
         let static_at = statics.next();
         if statics.next().is_some() {
+            observed::<()>("analyser.proc.statics", None);
             return None;
         }
         let required = [positions.name, positions.parameters, positions.body];
@@ -2707,14 +2695,73 @@ impl Analyser {
             || required[1] == required[2]
             || static_at.is_some_and(|index| index >= args.len() || required.contains(&index))
         {
+            observed::<()>("analyser.proc.positions", None);
             return None;
         }
-        Some(tcl_registry::ProcedureWords {
-            name: positions.name,
-            params: positions.parameters,
-            statics: static_at,
-            body: positions.body,
-        })
+        observed(
+            "analyser.proc.complete",
+            Some(tcl_registry::ProcedureWords {
+                name: positions.name,
+                params: positions.parameters,
+                statics: static_at,
+                body: positions.body,
+            }),
+        )
+    }
+
+    fn original_procedure_source_arguments_match(
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<()> {
+        use crate::registry_invocation::source_structure::trace_jim_source_option as observed;
+        if words.arguments().len() != args.len() || arg_tokens.len() != args.len() {
+            observed::<()>("analyser.proc.argument_count", None);
+            return None;
+        }
+        for (index, (text, token)) in args.iter().zip(arg_tokens).enumerate() {
+            if words.origins().get(index + 1)
+                != Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                    index + 1,
+                ))
+            {
+                observed::<()>("analyser.proc.origin", None);
+                return None;
+            }
+            let word = observed("analyser.proc.word", words.original_argument_word(index))?;
+            if word.group().expand {
+                observed::<()>("analyser.proc.expansion", None);
+                return None;
+            }
+            let projection = crate::segmenter::segment_commands_with_offset_and_config(
+                observed("analyser.proc.text", word.try_text().ok())?,
+                word.word_span().start(),
+                word.config().nested(),
+            );
+            let [original] = projection.as_slice() else {
+                observed::<()>("analyser.proc.projection", None);
+                return None;
+            };
+            if observed(
+                "analyser.proc.argv",
+                (original.argv == [*token]).then_some(()),
+            )
+            .is_none()
+                || observed(
+                    "analyser.proc.value",
+                    (original.texts == [text.as_str()]).then_some(()),
+                )
+                .is_none()
+                || observed(
+                    "analyser.proc.tokens",
+                    (original.all_tokens == word.tokens()).then_some(()),
+                )
+                .is_none()
+            {
+                return None;
+            }
+        }
+        Some(())
     }
 
     /// Handle a `proc name params body` definition: record the procedure
