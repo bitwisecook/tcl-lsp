@@ -8900,8 +8900,8 @@ mod tests {
         ]
     }
 
-    fn original_alias_dictionary_binders() -> Option<Vec<DictBinder>> {
-        Some(vec![
+    fn original_alias_dictionary_binders() -> Vec<DictBinder> {
+        vec![
             DictBinder::Key {
                 name: "$output".to_owned(),
                 value: "ONE".to_owned(),
@@ -8910,7 +8910,7 @@ mod tests {
                 name: "é(".to_owned(),
                 value: "TWO".to_owned(),
             },
-        ])
+        ]
     }
 
     #[test]
@@ -9347,7 +9347,7 @@ mod tests {
         );
         assert_eq!(
             dict_body_with_metadata_context(registry, metadata, tokens, "$output ONE é( TWO"),
-            original_alias_dictionary_binders()
+            Some(original_alias_dictionary_binders())
         );
         let older_context = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
