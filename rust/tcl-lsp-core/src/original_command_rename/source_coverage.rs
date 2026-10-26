@@ -17,7 +17,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Complete, finite coverage of one resolved source cut under its actual owners.
 
-use super::*;
+use super::{
+    ByteCommandSlot, CommandLinkCoverage, Declaration, HashSet, NameBytes,
+    OriginalCommandRenameRefusal, OriginalConditionalCommandWorld, OriginalDeclarationDocument,
+    OriginalDeclarationIdentity, SignatureSourceNameInput, SourceCommandReference, SourceImage,
+    authored_result_completion_coverage, coverage_region, destination_matches, queue_declaration,
+    quiet_store_coverage, reject_command_link_coverage, reject_incomplete_source_procedure,
+    reject_readonly_math_references, reject_selected_command_link_coverage,
+};
 use crate::original_source_views::OriginalSourceViewDocument;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::command_binding::OriginalSingleSourceCutSurvey;
@@ -362,7 +369,7 @@ impl<'a> SourceCut<'a> {
             task,
             walk,
             command,
-            CommandSubject {
+            &CommandSubject {
                 words: &words,
                 input: &input,
                 reference: reference.as_ref(),
@@ -380,7 +387,7 @@ fn collect_command_regions<'a>(
     task: &Task<'a>,
     walk: &crate::refactor::FrameWalk<'a>,
     command: &SegmentedCommand,
-    subject: CommandSubject<'_>,
+    subject: &CommandSubject<'_>,
     output: &mut Output<'a>,
 ) -> Result<(), OriginalCommandRenameRefusal> {
     let document = task.document;
@@ -460,7 +467,11 @@ impl<'a> Output<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::original_declaration::OriginalSourceViewPublication;
+    use crate::original_command_rename::{
+        original_command_rename_edits_with_conditional_worlds,
+        original_command_rename_edits_with_source_views,
+    };
+    use crate::original_declaration::{OriginalDeclarationRole, OriginalSourceViewPublication};
     use tcl_compiler::analyser::Analyser;
     use tcl_compiler::command_binding::{
         OriginalSourceConditionalOutcome, OriginalSourceConditionalRegion,
