@@ -50,6 +50,16 @@ pub struct CodegenAbiImport {
 
 const I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32];
 const I64: &[CodegenAbiValueType] = &[CodegenAbiValueType::I64];
+const I32_I32_I64_I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I64,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+];
 const I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 2];
 const I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 3];
 const I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 4];
@@ -526,16 +536,7 @@ impl CodegenAbiImportId {
             ),
             Self::ProcDefineGuardedI64AddArgv => tcl_import(
                 "tcl_codegen_proc_define_guarded_i64_add_argv",
-                &[
-                    CodegenAbiValueType::I32,
-                    CodegenAbiValueType::I32,
-                    CodegenAbiValueType::I64,
-                    CodegenAbiValueType::I32,
-                    CodegenAbiValueType::I32,
-                    CodegenAbiValueType::I32,
-                    CodegenAbiValueType::I32,
-                    CodegenAbiValueType::I32,
-                ],
+                I32_I32_I64_I32_I32_I32_I32_I32,
                 I32,
             ),
             Self::ProcDefineOriginalArgv => tcl_import(
