@@ -183,7 +183,7 @@ impl SourceInvocationBinding {
                 .metadata_context
                 .source_analysis_input()
                 .is_some()),
-            snapshot.map(|state| state.has_opaque_domain()),
+            snapshot.map(super::ModuleCommandBindings::has_opaque_domain),
             snapshot.map(|state| state.unclosed_command_world),
         );
         for (ordinal, observation) in self

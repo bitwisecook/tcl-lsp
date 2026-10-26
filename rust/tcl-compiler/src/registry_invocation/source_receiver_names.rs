@@ -62,7 +62,7 @@ mod tests {
         let image = tcl_lexer::SourceImage::document(source);
         let words = tcl_lexer::native_script_words_in(
             image,
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             tcl_lexer::LexerConfig::default(),
         )
         .unwrap()

@@ -1359,7 +1359,7 @@ mod tests {
                         .is_some_and(|head| head.span().start() == offset)
                 })
                 .unwrap();
-            assert!(held == &per_site);
+            assert_eq!(held, &per_site);
         }
         let method = u32::try_from(source.find("relative").unwrap()).unwrap();
         assert!(!inventory.iter().any(|candidate| {
