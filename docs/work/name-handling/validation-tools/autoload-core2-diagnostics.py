@@ -17,8 +17,9 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "02dd8484808c72c8b1d4ec864f326d8b80b4b2d6859d8d043cce9769163dea24"
+ROSTER_SHA = "52a115ea2358e5493aac27b1e3fce13c20ea502be1f1d57b16c9baf0815c9438"
 RESULT_COMPLETION_CONTROLS = ('original_command_rename::tests::authored_result_completion_coverage_retains_nested_call_without_normal_grant', 'original_command_rename::tests::authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs', 'original_command_rename::tests::authored_result_completion_never_skips_nested_name_write_or_opaque_channel')
+SOURCE_LOAD_CONTROLS = ('original_command_rename::source_coverage::tests::single_cut_source_coverage_surveys_actual_child_and_issued_suffix', 'original_command_rename::source_coverage::tests::source_coverage_refuses_missing_child_reference_and_foreign_membership', 'original_command_rename::source_coverage::tests::source_coverage_keeps_selected_owner_and_opaque_body_refusals', 'original_command_rename::source_coverage::tests::source_coverage_never_omits_extra_cuts_or_namespace_frames')
 BASE = Path(__file__).resolve().parent
 
 
@@ -163,6 +164,37 @@ def run_result_completion_controls(roster, executable, artifact, out, cases):
         save(out / "result-completion-control-cases.json", cases)
 
 
+def validate_source_load_controls(roster):
+    require(
+        roster.get("source_load_control_selectors") == list(SOURCE_LOAD_CONTROLS),
+        "exact bounded source load controls mismatch",
+    )
+
+
+def run_source_load_controls(roster, executable, artifact, out, cases):
+    validate_source_load_controls(roster)
+    for index, selector in enumerate(roster["source_load_control_selectors"]):
+        require(sha(executable) == artifact["sha256"], "selected executable changed")
+        prefix = "source-load-control-" + str(index + 1)
+        listed = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list", executable, 180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+                == [selector + ": test"],
+            "exact source load control missing/ambiguous",
+        )
+        receipt = execute(
+            [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix, executable, 180,
+        )
+        result = original_result((out / (prefix + ".stdout")).read_text(), receipt["exit_code"])
+        cases.append({"selector": selector, "result": result, "exit_code": receipt["exit_code"]})
+        save(out / "source-load-control-cases.json", cases)
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -195,6 +227,7 @@ integration_artifact = None
 integration_cases = []
 quiet_store_cases = []
 result_completion_cases = []
+source_load_cases = []
 error = None
 status = 2
 environment = os.environ.copy()
@@ -204,6 +237,7 @@ try:
     require(sha(executor) == EXECUTOR_SHA, "process owner pin changed")
     require(sha(roster_path) == ROSTER_SHA, "Core2 roster pin changed")
     roster = json.loads(roster_path.read_text())
+    validate_source_load_controls(roster)
     validate_result_completion_controls(roster)
     require(
         roster["executor_sha256"] == EXECUTOR_SHA
@@ -520,6 +554,16 @@ try:
         else 1
     )
 
+    prior_source_load_status = status
+    status = 2
+    run_source_load_controls(roster, executable, artifact, out, source_load_cases)
+    status = (
+        0 if prior_source_load_status == 0
+        and len(source_load_cases) == 4
+        and all(case["result"] == "PASS" for case in source_load_cases)
+        else 1
+    )
+
 except (
     RuntimeError,
     OSError,
@@ -580,6 +624,8 @@ finally:
             "quiet_store_control_total": len(quiet_store_cases),
             "result_completion_control_cases": result_completion_cases,
             "result_completion_control_total": len(result_completion_cases),
+            "source_load_control_cases": source_load_cases,
+            "source_load_control_total": len(source_load_cases),
             "minify_observation_qualification": "WORK coarse-instrumented build; BODY_SYNTAX runtime enabled only exact Default integration list/test rows; old2 runtime environment unchanged. No timing/performance acceptance or new source queries.",
             "integration_qualification": "Distinct fresh integration ELF, same single Cargo invocation and shared original process/phase/aggregate limits; old Core2 selectors remain separate and unchanged.",
             "processes": processes,

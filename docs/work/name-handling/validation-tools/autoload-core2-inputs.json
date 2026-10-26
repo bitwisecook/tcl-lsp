@@ -19,7 +19,8 @@
     "rust/tcl-compiler/src/command_binding.rs": "0bb33acb4307928b5b484020ba3a122f9926437ad4482e06327a054ae6832b11",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "34eaa3fdf6901744c46a20f0bb5965073f9f50229c1f2e21782f1774e00d8389"
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "34eaa3fdf6901744c46a20f0bb5965073f9f50229c1f2e21782f1774e00d8389",
+    "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "3af39299922952e78db960a49535564ea493841d1e24c94ccaa0d8347a27f894"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",
@@ -40,5 +41,11 @@
     "original_command_rename::tests::authored_result_completion_coverage_retains_nested_call_without_normal_grant",
     "original_command_rename::tests::authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs",
     "original_command_rename::tests::authored_result_completion_never_skips_nested_name_write_or_opaque_channel"
+  ],
+  "source_load_control_selectors": [
+    "original_command_rename::source_coverage::tests::single_cut_source_coverage_surveys_actual_child_and_issued_suffix",
+    "original_command_rename::source_coverage::tests::source_coverage_refuses_missing_child_reference_and_foreign_membership",
+    "original_command_rename::source_coverage::tests::source_coverage_keeps_selected_owner_and_opaque_body_refusals",
+    "original_command_rename::source_coverage::tests::source_coverage_never_omits_extra_cuts_or_namespace_frames"
   ]
 }
