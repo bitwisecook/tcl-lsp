@@ -349,6 +349,49 @@ fn quiet_store_coverage(
     Ok(true)
 }
 
+fn authored_result_completion_coverage(
+    walk: &crate::refactor::FrameWalk<'_>,
+    document: OriginalDeclarationDocument<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    offset: u32,
+    depth: u32,
+    pending: &mut Vec<(usize, usize, u32)>,
+) -> Result<bool, OriginalCommandRenameRefusal> {
+    let Some(receipt) = walk.result_completion_for_rename_coverage(document.source, command) else {
+        return Ok(false);
+    };
+    if !receipt.is_for_analysis(document.analysis) {
+        return Err(OriginalCommandRenameRefusal::StaleSource);
+    }
+    // All generic trait/name-role/known and unknown transition refusals remain.
+    reject_selected_command_link_coverage(receipt.invocation(), offset)?;
+    pending.extend(
+        receipt
+            .argument_regions()
+            .iter()
+            .map(|span| (span.start() as usize, span.end() as usize, depth + 1)),
+    );
+    Ok(true)
+}
+
+fn queue_source_coverage(
+    walk: &crate::refactor::FrameWalk<'_>,
+    document: OriginalDeclarationDocument<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    depth: u32,
+    pending: &mut Vec<(usize, usize, u32)>,
+) -> Result<bool, OriginalCommandRenameRefusal> {
+    let offset = command
+        .argv
+        .first()
+        .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?
+        .span
+        .start();
+    Ok(queue_declaration(walk, document, command, depth, pending)?
+        || quiet_store_coverage(walk, document, command, offset)?
+        || authored_result_completion_coverage(walk, document, command, offset, depth, pending)?)
+}
+
 fn queue_declaration(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
@@ -442,9 +485,7 @@ fn document_requests(
                     requests.push((input.clone(), NameBytes::from(wanted)));
                 }
             }
-            if queue_declaration(&walk, document, &command, depth, &mut pending)?
-                || quiet_store_coverage(&walk, document, &command, command_offset)?
-            {
+            if queue_source_coverage(&walk, document, &command, depth, &mut pending)? {
                 continue;
             }
             if let Some(selected) = walk.structure(document.source, &command) {
@@ -1027,6 +1068,159 @@ mod tests {
                 .procedure_declaration_for_rename_coverage(source, &command)
                 .is_none())
         );
+    }
+
+    fn result_completion_command(
+        source: &str,
+        walk: &crate::refactor::FrameWalk<'_>,
+    ) -> tcl_compiler::segmenter::SegmentedCommand {
+        let start = source.rfind("return ").unwrap();
+        let end = source.rfind('}').unwrap();
+        let commands = walk.segment_nested(&source[start..end], u32::try_from(start).unwrap());
+        assert_eq!(commands.len(), 1);
+        commands.into_iter().next().unwrap()
+    }
+
+    #[test]
+    fn authored_result_completion_coverage_retains_nested_call_without_normal_grant() {
+        let source = "proc host_old {value} { return $value }\nset host_marker \"🧪 café\"; proc host_caller {} {return [host_old 7]}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let walk = crate::refactor::FrameWalk::new(source, &analysis).unwrap();
+        let command = result_completion_command(source, &walk);
+        let tokens = walk.tokens(source, &command);
+        assert!(walk.structure(source, &command).is_none());
+        assert!(
+            !tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_invocation_completes_normally(&tokens)
+        );
+        let receipt = walk
+            .result_completion_for_rename_coverage(source, &command)
+            .expect("same current authored result grammar and original argument closure");
+        assert!(receipt.is_for_analysis(&analysis));
+        assert_eq!(receipt.argument_regions().len(), 1);
+        let span = receipt.argument_regions()[0];
+        assert_eq!(&source[span.as_range()], "host_old 7");
+        let document = OriginalDeclarationDocument {
+            uri: "file:///return.tcl",
+            source,
+            analysis: &analysis,
+        };
+        let mut pending = Vec::new();
+        assert!(
+            authored_result_completion_coverage(
+                &walk,
+                document,
+                &command,
+                command.argv[0].span.start(),
+                1,
+                &mut pending,
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            pending,
+            vec![(span.start() as usize, span.end() as usize, 2)]
+        );
+        let nested = walk.segment_nested(&source[span.as_range()], span.start());
+        assert_eq!(nested.len(), 1);
+        assert_eq!(nested[0].texts, ["host_old", "7"]);
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        assert!(!receipt.is_for_analysis(&foreign));
+        assert!(tcl_compiler::registry_invocation::original_authored_result_completion_for_source_coverage(
+            source, &foreign, &tokens,
+        ).is_none());
+        let mut stale = analysis.clone();
+        stale.resolved_input = Analyser::new().analyse(source, "tcl9.0").resolved_input;
+        assert!(tcl_compiler::registry_invocation::original_authored_result_completion_for_source_coverage(
+            source, &stale, &tokens,
+        ).is_none());
+        assert!(tcl_compiler::registry_invocation::original_authored_result_completion_for_source_coverage(
+            "proc host_caller {} {return OTHER}", &analysis, &tokens,
+        ).is_none());
+    }
+
+    #[test]
+    fn authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs() {
+        for source in [
+            "proc host_caller {} {return [unknown_operation]}",
+            "proc return args {puts OBS}; proc host_caller {} {return VALUE}",
+            "proc host_caller {} {return -code error BAD}",
+            "proc observer args {puts OBS}; proc host_caller {} {set value VALUE; trace add variable value read observer; return $value}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let walk = crate::refactor::FrameWalk::new(source, &analysis).unwrap();
+            let command = result_completion_command(source, &walk);
+            assert!(
+                walk.result_completion_for_rename_coverage(source, &command)
+                    .is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn authored_result_completion_never_skips_nested_name_write_or_opaque_channel() {
+        for nested in ["rename host_old moved", "puts VALUE"] {
+            let source = format!(
+                "proc host_old {{value}} {{return $value}}\nproc host_caller {{}} {{return [{nested}]}}\n"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let walk = crate::refactor::FrameWalk::new(&source, &analysis).unwrap();
+            let command = result_completion_command(&source, &walk);
+            if let Some(receipt) = walk.result_completion_for_rename_coverage(&source, &command) {
+                assert_eq!(receipt.argument_regions().len(), 1);
+                assert_eq!(&source[receipt.argument_regions()[0].as_range()], nested);
+                // A conditional Return card never changes the generic link guard.
+                let expected = reject_link_obligations(receipt.invocation());
+                let document = OriginalDeclarationDocument {
+                    uri: "file:///nested.tcl",
+                    source: &source,
+                    analysis: &analysis,
+                };
+                let mut pending = Vec::new();
+                let result = authored_result_completion_coverage(
+                    &walk,
+                    document,
+                    &command,
+                    command.argv[0].span.start(),
+                    0,
+                    &mut pending,
+                );
+                match expected {
+                    Ok(()) => {
+                        assert_eq!(result, Ok(true));
+                        assert_eq!(pending.len(), 1);
+                    }
+                    Err(refusal) => {
+                        assert_eq!(result, Err(refusal));
+                        assert!(pending.is_empty());
+                    }
+                }
+            }
+            let identity = OriginalDeclarationIdentity::for_procedure(
+                "file:///nested.tcl",
+                &source,
+                &analysis,
+                analysis.original_procedure_declarations().next().unwrap(),
+            )
+            .unwrap();
+            assert!(
+                original_command_rename_edits(
+                    &[OriginalDeclarationDocument {
+                        uri: "file:///nested.tcl",
+                        source: &source,
+                        analysis: &analysis
+                    }],
+                    &identity,
+                    "changed",
+                )
+                .is_err(),
+                "nested operation must not disappear from coverage: {nested}"
+            );
+        }
     }
 
     #[test]

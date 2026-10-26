@@ -8080,6 +8080,43 @@ impl SourceCommandBindings {
         })
     }
 
+    /// Conditional source argument closure at every retained original point.
+    /// This does not supply reached dispatch or Normal operation completion.
+    pub(crate) fn original_conditional_arguments_for_source_coverage(
+        &self,
+        native: &[tcl_lexer::NativeWord],
+        registry: &CommandRegistry,
+    ) -> bool {
+        let Some(head) = native.first() else {
+            return false;
+        };
+        let Some(origin) = self.root_origin.as_ref() else {
+            return false;
+        };
+        let mut seen = false;
+        for point in self.dispatch_points_at(head.span().start()) {
+            seen = true;
+            if point.declaration_preview
+                || !point.original_arguments_complete_normally
+                || point.observer_execution.observed()
+                || point
+                    .original_written_words
+                    .as_ref()
+                    .is_none_or(|words| !words.matches_native_words(native))
+                || point
+                    .state
+                    .current_source_origin
+                    .as_ref()
+                    .is_none_or(|actual| !Arc::ptr_eq(actual, origin))
+                || point.state.baseline.registry_snapshot
+                    != Some(registry.snapshot().semantic_key())
+            {
+                return false;
+            }
+        }
+        seen
+    }
+
     /// Restore carriers from their selected original source instance.
     /// Native compiler obligations must match that boundary in full and stay
     /// unresolved. Phase-region dependencies require a separate relocation
