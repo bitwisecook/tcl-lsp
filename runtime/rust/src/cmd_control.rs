@@ -28,6 +28,18 @@
 //!
 //! Semantics verified against tclsh 9.0.
 
+/// Borrowed transport of existing checks, without issuing a Native owner.
+struct EachLoopOriginalInputs<'a> {
+    arguments: &'a OriginalArguments,
+    import: Option<&'a crate::interp::OriginalJimImportEachLoop>,
+    info: Option<&'a crate::interp::OriginalNamespaceInfoEachLoop>,
+}
+
+struct EachLoopAssignment {
+    variable: usize,
+    value: Option<usize>,
+}
+
 type PreparedEachLoopGroups = (Vec<EachLoopGroup>, Vec<(usize, usize)>);
 
 use crate::interp::native_arguments::OriginalArguments;
@@ -842,9 +854,11 @@ fn refresh_each_loop_group(
     action: tcl_cmd_core::native_each_loop::EachLoopAction,
     recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
     strings: tcl_syntax::native_string::NativeStringProtocol,
-    arguments: &OriginalArguments,
-    import: Option<&crate::interp::OriginalJimImportEachLoop>,
-    info: Option<&crate::interp::OriginalNamespaceInfoEachLoop>,
+    EachLoopOriginalInputs {
+        arguments,
+        import,
+        info,
+    }: EachLoopOriginalInputs<'_>,
 ) -> Result<(), Code> {
     use tcl_cmd_core::native_each_loop::EachLoopAction;
     match action {
@@ -931,14 +945,15 @@ fn refresh_each_loop_group(
 fn assign_each_loop_variable(
     interp: &mut Interp,
     group: &EachLoopGroup,
-    variable: usize,
-    value: Option<usize>,
+    EachLoopAssignment { variable, value }: EachLoopAssignment,
     protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
     padding: Option<*mut TclObj>,
-    arguments: &OriginalArguments,
-    import: Option<&crate::interp::OriginalJimImportEachLoop>,
+    EachLoopOriginalInputs {
+        arguments,
+        import,
+        info,
+    }: EachLoopOriginalInputs<'_>,
     group_index: usize,
-    info: Option<&crate::interp::OriginalNamespaceInfoEachLoop>,
 ) -> Result<(), Code> {
     let recipe = protocol.recipe();
     let kind = protocol.kind();
@@ -1217,9 +1232,11 @@ fn execute_each_loop(
                     action,
                     recipe,
                     strings,
-                    arguments,
-                    import.as_ref(),
-                    info.as_ref(),
+                    EachLoopOriginalInputs {
+                        arguments,
+                        import: import.as_ref(),
+                        info: info.as_ref(),
+                    },
                 ) {
                     return code;
                 }
@@ -1232,14 +1249,15 @@ fn execute_each_loop(
                 if let Err(code) = assign_each_loop_variable(
                     interp,
                     &groups[group],
-                    variable,
-                    value,
+                    EachLoopAssignment { variable, value },
                     protocol,
                     padding,
-                    arguments,
-                    import.as_ref(),
+                    EachLoopOriginalInputs {
+                        arguments,
+                        import: import.as_ref(),
+                        info: info.as_ref(),
+                    },
                     group,
-                    info.as_ref(),
                 ) {
                     return code;
                 }
