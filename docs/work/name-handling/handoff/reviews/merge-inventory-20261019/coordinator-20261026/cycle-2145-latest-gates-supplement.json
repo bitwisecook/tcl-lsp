@@ -1,0 +1,53 @@
+{
+  "utc": "2026-10-26T21:46:16.294369+00:00",
+  "scheduled": "2026-10-26T21:45:00+00:00",
+  "reason": "Tracking draft final update arrived28seconds after official snapshot; official report/timestamp retained, agent table/current obligations refreshed beforepublication",
+  "actual_validation_source": "cee0771530e6a7cd4d81543627e238fa516fa64b",
+  "candidate": "e81968e51acdc2f37996c19f36c388bc0a5d404a",
+  "six_post_receipt": {
+    "utc": "2026-10-26T21:39:29.066005+00:00",
+    "source": "cee0771530e6a7cd4d81543627e238fa516fa64b",
+    "candidate": "e81968e51acdc2f37996c19f36c388bc0a5d404a",
+    "requests": [
+      {
+        "previous_run": "40388591379",
+        "mode": "release-rust-check-diagnostics",
+        "label": "currentcee-strict",
+        "receipt": "DISPATCHED release-rust-check-diagnostics cee0771530e6a7cd4d81543627e238fa516fa64b\n"
+      },
+      {
+        "previous_run": "40388590997",
+        "mode": "compiler-original58-diagnostics",
+        "label": "currentcee-compiler153",
+        "receipt": "DISPATCHED compiler-original58-diagnostics cee0771530e6a7cd4d81543627e238fa516fa64b\n"
+      },
+      {
+        "previous_run": "40388589074",
+        "mode": "runtime-fulltom-focused-diagnostics",
+        "label": "currentcee-runtime166",
+        "receipt": "DISPATCHED runtime-fulltom-focused-diagnostics cee0771530e6a7cd4d81543627e238fa516fa64b\n"
+      },
+      {
+        "previous_run": "40388593903",
+        "mode": "jim-source-diagnostics",
+        "label": "currentcee-jim52",
+        "receipt": "DISPATCHED jim-source-diagnostics cee0771530e6a7cd4d81543627e238fa516fa64b\n"
+      },
+      {
+        "previous_run": null,
+        "mode": "source-point-corpus2-diagnostics",
+        "label": "currentcee-corpus2",
+        "receipt": "DISPATCHED source-point-corpus2-diagnostics cee0771530e6a7cd4d81543627e238fa516fa64b\n"
+      },
+      {
+        "mode": "prep-pr-candidate-validation",
+        "receipt": "{\"utc\": \"2026-10-26T21:39:29.010495+00:00\", \"harness\": \"cee0771530e6a7cd4d81543627e238fa516fa64b\", \"candidate\": \"e81968e51acdc2f37996c19f36c388bc0a5d404a\", \"request\": {\"ref\": \"work\", \"inputs\": {\"mode\": \"prep-pr-candidate-validation\", \"candidate_sha\": \"e81968e51acdc2f37996c19f36c388bc0a5d404a\"}}, \"workflow_sha256\": \"f1379c251efa03ef4333543d5e376a34f7a7d9ac901b4923c8856bfad930c952\", \"owner_sha256\": \"88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811\", \"fixed_setup\": [\"make\", \"install-test-deps\"], \"fixed_gate\": [\"make\", \"prep-pr\"], \"gate_accepted\": false, \"separate_rust_check_full_CI_required\": true, \"shipping_workflow_unchanged\": true}\n"
+      }
+    ],
+    "layout_omitted_for_next_envelope_correction": true,
+    "old_healthy_runs_preserved": true,
+    "source_freeze_released_after_all_requests": true
+  },
+  "next_work_source": "d4f9a6ad2af7e8d80facd836e717f55e0568f556",
+  "admissions": []
+}
