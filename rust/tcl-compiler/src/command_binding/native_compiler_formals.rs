@@ -80,7 +80,7 @@ impl OriginalNativeCompilerFormals {
         }))
     }
 
-    pub(crate) fn bind_scope(
+    pub(super) fn bind_scope(
         self: &Arc<Self>,
         state: &super::ModuleCommandBindings,
         context: super::SourceExecutionContext<'_>,
@@ -150,7 +150,7 @@ impl Hash for OriginalNativeCompilerFormalScope {
     }
 }
 impl OriginalNativeCompilerFormalScope {
-    pub(crate) fn parameters_for_entry(
+    pub(super) fn parameters_for_entry(
         &self,
         chunk: &super::CommandAllocationSite,
         length: usize,
