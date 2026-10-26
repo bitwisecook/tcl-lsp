@@ -5918,6 +5918,49 @@ mod tests {
         assert!(unit.function("::p").is_none());
     }
 
+    fn assert_standalone_currency_withdrawals(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let mut changed_config = options.config;
+        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    config: changed_config,
+                    ..options
+                },
+                input
+            )
+            .is_none()
+        );
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    dialect: tcl_dialect::DialectProfile::find("tcl8.6"),
+                    ..options
+                },
+                input
+            )
+            .is_none()
+        );
+        let foreign_store = CommandRegistry::build_default();
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry: &foreign_store,
+                    ..options
+                },
+                input
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
@@ -5992,42 +6035,7 @@ mod tests {
                 .metadata_context
                 .is_standalone()
         );
-        let mut changed_config = options.config;
-        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
-        assert!(
-            CompilationUnit::build_standalone_with_analysis_input(
-                source,
-                UnitBuildOptions {
-                    config: changed_config,
-                    ..options
-                },
-                &input
-            )
-            .is_none()
-        );
-        assert!(
-            CompilationUnit::build_standalone_with_analysis_input(
-                source,
-                UnitBuildOptions {
-                    dialect: tcl_dialect::DialectProfile::find("tcl8.6"),
-                    ..options
-                },
-                &input
-            )
-            .is_none()
-        );
-        let foreign_store = CommandRegistry::build_default();
-        assert!(
-            CompilationUnit::build_standalone_with_analysis_input(
-                source,
-                UnitBuildOptions {
-                    registry: &foreign_store,
-                    ..options
-                },
-                &input
-            )
-            .is_none()
-        );
+        assert_standalone_currency_withdrawals(source, options, &input);
     }
 
     #[test]
@@ -6119,6 +6127,59 @@ mod tests {
         }
     }
 
+    fn assert_original_taint_owner_withdrawals(
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+        analysis: &InterproceduralAnalysis,
+        body: crate::ir::ProcedureId,
+        profile: &'static tcl_dialect::DialectProfile,
+        source: &str,
+    ) {
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.top_level.source_metadata_input = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(None, registry, analysis)
+                .is_none()
+        );
+        let mut changed = unit.clone();
+        changed.ir_module.source =
+            tcl_lexer::SourceImage::document(&format!("{source}; puts CHANGED"));
+        assert!(
+            changed
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut foreign_registry = registry.project_for_profile(profile);
+        let mut extra = registry.get("puts").unwrap().clone();
+        extra.name = "taint_source_owner_control";
+        foreign_registry.insert(extra);
+        assert!(
+            unit.original_interproc_taints_for_body(Some(body), &foreign_registry, analysis)
+                .is_none()
+        );
+        let mut missing_analysis = analysis.clone();
+        missing_analysis.global_instance_class_owner = None;
+        assert!(
+            unit.original_interproc_taints_for_body(Some(body), registry, &missing_analysis)
+                .is_none()
+        );
+    }
+
     #[test]
     fn original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners() {
         let context =
@@ -6201,49 +6262,7 @@ mod tests {
             )
             .is_none()
         );
-        let mut missing = unit.clone();
-        missing.ir_module.retained_source_bindings = None;
-        assert!(
-            missing
-                .original_interproc_taints_for_body(Some(body), registry, analysis)
-                .is_none()
-        );
-        let mut missing = unit.clone();
-        missing.ir_module.source_metadata_input = None;
-        assert!(
-            missing
-                .original_interproc_taints_for_body(Some(body), registry, analysis)
-                .is_none()
-        );
-        let mut missing = unit.clone();
-        missing.top_level.source_metadata_input = None;
-        assert!(
-            missing
-                .original_interproc_taints_for_body(None, registry, analysis)
-                .is_none()
-        );
-        let mut changed = unit.clone();
-        changed.ir_module.source =
-            tcl_lexer::SourceImage::document(&format!("{source}; puts CHANGED"));
-        assert!(
-            changed
-                .original_interproc_taints_for_body(Some(body), registry, analysis)
-                .is_none()
-        );
-        let mut foreign_registry = registry.project_for_profile(profile);
-        let mut extra = registry.get("puts").unwrap().clone();
-        extra.name = "taint_source_owner_control";
-        foreign_registry.insert(extra);
-        assert!(
-            unit.original_interproc_taints_for_body(Some(body), &foreign_registry, analysis)
-                .is_none()
-        );
-        let mut missing_analysis = analysis.clone();
-        missing_analysis.global_instance_class_owner = None;
-        assert!(
-            unit.original_interproc_taints_for_body(Some(body), registry, &missing_analysis)
-                .is_none()
-        );
+        assert_original_taint_owner_withdrawals(&unit, registry, analysis, body, profile, source);
     }
 
     #[test]
