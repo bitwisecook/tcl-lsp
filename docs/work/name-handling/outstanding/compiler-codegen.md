@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T18:39:58.603714+00:00
+Last updated: 2026-10-26T19:38:52.164781+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Finalbc382/C4157 current24union8bfd4356/4422582f independentlyCLEAR43439e65:15files,41refresh+exact4SourceStructurekeys,24JSON/19maps533records364sources; all11actualfunctionguards unchangedPASS, V15PASS13/30/21 0a62ea57. Rootonlycanonicalapply/push/ALLPOSTs pending. Memo reportV2protocolclear cacdae41 afterold147/beforecorpus; immutablecountqualification5e4223f4 retracts149unique claim,150observations includesoldrepeats. C47Rust5fullqualified40c35650 actual4600P609F1ignore, restoredoriginaltailcallPASS2.7407s; baselineavailablejoin6897P1466F16042unknown219absent cf339cf6 (sourceC47only). Cef60completedfailure availablejoin9335P2447F12626unknown216absent988ace92. C47still3healthyactiveRust2/E2E1/E2E2; preserve/noduplicate. Rootstoragefree1037MB/tmp,2.4GiBworkspace, normalguardedcapturesresumed/no localbuild.
+
+Rootsmall-writehold lifted19:22after/tmpuvcleanup; <=5MBtemp/no builds/largecopies/downloadsyet. ActualheaderrefreshedafterfailedENOSPCattempt. Alias17V2Runtime02c81d0f/editorial61V2f4f8e1b6/mixedalias11V1828437e2 source-staticclear. CorpusV2bacb5d9f landed/new24thmap; V15cee486 Rootadopted. Memo traceV1HELDwrongaftercorpusorder; NamesV2queued/resumed forafterold147/beforelongcorpus, ongoingprotocolpeer mine. Exact4newSourceStructuredeps approvedCore2/Taint2/hostNav/Specfold afterSourceCut. Cef60completedfailure/partialjoin9335P2447F12626unknown216absent988ace92; C47now3active,Rust5newterminalFAIL19:03artifact12678179576/3,531,830B NOTdownloadeduntilfreshfloor+Rootliftsdownloadhold. Nometadatafinalfreeze yet.
 
 Assigned alias17/11files V2 b811840e independentRuntimeCLEAR02c81d0f afterV1placementhold; transparent private aliases beforefirstitems, fullmoduleexpansioninverse/F-R/F0/fmt2021, actualRustUNRUN. Root ownsapply. New capture-correctness rawRustidentifier packet51081a2f/bb221fd4+1bd96aa9 underLSPpeer: actualCef60Rust2 captureinvalidwasexact2tcl-bigip r#gen cases, newparser actual7924rosterbeforeREFUSE/afterPASS without identityrewrite/unsafevalidatorrelax. BothpermanentparserblocksPASS52f7c8b; fullshellsuite unavailablecargoMetadata isolatedtree, no localbuild. Cef60Rust2 nowCANCELLEDactualartifactsole2MiBstderr/no structuredsummary/terminal; partialqualification4b986e88, no mainbaseline transfer. OlderCef60 E2E1/2stillactive; C47same4active.
 
