@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T19:38:52.164781+00:00
+Last updated: 2026-10-26T19:59:18.322681+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Currentstrict9fd40388591379 FULLAUTH28checkse3bc59e9: EXACT8workspaceClippy/0RustE, standaloneUNRUN (prelim9arithmeticcorrected). Foursharedtestfixture chunksExact workspace1.99-vs-standalone1.85 rootRuntimeassigned; ownWORKtiermethod083b/176c independentCompiler73618ad0; corpusformat3Names0141/d025 independentpeer85d051bc. AllNEXT, no measuredfixsuccess. NEXTArgs2V2e458 independentpeer30c9335d Rootinformed, not9fdoutcomes. C47ordinary3healthyRust2/E2E1/E2E2preserved, baselineoldsourcejoin6897P1466F16042unknown219absentcf339; Cef60terminalpartialjoin9335P2447F12626unknown216absent988ace. Finalbc38224mapunion8bfd/4422 Rootpushed9fd/V15PASS andall10POSTsclosed; sourcefreezeliftedforfutureRootWIP, C4157formatbeforeCLEANedits. No canonicalwrites/localbuildbyme.
 
 Finalbc382/C4157 current24union8bfd4356/4422582f independentlyCLEAR43439e65:15files,41refresh+exact4SourceStructurekeys,24JSON/19maps533records364sources; all11actualfunctionguards unchangedPASS, V15PASS13/30/21 0a62ea57. Rootonlycanonicalapply/push/ALLPOSTs pending. Memo reportV2protocolclear cacdae41 afterold147/beforecorpus; immutablecountqualification5e4223f4 retracts149unique claim,150observations includesoldrepeats. C47Rust5fullqualified40c35650 actual4600P609F1ignore, restoredoriginaltailcallPASS2.7407s; baselineavailablejoin6897P1466F16042unknown219absent cf339cf6 (sourceC47only). Cef60completedfailure availablejoin9335P2447F12626unknown216absent988ace92. C47still3healthyactiveRust2/E2E1/E2E2; preserve/noduplicate. Rootstoragefree1037MB/tmp,2.4GiBworkspace, normalguardedcapturesresumed/no localbuild.
 

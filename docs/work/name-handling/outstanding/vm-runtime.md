@@ -1,10 +1,13 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T19:25:55Z
+Last updated: 2026-10-26T20:05:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-26T20:05:00Z: Current9fd Runtime166 and iRules terminal; sole ZIPs downloaded after API size/digest and fresh floor check, authentication in progress, no outcome claim. Spec and WASM remain active. Shared-fixture portable pairs4 fa8948f9 independent Compiler CLEAR744ae9be; complete-pair order and odd-tail discard preserved across standalone MSRV1.85/workspace1.99. Root has applied Args2V2 and Args5V5 after9fd, actual Rust unrun. Each-loop Args2 053f97f5 and OO Args1 938bf22a independent Codegen CLEAR286ad86c NEXT only. Remaining seven argument functions now three source-cleared and four not authored; mixed mechanisms remain owned. Separate /tmp exhaustion recovered by Root guarded retirement; no local builds or duplicate captures. Previous62848 full receipts remain scoped; NativeString147 allPASS is user-approved corrected NUL fixture coverage, not old positive effect premise.
+
 
 Current 2026-10-26T19:25:55Z: All four current62848 captures FULLAUTH: runtime166 a6de7a8b / exact128 joinc3512d7e ZEROchanges; Spec b5ce5e49 old16/VM1/ordinary4PASS LENGTH1/1 MAP/RANGE0/0 full600INCOMPLETE; iRules34d411e5 reset namepolicyclosedFAIL +CLI2PASS +actual publicexit blocker; WASMcd80b3b0 old25PASS/separate8CLOSED6P2F,109memberstream/individualjoinf459b2fb ZERO8changes. Root-only exitfixture77125 strong410405 +finiteC86/C90oracle1d1d3000 ready/applied perRoot, no newpurpose or publicexit grant. Strict fixes: aliases11 strong828437 nowRoot2d996 actual; aliases17 peer02c81d0f; carrier4445 strongf778; residual17V3 peer8b8c8865 (no shortrow falsegreen/lazytrace loss). Remaining54 primaries: Root delegatedArgs5/9paths toLuna via0fca3493; partialpacket is BLOCKED/NOTAPPLICABLE due separate/tmp ENOSPC. Runtime owns9otherargfunctions +remainingmixed mechanics; Arg2V1 a41b99 proofb337/current6ba82 frozen, V2 parameter-pattern refinement onlyPLANNED/noimages/noclearance. Holdnewsourcecopies/downloads untilRootannounces IOrecovery. Historical/tmpFullTom/ci5205 derivedtargets have closedOct22/23 receipts; no pendingrole uses, Rootalone independentlyguardsreclaim. Smalltracker update only; no canonicalchanges/builds/deletions. NativeString147ALLPASS is USER-approved correctedfixture coverage, notoldNULpositiveeffectpremise closure.
 

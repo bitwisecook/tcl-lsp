@@ -1,0 +1,82 @@
+{
+  "utc": "2026-10-26T20:15:27.573217+00:00",
+  "scheduled": "2026-10-26T20:15:00+00:00",
+  "publisher_external_docs_source": "b5d2724f129935424b74bcc8b5ab3998be7b4172",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "raw": "2026-10-23T13:17Z",
+      "source_checkout": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/bigip-lsp.md",
+      "age_minutes": 4738.459553616666,
+      "stale_over60": true,
+      "future_invalid": false
+    },
+    {
+      "role": "compiler-codegen",
+      "raw": "2026-10-26T19:59:18.322681+00:00",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-codegen.md",
+      "age_minutes": 16.1541756,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "compiler-names",
+      "raw": "2026-10-26T19:43:03.066169+00:00",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-names.md",
+      "age_minutes": 32.4084508,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "compiler",
+      "raw": "2026-10-26T19:26:39.237323+00:00 (all current-wave peers sealed;147fullauth;Layout3 source cause/design recordedNEXT)",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler.md",
+      "age_minutes": 48.80559823333333,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "coordinator",
+      "raw": "2026-10-26T20:15:27.294117+00:00",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/coordinator.md",
+      "age_minutes": 0.004651666666666667,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "lsp",
+      "raw": "2026-10-26T20:12:46.314895+00:00",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/lsp.md",
+      "age_minutes": 2.6876387,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "perf",
+      "raw": "2026-10-24 03:22 UTC",
+      "source_checkout": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/perf.md",
+      "age_minutes": 3893.4595536166667,
+      "stale_over60": true,
+      "future_invalid": false
+    },
+    {
+      "role": "review-triage",
+      "raw": "2026-10-22T19:57:30Z",
+      "source_checkout": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/review-triage.md",
+      "age_minutes": 5777.959553616666,
+      "stale_over60": true,
+      "future_invalid": false
+    },
+    {
+      "role": "vm-runtime",
+      "raw": "2026-10-26T20:05:00Z",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/vm-runtime.md",
+      "age_minutes": 10.459553616666666,
+      "stale_over60": false,
+      "future_invalid": false
+    }
+  ],
+  "disk_free_bytes": 2348634112,
+  "no_takeover": true,
+  "next_due": "2026-10-26T20:45:00+00:00"
+}
