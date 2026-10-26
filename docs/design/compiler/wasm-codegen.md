@@ -364,14 +364,12 @@ parameter list or body therefore keeps the generic invocation, and the
 runtime's own `proc` — which evaluates the word at the call site, as Tcl does
 — defines the procedure.
 
-Two consequences fall straight out of where the front end keeps procedures.
-Lowering keeps the **first** definition of a name (a later `proc p` only
-records a redefinition), so only that statement can name a compiled body and a
-second `proc p` stays a generic invocation — which installs an ordinary
-source-only procedure at run time, which is what makes a mid-script redefinition
-behave. And a module whose `::top` stayed on the structured walk installs
-nothing at all, since the install sequence lives there; every definition it
-emits passes `entry = 0`.
+Lowering retains each definition under its own module-issued `ProcedureId`.
+Each admitted definition carries only its own body/table entry; an unproved
+redefinition stays ordinary runtime dispatch. Runtime `proc` and `rename`
+therefore select the current Tcl command independently of physical WASM export
+labels. A module whose `::top` stayed on the structured walk installs nothing:
+every definition it emits passes `entry = 0`.
 
 ### What still declines
 
@@ -575,9 +573,17 @@ AOT, guard and native-integer proof plans describe the WASM compiler backend.
 ## Module and package layout
 
 Runtime functions are imported before defined functions. General-plan modules
-export `::top` first, followed by procedures in qualified-name order. Current
-generic modules export the selected semantic function as `::top` with the full
-completion-triple signature. Runtime-linked constant data occupies the reserved
+export `::top` first, followed by retained procedure bodies in module-issued
+body order. A unique procedure label keeps its existing raw export spelling.
+When definitions share a label, every version receives a distinct physical
+symbol derived from its typed body ordinal, avoiding all existing symbols;
+none is exposed as an arbitrarily selected canonical Tcl command. The same
+physical symbol feeds binary exports and WAT. All functions, export flags,
+indices and table entries remain present. Hosts enter through `::top` (or
+`_start`); dynamic Tcl command lookup uses the original publication argv and
+runtime command table, not these helper export labels. Current generic modules
+export the selected semantic function as `::top` with the full completion-triple
+signature. Runtime-linked constant data occupies the reserved
 window below the Rust runtime's data/heap.
 
 A module that installs at least one compiled procedure body additionally

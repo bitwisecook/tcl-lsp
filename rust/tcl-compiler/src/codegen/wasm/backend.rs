@@ -2105,6 +2105,8 @@ fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
     imports
 }
 
+mod owned_function_names;
+
 struct ProcedurePlan<'a> {
     procs: Vec<(crate::ir::ProcedureId, &'a Procedure)>,
     indices: HashMap<crate::ir::ProcedureId, u32>,
@@ -2485,7 +2487,10 @@ fn codegen(
         functions: std::collections::BTreeMap::new(),
     };
     if emit_special_mode(&mut wasm, data_base, mode) {
-        return (wasm, report);
+        return (
+            owned_function_names::finish_owned_function_names(wasm),
+            report,
+        );
     }
     let imports = add_general_imports(&mut wasm, analysis.is_some());
     let retained_i64 = match mode {
@@ -2779,7 +2784,10 @@ fn codegen(
             .push(start_function(create, set_current, init_library, top_idx));
     }
 
-    (wasm, report)
+    (
+        owned_function_names::finish_owned_function_names(wasm),
+        report,
+    )
 }
 
 fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMode<'_>) -> bool {
@@ -2975,6 +2983,45 @@ mod tests {
     }
 
     /// Plan the top-level statements of `source` under the full analysed tier.
+
+    #[test]
+    fn redefined_original_procedure_versions_have_distinct_physical_exports() {
+        for source in [
+            include_str!("../../../../../samples/wasm/t3-procs/35_native_dispatch_matrix.tcl"),
+            include_str!("../../../../../samples/wasm/t7-dynamic/71_exec_traces_rename.tcl"),
+        ] {
+            let context = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                .default_context_registry();
+            let unit = native_source_unit(
+                std::sync::Arc::clone(&context),
+                source,
+                tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+            );
+            for options in [
+                WasmCompileOptions::standalone(true),
+                WasmCompileOptions::standalone(true).with_semantic_optimisation(
+                    crate::semantic_optimisation::SemanticOptimisationPassId::LegacyAnalysisSpecialisation),
+                WasmCompileOptions::standalone(true).native_tier(),
+            ] {
+                let mut module = super::super::pipeline::compile_wasm(
+                    &unit, context.commands(), options,
+                ).module;
+                let exports = module.functions.iter().filter(|function| function.exported)
+                    .map(|function| function.name.as_str()).collect::<Vec<_>>();
+                assert_eq!(exports.len(), exports.iter().copied().collect::<HashSet<_>>().len());
+                let versions = module.source_function_ids.values().filter(|owner|
+                    matches!(owner, crate::native_lowering::NativeFunctionId::Procedure(_))).count();
+                assert!(versions >= 2, "actual retained original procedure versions");
+                assert!(exports.contains(&"::top"));
+                assert!(exports.iter().any(|name| name.starts_with("__tcl_wasm_body_")),
+                    "actual redefinition requires physical body hygiene");
+                assert!(!module.to_bytes().is_empty());
+                assert!(!module.to_wat().is_empty());
+            }
+        }
+    }
+
     fn top_level_facts(source: &str) -> FunctionFacts {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
