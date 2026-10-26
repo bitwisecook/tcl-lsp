@@ -11929,14 +11929,21 @@ mod tests {
         );
     }
 
-    fn assert_original_source_may_joins(source: &str, minimum_calls: usize, has_loop: bool) {
-        let (_, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
-        let function = &unit.top_level;
-        let sources: Vec<_> = function.ssa.source_variable_symbols().collect();
-        assert!(
-            !sources.is_empty(),
-            "actual hidden writes must issue source identities"
+    fn assert_source_may_identity(
+        function: &crate::compilation_unit::FunctionUnit,
+        symbol: Symbol,
+        variable: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    ) {
+        assert!(function.ssa.cell_key(symbol).is_none());
+        assert_eq!(
+            function
+                .def_use
+                .source_variable_symbol(&function.ssa, symbol),
+            Some(variable)
         );
+    }
+
+    fn source_may_cfg_has_cycle(function: &crate::compilation_unit::FunctionUnit) -> bool {
         let mut cyclic = false;
         for &start in function.cfg.blocks.keys() {
             let mut pending = function.cfg.block_successors(start);
@@ -11951,18 +11958,90 @@ mod tests {
                 }
             }
         }
+        cyclic
+    }
+
+    fn assert_source_may_stale_graphs(
+        function: &crate::compilation_unit::FunctionUnit,
+        symbol: Symbol,
+        phis: &HashMap<Version, (BlockId, &Phi)>,
+    ) {
+        let (&version, &(block, _)) = phis.iter().next().unwrap();
+        let mut stale = function.ssa.clone();
+        let phi = stale
+            .blocks
+            .get_mut(&block)
+            .unwrap()
+            .phis
+            .iter_mut()
+            .find(|phi| phi.name == symbol && phi.version == version)
+            .unwrap();
+        phi.incoming.clear();
+        assert!(
+            function
+                .def_use
+                .source_variable_symbol(&stale, symbol)
+                .is_none(),
+            "same-source changed phi graph cannot reuse old chains"
+        );
+        let mut stale = function.ssa.clone();
+        let (_, body) = stale
+            .blocks
+            .iter_mut()
+            .find(|(_, body)| {
+                body.statements
+                    .iter()
+                    .any(|statement| statement.uses.contains_key(&symbol))
+            })
+            .unwrap();
+        let statement = body
+            .statements
+            .iter_mut()
+            .find(|statement| statement.uses.contains_key(&symbol))
+            .unwrap();
+        statement.uses.remove(&symbol);
+        assert!(
+            function
+                .def_use
+                .source_variable_symbol(&stale, symbol)
+                .is_none(),
+            "same-source changed source use cannot reuse old chains"
+        );
+        let mut stale = function.ssa.clone();
+        stale.source_topology.get_mut(&block).unwrap().terminator = None;
+        assert!(
+            function
+                .def_use
+                .source_variable_symbol(&stale, symbol)
+                .is_none(),
+            "changed retained source topology cannot reuse old chains"
+        );
+        let mut stale = function.ssa.clone();
+        stale.idom.clear();
+        assert!(
+            function
+                .def_use
+                .source_variable_symbol(&stale, symbol)
+                .is_none(),
+            "changed SSA topology cannot reuse old chains"
+        );
+    }
+
+    fn assert_original_source_may_joins(source: &str, minimum_calls: usize, has_loop: bool) {
+        let (_, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let function = &unit.top_level;
+        let sources: Vec<_> = function.ssa.source_variable_symbols().collect();
+        assert!(
+            !sources.is_empty(),
+            "actual hidden writes must issue source identities"
+        );
+        let cyclic = source_may_cfg_has_cycle(function);
         assert_eq!(
             cyclic, has_loop,
             "control must retain its actual CFG branch/backedge geometry"
         );
         for (symbol, variable) in sources {
-            assert!(function.ssa.cell_key(symbol).is_none());
-            assert_eq!(
-                function
-                    .def_use
-                    .source_variable_symbol(&function.ssa, symbol),
-                Some(variable)
-            );
+            assert_source_may_identity(function, symbol, variable);
             let definitions: HashSet<_> = function
                 .ssa
                 .blocks
@@ -12046,65 +12125,7 @@ mod tests {
                 observed,
                 "the actual post-join observer must retain every reaching source definition"
             );
-            let (&version, &(block, _)) = phis.iter().next().unwrap();
-            let mut stale = function.ssa.clone();
-            let phi = stale
-                .blocks
-                .get_mut(&block)
-                .unwrap()
-                .phis
-                .iter_mut()
-                .find(|phi| phi.name == symbol && phi.version == version)
-                .unwrap();
-            phi.incoming.clear();
-            assert!(
-                function
-                    .def_use
-                    .source_variable_symbol(&stale, symbol)
-                    .is_none(),
-                "same-source changed phi graph cannot reuse old chains"
-            );
-            let mut stale = function.ssa.clone();
-            let (_, body) = stale
-                .blocks
-                .iter_mut()
-                .find(|(_, body)| {
-                    body.statements
-                        .iter()
-                        .any(|statement| statement.uses.contains_key(&symbol))
-                })
-                .unwrap();
-            let statement = body
-                .statements
-                .iter_mut()
-                .find(|statement| statement.uses.contains_key(&symbol))
-                .unwrap();
-            statement.uses.remove(&symbol);
-            assert!(
-                function
-                    .def_use
-                    .source_variable_symbol(&stale, symbol)
-                    .is_none(),
-                "same-source changed source use cannot reuse old chains"
-            );
-            let mut stale = function.ssa.clone();
-            stale.source_topology.get_mut(&block).unwrap().terminator = None;
-            assert!(
-                function
-                    .def_use
-                    .source_variable_symbol(&stale, symbol)
-                    .is_none(),
-                "changed retained source topology cannot reuse old chains"
-            );
-            let mut stale = function.ssa.clone();
-            stale.idom.clear();
-            assert!(
-                function
-                    .def_use
-                    .source_variable_symbol(&stale, symbol)
-                    .is_none(),
-                "changed SSA topology cannot reuse old chains"
-            );
+            assert_source_may_stale_graphs(function, symbol, &phis);
         }
     }
 
@@ -15977,6 +15998,47 @@ mod original_definition_name_tests {
 mod native_source_definition_tests {
     use super::*;
 
+    fn assert_source_definition_owner_withdrawals(
+        unit: &crate::compilation_unit::CompilationUnit,
+        selected: &[OriginalSourceSsaDefinition<'_>],
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        for stale in [false, true] {
+            let mut changed = unit.clone();
+            let function = changed
+                .body_units
+                .get_mut(&selected[0].name().body_id())
+                .unwrap();
+            if stale {
+                function.source_config = tcl_lexer::LexerConfig::for_file_grammar(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                        .unit_profile()
+                        .grammar,
+                );
+            } else {
+                function.source_metadata_input = None;
+            }
+            assert!(
+                original_source_definition_at_unit(
+                    &changed,
+                    selected[0].name().span(),
+                    context.commands()
+                )
+                .is_none()
+            );
+        }
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(
+            original_source_definition_at_unit(
+                &missing,
+                selected[0].name().span(),
+                context.commands()
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn native_source_definitions_select_actual_body_symbols_without_physical_store_grants() {
         let source =
@@ -16078,40 +16140,7 @@ mod native_source_definition_tests {
             }
             assert_eq!(accepted, 1);
         }
-        for stale in [false, true] {
-            let mut changed = unit.clone();
-            let function = changed
-                .body_units
-                .get_mut(&selected[0].name().body_id())
-                .unwrap();
-            if stale {
-                function.source_config = tcl_lexer::LexerConfig::for_file_grammar(
-                    tcl_registry::model::ingress::resolve_environment("tcl8.4")
-                        .unit_profile()
-                        .grammar,
-                );
-            } else {
-                function.source_metadata_input = None;
-            }
-            assert!(
-                original_source_definition_at_unit(
-                    &changed,
-                    selected[0].name().span(),
-                    context.commands()
-                )
-                .is_none()
-            );
-        }
-        let mut missing = unit.clone();
-        missing.ir_module.source_metadata_input = None;
-        assert!(
-            original_source_definition_at_unit(
-                &missing,
-                selected[0].name().span(),
-                context.commands()
-            )
-            .is_none()
-        );
+        assert_source_definition_owner_withdrawals(&unit, &selected, &context);
     }
 }
 
@@ -16256,6 +16285,51 @@ mod original_analysis_definition_selector_tests {
         (unit, context)
     }
 
+    fn assert_foreign_word_geometry(
+        unit: &crate::compilation_unit::CompilationUnit,
+        source: &str,
+        block: BlockId,
+        index: usize,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        let (other, _) = self::unit(source);
+        let originals = other
+            .top_level
+            .ssa
+            .point_contexts
+            .as_ref()
+            .unwrap()
+            .source_token_inventory()
+            .values()
+            .filter_map(|tokens| {
+                tokens
+                    .words()
+                    .first()
+                    .map(|word| (word.source().span.start(), tokens.clone()))
+            })
+            .collect();
+        let mut foreign = unit.clone();
+        assert!(
+            foreign
+                .top_level
+                .ssa
+                .point_contexts
+                .as_mut()
+                .unwrap()
+                .restore_source_tokens(&originals)
+        );
+        assert!(
+            original_analysis_words_for_statement(
+                &foreign,
+                &foreign.top_level,
+                block,
+                index,
+                context.commands()
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn original_analysis_word_geometry_keeps_current_input_vector_and_owner() {
         let source = "set value 42\n";
@@ -16342,42 +16416,7 @@ mod original_analysis_definition_selector_tests {
             )
             .is_none()
         );
-        let (other, _) = self::unit(source);
-        let originals = other
-            .top_level
-            .ssa
-            .point_contexts
-            .as_ref()
-            .unwrap()
-            .source_token_inventory()
-            .values()
-            .filter_map(|tokens| {
-                tokens
-                    .words()
-                    .first()
-                    .map(|word| (word.source().span.start(), tokens.clone()))
-            })
-            .collect();
-        let mut foreign = unit.clone();
-        assert!(
-            foreign
-                .top_level
-                .ssa
-                .point_contexts
-                .as_mut()
-                .unwrap()
-                .restore_source_tokens(&originals)
-        );
-        assert!(
-            original_analysis_words_for_statement(
-                &foreign,
-                &foreign.top_level,
-                block,
-                index,
-                context.commands()
-            )
-            .is_none()
-        );
+        assert_foreign_word_geometry(&unit, source, block, index, &context);
     }
 
     #[test]
