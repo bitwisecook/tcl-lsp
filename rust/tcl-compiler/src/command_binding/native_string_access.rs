@@ -15,7 +15,10 @@ pub struct SourceNativeStringAccess {
 }
 
 impl SourceNativeStringAccess {
-    fn from_normal(normal: &ModuleCommandBindings, inputs: &[Arc<Self>]) -> Option<Arc<Self>> {
+    fn current_owner<'a>(
+        normal: &'a ModuleCommandBindings,
+        inputs: &[Arc<Self>],
+    ) -> Option<&'a super::literal_object_pool::SourceOrdinaryLiteralPool> {
         let owner = normal.ordinary_literal_pool.as_ref()?;
         if !normal
             .current_source_origin
@@ -27,6 +30,11 @@ impl SourceNativeStringAccess {
         if inputs.iter().any(|input| !input.is_current()) {
             return None;
         }
+        Some(owner)
+    }
+
+    fn from_normal(normal: &ModuleCommandBindings, inputs: &[Arc<Self>]) -> Option<Arc<Self>> {
+        let owner = Self::current_owner(normal, inputs)?;
         let mut owners = Vec::new();
         for source in
             std::iter::once(owner).chain(inputs.iter().flat_map(|input| input.owners.iter()))
@@ -187,29 +195,96 @@ fn append_handler_selected(
     }
 }
 
-pub(super) fn retain_append(
-    outcomes: &mut SourceOutcomes,
+/// Entered append-specific effect transport. All donor alternatives are
+/// retained before the existing getter/coercion preparation withdraws caches.
+/// The snapshot is Rust analysis ownership, not Native header ownership.
+pub(super) struct CapturedAppend {
+    before: ModuleCommandBindings,
+    name: String,
+    writer: crate::place::Place,
+    inputs: Vec<Arc<SourceNativeStringAccess>>,
+    prepared_epoch: Option<u64>,
+}
+
+fn append_observers_quiet(
+    state: &ModuleCommandBindings,
+    native: SourceNativeInvocation<'_>,
+) -> bool {
+    !state.has_opaque_domain()
+        && !state.source_step_observed()
+        && state.command_observers.is_quiet()
+        && !state.source_execution_observed(native.target.identity.as_ref())
+        && !state.runtime_execution_observed(native.target.identity.as_ref())
+}
+
+impl CapturedAppend {
+    pub(super) fn after_preparation(
+        &mut self,
+        state: &ModuleCommandBindings,
+        native: SourceNativeInvocation<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        context: SourceExecutionContext<'_>,
+        object_protocol: super::object_callbacks::ObjectInputProtocol,
+    ) {
+        self.prepared_epoch = None;
+        // This method is reached once, only after this selected stock handler's
+        // unchanged preparation returned. Closed original input methods and
+        // quiet observers exclude arbitrary reentry; representation coercion
+        // still withdraws every cache exactly as before.
+        if !matches!(
+            object_protocol,
+            super::object_callbacks::ObjectInputProtocol::Unknown
+        ) && append_handler_selected(native, facts, state, context)
+            && append_observers_quiet(state, native)
+            && state.current_source_origin == self.before.current_source_origin
+            && state.original_command_world == self.before.original_command_world
+            && state.variable_frame == self.before.variable_frame
+            && self.inputs.iter().all(|input| input.is_current())
+            && SourceNativeStringAccess::current_owner(state, &self.inputs).is_some()
+        {
+            self.prepared_epoch = state.source_variables.representation_epoch;
+        }
+    }
+
+    pub(super) fn finish(self, outcomes: &mut SourceOutcomes, context: SourceExecutionContext<'_>) {
+        if let Some(epoch) = self.prepared_epoch {
+            publish_append(
+                outcomes,
+                &self.before,
+                context,
+                &self.name,
+                &self.writer,
+                &self.inputs,
+                epoch,
+            );
+        }
+    }
+}
+
+pub(super) fn capture_append(
     native: SourceNativeInvocation<'_>,
     facts: &tcl_registry::InvocationFacts,
     before: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
-) {
-    if !append_handler_selected(native, facts, before, context) {
-        return;
+) -> Option<CapturedAppend> {
+    if !append_handler_selected(native, facts, before, context)
+        || !append_observers_quiet(before, native)
+    {
+        return None;
     }
     if super::native_result::numeric_call_arguments(context, native.target).is_none() {
-        return;
+        return None;
     }
     let arguments = native.invocation.arguments();
     let Some(count) = arguments.exact_argv_len() else {
-        return;
+        return None;
     };
     let from = facts.argument_offset;
     if count < from + 2 || native.words.len() != count + 1 {
-        return;
+        return None;
     }
     let Some(name) = arguments.literal_at(from) else {
-        return;
+        return None;
     };
     let receiver = crate::var_resolve::resolve_literal_access(
         name,
@@ -235,12 +310,12 @@ pub(super) fn retain_append(
             .source_variables
             .contents_native_string_result_input_closed_at(&receiver, context.registry)
     {
-        return;
+        return None;
     }
     let Some(representations) = context.written_representations else {
-        return;
+        return None;
     };
-    if !(from + 1..count).all(|argument| {
+    if !(from..count).all(|argument| {
         representations
             .get(argument + 1)
             .and_then(Option::as_ref)
@@ -248,7 +323,7 @@ pub(super) fn retain_append(
                 receipt.native_string_result_input_is_closed(&before.source_variables)
             })
     }) {
-        return;
+        return None;
     }
     let mut inputs = Vec::new();
     if let Some(receipt) = before
@@ -257,7 +332,7 @@ pub(super) fn retain_append(
     {
         inputs.push(Arc::clone(receipt));
     }
-    for argument in from + 1..count {
+    for argument in from..count {
         if let Some(receipt) = representations[argument + 1]
             .as_ref()
             .and_then(|frozen| frozen.native_string_effect_receipt())
@@ -265,7 +340,13 @@ pub(super) fn retain_append(
             inputs.push(Arc::clone(receipt));
         }
     }
-    publish_append(outcomes, before, context, name, &writer, &inputs);
+    Some(CapturedAppend {
+        before: before.clone(),
+        name: name.to_owned(),
+        writer,
+        inputs,
+        prepared_epoch: None,
+    })
 }
 
 fn publish_append(
@@ -275,6 +356,7 @@ fn publish_append(
     name: &str,
     writer: &crate::place::Place,
     inputs: &[Arc<SourceNativeStringAccess>],
+    prepared_epoch: u64,
 ) {
     let Some(normal) = outcomes.normal.as_mut() else {
         return;
@@ -291,8 +373,7 @@ fn publish_append(
         || after.cell != writer.cell
         || after.index != writer.index
         || before.source_variables.representation_epoch.is_none()
-        || normal.source_variables.representation_epoch
-            != before.source_variables.representation_epoch
+        || normal.source_variables.representation_epoch != Some(prepared_epoch)
         || normal.current_source_origin != before.current_source_origin
         || normal.source_variables.contents_presence(&after)
             != crate::var_resolve::ContentsPresence::Defined

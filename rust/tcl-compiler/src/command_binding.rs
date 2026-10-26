@@ -5159,6 +5159,7 @@ fn is_default_namespace_unknown_handler(
 }
 
 struct CapturedNativeResultReceipts {
+    string_append: Option<Box<native_string_access::CapturedAppend>>,
     normal_read: Option<crate::var_resolve::OriginalNormalValueRead>,
     normal_write: Option<crate::var_resolve::OriginalNormalValueWrite>,
     range: Option<Box<source_representation::CapturedRangeResult>>,
@@ -5176,6 +5177,8 @@ fn capture_source_native_results_boxed(
 ) -> Box<CapturedNativeResultReceipts> {
     let context = *context;
     Box::new(CapturedNativeResultReceipts {
+        string_append: native_string_access::capture_append(native, facts, state, context)
+            .map(Box::new),
         normal_read: native_result::capture_original_read_completion(
             native,
             facts,
@@ -5227,7 +5230,9 @@ fn finish_source_native_results(
             .map(source_representation::CapturedRangeResult::representation),
     );
     source_representation::retain_range_result_bytes(outcomes, range_result);
-    native_string_access::retain_append(outcomes, native, facts, incoming, context);
+    if let Some(append) = receipts.string_append.take() {
+        append.finish(outcomes, context);
+    }
     native_result::retain_store_results(
         outcomes,
         facts,
@@ -11442,10 +11447,14 @@ impl SourceCommandBindings {
         }
         let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
         let mut receipts = capture_source_native_results_boxed(native, facts, state, context);
-        let route = match self.prepare_native_handler(prepared, native, effective, state, context) {
-            Ok(route) => route,
-            Err(outcomes) => return *outcomes,
-        };
+        let (route, object_protocol) =
+            match self.prepare_native_handler(prepared, native, effective, state, context) {
+                Ok(route) => route,
+                Err(outcomes) => return *outcomes,
+            };
+        if let Some(append) = receipts.string_append.as_mut() {
+            append.after_preparation(state, native, facts, *context, object_protocol);
+        }
         let read_complete = receipts
             .normal_read
             .as_ref()
@@ -11617,8 +11626,13 @@ impl SourceCommandBindings {
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
-    ) -> Result<tcl_registry::completion_route::InvocationCompletionRoute, Box<SourceOutcomes>>
-    {
+    ) -> Result<
+        (
+            tcl_registry::completion_route::InvocationCompletionRoute,
+            object_callbacks::ObjectInputProtocol,
+        ),
+        Box<SourceOutcomes>,
+    > {
         let context = *context;
         let facts = prepared.facts.as_ref();
         if state.command_observer_registration_invalid(facts, &context.namespace_identity()) {
@@ -11683,7 +11697,7 @@ impl SourceCommandBindings {
         if !writes.is_empty() {
             Arc::make_mut(&mut state.object_instances).invalidate_writes(&writes);
         }
-        Ok(route)
+        Ok((route, object_protocol))
     }
 
     fn walk_native_body_protocol(
