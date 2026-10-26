@@ -1527,7 +1527,7 @@ impl ExpressionOperation {
             {
                 return None;
             }
-            slots[index] = *arena.locals.get(&part.span)?;
+            slots[index] = *arena.locals.get(name)?;
             names[index] = variable_name;
         }
         Some(I64AddOperands {
