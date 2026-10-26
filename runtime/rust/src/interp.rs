@@ -41,6 +41,13 @@ type OriginalJimCapturedOptionPairs = Vec<(
     tcl_runtime_api::completion_options::OptionValue<obj::Owned>,
 )>;
 
+/// Non-owning argument transport; the existing caller retains both objects.
+#[derive(Clone, Copy)]
+struct OriginalProcedureObjects {
+    parameters_obj: Option<*mut TclObj>,
+    body_obj: *mut TclObj,
+}
+
 #[cfg(test)]
 mod anonymous_cell_cleanup_tests;
 #[cfg(test)]
@@ -5010,8 +5017,10 @@ impl Interp {
         self.install_proc_original_storage_publication_using(
             name,
             params,
-            parameters_obj,
-            body_obj,
+            OriginalProcedureObjects {
+                parameters_obj,
+                body_obj,
+            },
             native,
             statics,
             None,
@@ -5022,8 +5031,10 @@ impl Interp {
         &mut self,
         name: &[u8],
         params: Vec<Param>,
-        parameters_obj: Option<*mut TclObj>,
-        body_obj: *mut TclObj,
+        OriginalProcedureObjects {
+            parameters_obj,
+            body_obj,
+        }: OriginalProcedureObjects,
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
         import_source: Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
@@ -5038,8 +5049,10 @@ impl Interp {
         let reached = self.install_proc_original_storage_entered(
             name,
             params,
-            parameters_obj,
-            body_obj,
+            OriginalProcedureObjects {
+                parameters_obj,
+                body_obj,
+            },
             native,
             statics,
             import_source,
@@ -5063,8 +5076,10 @@ impl Interp {
         &mut self,
         name: &[u8],
         params: Vec<Param>,
-        parameters_obj: Option<*mut TclObj>,
-        body_obj: *mut TclObj,
+        OriginalProcedureObjects {
+            parameters_obj,
+            body_obj,
+        }: OriginalProcedureObjects,
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
         import_source: Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
