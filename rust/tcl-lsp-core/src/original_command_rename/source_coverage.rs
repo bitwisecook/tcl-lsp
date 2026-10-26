@@ -25,6 +25,7 @@ use super::{
     quiet_store_coverage, reject_command_link_coverage, reject_incomplete_source_procedure,
     reject_readonly_math_references, reject_selected_command_link_coverage,
 };
+use super::{coverage_trace, require_coverage, trace_coverage_document};
 use crate::original_source_views::OriginalSourceViewDocument;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::command_binding::OriginalSingleSourceCutSurvey;
@@ -276,10 +277,14 @@ impl<'a> SourceCut<'a> {
             if !visited.insert(task.key()) {
                 continue;
             }
-            reject_readonly_math_references(task.document, &context.owner, context.declaration)?;
-            let walk =
-                crate::refactor::FrameWalk::new(task.document.source, task.document.analysis)
-                    .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
+            trace_coverage_document(&task.document);
+            reject_readonly_math_references(task.document, &context.owner, context.declaration)
+                .inspect_err(|_| coverage_trace(0, "cut.math"))?;
+            let walk = require_coverage(
+                crate::refactor::FrameWalk::new(task.document.source, task.document.analysis),
+                0,
+                "cut.frame",
+            )?;
             for command in &task.commands {
                 self.command_requests(&task, &walk, command, context, &mut output)?;
             }
@@ -307,11 +312,23 @@ impl<'a> SourceCut<'a> {
             .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?
             .span
             .start();
-        let words = needed(walk.native_words(document.source, command))?;
+        let words = require_coverage(
+            walk.native_words(document.source, command),
+            offset,
+            "cut.words",
+        )?;
         let tokens = walk.tokens(document.source, command);
-        let binding = needed(tokens.source_binding.as_ref())?;
-        let input = needed(binding.original_head_name_input(&tokens))?;
-        let lookup = needed(binding.original_command_lookup(&tokens, &input))?;
+        let binding = require_coverage(tokens.source_binding.as_ref(), offset, "cut.binding")?;
+        let input = require_coverage(
+            binding.original_head_name_input(&tokens),
+            offset,
+            "cut.input",
+        )?;
+        let lookup = require_coverage(
+            binding.original_command_lookup(&tokens, &input),
+            offset,
+            "cut.lookup",
+        )?;
         if lookup.name_input() != &input
             || lookup.site().source.source_image() != &SourceImage::document(document.source)
         {
@@ -320,6 +337,7 @@ impl<'a> SourceCut<'a> {
         let reference = binding.original_command_reference(&tokens);
         if let Some(reference) = &reference {
             if !reference.matches_original_invocation_site(lookup.site()) {
+                coverage_trace(offset, "cut.reference-site");
                 return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
             }
             if context.declaration.reference_matches(reference, true) {
@@ -351,18 +369,21 @@ impl<'a> SourceCut<'a> {
             .map(|word| word.span.start())
             .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
         if task.purpose == Purpose::Prefix && offset == source_offset {
-            let receipt =
+            let receipt = require_coverage(
                 tcl_compiler::registry_invocation::original_conditional_source_load_for_coverage(
                     document.source,
                     document.analysis,
                     &tokens,
                     &self.survey,
-                )
-                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
+                ),
+                offset,
+                "cut.load-receipt",
+            )?;
             reject_command_link_coverage(CommandLinkCoverage::SourceLoad {
                 receipt: &receipt,
                 analysis: document.analysis,
-            })?;
+            })
+            .inspect_err(|_| coverage_trace(offset, "cut.source-link"))?;
             return Ok(());
         }
         collect_command_regions(
@@ -485,6 +506,7 @@ mod tests {
         ordinary_child: AnalysisResult,
         suffix: AnalysisResult,
         region: OriginalSourceConditionalRegion,
+        region_count: usize,
         outcome: OriginalSourceConditionalOutcome,
         peer: AnalysisResult,
     }
@@ -514,6 +536,7 @@ mod tests {
                 child_source,
                 ordinary_child: Analyser::new().analyse(child_source, "tcl8.6"),
                 outcome: regions.normal_outcome().unwrap(),
+                region_count: regions.regions().len(),
                 region,
                 prefix,
                 child,
@@ -613,7 +636,12 @@ mod tests {
             let edits = original_command_rename_edits_with_source_views(
                 &documents, &identity, "host_new", &worlds, views,
             )
-            .unwrap();
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{error:?}: {:?}",
+                    super::super::take_missing_rename_world_trace()
+                )
+            });
             assert_eq!(edits.len(), 2);
             assert!(
                 edits
@@ -790,11 +818,14 @@ mod tests {
                 "proc helper {} {source hidden.tcl}",
             ),
             (
-                "namespace eval N {source child.tcl}; proc run {} {return VALUE}",
+                "namespace eval :: {source child.tcl}; proc run {} {return VALUE}",
                 "proc helper {} {return VALUE}",
             ),
         ] {
             let fixture = Fixture::new(source, child_source);
+            if source.starts_with("namespace") {
+                assert!(fixture.region_count > 1);
+            }
             let documents = fixture.documents();
             let identity = fixture.identity();
             let worlds = [OriginalConditionalCommandWorld {
