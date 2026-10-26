@@ -310,6 +310,19 @@ fn unavailable_modern_commands(
     commands
 }
 
+fn unavailable_host_commands(
+    registry: &CommandRegistry,
+    context: &ResolvedContext,
+) -> BTreeSet<String> {
+    let mut commands = unavailable_modern_commands(registry, context);
+    commands.extend(
+        tcl_registry::irules_policy::SIMULATOR_HOST_EXTENSION_EXCLUSIONS
+            .iter()
+            .map(|label| (*label).to_owned()),
+    );
+    commands
+}
+
 fn render_user_surface(commands: &BTreeSet<String>) -> String {
     let mut out = license_banner("#");
     let _ = write!(
@@ -360,7 +373,7 @@ fn generated_files() -> Result<Vec<(&'static str, String)>> {
         ),
         (
             USER_SURFACE_PATH,
-            render_user_surface(&unavailable_modern_commands(registry, irules_context)),
+            render_user_surface(&unavailable_host_commands(registry, irules_context)),
         ),
         (
             MOCK_STUBS_PATH,
@@ -495,7 +508,15 @@ mod tests {
     fn user_surface_blocks_modern_qualified_members_without_hiding_tmm_commands() {
         let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
         let context = crate::environment::context_for_dialect(IRULES_DIALECT);
-        let blocked = unavailable_modern_commands(registry, context);
+        let blocked = unavailable_host_commands(registry, context);
+        assert!(
+            blocked.contains("::alias"),
+            "existing VM extension must stay excluded"
+        );
+        assert!(
+            !unavailable_modern_commands(registry, context).contains("::alias"),
+            "a VM extension is not modern Tcl"
+        );
         assert!(
             !blocked.contains("::exists"),
             "Jim-only command is not modern Tcl"

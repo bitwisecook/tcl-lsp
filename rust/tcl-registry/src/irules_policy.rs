@@ -52,6 +52,16 @@
 //! script widens the realm state (`tcl-compiler`'s
 //! `analyser::diagnostics::validity` / `analyser::commands`).
 
+/// Existing simulator exclusions for extensions supplied by its VM host.
+///
+/// These are authored simulator-surface policy, separate from both modern
+/// Tcl availability and the 31 measured stock-Tcl disabled builtins below.
+/// `tcl-vm` installs `alias` for its C9 host, while the checked simulator
+/// surface already excludes it from F5 user code. This data preserves that
+/// exclusion; it neither declares Tcl-family availability nor attests native
+/// implementation identity, invocation ownership, or an execution capability.
+pub const SIMULATOR_HOST_EXTENSION_EXCLUSIONS: &[&str] = &["::alias"];
+
 /// Which of the two measured mechanisms keeps one stock builtin out of
 /// iRules source (§4b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
