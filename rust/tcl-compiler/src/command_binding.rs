@@ -3814,6 +3814,8 @@ struct SourceInterpretationEntry<'a> {
 /// Retained source-point command and substitution proofs for one analysed script.
 #[derive(Debug, Clone, Default)]
 pub struct SourceCommandBindings {
+    // Derived point-memo lifetime, outside semantic equality and hash.
+    source_point_cache_lease: Option<Arc<source_analysis_cache::SourcePointCacheLease>>,
     conditional_source: conditional_source::SourceConditionalKernel,
     analyser_source_settings:
         Option<Arc<crate::analyser::source_settings::OriginalAnalyserSourceSettings>>,
@@ -7421,7 +7423,7 @@ impl SourceCommandBindings {
         bindings.retain_logical_receiver_source_catalogues(config, registry);
         bindings.retain_original_declaration_source_operand_layouts(registry);
         if let Some(key) = memo_key {
-            source_analysis_cache::retain(key, &bindings);
+            source_analysis_cache::retain(key, &mut bindings);
         }
         bindings
     }
