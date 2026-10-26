@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T18:24:35.095573+00:00
+Last updated: 2026-10-26T18:39:58.603714+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Assigned alias17/11files V2 b811840e independentRuntimeCLEAR02c81d0f afterV1placementhold; transparent private aliases beforefirstitems, fullmoduleexpansioninverse/F-R/F0/fmt2021, actualRustUNRUN. Root ownsapply. New capture-correctness rawRustidentifier packet51081a2f/bb221fd4+1bd96aa9 underLSPpeer: actualCef60Rust2 captureinvalidwasexact2tcl-bigip r#gen cases, newparser actual7924rosterbeforeREFUSE/afterPASS without identityrewrite/unsafevalidatorrelax. BothpermanentparserblocksPASS52f7c8b; fullshellsuite unavailablecargoMetadata isolatedtree, no localbuild. Cef60Rust2 nowCANCELLEDactualartifactsole2MiBstderr/no structuredsummary/terminal; partialqualification4b986e88, no mainbaseline transfer. OlderCef60 E2E1/2stillactive; C47same4active.
 
 Current strict62848 run40375134550 FULLAUTH97checks1c124812, soleZIPe11c847d/4,049,613B:165raw/161unique/0RustE across75standalone runtimefiles. Currentinventoryecb807f0/groupedrouting56d41fd0 sentRuntime+Root; remaining1largeErr Jim alias boundary, no stale259/105assumption. Pathnormalizationf3a70f7a explicitly validates absolute runner path and src/../../ include against actualGit/manifest. Runtime owns sourcefixpartition, no hunk reservation byme. NEXTtierdiagnosticV1HELDdeprecatedfetch_update; V2try_update7f7d02ea/d5b6ee2a independentlyCLEAR92606d25 (LSP), currentflag128/samecompile/assertgoldensexact; notcurrent62848wave. Both broadCIs preserved3+4active at18:15, no newterminaljoin.
 

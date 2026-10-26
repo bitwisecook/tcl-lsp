@@ -2,11 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T18:06:52.703046+00:00 (final bf8c current-pin union independently CLEAR; actual Layout repeats pending; no green release claim)
+Last updated: 2026-10-26T18:43:43.375419+00:00 (corpus V4 source independently CLEAR; compiler147 capture pending; actual prep smoke first-false priority)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Corpus V4 independently source-CLEAR:** `/workspace/naming-proof-storage/compiler-peer-source-point-corpus-work-v4/receipt.json` SHA95c1d89bff12f4947448203f879aca83d3e363865c58b6c176f1eb6d352cfe95 seals author manifestac20df9a/patchf0bcbb24, both actual Git/F-R-F0, exact original117 TEXT fixture order/dialects/hashes plus whole original generator/seven invocations. Real bounded strong retainer is cfg(test) in the actual retention path; current caller-owned leases, genuine per-profile full input/realm checks and complete old/old+mixed three-way authenticated report comparisons remain strict. No remaining concrete source HOLD. Static only: transport budgets/actual new tests and report parity are separate pending gates; native-byte/PackSet domains are not covered by ordinary TEXT corpus. Root notified.
+
+**Current147 capture remains independently owned here:** run40375134626/job121756020145/source62848aa76f07cf91372e1f75340160d2f66e593f, prepared assessment/auth scripts at `/workspace/naming-proof-storage/compiler-original147-40375134626`; latest poll in_progress/no artifacts. No current147 outcome claimed. Root routes actual current prep-pr lowered `::double` smoke failure for source first-refusal diagnosis; no expected-output waiver. SourceCut ResolvedHead/Written0 genuine paired owner proposal peer next. No local builds/product execution.
 
 
 **Final bf8c all-current metadata union independently CLEAR:** `/workspace/naming-proof-storage/ccg-finalbf8c-lease-current-pin-union-work-v1/manifest.json` SHA2e07ceedc068ec9981fcc588761280a268b7ed493163963bacce38bc00250fa0/patch0ca3a17dd952fe257f597d35e9fee707eefdccc5ed95eb530b7bfc2251c8ea36. Sole compiler independent receipt `/workspace/naming-proof-storage/compiler-peer-finalbf8c-pin-union-v1/receipt.json` SHA40e87ed2b84e25b4e8fe782bbf875cbbb0e44eb35599bd07a2c196dd0f8324ef verifies all11 before/after Git/F-R-F0; all23JSON/18live maps/410records/249actual Git sources match prospective overlay. Exactly13existing refreshes, six missing approved lease keys plus retained Logical two =eight coupled keys across four maps. Whole JSON byte inverse and whole four-driver AST/byte inverse (six derived actual wholeJSON SHA leaves) restore every history/selector/env/count/guard/budget byte. Source-bound author eleven runtime guard functions PASS and prospectiveV14 PASS reviewed as supplementary static evidence, not independent runtime outcomes. Root notified for root-only apply/push/dispatch; no local product/native/guest/build/test execution.

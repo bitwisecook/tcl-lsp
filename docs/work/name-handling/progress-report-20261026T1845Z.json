@@ -1,0 +1,84 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T18:45:43.068934+00:00",
+  "scheduled_report_utc": "2026-10-26T18:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T19:15:00+00:00",
+  "change_since_previous_report": [
+    "Current validation source62848aa76 and clean candidateeee02dfe are running scoped compiler147/strict/LSP5/runtime166/Spec/Jim/iRules/WASM+exactprep-pr; current code contract doc-only followupWORK26dc/CLEANcd9ab4 separate and no acceptance transfer.",
+    "AlloldF/zerooriginrustPASS-to-FAIL/requiredgreen/acceptedTclperformance/finaldocs-comments-generated-fixtures-package-squashchecksremainOPEN. WholeCeee main+standalonefmtPASS18:08; allnewmeasurementsawaitedactualartifacts.",
+    "NEXTfullcorpusV2heldbyCompiler genuineF5domainissuer mismatch, Namescorrecting ratherthanrelabel/skip. NEXTpassiveexistingreporttier and selectedtargetfacets off-tree peer, not currentwave.",
+    "ExternalBIGIP/perf headers stale>60min, reported withouttakeover; triagecomplete. No localRustbuilds, diskfloor2GiB/executableownership/retention/cappedlogs enforced. NoPR/merge/tag/release.",
+    "CurrentCcd9ab tracked11084 exact13processmarkercensus allZERO/no docswork processpaths, root-release-process-marker-audit-cd9ab-20261026.json. Thisistargetedonly,notfullcontextual/semanticcleanupacceptance. WORK-only NativeTierV2passiveexistingreport7f7d/d5b6 stronglyreviewedLSP92606, RootapplyingforNEXT; V1fetch_updateheld/supersededtry_update. Selectedtargetfacets ef020/f39e68 RootapplyingWORK-only NEXT, no selection/assert/query/budget change; current62848 outcomesremainexactoldsource.",
+    "Currentstrict62848 actualcommandfailure18:19:32 reachedstandaloneruntimelib/libtest, artifact4,049,613B soleCodegen/APIe11c847d downloaded. Initialrawfrontierends160libtesterrors/provisional165primaryrows, preciseunique/fullauthpending; notgreen. Runtimeownerroutedfixpriority,noallowancesoroldassertionweakening. Oldcompileroneprimarynolongermasksruntime, no globalwarningclearclaim.",
+    "NEXTWORK-only passiveNativeTierV2 applieda933c5a1fb3f733666cdba41a5794e93976ea472 (author7f7d/d5b6,LSPpeer92606), selectedtargetfacet819466a3563b13c675b421dc9ef47f025f741366 (author ef020/8e789,SourceProcpeerf39e68). No current62848 outcome transfer. One futurecurrentpinunionafterreviewedcorpus/strictsourcefixes; no duplication/cancellationofhealthyvalidation.",
+    "Strict62848 FULLAUTH1c124812/97checks;165raw/161UNIQUE/0RustE in75files, inventoryecb807f0 grouped56d41/pathnormalizationf3a70 allactualGitno skippedabsolute/include rows. Ownershipdisjoint: editorial36files61findings, codegen11files17typecomplexity, Runtime28remainingmixedfiles83findingsinclprivateJimLinkErrcarrier2paths. Noallows/MSRVbump/assertionweaken; actualsourcefixesofftree peer/UNRUN.",
+    "MemoDIAG40362871182 macOSsmall+medium17KB/19KB artifacts soleRootAPI+ZIPCRC+allmember+allprocessstreambytes/fullSHA authenticatedqualification, sourceoldba30/notproduction5cbd. BothbuildsPASS, candidates1800.433/1801.141seconds/noresults/killpgEPERMgroupnotclosed, otherwiseeligiblebypassUNOBSERVED, so no causalcachebypassproof oracceptedpairs/ratio/peakRSS. Linuxsmall/mediumshutdown143;fullmac/Linuxhealthycontinue.",
+    "Current62848 Core FULLAUTHed87b301 old8ALLPASS/source4same2PASS2FAIL. NEWdependencyobserveractualworks: sourcecontrol1threeimage-words-contextfirstfalse thenexpect750, provingearliersurvey/currentcommand/registrywords/resolvedinput/retainedrealm/sourceimagestagespassed. Exactgroupedchannel/bytes/wordsource/context/originactualleafstillbeingtraced; no blanketNativefallback/lengthguess. Namespace609pointNone remainsindependent.",
+    "JimLinkprivateErrcarrier44451117Compilerpeerf778ad93CLEAR aftercorrectactualCargoedition2021(notroot2024)formatter; RootpairedapplicationWORK3d36/CLEANcarry underway. Exactcallback-bearingLink movedoutofBoxBEFOREunchangedfirsterror/drop(link)/currency, nosuccessallocation/Native+1/clone/publicAPIchange. ActualClippy/nativecontrolsUNRUN.",
+    "Exact11files/17typealiasesV2b811840e Runtimeindependentpeer02c81d0fCLEAR actual22source/F-RF0/fmt2021+wholemoduleexpansioninverse. V1latealiasplacementheld/supersededhoistedV2, Rootpairedapplicationunderway. No tuple/functionlifetime/HRTB/visibility/owner/query/assertchange; actualRustUNRUN.",
+    "OlderCef60Rust2cancellednocancellationfromus, terminalartifactONLY2MBstderr/noledger. ActualsourceSAFE_NAMErejects2legitimateRustrawidentifierr#gen testnames, triggersInvalidRosterRecorder; apparentconsole896P299F notstructuredacceptedjoin. Codegenpreparesnarrowfuturevalidatorfix+meaningfulunsafe-nameboundarycontrols, noskips/relabel/baselineabsencewaiver.",
+    "Current62848 Runtime166FULLAUTHa6de7a8b added35ALLPASS/old80FAIL/CFIincompleteunchanged; exactpreviousstatusjoinpending. iRulescurrentpost-finalinitCLOSED resetactualfirstfalseentry.name_policy_point NativePreflightRequired; NEWfailure-onlyexitdetail actualEvalinvalidcommandexit atLive823, notlostpendingexitsettlement. FulliRules qualificationfinishing; ownertracesrealexitregistration/removal beforepurposehypothesis.",
+    "Current62848 Jim52FULLAUTHd377cf40+f7d3e47CRC/all195members/owned12actualGit, exact51joincce61510 ZEROgains/regressionsvsba30; old45=36P9F/original26=17P9F/diag3P2F/newstaticPASS/rawrepeatFAIL. Exactraw e0e1335c recipe/class/procedure/ownerTRUEthenUnknownEarlierMutation, noquota. Current147separatealiasrepeatnotinferred. Exactprep-prCeeeINPROGRESSstep7, nogateresultyet.",
+    "NEW exactCeeeprep-pr40375171368 rawactualsetupPASS0/makeprepFAIL2; nowreachesgenuinecompilersmoke smoke_compile_canonical_snippet atcompilation_unit.rs9232 expectedlowered::double got[], siblingsmokeexplorePASS. GenerateddiffEMPTY/nonignoredtreeCLEAN, actualquote/include3/aliasdenyadvancesreachedstagewithoutwholegatePASS. Soleartifact12676913657/API3cbd7bd3 1771201B retainedNames, fullqualificationfinishing; Compilerurgentproducerfixrouted/no expectationwaiver.",
+    "NEXTfullcorpusV4ac20underCompilerpeer, transport99a5/22f632underindependentCodegenprotocolpeer. Preservesold147/allFAIL/sharedabsoluteCAP/floor, append117TEXT1800s+generated7600s ONLYiffullremainingreserve; missing/partial/bypass/Unavailable/timeout\u2192UNRUN/FAILoverall2, exact234+14markers/702+42typedEqualpairs. UNBUILT/UNRUN, no parity/performanceacceptance.",
+    "CurrentRuntime128exactjoinc3512d7eZEROstatuschangesvsba30, full166a6de7retained. CurrentiRulesFULLAUTH34d411e5:bootstrapclosedFAIL114.436safterfinalinit/resetactualnamepolicy;CLI2PASS;init_scopeFAIL113.113sactualpublicexitblocker. Authoredshimrenamesrealexitto::tmm::_orig_exit andpublicexitdeliberatelyrefuses; narrownewcontrolcorrection77125aff+C86/C90finiteoracle1d1d3000underCompilerpeer preservesallpendingexit7/restorationandexplicitpublicrefusal. No newhostpurposegrant.",
+    "Compileractualsmokefirstfalse: build_for suppliesdialectNone\u2192fresh_document_inputrefusesmissingdialect\u2192explicitStandaloneauthoring\u2192OriginalDeclaration/body_units publicationNone, notmodule.procedures. ExistingstandalonecontrolrequiresproceduresEMPTY. Preparinggenuineknown-dialectfixtureconstructorwithalloriginalsource/assertspreserved, no callablepublicationgranttounknowninput. Proposal/peer/actualexecutionpending.",
+    "CorpusV4sourceCompilerindependentCLEAR95c1d89b actual117order/dialects/bytes+whole7generatorcalls+oldstrong/livelease+full3wayreporttypedseams, staticonly. Transport99a5Codegenpeerpending, old147preserved/absoluteunchanged; actualfullparity/performanceUNRUN."
+  ],
+  "committed": [
+    "b672a209eaea6ae5ccd625693eca2736ed3276bb"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticatecurrent62848exactoutcomes, fixmeasuredproducerfailuresonWORKfirstandcarryreviewedfixestocleanrelease.",
+    "Finishcurrent-domaincorpuscontrols+actualoldmixedauthenticatedfullreportproofbeforenewacceptedshippingTclperformance.",
+    "Completecurrentbaselinezeropass-to-fail/fullrequiredgreenandfinalreleasecleanup/docs/comments/generated/fixtures/package/squashreviewbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2349105152,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

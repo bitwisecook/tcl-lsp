@@ -1,10 +1,10 @@
 {
-  "utc": "2026-10-26T18:15:41.863353+00:00",
+  "utc": "2026-10-26T18:30:14.161835+00:00",
   "scheduled": "2026-10-26T18:15:00+00:00",
-  "source_snapshot": "937616fbaacfe8e51a20c2e273006a034049d2e0",
-  "published_snapshot": "a72acb8f9428da31e355d8c13d316219d9c52937",
+  "source_snapshot": "b672a209eaea6ae5ccd625693eca2736ed3276bb",
+  "published_snapshot": "e7ce7a55b247f850b296ed020cb1dd169f212ee4",
   "source_commits": [
-    "937616fbaacfe8e51a20c2e273006a034049d2e0"
+    "b672a209eaea6ae5ccd625693eca2736ed3276bb"
   ],
   "product_tree_diff": [
     ".claude/skills/jetbrains-plugin-compat/SKILL.md",
@@ -806,9 +806,9 @@
     "scripts/install/test_installer.sh",
     "scripts/perf/paired_bench.py"
   ],
-  "external_product_base": "26dc58c7e1b3fa141ad391803f9280da9af9e8b1",
+  "external_product_base": "819466a3563b13c675b421dc9ef47f025f741366",
   "external_changes_preserved_not_validated": true,
-  "remote_confirmed": "a72acb8f9428da31e355d8c13d316219d9c52937",
+  "remote_confirmed": "e7ce7a55b247f850b296ed020cb1dd169f212ee4",
   "fresh_depth1fetch_before_push": true,
   "normal_push_only": true,
   "gate_admissions": []
