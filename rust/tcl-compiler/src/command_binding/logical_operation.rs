@@ -1346,8 +1346,8 @@ mod tests {
                     .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
                     .is_none()
             );
-            let state = &binding.lookup_state.as_ref().unwrap().state;
-            let cloned = state.clone();
+            let lookup_world = &binding.lookup_state.as_ref().unwrap().state;
+            let cloned = lookup_world.clone();
             assert!(
                 target
                     .logical_original_prefix
@@ -1357,7 +1357,7 @@ mod tests {
             );
             let mut missing = cloned.clone();
             missing.logical_alias_prefixes = Arc::new(std::collections::BTreeMap::new());
-            assert_ne!(&missing, state);
+            assert_ne!(&missing, lookup_world);
             let mut joined = cloned;
             joined.join(&missing);
             let unavailable = super::source_binding_projection(
