@@ -3923,6 +3923,25 @@ point and operand proof. Registry transition facts remain unknown, and ordinary
 consumers still refuse them. Existing trait, complete-role, command-name-role
 and declared-transition checks remain independent and unchanged.
 
+### Authored result-completion source coverage
+
+An exact current AuthoredSimulation invocation can retain source coverage for
+the registered unoptioned zero-or-one Result return grammar. Every original
+point must retain its conditional argument closure, unchanged words, source and
+Registry, with no observed argument execution. Only explicitly registered source
+world-effect and completion-state resolvers supply the effect answer; a Native
+resolver fallback cannot provide it. Supported footprints contain only result,
+completion and declared event-control effects, without callbacks or identity
+transitions. Error-option, unknown, observer and foreign-input gaps decline.
+
+The opaque receipt owns the selected invocation and borrows its exact analysis owner.
+Every executable Command component in its original words remains an independent
+survey, including commands used to compute the result. Parse-error or expression
+residuals decline; Result data is never parsed as a script. Existing generic
+trait, name-role, known-transition and unknown-transition refusals remain
+unchanged. This source coverage supplies no handler execution, physical frame,
+Native admission, Normal operation completion or completed command world.
+
 ### Authored uplevel source words
 
 An explicitly installed Logical uplevel dispatcher uses its own source-word entry.
