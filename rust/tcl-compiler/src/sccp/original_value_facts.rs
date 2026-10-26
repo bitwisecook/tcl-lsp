@@ -5637,6 +5637,39 @@ mod tests {
         );
     }
 
+    fn assert_profile_reference_shapes(
+        profile: &str,
+        config: tcl_lexer::LexerConfig,
+        rules: tcl_syntax::word_rules::WordValueRules,
+        uses: &HashMap<Symbol, crate::ssa::Version>,
+        values: &HashMap<ValueKey, LatticeValue>,
+        ssa: &SsaFunction,
+    ) {
+        assert_eq!(
+            resolve_simple_var_ref("$café", uses, values, ssa, Some(config)).is_some(),
+            profile == "jim"
+        );
+        assert_eq!(
+            resolve_simple_var_ref("${a{b}c}", uses, values, ssa, Some(config)).is_some(),
+            matches!(profile, "tcl9.0" | "tcl9.1")
+        );
+        assert_eq!(
+            resolve_simple_var_ref("$a", &HashMap::new(), values, ssa, Some(config)),
+            None
+        );
+        assert_eq!(
+            resolve_foreach_list_via_lattice(
+                "$a",
+                &HashMap::new(),
+                values,
+                ssa,
+                rules,
+                Some(config)
+            ),
+            None
+        );
+    }
+
     #[test]
     fn original_value_reference_consumers_require_grammar_and_scalar_shape() {
         // Original inputs: experiments/name-handling/oracles/whole-variable-reference-shapes-20261014.
@@ -5727,29 +5760,7 @@ mod tests {
                     "{profile}: {text}"
                 );
             }
-            assert_eq!(
-                resolve_simple_var_ref("$café", &uses, &values, &ssa, Some(config)).is_some(),
-                profile == "jim"
-            );
-            assert_eq!(
-                resolve_simple_var_ref("${a{b}c}", &uses, &values, &ssa, Some(config)).is_some(),
-                matches!(profile, "tcl9.0" | "tcl9.1")
-            );
-            assert_eq!(
-                resolve_simple_var_ref("$a", &HashMap::new(), &values, &ssa, Some(config)),
-                None
-            );
-            assert_eq!(
-                resolve_foreach_list_via_lattice(
-                    "$a",
-                    &HashMap::new(),
-                    &values,
-                    &ssa,
-                    rules,
-                    Some(config)
-                ),
-                None
-            );
+            assert_profile_reference_shapes(profile, config, rules, &uses, &values, &ssa);
         }
     }
 
