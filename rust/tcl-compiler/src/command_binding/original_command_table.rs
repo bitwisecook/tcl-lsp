@@ -159,6 +159,7 @@ impl RegistryAdviceSlotIndex {
 #[derive(Debug, Default)]
 pub(super) struct RegistryAdviceSlotMemo {
     entries: std::sync::Mutex<Vec<std::sync::Arc<RegistryAdviceSlotIndex>>>,
+    pub(super) catalogue_seeds: super::source_transition_advice::AdviceCatalogueSeedMemo,
 }
 
 impl RegistryAdviceSlotMemo {

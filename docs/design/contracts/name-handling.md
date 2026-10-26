@@ -4077,3 +4077,14 @@ physical layout, runtime value, callback, effect or completion fact. Unsupported
 expression shapes and new local names withdraw the inventory.
 
 Own authored Jim procedure-member source correspondence retains the selected Jim class and original procedure as distinct issuers. The original readonly two-list-element name and selected factory replacement recipe bind raw declarations before and after the class. A weak existing analysis owner, exact canonical tape recipe and original source/configuration/registry joins authenticate reporting metadata; unknown obligations remain explicit diagnostic debt. Only the inherent unavailable-runtime-lookup and written-transition source conditions may support the new member association; mutation, arity, deferred, declaration and other applicability debts withhold both the member ledger and reporting association. This does not issue a generic SourceClass, installed method table, entered frame, quiet effect, Native result, or deferred class-call authority.
+
+Source-transition graph factories may share an immutable catalogue seed within
+one binding baseline. Reuse requires the exact command-store allocation and
+semantic generation, complete resolved context, naming policy and dialect.
+The seed contains only descriptor labels with empty lineage and namespace/export
+geometry. Native deleted/shadow overlays and declarations remain fresh work;
+source-point graphs keep their original route. Every fresh factory graph receives independent
+mutable inventories, debt, handles and step counters; existing descendant budget
+sharing remains unchanged. Capacity, poison and
+changed-generation paths use the uncached builder. No source advice, Native
+issuer, live lookup, callback or execution permission is cached.

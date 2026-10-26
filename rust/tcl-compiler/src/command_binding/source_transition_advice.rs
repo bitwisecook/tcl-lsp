@@ -5,6 +5,8 @@
 //! Authored command transitions retain source advice independently of execution.
 
 mod body_effects;
+mod catalogue_seed;
+pub(super) use catalogue_seed::AdviceCatalogueSeedMemo;
 mod interpreter_handle;
 pub use interpreter_handle::OriginalSourceInterpreterHandleBody;
 mod interpreter_path;
@@ -1577,16 +1579,26 @@ struct SourceAliasCellSelection<'a> {
 }
 
 impl AdviceGraph {
+    #[cfg(test)]
     fn new(
         context: &ContextRegistry,
         policy: &AdviceNamingPolicy,
         dialect: InvocationDialect,
     ) -> Option<Self> {
-        let mut graph = Self {
+        let seed = catalogue_seed::AdviceCatalogueSeed::build(context, policy)?;
+        Some(Self::from_catalogue_seed(policy, dialect, &seed))
+    }
+
+    fn from_catalogue_seed(
+        policy: &AdviceNamingPolicy,
+        dialect: InvocationDialect,
+        seed: &catalogue_seed::AdviceCatalogueSeed,
+    ) -> Self {
+        Self {
             native_baseline: false,
-            cells: HashMap::new().into(),
-            namespaces: BTreeSet::from([ByteNamespacePath::root()]),
-            namespace_exports: BTreeMap::new(),
+            cells: seed.cells(),
+            namespaces: seed.namespaces(),
+            namespace_exports: seed.namespace_exports(),
             namespace_paths: BTreeMap::new(),
             namespace_imports: HashMap::new(),
             unknown_exports: BTreeSet::new(),
@@ -1614,46 +1626,7 @@ impl AdviceGraph {
             procedure_path: Vec::new(),
             procedure_steps: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             decoded_phase_steps: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
-        };
-        for command in context.commands().command_names() {
-            if context
-                .context()
-                .resolve_spec(context.commands(), command)
-                .is_none()
-            {
-                continue;
-            }
-            let key = match policy.native().map(NamePolicyProtocol::recipe) {
-                Some(NativeNameProtocol::C(_)) => {
-                    let native = policy.native()?;
-                    native
-                        .recipe()
-                        .command_c_api_publication_slot(root_context(native), command.as_bytes())
-                        .ok()?
-                }
-                Some(NativeNameProtocol::Jim084) => ByteCommandSlot::new(
-                    ByteNamespacePath::root(),
-                    NameBytes::from(command.as_bytes()),
-                ),
-                None => AdviceNamingPolicy::logical_slot(command.as_bytes())?,
-            };
-            graph.namespaces.insert(key.namespace.clone());
-            if context
-                .commands()
-                .get(command)
-                .is_some_and(|spec| spec.is_namespace_exported)
-            {
-                graph
-                    .namespace_exports
-                    .entry(key.namespace.clone())
-                    .or_default()
-                    .push(key.simple.clone());
-            }
-            graph
-                .cells
-                .insert(key, AdviceCell::Descriptor(command.to_owned(), Vec::new()));
         }
-        Some(graph)
     }
     fn native_source_context(&self) -> Option<NativeNameContext<'_>> {
         let policy = self.policy.native()?;
@@ -3400,7 +3373,12 @@ impl OriginalSourceTransitionSeed {
         if let Some(entry) = &baseline.source_point_entry {
             return entry.source_advice_graph(context)?.child_graph(policy);
         }
-        let mut graph = AdviceGraph::new(context, policy, baseline.dialect?)?;
+        let dialect = baseline.dialect?;
+        let seed = baseline
+            .advice_slots
+            .catalogue_seeds
+            .get(context, policy, dialect)?;
+        let mut graph = AdviceGraph::from_catalogue_seed(policy, dialect, &seed);
         if let Some(entry) = &baseline.native_entry {
             graph.retain_native_baseline(context, entry)?;
         }
