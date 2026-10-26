@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T00:15:00.276804+00:00",
+  "scheduled_report_utc": "2026-10-26T00:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T00:45:00+00:00",
+  "change_since_previous_report": [
+    "Reviewedcurrent0015functional/probecheckpoint WORK8609339a80111df46a2abe32cf324ecbc9c83570/CLEAN105c32ed6aa42464c520a21ebd710ffc32b880b5 withglobalV12preflightPASS/0changedlivepins.129ccompiler118/strictdispatchedandowned;8609addsONLYCodegenpeerclearedN17passivevariablefacet observer (no query/grant/flags/budgetchange). Freshdepth1fetch+normalpushbeforecycle, exactconfirmedSHAinpublicationreceipt. NoPR/merge/tag/release.",
+    "16a4JimFULLAUTH93590d93all51REACHED original45now35P10F; originaluser26subsetnow16P10F (vsC21315P11F), additional8doccontrolsALLPASS/own11ALLPASS, diagnostic5=3P2F andnewstaticalternativePASS. Matched0746e0ca EVERYpriorPASSpreservedacrossallfourgroups/0regressions; soleoriginalcountergain+diagnosticrepeat. Actualnewparent/provenance/frameproofpasses,nextchild.lookup_stable guard preserved andunderproducerinvestigation.",
+    "16a4compiler118 FULLAUTHafda4218/native539252fa ALL118UNRUN because2realtesttypingerrors (OriginalTraceCallbackWordsno compilation() getter; higher-rankedFnOnce methodpointer). Exactly2ownedclosedprocesses/source126439/provider10202/deps21504/tools beforeafter/allmembers/selectedsourcesauthenticated. No Logicalnegative/864/Child10 executionclaimed; latestexecutede99096P6F+5PASSunchanged.",
+    "16a4strict FULLAUTH0cb5a0e7:3actualprimaries =1Clippy similar_names +1codedRustE0599 +1UNCODEDRustFnOnce typeerror; doNOTclassifyuncodedRustasClippy. Three-localNamesrenameSourcePeereb1f now42a8/5cb, typingSourcePeera5e73now129c/105c restoresownedtestFIELDandusesexacttypedprivatefreefunctionadapterpreservingonce-onlymethod/ownedVec/HRTB; noallow/productioncachekey/authoritychanges. Actualrerunsrequired; remainingoldtestlintsstillmasked.",
+    "16a4LSPactualnewminifycarrierobserver (fullauthrunning) parent_owner54true/recorded62,74,80true/noheadmismatch; closed62true/74,80false; no positionedquery rows74/80 belowquotas. Thisrulesoutmissingflatvector/wrongoffset/lexicalguess. Outeractualcompiler-syntax-alternative guard uniqueownerattachmentunderproducertrace, no blanketrecursiveattachment/NativeInline-vs-Named bypass/reparse/Eqrelaxation. ExistingQuiet1PASS/factorialFAIL/wholebrowserReturn91/WASIprojectionfail persist.362eall5FULLAUTHindex229161retained.",
+    "362eSpecactualnew3probeFAIL10.76s/all0attempts; LENGTHselectedtarget/context/arg0+varaccess true thenVARIABLEgreetingfacet emptystate/residual/read/nativeaccess predicateunderpassiveobserver. MAP/RANGEearliermotion/footprint/registry/substitutionbarriers. Old16PASS/full600INCOMPLETEunchanged; no C1/C2/hookcountclosure. N17Namesreadonlyinvestigationactualvariablebranch ratherthanchildcardinalityguess, Codegenno const_subst overlap.",
+    "16a4WASMFULLAUTH924857ea318checks22P3Funchanged. Physicalcachedheaderobserverprovesn61baseRETURNABIat128seq74 causesrefusal, n62EXPRat128seq114; n60return126 succeeds. ThesearephysicalargvlabelsNOTresolvedhandlerauthority. No blanketABI/evalledgercoalescing. ConcretefollowonnativeguardeddefaultReturnintrinsic requiresactualNativeReturnInstruction/currentframe/quiettraceguard/ownedpreparedvalue+originaloptions/resultpipeline, sourceopcodeismerelycandidate.",
+    "AOTcompilerV2bounded12pin4a3c review no concreteAPI/ABI/typeblockerbutVM11fileprivatebody/kernel+strongissuer/callback/limit/return/protocolcontrolsnotfrozen. Actualword/commandlimits/errorline/Exprresultpublication/Returnpipelinekept; onlynumericADDkernelcanbecheckedRustunderactualartifact/ProcDef/frame/currentop. Nativecounterexact1aftercompletedfastReturn/fallbacktraceoverflow0required. No Nativeframeauthorityfrominertsourceplan, noambientexportedguesthelper/fakeNativeProcEntry/blanketABIomit.",
+    "Correctedshippingperf run40243920427 smallLinux121321398158exited143at23:40RunnerSHUTDOWN, NOartifacts. Thisisinfrastructureinterruption, notbuild/semantic/performancefailureattribution. Rootpreserved74953BlogSHA6a7054; singlejobrerunattemptAPI403 becauseworkflowstillrunning, deferreduntilruncompletion. Other5healthyLinux/macsmall/medium/fullscopesleftALONE; nocancellation/acceptedmetrics. Retrypendingfilemaintained.",
+    "Diskapproachedflooragain(2169MBfree). WithNOlivecargo/rustc(all7matchedPIDsdefunctZ recheckedBEFOREEVERYunlink), rootremovedONLY115>24h supersedednonexecutablesinglelink.rmeta cachefilesfromfrozenACTIVEtarget, keptnewestpercrate;430946124Breclaimed/free2600194048Bafter. Fullinode/age/hash/processreceipt a505f963. No source/evidence/ZIP/testexedeleted. LSP/RuntimecanstageownedZIPsfloor-aware; /tmpseparatefull~10MB, TMPDIRworkspace.",
+    "Nativechecked_character_viewAPIandallocationcoveragechoicesremainUNANSWERED(designquestionsresurfaced,currentprototypesheld), no decisionJSON/dependentintegration. ExternalBIGIP/perfstale>60minnotified/no takeover, triageCOMPLETEstatuskept. SourcefunctionalfixesWORKfirst/pairedCLEAN,noprocessevidenceinrelease.00:45nextreminder.",
+    "LookupstabilityobserverV1HELDbySourceProcforunboundedcanonicalStringlogging; boundedborrowedprefixsuccessorbeingprepared, nofunctionalguardchange. Compilerreadonlyowner-route3fileTLSRAIIprobe2c1d99bbfrozenforpeerafter0015, max128staticlabels/existingflag/queryonce/restoredTLS, no SourceContext/role/metadata/Native retagging;3explicitReadonlydepsplanned, actualleafunobserved. AOT13sourceVM+6sourcecompiler freeze/strongpeer/type/control gatingstillpending."
+  ],
+  "committed": [
+    "70ba228d93e071b3f369e79b68e42506257c8634"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish0015checkpointwhilecorrected129ccompiler118/strictbuild; authenticateJimnewgainandhostminifyproducerfactswithno borrowofoldoutcomes.",
+    "Finishreadonlyownedmetadata/role-producer andJimlookupstability scalarobservations, actualminifyownercarrierattachment fix; completeVM/AOTrealprivatekernel+controls.",
+    "Retryonlyinterruptedperfjobwhenother5finish, achievecurrentorigin/rustzeroPASS-to-FAIL/sectionF/fullCI/acceptedshippingTclperformance/docs/comments/generated/fixtures/package/prep-pr beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Jimsubdomain0priorPASSregressionsscoped; compiler118ALLUNRUNtypedstopandtwooldLogicalPTFstillpendingrerun. No wholebaseline/audit/releaseadmission.",
+  "disk_free_bytes": 2537046016,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
