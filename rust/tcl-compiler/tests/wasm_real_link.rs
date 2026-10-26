@@ -530,23 +530,29 @@ fn native_i64_add_options() -> WasmCompileOptions {
     )
 }
 
-fn native_i64_add_bootstrap_wat() -> String {
+fn native_i64_add_bootstrap_wat(expected_dispatches: Option<u32>) -> String {
     let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
     let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
         .descriptor()
         .name;
+    let dispatches = CodegenAbiImportId::NativeProcDispatches.descriptor().name;
+    let checked = expected_dispatches.map_or_else(String::new, |count| {
+        format!("(if (i32.ne (call $dispatches) (i32.const {count})) (then unreachable))")
+    });
     format!(
         r#"(module
   (import "tcl" "memory" (memory 1))
   (import "tcl" "{create}" (func $create (result i32)))
   (import "tcl" "{set_current}" (func $setcur (param i32)))
   (import "user" "::top" (func $top))
+  (import "tcl" "{dispatches}" (func $dispatches (result i32)))
   (export "memory" (memory 0))
   (func (export "_start")
     (local $interp i32)
     (local.set $interp (call $create))
     (call $setcur (local.get $interp))
-    (call $top)))"#,
+    (call $top)
+    {checked}))"#,
     )
 }
 
@@ -674,7 +680,12 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
     let user = scratch("tcl_real_native_i64_user.wasm");
     let boot = scratch("tcl_real_native_i64_boot.wat");
     write_linked(runtime, &user, &output.to_bytes(), program);
-    std::fs::write(&boot, native_i64_add_bootstrap_wat()).expect("write native i64 bootstrap");
+    let expected_dispatches = match &output.plan {
+        WasmCodegenPlan::NativeI64Add { native, .. } if !native.frame_elided => Some(1),
+        _ => None,
+    };
+    std::fs::write(&boot, native_i64_add_bootstrap_wat(expected_dispatches))
+        .expect("write native i64 bootstrap");
     let out = Command::new("wasmtime")
         .arg("run")
         .arg("--preload")
@@ -1212,6 +1223,12 @@ fn sealed_native_i64_add_runs_and_trace_registration_falls_back() {
             native_i64_add_options()
         ),
         "6\n2"
+    );
+    let published = format!("{program}puts [list [info args add] [info body add] $d $e]\n");
+    assert_eq!(
+        run_real_native_i64_add(&runtime, &published),
+        "6\n{b c} {return [expr {$b + $c}]} 2 4\n",
+        "retained Native selection must preserve actual procedure publication and both stores"
     );
 }
 

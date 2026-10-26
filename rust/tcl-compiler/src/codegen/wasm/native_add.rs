@@ -27,6 +27,8 @@
 //! it has not been asked for, no proof is built, and the record is the
 //! options' premises alone.
 
+pub(crate) mod retained_publication;
+
 use std::collections::BTreeMap;
 
 use tcl_registry::hooks::LoweringHookId;
@@ -59,6 +61,53 @@ const REQUIRED_PASSES: [SemanticOptimisationPassId; 5] = [
     SemanticOptimisationPassId::NativeInteger,
     SemanticOptimisationPassId::SemanticOperationSpecialisation,
 ];
+
+/// Private transport wrapper; the public legacy selection keeps its original fields.
+pub(super) struct RetainedNativeI64AddSelection {
+    pub(super) native: WasmNativeI64AddSelection,
+    pub(super) publication: retained_publication::RetainedI64Publication,
+}
+
+/// Select only an inert retained-publication candidate. No frame or body is elided.
+pub(super) fn select_retained(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+    options: WasmCompileOptions,
+) -> Option<RetainedNativeI64AddSelection> {
+    let mut declines = Declines::default();
+    reject_configuration(options, &mut declines);
+    if !declines.is_empty() {
+        return None;
+    }
+    if !matches!(
+        crate::native_compilation_admission::script_admission_plan(
+            &unit.ir_module.top_level,
+            crate::native_compilation_admission::NativeCompilationAdmissionScope::Script,
+        ),
+        crate::native_compilation_admission::NativeCompilationAdmissionPlan::NoRetainedObligation
+    ) {
+        return None;
+    }
+    let candidate = retained_publication::candidate(unit, registry)?;
+    let procedure = unit.ir_module.procedures.get(&candidate.procedure)?;
+    let native = WasmNativeI64AddSelection {
+        callee: crate::common_aot_plan::ProcedureIdentity {
+            id: candidate.procedure,
+            qualified_name: procedure.qualified_name.clone(),
+            definition_start: procedure.span.start(),
+            definition_end: procedure.span.end(),
+        },
+        left: 0,
+        right: 0,
+        boundary_operation: SemanticOperationId::Invoke,
+        frame_elided: false,
+        closed_program_statements: 0,
+    };
+    Some(RetainedNativeI64AddSelection {
+        native,
+        publication: candidate,
+    })
+}
 
 /// Select the sealed native i64 addition, or say which premises rejected it.
 pub(super) fn select(
