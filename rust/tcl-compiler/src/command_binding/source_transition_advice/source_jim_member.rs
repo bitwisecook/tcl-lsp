@@ -393,7 +393,7 @@ mod tests {
     ) -> OriginalAuthoredJimProcedureMember {
         let offset = u32::try_from(source.find(marker).unwrap()).unwrap();
         let mut receipts =
-            source_authored_jim_procedure_members_at(source, &analyser, offset).unwrap();
+            source_authored_jim_procedure_members_at(source, analyser, offset).unwrap();
         assert_eq!(receipts.len(), 1);
         receipts.pop().unwrap()
     }
