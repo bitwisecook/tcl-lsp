@@ -262,6 +262,9 @@ pub(crate) fn original_assignment_name_operand(
     tokens: &CommandTokens,
     statement_name: &str,
 ) -> Option<(OriginalVariableNameOperand, bool)> {
+    let _probe =
+        crate::command_binding::SourceInvocationBinding::begin_original_readonly_metadata_probe();
+
     let source = trace_owned_role(
         "assignment.source_roles",
         original_source_name_roles(registry, tokens),
@@ -424,14 +427,61 @@ fn source_name_roles_from_point_words(
     })
 }
 
+fn probe_role<T>(stage: &'static str, value: Option<T>) -> Option<T> {
+    crate::command_binding::SourceInvocationBinding::probe_original_readonly_option(stage, value)
+}
+
+fn probe_role_guard(stage: &'static str, failed: bool) -> bool {
+    if failed {
+        let _ = probe_role::<()>(stage, None);
+    }
+    failed
+}
+
+fn source_roles_without_layout(
+    binding: &crate::command_binding::SourceInvocationBinding,
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<SourceNameRoleInventory> {
+    if binding.has_original_logical_source_name_role_owner() {
+        let input = probe_role(
+            "roles.logical_input",
+            binding.original_logical_source_input_for_name_roles(tokens, registry),
+        )?;
+        let words = probe_role(
+            "roles.logical_words",
+            binding.original_logical_source_words(tokens, input, registry),
+        )?;
+        return from_source_words(&words, input);
+    }
+    if binding.has_original_authored_source_body_name_role_owner() {
+        let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
+        return from_authored_body_scope(scope, tokens, registry);
+    }
+    let input = probe_role(
+        "roles.native_input",
+        binding.original_native_source_input_for_name_roles(tokens, registry),
+    )?;
+    let words = probe_role(
+        "roles.native_words",
+        binding.original_native_source_words(tokens, input, registry),
+    )?;
+    probe_role("roles.native_inventory", from_source_words(&words, input))
+}
+
 pub(crate) fn original_source_name_roles(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
 ) -> Option<SourceNameRoleInventory> {
-    if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+    if probe_role_guard("roles.unsynthetic", tokens.synthetic.is_some())
+        || probe_role_guard(
+            "roles.original_argv",
+            !tokens.original_words_match_argv_text(),
+        )
+    {
         return None;
     }
-    let binding = tokens.source_binding.as_ref()?;
+    let binding = probe_role("roles.binding", tokens.source_binding.as_ref())?;
     if binding.has_original_authored_source_body_name_role_owner()
         && let Some(scalar) = super::original_authored_scalar_invocation(tokens, registry)
     {
@@ -453,23 +503,14 @@ pub(crate) fn original_source_name_roles(
         });
     }
     if !binding.has_original_source_layout_owner() {
-        if binding.has_original_logical_source_name_role_owner() {
-            let input = binding.original_logical_source_input_for_name_roles(tokens, registry)?;
-            let words = binding.original_logical_source_words(tokens, input, registry)?;
-            return from_source_words(&words, input);
-        }
-        if binding.has_original_authored_source_body_name_role_owner() {
-            let scope =
-                binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
-            return from_authored_body_scope(scope, tokens, registry);
-        }
-        let input = binding.original_native_source_input_for_name_roles(tokens, registry)?;
-        let words = binding.original_native_source_words(tokens, input, registry)?;
-        return from_source_words(&words, input);
+        return source_roles_without_layout(binding, tokens, registry);
     }
-    let metadata = binding
-        .original_source_metadata_for_advice(tokens, registry)
-        .ok()?;
+    let metadata = probe_role(
+        "roles.metadata",
+        binding
+            .original_source_metadata_for_advice(tokens, registry)
+            .ok(),
+    )?;
     if let Some(invocation) =
         super::resolved_tokens_invocation_with_metadata_context(registry, metadata, tokens).or_else(
             || super::resolved_handler_invocation_with_metadata_context(registry, metadata, tokens),

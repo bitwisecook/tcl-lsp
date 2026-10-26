@@ -232,6 +232,9 @@ pub(crate) fn original_substitution_invocations(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<OriginalSubstitutionInventory> {
+    let _probe =
+        crate::command_binding::SourceInvocationBinding::begin_original_readonly_metadata_probe();
+
     let binding = trace_substitution_fact("substitution.binding", tokens.source_binding.as_ref())?;
     if binding.has_original_authored_source_body_name_role_owner() {
         let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;

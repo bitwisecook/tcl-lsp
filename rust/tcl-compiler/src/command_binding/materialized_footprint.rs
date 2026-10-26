@@ -73,7 +73,70 @@ impl OriginalSourceProcedureArgumentRoles<'_> {
     }
 }
 
+thread_local! {
+    static READONLY_METADATA_PROBE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[must_use = "retain the diagnostic scope through the synchronous query"]
+pub(crate) struct OriginalReadonlyMetadataProbe {
+    previous: bool,
+    _thread: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+
+impl Drop for OriginalReadonlyMetadataProbe {
+    fn drop(&mut self) {
+        READONLY_METADATA_PROBE.with(|active| active.set(self.previous));
+    }
+}
+
+fn readonly_metadata_failure(stage: &'static str) {
+    static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if READONLY_METADATA_PROBE.with(std::cell::Cell::get)
+        && LOGS
+            .try_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |count| count.checked_add(1).filter(|next| *next <= 128),
+            )
+            .is_ok()
+    {
+        eprintln!("NATIVE_READONLY_OWNER stage={stage} present=false");
+    }
+}
+
 impl SourceInvocationBinding {
+    pub(crate) fn begin_original_readonly_metadata_probe() -> OriginalReadonlyMetadataProbe {
+        let previous = READONLY_METADATA_PROBE.with(|active| {
+            let previous = active.get();
+            active.set(std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some());
+            previous
+        });
+        OriginalReadonlyMetadataProbe {
+            previous,
+            _thread: std::marker::PhantomData,
+        }
+    }
+
+    pub(crate) fn probe_original_readonly_option<T>(
+        stage: &'static str,
+        value: Option<T>,
+    ) -> Option<T> {
+        if value.is_none() {
+            readonly_metadata_failure(stage);
+        }
+        value
+    }
+
+    fn probe_original_readonly_result<T>(
+        stage: &'static str,
+        value: Result<T, crate::registry_invocation::RegistryInvocationDecline>,
+    ) -> Result<T, crate::registry_invocation::RegistryInvocationDecline> {
+        if value.is_err() {
+            readonly_metadata_failure(stage);
+        }
+        value
+    }
+
     /// Conditional original procedure allocations in the retained Logical
     /// model. Native handler/activation purposes consume their separate owners.
     pub(crate) fn original_logical_procedure_call_targets(
@@ -461,30 +524,47 @@ impl SourceInvocationBinding {
         };
         let refusal = RegistryInvocationDecline::IncompleteResolution;
         match owner {
-            OwnedInvocationMetadataContext::SuppliedSource(input) => self
-                .original_word_metadata_for_input(tokens, input, registry, purpose)
-                .map(Some)
-                .ok_or(refusal),
-            OwnedInvocationMetadataContext::Standalone => {
-                self.original_word_config(tokens, registry, purpose)
-                    .ok_or(refusal)?;
-                let point = &self
-                    .lookup_state
-                    .as_ref()
-                    .ok_or(refusal)?
-                    .state
-                    .baseline
-                    .metadata_context;
-                if !point.is_standalone() {
-                    return Err(refusal);
-                }
-                point
-                    .metadata_context(registry)
-                    .map(crate::registry_invocation::InvocationMetadataSelection::context)
-                    .ok_or(refusal)
+            OwnedInvocationMetadataContext::SuppliedSource(input) => {
+                Self::probe_original_readonly_result(
+                    "owner.supplied_source",
+                    self.original_word_metadata_for_input(tokens, input, registry, purpose)
+                        .map(Some)
+                        .ok_or(refusal),
+                )
             }
-            OwnedInvocationMetadataContext::Supplied(_)
-            | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
+            OwnedInvocationMetadataContext::Standalone => {
+                Self::probe_original_readonly_result(
+                    "owner.standalone_geometry",
+                    self.original_word_config(tokens, registry, purpose)
+                        .ok_or(refusal),
+                )?;
+                let point = &Self::probe_original_readonly_result(
+                    "owner.standalone_point",
+                    self.lookup_state.as_ref().ok_or(refusal),
+                )?
+                .state
+                .baseline
+                .metadata_context;
+                if !point.is_standalone() {
+                    return Self::probe_original_readonly_result(
+                        "owner.standalone_kind",
+                        Err(refusal),
+                    );
+                }
+                Self::probe_original_readonly_result(
+                    "owner.standalone_metadata",
+                    point
+                        .metadata_context(registry)
+                        .map(crate::registry_invocation::InvocationMetadataSelection::context)
+                        .ok_or(refusal),
+                )
+            }
+            OwnedInvocationMetadataContext::Supplied(_) => {
+                Self::probe_original_readonly_result("owner.supplied", Err(refusal))
+            }
+            OwnedInvocationMetadataContext::Unavailable => {
+                Self::probe_original_readonly_result("owner.unavailable", Err(refusal))
+            }
         }
     }
 
@@ -527,9 +607,12 @@ impl SourceInvocationBinding {
         if self.lookup_state.is_some() {
             return self.original_invocation_metadata_at_point(tokens, registry);
         }
-        self.original_declaration_metadata_for_source(tokens, registry)
-            .map(Some)
-            .ok_or(crate::registry_invocation::RegistryInvocationDecline::IncompleteResolution)
+        Self::probe_original_readonly_result(
+            "owner.declaration_absent",
+            self.original_declaration_metadata_for_source(tokens, registry)
+                .map(Some)
+                .ok_or(crate::registry_invocation::RegistryInvocationDecline::IncompleteResolution),
+        )
     }
 
     /// Common original point/vector geometry for actual FU and Module inputs.
