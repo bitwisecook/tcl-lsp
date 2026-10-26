@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T04:45:48.020598+00:00",
+  "scheduled_report_utc": "2026-10-26T04:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T05:15:00+00:00",
+  "change_since_previous_report": [
+    "The 04:15 WIP report was pushed normally as a72315d3f4be169d845b8d030b2219fd801ba5a6 at04:23:42 after a depth-one fetch of work. Product b5fa278e05b6fd3746f7168fca6b2d47c6904902 and CLEAN32e097bd517135b90690a97b39f1215f4ff595e9 were pushed first. Canonical V14 passes with zero failures. No release-gate or audit-unit admission follows.",
+    "Fresh exact-source runs are active: compiler12440268755614, strict40268758236, Spec40268756120, fullTom40268755592, WASM40268755510. Full CLEAN CI40268759875 uses hosted tests and read-only native-build proof, with no tag or publishing. Tcl performance40268757339 covers Linux/macOS small, medium and full; all six passed checkout/revision/corpus stages and are building/measuring. No current timing ratio is available; healthy jobs were preserved.",
+    "B5fa strict fully authenticates b8f5e0d1: private_interfaces2 in Native formal methods plus analysis function102/100, no Rust error code. B5fa compiler124 is provisionally all UNRUN at the same visibility errors; full authentication is pending. B5fa Spec fully authenticates10ff4c3b: all old16, newVM1, string3 and full600 UNRUN at those two warnings-as-errors. Last semantic compiler result remains7dc old10298/4, all58PASS, Child10ALLPASS and NativeString2/1.",
+    "Exact frontier3 repairs independently cleared c6c81f66 and landed WORK865c3710b/CLEAN52f8e3cd8: both methods narrowed to pub(super), and an unchanged lazy owner constructor is extracted at its original point. No private context widening, suppression, guard, memo or ownership-order change. Paired formal contracts add the actual SourceOriginId/Tcl-binder/compiler-slot boundaries and existing shared-owner row; no body/effect/Normal claim.",
+    "B2 Core3 fully authenticates c9219cab: all three Return controls PASS, oldCore2/simple/Quiet PASS, factorial FAIL. Browser fully authenticates a754a5be: earlier Return source now advances, then unchanged main98 source0 owner/currency refuses; full rename FAIL and later77 UNREACHED. Unit fully authenticates f2a08470 navigation+scan3 PASS. Startup fully authenticates771ea435: cold67.366ms, scan30PASS24.026s/barrier25.426s, then original initial diagnostics FAIL -32801 with slot None-to-Some2 and stale source currency. This is functional progress, not shipping performance acceptance.",
+    "Minify first-refusal witness is exact child.relative-region at74/80 after site-filter false. The earlier retained if-child may be correctly too short; it must not be stretched. Pinned C8.6 disassembly on the unchanged factorial body, assessment747d2a86 with source/provider/tool seals and owned process closure, has genuine compiler command entries at body59/65 plus base15 and result120. Existing traversal API is C8.4 early-error preflight only; LSP is implementing separate authentic modern expression visitation while preserving Native/error/admission guards.",
+    "Native mathfunc command presence is corrected for genuine constructors: Jim/C8.4 fixed tables, C8.5+ command registration, Generic unchanged. Source peer9fb57fc7 verifies physical C/Jim references and exact old assertions. Paired fix5b08/21ab and factual Runtime READMEfc223/c801 are integrated locally; no +26-reference cause or execution pass is claimed. Current b5fa runtime artifact is single-owned and being authenticated; first observations reach five CAPI workers before the set_error_code expectation, with AOT5 preliminarily PASS.",
+    "The proposed Generic-constructor-only CAPI negative premise is withdrawn under source review f740141b: set_runtime_version supplies a real profile and the CAPI guard does not require NativeCore construction. Do not add that production restriction. Constructor2 transport protocol8d2fdabb is mechanically clear f6af but HELD, not integrated, until a genuine prior-refusal control and independent legitimate Generic CAPI positive are reviewed. Runtime is obtaining exact C Tcl error-code semantics before any narrow expectation correction.",
+    "All remaining nine Names and six compiler long-test lint fixes and three helper type qualifications are integrated; actual warning-free acceptance is still pending. Jim typed source audit finds AuthoredJimClass is distinct from generic SourceClass: a genuine authored-class/procedure-member receipt is needed, with no retag or runtime grant. New passive observer V1 is held for no process quota; V2 adds bounded1024 observations under the same flag, with explicit UNOBSERVED exhaustion, and separate52nd case protocol is under review.",
+    "Current CLEAN32e macro closure is complete statically:89 unresolved expressions resolve to700 actual expansions/557 existing freshly hashed paths, and all325 relevant root macro calls are covered. Three generated OUT_DIR inputs remain build obligations; no deletion candidates are proved. Whole Rust and standalone formatting pass on recordedbe693; subsequent changed files have copied formatter checks. All F/current baseline/full CI/performance/generated/editor/docs/comment/fixture/package/prep-pr gates remain open. External BIGIP/perf files are over60min stale and reported without takeover; triage is complete. Disk around2.3GiB, no local Rust builds."
+  ],
+  "committed": [
+    "1738c87356ca783928e5b46052bcf32f7d93b3bc"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish the reviewed current source batch and fresh source-pin union, run canonical V14, push both branches normally and retry the blocked focused checks without cancelling healthy runs.",
+    "Implement authentic modern expression/compiler visitation, Native body/effect custody and Jim authored-class admission; fix measured source/slot publication and CAPI first-cause issues conservatively.",
+    "Complete exact current baseline zero PASS-to-FAIL, all mandatory CI, accepted shipping Tcl performance, generated files, documentation/comments/fixtures/packaging/prep-pr before the authorised PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No F checkbox or audit-unit count changes. The six-hour target was missed. New source fixes and component gains do not establish global acceptance. Constructor-negative premise remains explicitly held.",
+  "disk_free_bytes": 2387070976,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

@@ -1,0 +1,776 @@
+[
+  {
+    "id": 40268758236,
+    "head_sha": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-26T04:22:40Z",
+    "name": "Performance",
+    "jobs": [
+      {
+        "id": 121396802648,
+        "name": "release-rust-check-diagnostics",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396803829,
+        "name": "Paired ${{ matrix.scope }} / ${{ matrix.platform }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396803844,
+        "name": "compiler-original58-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396803929,
+        "name": "Kotlin tests for ${{ inputs.candidate_sha }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804100,
+        "name": "lsp-wasi-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804155,
+        "name": "lsp-autoload-core2-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804158,
+        "name": "spectcl-fold-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804195,
+        "name": "graphs-current",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804234,
+        "name": "scoped-lsp-clippy-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804264,
+        "name": "benchmark",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804391,
+        "name": "jim-source-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396804422,
+        "name": "wasm-real-link-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396827206,
+        "name": "lsp-browser-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396827730,
+        "name": "runtime-fulltom-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396830359,
+        "name": "c84-formatter-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396833319,
+        "name": "irules-preflight-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396833755,
+        "name": "lsp-startup-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396838546,
+        "name": "lsp-navigation-unit-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396839567,
+        "name": "runtime-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ]
+  },
+  {
+    "id": 40268757339,
+    "head_sha": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-26T04:22:40Z",
+    "name": "Performance",
+    "jobs": [
+      {
+        "id": 121396799851,
+        "name": "Paired full / macos",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396799926,
+        "name": "Paired full / linux",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396799954,
+        "name": "Paired small / macos",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396799959,
+        "name": "Paired small / linux",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396799961,
+        "name": "Paired medium / linux",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396799983,
+        "name": "Paired medium / macos",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396800603,
+        "name": "runtime-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800681,
+        "name": "lsp-browser-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800696,
+        "name": "graphs-current",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800805,
+        "name": "Kotlin tests for ${{ inputs.candidate_sha }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800820,
+        "name": "scoped-lsp-clippy-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800823,
+        "name": "wasm-real-link-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800841,
+        "name": "irules-preflight-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800887,
+        "name": "lsp-wasi-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800903,
+        "name": "c84-formatter-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800924,
+        "name": "benchmark",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800939,
+        "name": "runtime-fulltom-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396800983,
+        "name": "compiler-original58-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396801043,
+        "name": "lsp-navigation-unit-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396801076,
+        "name": "release-rust-check-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396801215,
+        "name": "jim-source-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396825067,
+        "name": "lsp-startup-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396832362,
+        "name": "spectcl-fold-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396835755,
+        "name": "lsp-autoload-core2-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ]
+  },
+  {
+    "id": 40268756120,
+    "head_sha": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-26T04:22:39Z",
+    "name": "Performance",
+    "jobs": [
+      {
+        "id": 121396796212,
+        "name": "spectcl-fold-diagnostics",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396796982,
+        "name": "scoped-lsp-clippy-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797174,
+        "name": "lsp-autoload-core2-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797439,
+        "name": "runtime-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797449,
+        "name": "lsp-wasi-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797450,
+        "name": "benchmark",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797492,
+        "name": "c84-formatter-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797532,
+        "name": "lsp-navigation-unit-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797538,
+        "name": "lsp-startup-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797546,
+        "name": "wasm-real-link-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797566,
+        "name": "compiler-original58-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797591,
+        "name": "irules-preflight-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797595,
+        "name": "jim-source-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396797864,
+        "name": "Paired ${{ matrix.scope }} / ${{ matrix.platform }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396827247,
+        "name": "lsp-browser-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396827798,
+        "name": "graphs-current",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396828139,
+        "name": "Kotlin tests for ${{ inputs.candidate_sha }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396829886,
+        "name": "release-rust-check-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396838184,
+        "name": "runtime-fulltom-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ]
+  },
+  {
+    "id": 40268755592,
+    "head_sha": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-26T04:22:38Z",
+    "name": "Performance",
+    "jobs": [
+      {
+        "id": 121396794752,
+        "name": "runtime-fulltom-diagnostics",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396795600,
+        "name": "scoped-lsp-clippy-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795625,
+        "name": "irules-preflight-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795692,
+        "name": "spectcl-fold-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795735,
+        "name": "Kotlin tests for ${{ inputs.candidate_sha }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795742,
+        "name": "jim-source-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795764,
+        "name": "Paired ${{ matrix.scope }} / ${{ matrix.platform }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795874,
+        "name": "wasm-real-link-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795876,
+        "name": "lsp-wasi-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795940,
+        "name": "lsp-startup-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795956,
+        "name": "graphs-current",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795985,
+        "name": "release-rust-check-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796022,
+        "name": "runtime-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796327,
+        "name": "lsp-autoload-core2-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796352,
+        "name": "benchmark",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796386,
+        "name": "lsp-browser-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796479,
+        "name": "lsp-navigation-unit-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396817088,
+        "name": "compiler-original58-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396823144,
+        "name": "c84-formatter-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ]
+  },
+  {
+    "id": 40268755614,
+    "head_sha": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-26T04:22:38Z",
+    "name": "Performance",
+    "jobs": [
+      {
+        "id": 121396794803,
+        "name": "compiler-original58-diagnostics",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396795568,
+        "name": "benchmark",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795703,
+        "name": "lsp-navigation-unit-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795782,
+        "name": "Paired ${{ matrix.scope }} / ${{ matrix.platform }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795852,
+        "name": "lsp-wasi-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795905,
+        "name": "wasm-real-link-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795907,
+        "name": "Kotlin tests for ${{ inputs.candidate_sha }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795954,
+        "name": "spectcl-fold-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795961,
+        "name": "scoped-lsp-clippy-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396795963,
+        "name": "lsp-startup-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796077,
+        "name": "jim-source-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796179,
+        "name": "runtime-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796223,
+        "name": "graphs-current",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796306,
+        "name": "lsp-browser-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796367,
+        "name": "runtime-fulltom-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396820415,
+        "name": "c84-formatter-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396828455,
+        "name": "release-rust-check-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396831246,
+        "name": "lsp-autoload-core2-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396833614,
+        "name": "irules-preflight-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ]
+  },
+  {
+    "id": 40268755510,
+    "head_sha": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-26T04:22:38Z",
+    "name": "Performance",
+    "jobs": [
+      {
+        "id": 121396795104,
+        "name": "wasm-real-link-diagnostics",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 121396795793,
+        "name": "benchmark",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796006,
+        "name": "lsp-wasi-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796158,
+        "name": "runtime-fulltom-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796174,
+        "name": "c84-formatter-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796200,
+        "name": "graphs-current",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796222,
+        "name": "lsp-startup-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796257,
+        "name": "lsp-navigation-unit-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796259,
+        "name": "lsp-browser-navigation-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796311,
+        "name": "compiler-original58-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796323,
+        "name": "irules-preflight-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796415,
+        "name": "Kotlin tests for ${{ inputs.candidate_sha }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796512,
+        "name": "runtime-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796551,
+        "name": "spectcl-fold-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396796769,
+        "name": "release-rust-check-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396817664,
+        "name": "jim-source-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396827484,
+        "name": "Paired ${{ matrix.scope }} / ${{ matrix.platform }}",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396834092,
+        "name": "lsp-autoload-core2-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121396837118,
+        "name": "scoped-lsp-clippy-diagnostics",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ]
+  }
+]

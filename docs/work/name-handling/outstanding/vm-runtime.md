@@ -1,10 +1,16 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T04:05:20Z
+Last updated: 2026-10-26T04:38:10Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current b5fa Spec40268756120 fullboundaryAUTH10ff4c3b: firstpack buildblocked by2Nativeformal private_interfaces diagnostics, ALLold16/newVM1/string3/full600UNRUN. SoleZIPretained; currentruntime40268755592 pendingartifact04:36poll. NativeStringstageseb0b9a present butnotexecuted, formalvisibilityrepair Compiler-owned. CAPIgenuineNativefixtureV2 CLEARd87e3040 integratedcurrentb5fa (positivecallbacksactualpending; Genericnegative notold135selected). Mathfuncconstructor originalsurface productionfix STRONGCLEAR9fb57fc7 integratedNEXT5b08/21ab only, notb5fa; no+26refcausalclaim. Separateconstructor2protocol8d2fdabb pendingstrongpeer: samefreshfullTomELF afterunchangedold140/sharedbudgets/env/noCargo, alloldFAIL/CFI125retained,2actualfunctionhashes,16actualhelper+16returnstatusnochildcontrols. ProductREADMEparagraph e2e8e915 readyrootreview, no newcapture/policy/coverageclaim.
+
+
+Release blocker audit vm-runtime84-required-baseline-audit-7dc-v1 assessment dbade71f exact baseline40187433105 join: current84 failures all ABSENT observedbaseline, zero exact matched baselinePASS→FAIL; this grants no waiver and984baseline identities outsidefocus remainunknown. CurrentCargo/xtask graph pins unchanged;19 same-relative VM modules/8same-named controls correspond, all retained implementations/tests mandatorygreen. Narrow CAPI positive setup V2 uses genuineNativeCore C84/C86/C90, preservesallold8testbodies/assertions/versions and newGeneric refusal negative; SourceProcCLEARd87e3040, actualUNRUN. Separate production mathfuncconstructor candidate vm-native-core-mathfunc-surface-v1 WORKe7ef97e2/CLEANc71d9401 gatesselectedNativeJim/C84 absentcommandfamily undergenuinebootstraprecipe, C85+/Generic unchanged; strongpeerpending, no actualcausal/+26refclaim. NativeString existingpositive finalreceipt stillFAIL on7dc; finitebeforeappend/beforeputs/finalstate diagnostic SourceProcCLEAR08df6624 rootcommittedeb0b9a, nextactualrequiredbeforeanyepoch/producerrelaxation.
+
 
 Current7dc runtime40263626288 FULLAUTH74b261e5 confirms AOT5ALLPASS again; same84oldFAIL/CFIincomplete/final125. Spec40263624882 original13PASS, oldIndex3/newNativeStringVM1/string3/full600 UNRUN because newVMfixture omitted ValueOps import (5E0599). Pairedimport796bbf90 SourceProcCLEAR155f14ee root integrated603fe404/a7f63d, actualretry pending. Compiler122 NativeString3=2P1F; positive exactcontents_native_string_access_closed_at fails firstC84 atline66, negativecontrolsPASS; productiveproducer cause undertrace, assertions unchanged. NativeStringV2 source integrated but no positivecoverage closure. PubliccharacterAPI/allocation holds remain.
 

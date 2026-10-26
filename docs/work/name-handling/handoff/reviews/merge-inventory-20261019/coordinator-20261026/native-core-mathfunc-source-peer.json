@@ -1,0 +1,121 @@
+{
+  "decision": "CLEAR narrow Native constructor command-surface correction, next snapshot; actual execution UNRUN",
+  "checks": [
+    {
+      "lane": "WORK",
+      "manifest_sha256": "a61f701f873d26c6c9d0f28c827745570648712ab9099d2f7885f13231d3b3cd",
+      "path": "rust/tcl-registry/src/special_vars.rs",
+      "current_F_R_fmt_entiremodule_inverse": true
+    },
+    {
+      "lane": "WORK",
+      "manifest_sha256": "a61f701f873d26c6c9d0f28c827745570648712ab9099d2f7885f13231d3b3cd",
+      "path": "runtime/rust/src/builtins.rs",
+      "current_F_R_fmt_entiremodule_inverse": true
+    },
+    {
+      "lane": "WORK",
+      "manifest_sha256": "a61f701f873d26c6c9d0f28c827745570648712ab9099d2f7885f13231d3b3cd",
+      "path": "runtime/rust/src/interp.rs",
+      "current_F_R_fmt_entiremodule_inverse": true
+    },
+    {
+      "lane": "CLEAN",
+      "manifest_sha256": "a1968481cd1084e6aec54df1f1dfcbff8b8b2817bd05b726c16fef362b9b273a",
+      "path": "rust/tcl-registry/src/special_vars.rs",
+      "current_F_R_fmt_entiremodule_inverse": true
+    },
+    {
+      "lane": "CLEAN",
+      "manifest_sha256": "a1968481cd1084e6aec54df1f1dfcbff8b8b2817bd05b726c16fef362b9b273a",
+      "path": "runtime/rust/src/builtins.rs",
+      "current_F_R_fmt_entiremodule_inverse": true
+    },
+    {
+      "lane": "CLEAN",
+      "manifest_sha256": "a1968481cd1084e6aec54df1f1dfcbff8b8b2817bd05b726c16fef362b9b273a",
+      "path": "runtime/rust/src/interp.rs",
+      "current_F_R_fmt_entiremodule_inverse": true
+    }
+  ],
+  "physical_reference_checks": [
+    {
+      "path": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "actual_mathfunc_namespace_creation_lines": [],
+      "actual_creation_windows": []
+    },
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl8.4.20/generic/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "actual_mathfunc_namespace_creation_lines": [],
+      "actual_creation_windows": []
+    },
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl8.5.19/generic/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "actual_mathfunc_namespace_creation_lines": [
+        737
+      ],
+      "actual_creation_windows": [
+        {
+          "start": 733,
+          "text": "    /*\n     * Register the builtin math functions.\n     */\n\n    mathfuncNSPtr = Tcl_CreateNamespace(interp, \"::tcl::mathfunc\", NULL,NULL);\n    if (mathfuncNSPtr == NULL) {\n\tTcl_Panic(\"Can't create math function namespace\");\n    }\n    strcpy(mathFuncName, \"::tcl::mathfunc::\");\n#define MATH_FUNC_PREFIX_LEN 17 /* == strlen(\"::tcl::mathfunc::\") */\n    for (builtinFuncPtr = BuiltinFuncTable; builtinFuncPtr->name != NULL;\n\t    builtinFuncPtr++) {\n\tstrcpy(mathFuncName+MATH_FUNC_PREFIX_LEN, builtinFuncPtr->name);\n\tTcl_CreateObjCommand(interp, mathFuncName,\n\t\tbuiltinFuncPtr->objCmdProc, builtinFuncPtr->clientData, NULL);\n\tTcl_Export(interp, mathfuncNSPtr, builtinFuncPtr->name, 0);\n    }\n\n    /*\n     * Register the mathematical \"operator\" commands. [TIP #174]\n     */\n"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclBasic.c",
+      "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "actual_mathfunc_namespace_creation_lines": [
+        922
+      ],
+      "actual_creation_windows": [
+        {
+          "start": 918,
+          "text": "    /*\n     * Register the builtin math functions.\n     */\n\n    nsPtr = Tcl_CreateNamespace(interp, \"::tcl::mathfunc\", NULL,NULL);\n    if (nsPtr == NULL) {\n\tTcl_Panic(\"Can't create math function namespace\");\n    }\n#define MATH_FUNC_PREFIX_LEN 17 /* == strlen(\"::tcl::mathfunc::\") */\n    memcpy(mathFuncName, \"::tcl::mathfunc::\", MATH_FUNC_PREFIX_LEN);\n    for (builtinFuncPtr = BuiltinFuncTable; builtinFuncPtr->name != NULL;\n\t    builtinFuncPtr++) {\n\tstrcpy(mathFuncName + MATH_FUNC_PREFIX_LEN, builtinFuncPtr->name);\n\tTcl_CreateObjCommand(interp, mathFuncName,\n\t\tbuiltinFuncPtr->objCmdProc, builtinFuncPtr->clientData, NULL);\n\tTcl_Export(interp, nsPtr, builtinFuncPtr->name, 0);\n    }\n\n    /*\n     * Register the mathematical \"operator\" commands. [TIP #174]\n     */\n"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclBasic.c",
+      "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "actual_mathfunc_namespace_creation_lines": [
+        1269
+      ],
+      "actual_creation_windows": [
+        {
+          "start": 1265,
+          "text": "    /*\n     * Register the builtin math functions.\n     */\n\n    nsPtr = Tcl_CreateNamespace(interp, \"::tcl::mathfunc\", NULL, NULL);\n    if (nsPtr == NULL) {\n\tTcl_Panic(\"Can't create math function namespace\");\n    }\n#define MATH_FUNC_PREFIX_LEN 17 /* == strlen(\"::tcl::mathfunc::\") */\n    memcpy(mathFuncName, \"::tcl::mathfunc::\", MATH_FUNC_PREFIX_LEN);\n    for (builtinFuncPtr = BuiltinFuncTable; builtinFuncPtr->name != NULL;\n\t    builtinFuncPtr++) {\n\tstrcpy(mathFuncName + MATH_FUNC_PREFIX_LEN, builtinFuncPtr->name);\n\tTcl_CreateObjCommand(interp, mathFuncName,\n\t\tbuiltinFuncPtr->objCmdProc, (void *)builtinFuncPtr->fn, NULL);\n\tTcl_Export(interp, nsPtr, builtinFuncPtr->name, 0);\n    }\n\n    /*\n     * Register the mathematical \"operator\" commands. [TIP #174]\n     */\n"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclBasic.c",
+      "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "actual_mathfunc_namespace_creation_lines": [
+        1205
+      ],
+      "actual_creation_windows": [
+        {
+          "start": 1201,
+          "text": "    /*\n     * Register the builtin math functions.\n     */\n\n    nsPtr = Tcl_CreateNamespace(interp, \"::tcl::mathfunc\", NULL, NULL);\n    if (nsPtr == NULL) {\n\tTcl_Panic(\"Can't create math function namespace\");\n    }\n#define MATH_FUNC_PREFIX_LEN 17 /* == strlen(\"::tcl::mathfunc::\") */\n    memcpy(mathFuncName, \"::tcl::mathfunc::\", MATH_FUNC_PREFIX_LEN);\n    for (builtinFuncPtr = BuiltinFuncTable; builtinFuncPtr->name != NULL;\n\t    builtinFuncPtr++) {\n\tstrcpy(mathFuncName + MATH_FUNC_PREFIX_LEN, builtinFuncPtr->name);\n\tTcl_CreateObjCommand2(interp, mathFuncName,\n\t\tbuiltinFuncPtr->objCmdProc, (void *)builtinFuncPtr->fn, NULL);\n\tTcl_Export(interp, nsPtr, builtinFuncPtr->name, 0);\n    }\n\n    /*\n     * Register the mathematical \"operator\" commands. [TIP #174]\n     */\n"
+        }
+      ]
+    }
+  ],
+  "semantic_audit": [
+    "NativeBootstrapProtocol has private names issued by existing actual dialect bootstrap protocol; new purpose-only predicate distinguishes Jim/C84 from C85/C86/C90/C91. No current interpreter/object/handler authority follows from predicate.",
+    "Only existing install_for_bootstrap Native Some protocol path is restricted. Generic None uses unchanged install; C85+ still calls exact old cmd_mathfunc installer with unchanged version roster behavior. Existing cfg(have_tommath) preserved for installer and new test.",
+    "with_native_core selects actual profile/version/protocol and invokes install_native_core; no new profile setter, receipt, ownership or retirement mechanism. Core registration sequence elsewhere unchanged.",
+    "C84/Jim expressions already use independent fixed table: RuntimeExprSurface::math_function_call_target routes FixedBuiltin; Interp::eval_fixed_math_call directly calls mathfunc_identity; refresh_native_math_function_table constructs functions from registry implementation surface independently of command registrations. Existing function body/preparation/getter guards unchanged. No required ::tcl::mathfunc command-table fallback removed from these paths.",
+    "All old constructor/refcount/result/assertion/test bodies byteexact; new6profile+Generic control checks constructor refusal absence and abs-command presence. Pointer/lifetime/retirement counts never adjusted.",
+    "Pinned C84 uses mathFuncTable; Jim own expression operator function enum and core-command list lacks Tcl mathfunc family. C85/C86/C90/C91 actual physical Tcl_CreateNamespace registration windows independently read; author C86/C90/C91 excerpts were off-target but reported creation line numbers and physical hashes correct, exact supporting windows retained here."
+  ],
+  "limitations": [
+    "No local build/Rust/Clippy/test execution; all new/old result claims remain UNRUN.",
+    "No claim removal explains or fixes +26 refs. Mathfunc command count is not an allocation/reference accounting proof.",
+    "Family-presence correction does not newly certify complete C85/C90/C91 per-name roster; those existing installer behaviors remain unchanged.",
+    "Final metadata union/new control selection remains root-owned; no canonical mutation."
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-26T04:15:16.312163+00:00",
+  "source": "be6935f0ed2d4810169e784d8f61d3344468973c",
+  "checks": [
+    {
+      "workspace": "rust",
+      "exit": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "workspace": "runtime/rust",
+      "exit": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "result": "PASS",
+  "scope": "Formatting only; no Rust compilation/tests/Clippy acceptance"
+}

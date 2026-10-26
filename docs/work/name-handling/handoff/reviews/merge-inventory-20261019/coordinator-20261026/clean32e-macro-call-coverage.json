@@ -1,0 +1,4839 @@
+{
+  "utc": "2026-10-26T04:24:12.105204+00:00",
+  "release_head": "32e097bd517135b90690a97b39f1215f4ff595e9",
+  "root_calls_checked": 325,
+  "uncovered_relevant_root_calls": [],
+  "rows": [
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 99,
+      "arguments": [
+        "\"root-empty\""
+      ],
+      "bindings": [
+        {
+          "name": "root-empty"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 100,
+      "arguments": [
+        "\"root-missing\""
+      ],
+      "bindings": [
+        {
+          "name": "root-missing"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 101,
+      "arguments": [
+        "\"root-c-prefix\""
+      ],
+      "bindings": [
+        {
+          "name": "root-c-prefix"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 102,
+      "arguments": [
+        "\"root-e-prefix\""
+      ],
+      "bindings": [
+        {
+          "name": "root-e-prefix"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 103,
+      "arguments": [
+        "\"child-missing\""
+      ],
+      "bindings": [
+        {
+          "name": "child-missing"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 104,
+      "arguments": [
+        "\"child-empty\""
+      ],
+      "bindings": [
+        {
+          "name": "child-empty"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 105,
+      "arguments": [
+        "\"child-h-prefix\""
+      ],
+      "bindings": [
+        {
+          "name": "child-h-prefix"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 106,
+      "arguments": [
+        "\"child-hi-prefix\""
+      ],
+      "bindings": [
+        {
+          "name": "child-hi-prefix"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "rows",
+      "line": 109,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "rows",
+      "line": 110,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "rows",
+      "line": 111,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "rows",
+      "line": 112,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "rows",
+      "line": 113,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "rows",
+      "line": 114,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "macro": "source",
+      "line": 127,
+      "arguments": [
+        "\"child-prelude\""
+      ],
+      "bindings": [
+        {
+          "name": "child-prelude"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_array/undefined_root.rs",
+      "macro": "provider",
+      "line": 28,
+      "arguments": [
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_array/undefined_root.rs",
+      "macro": "provider",
+      "line": 29,
+      "arguments": [
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_array/undefined_root.rs",
+      "macro": "provider",
+      "line": 30,
+      "arguments": [
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_array/undefined_root.rs",
+      "macro": "provider",
+      "line": 31,
+      "arguments": [
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_array/undefined_root.rs",
+      "macro": "provider",
+      "line": 32,
+      "arguments": [
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_array/undefined_root.rs",
+      "macro": "provider",
+      "line": 33,
+      "arguments": [
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1218,
+      "arguments": [
+        "\"original\"",
+        "\"yield-ok\""
+      ],
+      "bindings": [
+        {
+          "directory": "original",
+          "case": "yield-ok"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1219,
+      "arguments": [
+        "\"original\"",
+        "\"yield-error\""
+      ],
+      "bindings": [
+        {
+          "directory": "original",
+          "case": "yield-error"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1220,
+      "arguments": [
+        "\"original\"",
+        "\"yieldto-ok\""
+      ],
+      "bindings": [
+        {
+          "directory": "original",
+          "case": "yieldto-ok"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1221,
+      "arguments": [
+        "\"original\"",
+        "\"yieldto-error\""
+      ],
+      "bindings": [
+        {
+          "directory": "original",
+          "case": "yieldto-error"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1222,
+      "arguments": [
+        "\"errors\"",
+        "\"yield-terminal-error\""
+      ],
+      "bindings": [
+        {
+          "directory": "errors",
+          "case": "yield-terminal-error"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1223,
+      "arguments": [
+        "\"errors\"",
+        "\"yield-replaced-error\""
+      ],
+      "bindings": [
+        {
+          "directory": "errors",
+          "case": "yield-replaced-error"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1224,
+      "arguments": [
+        "\"errors\"",
+        "\"yieldto-terminal-error\""
+      ],
+      "bindings": [
+        {
+          "directory": "errors",
+          "case": "yieldto-terminal-error"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_coro.rs",
+      "macro": "original_case",
+      "line": 1225,
+      "arguments": [
+        "\"errors\"",
+        "\"yieldto-replaced-error\""
+      ],
+      "bindings": [
+        {
+          "directory": "errors",
+          "case": "yieldto-replaced-error"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 52,
+      "arguments": [
+        "\"deferred-original.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "deferred-original.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 57,
+      "arguments": [
+        "\"recreated-object-private-dispatcher.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "recreated-object-private-dispatcher.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 62,
+      "arguments": [
+        "\"synchronous-create.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-create.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 63,
+      "arguments": [
+        "\"synchronous-create.prelude.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-create.prelude.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 64,
+      "arguments": [
+        "\"synchronous-create.query.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-create.query.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 67,
+      "arguments": [
+        "\"synchronous-replace.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-replace.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 68,
+      "arguments": [
+        "\"synchronous-replace.prelude.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-replace.prelude.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 69,
+      "arguments": [
+        "\"synchronous-replace.query.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-replace.query.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "source",
+      "line": 72,
+      "arguments": [
+        "\"deferred-alias-relative-rooted.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "deferred-alias-relative-rooted.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rows",
+      "line": 123,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rows",
+      "line": 124,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rows",
+      "line": 125,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rows",
+      "line": 126,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rows",
+      "line": 127,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rows",
+      "line": 128,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_source",
+      "line": 194,
+      "arguments": [
+        "\"default-live.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "default-live.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_source",
+      "line": 195,
+      "arguments": [
+        "\"relative-qualified-live.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "relative-qualified-live.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_source",
+      "line": 196,
+      "arguments": [
+        "\"default-retained-parent.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "default-retained-parent.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_source",
+      "line": 197,
+      "arguments": [
+        "\"relative-retained-parent.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "relative-retained-parent.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_rows",
+      "line": 200,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_rows",
+      "line": 201,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_rows",
+      "line": 202,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_rows",
+      "line": 203,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_rows",
+      "line": 204,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_rows",
+      "line": 205,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_source",
+      "line": 221,
+      "arguments": [
+        "\"holder-prelude.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "holder-prelude.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "ensemble_source",
+      "line": 230,
+      "arguments": [
+        "\"retained-query.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "retained-query.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_source",
+      "line": 283,
+      "arguments": [
+        "\"original-library-formals-and-bodies.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "original-library-formals-and-bodies.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_source",
+      "line": 284,
+      "arguments": [
+        "\"global-helper-replacement.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "global-helper-replacement.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_source",
+      "line": 285,
+      "arguments": [
+        "\"namespace-local-helper-replacement.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "namespace-local-helper-replacement.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_source",
+      "line": 286,
+      "arguments": [
+        "\"original-unsupported-and-arity.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "original-unsupported-and-arity.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_rows",
+      "line": 289,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_rows",
+      "line": 290,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_rows",
+      "line": 291,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_rows",
+      "line": 292,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_rows",
+      "line": 293,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "jim_library_rows",
+      "line": 294,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_source",
+      "line": 355,
+      "arguments": [
+        "\"default-namespace-command.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "default-namespace-command.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_source",
+      "line": 356,
+      "arguments": [
+        "\"namespace-prefix-override.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "namespace-prefix-override.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_source",
+      "line": 357,
+      "arguments": [
+        "\"literal-command-prefix-override.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "literal-command-prefix-override.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_source",
+      "line": 358,
+      "arguments": [
+        "\"exact-create-and-option-selection.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "exact-create-and-option-selection.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_rows",
+      "line": 361,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_rows",
+      "line": 362,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_rows",
+      "line": 363,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_rows",
+      "line": 364,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_rows",
+      "line": 365,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "macro": "rooted_factory_rows",
+      "line": 366,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_oo.rs",
+      "macro": "provider",
+      "line": 10969,
+      "arguments": [
+        "\"tcl8.4\"",
+        "\"8.4.20\"",
+        "true"
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_oo.rs",
+      "macro": "provider",
+      "line": 10970,
+      "arguments": [
+        "\"tcl8.5\"",
+        "\"8.5.19\"",
+        "true"
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_oo.rs",
+      "macro": "provider",
+      "line": 10971,
+      "arguments": [
+        "\"tcl8.6\"",
+        "\"8.6.18\"",
+        "false"
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_oo.rs",
+      "macro": "provider",
+      "line": 10972,
+      "arguments": [
+        "\"tcl9.0\"",
+        "\"9.0.4\"",
+        "false"
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_oo.rs",
+      "macro": "provider",
+      "line": 10973,
+      "arguments": [
+        "\"tcl9.1\"",
+        "\"9.1.0\"",
+        "false"
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_oo.rs",
+      "macro": "provider",
+      "line": 10974,
+      "arguments": [
+        "\"jim\"",
+        "\"jim\"",
+        "false"
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var.rs",
+      "macro": "provider",
+      "line": 1167,
+      "arguments": [
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var.rs",
+      "macro": "provider",
+      "line": 1168,
+      "arguments": [
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var.rs",
+      "macro": "provider",
+      "line": 1169,
+      "arguments": [
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var.rs",
+      "macro": "provider",
+      "line": 1170,
+      "arguments": [
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var.rs",
+      "macro": "provider",
+      "line": 1171,
+      "arguments": [
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var.rs",
+      "macro": "provider",
+      "line": 1172,
+      "arguments": [
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var/member_trace_horizon.rs",
+      "macro": "provider",
+      "line": 30,
+      "arguments": [
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var/member_trace_horizon.rs",
+      "macro": "provider",
+      "line": 31,
+      "arguments": [
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var/member_trace_horizon.rs",
+      "macro": "provider",
+      "line": 32,
+      "arguments": [
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var/member_trace_horizon.rs",
+      "macro": "provider",
+      "line": 33,
+      "arguments": [
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var/member_trace_horizon.rs",
+      "macro": "provider",
+      "line": 34,
+      "arguments": [
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_var/member_trace_horizon.rs",
+      "macro": "provider",
+      "line": 35,
+      "arguments": [
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/embedded_stdlib.rs",
+      "macro": "embed",
+      "line": 75,
+      "arguments": [
+        "\"init.tcl\"",
+        "\"package.tcl\"",
+        "\"tm.tcl\"",
+        "\"parray.tcl\"",
+        "\"tclIndex\"",
+        "\"tcltest/pkgIndex.tcl\"",
+        "\"tcltest/tcltest.tcl\"",
+        "\"cookiejar/pkgIndex.tcl\"",
+        "\"dde/pkgIndex.tcl\"",
+        "\"http/pkgIndex.tcl\"",
+        "\"msgcat/pkgIndex.tcl\"",
+        "\"opt/pkgIndex.tcl\"",
+        "\"platform/pkgIndex.tcl\"",
+        "\"registry/pkgIndex.tcl\""
+      ],
+      "bindings": [
+        {
+          "rel": "init.tcl"
+        },
+        {
+          "rel": "package.tcl"
+        },
+        {
+          "rel": "tm.tcl"
+        },
+        {
+          "rel": "parray.tcl"
+        },
+        {
+          "rel": "tclIndex"
+        },
+        {
+          "rel": "tcltest/pkgIndex.tcl"
+        },
+        {
+          "rel": "tcltest/tcltest.tcl"
+        },
+        {
+          "rel": "cookiejar/pkgIndex.tcl"
+        },
+        {
+          "rel": "dde/pkgIndex.tcl"
+        },
+        {
+          "rel": "http/pkgIndex.tcl"
+        },
+        {
+          "rel": "msgcat/pkgIndex.tcl"
+        },
+        {
+          "rel": "opt/pkgIndex.tcl"
+        },
+        {
+          "rel": "platform/pkgIndex.tcl"
+        },
+        {
+          "rel": "registry/pkgIndex.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_precision.rs",
+      "macro": "provider",
+      "line": 386,
+      "arguments": [
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_precision.rs",
+      "macro": "provider",
+      "line": 387,
+      "arguments": [
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_precision.rs",
+      "macro": "provider",
+      "line": 388,
+      "arguments": [
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_precision.rs",
+      "macro": "provider",
+      "line": 389,
+      "arguments": [
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_precision.rs",
+      "macro": "provider",
+      "line": 390,
+      "arguments": [
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_precision.rs",
+      "macro": "provider",
+      "line": 391,
+      "arguments": [
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 449,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"element-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "element-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 450,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"scalar-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "scalar-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 488,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"element-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "element-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 489,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"scalar-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "scalar-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 500,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"element-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "element-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 513,
+      "arguments": [
+        "\"native_array_operational_unset355\"",
+        "\"array-member-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_operational_unset355",
+          "case": "array-member-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 514,
+      "arguments": [
+        "\"native_array_operational_unset355\"",
+        "\"array-root-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_operational_unset355",
+          "case": "array-root-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 527,
+      "arguments": [
+        "\"native_array_unset_relookup356\"",
+        "\"whole-root-relookup\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_unset_relookup356",
+          "case": "whole-root-relookup"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 528,
+      "arguments": [
+        "\"native_array_unset_relookup356\"",
+        "\"member-held-root\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_unset_relookup356",
+          "case": "member-held-root"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 540,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"element-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "element-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 541,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"scalar-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "scalar-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 572,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"element-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "element-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 573,
+      "arguments": [
+        "\"native_variable_trace_refill351\"",
+        "\"scalar-alias-refill\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_variable_trace_refill351",
+          "case": "scalar-alias-refill"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 665,
+      "arguments": [
+        "\"native_array_undefined_member350\"",
+        "\"explicit-unset\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_undefined_member350",
+          "case": "explicit-unset"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 666,
+      "arguments": [
+        "\"native_array_undefined_member350\"",
+        "\"frame-exit\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_undefined_member350",
+          "case": "frame-exit"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 667,
+      "arguments": [
+        "\"native_array_undefined_member350\"",
+        "\"namespace-delete\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_undefined_member350",
+          "case": "namespace-delete"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 679,
+      "arguments": [
+        "\"native_array_owner_teardown347\"",
+        "\"namespace-root\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_owner_teardown347",
+          "case": "namespace-root"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 680,
+      "arguments": [
+        "\"native_array_owner_teardown347\"",
+        "\"namespace-recreated\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_owner_teardown347",
+          "case": "namespace-recreated"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 681,
+      "arguments": [
+        "\"native_array_owner_teardown347\"",
+        "\"namespace-foreign\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_owner_teardown347",
+          "case": "namespace-foreign"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 695,
+      "arguments": [
+        "\"native_array_owner_teardown347\"",
+        "\"frame-root\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_owner_teardown347",
+          "case": "frame-root"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 696,
+      "arguments": [
+        "\"native_array_owner_teardown347\"",
+        "\"frame-members\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_owner_teardown347",
+          "case": "frame-members"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 697,
+      "arguments": [
+        "\"native_array_frame_teardown348\"",
+        "\"frame-root\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_frame_teardown348",
+          "case": "frame-root"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 698,
+      "arguments": [
+        "\"native_array_frame_teardown348\"",
+        "\"frame-members\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_frame_teardown348",
+          "case": "frame-members"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 710,
+      "arguments": [
+        "\"native_array_frame_access349\"",
+        "\"frame-root-access\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_frame_access349",
+          "case": "frame-root-access"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "macro": "control",
+      "line": 711,
+      "arguments": [
+        "\"native_array_frame_access349\"",
+        "\"frame-member-access\""
+      ],
+      "bindings": [
+        {
+          "fixture": "native_array_frame_access349",
+          "case": "frame-member-access"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 44,
+      "arguments": [
+        "\"compat84.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "compat84.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 45,
+      "arguments": [
+        "\"state_layers.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "state_layers.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 46,
+      "arguments": [
+        "\"tmm_shim.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "tmm_shim.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 47,
+      "arguments": [
+        "\"expr_ops.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "expr_ops.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 48,
+      "arguments": [
+        "\"profiler.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "profiler.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 49,
+      "arguments": [
+        "\"command_mocks.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "command_mocks.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 50,
+      "arguments": [
+        "\"itest_core.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "itest_core.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 51,
+      "arguments": [
+        "\"orchestrator.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "orchestrator.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 53,
+      "arguments": [
+        "\"_registry_data.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "_registry_data.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 54,
+      "arguments": [
+        "\"_user_surface_data.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "_user_surface_data.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 55,
+      "arguments": [
+        "\"_event_data.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "_event_data.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 61,
+      "arguments": [
+        "\"_mock_stubs.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "_mock_stubs.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-irule-test/src/embedded.rs",
+      "macro": "bundled",
+      "line": 62,
+      "arguments": [
+        "\"_mock_names.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "_mock_names.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-registry/src/native_procedure.rs",
+      "macro": "engine_cases",
+      "line": 1605,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-registry/src/native_procedure.rs",
+      "macro": "engine_cases",
+      "line": 1606,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-registry/src/native_procedure.rs",
+      "macro": "engine_cases",
+      "line": 1607,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-registry/src/native_procedure.rs",
+      "macro": "engine_cases",
+      "line": 1608,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-registry/src/native_procedure.rs",
+      "macro": "engine_cases",
+      "line": 1609,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 56,
+      "arguments": [
+        "\"native-dictionary-compilation.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "native-dictionary-compilation.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 58,
+      "arguments": [
+        "\"native-dictionary-compilation-8.4.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-dictionary-compilation-8.4.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 59,
+      "arguments": [
+        "\"native-dictionary-compilation-8.5.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-dictionary-compilation-8.5.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 60,
+      "arguments": [
+        "\"native-dictionary-compilation-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-dictionary-compilation-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 61,
+      "arguments": [
+        "\"native-dictionary-compilation-9.0.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-dictionary-compilation-9.0.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 62,
+      "arguments": [
+        "\"native-dictionary-compilation-9.1.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-dictionary-compilation-9.1.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 64,
+      "arguments": [
+        "\"native-dictionary-compilation-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-dictionary-compilation-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 69,
+      "arguments": [
+        "\"native-compiler-traversal.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "native-compiler-traversal.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 71,
+      "arguments": [
+        "\"native-compiler-traversal-8.4.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-compiler-traversal-8.4.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 72,
+      "arguments": [
+        "\"native-compiler-traversal-8.5.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-compiler-traversal-8.5.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 73,
+      "arguments": [
+        "\"native-compiler-traversal-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-compiler-traversal-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 74,
+      "arguments": [
+        "\"native-compiler-traversal-9.0.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-compiler-traversal-9.0.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 75,
+      "arguments": [
+        "\"native-compiler-traversal-9.1.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-compiler-traversal-9.1.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 77,
+      "arguments": [
+        "\"native-compiler-traversal-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-compiler-traversal-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 82,
+      "arguments": [
+        "\"native-static-frame-levels.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "native-static-frame-levels.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 84,
+      "arguments": [
+        "\"native-static-frame-levels-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-static-frame-levels-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 89,
+      "arguments": [
+        "\"return-state-observers.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "return-state-observers.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 91,
+      "arguments": [
+        "\"return-state-observers-8.4.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-state-observers-8.4.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 92,
+      "arguments": [
+        "\"return-state-observers-8.5.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-state-observers-8.5.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 93,
+      "arguments": [
+        "\"return-state-observers-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-state-observers-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 94,
+      "arguments": [
+        "\"return-state-observers-9.0.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-state-observers-9.0.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 95,
+      "arguments": [
+        "\"return-state-observers-9.1.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-state-observers-9.1.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 104,
+      "arguments": [
+        "\"native-formals.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "native-formals.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 106,
+      "arguments": [
+        "\"native-formals-8.4.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-formals-8.4.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 107,
+      "arguments": [
+        "\"native-formals-8.5.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-formals-8.5.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 108,
+      "arguments": [
+        "\"native-formals-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-formals-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 109,
+      "arguments": [
+        "\"native-formals-9.0.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-formals-9.0.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 110,
+      "arguments": [
+        "\"native-formals-9.1.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-formals-9.1.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 112,
+      "arguments": [
+        "\"native-formals-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-formals-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 117,
+      "arguments": [
+        "\"native-reference-formals.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "native-reference-formals.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 119,
+      "arguments": [
+        "\"native-reference-formals-8.4.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-reference-formals-8.4.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 120,
+      "arguments": [
+        "\"native-reference-formals-8.5.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-reference-formals-8.5.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 121,
+      "arguments": [
+        "\"native-reference-formals-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-reference-formals-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 122,
+      "arguments": [
+        "\"native-reference-formals-9.0.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-reference-formals-9.0.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 123,
+      "arguments": [
+        "\"native-reference-formals-9.1.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-reference-formals-9.1.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 125,
+      "arguments": [
+        "\"native-reference-formals-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-reference-formals-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 130,
+      "arguments": [
+        "\"native-static-storage.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "native-static-storage.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 132,
+      "arguments": [
+        "\"native-static-storage-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-static-storage-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 137,
+      "arguments": [
+        "\"tailcall-c.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-c.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 139,
+      "arguments": [
+        "\"tailcall-c-legacy.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-c-legacy.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 140,
+      "arguments": [
+        "\"tailcall-c-legacy.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-c-legacy.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 141,
+      "arguments": [
+        "\"tailcall-c-modern.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-c-modern.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 142,
+      "arguments": [
+        "\"tailcall-c-modern.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-c-modern.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 143,
+      "arguments": [
+        "\"tailcall-c-modern.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-c-modern.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 150,
+      "arguments": [
+        "\"tailcall-jim.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-jim.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 152,
+      "arguments": [
+        "\"tailcall-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "tailcall-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 157,
+      "arguments": [
+        "\"native-variable-completions.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "native-variable-completions.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 158,
+      "arguments": [
+        "\"native-variable-completions-c.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "native-variable-completions-c.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 166,
+      "arguments": [
+        "\"return-routes.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "return-routes.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 168,
+      "arguments": [
+        "\"return-routes-8.4.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-routes-8.4.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 169,
+      "arguments": [
+        "\"return-routes-modern8.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-routes-modern8.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 170,
+      "arguments": [
+        "\"return-routes-modern8.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-routes-modern8.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 171,
+      "arguments": [
+        "\"return-routes-modern9.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-routes-modern9.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 172,
+      "arguments": [
+        "\"return-routes-modern9.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-routes-modern9.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 174,
+      "arguments": [
+        "\"return-routes-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "return-routes-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 179,
+      "arguments": [
+        "\"variable-links.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "variable-links.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 180,
+      "arguments": [
+        "\"variable-links-c.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "variable-links-c.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 181,
+      "arguments": [
+        "\"variable-links-jim.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "variable-links-jim.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 186,
+      "arguments": [
+        "\"lifecycle.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "lifecycle.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 188,
+      "arguments": [
+        "\"lifecycle-2.2.11.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "lifecycle-2.2.11.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 189,
+      "arguments": [
+        "\"lifecycle-2.3.8.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "lifecycle-2.3.8.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 190,
+      "arguments": [
+        "\"lifecycle-2.5.11.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "lifecycle-2.5.11.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 191,
+      "arguments": [
+        "\"lifecycle-2.5.11.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "lifecycle-2.5.11.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 192,
+      "arguments": [
+        "\"lifecycle-2.6.0.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "lifecycle-2.6.0.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 199,
+      "arguments": [
+        "\"completion.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "completion.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 201,
+      "arguments": [
+        "\"completion-8.4.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "completion-8.4.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 202,
+      "arguments": [
+        "\"completion-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "completion-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 203,
+      "arguments": [
+        "\"completion-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "completion-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 204,
+      "arguments": [
+        "\"completion-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "completion-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 205,
+      "arguments": [
+        "\"completion-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "completion-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 207,
+      "arguments": [
+        "\"completion-8.6.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "completion-8.6.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 212,
+      "arguments": [
+        "\"repetition.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "repetition.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 214,
+      "arguments": [
+        "\"repetition-legacy.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "repetition-legacy.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 215,
+      "arguments": [
+        "\"repetition-legacy.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "repetition-legacy.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 216,
+      "arguments": [
+        "\"repetition-legacy.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "repetition-legacy.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 217,
+      "arguments": [
+        "\"repetition-legacy.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "repetition-legacy.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 218,
+      "arguments": [
+        "\"repetition-2.6.0.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "repetition-2.6.0.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 225,
+      "arguments": [
+        "\"matcher-order.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "matcher-order.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 227,
+      "arguments": [
+        "\"matcher-order-2.2.11.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "matcher-order-2.2.11.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 228,
+      "arguments": [
+        "\"matcher-order-modern.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "matcher-order-modern.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 229,
+      "arguments": [
+        "\"matcher-order-modern.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "matcher-order-modern.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 230,
+      "arguments": [
+        "\"matcher-order-modern.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "matcher-order-modern.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 231,
+      "arguments": [
+        "\"matcher-order-modern.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "matcher-order-modern.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 238,
+      "arguments": [
+        "\"private-trace.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "private-trace.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 239,
+      "arguments": [
+        "\"private-trace.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "private-trace.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 245,
+      "arguments": [
+        "\"iteration-observer.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "iteration-observer.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 253,
+      "arguments": [
+        "\"iteration-observer.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "iteration-observer.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 260,
+      "arguments": [
+        "\"jim-portability.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "jim-portability.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 262,
+      "arguments": [
+        "\"jim-portability.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "jim-portability.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 270,
+      "arguments": [
+        "\"jim-lifecycle.tcl\""
+      ],
+      "bindings": [
+        {
+          "name": "jim-lifecycle.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-syntax/tests/body_execution_conformance.rs",
+      "macro": "fixture",
+      "line": 272,
+      "arguments": [
+        "\"jim-lifecycle.txt\""
+      ],
+      "bindings": [
+        {
+          "name": "jim-lifecycle.txt"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_alias_registration_tests.rs",
+      "macro": "records",
+      "line": 50,
+      "arguments": [
+        "original_alias_records_c84",
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "provider": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_alias_registration_tests.rs",
+      "macro": "records",
+      "line": 51,
+      "arguments": [
+        "original_alias_records_c85",
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "provider": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_alias_registration_tests.rs",
+      "macro": "records",
+      "line": 52,
+      "arguments": [
+        "original_alias_records_c86",
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "provider": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_alias_registration_tests.rs",
+      "macro": "records",
+      "line": 53,
+      "arguments": [
+        "original_alias_records_c90",
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "provider": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_alias_registration_tests.rs",
+      "macro": "records",
+      "line": 54,
+      "arguments": [
+        "original_alias_records_c91",
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "provider": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 52,
+      "arguments": [
+        "\"deferred-original.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "deferred-original.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 57,
+      "arguments": [
+        "\"recreated-object-private-dispatcher.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "recreated-object-private-dispatcher.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 62,
+      "arguments": [
+        "\"synchronous-create.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-create.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 63,
+      "arguments": [
+        "\"synchronous-create.prelude.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-create.prelude.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 64,
+      "arguments": [
+        "\"synchronous-create.query.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-create.query.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 67,
+      "arguments": [
+        "\"synchronous-replace.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-replace.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 68,
+      "arguments": [
+        "\"synchronous-replace.prelude.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-replace.prelude.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 69,
+      "arguments": [
+        "\"synchronous-replace.query.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "synchronous-replace.query.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "source",
+      "line": 72,
+      "arguments": [
+        "\"deferred-alias-relative-rooted.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "deferred-alias-relative-rooted.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rows",
+      "line": 109,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rows",
+      "line": 110,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rows",
+      "line": 111,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rows",
+      "line": 112,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rows",
+      "line": 113,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rows",
+      "line": 114,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_source",
+      "line": 171,
+      "arguments": [
+        "\"default-live.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "default-live.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_source",
+      "line": 172,
+      "arguments": [
+        "\"relative-qualified-live.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "relative-qualified-live.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_source",
+      "line": 173,
+      "arguments": [
+        "\"default-retained-parent.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "default-retained-parent.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_source",
+      "line": 174,
+      "arguments": [
+        "\"relative-retained-parent.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "relative-retained-parent.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_rows",
+      "line": 177,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_rows",
+      "line": 178,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_rows",
+      "line": 179,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_rows",
+      "line": 180,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_rows",
+      "line": 181,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_rows",
+      "line": 182,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_source",
+      "line": 193,
+      "arguments": [
+        "\"holder-prelude.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "holder-prelude.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "ensemble_source",
+      "line": 202,
+      "arguments": [
+        "\"retained-query.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "retained-query.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_source",
+      "line": 253,
+      "arguments": [
+        "\"original-library-formals-and-bodies.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "original-library-formals-and-bodies.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_source",
+      "line": 254,
+      "arguments": [
+        "\"global-helper-replacement.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "global-helper-replacement.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_source",
+      "line": 255,
+      "arguments": [
+        "\"namespace-local-helper-replacement.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "namespace-local-helper-replacement.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_source",
+      "line": 256,
+      "arguments": [
+        "\"original-unsupported-and-arity.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "original-unsupported-and-arity.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_rows",
+      "line": 259,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_rows",
+      "line": 260,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_rows",
+      "line": 261,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_rows",
+      "line": 262,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_rows",
+      "line": 263,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "jim_library_rows",
+      "line": 264,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_source",
+      "line": 319,
+      "arguments": [
+        "\"default-namespace-command.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "default-namespace-command.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_source",
+      "line": 320,
+      "arguments": [
+        "\"namespace-prefix-override.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "namespace-prefix-override.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_source",
+      "line": 321,
+      "arguments": [
+        "\"literal-command-prefix-override.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "literal-command-prefix-override.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_source",
+      "line": 322,
+      "arguments": [
+        "\"exact-create-and-option-selection.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "exact-create-and-option-selection.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_rows",
+      "line": 325,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_rows",
+      "line": 326,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_rows",
+      "line": 327,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_rows",
+      "line": 328,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_rows",
+      "line": 329,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_command_holder_tests.rs",
+      "macro": "rooted_factory_rows",
+      "line": 330,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_address_tests.rs",
+      "macro": "public_rows",
+      "line": 117,
+      "arguments": [
+        "original_namespace_address_c84",
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "release": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_address_tests.rs",
+      "macro": "public_rows",
+      "line": 118,
+      "arguments": [
+        "original_namespace_address_c85",
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "release": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_address_tests.rs",
+      "macro": "public_rows",
+      "line": 119,
+      "arguments": [
+        "original_namespace_address_c86",
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "release": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_address_tests.rs",
+      "macro": "public_rows",
+      "line": 120,
+      "arguments": [
+        "original_namespace_address_c90",
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "release": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_address_tests.rs",
+      "macro": "public_rows",
+      "line": 121,
+      "arguments": [
+        "original_namespace_address_c91",
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "release": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs",
+      "macro": "queries",
+      "line": 91,
+      "arguments": [
+        "original_command_queries_c84",
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "provider": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs",
+      "macro": "queries",
+      "line": 92,
+      "arguments": [
+        "original_command_queries_c85",
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "provider": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs",
+      "macro": "queries",
+      "line": 93,
+      "arguments": [
+        "original_command_queries_c86",
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "provider": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs",
+      "macro": "queries",
+      "line": 94,
+      "arguments": [
+        "original_command_queries_c90",
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "provider": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs",
+      "macro": "queries",
+      "line": 95,
+      "arguments": [
+        "original_command_queries_c91",
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "provider": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs",
+      "macro": "queries",
+      "line": 96,
+      "arguments": [
+        "original_command_queries_jim",
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "provider": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+      "macro": "origins",
+      "line": 70,
+      "arguments": [
+        "original_namespace_origin_c84",
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "provider": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+      "macro": "origins",
+      "line": 71,
+      "arguments": [
+        "original_namespace_origin_c85",
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "provider": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+      "macro": "origins",
+      "line": 72,
+      "arguments": [
+        "original_namespace_origin_c86",
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "provider": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+      "macro": "origins",
+      "line": 73,
+      "arguments": [
+        "original_namespace_origin_c90",
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "provider": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+      "macro": "origins",
+      "line": 74,
+      "arguments": [
+        "original_namespace_origin_c91",
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "provider": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+      "macro": "origins",
+      "line": 75,
+      "arguments": [
+        "original_namespace_origin_jim",
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "provider": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_precision_tests.rs",
+      "macro": "provider",
+      "line": 43,
+      "arguments": [
+        "\"tcl8.4\"",
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "version": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_precision_tests.rs",
+      "macro": "provider",
+      "line": 44,
+      "arguments": [
+        "\"tcl8.5\"",
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "version": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_precision_tests.rs",
+      "macro": "provider",
+      "line": 45,
+      "arguments": [
+        "\"tcl8.6\"",
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "version": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_precision_tests.rs",
+      "macro": "provider",
+      "line": 46,
+      "arguments": [
+        "\"tcl9.0\"",
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "version": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_precision_tests.rs",
+      "macro": "provider",
+      "line": 47,
+      "arguments": [
+        "\"tcl9.1\"",
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "version": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_precision_tests.rs",
+      "macro": "provider",
+      "line": 48,
+      "arguments": [
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "version": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_variable_query_tests.rs",
+      "macro": "query_rows",
+      "line": 65,
+      "arguments": [
+        "original_variable_queries_c84",
+        "\"tcl8.4\"",
+        "\"84\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.4",
+          "provider": "84"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_variable_query_tests.rs",
+      "macro": "query_rows",
+      "line": 66,
+      "arguments": [
+        "original_variable_queries_c85",
+        "\"tcl8.5\"",
+        "\"85\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.5",
+          "provider": "85"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_variable_query_tests.rs",
+      "macro": "query_rows",
+      "line": 67,
+      "arguments": [
+        "original_variable_queries_c86",
+        "\"tcl8.6\"",
+        "\"86\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl8.6",
+          "provider": "86"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_variable_query_tests.rs",
+      "macro": "query_rows",
+      "line": 68,
+      "arguments": [
+        "original_variable_queries_c90",
+        "\"tcl9.0\"",
+        "\"90\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.0",
+          "provider": "90"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_variable_query_tests.rs",
+      "macro": "query_rows",
+      "line": 69,
+      "arguments": [
+        "original_variable_queries_c91",
+        "\"tcl9.1\"",
+        "\"91\""
+      ],
+      "bindings": [
+        {
+          "engine": "tcl9.1",
+          "provider": "91"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_variable_query_tests.rs",
+      "macro": "query_rows",
+      "line": 70,
+      "arguments": [
+        "original_variable_queries_jim",
+        "\"jim\"",
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "engine": "jim",
+          "provider": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "fixture",
+      "line": 376,
+      "arguments": [
+        "\"original-0.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "original-0.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "fixture",
+      "line": 377,
+      "arguments": [
+        "\"original-1.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "original-1.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "fixture",
+      "line": 378,
+      "arguments": [
+        "\"original-2.tcl\""
+      ],
+      "bindings": [
+        {
+          "file": "original-2.tcl"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "rows",
+      "line": 382,
+      "arguments": [
+        "\"8.4.20\""
+      ],
+      "bindings": [
+        {
+          "provider": "8.4.20"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "rows",
+      "line": 383,
+      "arguments": [
+        "\"8.5.19\""
+      ],
+      "bindings": [
+        {
+          "provider": "8.5.19"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "rows",
+      "line": 384,
+      "arguments": [
+        "\"8.6.18\""
+      ],
+      "bindings": [
+        {
+          "provider": "8.6.18"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "rows",
+      "line": 385,
+      "arguments": [
+        "\"9.0.4\""
+      ],
+      "bindings": [
+        {
+          "provider": "9.0.4"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "rows",
+      "line": 386,
+      "arguments": [
+        "\"9.1.0\""
+      ],
+      "bindings": [
+        {
+          "provider": "9.1.0"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    },
+    {
+      "consumer": "rust/tcl-vm/src/value_source_tests.rs",
+      "macro": "rows",
+      "line": 387,
+      "arguments": [
+        "\"jim\""
+      ],
+      "bindings": [
+        {
+          "provider": "jim"
+        }
+      ],
+      "all_bindings_in_actual_expansion_proof": true
+    }
+  ],
+  "limits": "Every relevant macro root invocation checked, including duplicates reusing same already-pinned binding. Embedded literal repetition enumerated exactly. No new path expansion/cartesian product/source mutation/build."
+}

@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-26T04:22:40.249873+00:00",
+  "workflow": "perf.yml",
+  "inputs": {
+    "ref": "work",
+    "inputs": {
+      "mode": "paired",
+      "baseline_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+      "candidate_sha": "32e097bd517135b90690a97b39f1215f4ff595e9"
+    }
+  },
+  "harness_sha": "b5fa278e05b6fd3746f7168fca6b2d47c6904902",
+  "candidate_sha": "32e097bd517135b90690a97b39f1215f4ff595e9",
+  "baseline_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "builds": "unchanged --locked --release both sides; alternating same-host pairs; six Linux/macOS small/medium/full Tcl scopes",
+  "acceptance": "PENDING; no performance claim until full authenticated results"
+}

@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T03:50:05.865555+00:00
+Last updated: 2026-10-26T04:21:03.811910+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current b2 strict FULLAUTH25 checks2ed8fbb6: four compiler-lib Clippy diagnostics, zero RustE, later stages masked. Paired exact method-pointer2/docbacktick2 source fix4cc4deb3 independently clearb6e618f9 and Root integrated. Latest source74558/C32e final union3f254f02 independently CLEAR0d491190: all23/17maps298records210Gitfiles,25old updates+10explicitformal dependencies (full5Logical3/Spec and leaf in other parent maps), current nested/descriptor/NativeString15/protocol fields retained. Adopted prospectiveV14PASS13/30/20; Root canonical preflight/push/dispatch separate. CLEAN fullCI request plan c66f0395 ready against32e, same reviewed e42 workflow/hosted/nativeprooftrue branch inputs, no publication/tag; actual current production/test typing still hosted-unrun. All remaining3 Names peers clear2e998c92/df1ac75b/93725991 and Root integrated; no active overlapping source edits. Depth witness source-only strongclear d1ad74e7 is not a functional fix: n61 refusal before dispatch remains unresolved, no handler/frame/return/ABI authority inferred.
 
 Finalf7b current-pin union V2 manifest4b2c4d5a independently CLEAR e9b4a64d (Compiler). Exact10files/12top scalar updates plus one current restored-child descriptor hash; full23/17maps/287records207Gitfiles, nestedChild10/full15NativeString maps retained. V1 HELD: source_pins refresh missed duplicated JSON descriptor source_sha256; V2 explicitly restores coherence against topmap/currentGit, recursive descriptor audit added. Actual extracted descriptor require PASS,8single-factor negatives and oldV1 REFUSE; prospective adoptedV13PASS13/30/20. Root canonical apply/preflight/push remains separate. Historical ff56 terminal available join now7954PASS/1959FAIL/14495unobserved/216notavailable; partial cancelled E2E rows only, not current PTF/acceptance.
 

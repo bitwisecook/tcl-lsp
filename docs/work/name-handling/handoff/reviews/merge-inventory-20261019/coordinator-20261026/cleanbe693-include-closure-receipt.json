@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-26T04:12:19.672180+00:00",
+  "source": "be6935f0ed2d4810169e784d8f61d3344468973c",
+  "source_after": "be6935f0ed2d4810169e784d8f61d3344468973c",
+  "tracked_work_or_scratchpad_paths": [],
+  "targeted_marker_grep_exit": 1,
+  "targeted_marker_matches": "",
+  "include_audit_sha256": "da460f7f9453f07e801d5851fff6613fe1f9236a4ba492ffedd59d23fbeace9d",
+  "scope": "Read-only source/include and targeted process-marker census only. General prose/editorial quality and Cargo/host behavior remain unaccepted."
+}

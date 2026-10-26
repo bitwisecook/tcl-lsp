@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T04:02:20+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-26T04:18:51+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Latest b2 compiler122 FULL AUTH: ALL122UNRUN, exact three test-helper type build errors.** Run40267006737/job121391490802/sourceb2b5fb38cff2d1973d4974b39d114e7573a8cca2. SoleZIP12626629754/10,941,240B SHA971c327f136b85df39e9a7d13dcc36e6b2da4ca1ef26de5a63d468162e8952f1. Main307fcb350492841add1f9137c9c35d35f5833d4697e3098cdacf9266776284c1 and Native/fullGit39282e52327537534d4f8545dd92d991a7b2bb3ae8cc0559ee43b9b9720f454b authenticate126504source/provider10202/deps21504/tools/currentpins/allmembers/two closed processes. E0425 declaration_preview.rs4150/4173 CommandRegistry and4170 SourceInvocationBinding in extracted test helpers; Names owns narrow qualified-type repair. No current assertions ran; preserve7dc as latest semantic result. Native formal foundation is integrated producer-only; two controls protocol0dbcb99b clear and current sourcepin union584eadf7+independent prospectiveV14 PASS, no readonly effect closure. Private body custody/consumer remains off-tree draft.
 
 **Latest 7dc122 FULL AUTH: old102 98PASS4FAIL; Child10 ALLPASS; NativeString3 2PASS1FAIL.** Run40263624654/job121381102849/source7dc84696cfb72960887aa45afd0445e4667d186b, soleZIP12626383958/12,305,788B SHA347cc7fdca0df138c5076561805845847906dce609e4773dac98e5d12d716b79. Main receipt909ee8c29fd8b7167ba659a2ff1cab5316055f7247d0c9cc4265e419cc94d687 and Native/fullsource85fe1eef8c33c47f125932b85a778c5527a1d0c5876d5c4bc9dc1254d6a17f01 authenticate126495source/provider10202/deps21504/tools/fullGit/currentcriticalpins/allmembers and263owned processes, zero build diagnostics. Original58 ALLPASS; Logical3+five body-entry controls PASS; codec864 PASS. Same four readonly positives remain FAIL. Both formerly failing Child controls now PASS, all10 PASS. Minify1 remains FAIL: offset23 child visits absent, exact retained-owner guard remains intact. NativeString positive fails tests.rs66 on tcl8.4; both negative controls PASS. Runtime/LSP/Names receive scoped actual outcomes. No release/global/performance closure inferred.
 
