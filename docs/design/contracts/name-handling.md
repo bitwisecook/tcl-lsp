@@ -4106,6 +4106,16 @@ a declaration identity, entered body/frame, completed call, quietness or Normal.
 The ordinary source-purpose classifier and all generic link, selected identity,
 collision and physical edit checks remain independent and unchanged.
 
+For a selected effective `ResolvedHead`, the geometry issuer separately retains
+its same-realm source-transition `Written(0)` head. The existing source-head
+correspondence joins their exact original word, image/configuration, current
+context, descriptor and argument offset; neither origin is rewritten. Both
+vectors retain the same original written operands at ordinals one onward.
+Captured prefixes and expanded operands refuse. The original `Written(0)` route
+retains its independent checks without requiring this additional selected-head
+join. The pair is source correspondence only and grants no name, Native or
+completion authority.
+
 ### Authored result-completion source coverage
 
 An exact current AuthoredSimulation invocation can retain source coverage for
