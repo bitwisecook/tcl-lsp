@@ -1195,6 +1195,160 @@ pub fn original_authored_result_completion_for_source_coverage<'a>(
     })
 }
 
+/// Deferred declaration geometry under one exact completed source cut.
+/// The original child or suffix owns its Registry source schema; this grants
+/// no inherited invocation purpose, body entry, Native frame or Normal result.
+pub struct OriginalSourceCutProcedureDeclaration<'a> {
+    analysis: &'a crate::analyser::AnalysisResult,
+    selected: ResolvedStatementInvocation,
+    body: OriginalSourceScriptBody,
+}
+impl OriginalSourceCutProcedureDeclaration<'_> {
+    /// Same original selected owner, never an equal-text replacement analysis.
+    #[must_use]
+    pub fn is_for_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
+        std::ptr::eq(self.analysis, analysis)
+    }
+    /// Source-only facts for the independent command-link coverage checks.
+    #[must_use]
+    pub const fn invocation(&self) -> &ResolvedStatementInvocation {
+        &self.selected
+    }
+    /// Exact complete original deferred body, still requiring its own survey.
+    #[must_use]
+    pub const fn body(&self) -> &OriginalSourceScriptBody {
+        &self.body
+    }
+}
+
+/// Reborrow declaration syntax from the actual child or issued suffix owner.
+/// The ordinary implicit source-purpose and execution consumers are unchanged.
+#[must_use]
+pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
+    source: &str,
+    analysis: &'a crate::analyser::AnalysisResult,
+    command: &crate::segmenter::SegmentedCommand,
+    survey: &crate::command_binding::OriginalSingleSourceCutSurvey<'_>,
+) -> Option<OriginalSourceCutProcedureDeclaration<'a>> {
+    if !survey.owns_declaration_command(analysis, command) || command.is_partial {
+        return None;
+    }
+    let words = source_structure::source_registry_words(source, analysis, command)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.borrowed_context_registry();
+    let realm = analysis.retained_command_realm()?;
+    let image = realm.original_source_image()?;
+    if image.channel() != tcl_lexer::SourceChannel::Document
+        || image.bytes() != source.as_bytes()
+        || !words.matches_source(image, input.lexer_config())
+        || words.context() != Some(context.context())
+        || words
+            .origins()
+            .iter()
+            .enumerate()
+            .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
+    {
+        return None;
+    }
+    let mut tokens = CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(image),
+        input.lexer_config(),
+        command,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    if tokens.words().len() != 4
+        || tokens.words().iter().any(|word| {
+            !matches!(
+                word,
+                WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+            )
+        })
+    {
+        return None;
+    }
+    let native = original_native_compiler_words(
+        image,
+        tokens.words(),
+        command.argv.first()?.span.start(),
+        input.lexer_config(),
+    )?;
+    if words.origins().len() != native.len()
+        || words.head_source()?.word() != native.first()
+        || (0..3).any(|argument| words.original_argument_word(argument) != native.get(argument + 1))
+    {
+        return None;
+    }
+    let facts = words.with_source_schema(context, |schema| schema.facts())?;
+    let selected = source_cut_declaration_selection(&tokens, &words, facts)?;
+    let mut bodies = words.source_script_bodies_for_syntax_coverage(context)?;
+    if bodies.len() != 1 {
+        return None;
+    }
+    let body = bodies.pop()?;
+    let original = words.original_argument_word(2)?;
+    if original.group().kind != tcl_lexer::WordKind::Braced
+        || original.group().expand
+        || body.original_container() != original
+        || !body.matches_source(image, input.lexer_config())
+        || !body.matches_context(context)
+    {
+        return None;
+    }
+    body.original_commands(context)?;
+    Some(OriginalSourceCutProcedureDeclaration {
+        analysis,
+        selected,
+        body,
+    })
+}
+
+fn source_cut_declaration_selection(
+    tokens: &CommandTokens,
+    words: &source_structure::OriginalRegistryWords,
+    facts: InvocationFacts,
+) -> Option<ResolvedStatementInvocation> {
+    if facts.operation
+        != tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Proc,
+        )
+        || facts.body_kind != tcl_registry::BodyKind::Structural
+        || !facts.traits.contains(
+            tcl_registry::Traits::DEFERS_BODY | tcl_registry::Traits::BODY_RUNS_IN_OWN_FRAME,
+        )
+        || !facts.arg_roles_complete
+        || facts.arity_accepts_frozen_arguments() != Some(true)
+    {
+        return None;
+    }
+    let effective = compose_original_effective_words(tokens, words.command(), &[])?;
+    let selected = ResolvedStatementInvocation {
+        dialect: words.dialect(),
+        facts: Box::new(facts),
+        arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
+        effective,
+        evaluated_arguments: words
+            .arguments()
+            .iter()
+            .map(|word| match word {
+                EffectiveInvocationWord::Literal(value) => Some(value.clone()),
+                EffectiveInvocationWord::ByteLiteral(value) => {
+                    std::str::from_utf8(value).ok().map(str::to_owned)
+                }
+                _ => None,
+            })
+            .collect(),
+        evaluated_words: words.arguments().to_vec(),
+        authored_case_body_selection: None,
+    };
+    (selected.written_argument_roles()
+        == vec![
+            (0, tcl_registry::ArgRole::Name),
+            (1, tcl_registry::ArgRole::ParamList),
+            (2, tcl_registry::ArgRole::Body),
+        ])
+    .then_some(selected)
+}
+
 /// Original deferred procedure declaration grammar for source coverage only.
 /// This retains the exact authored source lookup and direct static operands;
 /// it grants neither body entry nor Native frame or Normal completion.

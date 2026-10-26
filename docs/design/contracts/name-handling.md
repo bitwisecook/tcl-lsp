@@ -3974,6 +3974,18 @@ refuses SourceLoad. This conditional source survey grants no physical file
 read, Native invocation, entered frame, operation Normal fact or arbitrary
 reflection-equivalence claim.
 
+The exact single-cut survey also lends a separate deferred declaration-geometry
+receipt for its actual whole-input child and issued suffix. The child command
+must belong to its retained complete root command plan; suffix commands must
+belong to the issued remaining sequence. The current source-prefix catalogue,
+full input/image/Registry, original static written argv and registered Proc
+operation, roles and body grammar select the same original parameter and body
+words. Complete body syntax remains under that owner and is surveyed separately.
+This explicit geometry does not supply an implicit inherited invocation purpose,
+a declaration identity, entered body/frame, completed call, quietness or Normal.
+The ordinary source-purpose classifier and all generic link, selected identity,
+collision and physical edit checks remain independent and unchanged.
+
 ### Authored result-completion source coverage
 
 An exact current AuthoredSimulation invocation can retain source coverage for

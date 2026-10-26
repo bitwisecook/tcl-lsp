@@ -366,6 +366,7 @@ impl<'a> SourceCut<'a> {
             return Ok(());
         }
         collect_command_regions(
+            &self.survey,
             task,
             walk,
             command,
@@ -383,13 +384,61 @@ struct CommandSubject<'a> {
     input: &'a SignatureSourceNameInput,
     reference: Option<&'a SourceCommandReference>,
 }
+
+fn queue_cut_declaration<'a>(
+    survey: &OriginalSingleSourceCutSurvey<'_>,
+    task: &Task<'a>,
+    walk: &crate::refactor::FrameWalk<'a>,
+    command: &SegmentedCommand,
+    output: &mut Output<'a>,
+) -> Result<bool, OriginalCommandRenameRefusal> {
+    if !matches!(
+        task.purpose,
+        Purpose::ChildWholeInput | Purpose::IssuedSuffix
+    ) {
+        return Ok(false);
+    }
+    let Some(receipt) =
+        tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+            task.document.source,
+            task.document.analysis,
+            command,
+            survey,
+        )
+    else {
+        return Ok(false);
+    };
+    if !receipt.is_for_analysis(task.document.analysis) {
+        return Err(OriginalCommandRenameRefusal::StaleSource);
+    }
+    let offset = command
+        .argv
+        .first()
+        .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?
+        .span
+        .start();
+    reject_selected_command_link_coverage(receipt.invocation(), offset)?;
+    let body = receipt.body().content_span();
+    output.nested(
+        task,
+        walk,
+        vec![(body.start() as usize, body.end() as usize, task.depth + 1)],
+        Purpose::ProcedureBody,
+    )?;
+    Ok(true)
+}
+
 fn collect_command_regions<'a>(
+    survey: &OriginalSingleSourceCutSurvey<'_>,
     task: &Task<'a>,
     walk: &crate::refactor::FrameWalk<'a>,
     command: &SegmentedCommand,
     subject: &CommandSubject<'_>,
     output: &mut Output<'a>,
 ) -> Result<(), OriginalCommandRenameRefusal> {
+    if queue_cut_declaration(survey, task, walk, command, output)? {
+        return Ok(());
+    }
     let document = task.document;
     let offset = command
         .argv
@@ -588,6 +637,91 @@ mod tests {
             ])
         }
     }
+
+    fn assert_malformed_source_cut_body_refused() {
+        let fixture = Fixture::new("source child.tcl; set done OK", "proc helper {} {[}");
+        let documents = fixture.documents();
+        let identity = fixture.identity();
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            let proof = SourceCoverage::capture(&documents, &identity, &worlds, views).unwrap();
+            let walk = crate::refactor::FrameWalk::new(fixture.child_source, &fixture.child).unwrap();
+            let commands = walk.segment_document(fixture.child_source);
+            assert!(tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+                fixture.child_source, &fixture.child, &commands[0], &proof.cuts[0].survey,
+            ).is_none());
+            assert!(original_command_rename_edits_with_source_views(
+                &documents, &identity, "host_new", &worlds, views,
+            ).is_err());
+        });
+    }
+    fn assert_source_cut_declaration_geometry(
+        fixture: &Fixture,
+        survey: &OriginalSingleSourceCutSurvey<'_>,
+    ) {
+        assert_malformed_source_cut_body_refused();
+        let child_walk =
+            crate::refactor::FrameWalk::new(fixture.child_source, &fixture.child).unwrap();
+        let child_commands = child_walk.segment_document(fixture.child_source);
+        for (source, analysis, command, ordinary) in [
+            (
+                fixture.child_source,
+                &fixture.child,
+                &child_commands[0],
+                &fixture.ordinary_child,
+            ),
+            (
+                fixture.source,
+                &fixture.suffix,
+                &survey.suffix_commands()[0],
+                &fixture.prefix,
+            ),
+        ] {
+            let receipt = tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+                source, analysis, command, survey,
+            ).expect("same actual source-cut declaration");
+            assert!(receipt.is_for_analysis(analysis));
+            assert!(!receipt.is_for_analysis(ordinary));
+            assert_eq!(
+                receipt.invocation().written_argument_roles(),
+                vec![
+                    (0, tcl_registry::ArgRole::Name),
+                    (1, tcl_registry::ArgRole::ParamList),
+                    (2, tcl_registry::ArgRole::Body),
+                ]
+            );
+            assert_eq!(
+                &source[receipt.body().content_span().as_range()],
+                "return VALUE"
+            );
+            let walk = crate::refactor::FrameWalk::new(source, analysis).unwrap();
+            assert!(
+                walk.procedure_declaration_for_rename_coverage(source, command)
+                    .is_none()
+            );
+            assert!(tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+                source, ordinary, command, survey,
+            ).is_none());
+            assert!(tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+                &format!("# foreign whole source\n{source}"), analysis, command, survey,
+            ).is_none());
+            let mut foreign = analysis.clone();
+            foreign.body_lexer_config.as_mut().unwrap().strict_quoting =
+                !analysis.body_lexer_config.unwrap().strict_quoting;
+            assert!(tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+                source, &foreign, command, survey,
+            ).is_none());
+        }
+        let prefix_walk = crate::refactor::FrameWalk::new(fixture.source, &fixture.prefix).unwrap();
+        let prefix_commands = prefix_walk.segment_document(fixture.source);
+        assert!(tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+            fixture.source, &fixture.prefix, &prefix_commands[0], survey,
+        ).is_none());
+    }
+
     #[test]
     fn single_cut_source_coverage_surveys_actual_child_and_issued_suffix() {
         let fixture = Fixture::new(
@@ -611,6 +745,7 @@ mod tests {
             assert_eq!(proof.cuts.len(), 1);
             assert_eq!(proof.cuts[0].survey.prefix_commands().len(), 1);
             assert_eq!(proof.cuts[0].survey.suffix_commands().len(), 1);
+            assert_source_cut_declaration_geometry(&fixture, &proof.cuts[0].survey);
             let edits = original_command_rename_edits_with_source_views(
                 &documents, &identity, "host_new", &worlds, views,
             )
