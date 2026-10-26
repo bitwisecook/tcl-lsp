@@ -1139,10 +1139,9 @@ mod tests {
 #[cfg(test)]
 mod replacement_native_rows629 {
     use super::*;
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs"
-    ));
+    include!(
+        "../../../../runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs"
+    );
 
     #[test]
     fn original_replacement_matches_every_native_observed_projection() {
@@ -1225,10 +1224,9 @@ mod replacement_native_rows629 {
 #[cfg(test)]
 mod direct_binary_native_rows634a {
     use super::*;
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/software_controls.rs"
-    ));
+    include!(
+        "../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/software_controls.rs"
+    );
     fn unhex(bytes: &str) -> Vec<u8> {
         bytes
             .as_bytes()
@@ -1325,10 +1323,9 @@ mod direct_binary_native_rows634a {
 #[cfg(test)]
 mod indexed_binary_native_projections633 {
     use super::*;
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../runtime/rust/tests/data/native_original_binary_replacement633/software_controls.rs"
-    ));
+    include!(
+        "../../../../runtime/rust/tests/data/native_original_binary_replacement633/software_controls.rs"
+    );
     fn unhex(bytes: &str) -> Vec<u8> {
         bytes
             .as_bytes()
