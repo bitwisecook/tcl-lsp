@@ -262,7 +262,7 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 | `Tcl_GetObjResult` | n/a | `Tcl_Obj* borrowed` | `no-error` | The interp's current result; valid until the next result-changing call; `Tcl_IncrRefCount` to keep. |
 | `Tcl_ResetResult` | n/a | `void` | `no-error` | An empty result, and no error or pending `return` in flight. |
 | `Tcl_WrongNumArgs` | `objv[]` `borrowed` | `void` | `sets-result` | Builds and sets the `wrong # args` message, `-errorcode TCL WRONGARGS`. |
-| `Tcl_SetObjErrorCode` | `errorObjPtr` `borrowed→stored` | `void` | `no-error` | The `-errorcode` of the error the command returns. The runtime keeps the code's text, so a `fresh_zero` code object is freed by the call, as storing and dropping it would. `Tcl_SetErrorCode` is an inline function over this in the header. |
+| `Tcl_SetObjErrorCode` | `errorObjPtr` `borrowed→stored` | `void` | `no-error` | Interp retains the supplied object (+1) and releases the previous error code without requesting the new object's String. A `fresh_zero` object becomes private-error-code-owned until replacement or interpreter teardown. `Tcl_SetErrorCode` constructs a code object for this call. |
 | `Tcl_AppendResult` | n/a (varargs `char*`) | `void` | `no-error` | Appends strings to the (string) result; NULL-terminated varargs. An inline function in the header over `TclHost_AppendResultString`. |
 | `TclHost_AppendResultString` | n/a | `void` | `no-error` | The fixed-arity export behind the header's inline `Tcl_AppendResult`: one piece. |
 | `TclHost_SetResultString` | n/a | `void` | `no-error` | The fixed-arity export behind the header's inline `Tcl_SetResult`: a copy of the string; the inline function resolves the freeing convention. |
