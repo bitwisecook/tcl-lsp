@@ -152,6 +152,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
             "diagnostic-source-point-memo8-",
+            "diagnostic-source-point-corpus2-",
             "diagnostic-own-jim-alias-firstguard1-",
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
@@ -181,6 +182,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
             "diagnostic-source-point-memo8-",
+            "diagnostic-source-point-corpus2-",
             "diagnostic-own-jim-alias-firstguard1-",
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
@@ -211,6 +213,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-own-jim-member3-",
             "diagnostic-advice-catalogue3-",
             "diagnostic-source-point-memo8-",
+            "diagnostic-source-point-corpus2-",
             "diagnostic-own-jim-alias-firstguard1-",
             "diagnostic-analyser-layout-firstguard3-",
             "diagnostic-native-eligibility2-",
@@ -3332,6 +3335,230 @@ def run_source_point_memo_controls() -> None:
         )
 
 
+def run_source_point_corpus_controls() -> None:
+    global remaining
+    require("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" not in env, "corpus2 requires diagnostic bypass absent; old environments are never mutated")
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows + source_point_memo_rows + analyser_layout_diagnostic_rows
+        ),
+        "source-point corpus controls cannot precede original147 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in source_point_corpus_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "source-point corpus controls absent from actual fresh compiler lib inventory",
+    )
+    for path, expected in source_point_corpus_validation["source_pins"].items():
+        require(sha(root / path) == expected, "corpus input/source pin drift: " + path)
+    for index, row in enumerate(source_point_corpus_rows):
+        require(deadline - time.time() >= 180 + row["budget_seconds"] + 40,
+                "insufficient shared time for full separate corpus list/test/cleanup budgets")
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "source-point corpus current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "source-point corpus requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "source-point corpus artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "source-point-corpus2"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            row["budget_seconds"],
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            marker_tail = bytearray()
+            markers = []
+            def corpus_marker_sink(data):
+                for piece in data.splitlines(keepends=True):
+                    marker_tail.extend(piece)
+                    require(len(marker_tail) <= 8192, "corpus marker parser line bound")
+                    if marker_tail.endswith(b"\n"):
+                        line = bytes(marker_tail).rstrip(b"\r\n")
+                        if line.startswith(b"SOURCE_POINT_CORPUS input="):
+                            require(len(line) <= 512, "corpus marker width bound")
+                            markers.append(line.decode("ascii"))
+                            require(len(markers) <= 234, "corpus marker row bound")
+                        marker_tail.clear()
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, corpus_marker_sink, repeat_stage["input_bytes"]
+            )
+            require(not marker_tail, "corpus final stderr line incomplete")
+            row["complete_equal_markers"] = markers
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
+            raise
+        if row["state"] == "PASS":
+            expected_markers = {
+                "SOURCE_POINT_CORPUS input=" + json.dumps(label) + " mixed=" + mixed + " pairs=3 equal=3"
+                for label in row["input_labels"] for mixed in ["false", "true"]
+            }
+            actual_markers = row.get("complete_equal_markers", [])
+            require(len(actual_markers) == len(expected_markers) and set(actual_markers) == expected_markers,
+                    "corpus completed input/mode/typed-Equal marker census mismatch")
+            row["authenticated_complete_inputs"] = len(row["input_labels"])
+            row["authenticated_threeway_pairs"] = len(actual_markers) * 3
+        save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 def run_analyser_layout_diagnostics() -> None:
     global remaining
     require(
@@ -4137,6 +4364,10 @@ source_point_memo_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row
 analyser_layout_diagnostic_validation = logical_validation["separate_analyser_layout_diagnostics"]
 require(analyser_layout_diagnostic_validation["schema"] == "analyser-layout-firstguard3-v1" and analyser_layout_diagnostic_validation["expected_selected"] == 3 and analyser_layout_diagnostic_validation["source"] == 'rust/tcl-compiler/src/analyser/handlers.rs' and analyser_layout_diagnostic_validation["source"] in logical_validation["source_pins"] and analyser_layout_diagnostic_validation["rows"] == [{'group': 'diagnostic-analyser-layout-firstguard3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}, {'group': 'diagnostic-analyser-layout-firstguard3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}, {'group': 'diagnostic-analyser-layout-firstguard3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_keeps_plain_and_rooted_jim_forms', 'env': {'TCL_LSP_TRACE_JIM_SOURCE_OWNER': '1'}}], "exact separate layout diagnostic3 roster")
 analyser_layout_diagnostic_rows: list[dict[str, Any]] = [dict(row, state="UNRUN", layout_trace_observation="UNOBSERVED") for row in analyser_layout_diagnostic_validation["rows"]]
+
+source_point_corpus_validation = json.loads((BASE / "source-point-complete-text-corpus2.json").read_text())
+require(sha(BASE / "source-point-complete-text-corpus2.json") == "cd0c8f7a2746877bc073abc44f49dd0fcfc2dd0937e2cd41d00130f2079418d5", "exact separately bounded complete text corpus roster")
+source_point_corpus_rows = [dict(row, state="UNRUN") for row in source_point_corpus_validation["rows"]]
 
 require(
     len(
@@ -5049,7 +5280,11 @@ try:
     status = 2
     run_analyser_layout_diagnostics()
     require(len(analyser_layout_diagnostic_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in analyser_layout_diagnostic_rows), "layout diagnostic3 incomplete")
+    run_source_point_corpus_controls()
+    require(len(source_point_corpus_rows) == 2 and all(row["state"] in ["PASS", "FAIL"] for row in source_point_corpus_rows), "complete text corpus2 incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    if any(row["state"] != "PASS" for row in source_point_corpus_rows):
+        status = 1
     if any(row["state"] != "PASS" for row in source_point_memo_rows + analyser_layout_diagnostic_rows):
         status = 1
     if any(row["state"] != "PASS" for row in own_jim_alias_rows):
@@ -5141,6 +5376,7 @@ finally:
     save(out / "native-eligibility-outcomes.json", native_eligibility_rows)
     save(out / "own-jim-alias-firstguard-outcomes.json", own_jim_alias_rows)
     save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
+    save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
     save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
     save(out / "outcomes.json", rows)
     save(
@@ -5213,6 +5449,9 @@ finally:
             "required_separate_own_jim_alias_diagnostics": 1,
             "own_jim_alias_firstguard1_outcomes": own_jim_alias_rows,
             "own_jim_alias_firstguard1_roster": own_jim_alias_validation,
+            "required_separate_complete_text_corpus_tests": 2,
+            "source_point_complete_text_corpus2_outcomes": source_point_corpus_rows,
+            "source_point_complete_text_corpus2_roster": source_point_corpus_validation,
             "required_separate_source_point_memo_controls": 8,
             "source_point_memo8_outcomes": source_point_memo_rows,
             "source_point_memo8_roster": source_point_memo_validation,
