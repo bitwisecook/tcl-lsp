@@ -108,6 +108,37 @@ pub(super) fn interpreter() -> Result<Option<Interp>, i32> {
     }
     Ok(installed())
 }
+/// Decide only whether generated code should take its existing decline path.
+/// Missing paired ownership leaves the old generated path unchanged.
+pub(super) fn native_body_entry_status() -> i32 {
+    use tcl_runtime_api::codegen_abi::{
+        NATIVE_PROC_STATUS_DECLINED, NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN,
+    };
+    if cleanup_failure().is_some() {
+        return NATIVE_PROC_STATUS_HOST_REFUSED;
+    }
+    // The Rc keeps the existing owner live after the ledger borrow ends; it
+    // changes no Native object refcount and no ambient interpreter is used.
+    let Some(entry) = top() else {
+        return NATIVE_PROC_STATUS_RAN;
+    };
+    if !entry.entered {
+        return NATIVE_PROC_STATUS_HOST_REFUSED;
+    }
+    let operation = entry
+        .operation
+        .as_ref()
+        .expect("entered compiler operation");
+    if operation.ensure_current().is_err() {
+        return NATIVE_PROC_STATUS_HOST_REFUSED;
+    }
+    if operation.interpreter.codegen_body_has_invoke_headroom() {
+        NATIVE_PROC_STATUS_RAN
+    } else {
+        NATIVE_PROC_STATUS_DECLINED
+    }
+}
+
 /// Observe reached refusal on its actual owner, including cleanup after exit.
 pub(super) fn refusal_pending() -> bool {
     if cleanup_failure().is_some() {
@@ -341,6 +372,53 @@ mod tests {
         assert_eq!(outstanding(), 0);
         tcl_runtime_set_current_interp(ptr::null_mut());
     }
+    #[test]
+    fn generated_entry_probe_uses_held_owner_and_keeps_refusal_terminal() {
+        use tcl_runtime_api::codegen_abi::{
+            NATIVE_PROC_STATUS_DECLINED, NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN,
+        };
+        let mut first = original();
+        let mut second = original();
+        reset_transport(&mut first);
+        tcl_runtime_set_current_interp(&mut first);
+        assert_eq!(
+            tcl_codegen_native_body_entry_status(),
+            NATIVE_PROC_STATUS_RAN
+        );
+        for _ in 0..128 {
+            assert_eq!(tcl_codegen_activation_enter(), 0);
+        }
+        assert_eq!(
+            tcl_codegen_native_body_entry_status(),
+            NATIVE_PROC_STATUS_DECLINED
+        );
+        tcl_runtime_set_current_interp(&mut second);
+        assert_eq!(
+            tcl_codegen_native_body_entry_status(),
+            NATIVE_PROC_STATUS_DECLINED
+        );
+        assert!(first.native_execution_refusal().is_none());
+        tcl_codegen_activation_leave(0);
+        assert_eq!(
+            tcl_codegen_native_body_entry_status(),
+            NATIVE_PROC_STATUS_RAN
+        );
+        first.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+            "generated entry probe test",
+        ));
+        let cause = first.native_execution_refusal();
+        assert_eq!(
+            tcl_codegen_native_body_entry_status(),
+            NATIVE_PROC_STATUS_HOST_REFUSED
+        );
+        assert_eq!(first.native_execution_refusal(), cause);
+        for _ in 0..127 {
+            tcl_codegen_activation_leave(0);
+        }
+        assert_eq!(outstanding(), 0);
+        reset_transport(&mut second);
+    }
+
     #[test]
     fn paired_entries_keep_two_original_interpreters_and_nested_lifo_through_tls_retarget() {
         // naming.embedding.original-host-publication-and-fact-transport

@@ -256,6 +256,9 @@ pub enum CodegenAbiImportId {
     /// caller owes exactly one [`Self::ActivationLeave`]), non-zero when the
     /// activation was refused and **no** activation is held.
     ActivationEnter,
+    /// Generated proc-entry eligibility: existing run, decline or Host-refused status.
+    /// Reads existing entered-owner headroom without acquiring an activation.
+    NativeBodyEntryStatus,
     /// Leave a compiled activation, passing the activation's Tcl completion
     /// code so the outermost one publishes an uncaught error's trace.
     ActivationLeave,
@@ -370,6 +373,7 @@ impl CodegenAbiImportId {
                 | Self::FramePop
                 | Self::GuardRelease
                 | Self::ActivationEnter
+                | Self::NativeBodyEntryStatus
                 | Self::ActivationLeave
                 | Self::LogCommand
                 | Self::ReturnState
@@ -428,6 +432,7 @@ impl CodegenAbiImportId {
         Self::VarTraced,
         Self::SlotTraced,
         Self::ActivationEnter,
+        Self::NativeBodyEntryStatus,
         Self::ActivationLeave,
         Self::VarSetElement,
         Self::VarIncr,
@@ -511,6 +516,9 @@ impl CodegenAbiImportId {
             Self::SlotLappend => tcl_import("tcl_codegen_slot_lappend", I32_I32, I32),
             Self::VarTraced => tcl_import("tcl_codegen_var_traced", I32_I32, I32),
             Self::SlotTraced => tcl_import("tcl_codegen_slot_traced", I32, I32),
+            Self::NativeBodyEntryStatus => {
+                tcl_import("tcl_codegen_native_body_entry_status", NONE, I32)
+            }
             Self::ActivationEnter => tcl_import("tcl_codegen_activation_enter", NONE, I32),
             Self::ActivationLeave => tcl_import("tcl_codegen_activation_leave", I32, NONE),
             Self::VarSetElement => {
@@ -534,11 +542,7 @@ impl CodegenAbiImportId {
                 I32_I32_I32_I64_I32,
                 I32,
             ),
-            Self::ProcDefineGuardedI64AddArgv => tcl_import(
-                "tcl_codegen_proc_define_guarded_i64_add_argv",
-                I32_I32_I64_I32_I32_I32_I32_I32,
-                I32,
-            ),
+            Self::ProcDefineGuardedI64AddArgv => guarded_i64_definition_import(),
             Self::ProcDefineOriginalArgv => tcl_import(
                 "tcl_codegen_proc_define_original_argv",
                 I32_I32_I32_I32,
@@ -552,6 +556,14 @@ impl CodegenAbiImportId {
             Self::HostRefusalPending => tcl_import("tcl_codegen_host_refusal_pending", NONE, I32),
         }
     }
+}
+
+const fn guarded_i64_definition_import() -> CodegenAbiImport {
+    tcl_import(
+        "tcl_codegen_proc_define_guarded_i64_add_argv",
+        I32_I32_I64_I32_I32_I32_I32_I32,
+        I32,
+    )
 }
 
 /// The runtime's exported wasm32 indirect function table.

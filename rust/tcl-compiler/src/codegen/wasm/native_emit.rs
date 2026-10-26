@@ -85,6 +85,7 @@ const FRAME_ALIGN: i64 = 8;
 #[derive(Clone, Copy)]
 pub(super) struct NativeImports {
     activation_enter: u32,
+    native_body_entry_status: u32,
     activation_leave: u32,
     frame_push: u32,
     frame_pop: u32,
@@ -133,6 +134,7 @@ pub(super) fn add_native_imports(
 ) -> NativeImports {
     NativeImports {
         activation_enter: add(wasm, CodegenAbiImportId::ActivationEnter),
+        native_body_entry_status: add(wasm, CodegenAbiImportId::NativeBodyEntryStatus),
         activation_leave: add(wasm, CodegenAbiImportId::ActivationLeave),
         frame_push: add(wasm, CodegenAbiImportId::FramePush),
         frame_pop: add(wasm, CodegenAbiImportId::FramePop),
@@ -181,6 +183,7 @@ impl NativeImports {
         use CodegenAbiImportId as Id;
         let transport = [
             (self.activation_enter, Id::ActivationEnter),
+            (self.native_body_entry_status, Id::NativeBodyEntryStatus),
             (self.activation_leave, Id::ActivationLeave),
             (self.frame_push, Id::FramePush),
             (self.frame_pop, Id::FramePop),
@@ -1001,6 +1004,14 @@ impl Emitter<'_, '_> {
         // already took one for this body, and taking a second would halve the
         // recursion depth Tcl allows.
         if self.proc_entry() {
+            // Decline before allocating a frame or evaluating any body word.
+            // The existing caller then runs its ordinary retained source body.
+            self.call_unchecked(self.imports.native_body_entry_status);
+            self.tee(LOCAL_EXIT_CODE);
+            self.open(WasmOp::If, Label::Plain);
+            self.get(LOCAL_EXIT_CODE);
+            self.push(WasmOp::Return);
+            self.close();
             // The body reads its formals from named cells bound by `run_proc`.
             // The argument parameters remain unused.
             let _ = (PARAM_ARGV, PARAM_ARGC);
