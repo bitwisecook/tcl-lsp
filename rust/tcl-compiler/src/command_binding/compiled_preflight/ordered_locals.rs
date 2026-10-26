@@ -500,7 +500,9 @@ mod original_native_request_tests {
             locals.protocol
         ));
         let mut module = fixture.module().clone();
-        module.source.push(' ');
+        let mut changed_source = module.source.bytes().to_vec();
+        changed_source.push(b' ');
+        module.source = tcl_lexer::SourceImage::from_bytes(changed_source, module.source.channel());
         assert!(fixture.refuses_module(&module));
         assert!(fixture.refuses_foreign_entry(&foreign));
         super::original_native_request_fixtures::assert_declaration_and_refusal_boundaries();
