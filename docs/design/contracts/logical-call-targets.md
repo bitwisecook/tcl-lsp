@@ -12,4 +12,4 @@ These edges are conditional source relationships. They supply no Native allocati
 
 Implementers should capture the target once from the actual queried source and analysis, branch on its declaration kind and `MemberSide`, and pass the same owner to downstream scans. Retain each caller document's own full source/input/configuration and propagate unavailable ownership. Use names projected from selected metadata only for the existing descriptive workspace query; never accept a display title as a replacement target.
 
-Finite source/API controls refer to logical-call-target-owner. Those controls establish source selection and handoff only; provider execution requires independently retained evidence.
+The implementation is in [`call_hierarchy.rs`](../../../rust/tcl-lsp-core/src/call_hierarchy.rs). It establishes source selection and handoff only; provider execution still requires independently retained provider and document ownership.
