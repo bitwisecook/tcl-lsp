@@ -17,7 +17,8 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "02146015b388ae0c1df69250a6cefc61318fef04b755516eec6ca16d3147018c"
+ROSTER_SHA = "592b4e5a769a8f2796183bb299312f7b0c05a226e7435cc499fb14a0e450a0f2"
+SCAN_RETENTION_CONTROLS = ('workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window', 'workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs', 'workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs')
 BASE = Path(__file__).resolve().parent
 
 
@@ -131,6 +132,37 @@ def execute(argv, prefix, artifact, seconds):
     return receipt
 
 
+def validate_scan_retention_controls(roster):
+    require(
+        roster.get("scan_retention_controls") == list(SCAN_RETENTION_CONTROLS),
+        "exact bounded scan retention controls mismatch",
+    )
+
+
+def run_scan_retention_controls(roster, executable, artifact, out, cases):
+    validate_scan_retention_controls(roster)
+    for index, selector in enumerate(roster["scan_retention_controls"]):
+        require(sha(executable) == artifact["sha256"], "selected executable changed")
+        prefix = "scan-retention-" + str(index + 1)
+        listed = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list", executable, 180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+                == [selector + ": test"],
+            "exact scan retention control missing/ambiguous",
+        )
+        receipt = execute(
+            [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix, executable, 180,
+        )
+        result = original_result((out / (prefix + ".stdout")).read_text(), receipt["exit_code"])
+        cases.append({"selector": selector, "result": result, "exit_code": receipt["exit_code"]})
+        save(out / "scan-retention-cases.json", cases)
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -153,6 +185,7 @@ resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 remaining = CAP
 processes = []
 cases = []
+scan_retention_cases = []
 seals = {}
 originals = {}
 providers = []
@@ -174,6 +207,7 @@ try:
         and len(set(roster["selectors"])) == 1,
         "navigation unit roster mismatch",
     )
+    validate_scan_retention_controls(roster)
     require(
         all(sha(root / n) == pin for n, pin in roster["source_pins"].items()),
         "reviewed structural source changed",
@@ -384,6 +418,15 @@ try:
         )
         save(out / "cases.json", cases)
     status = 0 if len(cases) == 1 and all(c["result"] == "PASS" for c in cases) else 1
+    navigation_status = status
+    status = 2
+    run_scan_retention_controls(roster, executable, artifact, out, scan_retention_cases)
+    status = (
+        0 if navigation_status == 0
+        and len(scan_retention_cases) == 3
+        and all(case["result"] == "PASS" for case in scan_retention_cases)
+        else 1
+    )
 except (
     RuntimeError,
     OSError,
@@ -395,6 +438,7 @@ except (
     AssertionError,
     KeyboardInterrupt,
 ) as failure:
+    status = 2
     error = repr(failure)
     print("PUBLIC NAVIGATION UNIT STOP " + error, file=sys.stderr, flush=True)
 finally:
@@ -433,6 +477,8 @@ finally:
             "error": error,
             "seals": seals,
             "cases": cases,
+            "scan_retention_cases": scan_retention_cases,
+            "separate_scan_retention_total": len(scan_retention_cases),
             "separate_supplemental_total": len(cases),
             "processes": processes,
             "remaining_log_bytes": remaining,

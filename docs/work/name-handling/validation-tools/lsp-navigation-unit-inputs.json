@@ -1,7 +1,7 @@
 {
   "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
   "schema": 1,
-  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance.",
+  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance. Separately labelled three bounded scan-window lifetime controls on the same fresh server libtest; no new build or budget.",
   "selectors": [
     "tests::public_navigation_waits_for_live_index_before_source_view_routing"
   ],
@@ -19,5 +19,10 @@
     "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "0c5c8b266a9de8a24f689f8cdd4b28cba0bc96206301d12ec2e069e60e0a754f",
     "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214"
   },
-  "target": "tcl_lsp_server"
+  "target": "tcl_lsp_server",
+  "scan_retention_controls": [
+    "workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window",
+    "workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs",
+    "workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs"
+  ]
 }
