@@ -2788,6 +2788,246 @@ mod tests {
         }
     }
 
+    fn assert_original_materialized_footprint_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: Option<InvocationMetadataContext<'_>>,
+    ) {
+        assert!(
+            binding
+                .original_materialized_footprint(tokens, source, registry, metadata)
+                .is_none()
+        );
+    }
+
+    fn assert_materialized_foreign_owner_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        source: &str,
+        input: &ResolvedAnalysisInput,
+    ) -> (
+        Arc<tcl_registry::model::ContextRegistry>,
+        ResolvedAnalysisInput,
+    ) {
+        let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
+        foreign_registry.insert(tcl_registry::CommandSpec {
+            name: "foreign_materialized_source_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign_context = Arc::new(
+            tcl_registry::model::context_for_profile(input.analyser_profile())
+                .with_command_store(Arc::new(foreign_registry)),
+        );
+        let foreign = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&foreign_context),
+            input.lexer_config(),
+        );
+        assert!(
+            binding
+                .original_materialized_footprint(
+                    tokens,
+                    source,
+                    foreign_context.commands(),
+                    InvocationMetadataContext::for_analysis_input(
+                        foreign_context.commands(),
+                        &foreign
+                    ),
+                )
+                .is_none()
+        );
+
+        (foreign_context, foreign)
+    }
+
+    fn assert_materialized_native_owner_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        source: &str,
+        input: &ResolvedAnalysisInput,
+        context: &Arc<tcl_registry::model::ContextRegistry>,
+    ) -> ResolvedAnalysisInput {
+        let native_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let native_input = ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            Arc::clone(context),
+            input.lexer_config(),
+        );
+        assert!(!native_input.has_logical_source_name_context());
+        assert!(
+            binding
+                .original_materialized_footprint(
+                    tokens,
+                    source,
+                    context.commands(),
+                    InvocationMetadataContext::for_analysis_input(
+                        context.commands(),
+                        &native_input
+                    ),
+                )
+                .is_none()
+        );
+
+        native_input
+    }
+
+    fn assert_materialized_missing_owner_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        source: &str,
+        context: &tcl_registry::model::ContextRegistry,
+        metadata: Option<InvocationMetadataContext<'_>>,
+    ) -> crate::command_binding::SourceInvocationBinding {
+        let mut missing = binding.clone();
+        missing.declaration_layout_observations = None;
+        assert!(
+            missing
+                .original_materialized_footprint(tokens, source, context.commands(), metadata)
+                .is_none()
+        );
+        missing
+    }
+
+    fn assert_materialized_unavailable_owner_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        source: &str,
+        context: &tcl_registry::model::ContextRegistry,
+        metadata: Option<InvocationMetadataContext<'_>>,
+    ) -> (
+        crate::command_binding::SourceInvocationBinding,
+        crate::ir::CommandTokens,
+    ) {
+        let mut unavailable = binding.clone();
+        let mut rows = unavailable
+            .declaration_layout_observations
+            .as_deref()
+            .unwrap()
+            .to_vec();
+        for row in &mut rows {
+            let mut state = row.snapshot.state.clone();
+            Arc::make_mut(&mut state.baseline).metadata_context =
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+            row.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
+                state,
+                row.snapshot.realm,
+            ));
+        }
+        unavailable.declaration_layout_observations = Some(Arc::from(rows));
+        let mut unavailable_tokens = tokens.clone();
+        unavailable_tokens.source_binding = Some(unavailable.clone());
+        assert!(
+            unavailable
+                .original_materialized_footprint(
+                    &unavailable_tokens,
+                    source,
+                    context.commands(),
+                    metadata
+                )
+                .is_none()
+        );
+
+        (unavailable, unavailable_tokens)
+    }
+
+    fn assert_materialized_alternatives_owner_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        source: &str,
+        context: &tcl_registry::model::ContextRegistry,
+        metadata: Option<InvocationMetadataContext<'_>>,
+    ) -> (
+        crate::command_binding::SourceInvocationBinding,
+        crate::ir::CommandTokens,
+    ) {
+        // Matching head targets do not identify a whole installer world.
+        // A second original row with a different nested setter table cannot
+        // donate the first row's materialized name facts.
+        let mut alternatives = binding.clone();
+        let original_row = super::super::declaration_layout::original_declaration_layouts(
+            binding.declaration_layout_observations.as_deref().unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap()
+        .clone();
+        let mut different = original_row.clone();
+        let mut state = different.snapshot.state.clone();
+        state.remove("::set");
+        different.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
+            state,
+            different.snapshot.realm,
+        ));
+        alternatives.declaration_layout_observations =
+            Some(Arc::from(vec![original_row, different]));
+        let mut alternative_tokens = tokens.clone();
+        alternative_tokens.source_binding = Some(alternatives.clone());
+        assert!(
+            alternatives
+                .declaration_operand_layout_advice(&alternative_tokens)
+                .unwrap()
+                .closed_logical_source_lookup()
+        );
+        assert!(
+            alternatives
+                .original_materialized_footprint(
+                    &alternative_tokens,
+                    source,
+                    context.commands(),
+                    metadata
+                )
+                .is_none()
+        );
+
+        (alternatives, alternative_tokens)
+    }
+
+    fn assert_original_procedure_roles_retained(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        input: &ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(tokens, input, registry)
+                .is_some()
+        );
+    }
+
+    fn assert_original_procedure_axis_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        input: &ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        axis: i32,
+    ) {
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(tokens, input, registry)
+                .is_none(),
+            "axis {axis}"
+        );
+    }
+
+    fn assert_original_procedure_roles_refused(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        input: &ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(tokens, input, registry)
+                .is_none()
+        );
+    }
+
     #[test]
     fn original_logical_materialized_names_refuse_changed_and_missing_source_owners() {
         // naming.compiler.original-analysis-metadata-context
@@ -2810,15 +3050,12 @@ mod tests {
                 .original_materialized_footprint(&tokens, source, context.commands(), None)
                 .is_none()
         );
-        assert!(
-            binding
-                .original_materialized_footprint(
-                    &tokens,
-                    "run-script {set x OTHER}",
-                    context.commands(),
-                    metadata
-                )
-                .is_none()
+        assert_original_materialized_footprint_refused(
+            binding,
+            &tokens,
+            "run-script {set x OTHER}",
+            context.commands(),
+            metadata,
         );
 
         let older_context = Arc::new(
@@ -2861,133 +3098,18 @@ mod tests {
                 )
                 .is_none()
         );
-        let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
-        foreign_registry.insert(tcl_registry::CommandSpec {
-            name: "foreign_materialized_source_axis",
-            ..tcl_registry::CommandSpec::DEFAULT
-        });
-        let foreign_context = Arc::new(
-            tcl_registry::model::context_for_profile(input.analyser_profile())
-                .with_command_store(Arc::new(foreign_registry)),
+        let (_foreign_context, _foreign) =
+            assert_materialized_foreign_owner_refused(binding, &tokens, source, input);
+        let _native_input =
+            assert_materialized_native_owner_refused(binding, &tokens, source, input, &context);
+        let _missing =
+            assert_materialized_missing_owner_refused(binding, &tokens, source, &context, metadata);
+        let (_unavailable, _unavailable_tokens) = assert_materialized_unavailable_owner_refused(
+            binding, &tokens, source, &context, metadata,
         );
-        let foreign = ResolvedAnalysisInput::new(
-            input.analyser_profile(),
-            input.unit_profile(),
-            Arc::clone(&foreign_context),
-            input.lexer_config(),
+        let (_alternatives, _alternative_tokens) = assert_materialized_alternatives_owner_refused(
+            binding, &tokens, source, &context, metadata,
         );
-        assert!(
-            binding
-                .original_materialized_footprint(
-                    &tokens,
-                    source,
-                    foreign_context.commands(),
-                    InvocationMetadataContext::for_analysis_input(
-                        foreign_context.commands(),
-                        &foreign
-                    ),
-                )
-                .is_none()
-        );
-
-        let native_profile =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
-        let native_input = ResolvedAnalysisInput::new(
-            native_profile,
-            native_profile,
-            Arc::clone(&context),
-            input.lexer_config(),
-        );
-        assert!(!native_input.has_logical_source_name_context());
-        assert!(
-            binding
-                .original_materialized_footprint(
-                    &tokens,
-                    source,
-                    context.commands(),
-                    InvocationMetadataContext::for_analysis_input(
-                        context.commands(),
-                        &native_input
-                    ),
-                )
-                .is_none()
-        );
-
-        let mut missing = binding.clone();
-        missing.declaration_layout_observations = None;
-        assert!(
-            missing
-                .original_materialized_footprint(&tokens, source, context.commands(), metadata)
-                .is_none()
-        );
-        let mut unavailable = binding.clone();
-        let mut rows = unavailable
-            .declaration_layout_observations
-            .as_deref()
-            .unwrap()
-            .to_vec();
-        for row in &mut rows {
-            let mut state = row.snapshot.state.clone();
-            Arc::make_mut(&mut state.baseline).metadata_context =
-                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
-            row.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
-                state,
-                row.snapshot.realm,
-            ));
-        }
-        unavailable.declaration_layout_observations = Some(Arc::from(rows));
-        let mut unavailable_tokens = tokens.clone();
-        unavailable_tokens.source_binding = Some(unavailable.clone());
-        assert!(
-            unavailable
-                .original_materialized_footprint(
-                    &unavailable_tokens,
-                    source,
-                    context.commands(),
-                    metadata
-                )
-                .is_none()
-        );
-
-        // Matching head targets do not identify a whole installer world.
-        // A second original row with a different nested setter table cannot
-        // donate the first row's materialized name facts.
-        let mut alternatives = binding.clone();
-        let original_row = super::super::declaration_layout::original_declaration_layouts(
-            binding.declaration_layout_observations.as_deref().unwrap(),
-        )
-        .unwrap()
-        .next()
-        .unwrap()
-        .clone();
-        let mut different = original_row.clone();
-        let mut state = different.snapshot.state.clone();
-        state.remove("::set");
-        different.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
-            state,
-            different.snapshot.realm,
-        ));
-        alternatives.declaration_layout_observations =
-            Some(Arc::from(vec![original_row, different]));
-        let mut alternative_tokens = tokens.clone();
-        alternative_tokens.source_binding = Some(alternatives.clone());
-        assert!(
-            alternatives
-                .declaration_operand_layout_advice(&alternative_tokens)
-                .unwrap()
-                .closed_logical_source_lookup()
-        );
-        assert!(
-            alternatives
-                .original_materialized_footprint(
-                    &alternative_tokens,
-                    source,
-                    context.commands(),
-                    metadata
-                )
-                .is_none()
-        );
-
         // A retained reached owner is authoritative even when stale. The
         // earlier valid declaration cannot repair this explicit invalid point.
         let mut invalid_point = binding.clone();
@@ -3449,11 +3571,7 @@ mod tests {
         let (analysis, tokens) = logical_original_tokens(source, &context);
         let input = analysis.resolved_input.as_ref().unwrap();
         let binding = tokens.source_binding.as_ref().unwrap();
-        assert!(
-            binding
-                .original_source_procedure_argument_roles(&tokens, input, context.commands(),)
-                .is_some()
-        );
+        assert_original_procedure_roles_retained(binding, &tokens, input, context.commands());
         let (_, foreign) = logical_original_tokens(
             "proc different {value} {}; return DONE; different {LITERAL}",
             &context,
@@ -3493,14 +3611,12 @@ mod tests {
                 }
                 _ => unreachable!(),
             }
-            assert!(
-                changed
-                    .source_binding
-                    .as_ref()
-                    .unwrap()
-                    .original_source_procedure_argument_roles(&changed, input, context.commands())
-                    .is_none(),
-                "axis {axis}"
+            assert_original_procedure_axis_refused(
+                changed.source_binding.as_ref().unwrap(),
+                &changed,
+                input,
+                context.commands(),
+                axis,
             );
         }
         let (alias_analysis, mut alias_tokens) = logical_original_tokens(
@@ -3509,28 +3625,19 @@ mod tests {
         );
         let alias_input = alias_analysis.resolved_input.as_ref().unwrap();
         let alias_binding = alias_tokens.source_binding.as_ref().unwrap();
-        assert!(
-            alias_binding
-                .original_source_procedure_argument_roles(
-                    &alias_tokens,
-                    alias_input,
-                    context.commands(),
-                )
-                .is_some()
+        assert_original_procedure_roles_retained(
+            alias_binding,
+            &alias_tokens,
+            alias_input,
+            context.commands(),
         );
         alias_tokens.source_binding.as_mut().unwrap().targets[0].prepended[0] =
             crate::registry_invocation::EffectiveInvocationWord::Literal("CHANGED".into());
-        assert!(
-            alias_tokens
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_source_procedure_argument_roles(
-                    &alias_tokens,
-                    alias_input,
-                    context.commands()
-                )
-                .is_none()
+        assert_original_procedure_roles_refused(
+            alias_tokens.source_binding.as_ref().unwrap(),
+            &alias_tokens,
+            alias_input,
+            context.commands(),
         );
         let mut config = input.lexer_config();
         config.strict_quoting = !config.strict_quoting;
@@ -3540,26 +3647,20 @@ mod tests {
             input.context_registry(),
             config,
         );
-        assert!(
-            binding
-                .original_source_procedure_argument_roles(
-                    &tokens,
-                    &changed_input,
-                    context.commands(),
-                )
-                .is_none()
+        assert_original_procedure_roles_refused(
+            binding,
+            &tokens,
+            &changed_input,
+            context.commands(),
         );
         let foreign_registry = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
             .unwrap()
             .default_context_registry();
-        assert!(
-            binding
-                .original_source_procedure_argument_roles(
-                    &tokens,
-                    input,
-                    foreign_registry.commands(),
-                )
-                .is_none()
+        assert_original_procedure_roles_refused(
+            binding,
+            &tokens,
+            input,
+            foreign_registry.commands(),
         );
     }
 
