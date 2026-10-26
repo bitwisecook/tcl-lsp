@@ -71,21 +71,26 @@ impl AuthenticatedAnalysisReport {
     /// Missing coverage is terminal; ordinary equality is never a fallback.
     #[must_use]
     pub fn compare(&self, other: &Self) -> AnalysisReportComparison {
-        let left = match self.current_capture() {
+        let left = match trace_capture_result(self.current_capture(), "compare.left.current_owner")
+        {
             Ok(value) => value,
             Err(reason) => return AnalysisReportComparison::Unavailable(reason),
         };
-        let right = match other.current_capture() {
-            Ok(value) => value,
-            Err(reason) => return AnalysisReportComparison::Unavailable(reason),
-        };
+        let right =
+            match trace_capture_result(other.current_capture(), "compare.right.current_owner") {
+                Ok(value) => value,
+                Err(reason) => return AnalysisReportComparison::Unavailable(reason),
+            };
         if left.input != right.input || left.image != right.image || left.registry != right.registry
         {
             return AnalysisReportComparison::Unavailable(
                 AnalysisReportUnavailable::IncompatibleSourceContext,
             );
         }
-        let Some(bodies) = ReportBodyCorrespondence::capture(&left.bodies, &right.bodies) else {
+        let Some(bodies) = trace_capture_option(
+            ReportBodyCorrespondence::capture(&left.bodies, &right.bodies),
+            "compare.bodies",
+        ) else {
             return AnalysisReportComparison::Unavailable(
                 AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
             );
@@ -207,6 +212,20 @@ impl ReportOutputCorrespondence<'_> {
     ) -> bool {
         Arc::ptr_eq(left, self.left_owner) && Arc::ptr_eq(right, self.right_owner)
     }
+}
+
+// Borrowed current captures keep the same Result and original return path.
+fn trace_capture_result<T, E>(value: Result<T, E>, stage: &str) -> Result<T, E> {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        eprintln!(
+            "REPORT_CAPTURE stage={stage} current-owner={}",
+            value.is_ok()
+        );
+    }
+    #[cfg(not(test))]
+    let _ = stage;
+    value
 }
 
 // Preserve each original Option exactly once; diagnostic output is test-only.

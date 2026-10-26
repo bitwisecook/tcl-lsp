@@ -166,7 +166,7 @@ fn check_exhaustive_report_fields(a: &AnalysisResult) {
 fn report_owners_are_exact(a: &AnalysisResult, b: &AnalysisResult) -> bool {
     macro_rules! require_exact_owners {
         ($($field:ident),* $(,)?) => { $(
-            if a.$field != b.$field {
+            if super::trace_capture_gate(a.$field != b.$field, concat!("compare.owner.", stringify!($field))) {
                 return false;
             }
         )* };
@@ -271,30 +271,37 @@ pub(super) fn compare(
     check_exhaustive_report_fields(a);
     // Strict typed equality can prove these facets unchanged. If it cannot,
     // there is no implicit replacement of a nested issuer or authority.
-    if !report_owners_are_exact(a, b) {
+    if super::trace_capture_gate(!report_owners_are_exact(a, b), "compare.owners") {
         return AnalysisReportComparison::Unavailable(
             AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
         );
     }
     // Authenticate every typed body/candidate reference before any Difference.
-    let Some(input) = a.resolved_input.as_ref() else {
+    let Some(input) = super::trace_capture_option(a.resolved_input.as_ref(), "compare.input")
+    else {
         return AnalysisReportComparison::Unavailable(
             AnalysisReportUnavailable::CurrentOwnerUnavailable,
         );
     };
-    let Some(object_facts_equal) = a.object_handle_facts.authenticated_full_report_eq(
-        &b.object_handle_facts,
-        bodies,
-        image,
-        input,
-        registry,
-        output,
+    let Some(object_facts_equal) = super::trace_capture_option(
+        a.object_handle_facts.authenticated_full_report_eq(
+            &b.object_handle_facts,
+            bodies,
+            image,
+            input,
+            registry,
+            output,
+        ),
+        "compare.object_handles",
     ) else {
         return AnalysisReportComparison::Unavailable(
             AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
         );
     };
-    if a.diagnostics.len() != b.diagnostics.len() {
+    if super::trace_capture_gate(
+        a.diagnostics.len() != b.diagnostics.len(),
+        "compare.diagnostic_count",
+    ) {
         return AnalysisReportComparison::Unavailable(
             AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
         );
@@ -312,7 +319,10 @@ pub(super) fn compare(
         } = a;
         let subject_equal = match (&a.subject, &b.subject) {
             (None, None) => true,
-            (Some(a), Some(b)) => match subjects(a, b, output) {
+            (Some(a), Some(b)) => match super::trace_capture_option(
+                subjects(a, b, output),
+                "compare.diagnostic_subject",
+            ) {
                 Some(equal) => equal,
                 None => {
                     return AnalysisReportComparison::Unavailable(
@@ -321,6 +331,7 @@ pub(super) fn compare(
                 }
             },
             _ => {
+                super::trace_capture_gate(true, "compare.diagnostic_subject_presence");
                 return AnalysisReportComparison::Unavailable(
                     AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
                 );
