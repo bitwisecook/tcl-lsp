@@ -563,7 +563,8 @@ mod tests {
             assert!(
                 source_authored_jim_procedure_members_at(source, &analyser, offset)
                     .unwrap()
-                    .is_empty()
+                    .is_empty(),
+                "fixed negative source: {source}"
             );
         }
         let source = "proc {Point new} {} {return OLD}\nclass Point {x 0}\n";
