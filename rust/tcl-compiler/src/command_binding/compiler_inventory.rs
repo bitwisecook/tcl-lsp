@@ -213,6 +213,7 @@ impl SourceCommandBindings {
         if let Some(children) = self.original_child_compiler_visits(&site) {
             visits.extend(children);
         }
+        visits.extend(self.original_expression_compiler_syntax_visits(&site));
         if visits.is_empty() {
             return None;
         }
@@ -2025,6 +2026,36 @@ mod original_inline_control_source_tests {
         )
     }
 
+    fn assert_expression_syntax_inventory_boundary(
+        owner: &SourceCommandBindings,
+        parent: &crate::ir::CommandTokens,
+    ) {
+        let offset = parent.nested_bindings.last().unwrap().0;
+        let site = CommandAllocationSite {
+            source: Arc::clone(owner.root_origin.as_ref().unwrap()),
+            offset,
+        };
+        assert!(!owner.expression_syntax_children.is_empty());
+        assert!(owner.compiler_invocations.get(&site).is_none());
+        assert!(owner.original_child_compiler_visits(&site).is_none());
+        let raw = owner.invocation_at_source("", offset);
+        assert!(owner.restored_child_analysis_owner(offset, &raw).is_some());
+        let mut withdrawn = owner.clone();
+        withdrawn.expression_syntax_children.clear();
+        assert!(
+            withdrawn
+                .restored_child_analysis_owner(offset, &raw)
+                .is_none()
+        );
+        let mut missing_parent = owner.clone();
+        missing_parent.compiler_invocations.clear();
+        assert!(
+            missing_parent
+                .restored_child_analysis_owner(offset, &raw)
+                .is_none()
+        );
+    }
+
     #[test]
     fn restored_nested_compiler_carriers_issue_only_current_complete_source_owners() {
         let (actual, bindings) =
@@ -2033,6 +2064,7 @@ mod original_inline_control_source_tests {
         let parent = &actual.tokens[0];
         let registry = actual.input.borrowed_context_registry().commands();
         assert!(parent.nested_bindings.len() >= 2);
+        assert_expression_syntax_inventory_boundary(owner, parent);
         for (offset, _) in &parent.nested_bindings {
             let raw = owner.invocation_at_source("", *offset);
             assert!(raw.original_analysis_owner.is_none());

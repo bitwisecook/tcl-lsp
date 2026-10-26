@@ -412,6 +412,40 @@ pub fn native_expression_boolean_word84(bytes: &[u8]) -> bool {
 }
 
 impl NativeExpressionProgram {
+    /// C8.6 eager arithmetic compiler scripts from this exact retained byte tree.
+    /// This correspondence supplies only source visitation. The caller must
+    /// retain the selected original Inline Expr recipe and Native emission
+    /// policy; it grants no admission, frame, handler or Normal completion.
+    /// Lazy, function, string, indexed-variable and recovery shapes abstain.
+    #[must_use]
+    pub fn c86_eager_compiler_scripts(&self) -> Option<Vec<Span>> {
+        use tcl_syntax::expr::parser::NativeExprSyntax;
+        use tcl_syntax::expr::{BinOp, ExprNode};
+        if self.context.native_syntax != NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_6) {
+            return None;
+        }
+        let NativeExpressionTree::Parsed(tree) = &self.tree else {
+            return None;
+        };
+        let mut pending = vec![tree];
+        while let Some(node) = pending.pop() {
+            match node {
+                ExprNode::Literal { .. } | ExprNode::Command { .. } => {}
+                ExprNode::Var { text, .. } if !text.contains(&b'(') && !text.contains(&b'[') => {}
+                ExprNode::Binary {
+                    op: BinOp::Add | BinOp::Sub | BinOp::Mul,
+                    left,
+                    right,
+                } => {
+                    pending.push(right);
+                    pending.push(left);
+                }
+                _ => return None,
+            }
+        }
+        original_expression_scripts(tree, &self.source, &self.context)
+    }
+
     /// Select only the original compiler's name operation. Modern C function
     /// nodes register counted qualified literals; function dispatch happens at
     /// execution. Existing pooled-object callbacks require an independent
@@ -1127,6 +1161,49 @@ mod tests {
         }
         for literal in [b"false".as_slice(), b"true", b"yes", b"off"] {
             assert!(native_expression_boolean_word84(literal));
+        }
+    }
+
+    #[test]
+    fn c86_eager_compiler_scripts_preserve_early_failure_and_release_boundaries() {
+        use tcl_dialect::TclVersion;
+        let program = prepare("$n * [fact [expr {$n - 1}]]", TclVersion::V8_6);
+        let scripts = program.c86_eager_compiler_scripts().unwrap();
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(
+            &program.source[scripts[0].as_range()],
+            b"[fact [expr {$n - 1}]]"
+        );
+        assert!(
+            program
+                .compiler_steps(|_| panic!("modern early preflight stays empty"))
+                .is_empty()
+        );
+        for expression in [
+            "$n && [expr {1}]",
+            "$n ? [expr {1}] : 2",
+            "abs([expr {1}])",
+            "1 + $a([expr {1}])",
+            "1 +",
+        ] {
+            assert!(
+                prepare(expression, TclVersion::V8_6)
+                    .c86_eager_compiler_scripts()
+                    .is_none(),
+                "{expression}"
+            );
+        }
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            assert!(
+                prepare("1 + [expr {3 + 4}]", version)
+                    .c86_eager_compiler_scripts()
+                    .is_none()
+            );
         }
     }
 

@@ -3903,6 +3903,12 @@ pub struct SourceCommandBindings {
     compiled_children: SharedSourceInventory<
         BTreeMap<CommandAllocationSite, Vec<compiled_preflight::SourceCompiledChild>>,
     >,
+    expression_syntax_children: SharedSourceInventory<
+        BTreeMap<
+            CommandAllocationSite,
+            Vec<compiled_preflight::expression_syntax::SourceExpressionSyntaxChild>,
+        >,
+    >,
     compiler_invocations: SharedSourceInventory<
         BTreeMap<CommandAllocationSite, Vec<compiler_inventory::SourceCompilerInvocation>>,
     >,
@@ -3957,6 +3963,7 @@ impl PartialEq for SourceCommandBindings {
             && self.compilation_provider_required == other.compilation_provider_required
             && self.compilation_sources == other.compilation_sources
             && self.compiled_children == other.compiled_children
+            && self.expression_syntax_children == other.expression_syntax_children
             && self.compiler_invocations == other.compiler_invocations
             && self.runtime_coverage == other.runtime_coverage
     }
@@ -9095,6 +9102,17 @@ impl SourceCommandBindings {
             self.retain_compiler_invocations(&assessment.compiler_invocations);
             for (site, children) in &assessment.compiled_children {
                 let retained = self.compiled_children.entry(site.clone()).or_default();
+                for child in children {
+                    if !retained.contains(child) {
+                        retained.push(child.clone());
+                    }
+                }
+            }
+            for (site, children) in &assessment.expression_syntax_children {
+                let retained = self
+                    .expression_syntax_children
+                    .entry(site.clone())
+                    .or_default();
                 for child in children {
                     if !retained.contains(child) {
                         retained.push(child.clone());
