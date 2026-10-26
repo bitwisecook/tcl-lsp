@@ -4,6 +4,16 @@ use super::*;
 use crate::interp::native_i64_body::FutureNativeI64AddPlan;
 use tcl_registry::native_return_compilation::{NativeReturnExit, NativeReturnOptionsOperand};
 
+macro_rules! i64_observed_some {
+    ($expression:expr, $stage:literal) => {{
+        let value = $expression;
+        if value.is_none() {
+            crate::interp::native_i64_body::observe($stage, None);
+        }
+        value
+    }};
+}
+
 pub(super) struct NativeI64AddBody<'a> {
     expression_command: &'a CommandInstruction,
     slots: [usize; 2],
@@ -27,9 +37,11 @@ impl NativeBodyArtifact {
             || procedure.native_statics().is_some()
             || self.scripts.len() != 2
         {
+            crate::interp::native_i64_body::observe("layout-base", None);
             return None;
         }
         if procedure.params[0].name == procedure.params[1].name {
+            crate::interp::native_i64_body::observe("layout-duplicate", None);
             return None;
         }
         let parameters = tcl_syntax::list::split_native_list_bytes(
@@ -44,13 +56,15 @@ impl NativeBodyArtifact {
                 .zip(&parameters)
                 .any(|(actual, requested)| actual.name.as_slice() != requested.as_ref())
         {
+            crate::interp::native_i64_body::observe("layout-formals", None);
             return None;
         }
-        let layout = self.locals.as_ref()?;
+        let layout = i64_observed_some!(self.locals.as_ref(), "layout-missing")?;
         if layout.kind != NativeCompiledLocalLayoutKind::Procedure
             || layout.owner != self.stamp.interpreter
             || layout.names.len() != 2
         {
+            crate::interp::native_i64_body::observe("layout-owner", None);
             return None;
         }
         Some(layout)
@@ -61,18 +75,23 @@ impl NativeBodyArtifact {
         procedure: &Rc<ProcDef>,
         candidate: &FutureNativeI64AddPlan,
     ) -> Option<NativeI64AddBody<'a>> {
-        let layout = self.native_i64_add_layout(procedure, candidate)?;
-        let root = self.scripts.get(&self.region)?;
+        let layout =
+            i64_observed_some!(self.native_i64_add_layout(procedure, candidate), "layout")?;
+        let root = i64_observed_some!(self.scripts.get(&self.region), "root-missing")?;
         if root.fatal.is_some() || root.empty.is_some() {
+            crate::interp::native_i64_body::observe("root-fatal", None);
             return None;
         }
         let [return_command] = root.commands.as_slice() else {
+            crate::interp::native_i64_body::observe("root-count", None);
             return None;
         };
         let Operation::SelectedReturn(recipe, _, _) = &return_command.operation else {
+            crate::interp::native_i64_body::observe("return-operation", None);
             return None;
         };
         let NativeReturnOptionsOperand::Static(options) = &recipe.options else {
+            crate::interp::native_i64_body::observe("return-options", None);
             return None;
         };
         if recipe.exit != NativeReturnExit::Done
@@ -83,35 +102,46 @@ impl NativeBodyArtifact {
             || return_command.words.len() != 2
             || return_command.guard.is_none()
         {
+            crate::interp::native_i64_body::observe("return-recipe", None);
             return None;
         }
         let word = &return_command.words[1];
         let [part] = word.arena.original.list(word.arena.original.root()) else {
+            crate::interp::native_i64_body::observe("return-word", None);
             return None;
         };
         let ExecutablePart::Command { body } = &part.part else {
+            crate::interp::native_i64_body::observe("return-substitution", None);
             return None;
         };
-        let nested = self.scripts.get(body)?;
+        let nested = i64_observed_some!(self.scripts.get(body), "expression-missing")?;
         if nested.fatal.is_some() || nested.empty.is_some() {
+            crate::interp::native_i64_body::observe("expression-fatal", None);
             return None;
         }
         let [expression_command] = nested.commands.as_slice() else {
+            crate::interp::native_i64_body::observe("expression-count", None);
             return None;
         };
         let Operation::Expression(expression) = &expression_command.operation else {
+            crate::interp::native_i64_body::observe("expression-operation", None);
             return None;
         };
         if expression_command.guard.is_none() {
+            crate::interp::native_i64_body::observe("expression-guard", None);
             return None;
         }
-        let operands = expression.native_i64_add_operands(&self.image)?;
+        let operands = i64_observed_some!(
+            expression.native_i64_add_operands(&self.image),
+            "expression-operands"
+        )?;
         if tcl_registry::native_expression_program::expression_program_emission_for_policy(
             operands.program,
             self.stamp.expression_policy.as_ref(),
             tcl_registry::InvocationDialect::for_version(self.stamp.physical),
         ) != tcl_registry::native_expression_program::ExpressionProgramEmission::Native
         {
+            crate::interp::native_i64_body::observe("expression-policy", None);
             return None;
         }
         if operands.slots != [0, 1]
@@ -129,6 +159,7 @@ impl NativeBodyArtifact {
                         .is_none_or(|name| name.as_ref() != parameter.name.as_slice())
                 })
         {
+            crate::interp::native_i64_body::observe("compiled-slots", None);
             return None;
         }
         Some(NativeI64AddBody {
@@ -219,37 +250,47 @@ impl Interp {
     ) -> Option<Box<EnteredI64AddPlan>> {
         let procedure = self.frames.borrow().current_c_procedure()?.clone();
         let candidate = procedure.future_i64_add.get()?;
-        procedure.check_native_liveness().ok()?;
+        crate::interp::native_i64_body::observe("entered-candidate", None);
+        i64_observed_some!(procedure.check_native_liveness().ok(), "procedure-live")?;
         if self.native_execution_refusal().is_some()
             || !self.original_procedure_artifact_is_current(&procedure)
         {
+            crate::interp::native_i64_body::observe("entry-currency", None);
             return None;
         }
-        let original = procedure.body.checked_ptr().ok()?;
+        let original = i64_observed_some!(procedure.body.checked_ptr().ok(), "body-live")?;
         if !Rc::ptr_eq(&cache(original)?, artifact) {
+            crate::interp::native_i64_body::observe("cache-identity", None);
             return None;
         }
-        let selected = artifact.native_i64_add_body(&procedure, candidate)?;
+        let selected = i64_observed_some!(
+            artifact.native_i64_add_body(&procedure, candidate),
+            "body-recipe"
+        )?;
         let traces = self.traces.borrow();
         if !traces.cmd_traces.is_empty()
             || !traces.traces.is_empty()
             || !traces.step_active.is_empty()
         {
+            crate::interp::native_i64_body::observe("trace-active", None);
             return None;
         }
         drop(traces);
         let protocol = self
             .native_invocation_dialect()
             .native_scalar_getter_protocol()?;
-        let frame =
+        let frame = i64_observed_some!(
             self.frames
                 .borrow()
-                .quiet_native_i64_frame(&procedure, selected.slots, protocol)?;
+                .quiet_native_i64_frame(&procedure, selected.slots, protocol),
+            "quiet-frame"
+        )?;
         let Operation::Expression(expression) = &selected.expression_command.operation else {
             return None;
         };
         let program =
             core::ptr::from_ref(expression.native_i64_add_operands(&artifact.image)?.program);
+        crate::interp::native_i64_body::observe("strategy-captured", None);
         Some(Box::new(EnteredI64AddPlan {
             artifact: Rc::downgrade(artifact),
             procedure: Rc::downgrade(&procedure),

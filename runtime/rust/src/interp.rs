@@ -5222,6 +5222,7 @@ impl Interp {
         )?;
         let declaration = publication.binding.published_declaration()?;
         declaration.future_i64_add.set(plan).ok()?;
+        native_i64_body::observe("publication-attached", None);
         Some(publication.generation)
     }
 
@@ -18371,6 +18372,9 @@ impl Interp {
                     declaration.native_procedure_role_ledger().references(),
                 ) {
                     Some(NativeProcedureRecompileAction::ReplaceSharedDeclaration) => {
+                        if declaration.future_i64_add.get().is_some() {
+                            native_i64_body::observe("recompile-replace", None);
+                        }
                         declaration = match binding.replace_for_recompilation() {
                             Ok(declaration) => declaration,
                             Err(error) => return self.report_cmd_error(error.into()),

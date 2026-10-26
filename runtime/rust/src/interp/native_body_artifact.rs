@@ -2173,11 +2173,25 @@ impl Interp {
         {
             execution.native_i64_add = self.capture_entered_i64_body(artifact);
         }
+        #[cfg(have_tommath)]
+        let observed_i64 = execution.native_i64_add.is_some();
         let code = self.execute_body_region(artifact, artifact.region, &mut execution);
         #[cfg(have_tommath)]
+        if observed_i64 {
+            crate::interp::native_i64_body::observe(
+                "body-settled",
+                Some(
+                    u64::from(execution.native_i64_ran)
+                        | (u64::from(execution.done) << 1)
+                        | (u64::from(code == Code::Return) << 2),
+                ),
+            );
+        }
+        #[cfg(have_tommath)]
         if execution.native_i64_ran && execution.done && code == Code::Return {
-            self.native_proc_dispatches
-                .set(self.native_proc_dispatches.get().saturating_add(1));
+            let count = self.native_proc_dispatches.get().saturating_add(1);
+            self.native_proc_dispatches.set(count);
+            crate::interp::native_i64_body::observe("dispatch-count", Some(count));
         }
         let code = if execution.done && code == Code::Return {
             Code::Ok

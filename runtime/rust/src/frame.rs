@@ -2739,6 +2739,7 @@ impl FrameStack {
     ) -> Option<std::rc::Weak<()>> {
         let frame = self.current_activation_owner();
         if !self.native_i64_execution_matches(procedure, &frame) {
+            crate::interp::native_i64_body::observe("frame-owner", None);
             return None;
         }
         let mut integers = [0; 2];
@@ -2763,6 +2764,7 @@ impl FrameStack {
                 || contents.native_alias_refs != 0
                 || contents.rmw_refs != 0
             {
+                crate::interp::native_i64_body::observe("frame-quiet-cell", None);
                 return None;
             }
             crate::obj::check_native_liveness(*value).ok()?;
@@ -2797,6 +2799,7 @@ impl FrameStack {
                 };
                 *integer
             } else {
+                crate::interp::native_i64_body::observe("frame-operand-type", None);
                 return None;
             };
         }

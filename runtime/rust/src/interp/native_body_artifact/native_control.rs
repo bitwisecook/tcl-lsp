@@ -1544,12 +1544,15 @@ impl CompiledExpressionContext<'_> {
         &mut self,
         node: &tcl_syntax::expr::NativeExprNode,
     ) -> Option<Result<obj::Owned, crate::expr_error::ExprError>> {
-        if self
+        let selected = self
             .execution
             .native_i64_add
             .as_ref()
-            .is_some_and(|plan| plan.matches(self.artifact, &self.prepared.program, node))
-        {
+            .is_some_and(|plan| plan.matches(self.artifact, &self.prepared.program, node));
+        if self.execution.native_i64_add.is_some() {
+            crate::interp::native_i64_body::observe("root-match", Some(u64::from(selected)));
+        }
+        if selected {
             let plan = self
                 .execution
                 .native_i64_add
@@ -1589,6 +1592,10 @@ impl CompiledExpressionContext<'_> {
                 plan.check(self.interp, &self.original)?;
                 self.execution.native_i64_ran =
                     primitive && plan.optimization_is_current(self.interp);
+                crate::interp::native_i64_body::observe(
+                    "numeric-settled",
+                    Some(u64::from(primitive) | (u64::from(self.execution.native_i64_ran) << 1)),
+                );
                 Ok(value)
             })());
         }
