@@ -660,7 +660,6 @@ fn generic_collection_preserves_first_refusal_before_original_updater() {
     leak_free(|| {
         let mut interpreter = Interp::new();
         interpreter.set_runtime_version(TclVersion::V9_0);
-        let initial_refusal = interpreter.native_execution_refusal().is_some();
         interpreter.set_result_bytes(b"SEEDED RESULT");
         interpreter.set_c_error_code(b"STAMP BEFORE");
         let seeded_refusal = interpreter.native_execution_refusal().is_some();
@@ -668,9 +667,6 @@ fn generic_collection_preserves_first_refusal_before_original_updater() {
             interpreter.refuse_host_command("existing collection refusal");
         }
         let first = interpreter.native_execution_refusal().unwrap();
-        if std::env::var("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref() == Ok("1") {
-            eprintln!("COLLECTION_GENERIC_ENTRY initial_refusal={initial_refusal} seeded_refusal={seeded_refusal}");
-        }
         let (value, updates, frees) = callback(&interpreter, 0, false, false, b"alpha beta");
         let mut count: TclSize = -71;
         let mut window = ptr::dangling_mut::<*mut TclObj>();
