@@ -558,10 +558,16 @@ impl tcl_cmd_core::native_increment::LegacyIncrementAmountOps
 
 /// Selected modern C integer update operations on original physical objects.
 pub(crate) struct RuntimeIncrementObjects {
+    cached_sum: Option<(i64, i64)>,
     dialect: tcl_registry::InvocationDialect,
     context: IncrementContext,
 }
 impl RuntimeIncrementObjects {
+    pub(crate) fn with_cached_sum(mut self, cached_sum: Option<(i64, i64)>) -> Self {
+        self.cached_sum = cached_sum;
+        self
+    }
+
     pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
         let context = IncrementContext::selected(interp)?;
         let dialect = interp.native_invocation_dialect();
@@ -569,7 +575,11 @@ impl RuntimeIncrementObjects {
             .native_scalar_getter_protocol()
             .filter(|protocol| protocol.supports_number_getter())
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        Ok(Self { dialect, context })
+        Ok(Self {
+            dialect,
+            context,
+            cached_sum: None,
+        })
     }
 }
 impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrementObjects {
@@ -629,6 +639,14 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
     }
     fn add(&self, current: Number, amount: Number) -> Result<Number, tcl_cmd_core::CmdError> {
         self.context.check()?;
+        let cached = self.cached_sum.filter(|&(old, sum)| {
+            matches!((&current, &amount), (Number::Int(actual), Number::Int(1))
+                if *actual == old && actual.checked_add(1) == Some(sum))
+        });
+        if let Some((_, sum)) = cached {
+            self.context.check()?;
+            return Ok(Number::Int(sum));
+        }
         let result = tcl_cmd_core::native_increment::add_integer_numbers(
             current,
             amount,

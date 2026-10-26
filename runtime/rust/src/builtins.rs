@@ -437,11 +437,32 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(arguments) => arguments,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let code = incr_original(interp, argv, &arguments);
+    let code = incr_original(interp, argv, &arguments, None);
     arguments.finish(code)
 }
 
-fn incr_original(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
+pub(crate) fn incr_with_cached_sum(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    hint: (i64, i64),
+) -> Code {
+    if argv.len() < 2 || argv.len() > 3 {
+        return interp.wrong_args(b"incr varName ?increment?");
+    }
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = incr_original(interp, argv, &arguments, Some(hint));
+    arguments.finish(code)
+}
+
+fn incr_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+    cached_sum: Option<(i64, i64)>,
+) -> Code {
     let legacy_amount = if let Some(protocol) = interp
         .native_invocation_dialect()
         .native_legacy_increment_protocol()
@@ -465,7 +486,17 @@ fn incr_original(interp: &mut Interp, argv: &[*mut TclObj], arguments: &Original
         return interp.report_cmd_error(error);
     }
     if interp.native_c_variable_name_protocol().is_some() {
-        return interp.increment_original_c_variable(argv[1], argv.get(2).copied(), legacy_amount);
+        return match cached_sum {
+            Some(hint) => interp.increment_original_c_variable_with_sum(
+                argv[1],
+                argv.get(2).copied(),
+                legacy_amount,
+                Some(hint),
+            ),
+            None => {
+                interp.increment_original_c_variable(argv[1], argv.get(2).copied(), legacy_amount)
+            }
+        };
     }
     if let Some(amount) = legacy_amount {
         if interp
