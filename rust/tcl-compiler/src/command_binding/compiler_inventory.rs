@@ -9,7 +9,9 @@ use std::collections::BTreeMap;
 
 fn compiler_syntax_trace_enabled() -> bool {
     static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    if !(cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
+    if !(cfg!(test)
+        || cfg!(debug_assertions)
+        || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
         || std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none()
     {
         return false;
@@ -22,7 +24,7 @@ fn compiler_syntax_trace_enabled() -> bool {
     .is_ok()
 }
 
-fn trace_compiler_syntax_option<T>(
+pub(super) fn trace_compiler_syntax_option<T>(
     stage: &str,
     offset: Option<u32>,
     value: Option<T>,
@@ -36,7 +38,7 @@ fn trace_compiler_syntax_option<T>(
     value
 }
 
-fn trace_compiler_syntax_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
+pub(super) fn trace_compiler_syntax_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
     if compiler_syntax_trace_enabled() {
         eprintln!("ORIGINAL_COMPILER_SYNTAX_GATE stage={stage} offset={offset:?} value={value}");
     }
@@ -2053,47 +2055,63 @@ impl SourceCommandBindings {
     ) -> Option<Vec<&SourceCompilerInvocation>> {
         let mut visits = Vec::new();
         for (child_site, children) in &self.compiled_children {
-            if child_site.source != site.source || child_site.offset > site.offset {
+            if trace_compiler_syntax_flag(
+                "child.site-filter",
+                Some(site.offset),
+                child_site.source != site.source || child_site.offset > site.offset,
+            ) {
                 continue;
             }
             for child in children {
-                if site
-                    .offset
-                    .checked_sub(child_site.offset)
-                    .is_none_or(|offset| (offset as usize) >= child.script.text.len())
-                    || child.script.origin != child_site.source
-                    || child.script.base() != child_site.offset
-                    || self
-                        .compilation_provider_required
-                        .contains(&child.enclosing)
-                {
+                if trace_compiler_syntax_flag(
+                    "child.region-or-provider",
+                    Some(site.offset),
+                    site.offset
+                        .checked_sub(child_site.offset)
+                        .is_none_or(|offset| (offset as usize) >= child.script.text.len())
+                        || child.script.origin != child_site.source
+                        || child.script.base() != child_site.offset
+                        || self
+                            .compilation_provider_required
+                            .contains(&child.enclosing),
+                ) {
                     continue;
                 }
                 let super::compiled_invocation::SourceNativeCompilerAdmission::Inline(parent) =
                     child.parent.as_ref()
                 else {
+                    trace_compiler_syntax_flag("child.parent.inline", Some(site.offset), false);
                     continue;
                 };
-                if !self
-                    .compiler_invocations
-                    .get(&parent.compilation_site)
-                    .is_some_and(|parents| {
-                        !parents.is_empty()
-                            && parents.iter().all(|visit| {
-                                visit.admitted.as_deref() == Some(child.parent.as_ref())
-                                    && visit.namespace_key == child.parent_namespace_key
-                                    && visit.table == child.table
-                            })
-                    })
-                {
+                trace_compiler_syntax_flag("child.parent.inline", Some(site.offset), true);
+                if trace_compiler_syntax_flag(
+                    "child.parent-current",
+                    Some(site.offset),
+                    !self
+                        .compiler_invocations
+                        .get(&parent.compilation_site)
+                        .is_some_and(|parents| {
+                            !parents.is_empty()
+                                && parents.iter().all(|visit| {
+                                    visit.admitted.as_deref() == Some(child.parent.as_ref())
+                                        && visit.namespace_key == child.parent_namespace_key
+                                        && visit.table == child.table
+                                })
+                        }),
+                ) {
                     continue;
                 }
-                if let Some(original) = child.compiler_visits.get(site) {
+                if let Some(original) = trace_compiler_syntax_option(
+                    "child.recorded-visits",
+                    Some(site.offset),
+                    child.compiler_visits.get(site),
+                ) {
                     visits.extend(original);
                 }
             }
         }
-        (!visits.is_empty()).then_some(visits)
+        trace_compiler_syntax_flag("child.visits-seen", Some(site.offset), !visits.is_empty())
+            .then_some(visits)
     }
 
     fn missing_runtime_reachability(

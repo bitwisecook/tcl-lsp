@@ -8769,31 +8769,88 @@ impl SourceCommandBindings {
         offset: u32,
         binding: &SourceInvocationBinding,
     ) -> Option<Arc<OriginalSourceAnalysisOwner>> {
-        let owner = self.original_analysis_owner.as_ref()?;
-        let site = binding.invocation_site()?;
-        let input = owner.metadata.source_analysis_input()?;
+        let owner = compiler_inventory::trace_compiler_syntax_option(
+            "restore.owner",
+            Some(offset),
+            self.original_analysis_owner.as_ref(),
+        )?;
+        let site = compiler_inventory::trace_compiler_syntax_option(
+            "restore.site",
+            Some(offset),
+            binding.invocation_site(),
+        )?;
+        let input = compiler_inventory::trace_compiler_syntax_option(
+            "restore.input",
+            Some(offset),
+            owner.metadata.source_analysis_input(),
+        )?;
         let registry = input.borrowed_context_registry().commands();
-        let (_, original) = binding.original_recorded_command()?;
-        if site.offset != offset
-            || !Arc::ptr_eq(&site.source, &owner.source)
-            || original.words().first()?.source().span.start() != offset
-            || original.synthetic.is_some()
-            || !original.original_words_match_argv_text()
-            || input.has_logical_source_name_context()
-            || input.has_hosted_source_name_context()
-            || binding.original_lexer_config_for_tokens(&original) != Some(input.lexer_config())
-            || !self
-                .matches_original_source_image(owner.source.source_image(), input.lexer_config())
-            || binding != &self.invocation_at_source("", offset)
-        {
+        let (_, original) = compiler_inventory::trace_compiler_syntax_option(
+            "restore.recorded",
+            Some(offset),
+            binding.original_recorded_command(),
+        )?;
+        if compiler_inventory::trace_compiler_syntax_flag(
+            "restore.site-offset",
+            Some(offset),
+            site.offset != offset,
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.site-owner",
+            Some(offset),
+            !Arc::ptr_eq(&site.source, &owner.source),
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.head-offset",
+            Some(offset),
+            compiler_inventory::trace_compiler_syntax_option(
+                "restore.head",
+                Some(offset),
+                original.words().first(),
+            )?
+            .source()
+            .span
+            .start()
+                != offset,
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.synthetic",
+            Some(offset),
+            original.synthetic.is_some(),
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.word-vector",
+            Some(offset),
+            !original.original_words_match_argv_text(),
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.logical",
+            Some(offset),
+            input.has_logical_source_name_context(),
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.hosted",
+            Some(offset),
+            input.has_hosted_source_name_context(),
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.config",
+            Some(offset),
+            binding.original_lexer_config_for_tokens(&original) != Some(input.lexer_config()),
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.source-image",
+            Some(offset),
+            !self.matches_original_source_image(owner.source.source_image(), input.lexer_config()),
+        ) || compiler_inventory::trace_compiler_syntax_flag(
+            "restore.raw-binding",
+            Some(offset),
+            binding != &self.invocation_at_source("", offset),
+        ) {
             return None;
         }
-        self.original_compiler_syntax_visits_for_owner(
-            &original,
-            input,
-            registry,
-            owner,
+        compiler_inventory::trace_compiler_syntax_option(
+            "restore.visits",
             Some(offset),
+            self.original_compiler_syntax_visits_for_owner(
+                &original,
+                input,
+                registry,
+                owner,
+                Some(offset),
+            ),
         )?;
         Some(Arc::clone(owner))
     }
