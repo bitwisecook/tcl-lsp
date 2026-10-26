@@ -122,6 +122,69 @@ impl SourceCompilerLocalInventory {
         })
     }
 
+    /// Preserve only already-issued Native slots for a complete arithmetic
+    /// program. This issues no new local, runtime read, value or effect fact.
+    pub(super) fn retains_existing_expression(
+        &self,
+        program: &tcl_registry::native_expression_program::NativeExpressionProgram,
+        site: &CommandAllocationSite,
+        config: tcl_lexer::LexerConfig,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        compilation: NativeCompilationContext,
+    ) -> bool {
+        use tcl_registry::native_expression_program::NativeExpressionTree;
+        use tcl_syntax::expr::parser::NativeExprSyntax;
+        use tcl_syntax::expr::{BinOp, ExprNode};
+        use tcl_syntax::naming::{NativeCompiledVariableAuthority, NativeCompiledVariableRecipe};
+        if !matches!(
+            (self.protocol.recipe(), program.context.native_syntax),
+            (NativeCompiledVariableRecipe::C(version), NativeExprSyntax::Tcl(parsed))
+                if version == parsed
+                    && matches!(version, tcl_dialect::TclVersion::V8_6 | tcl_dialect::TclVersion::V9_0)
+        ) {
+            return false;
+        }
+        if self.protocol.authority() != NativeCompiledVariableAuthority::Native
+            || !matches!(self.formals, SourceCompilerFormalOwner::Native(_))
+            || !self.owns(site, config, frame, compilation, self.protocol)
+            || self
+                .chunk
+                .source
+                .source_image()
+                .bytes()
+                .get(program.span.as_range())
+                != Some(program.source.as_slice())
+        {
+            return false;
+        }
+        let NativeExpressionTree::Parsed(tree) = &program.tree else {
+            return false;
+        };
+        let mut pending = vec![tree];
+        while let Some(node) = pending.pop() {
+            match node {
+                ExprNode::Var { text, name, .. }
+                    if text.strip_prefix(b"$") == Some(name.as_slice())
+                        && self.protocol.substitution_lookup(
+                            name,
+                            true,
+                            NativeCompiledVariableEnvironment::DeclareProcedure,
+                        ) == NativeCompiledVariableLookup::CreateLocal
+                        && self.primary_for(name, compilation).is_some() => {}
+                ExprNode::Binary {
+                    op: BinOp::Add | BinOp::Sub | BinOp::Mul,
+                    left,
+                    right,
+                } => {
+                    pending.push(right);
+                    pending.push(left);
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+
     pub(super) fn declare(&mut self, name: Option<&[u8]>) -> bool {
         if let Some(name) = name
             && self.locals.iter().flatten().any(|existing| {
@@ -413,6 +476,68 @@ mod original_native_request_tests {
             .clone()
     }
 
+    fn assert_original_expression_boundaries(
+        fixture: &super::original_native_request_fixtures::CompiledFixture,
+        locals: &SourceCompilerLocalInventory,
+    ) {
+        use tcl_registry::native_expression_program::NativeExpressionTree;
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        let module = fixture.module();
+        let bindings = module
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .positioned_for_module(module, module.resolved_registry())
+            .unwrap();
+        let (site, program) = bindings
+            .compiler_invocations
+            .values()
+            .flatten()
+            .find_map(|visit| {
+                let preparation = visit.structured.as_deref()?;
+                let NativeInstructionPlan::Expression(expression) = &preparation.recipe else {
+                    return None;
+                };
+                Some((&preparation.compilation_site, expression.program.as_ref()?))
+            })
+            .expect("actual selected original expression preparation");
+        let accepts =
+            |inventory: &SourceCompilerLocalInventory,
+             program: &tcl_registry::native_expression_program::NativeExpressionProgram,
+             site: &CommandAllocationSite| {
+                inventory.retains_existing_expression(
+                    program,
+                    site,
+                    locals.config,
+                    &locals.frame,
+                    locals.compilation,
+                )
+            };
+        assert!(accepts(locals, program, site));
+        let mut missing = locals.clone();
+        missing.locals.clear();
+        assert!(
+            !accepts(&missing, program, site),
+            "no new slot may be minted"
+        );
+        let mut foreign = site.clone();
+        foreign.source = Arc::new(site.source.as_ref().clone());
+        assert!(!accepts(locals, program, &foreign));
+        let mut changed = program.clone();
+        changed.source.push(b' ');
+        assert!(!accepts(locals, &changed, site));
+        let mut different_recipe = program.clone();
+        different_recipe.context.native_syntax =
+            tcl_syntax::expr::parser::NativeExprSyntax::Unknown;
+        assert!(!accepts(locals, &different_recipe, site));
+        let mut rejected = program.clone();
+        rejected.tree = NativeExpressionTree::Rejected {
+            message: Vec::new(),
+            error_code: None,
+        };
+        assert!(!accepts(locals, &rejected, site));
+    }
+
     fn fingerprint(locals: &SourceCompilerLocalInventory) -> u64 {
         let mut state = std::collections::hash_map::DefaultHasher::new();
         locals.hash(&mut state);
@@ -425,6 +550,7 @@ mod original_native_request_tests {
         let mut fixture =
             super::original_native_request_fixtures::compiled_fixture(source, "::p", &["3", "4"]);
         let locals = retained_locals(&fixture);
+        assert_original_expression_boundaries(&fixture, &locals);
         assert!(locals.owns(
             &locals.chunk,
             locals.config,
