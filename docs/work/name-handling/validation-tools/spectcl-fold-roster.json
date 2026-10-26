@@ -73,7 +73,7 @@
     "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs": "40b0c53c26aaae623c1fc695603a7c5aee2623278d19e5cda6aebf867aa716ac",
     "rust/tcl-compiler/src/lowering/mod.rs": "a4ce038783d4537cb4b707df38ea6e8008393c7b46e95b3aaa71310a5cfe4465",
     "rust/tcl-compiler/src/var_resolve.rs": "ec47b8fd33df4371dc738a5d7a16f7267ad8988d7cd23e1ab62235df46939c57",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "bd2aae8a744d3429a4ffe3be32b8429625e832793110899e9b14881bfc6f6cd7",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs": "f3136dad7d1caba8dedaa2ff2c765a990907f90e1fb9bb29d86bf6e23b587543",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f"
   },
   "spectcl": [
