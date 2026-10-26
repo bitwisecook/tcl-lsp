@@ -371,6 +371,22 @@ impl ActualReportCapture {
 }
 
 impl Analyser {
+    // Test-only request capture around the actual source-point entry API.
+    // A refused genuine fixture panics; no standalone fallback or report is minted.
+    #[cfg(test)]
+    pub(crate) fn source_point_report_for_cache_test(
+        &mut self,
+        source: &str,
+        dialect: &str,
+        point: &crate::command_binding::OriginalSourcePointEntry,
+    ) -> AuthenticatedAnalysisReport {
+        self.capture_report(|analyser| {
+            analyser
+                .analyse_with_source_point_entry(source, dialect, point)
+                .expect("genuine source-point full-report cache fixture")
+        })
+    }
+
     /// Capture an actual complete analysis for the separate reporting API.
     /// This does not alter diagnostics, runtime equality or cache eligibility.
     pub fn analyse_for_report(

@@ -87,42 +87,247 @@ impl SourceAnalysisCacheKey {
     }
 }
 
-struct CacheEntry {
+// Only genuine source-point results use this lease. Its snapshot never owns
+// a lease, and the TLS history retains only Weak ownership of this object.
+pub(super) struct SourcePointCacheLease {
     key: SourceAnalysisCacheKey,
-    bindings: Arc<SourceCommandBindings>,
+    snapshot: SourceCommandBindings,
+}
+impl std::fmt::Debug for SourcePointCacheLease {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SourcePointCacheLease")
+    }
+}
+
+// Nonauthoritative history identity: the point token has exactly the existing
+// issued-key Eq, but cannot expose state, serve a hit or reissue an old key.
+struct SourcePointHistoryKey {
+    source: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    purpose: tcl_lexer::SourceSegmentationPurpose,
+    frame: VariableExecutionFrame,
+    registry: tcl_registry::RegistrySemanticKey,
+    point: Option<super::OriginalSourcePointOrigin>,
+    entry: SourceAnalysisEntry,
+}
+impl SourcePointHistoryKey {
+    fn new(key: &SourceAnalysisCacheKey) -> Self {
+        Self {
+            source: key.source.clone(),
+            config: key.config,
+            purpose: key.purpose,
+            frame: key.frame.clone(),
+            registry: key.registry.clone(),
+            point: key
+                .entry
+                .source_point_entry
+                .as_ref()
+                .map(super::OriginalSourcePointEntry::source_origin),
+            entry: history_entry(&key.entry),
+        }
+    }
+    fn matches(&self, key: &SourceAnalysisCacheKey) -> bool {
+        self.source == key.source
+            && self.config == key.config
+            && self.purpose == key.purpose
+            && self.frame == key.frame
+            && self.registry == key.registry
+            && self.entry_matches(&key.entry)
+    }
+    fn entry_matches(&self, entry: &SourceAnalysisEntry) -> bool {
+        let SourceAnalysisEntry {
+            source_point_entry,
+            metadata_context,
+            hosted_execution_context,
+            execution_name_policy,
+            logical_source_input,
+            vendor_source_input,
+            compilation_scope,
+            invocation_realm,
+            native_entry,
+            incoming_formals,
+            declared_commands,
+            trusted_package_loaders,
+            trusted_source_modules,
+            unknown_entry,
+            invocation_dialect,
+            compiled_variable_provider,
+            native_compilation,
+        } = entry;
+        let same_point = match (&self.point, source_point_entry) {
+            (None, None) => true,
+            (Some(origin), Some(point)) => point.matches_origin_token(origin),
+            _ => false,
+        };
+        same_point
+            && self.entry.source_point_entry.is_none()
+            && &self.entry.metadata_context == metadata_context
+            && &self.entry.hosted_execution_context == hosted_execution_context
+            && &self.entry.execution_name_policy == execution_name_policy
+            && &self.entry.logical_source_input == logical_source_input
+            && &self.entry.vendor_source_input == vendor_source_input
+            && &self.entry.compilation_scope == compilation_scope
+            && &self.entry.invocation_realm == invocation_realm
+            && &self.entry.native_entry == native_entry
+            && &self.entry.incoming_formals == incoming_formals
+            && &self.entry.declared_commands == declared_commands
+            && &self.entry.trusted_package_loaders == trusted_package_loaders
+            && &self.entry.trusted_source_modules == trusted_source_modules
+            && &self.entry.unknown_entry == unknown_entry
+            && &self.entry.invocation_dialect == invocation_dialect
+            && &self.entry.compiled_variable_provider == compiled_variable_provider
+            && &self.entry.native_compilation == native_compilation
+    }
+}
+
+fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
+    let SourceAnalysisEntry {
+        source_point_entry: _,
+        metadata_context,
+        hosted_execution_context,
+        execution_name_policy,
+        logical_source_input,
+        vendor_source_input,
+        compilation_scope,
+        invocation_realm,
+        native_entry,
+        incoming_formals,
+        declared_commands,
+        trusted_package_loaders,
+        trusted_source_modules,
+        unknown_entry,
+        invocation_dialect,
+        compiled_variable_provider,
+        native_compilation,
+    } = entry;
+    SourceAnalysisEntry {
+        source_point_entry: None,
+        metadata_context: metadata_context.clone(),
+        hosted_execution_context: *hosted_execution_context,
+        execution_name_policy: *execution_name_policy,
+        logical_source_input: logical_source_input.clone(),
+        vendor_source_input: vendor_source_input.clone(),
+        compilation_scope: *compilation_scope,
+        invocation_realm: *invocation_realm,
+        native_entry: native_entry.clone(),
+        incoming_formals: incoming_formals.clone(),
+        declared_commands: declared_commands.clone(),
+        trusted_package_loaders: trusted_package_loaders.clone(),
+        trusted_source_modules: trusted_source_modules.clone(),
+        unknown_entry: *unknown_entry,
+        invocation_dialect: *invocation_dialect,
+        compiled_variable_provider: *compiled_variable_provider,
+        native_compilation: *native_compilation,
+    }
+}
+
+enum CacheEntry {
+    Root {
+        key: SourceAnalysisCacheKey,
+        bindings: Arc<SourceCommandBindings>,
+    },
+    Point {
+        history: SourcePointHistoryKey,
+        lease: std::sync::Weak<SourcePointCacheLease>,
+        // Intentional bounded keepalive of source identity only, never state.
+        _activation_origin: Option<Arc<super::SourceOriginId>>,
+    },
+}
+impl CacheEntry {
+    fn matches(&self, key: &SourceAnalysisCacheKey) -> bool {
+        match self {
+            Self::Root { key: retained, .. } => retained == key,
+            Self::Point { history, .. } => history.matches(key),
+        }
+    }
+    fn lookup(&self, key: &SourceAnalysisCacheKey) -> Option<SourceCommandBindings> {
+        match self {
+            Self::Root {
+                key: retained,
+                bindings,
+            } => (retained == key).then(|| bindings.as_ref().clone()),
+            Self::Point { lease, .. } => {
+                let lease = lease.upgrade()?;
+                // History is never sufficient: authenticate the complete original
+                // key against the still-live immutable producer before any facts.
+                if &lease.key != key {
+                    return None;
+                }
+                let mut bindings = lease.snapshot.clone();
+                bindings.source_point_cache_lease = Some(lease);
+                Some(bindings)
+            }
+        }
+    }
+    #[cfg(test)]
+    fn root_bindings(&self) -> &Arc<SourceCommandBindings> {
+        let Self::Root { bindings, .. } = self else {
+            panic!("ordinary root history must retain its original strong snapshot");
+        };
+        bindings
+    }
 }
 
 thread_local! {
-    // Derived state is outside every semantic equality/hash. A worker retains
-    // a bounded history; no lock is held while the shared driver runs.
+    // Root reuse is unchanged. Point history cannot retain state after the
+    // last real bindings/report owner retires; global Eq/Hash stay unchanged.
     static CACHE: RefCell<VecDeque<CacheEntry>> = const { RefCell::new(VecDeque::new()) };
 }
 
 pub(super) fn lookup(key: &SourceAnalysisCacheKey) -> Option<SourceCommandBindings> {
     CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
-        let index = cache.iter().position(|entry| &entry.key == key)?;
+        let index = cache.iter().position(|entry| entry.matches(key))?;
         let entry = cache.remove(index)?;
-        let bindings = entry.bindings.as_ref().clone();
+        let bindings = entry.lookup(key);
         cache.push_back(entry);
-        Some(bindings)
+        bindings
     })
 }
 
-pub(super) fn retain(key: SourceAnalysisCacheKey, bindings: &SourceCommandBindings) {
+pub(super) fn retain(key: SourceAnalysisCacheKey, bindings: &mut SourceCommandBindings) {
     if bindings.points.len() > MAX_POINTS {
         return;
     }
+    let mut snapshot = bindings.clone();
+    snapshot.source_point_cache_lease = None;
+    let entry = if key.entry.source_point_entry.is_some() {
+        let history = SourcePointHistoryKey::new(&key);
+        let origin = snapshot.root_origin.clone();
+        let lease = Arc::new(SourcePointCacheLease { key, snapshot });
+        let entry = CacheEntry::Point {
+            history,
+            lease: Arc::downgrade(&lease),
+            _activation_origin: origin,
+        };
+        bindings.source_point_cache_lease = Some(lease);
+        entry
+    } else {
+        bindings.source_point_cache_lease = None;
+        CacheEntry::Root {
+            key,
+            bindings: Arc::new(snapshot),
+        }
+    };
     CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
-        cache.retain(|entry| entry.key != key);
+        {
+            let key = match &entry {
+                CacheEntry::Root { key, .. } => key,
+                CacheEntry::Point { .. } => {
+                    &bindings
+                        .source_point_cache_lease
+                        .as_ref()
+                        .expect("caller owns newly issued lease")
+                        .key
+                }
+            };
+            cache.retain(|old| !old.matches(key));
+        }
         if cache.len() == MAX_ENTRIES {
             cache.pop_front();
         }
-        cache.push_back(CacheEntry {
-            key,
-            bindings: Arc::new(bindings.clone()),
-        });
+        cache.push_back(entry);
     });
 }
 
@@ -173,12 +378,12 @@ mod tests {
         .unwrap();
         let cached = CACHE.with(|cache| {
             Arc::clone(
-                &cache
+                cache
                     .borrow()
                     .iter()
-                    .find(|entry| entry.key == key)
+                    .find(|entry| entry.matches(&key))
                     .unwrap()
-                    .bindings,
+                    .root_bindings(),
             )
         });
         let mut changed = bindings;
@@ -229,7 +434,7 @@ mod tests {
             tcl_lexer::SourceSegmentationPurpose::WholeInput,
         )
         .unwrap();
-        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+        let mut bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
             &source,
             &frame,
             config,
@@ -237,7 +442,7 @@ mod tests {
             options,
         )
         .unwrap();
-        retain(key.clone(), &bindings);
+        retain(key.clone(), &mut bindings);
         assert!(lookup(&key).is_some());
         for metadata_context in [
             crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(&older_input)),
@@ -336,11 +541,11 @@ mod tests {
             tcl_lexer::SourceSegmentationPurpose::WholeInput,
         )
         .unwrap();
-        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+        let mut bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
             &source, &frame, config, registry, options,
         )
         .unwrap();
-        retain(key.clone(), &bindings);
+        retain(key.clone(), &mut bindings);
         let other_channel = tcl_lexer::SourceImage::native(source.bytes());
         let mut other_config = config;
         other_config.strict_quoting = !other_config.strict_quoting;
@@ -419,5 +624,162 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    fn source_point_for_cache() -> super::super::OriginalSourcePointEntry {
+        let source = "source child.tcl";
+        let parent = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        crate::registry_invocation::source_structure::original_project_source_load_at(
+            source, &parent, 0,
+        )
+        .unwrap()
+        .source_point_entry(&parent)
+        .unwrap()
+    }
+
+    fn source_point_bindings(
+        point: &super::super::OriginalSourcePointEntry,
+        source: &str,
+    ) -> (SourceAnalysisCacheKey, SourceCommandBindings) {
+        let input = point.input();
+        let registry = input.borrowed_context_registry().commands();
+        let entry = point.source_analysis_entry(registry, input).unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let key = SourceAnalysisCacheKey::at_entry(
+            &image,
+            point.frame(),
+            input.lexer_config(),
+            registry,
+            entry.options(),
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
+        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &image,
+            point.frame(),
+            input.lexer_config(),
+            registry,
+            entry.options(),
+        )
+        .unwrap();
+        (key, bindings)
+    }
+
+    #[test]
+    fn source_point_cache_live_lease_keeps_snapshot_acyclic_and_shares_while_live() {
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        let point = source_point_for_cache();
+        let (key, first) = source_point_bindings(&point, "set child VALUE");
+        let original = first.source_point_cache_lease.as_ref().unwrap();
+        assert!(original.snapshot.source_point_cache_lease.is_none());
+        let retired = Arc::downgrade(original);
+        let second = lookup(&key).unwrap();
+        assert!(Arc::ptr_eq(
+            first.source_point_cache_lease.as_ref().unwrap(),
+            second.source_point_cache_lease.as_ref().unwrap(),
+        ));
+        assert_eq!(first, second);
+        drop(first);
+        assert!(retired.upgrade().is_some());
+        assert!(lookup(&key).is_some());
+        drop(second);
+        assert!(retired.upgrade().is_none());
+        assert!(lookup(&key).is_none());
+    }
+
+    #[test]
+    fn source_point_cache_retirement_drops_parent_payload_but_retains_only_history_origin() {
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        let point = source_point_for_cache();
+        let probe = point.cache_retirement_probe();
+        let (key, bindings) = source_point_bindings(&point, "set child RETIRE");
+        let kind = Arc::downgrade(&bindings.root_origin.as_ref().unwrap().kind);
+        let lease = Arc::downgrade(bindings.source_point_cache_lease.as_ref().unwrap());
+        assert!(probe.is_live());
+        drop(bindings);
+        assert!(lease.upgrade().is_none());
+        assert!(lookup(&key).is_none());
+        drop(key);
+        drop(point);
+        assert!(
+            !probe.is_live(),
+            "history must not retain a parent point payload"
+        );
+        assert!(
+            kind.upgrade().is_some(),
+            "history retains only source identity"
+        );
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        assert!(kind.upgrade().is_none());
+    }
+
+    #[test]
+    fn source_point_cache_rejects_foreign_and_changed_context_keys() {
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        let point = source_point_for_cache();
+        let (key, bindings) = source_point_bindings(&point, "set child ORIGINAL");
+        assert!(lookup(&key).is_some());
+        let mut changed = key.clone();
+        changed.entry.unknown_entry = !changed.entry.unknown_entry;
+        assert!(lookup(&changed).is_none());
+        changed = key.clone();
+        changed.config.strict_quoting = !changed.config.strict_quoting;
+        assert!(lookup(&changed).is_none());
+        let foreign = source_point_for_cache();
+        changed = key.clone();
+        changed.entry.source_point_entry = Some(foreign);
+        assert!(lookup(&changed).is_none());
+        assert!(lookup(&key).is_some());
+        drop(bindings);
+        assert!(lookup(&key).is_none());
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        assert!(lookup(&key).is_none(), "empty history cannot serve facts");
+    }
+
+    fn source_point_report_lease(
+        report: &crate::analyser::AuthenticatedAnalysisReport,
+    ) -> &Arc<SourcePointCacheLease> {
+        report
+            .analysis()
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref()
+            .source_point_cache_lease
+            .as_ref()
+            .expect("actual full report must pin its genuine source-point lease")
+    }
+
+    #[test]
+    fn source_point_cache_full_report_cold_warm_and_mixed_stay_equal() {
+        for source in [
+            "set child VALUE; list $child",
+            "proc p {arg} {if {$arg} {return $arg}; return NONE}; set child [p 1]; missing_cache_command",
+        ] {
+            CACHE.with(|cache| cache.borrow_mut().clear());
+            let point = source_point_for_cache();
+            let first = crate::analyser::Analyser::new()
+                .source_point_report_for_cache_test(source, "tcl8.6", &point);
+            let warm = crate::analyser::Analyser::new()
+                .source_point_report_for_cache_test(source, "tcl8.6", &point);
+            assert!(Arc::ptr_eq(
+                source_point_report_lease(&first),
+                source_point_report_lease(&warm),
+            ));
+            assert_eq!(
+                first.compare(&warm),
+                crate::analyser::AnalysisReportComparison::Equal
+            );
+            CACHE.with(|cache| cache.borrow_mut().clear());
+            let cold = crate::analyser::Analyser::new()
+                .source_point_report_for_cache_test(source, "tcl8.6", &point);
+            assert!(!Arc::ptr_eq(
+                source_point_report_lease(&first),
+                source_point_report_lease(&cold),
+            ));
+            assert_eq!(
+                first.compare(&cold),
+                crate::analyser::AnalysisReportComparison::Equal
+            );
+        }
     }
 }

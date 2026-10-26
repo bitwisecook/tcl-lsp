@@ -133,7 +133,27 @@ struct SourcePointGraphMemo {
     graph: OnceLock<Option<Arc<super::source_transition_advice::OriginalSourcePointAdviceGraph>>>,
 }
 
+#[cfg(test)]
+pub(super) struct SourcePointCacheRetirementProbe(Weak<SourcePointPayload>);
+#[cfg(test)]
+impl SourcePointCacheRetirementProbe {
+    pub(super) fn is_live(&self) -> bool {
+        self.0.strong_count() != 0
+    }
+}
+
 impl OriginalSourcePointEntry {
+    #[cfg(test)]
+    pub(super) fn cache_retirement_probe(&self) -> SourcePointCacheRetirementProbe {
+        SourcePointCacheRetirementProbe(Arc::downgrade(&self.payload))
+    }
+
+    // The history token has exactly this entry's existing private issued-key Eq.
+    // Matching it supplies neither a live payload nor permission to serve facts.
+    pub(super) fn matches_origin_token(&self, origin: &OriginalSourcePointOrigin) -> bool {
+        self.key == origin.0.issued_key
+    }
+
     /// Source association never establishes native loading or decoding.
     #[must_use]
     pub const fn obligations(&self) -> &'static [OriginalSourcePointObligation] {
