@@ -181,8 +181,8 @@
     }
   ],
   "transport_budgets": {
-    "absolute_seconds": 10800,
-    "workflow_minutes": 190,
+    "absolute_seconds": 12000,
+    "workflow_minutes": 210,
     "fetch_seconds": 600,
     "build_seconds_each": 2400,
     "full_roster_seconds_each": 180,

@@ -4679,7 +4679,7 @@ out = args.out.resolve()
 target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
 deadline = float(os.environ["DIAGNOSTIC_DEADLINE_EPOCH"])
 require(
-    time.time() < deadline <= time.time() + (10800 if args.jim_source_layout_only else 3600),
+    time.time() < deadline <= time.time() + (12000 if args.jim_source_layout_only else 3600),
     "bounded absolute job deadline required",
 )
 require(
@@ -5313,7 +5313,7 @@ jim_layout_rows = []
 layout_jim_diagnostic_rows = []
 layout11_acceptance_exit = None
 if args.jim_source_layout_only:
-    require(sha(BASE / "compiler-jim-source-layout11.json") == "ec7697f4fa8db1546928a64dbe8c827102288611e13fbc99e261b2f73beb4ac9",
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "4dd07f54347b5c57e5e1314e1bad65f3da43ac20d00308527a8c4d967d35157f",
             "exact Layout11 roster/direct source pins required")
     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
     require(jim_layout_validation["expected_selected"] == 11
@@ -6391,7 +6391,7 @@ finally:
             "separate_own_jim_diagnostic_rows": layout_jim_diagnostic_rows,
             "required_alias_diagnostic_count": 1,
             "optional_positive_diagnostic_count": 1,
-            "optional_positive_not_guaranteed_by_10800_envelope": True,
+            "optional_positive_not_guaranteed_by_12000_envelope": True,
             "historical150_requested": False,
             "corpus2_requested": False,
             "historical_outcome_transfer": False,

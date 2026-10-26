@@ -1488,7 +1488,7 @@ jobs:
   jim-source-layout11-diagnostics:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'jim-source-layout11-diagnostics' && github.ref == 'refs/heads/work'
     runs-on: ubuntu-26.04
-    timeout-minutes: 190
+    timeout-minutes: 210
     permissions:
       contents: read
     env:
@@ -1502,7 +1502,7 @@ jobs:
       RUST_BACKTRACE: short
     steps:
       - name: Reserve time for bounded evidence upload
-        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(($(date +%s) + 10800))" >> "$GITHUB_ENV"
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(($(date +%s) + 12000))" >> "$GITHUB_ENV"
       - name: Checkout exact work revision
         timeout-minutes: 10
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
