@@ -376,7 +376,9 @@ impl WasmInstruction {
 /// A compiled WASM function.
 #[derive(Debug, Clone)]
 pub struct WasmFunction {
-    /// Function name (`::top`, `::proc`, …).
+    /// Physical WASM symbol and raw export label. Runtime Tcl publication is
+    /// owned independently by the original argv and typed procedure table.
+    /// Colliding procedure versions receive distinct output-only body labels.
     pub name: String,
     /// Parameter types.
     pub params: Vec<ValType>,
