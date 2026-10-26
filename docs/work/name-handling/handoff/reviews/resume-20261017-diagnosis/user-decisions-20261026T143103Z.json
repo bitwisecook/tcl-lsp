@@ -1,0 +1,23 @@
+{
+  "recorded_at_utc": "2026-10-26T14:31:03.275523+00:00",
+  "authority": "Explicit user answer in this conversation",
+  "question": "May I separate four inlining size/call-count tests into explicit cost-only coverage, while keeping classify_proc, inlining and frame-elision eligibility fail-closed? The reviewed proposal preserves their source/count/cost expectations and adds Native unknown-argument and retired-owner refusal tests. It changes those four tests purpose and adds a public profitability API; it does not supply the missing Native execution proof.",
+  "answer": "Separate cost tests; retain eligibility guards (Recommended)",
+  "decision": "Implement the reviewed separate cost-only API and four-test coverage correction; retain current semantic classifier, inlining and frame-elision eligibility guards.",
+  "proposal": "/workspace/naming-proof-storage/compiler-inlining-profitability-coverage-proposal-v3/",
+  "proposal_master_sha256": "6b220e7056c2bc731b9f1690b48e2f2244fda8958a96d18e811f1f6c2fe83e63",
+  "technical_review_sha256": "6d7155ad8e897324fcdbe4a4174df22900a22077e84a9001c64e60414a98e9b0",
+  "scope": [
+    "Distinct public InliningProfitability type and inlining_profitability API; no conversion to InlineDecision.",
+    "Preserve original source, static counts and cost facts in four explicitly named profitability tests.",
+    "Preserve current classify_proc, InlineDecision and actual transformation/AOT eligibility guards.",
+    "Retain existing semantic refusals and add reviewed Native unknown-argument and retired-owner controls.",
+    "Record explicit old-to-new selector correction and run meaningful new controls; no fabricated old Native semantic pass."
+  ],
+  "unchanged_requirements": [
+    "Genuine Native execution/closed-consumer proof remains required where applicable.",
+    "Section F, zero current baseline pass-to-fail with explicit reviewed correction mapping, full required green and accepted shipping performance remain release gates.",
+    "Functional fixes originate on work; release carries no development evidence."
+  ],
+  "supersedes_no_prior_decision": true
+}
