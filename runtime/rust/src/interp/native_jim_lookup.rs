@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original pinned Jim name objects, active command leases and weak VarVal caches.
 
+type OriginalJimLookupCheck<'a> = &'a dyn Fn(&Interp) -> Result<(), ValueError>;
+
 use super::{
     native_arguments::OriginalArguments, native_jim_tailcall::JimCommandReference, Code, Command,
     Interp,
@@ -892,7 +894,7 @@ impl Interp {
         &mut self,
         current: NsId,
         original: *mut TclObj,
-        stage: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
+        stage: Option<OriginalJimLookupCheck<'_>>,
     ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
         let caller_current = |actual: &Interp| -> Result<(), ValueError> {
             if let Some(stage) = stage {

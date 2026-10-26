@@ -35,6 +35,11 @@
 //! and run scripts through the real runtime, while the compiler's registry
 //! data separately drives static byte-array diagnostics.
 
+type RuntimeDictionaryString = dyn Fn(
+    *mut TclObj,
+    &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>;
+
 #[cfg(test)]
 #[path = "value_ops/native_coercion_tests.rs"]
 mod native_coercion_tests;
@@ -679,12 +684,7 @@ pub(crate) struct RuntimeDictionaryObjects {
 }
 struct RuntimeDictionaryChecks {
     current: Box<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
-    string: Box<
-        dyn Fn(
-            *mut TclObj,
-            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
-    >,
+    string: Box<RuntimeDictionaryString>,
     parents: std::cell::RefCell<Vec<crate::dict::PreparedDictionaryObserver>>,
     refuse: Box<dyn Fn(ValueError) -> tcl_cmd_core::CmdError>,
     retain: Box<dyn Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError>,

@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original private List/Dictionary headers; saved state retains headers, not child copies.
 
+type OriginalErrorHeaderString<'a> =
+    &'a dyn Fn(
+        *mut TclObj,
+        &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>;
+
 use crate::{obj, obj::TclObj};
 use tcl_cmd_core::return_options::ReturnOptionPair;
 #[cfg(test)]
@@ -160,10 +166,7 @@ impl NativeReturnOptions {
         original: *mut TclObj,
         protocol: NativeStringProtocol,
         check: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        string: &dyn Fn(
-            *mut TclObj,
-            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
+        string: OriginalErrorHeaderString<'_>,
         refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
         check()?;

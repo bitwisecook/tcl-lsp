@@ -36,6 +36,11 @@
 //! and releasing argv can never free a still-referenced result. Immediate free
 //! + retain-into-result is the whole discipline.
 
+type OriginalJimCapturedOptionPairs = Vec<(
+    &'static [u8],
+    tcl_runtime_api::completion_options::OptionValue<obj::Owned>,
+)>;
+
 #[cfg(test)]
 mod anonymous_cell_cleanup_tests;
 #[cfg(test)]
@@ -13301,13 +13306,7 @@ impl Interp {
         &self,
         captured: &OriginalJimErrorCodeCapture,
         exit: Code,
-    ) -> Result<
-        Vec<(
-            &'static [u8],
-            tcl_runtime_api::completion_options::OptionValue<obj::Owned>,
-        )>,
-        tcl_runtime_api::NativeExecutionError,
-    > {
+    ) -> Result<OriginalJimCapturedOptionPairs, tcl_runtime_api::NativeExecutionError> {
         let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         let current = || {
             captured.check_context(self).map_err(|error| {

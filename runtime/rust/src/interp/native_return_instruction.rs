@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original merged Dictionary operands at TclProcessReturn instruction boundaries.
 
+type OriginalReturnString<'a> = &'a dyn Fn(
+    *mut TclObj,
+    &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>;
+
 use super::{Code, Interp, NativeReturnOptions};
 use crate::obj::TclObj;
 use tcl_registry::native_return_options::NativeReturnOptionsApplication;
@@ -385,10 +390,7 @@ impl Interp {
         level: i64,
         original_options: *mut TclObj,
         extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        string: &dyn Fn(
-            *mut TclObj,
-            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
+        string: OriginalReturnString<'_>,
         refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,
         retain: &dyn Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError,
     ) -> Result<Code, tcl_cmd_core::CmdError> {
@@ -981,18 +983,16 @@ mod original_syntax_transport_tests {
         )
         .unwrap()
     }
-    fn original(
-        interpreter: &Interp,
-        mode: u8,
-        effect_on_free: bool,
-    ) -> (
+    type OriginalReturnFixture = (
         Owned,
         Rc<Cell<bool>>,
         Rc<Cell<usize>>,
         Rc<Cell<usize>>,
         Rc<RefCell<Vec<obj::TclSize>>>,
         Rc<Cell<*mut TclObj>>,
-    ) {
+    );
+
+    fn original(interpreter: &Interp, mode: u8, effect_on_free: bool) -> OriginalReturnFixture {
         let arm = Rc::new(Cell::new(true));
         let updates = Rc::new(Cell::new(0));
         let frees = Rc::new(Cell::new(0));

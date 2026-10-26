@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Native append keeps one physical receiver across operand publication boundaries.
 
+type OriginalAppendSelection =
+    std::rc::Rc<dyn Fn(Result<Option<*mut TclObj>, crate::frame::VarError>)>;
+
 use super::{Code, Interp, TraceAccess};
 use crate::frame::VariableReceiver;
 use crate::obj::TclObj;
@@ -40,7 +43,7 @@ impl VariableAppendObjects for crate::value_ops::OriginalRuntimeAppendObjects {
 pub(super) struct OriginalAppendVariable {
     pub(super) current: std::rc::Rc<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
     pub(super) entered: std::rc::Rc<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
-    pub(super) select: std::rc::Rc<dyn Fn(Result<Option<*mut TclObj>, crate::frame::VarError>)>,
+    pub(super) select: OriginalAppendSelection,
     pub(super) refuse: std::rc::Rc<dyn Fn(tcl_syntax::value::ValueError) -> tcl_cmd_core::CmdError>,
 }
 
@@ -1413,6 +1416,9 @@ mod original_c84_pending_scalar_tests {
     };
     use tcl_runtime_api::NativeExecutionError;
 
+    type OriginalAppendStages =
+        Rc<RefCell<Vec<(&'static str, obj::TclSize, Option<obj::TclSize>)>>>;
+
     struct Episode {
         interpreter: WeakInterp,
         caller: Rc<RefCell<Option<obj::Owned>>>,
@@ -1420,7 +1426,7 @@ mod original_c84_pending_scalar_tests {
         arm: Rc<Cell<bool>>,
         action: u8,
         copy: bool,
-        stages: Rc<RefCell<Vec<(&'static str, obj::TclSize, Option<obj::TclSize>)>>>,
+        stages: OriginalAppendStages,
     }
     fn raw_publication(interpreter: &Interp) -> Option<*mut TclObj> {
         interpreter

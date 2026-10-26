@@ -42,6 +42,8 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+type OriginalOoStageCheck<'a> = &'a dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>;
+
 mod native_context;
 pub(crate) mod native_method_cache;
 mod native_object_info;
@@ -4170,7 +4172,7 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn nextto_cmd_using(
     interp: &mut Interp,
     argv: &[*mut TclObj],
-    extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
+    extra: Option<OriginalOoStageCheck<'_>>,
 ) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
         nextto_cmd_with_original(interp, argv, originals, extra)
@@ -4181,7 +4183,7 @@ fn nextto_cmd_with_original(
     interp: &mut Interp,
     argv: &[*mut TclObj],
     originals: &crate::interp::native_arguments::OriginalArguments,
-    extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
+    extra: Option<OriginalOoStageCheck<'_>>,
 ) -> Code {
     if let Some(check) = extra {
         if let Err(first) = check(interp) {
