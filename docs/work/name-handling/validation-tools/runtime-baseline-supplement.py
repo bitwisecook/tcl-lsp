@@ -77,6 +77,8 @@ AOT5_SOURCE_SHA = 'e7b3122d09b5463803f2231d8cc4fd61f8a37d4306fef71ddf9f92b4b058b
 AOT5_SELECTORS = ['interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add', 'interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks', 'interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe', 'interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay', 'interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_follow_original_first_slot_without_a_native_strategy']
 NATIVE_GETTER11_CONTROLS = {'value_ops::tests::bytes_to_str_falls_back_on_invalid_utf8': {'path': 'runtime/rust/src/value_ops.rs', 'sha256': '9d81a03feb4597f41d8b46e9a71104f8ef0e3cb0202bfcb2d73fb73325ccf1e6', 'indent': '    '}, 'value_ops::tests::unicode_door_refuses_invalid_utf8_without_replacing_bytes': {'path': 'runtime/rust/src/value_ops.rs', 'sha256': 'a9e2e68d614d1e71bea2960912a81f20f16446b627e8748594fd28acb3979818', 'indent': '    '}, 'value_ops::tests::bytes_to_str_preserves_valid_utf8': {'path': 'runtime/rust/src/value_ops.rs', 'sha256': '35cbbb3a00e750471c87700f434f3700b71506757ac46dfe87d8dfbc0a44277c', 'indent': '    '}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_reached_native_unicode_view_preserves_the_original_invalid_byte_observation': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': '7d305226ae2895e0322b6db969307859cb57d1296efc61c14828cc142fb50905', 'indent': ''}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_foreign_or_unpaired_native_cache_cannot_borrow_a_generic_ascii_view': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': 'eceae5e9ebcb02c3ade5cd882e8f0b1f5da2965d823bb0330ca811f64b349fe6', 'indent': ''}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::well_formed_native_utf16_is_a_lossless_host_view': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': 'b9bd8d58bc40c056509bf712de996261cf3affa1402d1d3014e8bde523aaa8d3', 'indent': ''}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_stale_entered_operation_cannot_consume_an_existing_unicode_cache': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': '14699f70f53c7da99c8ab9517e40fb41a07b2470d047b0cfa822b61383d37313', 'indent': ''}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::generic_or_profile_only_construction_cannot_issue_a_native_getter': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': 'f41f99322f7e6463ce22ca51569e3d295afd7106ea8baa5db19076594a5c7cd5', 'indent': ''}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::getter_callbacks_cannot_refresh_the_original_constructor_entry': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': 'd569802620983e2393da2ff36676af33fc6c8bcf313cff3715a92f04cb39f639', 'indent': ''}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_retired_original_object_cannot_reenter_under_a_retained_allocation_lease': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': 'd0ea3c54522aa6a67b7b464752c24460c61378cc11b9e9bc0544322270a8421d', 'indent': ''}, 'value_ops::native_coercion_tests::native_unicode_getter_entry_tests::original_free_callback_cannot_publish_a_stale_unicode_view': {'path': 'runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs', 'sha256': '47ab02fc1538d6d2ddecf4a180a82ee3baee505d8cb3d0c53de50b9dacb13553', 'indent': ''}}
 NATIVE_GETTER11_SELECTORS = list(NATIVE_GETTER11_CONTROLS)
+JIM_LIBRARY3_CONTROLS = {'interp::tests::native_jim_core_keeps_only_constructor_empty_roles': {'path': 'runtime/rust/src/interp.rs', 'indent': '    ', 'sha256': '89ded4d4524d471334b5f23413830c0c1167cad32a6338408b92a9564ba60a99'}, 'builtins::native_jim_library_tests::namespace_source_selection_is_separate_from_core_and_preserves_a_replacement': {'path': 'runtime/rust/src/builtins/native_jim_library_tests.rs', 'indent': '', 'sha256': '5f53c1d8399a2abfb069c8c031b83d82af5b53f83050cd9305e68717f8003d82'}, 'builtins::native_jim_library_tests::selected_namespace_formal_conversion_retains_original_source_filename_and_line': {'path': 'runtime/rust/src/builtins/native_jim_library_tests.rs', 'indent': '', 'sha256': '72839a269d24c9b473a122b26c1f159073c63640e076df7aeb1f07ee9dcd012b'}}
+JIM_LIBRARY3_SELECTORS = list(JIM_LIBRARY3_CONTROLS)
 ALLOCATION2_CONTROLS = {'interp::native_error_headers::c9_error_root_generation_tests::allocation_lease_cannot_certify_a_retired_error_header': {'path': 'runtime/rust/src/interp/native_error_headers.rs', 'sha256': '1be29b6978e2e26504dfda142fc2bb239b0e9970ce720d909347f89a6b10dc7d', 'indent': '    '}, 'interp::native_error_headers::c9_error_root_generation_tests::c9_next_entry_publishes_original_error_headers_without_stringifying_code': {'path': 'runtime/rust/src/interp/native_error_headers.rs', 'sha256': 'c88f9e164039b22db42eaed37827d7351e4ad047120bfb78bbeac681d557e26b', 'indent': '    '}}
 ALLOCATION2_SELECTORS = list(ALLOCATION2_CONTROLS)
 HEADROOM2_CONTROLS = {'codegen_abi::tests::the_native_path_holds_one_activation_per_level_and_refuses_at_the_bound': {'path': 'runtime/rust/src/codegen_abi.rs', 'sha256': '476121576749ba5d7f043960e07e55b38890e9f10ad3149d91eeee9a6a24ab38', 'indent': '    '}, 'codegen_abi::original_frame_owner::tests::generated_entry_probe_uses_held_owner_and_keeps_refusal_terminal': {'path': 'runtime/rust/src/codegen_abi/original_frame_owner.rs', 'sha256': 'b97c66f78d1dd8ba73047eb9fc3d123d53d84dc6892677d58ce16d798665f058', 'indent': '    '}}
@@ -594,6 +596,95 @@ def run_aot5(owner, suite, binary, prepared, environment, supplemental, source,
         "scope": "Separate five actual AOT controls after unchanged original135; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
     })
     return rows, errors, used
+
+
+def jim_library3_control_source():
+    for selector, control in JIM_LIBRARY3_CONTROLS.items():
+        raw = Path(control["path"]).read_text()
+        indent = re.escape(control["indent"])
+        simple = re.escape(selector.rsplit("::", 1)[1])
+        pattern = (r"(?:^" + indent + r"#\[[^\n]*\]\n)+^" + indent
+                   + r"fn " + simple + r"\(\) \{\n.*?^" + indent + r"}\n")
+        found = re.findall(pattern, raw, re.MULTILINE | re.DOTALL)
+        require(len(found) == 1
+                and hashlib.sha256(found[0].encode()).hexdigest() == control["sha256"],
+                "reviewed Jim core/library control required: " + selector)
+    return JIM_LIBRARY3_CONTROLS
+
+def run_jim_library3(owner, suite, binary, prepared, environment, supplemental, source,
+             used, suite_deadline, absolute, prior_closed):
+    rows = [{"group": "jim_library3", "selector": name, "status": "UNRUN"}
+            for name in JIM_LIBRARY3_SELECTORS]
+    errors = []
+    save(supplemental / "jim_library3-outcomes.json", rows)
+    source_provenance = jim_library3_control_source()
+    require(len(JIM_LIBRARY3_SELECTORS) == len(set(JIM_LIBRARY3_SELECTORS)) == 3,
+            "exact distinct jim_library3 selectors required")
+    if not prior_closed:
+        errors.append("original161 process/ELF/completeness unsettled; jim_library3 remains UNRUN")
+    else:
+        for index, row in enumerate(rows):
+            if not listed(suite, row["selector"]):
+                errors.append("reviewed jim_library3 selector absent or ignored")
+                break
+            if suite["testcases"][row["selector"]]["filter-match"]["status"] == "matches":
+                errors.append("jim_library3 cannot substitute an original selected identity")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable for jim_library3")
+                break
+            if used >= CAP:
+                errors.append("remaining shared 20MiB log budget exhausted before jim_library3")
+                break
+            if sha(binary) != prepared["elf_sha256"]:
+                errors.append("same original3 ELF changed before jim_library3")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable after ELF hash")
+                break
+            prefix = supplemental / f"jim_library3-{index}"
+            receipt = owner.run(
+                [str(binary), "--exact", row["selector"], "--nocapture", "--test-threads=1"],
+                cwd=Path(suite["cwd"]), env=environment,
+                stdout_path=str(prefix) + ".stdout", stderr_path=str(prefix) + ".stderr",
+                receipt_path=str(prefix) + ".process.json", artifact_path=binary,
+                deadline_seconds=180, cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+                disk_paths=(Path.cwd(), supplemental.parent, binary.parent, Path(os.environ["RUNNER_TEMP"])),
+            )
+            used += receipt["retained_bytes"]
+            try:
+                row["status"] = original_outcome(Path(str(prefix) + ".stdout").read_text(), receipt)
+            except (RuntimeError, ValueError) as error:
+                row["status"] = "INCOMPLETE"
+                row["error"] = str(error)
+            row["process"] = receipt
+            row["stdout_sha256"] = sha(str(prefix) + ".stdout")
+            row["stderr_sha256"] = sha(str(prefix) + ".stderr")
+            save(supplemental / "jim_library3-outcomes.json", rows)
+            print(row["group"], row["selector"], row["status"], flush=True)
+            if (not receipt["group_empty_before_parent_reap"] or not receipt["artifact_unchanged"]
+                or row["status"] in ["UNRUN", "INCOMPLETE", "TIMEOUT"]):
+                errors.append("jim_library3 process/ELF/completeness guard failed")
+                break
+            if time.monotonic() > suite_deadline or time.time() > absolute:
+                errors.append("shared suite or absolute deadline exceeded after jim_library3")
+                break
+    for row in rows:
+        if row["status"] == "UNRUN":
+            row["unrun_reasons"] = errors
+    save(supplemental / "jim_library3-outcomes.json", rows)
+    save(supplemental / "jim_library3-summary.json", {
+        "source": source, "binary": str(binary), "elf_sha256": prepared["elf_sha256"],
+        "source_provenance": source_provenance, "count": 3,
+        "counts": dict(collections.Counter(row["status"] for row in rows)),
+        "errors": errors, "complete": not errors,
+        "case_budget_seconds": 180, "suite_budget_seconds": 2400,
+        "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
+        "aggregate_log_cap_bytes": CAP + 65536,
+        "scope": "Separate original constructor and two genuine Jim source-library controls after unchanged original161; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
+    })
+    return rows, errors, used
+
 
 
 def native_getter11_control_source():
@@ -1387,6 +1478,14 @@ def run(out, source):
         owner, suite, binary, prepared, environment, supplemental, source,
         used, suite_deadline, absolute, native_getter_prior_closed)
     errors.extend(native_getter_errors)
+    jim_library_prior_closed = native_getter_prior_closed and len(native_getter_rows) == 11 and all(
+        row["status"] in ["PASS", "FAIL", "ABORT"]
+        and row["process"]["group_empty_before_parent_reap"]
+        and row["process"]["artifact_unchanged"] for row in native_getter_rows)
+    jim_library_rows, jim_library_errors, used = run_jim_library3(
+        owner, suite, binary, prepared, environment, supplemental, source,
+        used, suite_deadline, absolute, jim_library_prior_closed)
+    errors.extend(jim_library_errors)
     unchanged = sha(binary) == prepared["elf_sha256"]
     if not unchanged:
         errors.append("ELF changed after supplemental cases")
@@ -1409,6 +1508,7 @@ def run(out, source):
             "counts": counts,
             "errors": errors,
             "complete": complete,
+            "separate_jim_library3_outcomes": "jim_library3-outcomes.json",
             "separate_native_getter11_outcomes": "native_getter11-outcomes.json",
             "separate_allocation2_outcomes": "allocation2-outcomes.json",
             "separate_headroom2_outcomes": "headroom2-outcomes.json",
@@ -1476,7 +1576,8 @@ def run(out, source):
         125
         if not complete
         else 100
-        if any(row["status"] != "PASS" for row in native_getter_rows)
+        if any(row["status"] != "PASS" for row in jim_library_rows)
+        or any(row["status"] != "PASS" for row in native_getter_rows)
         or any(row["status"] != "PASS" for row in allocation_rows)
         or any(row["status"] != "PASS" for row in headroom_rows)
         or any(row["status"] != "PASS" for row in ordinary_entry_rows)
@@ -1528,6 +1629,19 @@ def main():
         if args.phase == "run":
             directory = out / "supplement"
             directory.mkdir(exist_ok=True)
+            constructor_path = directory / "jim_library3-outcomes.json"
+            constructor_rows = json.loads(constructor_path.read_text()) if constructor_path.exists() else [
+                {"group": "jim_library3", "selector": name, "status": "UNRUN"}
+                for name in JIM_LIBRARY3_SELECTORS]
+            for row in constructor_rows:
+                if row["status"] == "UNRUN":
+                    row["unrun_reasons"] = [repr(error)]
+            save(constructor_path, constructor_rows)
+            save(directory / "jim_library3-summary.json", {
+                "source": args.sha, "count": 3, "complete": False, "errors": [repr(error)],
+                "counts": dict(collections.Counter(row["status"] for row in constructor_rows)),
+                "scope": "JimLibrary3 unadmitted/incomplete; original161 remain separately reported.",
+            })
             constructor_path = directory / "native_getter11-outcomes.json"
             constructor_rows = json.loads(constructor_path.read_text()) if constructor_path.exists() else [
                 {"group": "native_getter11", "selector": name, "status": "UNRUN"}
