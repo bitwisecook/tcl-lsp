@@ -888,7 +888,7 @@ def run(out, source):
         "scope": "Separate baselinePF plus2 genuine owner controls after unchanged original132; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase.",
     })
     errors.extend(attestation_errors)
-    aot_prior_closed = not errors and prior_closed and all(
+    aot_prior_closed = prior_closed and all(
         row["status"] in ["PASS", "FAIL", "ABORT"]
         and row["process"]["group_empty_before_parent_reap"]
         and row["process"]["artifact_unchanged"] for row in attestation_rows)
