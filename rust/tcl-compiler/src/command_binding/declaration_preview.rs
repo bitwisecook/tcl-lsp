@@ -3842,6 +3842,40 @@ mod tests {
         }
     }
 
+    fn assert_shadowed_declaration_cannot_supply_logical_operation(
+        context: &Arc<tcl_registry::model::ContextRegistry>,
+        registry: &CommandRegistry,
+    ) {
+        let (_, shadowed, shadow_input) = complete_logical_declaration_tokens(
+            "proc metadata_store args {return CUSTOM}; proc f {} {metadata_store p VALUE}",
+            "metadata_store p VALUE",
+            context,
+        );
+        let shadow_binding = shadowed.source_binding.as_ref().unwrap();
+        if let Some(metadata) = shadow_binding.original_invocation_metadata_for_input(
+            &shadowed,
+            &shadow_input,
+            registry,
+        ) {
+            assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry, metadata, &shadowed,
+            ).is_none());
+        }
+    }
+
+    fn assert_original_declaration_metadata_refused(
+        binding: &SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+    ) {
+        assert!(
+            binding
+                .original_invocation_metadata_for_input(tokens, input, registry)
+                .is_none()
+        );
+    }
+
     #[test]
     fn original_declaration_metadata_refuses_missing_foreign_and_changed_source_owners() {
         // naming.compiler.original-analysis-metadata-context
@@ -3874,11 +3908,7 @@ mod tests {
         let (_, older_tokens, older_input) =
             complete_logical_declaration_tokens(source, "metadata_store p VALUE", &older);
         let older_binding = older_tokens.source_binding.as_ref().unwrap();
-        assert!(
-            binding
-                .original_invocation_metadata_for_input(&tokens, &older_input, &registry)
-                .is_none()
-        );
+        assert_original_declaration_metadata_refused(binding, &tokens, &older_input, &registry);
         if let Some(older_metadata) = older_binding.original_invocation_metadata_for_input(
             &older_tokens,
             &older_input,
@@ -3931,11 +3961,7 @@ mod tests {
                 Arc::make_mut(&mut state.baseline).metadata_context = owner.clone();
             }
             let binding = changed.source_binding.as_ref().unwrap();
-            assert!(
-                binding
-                    .original_invocation_metadata_for_input(&changed, &input, &registry)
-                    .is_none()
-            );
+            assert_original_declaration_metadata_refused(binding, &changed, &input, &registry);
         }
         let mut missing = tokens.clone();
         missing
@@ -3943,36 +3969,16 @@ mod tests {
             .as_mut()
             .unwrap()
             .declaration_layout_observations = None;
-        assert!(
-            missing
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_invocation_metadata_for_input(&missing, &input, &registry,)
-                .is_none()
+        assert_original_declaration_metadata_refused(
+            missing.source_binding.as_ref().unwrap(),
+            &missing,
+            &input,
+            &registry,
         );
         let mut changed_vector = tokens.clone();
         changed_vector.word_exprs.pop();
-        assert!(
-            binding
-                .original_invocation_metadata_for_input(&changed_vector, &input, &registry)
-                .is_none()
-        );
-        let (_, shadowed, shadow_input) = complete_logical_declaration_tokens(
-            "proc metadata_store args {return CUSTOM}; proc f {} {metadata_store p VALUE}",
-            "metadata_store p VALUE",
-            &context,
-        );
-        let shadow_binding = shadowed.source_binding.as_ref().unwrap();
-        if let Some(metadata) = shadow_binding.original_invocation_metadata_for_input(
-            &shadowed,
-            &shadow_input,
-            &registry,
-        ) {
-            assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
-                &registry, metadata, &shadowed,
-            ).is_none());
-        }
+        assert_original_declaration_metadata_refused(binding, &changed_vector, &input, &registry);
+        assert_shadowed_declaration_cannot_supply_logical_operation(&context, &registry);
     }
 
     #[test]

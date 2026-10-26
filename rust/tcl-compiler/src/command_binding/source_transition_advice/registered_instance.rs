@@ -1082,6 +1082,36 @@ mod inherited_registered_provider_tests {
     use tcl_registry::spec::ObjectClassSpec;
     use tcl_registry::{Arity, CommandSpec, SubCommand};
 
+    fn assert_registered_instance_diagnostics_and_stale_source(
+        analysis: &crate::analyser::AnalysisResult,
+        source: &str,
+        offset: u32,
+        selected: bool,
+    ) {
+        assert_eq!(
+            analysis
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.to_string() == "E002"),
+            selected
+        );
+        assert_eq!(
+            analysis
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.to_string() == "W001"),
+            !selected
+        );
+        assert!(
+            source_registered_instance_words_at(
+                &source.replace("payload", "changed"),
+                analysis,
+                offset
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn original_registered_inherited_provider_controls_schema_table_and_diagnostic_arity() {
         static METHODS: [SubCommand; 1] = [SubCommand {
@@ -1175,27 +1205,8 @@ mod inherited_registered_provider_tests {
             if selected {
                 assert_eq!(provider, Some((Some("Tk"), Some("8.6".to_owned()))));
             }
-            assert_eq!(
-                analysis
-                    .diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.code.to_string() == "E002"),
-                selected
-            );
-            assert_eq!(
-                analysis
-                    .diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.code.to_string() == "W001"),
-                !selected
-            );
-            assert!(
-                source_registered_instance_words_at(
-                    &source.replace("payload", "changed"),
-                    &analysis,
-                    offset
-                )
-                .is_none()
+            assert_registered_instance_diagnostics_and_stale_source(
+                &analysis, &source, offset, selected,
             );
         }
     }
