@@ -1401,24 +1401,32 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     command: &crate::segmenter::SegmentedCommand,
     survey: &crate::command_binding::OriginalSingleSourceCutSurvey<'_>,
 ) -> Option<OriginalSourceCutProcedureDeclaration<'a>> {
-    if !survey.owns_declaration_command(analysis, command) || command.is_partial {
+    if source_cut_refuses(
+        "survey-or-partial",
+        !survey.owns_declaration_command(analysis, command) || command.is_partial,
+    ) {
         return None;
     }
-    let words = source_structure::source_registry_words(source, analysis, command)?;
-    let input = analysis.resolved_input.as_ref()?;
+    let words = source_cut_stage(
+        "registry-words",
+        source_structure::source_registry_words(source, analysis, command),
+    )?;
+    let input = source_cut_stage("resolved-input", analysis.resolved_input.as_ref())?;
     let context = input.borrowed_context_registry();
-    let realm = analysis.retained_command_realm()?;
-    let image = realm.original_source_image()?;
-    if image.channel() != tcl_lexer::SourceChannel::Document
-        || image.bytes() != source.as_bytes()
-        || !words.matches_source(image, input.lexer_config())
-        || words.context() != Some(context.context())
-        || words
-            .origins()
-            .iter()
-            .enumerate()
-            .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
-    {
+    let realm = source_cut_stage("retained-realm", analysis.retained_command_realm())?;
+    let image = source_cut_stage("source-image", realm.original_source_image())?;
+    if source_cut_refuses(
+        "image-words-context",
+        image.channel() != tcl_lexer::SourceChannel::Document
+            || image.bytes() != source.as_bytes()
+            || !words.matches_source(image, input.lexer_config())
+            || words.context() != Some(context.context())
+            || words
+                .origins()
+                .iter()
+                .enumerate()
+                .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index)),
+    ) {
         return None;
     }
     let mut tokens = CommandTokens::from_segmented(
@@ -1427,50 +1435,93 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
         command,
     );
     realm.stamp_original_tokens(&mut tokens);
-    if tokens.words().len() != 4
-        || tokens.words().iter().any(|word| {
-            !matches!(
-                word,
-                WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
-            )
-        })
-    {
+    if source_cut_refuses(
+        "static-four-words",
+        tokens.words().len() != 4
+            || tokens.words().iter().any(|word| {
+                !matches!(
+                    word,
+                    WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+                )
+            }),
+    ) {
         return None;
     }
-    let native = original_native_compiler_words(
-        image,
-        tokens.words(),
-        command.argv.first()?.span.start(),
-        input.lexer_config(),
+    let native = source_cut_stage(
+        "native-words",
+        original_native_compiler_words(
+            image,
+            tokens.words(),
+            source_cut_stage("head-argv", command.argv.first())?
+                .span
+                .start(),
+            input.lexer_config(),
+        ),
     )?;
-    if words.origins().len() != native.len()
-        || words.head_source()?.word() != native.first()
-        || (0..3).any(|argument| words.original_argument_word(argument) != native.get(argument + 1))
-    {
+    if source_cut_refuses(
+        "native-word-correspondence",
+        words.origins().len() != native.len()
+            || source_cut_stage("head-source", words.head_source())?.word() != native.first()
+            || (0..3)
+                .any(|argument| words.original_argument_word(argument) != native.get(argument + 1)),
+    ) {
         return None;
     }
-    let facts = words.with_source_schema(context, source_schema_queries::facts)?;
-    let selected = source_cut_declaration_selection(&tokens, &words, facts)?;
-    let mut bodies = words.source_script_bodies_for_syntax_coverage(context)?;
-    if bodies.len() != 1 {
+    let facts = source_cut_stage(
+        "schema-facts",
+        words.with_source_schema(context, source_schema_queries::facts),
+    )?;
+    let selected = source_cut_stage(
+        "selection",
+        source_cut_declaration_selection(&tokens, &words, facts),
+    )?;
+    let mut bodies = source_cut_stage(
+        "script-bodies",
+        words.source_script_bodies_for_syntax_coverage(context),
+    )?;
+    if source_cut_refuses("single-body-count", bodies.len() != 1) {
         return None;
     }
-    let body = bodies.pop()?;
-    let original = words.original_argument_word(2)?;
-    if original.group().kind != tcl_lexer::WordKind::Braced
-        || original.group().expand
-        || body.original_container() != original
-        || !body.matches_source(image, input.lexer_config())
-        || !body.matches_context(context)
-    {
+    let body = source_cut_stage("one-body", bodies.pop())?;
+    let original = source_cut_stage("body-word", words.original_argument_word(2))?;
+    if source_cut_refuses(
+        "body-source-context",
+        original.group().kind != tcl_lexer::WordKind::Braced
+            || original.group().expand
+            || body.original_container() != original
+            || !body.matches_source(image, input.lexer_config())
+            || !body.matches_context(context),
+    ) {
         return None;
     }
-    body.original_commands(context)?;
+    source_cut_stage("body-commands", body.original_commands(context))?;
     Some(OriginalSourceCutProcedureDeclaration {
         analysis,
         selected,
         body,
     })
+}
+
+fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Option<T> {
+    source_cut_refuses(stage, value.is_none());
+    value
+}
+
+fn source_cut_refuses(stage: &'static str, refused: bool) -> bool {
+    if refused && option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1") {
+        static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        if ROWS
+            .try_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |rows| (rows < 64).then_some(rows + 1),
+            )
+            .is_ok()
+        {
+            eprintln!("SOURCE_CUT_DECLARATION first_refusal={stage}");
+        }
+    }
+    refused
 }
 
 fn source_cut_declaration_selection(
