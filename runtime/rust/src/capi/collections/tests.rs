@@ -15,9 +15,18 @@ fn leak_free(body: impl FnOnce()) {
     assert_eq!(crate::counters::double_free_count(), 0);
 }
 fn native(version: TclVersion) -> Interp {
-    let mut interpreter = Interp::new();
-    interpreter.set_runtime_version(version);
-    interpreter
+    let environment = match version {
+        TclVersion::V8_4 => "tcl8.4",
+        TclVersion::V8_6 => "tcl8.6",
+        TclVersion::V9_0 => "tcl9.0",
+        _ => panic!("collection controls require their measured C8.4, C8.6 or C9.0 core"),
+    };
+    Interp::with_native_core(
+        crate::interp::default_host(),
+        crate::environment::profile_for_dialect(environment),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap()
 }
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(
@@ -618,4 +627,34 @@ fn original_collection_dictionary_members_require_their_retained_protocol() {
             assert_eq!(unsafe { (*member.as_ptr()).ref_count }, 2);
         });
     }
+}
+
+#[test]
+fn generic_version_selection_cannot_enter_original_collection_updaters() {
+    leak_free(|| {
+        let mut interpreter = Interp::new();
+        interpreter.set_runtime_version(TclVersion::V9_0);
+        let (value, updates, frees) = callback(&interpreter, 0, false, false, b"alpha beta");
+        let mut count: TclSize = -71;
+        let mut window = ptr::dangling_mut::<*mut TclObj>();
+        assert_eq!(
+            unsafe {
+                get_elements(
+                    &mut interpreter,
+                    value.as_ptr(),
+                    &raw mut count,
+                    &raw mut window,
+                )
+            },
+            TCL_ERROR
+        );
+        assert_eq!(updates.get(), 0);
+        assert_eq!(frees.get(), 0);
+        assert_eq!(count, -71);
+        assert_eq!(window, ptr::dangling_mut());
+        assert!(interpreter.native_execution_refusal().is_some());
+        assert!(ptr::eq(obj::obj_type_ptr(value.as_ptr()), &CALLBACK));
+        drop(value);
+        assert_eq!(frees.get(), 1);
+    });
 }
