@@ -414,6 +414,10 @@ extents. Unsupported glob/regexp/nocase and missing or changed correspondence
 decline. Readonly case advice cannot erase Native Switch evaluation without
 an independent retained execution-obligation carrier.
 
+### Authored Core procedure source ordinals
+
+A selected typed Core procedure descriptor under the actual retained Jim source grammar projects its three-word `name parameters body` or four-word `name parameters statics body` ordinals, even when the caller retains a shared Tcl catalogue store. Complete selected Name/ParamList role consensus remains mandatory; ambiguous or conflicting roles and expanded cardinality refuse. This source-only projection shares a positional grammar kernel with native definition selection but retains no native definition result, formal/static acceptance, installation, frame, body execution or Normal receipt. Non-Jim and unknown-dialect source metadata and configured Proc hooks keep their independently declared grammar.
+
 ## Conditional dictionary source phases
 
 `ResolvedInvocation::authored_dictionary_scope_source_phase` selects accepted
