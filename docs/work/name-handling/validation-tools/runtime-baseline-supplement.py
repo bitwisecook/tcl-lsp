@@ -82,6 +82,9 @@ JIM_LIBRARY3_SELECTORS = list(JIM_LIBRARY3_CONTROLS)
 COLD_STATE2_SOURCE_PINS = {'runtime/rust/src/expr_error.rs': '86c1eeff660d490e560bf6cefa827a19fd62a558ff47ff8e2a0493128f76e535', 'runtime/rust/src/expr_error/cold_state.rs': 'f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1'}
 COLD_STATE2_CONTROLS = {'expr_error::cold_state::tests::empty_cold_storage_preserves_flattened_debug_equality_and_guest_bytes': {'path': 'runtime/rust/src/expr_error/cold_state.rs', 'indent': '    ', 'sha256': '46151b5bdcc0762056b87f2234ca780e1bdfb533e73d3bda3f2052a740e14148'}, 'expr_error::cold_state::tests::cloned_cold_state_retains_complete_typed_refusal_and_public_fields': {'path': 'runtime/rust/src/expr_error/cold_state.rs', 'indent': '    ', 'sha256': 'ceec69dcb1bd85036cf5ee377d14ccc5adf0cdaf836705631133610f19a37830'}}
 COLD_STATE2_SELECTORS = list(COLD_STATE2_CONTROLS)
+CACHED_INCREMENT3_SOURCE_PINS = {'runtime/rust/src/codegen_native.rs': '775bf7c7a737f45c403c8ce6159668fbc4a22dd79e2e6a29c19a9f1d6d31df82', 'runtime/rust/src/interp.rs': '02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063', 'runtime/rust/src/frame.rs': '8f65cbe133cba80c225ae49e8a1bbae7dffb46d55e50dfc7ae1be9c261d7dd5b', 'runtime/rust/src/builtins.rs': 'fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b', 'runtime/rust/src/interp/captured_rmw.rs': 'c41b40d02846b8655487cd2d10b3c4e720ab0a60d6259c83c5612dad4719dd9e', 'runtime/rust/src/value_ops.rs': 'a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c', 'runtime/rust/src/codegen_native/cached_increment.rs': '0a6b4bfff493fdd6c29a952bdafaba17ac4d0e2b872d5031f1ff09009e4067fb', 'runtime/rust/src/interp/cached_increment.rs': '353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56'}
+CACHED_INCREMENT3_CONTROLS = {'codegen_native::cached_increment::tests::cached_increment_runs_original_cow_and_keeps_the_held_input': {'path': 'runtime/rust/src/codegen_native/cached_increment.rs', 'indent': '    ', 'sha256': '610af366847d37c6b1ec275f037a8bb28bf097679fd9aef377c624a02ed3fc17'}, 'codegen_native::cached_increment::tests::cached_increment_decline_preserves_input_and_runs_fallback_once': {'path': 'runtime/rust/src/codegen_native/cached_increment.rs', 'indent': '    ', 'sha256': 'a549c75319308d88a20202d5bba28226c110bf3fe41a231b10ad198736c16749'}, 'codegen_native::cached_increment::tests::cached_increment_hint_never_replaces_reached_operands_or_trace_fallback': {'path': 'runtime/rust/src/codegen_native/cached_increment.rs', 'indent': '    ', 'sha256': '31947bca9828c2f3318cb517b06a93ef5bab09750ed5715837a58fec286f1019'}}
+CACHED_INCREMENT3_SELECTORS = list(CACHED_INCREMENT3_CONTROLS)
 ALLOCATION2_CONTROLS = {'interp::native_error_headers::c9_error_root_generation_tests::allocation_lease_cannot_certify_a_retired_error_header': {'path': 'runtime/rust/src/interp/native_error_headers.rs', 'sha256': '1be29b6978e2e26504dfda142fc2bb239b0e9970ce720d909347f89a6b10dc7d', 'indent': '    '}, 'interp::native_error_headers::c9_error_root_generation_tests::c9_next_entry_publishes_original_error_headers_without_stringifying_code': {'path': 'runtime/rust/src/interp/native_error_headers.rs', 'sha256': 'c88f9e164039b22db42eaed37827d7351e4ad047120bfb78bbeac681d557e26b', 'indent': '    '}}
 ALLOCATION2_SELECTORS = list(ALLOCATION2_CONTROLS)
 HEADROOM2_CONTROLS = {'codegen_abi::tests::the_native_path_holds_one_activation_per_level_and_refuses_at_the_bound': {'path': 'runtime/rust/src/codegen_abi.rs', 'sha256': '476121576749ba5d7f043960e07e55b38890e9f10ad3149d91eeee9a6a24ab38', 'indent': '    '}, 'codegen_abi::original_frame_owner::tests::generated_entry_probe_uses_held_owner_and_keeps_refusal_terminal': {'path': 'runtime/rust/src/codegen_abi/original_frame_owner.rs', 'sha256': 'b97c66f78d1dd8ba73047eb9fc3d123d53d84dc6892677d58ce16d798665f058', 'indent': '    '}}
@@ -599,6 +602,98 @@ def run_aot5(owner, suite, binary, prepared, environment, supplemental, source,
         "scope": "Separate five actual AOT controls after unchanged original135; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
     })
     return rows, errors, used
+
+
+def cached_increment3_control_source():
+    for path, expected in CACHED_INCREMENT3_SOURCE_PINS.items():
+        require(sha(path) == expected, "cached_increment3 actual producer source mismatch: " + path)
+    for selector, control in CACHED_INCREMENT3_CONTROLS.items():
+        raw = Path(control["path"]).read_text()
+        indent = re.escape(control["indent"])
+        simple = re.escape(selector.rsplit("::", 1)[1])
+        pattern = (r"(?:^" + indent + r"#\[[^\n]*\]\n)+^" + indent
+                   + r"fn " + simple + r"\(\) \{\n.*?^" + indent + r"}\n")
+        found = re.findall(pattern, raw, re.MULTILINE | re.DOTALL)
+        require(len(found) == 1
+                and hashlib.sha256(found[0].encode()).hexdigest() == control["sha256"],
+                "reviewed cached-increment control required: " + selector)
+    return CACHED_INCREMENT3_CONTROLS
+
+
+def run_cached_increment3(owner, suite, binary, prepared, environment, supplemental, source,
+             used, suite_deadline, absolute, prior_closed):
+    rows = [{"group": "cached_increment3", "selector": name, "status": "UNRUN"}
+            for name in CACHED_INCREMENT3_SELECTORS]
+    errors = []
+    save(supplemental / "cached_increment3-outcomes.json", rows)
+    source_provenance = cached_increment3_control_source()
+    require(len(CACHED_INCREMENT3_SELECTORS) == len(set(CACHED_INCREMENT3_SELECTORS)) == 3,
+            "exact distinct cached_increment3 selectors required")
+    if not prior_closed:
+        errors.append("original166 process/ELF/completeness unsettled; cached_increment3 remains UNRUN")
+    else:
+        for index, row in enumerate(rows):
+            if not listed(suite, row["selector"]):
+                errors.append("reviewed cached_increment3 selector absent or ignored")
+                break
+            if suite["testcases"][row["selector"]]["filter-match"]["status"] == "matches":
+                errors.append("cached_increment3 cannot substitute an original selected identity")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable for cached_increment3")
+                break
+            if used >= CAP:
+                errors.append("remaining shared 20MiB log budget exhausted before cached_increment3")
+                break
+            if sha(binary) != prepared["elf_sha256"]:
+                errors.append("same original166 ELF changed before cached_increment3")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                errors.append("remaining shared case/cleanup reserve unavailable after ELF hash")
+                break
+            prefix = supplemental / f"cached_increment3-{index}"
+            receipt = owner.run(
+                [str(binary), "--exact", row["selector"], "--nocapture", "--test-threads=1"],
+                cwd=Path(suite["cwd"]), env=environment,
+                stdout_path=str(prefix) + ".stdout", stderr_path=str(prefix) + ".stderr",
+                receipt_path=str(prefix) + ".process.json", artifact_path=binary,
+                deadline_seconds=180, cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+                disk_paths=(Path.cwd(), supplemental.parent, binary.parent, Path(os.environ["RUNNER_TEMP"])),
+            )
+            used += receipt["retained_bytes"]
+            try:
+                row["status"] = original_outcome(Path(str(prefix) + ".stdout").read_text(), receipt)
+            except (RuntimeError, ValueError) as error:
+                row["status"] = "INCOMPLETE"
+                row["error"] = str(error)
+            row["process"] = receipt
+            row["stdout_sha256"] = sha(str(prefix) + ".stdout")
+            row["stderr_sha256"] = sha(str(prefix) + ".stderr")
+            save(supplemental / "cached_increment3-outcomes.json", rows)
+            print(row["group"], row["selector"], row["status"], flush=True)
+            if (not receipt["group_empty_before_parent_reap"] or not receipt["artifact_unchanged"]
+                or row["status"] in ["UNRUN", "INCOMPLETE", "TIMEOUT"]):
+                errors.append("cached_increment3 process/ELF/completeness guard failed")
+                break
+            if time.monotonic() > suite_deadline or time.time() > absolute:
+                errors.append("shared suite or absolute deadline exceeded after cached_increment3")
+                break
+    for row in rows:
+        if row["status"] == "UNRUN":
+            row["unrun_reasons"] = errors
+    save(supplemental / "cached_increment3-outcomes.json", rows)
+    save(supplemental / "cached_increment3-summary.json", {
+        "source": source, "binary": str(binary), "elf_sha256": prepared["elf_sha256"],
+        "source_provenance": source_provenance, "count": 3,
+        "counts": dict(collections.Counter(row["status"] for row in rows)),
+        "errors": errors, "complete": not errors,
+        "case_budget_seconds": 180, "suite_budget_seconds": 2400,
+        "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
+        "aggregate_log_cap_bytes": CAP + 65536,
+        "scope": "Separate cached-increment COW, pure-decline and reached-operand/trace controls after unchanged original166; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase or original failure substitution.",
+    })
+    return rows, errors, used
+
 
 
 def cold_state2_control_source():
@@ -1589,6 +1684,14 @@ def run(out, source):
         owner, suite, binary, prepared, environment, supplemental, source,
         used, suite_deadline, absolute, cold_state_prior_closed)
     errors.extend(cold_state_errors)
+    cached_increment_prior_closed = cold_state_prior_closed and len(cold_state_rows) == 2 and all(
+        row["status"] in ["PASS", "FAIL", "ABORT"]
+        and row["process"]["group_empty_before_parent_reap"]
+        and row["process"]["artifact_unchanged"] for row in cold_state_rows)
+    cached_increment_rows, cached_increment_errors, used = run_cached_increment3(
+        owner, suite, binary, prepared, environment, supplemental, source,
+        used, suite_deadline, absolute, cached_increment_prior_closed)
+    errors.extend(cached_increment_errors)
     unchanged = sha(binary) == prepared["elf_sha256"]
     if not unchanged:
         errors.append("ELF changed after supplemental cases")
@@ -1613,6 +1716,7 @@ def run(out, source):
             "complete": complete,
             "separate_jim_library3_outcomes": "jim_library3-outcomes.json",
             "separate_cold_state2_outcomes": "cold_state2-outcomes.json",
+            "separate_cached_increment3_outcomes": "cached_increment3-outcomes.json",
             "separate_native_getter11_outcomes": "native_getter11-outcomes.json",
             "separate_allocation2_outcomes": "allocation2-outcomes.json",
             "separate_headroom2_outcomes": "headroom2-outcomes.json",
@@ -1680,7 +1784,8 @@ def run(out, source):
         125
         if not complete
         else 100
-        if any(row["status"] != "PASS" for row in cold_state_rows)
+        if any(row["status"] != "PASS" for row in cached_increment_rows)
+        or any(row["status"] != "PASS" for row in cold_state_rows)
         or any(row["status"] != "PASS" for row in jim_library_rows)
         or any(row["status"] != "PASS" for row in native_getter_rows)
         or any(row["status"] != "PASS" for row in allocation_rows)
@@ -1734,6 +1839,19 @@ def main():
         if args.phase == "run":
             directory = out / "supplement"
             directory.mkdir(exist_ok=True)
+            cached_increment_path = directory / "cached_increment3-outcomes.json"
+            cached_increment_rows = json.loads(cached_increment_path.read_text()) if cached_increment_path.exists() else [
+                {"group": "cached_increment3", "selector": name, "status": "UNRUN"}
+                for name in CACHED_INCREMENT3_SELECTORS]
+            for row in cached_increment_rows:
+                if row["status"] == "UNRUN":
+                    row["unrun_reasons"] = [repr(error)]
+            save(cached_increment_path, cached_increment_rows)
+            save(directory / "cached_increment3-summary.json", {
+                "source": args.sha, "count": 3, "complete": False, "errors": [repr(error)],
+                "counts": dict(collections.Counter(row["status"] for row in cached_increment_rows)),
+                "scope": "CachedIncrement3 unadmitted/incomplete; all original166 remain separately reported.",
+            })
             cold_state_path = directory / "cold_state2-outcomes.json"
             cold_state_rows = json.loads(cold_state_path.read_text()) if cold_state_path.exists() else [
                 {"group": "cold_state2", "selector": name, "status": "UNRUN"}
