@@ -1,0 +1,51 @@
+{
+  "utc": "2026-10-26T01:03:43.960058+00:00",
+  "files": [
+    {
+      "path": "compiler129c-assessment.json",
+      "sha256": "a5d2fc788053b0675b470faf8b4f28ae0b840e27257afc5e64e3b910b0c97062",
+      "bytes": 789350
+    },
+    {
+      "path": "compiler129c-native-source-authentication.json",
+      "sha256": "546f57c5576e8946163c41a41a167a79becfae458acb935a6a21d9cd0fe6b236",
+      "bytes": 201545
+    },
+    {
+      "path": "spec0033-authentication.json",
+      "sha256": "ba743cab863732b677f5c3ab6835a08fb8aca8309c5450274cd6adf10df54c9a",
+      "bytes": 3976
+    },
+    {
+      "path": "strict129c-assessment.json",
+      "sha256": "07f16ae4d28d88f98c2447d10727419c017e4a74bf1df0019e57c2d2b74d8388",
+      "bytes": 8351
+    },
+    {
+      "path": "perf362e-macos-full-findings.json",
+      "sha256": "a32fe9cfbb1eb9029366d72605abe91adc9fdfcf68d9476b1a57a2f8dac65c0e",
+      "bytes": 1453
+    },
+    {
+      "path": "b868-focused-wave-index.json",
+      "sha256": "b78a98f8a246960aa83fea1bef8820563aec5277957fb69d3c8252d1508f0007",
+      "bytes": 3517
+    },
+    {
+      "path": "release69c8-format.json",
+      "sha256": "3bde98f8cddc7af6515b4a30d090353bbef2aeb2620fcba46e6d40b68eba017b",
+      "bytes": 447
+    },
+    {
+      "path": "release69c8-process-marker-audit.json",
+      "sha256": "76b778b2fddf0e0e196178f1f69ebf214e8648b7af2fc8d3109cfb8d02df2377",
+      "bytes": 1252
+    },
+    {
+      "path": "rmeta-cache-reclaim-0101.json",
+      "sha256": "b706f306af301fdd687522931ec871283ba7ea67301825cd8b5ec477124f970a",
+      "bytes": 316240
+    }
+  ],
+  "no_new_gate_admission": true
+}

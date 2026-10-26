@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T01:15:00.189471+00:00",
+  "scheduled_report_utc": "2026-10-26T01:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T01:45:00+00:00",
+  "change_since_previous_report": [
+    "Before01:15 current reviewed fixes PUSHED normally: WORK b804741ad7cc3f92bd32fbae40950876ff4187b6 /release42935b9aa03f7844c718d237bd5b6ec37b5643c6. ExactABI constant lintfix, three test refactors and passive setupdiagnostic carried with finaldf2a metadata union8ff36/peer062c. Minify1protocol243442 and Child10consumer exactkeyset+authenticatedvalue repair included; actualrequirepositive+8negativecontrols PASS; V12PASS. Corrected compiler119 and strict reruns dispatched; healthy otherb868jobs retained.",
+    "Pushed current functional cohort on work b868e9f8ff1396b2fced842b3096b0551dd57260 and cleaned counterpart release/lsp-naming 69c8bf722b47ff8cac3c18cabfc6536e398dbcde after shallow work synchronization. All19 AOT source files, five runtime controls, checked minify producer, bounded scan window, three actual scan selectors, contract/comment updates and source guard included. Source-pin preflight passed; actual execution remains separate.",
+    "Compiler129c FULLAUTH a5d2fc78/546f57c5: original102 98PASS4FAIL, original58 and Logical3 PASS, separateLogical5 PASS, codec864 control PASS, Child10 8PASS2FAIL. Both prior Logical regressions recovered. Four readonly positives remain; foreign frame/source guard integrated and missing-child-view setup receives only passive failure shape diagnostics, assertions unchanged.",
+    "Spec0033 FULLAUTH ba743cab: old16 ALLPASS, string3 FAIL, full600 INCOMPLETE at unchanged timeout; LENGTH actual alternatives1/residualClosed/read-producestrue/native-stringfalse. Existing representation producer lacks a qualified normal-string receipt; syntax alone supplies no permission. Jim0033 unchanged original26 16PASS10FAIL with exact prior passing cases preserved.",
+    "Strictb868 FULLAUTH 6b4817ed: one shared ABI descriptor109-line lint, zero Rust errors; later frontiers masked. Exact8-type constant extraction SourcePeer7ac631 committed paired for next snapshot. Prior129c frontier77 remains tracked; three test-only length refactors applied with assertion/evaluation proofs. Names nine-small-diagnostic cohort under independent peer.",
+    "New exact b868 focused wave dispatched: compiler40251854960; strict40251854052; WASM40251833405; runtimefullTom40251853407; host40251840016; startup/Core2 40251853298. Root sole paired-performance40251868353 compares release69c8 against remote-confirmed rusted694 across six Linux/macOS Tcl scopes. Owners hold their artifacts; no duplicated downloads or cancellation of healthy jobs.",
+    "Concrete validation defect discovered after final metadata peer: a separate hardcoded Child10 consumer still used old164bf hash while top+nested JSON used current50f563. Compiler repairing exact consumer with negative controls; b868 compiler may be ALLUNRUN until artifact proves execution. Root preflight extension requested to check these AST literal consumers; no test pass inferred from source metadata alone.",
+    "Previous362e shipping performance complete macOS full artifact verified API size/digest/CRC/allmembers. Baseline and candidate release builds PASS; full baseline also scan/edit failures; candidate scan120 timeout and typing/tokens1620 seconds then1800 deadline, missingresult and cleanupEPERM/groupnotclosed. Complete pair INVALID/no accepted ratio. Linux runner-shutdown small job retry201 accepted, medium403 while first retry active; no blanket rerun.",
+    "Whole release rust and runtime cargo fmt --all --check PASS at69c8; targeted tracked process/evidence markers0 and paths0 (76b778b2). New honest current-state shipping summary replaces stale front section; later historical evidence retained. General VM parity remains deferred, iRules timing exempt only, mandatory F/currentorigin zeroPASS-to-FAIL/fullCI/generated/docs/fixtures/packaging/prep-pr gates open.",
+    "Disk cache cleanup removed only692 superseded singlelink nonexecutable rmeta files older24h, newest per crate kept, no live cargo/rustc before eachunlink. Reclaimed133377794B, receiptb706f306, freeabout2.45GB; no source/evidence/ZIP/testexecutable loss. External BIGIP/perf stale owners reported/no takeover; triage complete. Two pending design choices remain unanswered; no decision JSON invented.",
+    "B868 WASM FULLAUTH93103e5a actual25 reached22PASS3FAIL: ADD planner now genuinely selects retained NativeI64Add, emits/runs and prints6, then originalcounter assertion traps. OldNoViablePlan is resolved; rawcounter notyetmeasured, nofastpath/publicationclaim. Allocation/depth oldfailures unchanged; Runtime owns actualeligibility firstleaf, no fakecounter or ABI bypass."
+  ],
+  "committed": [
+    "483d3299f4f52d262212243e1fb1587c54fc12d9"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish current validation-consumer repair and combined source pins with minify control; publish next reviewed cohort without canceling healthy current jobs.",
+    "Authenticate current VM/WASM/compiler/host outcomes and shipping Tcl performance; fix genuine source-owner, NativeString, Return91 and readonly receipt gaps with assertions and fail-closed guards retained.",
+    "Complete remaining strict cleanup, current complete rust baseline comparison, sectionF, shipping performance acceptance, generated/docs/comments/fixtures/packaging/prep-pr, then open authorized clean PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release/audit admissions or checkbox changes. Static source and protocol review is not actual typing/test/performance proof; missed hardcoded consumer remains explicit until repaired and executed. Six-hour target missed; no PR opened.",
+  "disk_free_bytes": 2404945920,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

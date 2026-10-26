@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-26T00:58:48.004125+00:00",
+  "release_source": "69c8bf722b47ff8cac3c18cabfc6536e398dbcde",
+  "commands": [
+    {
+      "cwd": "rust",
+      "command": "cargo fmt --all --check",
+      "exit": 0
+    },
+    {
+      "cwd": "runtime/rust",
+      "command": "cargo fmt --all --check",
+      "exit": 0
+    }
+  ],
+  "toolchain": "1.99.1-x86_64-unknown-linux-gnu",
+  "scope": "wholeworkspaces",
+  "typing_tests_perf_admitted": false
+}

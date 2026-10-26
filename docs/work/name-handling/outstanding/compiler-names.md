@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T00:36:13.137754+00:00
+Last updated: 2026-10-26T01:00:22.737082+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-26T01:00:22.737082+00:00: Actual129c compiler118 Child10=8PASS2FAIL, new3ALLPASS; Compiler fullautha5d2fc78/source546f57c5. Foreign-frame helper failure exposed missing independent source Arc check before header fast path; paired source1eade884 deepCLEARfda5d7bc integratedWORK0071/CLEAN69c8, every assertion unchanged. Sole Codegen current union76f54e9a updates BOTH main/Child10 pins; our separate3f974 metadata audit-only/retired. Other setup588 fails foreign unit child_view selection (requires nested bindings plus n source-symbol), exact missing conjunct not yet measured. Failure-only bounded SSA-map diagnostic39c8f61c OFFTREE peer pending; fixtures/search/assertions/production exact, no new env or Native query. Do not waive negative or guess amount2 lowering: both default/explicit amounts lower Statement::Incr. Jim0033 FULLAUTH23c96c00 remains35/45 and original16/26, callback-unknown measured. Parse-only expr closure rejected: numeric coercion may call custom updater/destructor; genuine read-prefix/value effect proof needed, no Native/Normal/tree grant. Spec0033 Runtime FULLAUTHba743cab exact LENGTH alternatives1/residualClosed/read-producesTRUE/native-stringFALSE; narrow existing native-string issuer audit underway withRuntime read-only assistance.
 
 Resume 2026-10-26T00:36:13.137754+00:00: Jim0033 run40248860433 FULL AUTH23c96c00 all51 reached, unchanged35PASS10FAIL original45, diagnostic3PASS2FAIL and newstaticcontrolPASS. Original26 remains16PASS10FAIL; exact51 prior comparison has NO gains/regressions. Actual mixed-expression lookup first fact is callback-unknown (76 diagnostic01 logrows), not transition/access-domain failure. ZIP4b6ed354/11039150 retained onceworkspace. Preserve conservative unknown lookup guard; now investigate selected registry world-effect contract and per-call genuine refinement, no puretrait/visit/tree completion fallback. Compiler118 separate control outcomes still owned byCompiler.
 

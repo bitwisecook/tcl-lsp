@@ -92,10 +92,11 @@ Actual Kotlin validation passed97 tests on recordedcandidate658 through a bounde
 3. Complete strict Core/Server checks and every required native, browser,
    WASI, editor, generated and SpecTcl gate on the integrated shipping tree.
    Reconcile every selected baseline identity; unknown is not pass.
-4. Finish the existing perf owner's complete authenticated old/mixed Tcl
-   corpus and client proof. Accept no optimisation or realm patch before its
-   actual proof; then measure the final shipping source under the recorded
-   latency/cancellation/memory contract. Dedicated iRules timing alone is waived.
+4. Preserve the existing perf owner's completed authenticated old/mixed
+   report-equivalence proof and the reviewed integrated realm/interprocedural
+   patch. Measure the final shipping source under the recorded
+   latency/cancellation/memory contract; source-level equivalence does not
+   establish shipping performance. Dedicated iRules timing alone is waived.
 5. Complete repository-wide documentation/comment cleanup and generated drift,
    retain test-consumed fixtures, run final formatting/rust-check/prep-pr and
    packaging, then verify the squash tree matches the validated product.

@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T00:44:02.646698+00:00
+Last updated: 2026-10-26T01:11:56.499493+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
@@ -714,3 +714,9 @@ Final5bc7 union independently STATIC DEEP CLEAR cfb4eb3af4b9e94e517ff03dfd2e4bab
 
 
 2026-10-26T00:44:02.646698+00:00 — AOT compiler V3 preserves the existing public six-field selection API using a private retained-publication wrapper. Bounded compiler review 5df67d35 and SourceProc semantic rebind 0fa13db9 cover immutable VM V2; independent VM transport/source review 9136e11a verifies current13 per lane, F/R/F0 and fmt26. Focused AOT5 protocol independently clear0a0bfd7f. Actual typing, five VM controls and original WASM25 remain unrun for this off-tree implementation. Latest strict129c is authenticated77 Clippy/0 Rust errors, partitioned21 Compiler/51 Names/5 coordinator; no newer strict/WASM run assigned. Await canonical combined19 landing/freeze for one explicit issuer/helper dependency union. Allocation/API user decisions remain pending.
+
+
+2026-10-26T00:56:58.013621+00:00 — Compatible AOT compiler6 + runtime13 sources are now paired canonical; actual19 reviewed afterimages match Git. Final P0071 all23 pin union is independently clear bf74947e:13 files,9 top-level and1 nested Child10 refresh,29 explicitly approved coupled AOT dependencies,256 live records/195 source files. Root owns application/push/dispatch; new Rust typing, focused AOT5 controls and original WASM25 are still unrun. Scan3 protocol is independently clear10b54a72 and must rebase its two beforeimages after metadata; reviewed final afterimages remain identical. Latest strict129c remains77 Clippy/0 Rust errors, partitioned by owner; no new strict/WASM run assigned yet.
+
+
+2026-10-26T01:11:56.499493+00:00 — Actual b868 WASM25 FULLAUTH93103e5a (348 checks) is22PASS/3FAIL. Retained ADD planner now selects NativeI64Add(frame_elided=false), linked program prints6, then exact fast-dispatch==1 bootstrap assertion traps; rawcounter is not printed, so only !=1 is established. Runtime owns genuine artifact/frame/eligibility/counter trace. Old allocation and61/62 depth assertions still fail unchanged; pending coverage decision remains unassumed. Actual b868 strict FULLAUTH6b4817ed has sole shared ABI descriptor109-line Clippy primary/0Rust errors, later masked. Paired private parameter-constant extraction42e0bd66 is independently clear7ac631a3. New df2a sourcepin+Minify1+stale duplicated Child10 consumer repair independently clear062c9aa8: actualrequire positive8negatives, all23/17maps257records195sources; root owns integration/push/retry. Historical ff56 partial CI terminal/listing captures are separately qualifiedd11e2496 and are not current release outcomes.

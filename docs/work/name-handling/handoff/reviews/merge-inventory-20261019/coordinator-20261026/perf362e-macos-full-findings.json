@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-26T00:54:00.351751+00:00",
+  "api_artifact_id": 12619579748,
+  "zip_sha256": "c441f5fa5b91b37398149484cc2293702b8e55229239c1e2b121a1358f21240b",
+  "zip_size": 26756,
+  "zip_crc_and_all_member_hashes": "PASS",
+  "source_harness": "362e7ce33682831d4a2d96b1b110f24d830bf8fa",
+  "candidate": "5dd276d55c6e9b397e5e44c193c6c4cdc23ad35e",
+  "baseline": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "scope": "full",
+  "builds": [
+    {
+      "side": "baseline",
+      "elapsed_s": 537.117,
+      "exit_code": 0
+    },
+    {
+      "side": "candidate",
+      "elapsed_s": 1533.758,
+      "exit_code": 0
+    }
+  ],
+  "invalid_reasons": [
+    "baseline-full-pair1: failed/annotated checks: ['scan.workspace', 'edit.storm', 'edit.tokens', 'nav.hover', 'nav.definition', 'nav.references', 'nav.completion', 'nav.symbols', 'lens.resolve', 'action.codeaction', 'refactor.rename', 'refactor.filerename', 'nav.after_rename', 'close.docs']",
+    "candidate-full-pair1: invalid/missing result: [Errno 2] No such file or directory: '/Users/runner/work/_temp/paired-perf/output/full/results/candidate-full-pair1.json'",
+    "candidate-full-pair1: owned process group is not proven closed; stopping before the next build or trial"
+  ],
+  "candidate_observed": "scan120.050s timeout; typing+tokens1620.050s before1800s deadline; missingresult; cleanupEPERM/groupnotclosed",
+  "acceptance": "INVALID; no current performance ratio or threshold acceptance"
+}

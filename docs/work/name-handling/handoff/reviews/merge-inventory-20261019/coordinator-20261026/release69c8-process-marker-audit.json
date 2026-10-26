@@ -1,0 +1,65 @@
+{
+  "utc": "2026-10-26T01:01:36.024474+00:00",
+  "source": "69c8bf722b47ff8cac3c18cabfc6536e398dbcde",
+  "tracked": 11071,
+  "process_paths": [],
+  "checks": [
+    {
+      "marker": "docs/work/name-handling",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "merge-inventory-20261019",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "resume-20261017",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "ZZ_CCG_BASELINE",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "zz_ccg_",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "scratchpad-mirror",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "user-decisions-2026",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "coordinator-202610",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "TCL_LSP_TRACE_COARSE_SOURCE",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "RBS_READ_OWNER",
+      "count": 0,
+      "hits": []
+    },
+    {
+      "marker": "NATIVE_DIRECT_SOURCE_DECLINE",
+      "count": 0,
+      "hits": []
+    }
+  ],
+  "scope": "Targeted exact tracked process marker audit only, not full editorial/fixtures/semantic acceptance",
+  "no_build": true
+}
