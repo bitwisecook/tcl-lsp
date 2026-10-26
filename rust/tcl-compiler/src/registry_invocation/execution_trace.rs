@@ -904,6 +904,57 @@ mod tests {
             Some(metadata)
         ));
     }
+    fn assert_same_jim_input_keeps_independent_driver_purposes(
+        registry: &tcl_registry::CommandRegistry,
+        metadata: InvocationMetadataContext<'_>,
+        tokens: &crate::ir::CommandTokens,
+        profile: &'static tcl_dialect::DialectProfile,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) {
+        use crate::command_binding::OriginalInvocationSourcePurpose;
+        // The same raw Jim assistance input can independently select a genuine
+        // source-only driver. Its own entry and vector retain that purpose; it
+        // cannot change the purpose of the supplied Native binding above.
+        let input = metadata.source_analysis_input().unwrap();
+        let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = CompilationUnit::build_with_context_registry(
+            "llength {a b}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(context),
+        );
+        let logical_metadata =
+            InvocationMetadataContext::for_module(registry, &logical.ir_module).unwrap();
+        let logical_tokens = tokens_at(&logical, 0);
+        assert!(logical.ir_module.source_entry.native_entry.is_none());
+        assert_eq!(
+            original_trace_source_purpose(registry, logical_metadata, logical_tokens),
+            Some(OriginalInvocationSourcePurpose::Logical)
+        );
+        assert_eq!(
+            logical
+                .ir_module
+                .original_invocation_source_purpose(registry, logical_metadata),
+            Some(OriginalInvocationSourcePurpose::Logical)
+        );
+        assert!(!trace_set_requires_original_owner(
+            registry,
+            &logical.ir_module,
+            Some(logical_metadata)
+        ));
+        assert_eq!(
+            original_trace_source_purpose(registry, logical_metadata, tokens),
+            Some(OriginalInvocationSourcePurpose::Execution)
+        );
+    }
+
     #[test]
     fn genuine_jim_entry_cannot_borrow_raw_logical_metadata_for_trace_absence() {
         // naming.compiler.original-analysis-metadata-context
@@ -1000,46 +1051,8 @@ mod tests {
         ));
         assert!(original_execution_trace_keys(registry, foreign, tokens, &subject).is_none());
 
-        // The same raw Jim assistance input can independently select a genuine
-        // source-only driver. Its own entry and vector retain that purpose; it
-        // cannot change the purpose of the supplied Native binding above.
-        let input = metadata.source_analysis_input().unwrap();
-        let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
-        let logical = CompilationUnit::build_with_context_registry(
-            "llength {a b}",
-            crate::compilation_unit::UnitBuildOptions {
-                registry,
-                defer_top_level: false,
-                config: input.lexer_config(),
-                dialect: Some(profile),
-                external_call_sites: None,
-                declared_commands: None,
-            },
-            Some(&entry),
-            std::sync::Arc::clone(&context),
-        );
-        let logical_metadata =
-            InvocationMetadataContext::for_module(registry, &logical.ir_module).unwrap();
-        let logical_tokens = tokens_at(&logical, 0);
-        assert!(logical.ir_module.source_entry.native_entry.is_none());
-        assert_eq!(
-            original_trace_source_purpose(registry, logical_metadata, logical_tokens),
-            Some(OriginalInvocationSourcePurpose::Logical)
-        );
-        assert_eq!(
-            logical
-                .ir_module
-                .original_invocation_source_purpose(registry, logical_metadata),
-            Some(OriginalInvocationSourcePurpose::Logical)
-        );
-        assert!(!trace_set_requires_original_owner(
-            registry,
-            &logical.ir_module,
-            Some(logical_metadata)
-        ));
-        assert_eq!(
-            original_trace_source_purpose(registry, logical_metadata, tokens),
-            Some(OriginalInvocationSourcePurpose::Execution)
+        assert_same_jim_input_keeps_independent_driver_purposes(
+            registry, metadata, tokens, profile, &context,
         );
     }
 
