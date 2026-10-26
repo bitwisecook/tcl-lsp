@@ -7,6 +7,12 @@
 use super::Interp;
 use crate::{namespace::NsId, vars::TraceHome};
 
+/// Existing copied lookup coordinates; entry and cell checks remain in the callee.
+pub(super) struct OriginalVariableLocation {
+    pub(super) namespace: NsId,
+    pub(super) level: Option<usize>,
+}
+
 impl Interp {
     /// Retire the selected old registrations before invoking their callbacks.
     /// The supplied home retains root/member identity; it performs no lookup.
@@ -74,8 +80,10 @@ impl Interp {
         separate: bool,
     ) -> bool {
         self.remove_captured_byte_variable(
-            self.current_ns.get(),
-            Some(level),
+            OriginalVariableLocation {
+                namespace: self.current_ns.get(),
+                level: Some(level),
+            },
             root,
             element,
             spelling,
@@ -87,8 +95,7 @@ impl Interp {
 
     pub(super) fn remove_captured_byte_variable(
         &mut self,
-        namespace: NsId,
-        level: Option<usize>,
+        OriginalVariableLocation { namespace, level }: OriginalVariableLocation,
         root: &[u8],
         element: Option<&[u8]>,
         spelling: &[u8],
