@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
+        options: [standard, paired, prep-pr-candidate-validation, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -66,7 +66,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'standard' }}-${{ inputs.candidate_sha || '' }}
-  cancel-in-progress: ${{ inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' }}
+  cancel-in-progress: ${{ inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' }}
 
 permissions:
   contents: read
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -2143,4 +2143,265 @@ jobs:
           fi
           if [[ -f "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt" ]]; then
             cat "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  prep-pr-candidate-validation:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'prep-pr-candidate-validation' && github.ref == 'refs/heads/work'
+    name: Exact make prep-pr for ${{ inputs.candidate_sha }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+    steps:
+      - name: Admit only the WORK dispatch ref
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          echo "VALIDATION_JOB_START_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/prep-pr-validation"
+          {
+            printf 'candidate_sha=%s\n' "${CANDIDATE_SHA,,}"
+            printf 'workflow_ref=%s\n' "$GITHUB_REF"
+            printf 'workflow_sha=%s\n' "$GITHUB_SHA"
+            printf 'run_id=%s\n' "$GITHUB_RUN_ID"
+            printf 'run_attempt=%s\n' "$GITHUB_RUN_ATTEMPT"
+          } > "$RUNNER_TEMP/prep-pr-validation/identity.txt"
+          if [[ "$GITHUB_REF" != "refs/heads/work" ]]; then
+            echo "complete=false" > "$RUNNER_TEMP/prep-pr-validation/test-metadata.txt"
+            echo "stop_reason=refusal:workflow_ref_must_be_refs/heads/work" >> "$RUNNER_TEMP/prep-pr-validation/test-metadata.txt"
+            echo "refusal: workflow must run from refs/heads/work" >&2
+            exit 2
+          fi
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "complete=false" > "$RUNNER_TEMP/prep-pr-validation/test-metadata.txt"
+            echo "stop_reason=refusal:candidate_sha_must_be_40_hex" >> "$RUNNER_TEMP/prep-pr-validation/test-metadata.txt"
+            echo "refusal: candidate_sha must be 40 hexadecimal characters" >&2
+            exit 2
+          fi
+
+      # The owner is taken from WORK before the candidate is checked out. Pin
+      # its exact source bytes so candidate contents cannot select supervision.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: work
+          path: workflow-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify pinned process owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="workflow-source/docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py"
+          actual="$(sha256sum "$owner" | awk '{print $1}')"
+          expected="88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+          [[ "$actual" == "$expected" ]] || { echo "refusal: process owner hash mismatch: $actual" >&2; exit 2; }
+          printf 'process_owner_sha256=%s\n' "$actual" >> "$RUNNER_TEMP/prep-pr-validation/identity.txt"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify candidate identity and initial disk floor
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git -C candidate rev-parse HEAD)"
+          expected="${CANDIDATE_SHA,,}"
+          [[ "$actual" == "$expected" ]] || { echo "refusal: checked out $actual, expected $expected" >&2; exit 2; }
+          printf 'checked_out_sha=%s\n' "$actual" >> "$RUNNER_TEMP/prep-pr-validation/identity.txt"
+          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 {print $4}')"
+          printf 'free_kib_before_test=%s\n' "$free_kib" >> "$RUNNER_TEMP/prep-pr-validation/identity.txt"
+          (( free_kib >= 2097152 )) || { echo "refusal: less than 2 GiB free before test setup" >&2; exit 125; }
+
+      - name: Run bounded prerequisite setup and exact make prep-pr
+        id: prep-pr-test
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          """Fixed hosted prep-pr transport. No command-line command selection."""
+          import hashlib
+          import importlib.util
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import time
+
+          OWNER_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+          CAP = 20 * 1024 * 1024
+          FLOOR = 2 * 1024 * 1024 * 1024
+
+
+          def main():
+              workspace = Path(os.environ["GITHUB_WORKSPACE"])
+              candidate = workspace / "candidate"
+              output = Path(os.environ["RUNNER_TEMP"]) / "prep-pr-validation"
+              output.mkdir(parents=True, exist_ok=True)
+              result = {"complete": False, "gate_pass": False, "command": ["make", "prep-pr"]}
+              owner_file = workspace / "workflow-source/docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py"
+              receipts = []
+              started = float(os.environ["VALIDATION_JOB_START_EPOCH"])
+              deadline = started + 3300  # reserve 5 minutes of the existing 60-minute job
+              expected = os.environ["CANDIDATE_SHA"].lower()
+              child_env = {key: os.environ[key] for key in (
+                  "PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "CI", "RUNNER_TEMP",
+                  "GITHUB_WORKSPACE", "CARGO_HOME", "RUSTUP_HOME",
+              ) if key in os.environ}
+              child_env["PATH"] = str(Path.home() / ".cargo/bin") + ":" + str(Path.home() / ".local/bin") + ":" + child_env.get("PATH", "")
+
+              metadata_counter = 0
+
+              def collection_guard():
+                  if time.time() >= deadline - 20:
+                      raise RuntimeError("collection_deadline")
+                  if any(shutil.disk_usage(path).free < FLOOR for path in (candidate, output, Path.home())):
+                      raise RuntimeError("collection_disk_floor")
+
+              def metadata(argv):
+                  nonlocal metadata_counter
+                  metadata_counter += 1
+                  label = "identity-" + str(metadata_counter)
+                  if not run(label, argv):
+                      raise RuntimeError("identity_query_failed_or_incomplete")
+                  data = (output / (label + ".stdout.log")).read_bytes()
+                  if len(data) > 2 * 1024 * 1024:
+                      raise RuntimeError("identity_output_cap")
+                  return data
+
+              def snapshot(label):
+                  collection_guard()
+                  head = metadata(["git", "rev-parse", "HEAD"]).decode().strip()
+                  tree = metadata(["git", "rev-parse", "HEAD^{tree}"]).decode().strip()
+                  paths = metadata(["git", "ls-files", "-z"]).split(b"\0")
+                  files = {}
+                  for raw in paths:
+                      if not raw:
+                          continue
+                      collection_guard()
+                      relative = os.fsdecode(raw)
+                      path = candidate / relative
+                      if path.is_symlink():
+                          files[relative] = {"symlink": os.readlink(path)}
+                      elif path.is_file():
+                          digest = hashlib.sha256()
+                          with path.open("rb") as stream:
+                              for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                                  collection_guard()
+                                  digest.update(chunk)
+                          files[relative] = {"sha256": digest.hexdigest(), "mode": path.stat().st_mode & 0o777}
+                      else:
+                          files[relative] = None
+                  record = {"head": head, "tree": tree, "files": files,
+                            "status": metadata(["git", "status", "--porcelain=v1", "--untracked-files=normal"]).decode("utf-8", "replace"),
+                            "tracked_status": metadata(["git", "status", "--porcelain=v1", "--untracked-files=no"]).decode("utf-8", "replace")}
+                  (output / (label + "-source.json")).write_text(json.dumps(record, sort_keys=True, indent=2) + "\n")
+                  return record
+
+              def run(label, argv):
+                  executable = shutil.which(argv[0], path=child_env["PATH"])
+                  if executable is None:
+                      raise RuntimeError("missing_executable:" + argv[0])
+                  executable = str(Path(executable).resolve())
+                  remaining = deadline - time.time() - 20
+                  used = sum(path.stat().st_size for path in output.glob("*.log"))
+                  if remaining <= 0 or used >= CAP:
+                      raise RuntimeError("shared_budget_exhausted")
+                  receipt = owner.run([executable, *argv[1:]], cwd=candidate, env=child_env,
+                                      stdout_path=output / (label + ".stdout.log"),
+                                      stderr_path=output / (label + ".stderr.log"),
+                                      receipt_path=output / (label + "-receipt.json"),
+                                      artifact_path=executable, deadline_seconds=remaining,
+                                      cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+                                      disk_paths=(candidate, output, Path.home()))
+                  receipts.append({"phase": label, "receipt": receipt})
+                  return bool(receipt.get("complete")) and receipt.get("exit_code") == 0
+
+              initial = None
+              status = 125
+              try:
+                  if os.environ["GITHUB_REF"] != "refs/heads/work" or len(expected) != 40 or any(c not in "0123456789abcdef" for c in expected):
+                      raise RuntimeError("invalid_dispatch_identity")
+                  if hashlib.sha256(owner_file.read_bytes()).hexdigest() != OWNER_SHA:
+                      raise RuntimeError("process_owner_pin")
+                  spec = importlib.util.spec_from_file_location("prep_pr_process_owner", owner_file)
+                  owner = importlib.util.module_from_spec(spec)
+                  spec.loader.exec_module(owner)
+                  initial = snapshot("initial")
+                  if initial["head"] != expected or initial["status"]:
+                      raise RuntimeError("candidate_identity_or_dirty_initial_tree")
+                  result["candidate_sha"] = expected
+                  # The documented complete prerequisite installer is unchanged. No SKIP,
+                  # target override, credential, test filter, or make option is injected.
+                  if not run("setup", ["make", "install-test-deps"]):
+                      raise RuntimeError("setup_failed_or_incomplete")
+                  ready = snapshot("before-gate")
+                  if ready["head"] != expected or ready["files"] != initial["files"] or ready["status"]:
+                      raise RuntimeError("setup_changed_candidate_inputs")
+                  passed = run("prep-pr", ["make", "prep-pr"])
+                  result["gate_command_exit_pass"] = passed
+                  result["complete"] = bool(receipts[-1]["receipt"].get("complete"))
+                  status = receipts[-1]["receipt"].get("exit_code") if result["complete"] else 125
+              except Exception as error:
+                  result["stop_reason"] = type(error).__name__ + ":" + str(error)
+              finally:
+                  try:
+                      final = snapshot("final")
+                      result["candidate_head_unchanged"] = final["head"] == expected
+                      result["tracked_source_unchanged"] = initial is not None and final["files"] == initial["files"]
+                      result["tracked_index_and_worktree_clean"] = not final["tracked_status"]
+                      result["nonignored_worktree_clean"] = not final["status"]
+                      # Captures all tracked formatting/codegen changes, not a guessed list.
+                      diff_complete = run("generated-diff", ["git", "diff", "--binary", "HEAD", "--"])
+                      result["diff_capture_complete"] = diff_complete
+                      result["gate_pass"] = (result["complete"] and result.get("gate_command_exit_pass", False)
+                                             and result["candidate_head_unchanged"] and result["tracked_source_unchanged"]
+                                             and result["tracked_index_and_worktree_clean"] and result["nonignored_worktree_clean"]
+                                             and diff_complete)
+                      if not result["gate_pass"] and status == 0:
+                          status = 1
+                  except Exception as error:
+                      result["collection_error"] = type(error).__name__ + ":" + str(error)
+                      result["complete"] = False
+                      status = 125
+                  result["phases"] = receipts
+                  (output / "result.json").write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
+              return status
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PY
+
+      - name: Upload bounded test proof
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: prep-pr-test-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prep-pr-validation/
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6
+
+      - name: Publish proof summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/prep-pr-validation/result.json" ]]; then
+            cat "$RUNNER_TEMP/prep-pr-validation/result.json" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'prep-pr UNOBSERVED: no result receipt' >> "$GITHUB_STEP_SUMMARY"
           fi
