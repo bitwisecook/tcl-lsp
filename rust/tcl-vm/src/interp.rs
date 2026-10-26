@@ -23591,12 +23591,12 @@ impl Vm {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn native_diagnostic_proc_name_prefix(&self) -> Option<&[u8]> {
+    pub(crate) fn native_diagnostic_proc_name_prefix(&self) -> Option<(&[u8], usize)> {
         self.frames
             .last()?
             .proc_name
             .as_deref()
-            .map(|name| &name.as_bytes()[..name.len().min(16)])
+            .map(|name| (&name.as_bytes()[..name.len().min(32)], name.len()))
     }
 
     /// The current call frame's proc name (unqualified), or `None` at the global

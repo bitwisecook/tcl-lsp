@@ -623,11 +623,28 @@ fn observe_original_uplevel_caller(vm: &Vm, words: Option<&crate::NativeListItem
         .and_then(|words| words.first())
         .and_then(Value::resident_string_bytes);
     let head_bytes = head.as_deref().map(|bytes| &bytes[..bytes.len().min(32)]);
-    let caller_bytes = vm.native_diagnostic_proc_name_prefix();
+    let caller = vm.native_diagnostic_proc_name_prefix();
+    let info_words = words.filter(|_| head.as_deref() == Some(b"::tmm::_orig_info".as_slice()));
+    let subcommand = info_words
+        .and_then(|words| words.get(1))
+        .and_then(Value::resident_string_bytes);
+    let receiver = info_words
+        .and_then(|words| words.get(2))
+        .and_then(Value::resident_string_bytes);
+    let subcommand_bytes = subcommand
+        .as_deref()
+        .map(|bytes| &bytes[..bytes.len().min(32)]);
+    let receiver_bytes = receiver
+        .as_deref()
+        .map(|bytes| &bytes[..bytes.len().min(128)]);
     eprintln!(
-        "TCL_NATIVE_UPLEVEL_CALLER ordinal={ordinal} level={} caller_key_prefix={caller_bytes:?} head={head_bytes:?} head_len={:?}",
+        "TCL_NATIVE_UPLEVEL_CALLER ordinal={ordinal} level={} caller_key_prefix={:?} caller_key_len={:?} head={head_bytes:?} head_len={:?} info_subcommand={subcommand_bytes:?} info_subcommand_len={:?} info_receiver={receiver_bytes:?} info_receiver_len={:?}",
         vm.current_level(),
-        head.as_ref().map(|bytes| bytes.len())
+        caller.map(|(prefix, _)| prefix),
+        caller.map(|(_, length)| length),
+        head.as_ref().map(|bytes| bytes.len()),
+        subcommand.as_ref().map(|bytes| bytes.len()),
+        receiver.as_ref().map(|bytes| bytes.len()),
     );
 }
 
