@@ -319,6 +319,8 @@ impl ClosedContainerRepresentations {
 pub enum StoredNativeRepresentation {
     /// Original stock literal object class; native intrep is independently tracked.
     StockLiteralObject(crate::command_binding::SourceStockLiteralObject),
+    /// Original Normal producer closes StringAccess effects only.
+    NativeStringAccess(Arc<crate::command_binding::SourceNativeStringAccess>),
     /// Representation proved independently by a selected handler.
     Known(tcl_syntax::value::ValueRepresentation),
     /// Closed possible ordinary container types; no single intrep is proved.
@@ -374,7 +376,8 @@ impl StoredNativeRepresentation {
         match self {
             Self::StockLiteralObject(object) => object.representation(),
             Self::Known(value) => *value,
-            Self::Numeric(_)
+            Self::NativeStringAccess(_)
+            | Self::Numeric(_)
             | Self::NumericShape(_)
             | Self::IntegerConvertibleContents(_)
             | Self::ReadOnlyListMethodProvider(_)
@@ -387,7 +390,8 @@ impl StoredNativeRepresentation {
             Self::StockLiteralObject(object) => object.container_alternatives(),
             Self::Known(value) => ClosedContainerRepresentations::of(*value),
             Self::ContainerAlternatives(values) => Some(*values),
-            Self::Numeric(_)
+            Self::NativeStringAccess(_)
+            | Self::Numeric(_)
             | Self::NumericShape(_)
             | Self::IntegerConvertibleContents(_)
             | Self::ReadOnlyListMethodProvider(_) => None,
@@ -648,13 +652,47 @@ impl crate::var_resolve::ResolveContext {
         if self.binding_identity != crate::var_resolve::BindingIdentity::Bound {
             return false;
         }
-        self.contents_already_native_numeric_at(place, registry)
+        self.contents_native_string_access_receipt_at(place, registry)
+            .is_some()
+            || self.contents_already_native_numeric_at(place, registry)
             || self
                 .contents_stock_literal_object_at(place, registry)
                 .is_some()
             || self
                 .contents_integer_increment_conversion_at(place, registry)
                 .is_some()
+    }
+
+    pub(crate) fn contents_native_string_result_input_closed_at(
+        &self,
+        place: &crate::place::Place,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        self.contents_native_string_access_receipt_at(place, registry)
+            .is_some()
+            || self
+                .contents_stock_literal_object_at(place, registry)
+                .is_some()
+            || self.contents_already_native_numeric_at(place, registry)
+    }
+
+    pub(crate) fn contents_native_string_access_receipt_at(
+        &self,
+        place: &crate::place::Place,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&Arc<crate::command_binding::SourceNativeStringAccess>> {
+        if self.binding_identity != crate::var_resolve::BindingIdentity::Bound
+            || !self.read_produces_value(place, registry)
+        {
+            return None;
+        }
+        let key = crate::var_resolve::canonical_binding_value_key(place)?;
+        match self.value_representations.get(&key)? {
+            StoredNativeRepresentation::NativeStringAccess(receipt) if receipt.is_current() => {
+                Some(receipt)
+            }
+            _ => None,
+        }
     }
 
     /// Current numeric subtype from an actual normal native producer or exact

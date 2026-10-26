@@ -12,12 +12,13 @@ use tcl_syntax::value::ValueRepresentation;
 
 /// Representation of a frozen value, independently of whether its bytes are
 /// known. A later possible shared-object coercion withdraws the receipt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct FrozenSourceRepresentation {
     representation: ValueRepresentation,
     list_method_provider: Option<tcl_registry::native_result::NativeListMethodProvider>,
     numeric_shape: Option<crate::native_numeric::SourceNativeNumericShape>,
     stock_literal_object: Option<super::SourceStockLiteralObject>,
+    native_string_access: Option<Arc<super::SourceNativeStringAccess>>,
     validity: SourceRepresentationValidity,
 }
 
@@ -29,12 +30,44 @@ enum SourceRepresentationValidity {
 
 impl FrozenSourceRepresentation {
     pub(super) fn numeric_input_is_closed(
-        self,
+        &self,
         variables: &crate::var_resolve::ResolveContext,
     ) -> bool {
         (self.numeric_shape.is_some() || self.stock_literal_object.is_some())
             && (self.is_current(variables) || self.is_immediate_created_result())
     }
+    /// Producer input closure includes COW/duplicate/free as well as rendering.
+    /// Audited custom List StringAccess providers do not establish this class.
+    pub(super) fn native_string_result_input_is_closed(
+        &self,
+        variables: &crate::var_resolve::ResolveContext,
+    ) -> bool {
+        (self.stock_literal_object.is_some()
+            || self.numeric_shape.is_some()
+            || self.native_string_access.is_some())
+            && (self.is_current(variables) || self.is_immediate_created_result())
+    }
+
+    pub(super) fn native_string_effect_receipt(
+        &self,
+    ) -> Option<&Arc<super::SourceNativeStringAccess>> {
+        self.native_string_access.as_ref()
+    }
+
+    pub(super) fn capture_native_string(
+        receipt: Arc<super::SourceNativeStringAccess>,
+        variables: &crate::var_resolve::ResolveContext,
+    ) -> Option<Self> {
+        Some(Self {
+            representation: ValueRepresentation::Unknown,
+            list_method_provider: None,
+            numeric_shape: None,
+            stock_literal_object: None,
+            native_string_access: Some(receipt),
+            validity: SourceRepresentationValidity::Frozen(variables.representation_epoch?),
+        })
+    }
+
     pub(super) fn capture_stock_literal(
         object: super::SourceStockLiteralObject,
         variables: &crate::var_resolve::ResolveContext,
@@ -44,6 +77,7 @@ impl FrozenSourceRepresentation {
             list_method_provider: None,
             numeric_shape: None,
             stock_literal_object: Some(object),
+            native_string_access: None,
             validity: SourceRepresentationValidity::Frozen(variables.representation_epoch?),
         })
     }
@@ -61,17 +95,20 @@ impl FrozenSourceRepresentation {
             list_method_provider: None,
             numeric_shape: None,
             stock_literal_object: None,
+            native_string_access: None,
             validity: SourceRepresentationValidity::Frozen(variables.representation_epoch?),
         })
     }
 
     pub(super) fn callback_input_is_closed_for(
-        self,
+        &self,
         variables: &crate::var_resolve::ResolveContext,
         method: tcl_registry::list_object_methods::NativeListMethod,
     ) -> bool {
         (self.is_current(variables) || self.is_immediate_created_result())
-            && (self.stock_literal_object.is_some()
+            && ((method == tcl_registry::list_object_methods::NativeListMethod::StringAccess
+                && self.native_string_access.is_some())
+                || self.stock_literal_object.is_some()
                 || self.numeric_shape.is_some()
                 || (method != tcl_registry::list_object_methods::NativeListMethod::StringAccess
                     && matches!(
@@ -83,7 +120,7 @@ impl FrozenSourceRepresentation {
                     .is_some_and(|provider| provider.world_is_closed_for(method)))
     }
 
-    pub(super) fn preserves_list_length_representation(self) -> bool {
+    pub(super) fn preserves_list_length_representation(&self) -> bool {
         self.list_method_provider
             .is_some_and(tcl_registry::native_result::NativeListMethodProvider::length_is_read_only)
     }
@@ -97,24 +134,33 @@ impl FrozenSourceRepresentation {
             list_method_provider: Some(provider),
             numeric_shape: None,
             stock_literal_object: None,
+            native_string_access: None,
             validity: SourceRepresentationValidity::Frozen(variables.representation_epoch?),
         })
     }
 
-    pub(super) fn is_current(self, variables: &crate::var_resolve::ResolveContext) -> bool {
+    pub(super) fn is_current(&self, variables: &crate::var_resolve::ResolveContext) -> bool {
         matches!(self.validity, SourceRepresentationValidity::Frozen(epoch)
             if variables.representation_epoch == Some(epoch))
+            && self
+                .native_string_access
+                .as_ref()
+                .is_none_or(|receipt| receipt.is_current())
     }
 
-    pub(super) fn is_immediate_created_result(self) -> bool {
+    pub(super) fn is_immediate_created_result(&self) -> bool {
         self.validity == SourceRepresentationValidity::ImmediateCreated
     }
 
-    fn stored_representation(self) -> crate::native_numeric::StoredNativeRepresentation {
+    fn stored_representation(&self) -> crate::native_numeric::StoredNativeRepresentation {
         if let Some(shape) = self.numeric_shape {
             crate::native_numeric::StoredNativeRepresentation::NumericShape(shape)
         } else if let Some(provider) = self.list_method_provider {
             crate::native_numeric::StoredNativeRepresentation::ReadOnlyListMethodProvider(provider)
+        } else if let Some(receipt) = &self.native_string_access {
+            crate::native_numeric::StoredNativeRepresentation::NativeStringAccess(Arc::clone(
+                receipt,
+            ))
         } else if let Some(object) = self.stock_literal_object {
             crate::native_numeric::StoredNativeRepresentation::StockLiteralObject(object)
         } else {
@@ -137,6 +183,7 @@ pub(super) fn retain_expression_numeric_result(
         list_method_provider: None,
         numeric_shape: Some(shape),
         stock_literal_object: None,
+        native_string_access: None,
         validity: normal.source_variables.representation_epoch.map_or(
             SourceRepresentationValidity::ImmediateCreated,
             SourceRepresentationValidity::Frozen,
@@ -263,10 +310,21 @@ pub(super) fn unobserved_read_result(
                 )
             })
             .or_else(|| {
+                FrozenSourceRepresentation::capture_native_string(
+                    Arc::clone(
+                        state
+                            .source_variables
+                            .contents_native_string_access_receipt_at(access, registry)?,
+                    ),
+                    &state.source_variables,
+                )
+            })
+            .or_else(|| {
                 Some(FrozenSourceRepresentation {
                     representation: ValueRepresentation::Unknown,
                     list_method_provider: None,
                     stock_literal_object: None,
+                    native_string_access: None,
                     numeric_shape: Some(
                         state
                             .source_variables
@@ -482,6 +540,7 @@ pub(super) fn retain_created_result(
             list_method_provider,
             numeric_shape,
             stock_literal_object: None,
+            native_string_access: None,
             validity: normal.source_variables.representation_epoch.map_or(
                 SourceRepresentationValidity::ImmediateCreated,
                 SourceRepresentationValidity::Frozen,
@@ -662,7 +721,7 @@ pub(super) fn retain_value_formals(
         else {
             continue;
         };
-        let Some(receipt) = receipts[argument] else {
+        let Some(receipt) = receipts[argument].as_ref() else {
             continue;
         };
         if !receipt.is_current(variables) && !receipt.is_immediate_created_result() {
@@ -717,7 +776,7 @@ fn frozen_store_representation(
     {
         return None;
     }
-    context.written_representations?.get(2).copied().flatten()
+    context.written_representations?.get(2).cloned().flatten()
 }
 
 #[cfg(test)]
