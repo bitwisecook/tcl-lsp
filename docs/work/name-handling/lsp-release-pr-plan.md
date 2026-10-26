@@ -54,9 +54,10 @@ Current source identities, scoped results and immutable receipts are maintained 
 `current-state.md`; this plan does not duplicate a stale run ledger. By25October,
 the original expression-fold assertions and all16 closed-consumer controls pass
 in the authenticated compiler cohort. Native source-body custody, retained
-query ownership and corrected callback fixtures are integrated. Original
-compiler/Logical, Jim applicability, runtime recursion and browser/WASI
-completed-world failures remain; narrow successes do not close sectionF.
+query ownership and corrected callback fixtures are integrated. All original58 compiler controls and separate Logical controls now pass in the
+recorded7dc capture. Four read-only controls, minify, a new NativeString positive,
+Jim applicability, runtime recursion and browser/WASI failures remain; narrow
+successes do not close sectionF.
 
 Current `origin/rust` advanced to`ed694de47cbbeff0bb9f5cd5888cc336e1e8a463`.
 It is merged into both development and release branches, retaining naming
@@ -111,7 +112,7 @@ Actual Kotlin validation passed97 tests on recordedcandidate658 through a bounde
 | Codegen and live hooks | Repair original native preflight, reference-body and release-sensitive derived execution failures; prove the live const-fold hook actually runs and returns the right answer in supported DSL versions. Hostless/budget/unknown-context refusals stay valid. Remove N17 switches/probes only after the repaired positive and refusal tests pass. | compiler-codegen |
 | SpecTcl functionality | Complete C.1–C.2: real pack evaluation and wrong-registration regression, supported 1.x/2.x compatibility, authoring, all supported live hook families, Jim core loading/body analysis, all six EDA environments, every UPF hook slot, cross-worker publication and add/change/remove reload coherence. Test native filesystem and shipped browser VFS. General VM migration stays deferred; baseline execution regressions remain mandatory. | vm-runtime with compiler/codegen and lsp |
 | BIGIP/editor consumers | Finish original consumer tests under the stop-after-opaque ILX decision; strict Clippy, generated editor catalogues, Zed/tree-sitter and shipped integration follow-ups. Route generic compiler/LSP blockers to those owners. | existing separate bigip-lsp session |
-| Performance patches | Finish authenticated full-report API/carrier correctness, then have the existing perf owner re-run the entire all-old/mixed corpus and pack equality proof. Accept only complete Equal, never Different/Unavailable. Forward realm/interprocedural only after the owner records the exact patch proven. Integrate clean patches without switches, then remeasure shipping performance. | compiler/names for API; existing separate perf session for proof |
+| Performance patches | Preserve the completed authenticated all-old/mixed full-report equivalence proof and reviewed integrated realm/interprocedural patches. Keep global/runtime equality strict. Measure the final shipping source across all required Tcl corpora; prior proof does not establish shipping latency or memory acceptance. | compiler/names for API; existing separate perf session for proof |
 
 No duplicate BIGIP, perf or review-triage roles are started. Notify the user when
 external role files exceed60 minutes; do not silently take them over. Review

@@ -1,10 +1,13 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T03:09:40Z
+Last updated: 2026-10-26T04:05:20Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current7dc runtime40263626288 FULLAUTH74b261e5 confirms AOT5ALLPASS again; same84oldFAIL/CFIincomplete/final125. Spec40263624882 original13PASS, oldIndex3/newNativeStringVM1/string3/full600 UNRUN because newVMfixture omitted ValueOps import (5E0599). Pairedimport796bbf90 SourceProcCLEAR155f14ee root integrated603fe404/a7f63d, actualretry pending. Compiler122 NativeString3=2P1F; positive exactcontents_native_string_access_closed_at fails firstC84 atline66, negativecontrolsPASS; productiveproducer cause undertrace, assertions unchanged. NativeStringV2 source integrated but no positivecoverage closure. PubliccharacterAPI/allocation holds remain.
+
 
 NativeString V2 source strong CLEAR4b908a56 integrated WORK3af9/CLEAN03b42 (15 coupled files, 3 new helpers/controls). Separate VM1 protocol26f33b7c independently CLEARc37215b1; same fresh tcl_vm lib after old16 before unchanged string3/full600, shared180/CAP/deadline/oldfailureaggregation preserved. Compiler owns separate3 controls; Codegen final all15 source dependency union. No new DSL/public/studio property: existing internal SuccessfulHandlerSpec descriptor only. Actual NativeString controls/Spec remain UNRUN. D0fc runtime40260902607 FULLAUTH d5d0048cfcb8e49b5361dabad2465e9bb6f5b68c14daba3122c708bc5bc85b65: AOT ALL5PASS (positive exactcounter1/secondcall2; Host callback cache-order; trace/overflow/replacement; sharedrecompile; oracleduplicate2/counter0). All476members/126489trackedmembership/53Gitpins/19AOTpaths/providers/tools/deps/140ownedbirths samefresh fullTomELF/caps verified. Old135 same83other+1prune FAIL/CFIincomplete/final125 retained. PubliccharacterAPI/allocation choices stillheld.
 

@@ -1,0 +1,58 @@
+{
+  "utc": "2026-10-26T03:33:27.844261+00:00",
+  "run": 40251868353,
+  "scope": "Full Linux/macOS two representative actual candidate release-build failures; not allsix artifactqualification",
+  "result": "NO_PERFORMANCE_MEASUREMENT",
+  "evidence": [
+    {
+      "artifact_id": 12621556008,
+      "zip_sha256": "38b69bda38a91e541d03a5c8c82c9c9b36a4569ce54eb631f6f9d6b33656cc31",
+      "zip_bytes": 8298,
+      "all_member_crc_sha": "PASS",
+      "baseline": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+      "candidate": "69c8bf722b47ff8cac3c18cabfc6536e398dbcde",
+      "harness": "b868e9f8ff1396b2fced842b3096b0551dd57260",
+      "builds": [
+        {
+          "side": "baseline",
+          "exit": 0
+        },
+        {
+          "side": "candidate",
+          "exit": 101
+        }
+      ],
+      "runtime_trials": 0,
+      "actual_candidate_cause": "E0425 undefined offset in compiler_inventory.rs183 plus unused observer offset warning195; both Linux/macOS exact member logs preserved",
+      "invalid_reasons": [
+        "candidate release build did not complete cleanly"
+      ]
+    },
+    {
+      "artifact_id": 12621142396,
+      "zip_sha256": "c1e83b845c9e59e9fc447528eb873dd3966f349088dea25bf5e62d5dd247d293",
+      "zip_bytes": 8634,
+      "all_member_crc_sha": "PASS",
+      "baseline": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+      "candidate": "69c8bf722b47ff8cac3c18cabfc6536e398dbcde",
+      "harness": "b868e9f8ff1396b2fced842b3096b0551dd57260",
+      "builds": [
+        {
+          "side": "baseline",
+          "exit": 0
+        },
+        {
+          "side": "candidate",
+          "exit": 101
+        }
+      ],
+      "runtime_trials": 0,
+      "actual_candidate_cause": "E0425 undefined offset in compiler_inventory.rs183 plus unused observer offset warning195; both Linux/macOS exact member logs preserved",
+      "invalid_reasons": [
+        "candidate release build did not complete cleanly"
+      ]
+    }
+  ],
+  "known_fix": "CLEAN-only private observer argument carry1e077/SourceProc072168 alreadyintegrated14714655 andpushedlaterrelease; benchmark source69c8 precedesrepair",
+  "acceptance": "No accepted ratio or runtime regression conclusion from build-only source"
+}

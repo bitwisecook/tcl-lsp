@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-26T03:48:15.208226+00:00",
+  "source": "7dc84696cfb72960887aa45afd0445e4667d186b",
+  "all_five_fullauth": true,
+  "scopes": [
+    {
+      "scope": "browser",
+      "assessment": "/workspace/naming-proof-storage/lsp-host-browser40263624695-actual-v1/assessment-v1.json",
+      "sha256": "c66d53d622174f841488bbdca02bf2916cee79d6eb5acb65d6bb8069e16cc8d8"
+    },
+    {
+      "scope": "wasi",
+      "assessment": "/workspace/naming-proof-storage/lsp-host-wasi40263624695-actual-v1/assessment-v1.json",
+      "sha256": "7ba3c39919ddf8bce9e079d1d641fcec9ad25e801117466d0300317b4f663810"
+    },
+    {
+      "scope": "core3",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-core2-40263624397-actual-v1/assessment-v1.json",
+      "sha256": "90128e8c0246ee6f1185f65d10e574d7284b3ce9d735c2bbf68a9d4298f31398"
+    },
+    {
+      "scope": "unit",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-unit-40263624695-actual-v1/assessment-v1.json",
+      "sha256": "5712e05b645ec33678e28e9dd676f04ba52e511923ad01332b4d77d5f2262848"
+    },
+    {
+      "scope": "startup",
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-startup40263624397-actual-v1/assessment-v1.json",
+      "sha256": "bcc0c3285cb7db4a334f55072d85f2a79473617d55b11a1639a7ac844faf0dc3"
+    }
+  ],
+  "earlier_startup_floor_block": "Historical7681c506receiptretained; resolvedafterfreshspace2.903GB, downloadedonce. No extraction yet.",
+  "qualification": "Return resolved-head correction andfourleaf minifyobserver NOTin7dc. No effectivenessclaimabouttheseapprovednextfixes. Independentobservedfailures/no shippingperformanceadmission."
+}

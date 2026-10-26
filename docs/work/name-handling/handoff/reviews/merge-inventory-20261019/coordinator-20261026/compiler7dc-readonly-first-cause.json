@@ -1,0 +1,41 @@
+{
+  "source": "7dc84696cfb72960887aa45afd0445e4667d186b",
+  "fullauth": "909ee8c29fd8b7167ba659a2ff1cab5316055f7247d0c9cc4265e419cc94d687",
+  "rows": [
+    {
+      "selector": "classify_large_pure_leaf_one_caller_is_if_single_call",
+      "decoded_sha256": "850d7bef384db840fb3d98c05b495f7c6ae4f7867431e7d7a4d5f867adf78e08",
+      "owner_rows": [
+        "NATIVE_READONLY_OWNER stage=owner.unavailable present=false",
+        "NATIVE_READONLY_OWNER stage=roles.metadata present=false",
+        "NATIVE_READONLY_FACT stage=assignment.source_roles present=false"
+      ]
+    },
+    {
+      "selector": "classify_small_pure_leaf_is_always",
+      "decoded_sha256": "73deb2a9c5081f79225f76907950be18e6387965c12d59759894f01a31b324b7",
+      "owner_rows": [
+        "NATIVE_READONLY_OWNER stage=owner.unavailable present=false",
+        "NATIVE_READONLY_FACT stage=substitution.metadata present=false"
+      ]
+    },
+    {
+      "selector": "classify_threshold_boundary_is_always",
+      "decoded_sha256": "404cf563c7db5dffe0da09f42662b937479355ba396680c3cccaff88d0188c52",
+      "owner_rows": [
+        "NATIVE_READONLY_OWNER stage=owner.unavailable present=false",
+        "NATIVE_READONLY_OWNER stage=roles.metadata present=false",
+        "NATIVE_READONLY_FACT stage=assignment.source_roles present=false"
+      ]
+    },
+    {
+      "selector": "static_call_count_drives_large_proc_decision",
+      "decoded_sha256": "384adf1c1ce16829bbffe7f7dc6a65d5be566a3288905993bedaeea99403d8fa",
+      "owner_rows": [
+        "NATIVE_READONLY_OWNER stage=owner.unavailable present=false",
+        "NATIVE_READONLY_OWNER stage=roles.metadata present=false",
+        "NATIVE_READONLY_FACT stage=assignment.source_roles present=false"
+      ]
+    }
+  ]
+}

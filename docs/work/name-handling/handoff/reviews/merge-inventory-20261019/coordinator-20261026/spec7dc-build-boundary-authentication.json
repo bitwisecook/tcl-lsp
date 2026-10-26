@@ -1,0 +1,1144 @@
+{
+  "utc": "2026-10-26T04:05:35.213362+00:00",
+  "verdict": "AUTHENTICATED_OLD13PASS_VM3_AND_NEW_VM1_STRING3_FULL600_UNRUN",
+  "source": "7dc84696cfb72960887aa45afd0445e4667d186b",
+  "run": 40263624882,
+  "job": 121381104293,
+  "ZIP_sha256": "52d6b4ca0f43b369a03d251b4223091dfd9ce5d2a7d664f7fcc5570256e266bd",
+  "member_count": 87,
+  "all_member_SHA_CRC": true,
+  "source_membership": 126495,
+  "critical_actualGit_pins": {
+    ".github/workflows/perf.yml": "7c5bcff1cc92156f4a43810e64c6f09f0206437f621df83a9add3ccc5fb32e48",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "docs/work/name-handling/validation-tools/spectcl-fold-diagnostics.py": "cf8198a0d05baf66d4d7e6fbaaa9e1685aad864178a87faeb919ccd8134fbf17",
+    "docs/work/name-handling/validation-tools/spectcl-fold-roster.json": "f6176b87bc943199716ff95cbbb8172c8a0fd991fc0014c5bd25a4a1917710fb",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "Cargo.lock": "8f32332e549cbee4df91041a9242b00bfb254c12dcfc2e165ab275724b4d3f9e",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/tcl-compiler/src/const_subst.rs": "888533c5984bc8b7f6450d123f188244a278115b7a8e5d7cbd6d4fceaae55f2e",
+    "rust/tcl-compiler/src/compilation_unit.rs": "cbe5b302864100c7e85f3d7e13ee7d91f9fa9f93629e578c6357de1cf14e3bb1",
+    "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b",
+    "scripts/dev/ensure-test-deps.sh": "d0ebdb903e5746957616deabc24b9b44e294700abb8f2c6a652b27c3b5f53b49",
+    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+    "rust/tcl-bytecode/src/lib.rs": "caa716b3ea51a768a8a25017e4817c3c2871f3be293316fb59440d4ebbc1e3a1",
+    "rust/tcl-cmd-core/src/index.rs": "11ad4dd056304b31d323fc3d2a3a3211f6393497bfcfc31df0279894be38e7bd",
+    "rust/tcl-cmd-core/src/string.rs": "539b3299bb9fa860c13be52f2216174b5f9c4268cb668cdfc0106b2d1f2da49f",
+    "rust/tcl-cmd-core/src/string/native_compiled.rs": "6a1ecbee953fae98ff72e705380cadaf492abec44c59fba8b476fe17f40913c4",
+    "rust/tcl-compiler/src/codegen/statements.rs": "ca84ff3c1434d6bc3a1adaceec74febe557713d5c724ea1ece8c9f9f25d2a070",
+    "rust/tcl-compiler/src/codegen/statements/native_namespace_string.rs": "53e81c5450857e5604d1a34ab939569c21c7eff2def51e213e45a5935a6c7200",
+    "rust/tcl-compiler/src/codegen/statements/native_scalar.rs": "13e1b5bcd159c2e0c0eabf33ff4e4b1be958899b9554ce1a37c59753e6c91679",
+    "rust/tcl-compiler/src/deferred_writes.rs": "3144418bdc9b8d8ed3f43bff6b4397e0802bf31d16defe3d9387e042093e3e4b",
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs": "8815677c7b50a2ec7626d373936dee2bbf2e9768a870d0bf9ca43095ad588f79",
+    "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
+    "rust/tcl-compiler/src/registry_invocation.rs": "152c23c92a00cc614290fe2749cdb2fd8a8b663500fb31512adb4836edf9ea18",
+    "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
+    "rust/tcl-compiler/src/value_transfer.rs": "199a1a394535427351725ad21e3c6b1c8b0d3305ce5b3e1eaba9215840c27159",
+    "rust/tcl-registry/src/model/context.rs": "84b8adfdf3397c393b6ee83742f3cbaa49e837555be87348255828ccc6bc8e65",
+    "rust/tcl-registry/src/registry.rs": "faf1dff8ebc7a7911a99079229b0044373b6658f94a7e940faab9e41e54f4b76",
+    "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d",
+    "rust/tcl-spectcl/tests/native_normal_store.rs": "2fa0e2318392a2f286d0ecdc7e6b6b2899a2907fd1affa7292b5ae8791de145b",
+    "rust/tcl-spectcl/tests/pack_source_e2e.rs": "1a8d3e0b82f840bf01793c20e6b078a4a3e8652fbbfbcb319991cf1dd1fc20f5",
+    "rust/tcl-spectcl/tests/spec_corpus.rs": "631b609009a6f6d5a8a5530da97da5d4b0fb7f6bc8b4bd95087636ba55a83636",
+    "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "6bccd65eebd581b94f19517331eec6b793ce1db463a669b4091cd2f4cd138f25",
+    "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs": "744bd5c00bfde84dd0100ec8e11495780300d053c905766ef0d2b604e437c870",
+    "rust/tcl-vm/Cargo.toml": "f19deb2d6ef6290c11824326a05c37b2e5e0ea79b166a9c24183e9219d6fc732",
+    "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
+    "rust/tcl-vm/src/exec/native_namespace_string_tests.rs": "eef0d27734d72cc833ef2348dce11886a6df1972b0245adf1d92798082dfa6c5",
+    "rust/tcl-vm/src/native_fixture.rs": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
+    "rust/tcl-vm/src/value_ops/native_jim_index.rs": "7790d8f932ece5a93e00f70c340384ed6557910be9a8b8e36202c8ae7d8068f1",
+    "rust/tcl-vm/tests/cmd_control_e2e.rs": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+    "rust/tcl-spectcl/src/golden.rs": "dac9d05eb4e4ab6887d58aff7a05b90aea6502e7012592be7902ae8cbb3b7bee",
+    "rust/tcl-spectcl/data/shipped-pack-dirs.txt": "7abba90e583061329deadc6999cca36298e2ec804c0a2d4c0956779299341c7c",
+    "rust/tcl-spectcl/tests/spec_corpus_baseline.txt": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5",
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
+    "samples/wasm/t0-straight-line/01_string_interp.tcl": "27b384c56b23d56e2039f9934839f95e0cd4888503f19b455337e03148af7b8a",
+    "samples/diagnostics/W102_subst_injection/example.tcl": "4f88d2bf5f94ad8656366223e1b34292a51631d47beac15806779ea145e3855c",
+    "samples/for_screenshots/07-formatting-side-by-side.tcl": "4efec3442af3803acbb2da3ea71ea68b19094d3fc83d05d063cda1021028af37",
+    "rust/tcl-compiler/src/command_binding.rs": "48438262bede10e525fecc2caa1054e3adb83e74301e052eb39a1af2807f4179",
+    "rust/tcl-compiler/src/command_binding/evaluated_word.rs": "bbdcbaa87ff68b5550e57adc683fe40a96337b926bbe2f8cc662e0927ddd464c",
+    "rust/tcl-compiler/src/command_binding/literal_object_pool.rs": "1193653ff6d4df0c2c77834b818bb41e189ca2f64e78ca3207920cd864312db9",
+    "rust/tcl-compiler/src/command_binding/native_list_assignment.rs": "534d8e12a2c6a5285dde2fe867f777847d5c879e2cf75ae0c2b616b6c61e6c43",
+    "rust/tcl-compiler/src/command_binding/native_result.rs": "03fdbd8509d4feacf90d13d46584a50bfc7d2de648eaadb5615864b1b5024f70",
+    "rust/tcl-compiler/src/command_binding/native_string_access.rs": "7c3b42c2d7029785883b586c6b0b1546862e95e2fd60289da6d4e38adbd65269",
+    "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs": "d772d2f482b2dda7748782bddf911e5d763735f0fb6bc619e817e1710d83f04b",
+    "rust/tcl-compiler/src/command_binding/object_callbacks.rs": "9c92c23e2615e3252c79e21f973ac3ab7a0057467c95d48882e82cbe5aec12d4",
+    "rust/tcl-compiler/src/command_binding/source_arguments.rs": "137d651305435653dabe4d2ca063b5737399cd3e0b1d7686bb97ebb4f4666f50",
+    "rust/tcl-compiler/src/command_binding/source_representation.rs": "1c9974c00bd42a153c7a74adf636836f88952f9731d3ce1f92a97e3e46ca06df",
+    "rust/tcl-compiler/src/native_numeric.rs": "17eab22ef4d39d0b125d9ff1e3058eadab36051785fe4fe492352304003ce838",
+    "rust/tcl-registry/src/commands/tcl/append_.rs": "6d5d900cdd46179eabdb7ef2ae64b48c5743912d180cb51ea050157fefe60923",
+    "rust/tcl-registry/src/native_compilation.rs": "53d5f11361b7aafa5f3a753c57fbecd4946d4f1a6008539f70fc178075938ff3",
+    "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs": "a9b23949e24dda48bd06e7ce59cce355b03df8ed2873b7c68b78bfad9549a375"
+  },
+  "seals": {
+    "artifacts": true,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "tools": true
+  },
+  "processes": [
+    {
+      "prefix": "fetch",
+      "exit_code": 0,
+      "elapsed_seconds": 3.267825788,
+      "deadline_seconds": 600,
+      "minimum_free_bytes": 75634151424
+    },
+    {
+      "prefix": "build-pack_source_e2e",
+      "exit_code": 0,
+      "elapsed_seconds": 126.570643927,
+      "deadline_seconds": 2400,
+      "minimum_free_bytes": 74230276096
+    },
+    {
+      "prefix": "list-pack_source_e2e",
+      "exit_code": 0,
+      "elapsed_seconds": 0.380773832,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74231586816
+    },
+    {
+      "prefix": "pack_source_e2e-00",
+      "exit_code": 0,
+      "elapsed_seconds": 5.310650719,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74231066624
+    },
+    {
+      "prefix": "pack_source_e2e-01",
+      "exit_code": 0,
+      "elapsed_seconds": 35.82113073,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74227544064
+    },
+    {
+      "prefix": "pack_source_e2e-02",
+      "exit_code": 0,
+      "elapsed_seconds": 24.775514372,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74223218688
+    },
+    {
+      "prefix": "pack_source_e2e-03",
+      "exit_code": 0,
+      "elapsed_seconds": 3.373123308,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74223202304
+    },
+    {
+      "prefix": "pack_source_e2e-04",
+      "exit_code": 0,
+      "elapsed_seconds": 3.376645078,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74223185920
+    },
+    {
+      "prefix": "pack_source_e2e-05",
+      "exit_code": 0,
+      "elapsed_seconds": 2.425698122,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74223173632
+    },
+    {
+      "prefix": "pack_source_e2e-06",
+      "exit_code": 0,
+      "elapsed_seconds": 2.544262177,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74223153152
+    },
+    {
+      "prefix": "pack_source_e2e-07",
+      "exit_code": 0,
+      "elapsed_seconds": 0.382714965,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74223144960
+    },
+    {
+      "prefix": "pack_source_e2e-08",
+      "exit_code": 0,
+      "elapsed_seconds": 2.726301358,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74223132672
+    },
+    {
+      "prefix": "pack_source_e2e-09",
+      "exit_code": 0,
+      "elapsed_seconds": 3.528796355,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 74222866432
+    },
+    {
+      "prefix": "build-cmd_control_e2e",
+      "exit_code": 0,
+      "elapsed_seconds": 94.347195005,
+      "deadline_seconds": 2400,
+      "minimum_free_bytes": 73348554752
+    },
+    {
+      "prefix": "list-cmd_control_e2e",
+      "exit_code": 0,
+      "elapsed_seconds": 0.355485935,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 73348534272
+    },
+    {
+      "prefix": "cmd_control_e2e-00",
+      "exit_code": 0,
+      "elapsed_seconds": 3.650727465,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 73348505600
+    },
+    {
+      "prefix": "build-native_normal_store",
+      "exit_code": 0,
+      "elapsed_seconds": 3.092073741,
+      "deadline_seconds": 2400,
+      "minimum_free_bytes": 73199427584
+    },
+    {
+      "prefix": "list-native_normal_store",
+      "exit_code": 0,
+      "elapsed_seconds": 0.374744955,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 73199415296
+    },
+    {
+      "prefix": "native_normal_store-00",
+      "exit_code": 0,
+      "elapsed_seconds": 9.208535338,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 73198399488
+    },
+    {
+      "prefix": "build-spec_corpus",
+      "exit_code": 0,
+      "elapsed_seconds": 2.542646797,
+      "deadline_seconds": 2400,
+      "minimum_free_bytes": 73013698560
+    },
+    {
+      "prefix": "list-spec_corpus",
+      "exit_code": 0,
+      "elapsed_seconds": 0.400339252,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 73013686272
+    },
+    {
+      "prefix": "spec_corpus-00",
+      "exit_code": 0,
+      "elapsed_seconds": 6.684941866,
+      "deadline_seconds": 180,
+      "minimum_free_bytes": 73013235712
+    },
+    {
+      "prefix": "build-tcl_vm",
+      "exit_code": 101,
+      "elapsed_seconds": 15.977256772,
+      "deadline_seconds": 2400,
+      "minimum_free_bytes": 73012609024
+    }
+  ],
+  "aggregate_bytes": 10612985,
+  "error": "RuntimeError('selected target build failed or unclosed: tcl_vm')",
+  "compiler_errors": [
+    {
+      "rendered": "error[E0599]: no method named `native_string_bytes` found for struct `interp::Vm` in the current scope\n    --> rust/tcl-syntax/src/value.rs:1114:8\n     |\n1114 |     fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {\n     |        ------------------- the method is available for `interp::Vm` here\n     |\n    ::: rust/tcl-vm/src/interp.rs:602:1\n     |\n 602 | pub struct Vm {\n     | ------------- method `native_string_bytes` not found for this struct\n     |\n    ::: rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:17:16\n     |\n  17 |             vm.native_string_bytes(&completion.result).unwrap().as_ref(),\n     |                ^^^^^^^^^^^^^^^^^^^\n     |\n     = help: items from traits can only be used if the trait is in scope\nhelp: trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:4:1\n     |\n   4 + use tcl_syntax::value::ValueOps;\n     |\nhelp: there is a method `native_concat_string_bytes` with a similar name\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:17:23\n     |\n  17 |             vm.native_concat_string_bytes(&completion.result).unwrap().as_ref(),\n     |                       +++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "items from traits can only be used if the trait is in scope",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 127,
+              "byte_start": 127,
+              "column_end": 1,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 4,
+              "line_start": 4,
+              "suggested_replacement": "use tcl_syntax::value::ValueOps;\n",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 1,
+                  "highlight_start": 1,
+                  "text": "#[test]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "there is a method `native_concat_string_bytes` with a similar name",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 817,
+              "byte_start": 798,
+              "column_end": 35,
+              "column_start": 16,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 17,
+              "line_start": 17,
+              "suggested_replacement": "native_concat_string_bytes",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 35,
+                  "highlight_start": 16,
+                  "text": "            vm.native_string_bytes(&completion.result).unwrap().as_ref(),"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "no method named `native_string_bytes` found for struct `interp::Vm` in the current scope",
+      "spans": [
+        {
+          "byte_end": 48592,
+          "byte_start": 48573,
+          "column_end": 27,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-syntax/src/value.rs",
+          "is_primary": false,
+          "label": "the method is available for `interp::Vm` here",
+          "line_end": 1114,
+          "line_start": 1114,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 27,
+              "highlight_start": 8,
+              "text": "    fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {"
+            }
+          ]
+        },
+        {
+          "byte_end": 25319,
+          "byte_start": 25306,
+          "column_end": 14,
+          "column_start": 1,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "method `native_string_bytes` not found for this struct",
+          "line_end": 602,
+          "line_start": 602,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "pub struct Vm {"
+            }
+          ]
+        },
+        {
+          "byte_end": 817,
+          "byte_start": 798,
+          "column_end": 35,
+          "column_start": 16,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 17,
+          "line_start": 17,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 35,
+              "highlight_start": 16,
+              "text": "            vm.native_string_bytes(&completion.result).unwrap().as_ref(),"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0599",
+        "explanation": "This error occurs when a method is used on a type which doesn't implement it:\n\nErroneous code example:\n\n```compile_fail,E0599\nstruct Mouth;\n\nlet x = Mouth;\nx.chocolate(); // error: no method named `chocolate` found for type `Mouth`\n               //        in the current scope\n```\n\nIn this case, you need to implement the `chocolate` method to fix the error:\n\n```\nstruct Mouth;\n\nimpl Mouth {\n    fn chocolate(&self) { // We implement the `chocolate` method here.\n        println!(\"Hmmm! I love chocolate!\");\n    }\n}\n\nlet x = Mouth;\nx.chocolate(); // ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0599]: no method named `native_string_bytes` found for struct `interp::Vm` in the current scope\n    --> rust/tcl-syntax/src/value.rs:1114:8\n     |\n1114 |     fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {\n     |        ------------------- the method is available for `interp::Vm` here\n     |\n    ::: rust/tcl-vm/src/interp.rs:602:1\n     |\n 602 | pub struct Vm {\n     | ------------- method `native_string_bytes` not found for this struct\n     |\n    ::: rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:24:16\n     |\n  24 |             vm.native_string_bytes(&greeting).unwrap().as_ref(),\n     |                ^^^^^^^^^^^^^^^^^^^\n     |\n     = help: items from traits can only be used if the trait is in scope\nhelp: trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:4:1\n     |\n   4 + use tcl_syntax::value::ValueOps;\n     |\nhelp: there is a method `native_concat_string_bytes` with a similar name\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:24:23\n     |\n  24 |             vm.native_concat_string_bytes(&greeting).unwrap().as_ref(),\n     |                       +++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "items from traits can only be used if the trait is in scope",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 127,
+              "byte_start": 127,
+              "column_end": 1,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 4,
+              "line_start": 4,
+              "suggested_replacement": "use tcl_syntax::value::ValueOps;\n",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 1,
+                  "highlight_start": 1,
+                  "text": "#[test]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "there is a method `native_concat_string_bytes` with a similar name",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 1120,
+              "byte_start": 1101,
+              "column_end": 35,
+              "column_start": 16,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 24,
+              "line_start": 24,
+              "suggested_replacement": "native_concat_string_bytes",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 35,
+                  "highlight_start": 16,
+                  "text": "            vm.native_string_bytes(&greeting).unwrap().as_ref(),"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "no method named `native_string_bytes` found for struct `interp::Vm` in the current scope",
+      "spans": [
+        {
+          "byte_end": 48592,
+          "byte_start": 48573,
+          "column_end": 27,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-syntax/src/value.rs",
+          "is_primary": false,
+          "label": "the method is available for `interp::Vm` here",
+          "line_end": 1114,
+          "line_start": 1114,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 27,
+              "highlight_start": 8,
+              "text": "    fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {"
+            }
+          ]
+        },
+        {
+          "byte_end": 25319,
+          "byte_start": 25306,
+          "column_end": 14,
+          "column_start": 1,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "method `native_string_bytes` not found for this struct",
+          "line_end": 602,
+          "line_start": 602,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "pub struct Vm {"
+            }
+          ]
+        },
+        {
+          "byte_end": 1120,
+          "byte_start": 1101,
+          "column_end": 35,
+          "column_start": 16,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 24,
+          "line_start": 24,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 35,
+              "highlight_start": 16,
+              "text": "            vm.native_string_bytes(&greeting).unwrap().as_ref(),"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0599",
+        "explanation": "This error occurs when a method is used on a type which doesn't implement it:\n\nErroneous code example:\n\n```compile_fail,E0599\nstruct Mouth;\n\nlet x = Mouth;\nx.chocolate(); // error: no method named `chocolate` found for type `Mouth`\n               //        in the current scope\n```\n\nIn this case, you need to implement the `chocolate` method to fix the error:\n\n```\nstruct Mouth;\n\nimpl Mouth {\n    fn chocolate(&self) { // We implement the `chocolate` method here.\n        println!(\"Hmmm! I love chocolate!\");\n    }\n}\n\nlet x = Mouth;\nx.chocolate(); // ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0599]: no method named `native_string_bytes` found for struct `interp::Vm` in the current scope\n    --> rust/tcl-syntax/src/value.rs:1114:8\n     |\n1114 |     fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {\n     |        ------------------- the method is available for `interp::Vm` here\n     |\n    ::: rust/tcl-vm/src/interp.rs:602:1\n     |\n 602 | pub struct Vm {\n     | ------------- method `native_string_bytes` not found for this struct\n     |\n    ::: rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:28:16\n     |\n  28 |             vm.native_string_bytes(&alias).unwrap().as_ref(),\n     |                ^^^^^^^^^^^^^^^^^^^\n     |\n     = help: items from traits can only be used if the trait is in scope\nhelp: trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:4:1\n     |\n   4 + use tcl_syntax::value::ValueOps;\n     |\nhelp: there is a method `native_concat_string_bytes` with a similar name\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:28:23\n     |\n  28 |             vm.native_concat_string_bytes(&alias).unwrap().as_ref(),\n     |                       +++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "items from traits can only be used if the trait is in scope",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 127,
+              "byte_start": 127,
+              "column_end": 1,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 4,
+              "line_start": 4,
+              "suggested_replacement": "use tcl_syntax::value::ValueOps;\n",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 1,
+                  "highlight_start": 1,
+                  "text": "#[test]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "there is a method `native_concat_string_bytes` with a similar name",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 1245,
+              "byte_start": 1226,
+              "column_end": 35,
+              "column_start": 16,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 28,
+              "line_start": 28,
+              "suggested_replacement": "native_concat_string_bytes",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 35,
+                  "highlight_start": 16,
+                  "text": "            vm.native_string_bytes(&alias).unwrap().as_ref(),"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "no method named `native_string_bytes` found for struct `interp::Vm` in the current scope",
+      "spans": [
+        {
+          "byte_end": 48592,
+          "byte_start": 48573,
+          "column_end": 27,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-syntax/src/value.rs",
+          "is_primary": false,
+          "label": "the method is available for `interp::Vm` here",
+          "line_end": 1114,
+          "line_start": 1114,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 27,
+              "highlight_start": 8,
+              "text": "    fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {"
+            }
+          ]
+        },
+        {
+          "byte_end": 25319,
+          "byte_start": 25306,
+          "column_end": 14,
+          "column_start": 1,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "method `native_string_bytes` not found for this struct",
+          "line_end": 602,
+          "line_start": 602,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "pub struct Vm {"
+            }
+          ]
+        },
+        {
+          "byte_end": 1245,
+          "byte_start": 1226,
+          "column_end": 35,
+          "column_start": 16,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28,
+          "line_start": 28,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 35,
+              "highlight_start": 16,
+              "text": "            vm.native_string_bytes(&alias).unwrap().as_ref(),"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0599",
+        "explanation": "This error occurs when a method is used on a type which doesn't implement it:\n\nErroneous code example:\n\n```compile_fail,E0599\nstruct Mouth;\n\nlet x = Mouth;\nx.chocolate(); // error: no method named `chocolate` found for type `Mouth`\n               //        in the current scope\n```\n\nIn this case, you need to implement the `chocolate` method to fix the error:\n\n```\nstruct Mouth;\n\nimpl Mouth {\n    fn chocolate(&self) { // We implement the `chocolate` method here.\n        println!(\"Hmmm! I love chocolate!\");\n    }\n}\n\nlet x = Mouth;\nx.chocolate(); // ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0599]: no method named `native_string_bytes` found for struct `interp::Vm` in the current scope\n    --> rust/tcl-syntax/src/value.rs:1114:8\n     |\n1114 |     fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {\n     |        ------------------- the method is available for `interp::Vm` here\n     |\n    ::: rust/tcl-vm/src/interp.rs:602:1\n     |\n 602 | pub struct Vm {\n     | ------------- method `native_string_bytes` not found for this struct\n     |\n    ::: rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:43:16\n     |\n  43 |             vm.native_string_bytes(&donor).unwrap().as_ref(),\n     |                ^^^^^^^^^^^^^^^^^^^\n     |\n     = help: items from traits can only be used if the trait is in scope\nhelp: trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:4:1\n     |\n   4 + use tcl_syntax::value::ValueOps;\n     |\nhelp: there is a method `native_concat_string_bytes` with a similar name\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:43:23\n     |\n  43 |             vm.native_concat_string_bytes(&donor).unwrap().as_ref(),\n     |                       +++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "items from traits can only be used if the trait is in scope",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 127,
+              "byte_start": 127,
+              "column_end": 1,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 4,
+              "line_start": 4,
+              "suggested_replacement": "use tcl_syntax::value::ValueOps;\n",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 1,
+                  "highlight_start": 1,
+                  "text": "#[test]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "there is a method `native_concat_string_bytes` with a similar name",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 1849,
+              "byte_start": 1830,
+              "column_end": 35,
+              "column_start": 16,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 43,
+              "line_start": 43,
+              "suggested_replacement": "native_concat_string_bytes",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 35,
+                  "highlight_start": 16,
+                  "text": "            vm.native_string_bytes(&donor).unwrap().as_ref(),"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "no method named `native_string_bytes` found for struct `interp::Vm` in the current scope",
+      "spans": [
+        {
+          "byte_end": 48592,
+          "byte_start": 48573,
+          "column_end": 27,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-syntax/src/value.rs",
+          "is_primary": false,
+          "label": "the method is available for `interp::Vm` here",
+          "line_end": 1114,
+          "line_start": 1114,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 27,
+              "highlight_start": 8,
+              "text": "    fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {"
+            }
+          ]
+        },
+        {
+          "byte_end": 25319,
+          "byte_start": 25306,
+          "column_end": 14,
+          "column_start": 1,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "method `native_string_bytes` not found for this struct",
+          "line_end": 602,
+          "line_start": 602,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "pub struct Vm {"
+            }
+          ]
+        },
+        {
+          "byte_end": 1849,
+          "byte_start": 1830,
+          "column_end": 35,
+          "column_start": 16,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 43,
+          "line_start": 43,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 35,
+              "highlight_start": 16,
+              "text": "            vm.native_string_bytes(&donor).unwrap().as_ref(),"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0599",
+        "explanation": "This error occurs when a method is used on a type which doesn't implement it:\n\nErroneous code example:\n\n```compile_fail,E0599\nstruct Mouth;\n\nlet x = Mouth;\nx.chocolate(); // error: no method named `chocolate` found for type `Mouth`\n               //        in the current scope\n```\n\nIn this case, you need to implement the `chocolate` method to fix the error:\n\n```\nstruct Mouth;\n\nimpl Mouth {\n    fn chocolate(&self) { // We implement the `chocolate` method here.\n        println!(\"Hmmm! I love chocolate!\");\n    }\n}\n\nlet x = Mouth;\nx.chocolate(); // ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0599]: no method named `native_string_bytes` found for struct `interp::Vm` in the current scope\n    --> rust/tcl-syntax/src/value.rs:1114:8\n     |\n1114 |     fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {\n     |        ------------------- the method is available for `interp::Vm` here\n     |\n    ::: rust/tcl-vm/src/interp.rs:602:1\n     |\n 602 | pub struct Vm {\n     | ------------- method `native_string_bytes` not found for this struct\n     |\n    ::: rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:47:16\n     |\n  47 |             vm.native_string_bytes(&retained).unwrap().as_ref(),\n     |                ^^^^^^^^^^^^^^^^^^^\n     |\n     = help: items from traits can only be used if the trait is in scope\nhelp: trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:4:1\n     |\n   4 + use tcl_syntax::value::ValueOps;\n     |\nhelp: there is a method `native_concat_string_bytes` with a similar name\n    -->  rust/tcl-vm/src/exec/native_string_result_effect_tests.rs:47:23\n     |\n  47 |             vm.native_concat_string_bytes(&retained).unwrap().as_ref(),\n     |                       +++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "items from traits can only be used if the trait is in scope",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 127,
+              "byte_start": 127,
+              "column_end": 1,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 4,
+              "line_start": 4,
+              "suggested_replacement": "use tcl_syntax::value::ValueOps;\n",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 1,
+                  "highlight_start": 1,
+                  "text": "#[test]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "there is a method `native_concat_string_bytes` with a similar name",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 1966,
+              "byte_start": 1947,
+              "column_end": 35,
+              "column_start": 16,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 47,
+              "line_start": 47,
+              "suggested_replacement": "native_concat_string_bytes",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 35,
+                  "highlight_start": 16,
+                  "text": "            vm.native_string_bytes(&retained).unwrap().as_ref(),"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "no method named `native_string_bytes` found for struct `interp::Vm` in the current scope",
+      "spans": [
+        {
+          "byte_end": 48592,
+          "byte_start": 48573,
+          "column_end": 27,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-syntax/src/value.rs",
+          "is_primary": false,
+          "label": "the method is available for `interp::Vm` here",
+          "line_end": 1114,
+          "line_start": 1114,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 27,
+              "highlight_start": 8,
+              "text": "    fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {"
+            }
+          ]
+        },
+        {
+          "byte_end": 25319,
+          "byte_start": 25306,
+          "column_end": 14,
+          "column_start": 1,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "method `native_string_bytes` not found for this struct",
+          "line_end": 602,
+          "line_start": 602,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "pub struct Vm {"
+            }
+          ]
+        },
+        {
+          "byte_end": 1966,
+          "byte_start": 1947,
+          "column_end": 35,
+          "column_start": 16,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec/native_string_result_effect_tests.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 47,
+          "line_start": 47,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 35,
+              "highlight_start": 16,
+              "text": "            vm.native_string_bytes(&retained).unwrap().as_ref(),"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0599",
+        "explanation": "This error occurs when a method is used on a type which doesn't implement it:\n\nErroneous code example:\n\n```compile_fail,E0599\nstruct Mouth;\n\nlet x = Mouth;\nx.chocolate(); // error: no method named `chocolate` found for type `Mouth`\n               //        in the current scope\n```\n\nIn this case, you need to implement the `chocolate` method to fix the error:\n\n```\nstruct Mouth;\n\nimpl Mouth {\n    fn chocolate(&self) { // We implement the `chocolate` method here.\n        println!(\"Hmmm! I love chocolate!\");\n    }\n}\n\nlet x = Mouth;\nx.chocolate(); // ok!\n```\n"
+      }
+    }
+  ],
+  "old16": [
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-00.process.json",
+      "selector": "a_pack_file_folds_a_call_site_in_the_optimiser",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-00.stderr",
+      "stdout": "pack_source_e2e-00.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-01.process.json",
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-01.stderr",
+      "stdout": "pack_source_e2e-01.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-02.process.json",
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-02.stderr",
+      "stdout": "pack_source_e2e-02.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-03.process.json",
+      "selector": "a_pack_timing_hook_controls_a_live_command_prefix_position",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-03.stderr",
+      "stdout": "pack_source_e2e-03.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-04.process.json",
+      "selector": "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-04.stderr",
+      "stdout": "pack_source_e2e-04.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-05.process.json",
+      "selector": "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-05.stderr",
+      "stdout": "pack_source_e2e-05.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-06.process.json",
+      "selector": "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-06.stderr",
+      "stdout": "pack_source_e2e-06.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-07.process.json",
+      "selector": "the_loader_carries_the_declared_inputs",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-07.stderr",
+      "stdout": "pack_source_e2e-07.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-08.process.json",
+      "selector": "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-08.stderr",
+      "stdout": "pack_source_e2e-08.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-09.process.json",
+      "selector": "without_a_host_the_installed_pack_simply_does_not_fold",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-09.stderr",
+      "stdout": "pack_source_e2e-09.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "cmd_control_e2e-00.process.json",
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "state": "PASS",
+      "stderr": "cmd_control_e2e-00.stderr",
+      "stdout": "cmd_control_e2e-00.stdout",
+      "target": "cmd_control_e2e"
+    },
+    {
+      "exit_code": 0,
+      "group": "supplemental_native_parent_store",
+      "receipt": "native_normal_store-00.process.json",
+      "selector": "native_parent_store_uses_the_actual_pack_implementation_normal_outcome",
+      "state": "PASS",
+      "stderr": "native_normal_store-00.stderr",
+      "stdout": "native_normal_store-00.stdout",
+      "target": "native_normal_store"
+    },
+    {
+      "exit_code": 0,
+      "group": "separate_hostile_containment",
+      "receipt": "spec_corpus-00.process.json",
+      "selector": "a_hostile_pack_degrades_to_abstention_and_never_hangs",
+      "state": "PASS",
+      "stderr": "spec_corpus-00.stderr",
+      "stdout": "spec_corpus-00.stdout",
+      "target": "spec_corpus"
+    },
+    {
+      "group": "separate_native_index",
+      "selector": "exec::native_namespace_string_tests::registered_string_index_reaches_original_storage_without_namespace_search",
+      "state": "UNRUN",
+      "target": "tcl_vm"
+    },
+    {
+      "group": "separate_native_index",
+      "selector": "exec::native_namespace_string_tests::registered_string_index_keeps_aliased_getter_primary_and_foreign_release_refusal",
+      "state": "UNRUN",
+      "target": "tcl_vm"
+    },
+    {
+      "group": "separate_native_index",
+      "selector": "exec::native_namespace_string_tests::registered_string_index_keeps_c86_reached_surrogate_pair_instruction_behavior",
+      "state": "UNRUN",
+      "target": "tcl_vm"
+    }
+  ],
+  "separate_cohorts": {
+    "native-string-effect-outcomes.json": [
+      {
+        "group": "separate_native_string_effect",
+        "selector": "exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives",
+        "state": "UNRUN",
+        "target": "tcl_vm",
+        "unrun_reason": "RuntimeError('selected target build failed or unclosed: tcl_vm')"
+      }
+    ],
+    "string-first-gates-outcomes.json": [
+      {
+        "group": "separate_string_first_gates",
+        "selector": "shipped_string_pack_replays_actual_corpus_first_gates",
+        "state": "UNRUN",
+        "target": "spec_corpus",
+        "unrun_reason": "RuntimeError('selected target build failed or unclosed: tcl_vm')"
+      }
+    ],
+    "full-corpus-outcomes.json": [
+      {
+        "group": "separate_full_corpus",
+        "selector": "every_shipped_tclspec_loads_installs_and_analyses_against_corpus",
+        "state": "UNRUN",
+        "target": "spec_corpus",
+        "unrun_reason": "RuntimeError('selected target build failed or unclosed: tcl_vm')"
+      }
+    ]
+  },
+  "limits": [
+    "Original13 PASS; old NativeIndex3 and new NativeStringVM1/string3/full600 UNRUN because fresh tcl_vm build failed.",
+    "No acceptance/performance/gate waiver; large maps retained only in original ZIP."
+  ]
+}

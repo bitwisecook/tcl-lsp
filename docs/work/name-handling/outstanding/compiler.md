@@ -2,11 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T03:18:43+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-26T04:02:20+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Latest 7dc122 FULL AUTH: old102 98PASS4FAIL; Child10 ALLPASS; NativeString3 2PASS1FAIL.** Run40263624654/job121381102849/source7dc84696cfb72960887aa45afd0445e4667d186b, soleZIP12626383958/12,305,788B SHA347cc7fdca0df138c5076561805845847906dce609e4773dac98e5d12d716b79. Main receipt909ee8c29fd8b7167ba659a2ff1cab5316055f7247d0c9cc4265e419cc94d687 and Native/fullsource85fe1eef8c33c47f125932b85a778c5527a1d0c5876d5c4bc9dc1254d6a17f01 authenticate126495source/provider10202/deps21504/tools/fullGit/currentcriticalpins/allmembers and263owned processes, zero build diagnostics. Original58 ALLPASS; Logical3+five body-entry controls PASS; codec864 PASS. Same four readonly positives remain FAIL. Both formerly failing Child controls now PASS, all10 PASS. Minify1 remains FAIL: offset23 child visits absent, exact retained-owner guard remains intact. NativeString positive fails tests.rs66 on tcl8.4; both negative controls PASS. Runtime/LSP/Names receive scoped actual outcomes. No release/global/performance closure inferred.
+
+Native formal foundation is independently source-cleared79bd50f6 but held NEXT: authentic request-local layout only, not readonly effect/Normal closure. Finalf7b V2 metadata peer e9b4a64d fixes an independently found duplicated Minify descriptor SHA; V1 held. Actual unchanged driver require positive and eight negatives checked; current all23 maps and prospective V13 pass, canonical preflight remains Root-owned.
 
 **Latest d0fc119 FULL AUTH: ALL119UNRUN, exact2Arc test build errors already repaired NEXT.** Compiler11940260902729/job121372868181/sourced0fc6f18711f6ad4d4ab53aba783a8498be9e5c2 singleZIP12624716291/10,937,048B SHAd27c9be71a9536a3f8c8f7b9ed7d886544a4d6896071d06736d225bb9a0b6bdf. Main05a26541bcf9d6fa789e756426f4a30834dbc556aa92e6280ae56f1721969870/native-source18e78900d1b261420400aa103da0caf471ab205e48fc3511fb46851b7b63762d authenticate126489source/provider10202/deps21504/tools/fullGit/currentcriticalpins/allmembers and2closedownedprocesses. E0433 missingArc atstatic_read_child744/780 stopscompiler-libtest; missing_docs2 is gone. Old102/Logical5/Codec1/Child10/Minify1 ALLUNRUN, no assertion or newscope/effectpermission claim. Root already applied minimal Arcfix748138 next; no duplicate repair. b804 remains latestsemantic98/4+Logical/CodecPASS+Child8/2+MinifyFAIL.
 

@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T03:43:31.552105+00:00
+Last updated: 2026-10-26T03:50:05.865555+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Finalf7b current-pin union V2 manifest4b2c4d5a independently CLEAR e9b4a64d (Compiler). Exact10files/12top scalar updates plus one current restored-child descriptor hash; full23/17maps/287records207Gitfiles, nestedChild10/full15NativeString maps retained. V1 HELD: source_pins refresh missed duplicated JSON descriptor source_sha256; V2 explicitly restores coherence against topmap/currentGit, recursive descriptor audit added. Actual extracted descriptor require PASS,8single-factor negatives and oldV1 REFUSE; prospective adoptedV13PASS13/30/20. Root canonical apply/preflight/push remains separate. Historical ff56 terminal available join now7954PASS/1959FAIL/14495unobserved/216notavailable; partial cancelled E2E rows only, not current PTF/acceptance.
 
 Current 7dc WASM FULLAUTH348 checks 4f125ed2: actual original25=23PASS/2FAIL, only unchanged allocation and depth assertions. NativeI64 original exact-counter/publication case remains PASS. All six assigned Names cohorts static clear: materialized-rest2V6 febf649c, region-entry2 0949d4ee, control-tail3V2 bad009f3, alias-assistance2 cebb8f6c, source-join2V4 2f07023b, hosted-formal2V5 bd16a673. Unused helper parameter and mismatched helper call were held and corrected in successors before clearance. Next final current23 pin union waits exact Root freeze. Both historical full CI ff56/e42 are now terminal failure; remaining small identity-ledger artifacts will extend baseline join after metadata, without treating historical sources as latest acceptance.
 
