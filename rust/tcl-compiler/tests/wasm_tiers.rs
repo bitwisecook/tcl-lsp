@@ -371,7 +371,52 @@ fn compile(sample: &Sample, plan: Plan) -> WasmModule {
         .unwrap_or_else(|e| panic!("read {}: {e}", sample.source.display()));
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(&source, &registry, false, "tcl9.0");
-    compile_wasm(&unit, &registry, plan.options()).module
+    let output = compile_wasm(&unit, &registry, plan.options());
+    trace_native_report(sample, plan, &output);
+    output.module
+}
+
+/// Print only the report produced by this same compile, under the existing flag.
+fn trace_native_report(
+    sample: &Sample,
+    plan: Plan,
+    output: &tcl_compiler::codegen::wasm::WasmCompilation,
+) {
+    if std::env::var_os("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").is_none() {
+        return;
+    }
+    for (id, named) in output.native.functions.iter().take(4) {
+        native_report_line(format_args!(
+            "sample={}/{} plan={} function={id:?} enabled={} status={:?} binding={}",
+            sample.tier,
+            sample.name,
+            plan.as_str(),
+            output.native.enabled,
+            named.report.status,
+            named.report.binding.as_str(),
+        ));
+        for row in named.report.statements.iter().take(16) {
+            native_report_line(format_args!(
+                "function={id:?} instruction={} outcome={}",
+                row.instruction,
+                row.outcome.as_str(),
+            ));
+        }
+    }
+}
+
+/// Bound diagnostics across all samples without changing compilation or assertions.
+fn native_report_line(row: std::fmt::Arguments<'_>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static ROWS: AtomicUsize = AtomicUsize::new(0);
+    if ROWS
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |count| {
+            if count < 128 { Some(count + 1) } else { None }
+        })
+        .is_ok()
+    {
+        eprintln!("CCG_WASM_TIER_NATIVE_REPORT {row}");
+    }
 }
 
 /// What one linked run produced.
@@ -669,7 +714,19 @@ fn a_failed_native_add_names_every_rejected_premise() {
         .for_sealed_program()
         .with_semantic_optimisations(requested);
     let selected = compile_wasm(&unit, &registry, sealed).plan;
-    assert!(matches!(selected, WasmCodegenPlan::NativeI64Add { .. }));
+    assert!(
+        matches!(selected, WasmCodegenPlan::NativeI64Add { .. }),
+        "selected plan={}, semantic decline={:?}, native premises={:?}",
+        selected.as_str(),
+        selected
+            .semantic_decline()
+            .map(|decline| decline.detail_kind()),
+        selected
+            .native_declines()
+            .iter()
+            .map(|decline| (decline.premise, decline.reason.as_str()))
+            .collect::<Vec<_>>()
+    );
     assert!(selected.native_declines().is_empty());
 
     let mut partial = requested;
