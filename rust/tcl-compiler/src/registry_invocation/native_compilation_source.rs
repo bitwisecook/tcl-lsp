@@ -345,9 +345,10 @@ impl OriginalSourceCommandProjection {
         };
         let mut parsed = match parsed {
             Ok(parsed) => parsed,
-            Err(_error) => {
+            Err(error) => {
                 #[cfg(test)]
-                trace_original_projection_parse(&_error, offset, words);
+                trace_original_projection_parse(&error, offset, words);
+                drop(error);
                 return None;
             }
         };
