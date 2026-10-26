@@ -35,6 +35,16 @@ use tcl_lsp_server::Backend;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tower_lsp_server::{LspService, Server};
 
+fn e003_diagnostic_count(frame: &str) -> usize {
+    let publish: serde_json::Value = serde_json::from_str(frame).expect("diagnostic publish JSON");
+    publish["params"]["diagnostics"]
+        .as_array()
+        .expect("published diagnostic array")
+        .iter()
+        .filter(|diagnostic| diagnostic["code"] == "E003")
+        .count()
+}
+
 fn frame(body: &str) -> String {
     format!("Content-Length: {}\r\n\r\n{body}", body.len())
 }
@@ -321,14 +331,17 @@ async fn push_only_client_still_receives_one_push() {
         .iter()
         .filter(|f| f.contains("textDocument/publishDiagnostics") && f.contains("file:///push.tcl"))
         .collect();
-    let with_e003: Vec<&&String> = publishes.iter().filter(|f| f.contains("E003")).collect();
+    let with_e003: Vec<&&String> = publishes
+        .iter()
+        .filter(|f| e003_diagnostic_count(f) != 0)
+        .collect();
     assert_eq!(
         with_e003.len(),
         1,
         "push-only client should get exactly one E003-bearing publish: {frames:?}",
     );
     assert_eq!(
-        with_e003[0].matches("E003").count(),
+        e003_diagnostic_count(with_e003[0]),
         1,
         "the publish itself must not duplicate the diagnostic: {}",
         with_e003[0],
@@ -398,19 +411,32 @@ async fn code_lens_resolve_returns_show_references_command() {
     let lenses = read_until_id(&mut reader, "\"id\":2")
         .await
         .expect("codeLens response");
+    let response: serde_json::Value = serde_json::from_str(&lenses).expect("codeLens JSON");
+    let issued = response["result"]
+        .as_array()
+        .expect("issued code lens array");
+    assert_eq!(issued.len(), 1, "expected one lens for ::helper: {lenses}");
+    let lens = &issued[0];
+    assert_eq!(
+        lens["range"],
+        serde_json::json!({
+            "start": {"line": 0, "character": 5},
+            "end": {"line": 0, "character": 11},
+        }),
+        "the issued lens must cover helper's original declaration",
+    );
     assert!(
-        lenses.contains("\"qname\":\"::helper\""),
-        "expected a lens for ::helper: {lenses}",
+        lens["data"]["originalDeclaration"].is_object(),
+        "the issued lens must retain its opaque declaration receipt: {lenses}",
     );
 
-    // Resolve a lens with the `{qname, uri}` data the server emitted.
-    let resolve = concat!(
-        r#"{"jsonrpc":"2.0","id":3,"method":"codeLens/resolve","params":{"#,
-        r#""range":{"start":{"line":0,"character":5},"end":{"line":0,"character":11}},"#,
-        r#""data":{"qname":"::helper","uri":"file:///lens.tcl"}}}"#,
-    );
+    // Replay the actual issued lens, including its opaque declaration receipt.
+    let resolve = serde_json::json!({
+        "jsonrpc": "2.0", "id": 3, "method": "codeLens/resolve", "params": lens,
+    })
+    .to_string();
     client_write
-        .write_all(frame(resolve).as_bytes())
+        .write_all(frame(&resolve).as_bytes())
         .await
         .unwrap();
     let resolved = read_until_id(&mut reader, "\"id\":3")
