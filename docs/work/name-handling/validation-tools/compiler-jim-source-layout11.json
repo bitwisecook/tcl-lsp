@@ -14,7 +14,7 @@
     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
     "rust/tcl-compiler/src/analyser/handlers.rs": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103",
     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "3af147084d8b2e1984cbf53a558faad409908d29d1337bf1c6dc7371e6f45568",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "136cfa39c8df5ac07026e31dd397d20dba9593260f136302e7caffd01031d46f",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "8ffc8f316d84ac5880e1e0c75e326844b600842af02da6b4e02799b86e1d2255",
     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "c3f80b6ccb8139380fa0ffb15e2236c1cdca68206661c826aa01c17317a65dfd"
   },
   "build_targets": [

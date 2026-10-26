@@ -141,7 +141,7 @@
     "runtime/rust/src/interp/native_body_artifact/native_i64_add.rs": "eaf16e7dae46408d83c406669f2ade04804969754595a98a520f8f3035bbb367",
     "runtime/rust/src/interp/native_i64_body.rs": "77856a295a67e2c5abe57d3c246a45e7eb1efa194090cdd54e466482dc607b77",
     "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
-    "runtime/rust/src/interp.rs": "2807537afcff59ea4822ea8fb7a625022a16b5dcd08794af296e3cd8b0dd8906",
+    "runtime/rust/src/interp.rs": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
     "rust/tcl-runtime-api/src/codegen_abi.rs": "227a4c817af875b971ce4772866151a5f6ee260048e045113f5352553e1fadb0",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
     "runtime/rust/src/codegen_abi/original_frame_owner.rs": "b5960c3c7fd65f33454be3c3a89e6855febeb32a3ded7ef9f72e5904cbd2773c",
