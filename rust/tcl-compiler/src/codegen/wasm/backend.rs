@@ -873,7 +873,7 @@ impl WasmEmitter {
                 self.emit_word_error_guard(*slot, abort);
             }
             WasmWordPlan::Invoke(node) => {
-                self.emit_invoke_node(node, plan, argv, abort, false, None)
+                self.emit_invoke_node(node, plan, argv, abort, false, None);
             }
             WasmWordPlan::Concat {
                 slot,
