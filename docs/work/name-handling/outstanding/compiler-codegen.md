@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T02:57:15.986289+00:00
+Last updated: 2026-10-26T03:43:31.552105+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current 7dc WASM FULLAUTH348 checks 4f125ed2: actual original25=23PASS/2FAIL, only unchanged allocation and depth assertions. NativeI64 original exact-counter/publication case remains PASS. All six assigned Names cohorts static clear: materialized-rest2V6 febf649c, region-entry2 0949d4ee, control-tail3V2 bad009f3, alias-assistance2 cebb8f6c, source-join2V4 2f07023b, hosted-formal2V5 bd16a673. Unused helper parameter and mismatched helper call were held and corrected in successors before clearance. Next final current23 pin union waits exact Root freeze. Both historical full CI ff56/e42 are now terminal failure; remaining small identity-ledger artifacts will extend baseline join after metadata, without treating historical sources as latest acceptance.
+
+Current 7dc strict full authentication ebac0abc: one registry doc_markdown primary; paired backtick fix peer6e7ccf93 is in the next root batch, later stages remain masked. Current 7dc WASM is terminal and sole artifact capture is underway; previous d0fc original25 actual23PASS/2FAIL includes genuine NativeI64 exact-counter/publication PASS, allocation/depth assertions remain failing and unchanged. NativeString controls await actual results owned by Runtime. Next metadata union waits root final source freeze; all15 NativeString dependencies and existing protocols remain intact. Names region-entry2 peer0949 and control-tail3 V2 peerbad009 are static clear; remaining three sole cohorts pending. No local Rust build or new acceptance claim.
 
 New bounded sourcecohort `ccg-compiler-owned-long5-v1` manifest51572217 independentlyDEEPclear95acde32e0622fac6f2d3645604f59e6c3f16a9474ab7df1e3dcea26648a769d (LSPpeer). Fiveactual076longtests only, body109→92/105→86/104→76/111→95/121→95; exact borrowedlookup/finaltail/innerfixtureloop helpers preserveallparentNative/module/contextowners andoldtailreverse-drop order. All10current/base/hash/F-R/fmt/literal/assertcounts; actualhelperEXPANSION+documentedborrowaliases+rustfmt reconstructsENTIREold10modules byteexact. Full23JSONZEROconsumers. Rootcanonicalonly, executionUNRUN.
 
