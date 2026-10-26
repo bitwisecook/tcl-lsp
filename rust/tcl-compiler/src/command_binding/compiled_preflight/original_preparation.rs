@@ -238,6 +238,7 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Expression(expression) => {
                 if let Some(program) = &expression.program {
                     self.original_expression(
+                        words,
                         program,
                         offset,
                         context,
@@ -430,6 +431,7 @@ impl CompilerTraversal<'_> {
                         return None;
                     };
                     self.original_expression(
+                        words,
                         program,
                         offset,
                         context,
@@ -479,6 +481,7 @@ impl CompilerTraversal<'_> {
             return None;
         };
         let children = self.compiled_children.clone();
+        let syntax_children = self.expression_syntax_children.clone();
         let fallbacks = self.snapshot.generic_fallbacks.clone();
         let before_context = self.before_next_context.clone();
         if self
@@ -486,6 +489,7 @@ impl CompilerTraversal<'_> {
             .is_some()
         {
             self.compiled_children = children;
+            self.expression_syntax_children = syntax_children;
             self.snapshot.generic_fallbacks = fallbacks;
             self.before_next_context = before_context;
             self.snapshot
@@ -653,6 +657,7 @@ impl CompilerTraversal<'_> {
 
     fn original_expression(
         &mut self,
+        words: &[WordExpr],
         program: &tcl_registry::native_expression_program::NativeExpressionProgram,
         offset: u32,
         context: SourceExecutionContext<'_>,
@@ -739,6 +744,9 @@ impl CompilerTraversal<'_> {
             }
         }
         let emission = self.original_expression_emission(program, context.registry);
+        if emission == ExpressionProgramEmission::Native {
+            self.retain_expression_syntax(words, program, offset, context);
+        }
         let evaluation_known = emission != ExpressionProgramEmission::Unavailable;
         if !evaluation_known {
             self.require_provider();

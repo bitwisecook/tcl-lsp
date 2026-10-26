@@ -18,6 +18,7 @@
 
 //! Compiler traversal precedes execution, including unreachable inline bodies.
 
+pub(super) mod expression_syntax;
 pub(super) mod ordered_locals;
 mod original_preparation;
 
@@ -219,6 +220,10 @@ pub(super) struct PreflightOutcome {
     pub possible_error: bool,
     pub compiled_children:
         std::collections::BTreeMap<CommandAllocationSite, Vec<SourceCompiledChild>>,
+    pub expression_syntax_children: std::collections::BTreeMap<
+        CommandAllocationSite,
+        Vec<expression_syntax::SourceExpressionSyntaxChild>,
+    >,
     pub compiler_invocations: std::collections::BTreeMap<
         CommandAllocationSite,
         Vec<super::compiler_inventory::SourceCompilerInvocation>,
@@ -272,6 +277,7 @@ pub(super) fn preflight_image(
         before_next_context: Vec::new(),
         compiler_invocations: std::collections::BTreeMap::new(),
         compiled_children: std::collections::BTreeMap::new(),
+        expression_syntax_children: std::collections::BTreeMap::new(),
         locals: ordered_locals::SourceCompilerLocalInventory::at_entry(
             chunk.clone(),
             image.len(),
@@ -348,6 +354,7 @@ pub(super) fn preflight_image(
         possible_error: scanner.possible_error,
         compiler_invocations: scanner.compiler_invocations,
         compiled_children: scanner.compiled_children,
+        expression_syntax_children: scanner.expression_syntax_children,
     }
 }
 
@@ -428,6 +435,10 @@ struct CompilerTraversal<'a> {
     math_table_prerequisite:
         Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
     compiled_children: std::collections::BTreeMap<CommandAllocationSite, Vec<SourceCompiledChild>>,
+    expression_syntax_children: std::collections::BTreeMap<
+        CommandAllocationSite,
+        Vec<expression_syntax::SourceExpressionSyntaxChild>,
+    >,
     before_next_context: Vec<String>,
     compiler_invocations: std::collections::BTreeMap<
         CommandAllocationSite,
