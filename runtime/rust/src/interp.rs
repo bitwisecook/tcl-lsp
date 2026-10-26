@@ -16427,6 +16427,16 @@ impl Interp {
     ) -> Code {
         match cmd {
             Command::Builtin(f) => {
+                self.observe_codegen_depth_labeled(
+                    || {
+                        if std::ptr::fn_addr_eq(f, crate::builtins::ret as BuiltinFn) {
+                            "selected-stock-return"
+                        } else {
+                            "selected-other-builtin"
+                        }
+                    },
+                    f as usize,
+                );
                 let _native_admission = self.enter_native_builtin(generation, argv);
                 self.invoke_guarded_definition(generation, argv)
                     .unwrap_or_else(|| f(self, argv))

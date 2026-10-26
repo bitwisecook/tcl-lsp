@@ -1828,6 +1828,20 @@ impl FrameStack {
         self.frames.last_mut()?.native_procedure_execution.take()
     }
 
+    /// WORK-only copied live owner identities; no retained execution authority.
+    pub(crate) fn codegen_depth_owner_ids(&self) -> Option<(usize, Option<usize>, Option<bool>)> {
+        let frame = self.frames.get(self.current_frame_index())?;
+        let procedure = frame.c_procedure.as_ref();
+        let role_matches = procedure
+            .zip(frame.native_procedure_execution.as_ref())
+            .map(|(procedure, role)| Rc::ptr_eq(procedure, role.owner()));
+        Some((
+            Rc::as_ptr(&frame.jim_link_birth) as usize,
+            procedure.map(|procedure| Rc::as_ptr(procedure) as usize),
+            role_matches,
+        ))
+    }
+
     pub(crate) fn current_c_procedure(&self) -> Option<&Rc<crate::interp::ProcDef>> {
         self.frames
             .get(self.current_frame_index())?

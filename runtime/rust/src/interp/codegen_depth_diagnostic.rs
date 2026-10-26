@@ -30,17 +30,22 @@ impl super::Interp {
             return;
         };
         let dispatch = self.native_dispatch_depth.get();
-        let frame = self
+        let (frame, owners) = self
             .frames
             .try_borrow()
             .ok()
-            .map(|frames| frames.current_activation());
+            .map_or((None, None), |frames| {
+                (
+                    Some(frames.current_activation()),
+                    frames.codegen_depth_owner_ids(),
+                )
+            });
         // The frame borrow is gone; these are copied scalars only. An unavailable
         // frame is unobserved, not absence, and supplies no owner or admission.
         let caller = std::panic::Location::caller();
         let phase = phase();
         eprintln!(
-            "CCG_WASM_DEPTH seq={sequence} phase={phase} eval={eval} dispatch={dispatch} frame={frame:?} entry={entry} caller={caller}",
+            "CCG_WASM_DEPTH seq={sequence} phase={phase} eval={eval} dispatch={dispatch} frame={frame:?} entry={entry} caller={caller} owners={owners:?}",
         );
     }
 }
