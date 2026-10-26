@@ -480,6 +480,27 @@ impl SourceCommandBindings {
         {
             return None;
         }
+        self.original_compiler_syntax_visits_for_owner(tokens, input, registry, owner, offset)
+    }
+
+    /// Shared actual-visit validation. The ordinary consumer first checks its
+    /// attached owner; restoration instead authenticates the current recorded
+    /// child at the source producer before publishing an attachment.
+    pub(super) fn original_compiler_syntax_visits_for_owner<'a>(
+        &'a self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
+        offset: Option<u32>,
+    ) -> Option<Vec<OriginalCompilerArgumentSyntax<'a>>> {
+        if !self
+            .original_analysis_owner
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, owner))
+        {
+            return None;
+        }
         let site = CommandAllocationSite {
             source: Arc::clone(&owner.source),
             offset: trace_compiler_syntax_option("head_word", offset, tokens.words().first())?
@@ -2355,6 +2376,10 @@ mod original_inline_control_source_tests {
     }
 
     fn fixture(source: &str, environment: &str) -> Fixture {
+        fixture_with_bindings(source, environment).0
+    }
+
+    fn fixture_with_bindings(source: &str, environment: &str) -> (Fixture, SourceCommandBindings) {
         let environment = tcl_registry::model::ingress::resolve_known_environment(environment)
             .expect("actual original compiler environment");
         let profile = environment.unit_profile();
@@ -2392,11 +2417,107 @@ mod original_inline_control_source_tests {
                 tokens
             })
             .collect();
-        Fixture {
-            input,
-            tokens,
-            _owner: owner,
+        (
+            Fixture {
+                input,
+                tokens,
+                _owner: owner,
+            },
+            bindings,
+        )
+    }
+
+    #[test]
+    fn restored_nested_compiler_carriers_issue_only_current_complete_source_owners() {
+        let (actual, bindings) =
+            fixture_with_bindings("set result [expr {1 + [expr {3 + 4}]}]", "tcl8.6");
+        let owner = &bindings;
+        let parent = &actual.tokens[0];
+        let registry = actual.input.borrowed_context_registry().commands();
+        assert!(parent.nested_bindings.len() >= 2);
+        for (offset, _) in &parent.nested_bindings {
+            let raw = owner.invocation_at_source("", *offset);
+            assert!(raw.original_analysis_owner.is_none());
+            let (_, mut child) = raw.original_recorded_command().unwrap();
+            child.source_binding = Some(raw.clone());
+            assert!(
+                owner
+                    .original_compiler_syntax_alternatives(&child, &actual.input, registry)
+                    .is_none()
+            );
+            assert!(owner.restored_child_analysis_owner(*offset, &raw).is_some());
+            assert!(
+                owner
+                    .restored_child_analysis_owner(offset + 1, &raw)
+                    .is_none()
+            );
         }
+        let mut restored = parent.clone();
+        restored.source_binding = Some(owner.invocation_at_source("", 0));
+        owner.restore_original_nested_bindings(&mut restored);
+        for (offset, restored_binding) in &restored.nested_bindings {
+            assert!(Arc::ptr_eq(
+                restored_binding.original_analysis_owner.as_ref().unwrap(),
+                owner.original_analysis_owner.as_ref().unwrap(),
+            ));
+            let mut raw = restored_binding.clone();
+            raw.original_analysis_owner = None;
+            assert_eq!(raw, owner.invocation_at_source("", *offset));
+            let (_, mut child) = restored_binding.original_recorded_command().unwrap();
+            child.source_binding = Some(restored_binding.clone());
+            assert!(
+                owner
+                    .original_compiler_syntax_alternatives(&child, &actual.input, registry)
+                    .is_some()
+            );
+        }
+        let foreign = fixture("set result [expr {1 + [expr {3 + 4}]}]", "tcl8.6");
+        for (offset, binding) in &foreign.tokens[0].nested_bindings {
+            assert!(
+                owner
+                    .restored_child_analysis_owner(*offset, binding)
+                    .is_none()
+            );
+        }
+        let foreign_context = Arc::new(
+            actual
+                .input
+                .context_registry()
+                .with_command_store(Arc::clone(registry)),
+        );
+        let foreign_input = ResolvedAnalysisInput::new(
+            actual.input.analyser_profile(),
+            actual.input.unit_profile(),
+            foreign_context,
+            actual.input.lexer_config(),
+        );
+        let mut changed = owner.clone();
+        let mut attachment = owner.original_analysis_owner.as_deref().unwrap().clone();
+        attachment.metadata =
+            OwnedInvocationMetadataContext::for_source_input(Some(&foreign_input));
+        changed.original_analysis_owner = Some(Arc::new(attachment));
+        for (offset, _) in &parent.nested_bindings {
+            let raw = owner.invocation_at_source("", *offset);
+            assert!(
+                changed
+                    .restored_child_analysis_owner(*offset, &raw)
+                    .is_none()
+            );
+        }
+        let mut duplicate = parent.clone();
+        duplicate
+            .nested_bindings
+            .push(duplicate.nested_bindings[0].clone());
+        duplicate.source_binding = Some(owner.invocation_at_source("", 0));
+        owner.restore_original_nested_bindings(&mut duplicate);
+        let repeated = duplicate.nested_bindings[0].0;
+        assert!(
+            duplicate
+                .nested_bindings
+                .iter()
+                .filter(|(offset, _)| *offset == repeated)
+                .all(|(_, binding)| binding.original_analysis_owner.is_none())
+        );
     }
 
     #[test]

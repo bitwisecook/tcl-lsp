@@ -8724,6 +8724,43 @@ impl SourceCommandBindings {
         valid
     }
 
+    /// Issue a current source-syntax attachment from this collector's actual
+    /// compiler visits, independently of an offset-zero cached body's owner.
+    /// This does not supply Native admission or alter the refreshed raw facts.
+    fn restored_child_analysis_owner(
+        &self,
+        offset: u32,
+        binding: &SourceInvocationBinding,
+    ) -> Option<Arc<OriginalSourceAnalysisOwner>> {
+        let owner = self.original_analysis_owner.as_ref()?;
+        let site = binding.invocation_site()?;
+        let input = owner.metadata.source_analysis_input()?;
+        let registry = input.borrowed_context_registry().commands();
+        let (_, original) = binding.original_recorded_command()?;
+        if site.offset != offset
+            || !Arc::ptr_eq(&site.source, &owner.source)
+            || original.words().first()?.source().span.start() != offset
+            || original.synthetic.is_some()
+            || !original.original_words_match_argv_text()
+            || input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || binding.original_lexer_config_for_tokens(&original) != Some(input.lexer_config())
+            || !self
+                .matches_original_source_image(owner.source.source_image(), input.lexer_config())
+            || binding != &self.invocation_at_source("", offset)
+        {
+            return None;
+        }
+        self.original_compiler_syntax_visits_for_owner(
+            &original,
+            input,
+            registry,
+            owner,
+            Some(offset),
+        )?;
+        Some(Arc::clone(owner))
+    }
+
     /// Refresh only the retained child inventory, then re-seal an original
     /// Logical declaration through its existing full source/vector issuer.
     /// Unmatched children keep the ordinary raw query; no offset is added.
@@ -8763,6 +8800,12 @@ impl SourceCommandBindings {
                 != 1
             {
                 continue;
+            }
+            if tokens.words().iter().any(|word| {
+                word.source().span.start() <= offset && offset <= word.source().span.end()
+            }) {
+                tokens.nested_bindings[index].1.original_analysis_owner =
+                    self.restored_child_analysis_owner(offset, &tokens.nested_bindings[index].1);
             }
             let mut matching = calls.iter().filter_map(|call| {
                 let child = call.tokens.as_ref()?;
