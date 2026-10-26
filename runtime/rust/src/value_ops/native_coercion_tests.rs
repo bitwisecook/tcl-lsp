@@ -433,3 +433,6 @@ fn actual_valueops_magnitude_cannot_reparse_rejected_original_with_caller_gramma
         assert_eq!(unsafe { (*accepted.as_ptr()).ref_count }, 1);
     });
 }
+
+#[path = "native_unicode_getter_entry_tests.rs"]
+mod native_unicode_getter_entry_tests;

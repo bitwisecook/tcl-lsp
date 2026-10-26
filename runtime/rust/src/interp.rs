@@ -149,6 +149,7 @@ mod native_object_vector;
 pub(crate) mod native_operation_currency;
 pub(crate) mod native_scalar_context;
 mod native_script;
+mod native_unicode_getter;
 pub(crate) use native_script::{OriginalSourceCommandReturn, OriginalSourceConstruction};
 mod native_substitution;
 mod native_variable_names;
@@ -1670,6 +1671,7 @@ pub struct InterpState {
     native_operation_context_epoch: Cell<Option<u64>>,
     /// Original entered ABI operations, inherited by synchronous nested work.
     entered_native_operations: RefCell<Vec<Rc<native_operation_currency::NativeOperationEntry>>>,
+    native_unicode_getter: RefCell<Option<Rc<native_unicode_getter::NativeUnicodeGetterEntry>>>,
     deferred_tailcalls: RefCell<Vec<(u32, crate::frame::PendingTailcall)>>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
     /// handler or `finally` script throws, the options dict of the *prior*
@@ -2161,6 +2163,7 @@ impl Interp {
             native_dispatch_depth: Cell::new(0),
             native_operation_context_epoch: Cell::new(Some(0)),
             entered_native_operations: RefCell::new(Vec::new()),
+            native_unicode_getter: RefCell::new(None),
             deferred_tailcalls: RefCell::new(Vec::new()),
             during: Cell::new(None),
             result: Cell::new(result),
@@ -2289,6 +2292,18 @@ impl Interp {
             }
             if scope.currency().ensure_current_or_refuse().is_err() {
                 return interp;
+            }
+            // The actual backend and original constructor have both completed.
+            // Generic construction/profile changes never issue this entry.
+            let string_protocol = protocol.names().string_protocol();
+            if string_protocol.tcl_version().is_some() {
+                let entry = match native_unicode_getter::NativeUnicodeGetterEntry::issue_after_native_constructor(
+                    &interp, string_protocol,
+                ) {
+                    Ok(entry) => entry,
+                    Err(_) => return interp,
+                };
+                *interp.native_unicode_getter.borrow_mut() = Some(Rc::new(entry));
             }
         } else {
             interp.set_startup_globals();

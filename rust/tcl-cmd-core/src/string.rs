@@ -69,7 +69,7 @@ pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, Cm
     let length = match ops.native_string_bytes(s) {
         Ok(bytes) => bytes.len(),
         Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(_)) => {
-            modified_utf8_length(&ops.as_chars(s)?)
+            modified_utf8_length(&ops.checked_character_view(s)?)
         }
         Err(error) => return Err(error.into()),
     };
