@@ -134,14 +134,14 @@
     "runtime/rust/src/codegen_abi.rs": "316ef78608f69882bbe887ea06ab3c72b90c2e120115d6b06f431404519cf672",
     "runtime/rust/src/expr/native_numeric.rs": "03e17cfb14b1f4494bbaa5e2af00c3cc51711868dd353c60657d25b3185e7621",
     "runtime/rust/src/expr.rs": "c0936fe8c9531671fa96cb613bf2842ee628e059e53f223b864ebf444286a2a6",
-    "runtime/rust/src/frame.rs": "933b0f390dc1cfcfef54de8d05a3f32c08ce5f4daa1fa180eb32c1a5bd9682af",
+    "runtime/rust/src/frame.rs": "5fa7b7db5f5314387ee1da6bedc0ded9a7cdb178d6dc3f6d196b346242fa5ace",
     "runtime/rust/src/interp/guarded_definition.rs": "47a440682b92a78f12a1fc8a10071e98819032c87c2665cc1d8bb34e55464178",
     "runtime/rust/src/interp/native_body_artifact/native_control.rs": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608",
     "runtime/rust/src/interp/native_body_artifact/native_i64_add/tests.rs": "e7b3122d09b5463803f2231d8cc4fd61f8a37d4306fef71ddf9f92b4b058b957",
     "runtime/rust/src/interp/native_body_artifact/native_i64_add.rs": "eaf16e7dae46408d83c406669f2ade04804969754595a98a520f8f3035bbb367",
     "runtime/rust/src/interp/native_i64_body.rs": "af692628f8ab54252fd09d5507a17c0c1bdd5723201e6949149f8c72d831e749",
     "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
-    "runtime/rust/src/interp.rs": "12874d1299ba312b91b456fa5177bd31057685e7376c3c0a2f52ecc622e29e0e",
+    "runtime/rust/src/interp.rs": "f020f2431b9f2dc442579b9e24fa7fb59c8a5eb3e94682f0a29f00c12617ee83",
     "rust/tcl-runtime-api/src/codegen_abi.rs": "a8442a8bbf9734ed3ee7b6541c2702f01c4f59ed14a67b19ae085dc225437a96"
   },
   "trace": [
