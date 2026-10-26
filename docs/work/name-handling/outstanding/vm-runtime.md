@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T23:34:36Z
+Last updated: 2026-10-26T00:28:13Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+AOT V1 frozen and HELD by independent peer9350f831: adapter clones prevent root pointer match; per-operand float_result reorders conversion before Host numeric stage. V2 frozen off-tree master252c785681eca95cef868375439e856f362cb134b32524196cadc69af93bfa45 (WORKe8486286/CLEANec4bba15) corrects exact program identity/full node equality and raw operand evaluation, adds fresh-string Host cache-order control and optional metadata withdrawal without replay; new items hoisted before tests. Both current/F-R/rustfmt26 and critical original-function bytepins pass. SourceProc combined semantic CLEAR2d2f8e0d rebound to compatible compiler9305 via0fa13db9; Codegen final independent mechanical peer pending; no canonical, typing, or execution claim. Separate AOT5 same-ELF append after unchanged135 frozena1bc3042 and independently protocol CLEAR0a0bfd7f (19 actual-helper no-child plus6 final-status controls). Same shared caps/deadlines/env/180case+205reserve; actual five controls UNRUN. Codegen owns final combined VM13+compiler6 metadata union; no standalone pin companion. Spec0033 run40248867269/job121336172907 sole capture pending. Latest sealed362e old16PASS, actual string3FAIL at argument-effect-or-child-uniqueness, full600INCOMPLETE; no C1C2 closure.
 
 Latest e990 iRules40242565716 FULLAUTH base2d5b29d3/outcome4690d54a9be68b2bea745c57404f2e8a3220c59af3671894cd972ae15b70e8bc: original180timeout again, trace2+scope1UNRUN. Bounded phase proves first init returned successfully (3122UpLevel headers), final init began (711headers) but no final completion.38sampledcaller rows onlyfirstphase, storedprefix itest::cmd::regi and exactresidentheads _orig_namespace/_orig_info consistentwithfinite register_all loop; no finalcaller sample orloopproof. New reordered Spec40243870633/job121321250911 exact362e7ce33682831d4a2d96b1b110f24d830bf8fa stillactive, VMsoleZIPowner.
 

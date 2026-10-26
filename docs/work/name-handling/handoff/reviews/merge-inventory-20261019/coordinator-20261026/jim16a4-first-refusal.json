@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-26T00:15:13.424229+00:00",
+  "source": "16a4b62c6e4ba99f28f803c52497f680f70cccbf",
+  "run": 40246405285,
+  "verification_sha256": "93590d934338236add987be10e376c769ca77c8e55c95fc5fd2fb64379217524",
+  "counts": {
+    "original7:PASS": 7,
+    "supplemental38:PASS": 28,
+    "supplemental38:FAIL": 10,
+    "diagnostic5:PASS": 3,
+    "diagnostic5:FAIL": 2,
+    "new_static_control1:PASS": 1
+  },
+  "first_failures_sha256": "bf5463eb1a00c2216cba3f2827aeb06f336c942cfbaffde61f9b48c5a5b25662",
+  "first_refusal_traces_sha256": "832ade8b1190a622dfc238ff2f8a56d06b10699f9bbba2eb5fda9f5423faa226",
+  "paired_use_rows": 10,
+  "eligible_after_route_refusal": 2,
+  "limits": "Exact logged route refusal plus final per-use eligibility only. A direct part_shape refusal may precede a valid private child alternative; it is not automatically the final unresolved decision. Logrow counts never imply source/tier completion. FIRST internal failedcase leaves latercasesunreached. No guard relaxation or gain/performance claim from owner joins alone."
+}

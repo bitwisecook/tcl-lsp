@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T00:14:54.763547+00:00
+Last updated: 2026-10-26T00:36:13.137754+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-26T00:36:13.137754+00:00: Jim0033 run40248860433 FULL AUTH23c96c00 all51 reached, unchanged35PASS10FAIL original45, diagnostic3PASS2FAIL and newstaticcontrolPASS. Original26 remains16PASS10FAIL; exact51 prior comparison has NO gains/regressions. Actual mixed-expression lookup first fact is callback-unknown (76 diagnostic01 logrows), not transition/access-domain failure. ZIP4b6ed354/11039150 retained onceworkspace. Preserve conservative unknown lookup guard; now investigate selected registry world-effect contract and per-call genuine refinement, no puretrait/visit/tree completion fallback. Compiler118 separate control outcomes still owned byCompiler.
 
 Resume 2026-10-26T00:14:54.763547+00:00: Jim16a4 run40246405285 FULL AUTH93590d93, all51 reached: original45=35PASS10FAIL, diagnostic3PASS2FAIL, new static-alternatives controlPASS. Exact original26=16PASS10FAIL (prior15/26), all8 additional doc controls and11 own-surface controlsPASS. No matched prior-PASS regressions; comparison0746e0ca. Named static-body positive nowpasses after genuine known-child live-producer fix. Next measured mixed-expression refusal child.lookup_stable; preserve guard and diagnose actual selected facts. WORK-only existing-flag first-factual-guard observer V2 omits unbounded command text; peer pending. N17 variable-facet observer V2 independently passiveCLEAR8ea00c54, no actual subleaf observed. Compiler118 owns separate actual10 unit-control execution; Jim dependency build does not execute them. No new lint drafting or speculative admission change.
 

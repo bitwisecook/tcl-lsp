@@ -1,0 +1,45 @@
+{
+  "utc": "2026-10-25T23:45:45.453602+00:00",
+  "source": "362e7ce33682831d4a2d96b1b110f24d830bf8fa",
+  "host_run": 40243864922,
+  "startup_run": 40243867891,
+  "scopes": [
+    {
+      "scope": "browser",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-host-browser40243864922-actual-v1/assessment-v1.json",
+      "sha256": "3ea85480b94d00105784b53d0cbab1e68008c958189fb72cc1ccb7c167caf7fe",
+      "qualification": "FULLAUTH release built; 24priorPASS; Set40 passes then Return91 AuthoredSimulation direct-procedure-owner refuses. Original77 opaque negative unreached."
+    },
+    {
+      "scope": "wasi",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-host-wasi40243864922-actual-v1/assessment-v1.json",
+      "sha256": "c5e93081116cfd944d10b3f28a1046e37bc730501a0efb3f1e18fd3b26f51668",
+      "qualification": "FULLAUTH release built; 9priorPASS; incomplete app3owner projection blocks quiet references. No claimed procedure completion."
+    },
+    {
+      "scope": "core2",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-hosted-core2-40243867891-actual-v1/assessment-v1.json",
+      "sha256": "26339e28a83d795df4be9f16509a94f5d7d56457cde6366750e4d9f6c760aed0",
+      "qualification": "FULLAUTH old2PASS/StringExprPASS/factorialFAIL/Quiet1PASS; actual samefreshlibELF and12ownedprocesses underoldlimits. Quiet1 retains genericUnknown refusal+typedpositive+foreign/stale/trace/unknown/puts controls."
+    },
+    {
+      "scope": "unit",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-hosted-unit-40243864922-actual-v1/assessment-v1.json",
+      "sha256": "e6487c8c87fe8d72b20846dffff8feadd178ae04c120fbcb114cfc59bece9468",
+      "qualification": "FULLAUTH selected public pending-index control PASS1; freshserverlib +existingSendbounds compiled; no wholeunit-suite runtime claim."
+    },
+    {
+      "scope": "startup",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-hosted-startup40243867891-actual-v1/assessment-v1.json",
+      "sha256": "3ee5621e9d84a58bbac0199b21650c486e3900f8fca1ec31e4e1308d71608baf",
+      "qualification": "FULLAUTH originalscan30TIMEOUT/cold108.176599ms/nativeNavigationUNREACHED; Context2COMPLETE. Fresh0W CI nativepayload remainsZIP-only; no performance/GUI admission."
+    }
+  ],
+  "pending": [],
+  "new_minify_carrier_observer": "NOT_INCLUDED",
+  "limits": [
+    "Allfive source-qualified scopes closed, failures remain; no wholeproduct/shipping/performance/GUI acceptance.",
+    "All sole ZIPs retained; mapsinsideZIP."
+  ],
+  "startup_compile_flag_receipt_sha256": "0f2b5d742db15c3900bb93fb26a903a938d394d78debb455bd209cbd44234524"
+}

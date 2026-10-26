@@ -1,0 +1,603 @@
+{
+  "utc": "2026-10-25T23:38:20.085001+00:00",
+  "status": "AUTHENTIC_SEPARATE_CORE2_FAIL",
+  "source": "362e7ce33682831d4a2d96b1b110f24d830bf8fa",
+  "run": 40243867891,
+  "job": 121321242875,
+  "artifact": 12618900288,
+  "zip_bytes": 10193197,
+  "zip_sha256": "1335d6da83209bac0d6facd414aacc91b255823f98126e24cd890b4a307cbf90",
+  "member_hashes": {
+    "build.process.json": {
+      "bytes": 2366,
+      "sha256": "986bee5772c0b83f7e090d82abe388532a13ef1eddbee60091f48fbadb051be9"
+    },
+    "build.stdout": {
+      "bytes": 161016,
+      "sha256": "b70a84125ba744f0caedaf026477988239ad7595f0fb27705a87573d5485932d"
+    },
+    "build.stderr": {
+      "bytes": 6526,
+      "sha256": "2d2ebd3cd1ca277dce457b216cd779e56ba0916ba8f12abd71c33f95a5587c84"
+    },
+    "cases.json": {
+      "bytes": 344,
+      "sha256": "2d451416c6a611c0259d1ab9e1547114a93fa508ceea50d6d05499befbd3bad1"
+    },
+    "core-artifact.json": {
+      "bytes": 1153,
+      "sha256": "a1ddbd5d45e09cd0a13038144b146a0153508e585db5828ab888a1346febe41b"
+    },
+    "core2-1-list.process.json": {
+      "bytes": 2355,
+      "sha256": "37312381656ed304bcca770266d2043ce6dca8ee26e65085a5e1f20cc27310a0"
+    },
+    "core2-1-list.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "core2-1-list.stdout": {
+      "bytes": 107,
+      "sha256": "1b58b5267458eee09146aca5a8d4b31d4d9a0ab670b22ad19a9b3328d871c226"
+    },
+    "core2-1.process.json": {
+      "bytes": 2352,
+      "sha256": "9deeaa8902f46b30906b6cac2291386bdb15bc3154b7cbdc5b30e9bc82c08076"
+    },
+    "core2-1.stderr": {
+      "bytes": 116632,
+      "sha256": "a10b624a8c348c6c6639cf1e1b70402acbd9d3a4ad29e4037be689c703878d4c"
+    },
+    "core2-1.stdout": {
+      "bytes": 228,
+      "sha256": "95bb73687d76d824c5c7344943a477ae3c55f9473a949189cf5d6f442ecfd807"
+    },
+    "core2-2-list.process.json": {
+      "bytes": 2356,
+      "sha256": "e32997d9d91e7b9845c36ce43dd25b53c84d887f6c48328e65e1c67af008ad92"
+    },
+    "core2-2-list.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "core2-2-list.stdout": {
+      "bytes": 108,
+      "sha256": "b224c167f5731b21bf131025c1c972f7b43fb268eacc2bd2e23f5f1cce926b84"
+    },
+    "core2-2.process.json": {
+      "bytes": 2346,
+      "sha256": "9c4ab10ec6c8055efe3c160f0ead36521e00d3d4604584ffe1c50a36eaa99272"
+    },
+    "core2-2.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "core2-2.stdout": {
+      "bytes": 229,
+      "sha256": "8a6264c0779f04caba8bedbde718dfd9a70f60961c4f33fa4c0494ba9eda41db"
+    },
+    "default-minify-integration-1-list.process.json": {
+      "bytes": 2370,
+      "sha256": "0d5e968a4ade6a095b7e5f53906d793ad8e500d869c3690a8df19273ff59be49"
+    },
+    "default-minify-integration-1-list.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "default-minify-integration-1-list.stdout": {
+      "bytes": 64,
+      "sha256": "e23994baf406b504698579ee63b2082a4f11baa483ffeff3fa698a30c628af4d"
+    },
+    "default-minify-integration-1.process.json": {
+      "bytes": 2372,
+      "sha256": "ac44a929f4beeaa9a600f928da1751238dbfa2dc9c82ee680a75459d70617b6c"
+    },
+    "default-minify-integration-1.stderr": {
+      "bytes": 35814,
+      "sha256": "a0e76370c71b0e30d2ca9a5f82809d25297fa6362af9384efd2d3ae3682e5ba5"
+    },
+    "default-minify-integration-2-list.process.json": {
+      "bytes": 2353,
+      "sha256": "f663ac7c4f05a76835cf0a23c1b7103e9a44a17e62b5cde3b3f3752d6d06fa90"
+    },
+    "default-minify-integration-1.stdout": {
+      "bytes": 275,
+      "sha256": "49e5e4e16f78e24a4481a410e7f368b2bb1ce73c9a1f6fec1def298d5bf46969"
+    },
+    "default-minify-integration-2-list.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "default-minify-integration-2-list.stdout": {
+      "bytes": 47,
+      "sha256": "3a91f888285fb88cd2335906a13df99153f3c245f2306e98df47d0733b927426"
+    },
+    "default-minify-integration-2.process.json": {
+      "bytes": 2351,
+      "sha256": "872260321e62d366c2e40ddac4c9be481a3ea8bf87dcf26b025b5add080d5e6c"
+    },
+    "default-minify-integration-2.stderr": {
+      "bytes": 12506,
+      "sha256": "ab7af1c3f270804adb4c0917aaa338f427404cde90fbb56720fb0747e8323a44"
+    },
+    "default-minify-integration-2.stdout": {
+      "bytes": 166,
+      "sha256": "a143f1043d3c2e5a9f1fd58660be3eeba6aae67d4d2a53f13a4713d486e5efae"
+    },
+    "default-minify-integration-artifact.json": {
+      "bytes": 1197,
+      "sha256": "188c206ebd3ef23fbd46d3bf24b9c549f77211340086d1d0e48401776e70801e"
+    },
+    "default-minify-integration-cases.json": {
+      "bytes": 242,
+      "sha256": "c2863ee53ff916935e1f09b1bb10b4701432a27c396c46ef745f2cb5a66cee4c"
+    },
+    "dependencies-after.json": {
+      "bytes": 4812591,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "dependencies-before.json": {
+      "bytes": 4812591,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "fetch.process.json": {
+      "bytes": 2214,
+      "sha256": "17ff3f593fadf829c02a101e2f9f10309438b5f3de1962754c6592d0b7e2ae13"
+    },
+    "fetch.stderr": {
+      "bytes": 14757,
+      "sha256": "4a5b59c975d753c93c276a4e8d41551a693c2d256bb5b682bf3b490023846864"
+    },
+    "fetch.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final.json": {
+      "bytes": 33212,
+      "sha256": "182458c56b882e67c31f17818db9f01145f2db651b5c630afc4ab0c16e684c9c"
+    },
+    "job.json": {
+      "bytes": 2639,
+      "sha256": "311e1911033eb56cd708ad0e9aa4dc0fca6bb61b720255147d30b88af394af7d"
+    },
+    "providers-after.json": {
+      "bytes": 426864,
+      "sha256": "ada7e618874b47769ccd0fca789a3cf400d5ade48f8db67153a3074620569b29"
+    },
+    "providers-before.json": {
+      "bytes": 426864,
+      "sha256": "ada7e618874b47769ccd0fca789a3cf400d5ade48f8db67153a3074620569b29"
+    },
+    "quiet-store-control-1-list.process.json": {
+      "bytes": 2392,
+      "sha256": "0cb65439986e0f6a4f77326600b505e2ecd7f98f5c88a5b66a47ca161e832ad9"
+    },
+    "quiet-store-control-1-list.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "quiet-store-control-1-list.stdout": {
+      "bytes": 116,
+      "sha256": "836cdcdcbaed1682680d50472a613558d4cb181e210ac313711cc14810f90e39"
+    },
+    "quiet-store-control-1.stderr": {
+      "bytes": 42129,
+      "sha256": "9fe2dba9b513ba16b2d5535037202881866fb92ff9907689769f1f674a0faa2a"
+    },
+    "quiet-store-control-1.stdout": {
+      "bytes": 237,
+      "sha256": "0b558199ccd36d5325d67a8a0a29f740c23982dfbc77b0b4382160954957478f"
+    },
+    "quiet-store-control-1.process.json": {
+      "bytes": 2388,
+      "sha256": "927d4210ca63de3d79126519acd09299fa20e46521cc38d9207db7ba9b07db96"
+    },
+    "quiet-store-control-cases.json": {
+      "bytes": 288,
+      "sha256": "9b3f27b81d15905e8ff2c7b0f725a5b5cfe470f8ff911ff3894d5396fb2e904f"
+    },
+    "source-after.json": {
+      "bytes": 32005157,
+      "sha256": "75bfe7f2b53e9b5c9feba795c1a9f4057ecb84b1b261424f1955e7fe4ee01e2f"
+    },
+    "source-before.json": {
+      "bytes": 32005157,
+      "sha256": "75bfe7f2b53e9b5c9feba795c1a9f4057ecb84b1b261424f1955e7fe4ee01e2f"
+    },
+    "tools-after.json": {
+      "bytes": 1167,
+      "sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11"
+    },
+    "tools-before.json": {
+      "bytes": 1167,
+      "sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11"
+    }
+  },
+  "source_tree": "68f870bbb15766c958dc7b6257c5bd39fe1e8ba5",
+  "tracked_membership_exact": 126430,
+  "critical_git_bytes": {
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "Cargo.lock": "8f32332e549cbee4df91041a9242b00bfb254c12dcfc2e165ab275724b4d3f9e",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    ".cargo/config.toml": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169",
+    "rust/tcl-lsp-server/Cargo.toml": "612e4f1e263b52fcbfd927bfdec99fde4dc0142ddf9939deabdbde80a6d8f913",
+    "rust/tcl-lsp-core/Cargo.toml": "a76134b6d6db7a7555c730116ef0e9f6bb34906a24c8aed80b6219738ff5a73c",
+    "rust/tcl-lsp-db/Cargo.toml": "cd163ceb826888384b0b2bf696d3d86c6d2f64aada4684deddedb16e026e96b5",
+    ".github/workflows/perf.yml": "7c5bcff1cc92156f4a43810e64c6f09f0206437f621df83a9add3ccc5fb32e48",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json": "fcbd05318b8b9868c83ce49fb0e6b8d5f0f650f86491f566c048b8e8428a7fb8",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py": "9832b22e09f4f5057a1030a4ddac0d9715beae7c38c297fa7c9e7cb3853f9326"
+  },
+  "source_before_after_full_equal": true,
+  "roster_and_driver_exact_git": true,
+  "strict_fresh_ci_test_artifact": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "lib"
+        ],
+        "doc": true,
+        "doctest": true,
+        "edition": "2024",
+        "kind": [
+          "lib"
+        ],
+        "name": "tcl_lsp_core",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/src/lib.rs",
+        "test": true
+      }
+    },
+    "path": "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+    "sha256": "36d4671e56f96ae61a543c41fb41b4f359528937f22836bbf970eb201e4bbc32"
+  },
+  "strict_fresh_ci_integration_artifact": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/lsp_edit_workspace-1faef7d879dbb63b",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/lsp_edit_workspace-1faef7d879dbb63b"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": false,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "test"
+        ],
+        "name": "lsp_edit_workspace",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+        "test": true
+      }
+    },
+    "path": "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/lsp_edit_workspace-1faef7d879dbb63b",
+    "sha256": "edf7460f8ff2086a0ec22aa082cf0411291ba37ccf2f2a19e4214107814b9ac1"
+  },
+  "integration_cases": [
+    {
+      "exit_code": 101,
+      "result": "FAIL",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial"
+    },
+    {
+      "exit_code": 0,
+      "result": "PASS",
+      "selector": "minify_preserves_string_and_expr_results"
+    }
+  ],
+  "quiet_store_control_cases": [
+    {
+      "exit_code": 0,
+      "result": "PASS",
+      "same_fresh_core_library_sha256": "36d4671e56f96ae61a543c41fb41b4f359528937f22836bbf970eb201e4bbc32",
+      "selector": "original_command_rename::tests::quiet_store_coverage_requires_actual_points_and_refuses_traced_foreign_source"
+    }
+  ],
+  "maps": {
+    "providers": {
+      "entries": 2256,
+      "before_sha256": "ada7e618874b47769ccd0fca789a3cf400d5ade48f8db67153a3074620569b29",
+      "after_sha256": "ada7e618874b47769ccd0fca789a3cf400d5ade48f8db67153a3074620569b29",
+      "complete_equal": true
+    },
+    "dependencies": {
+      "entries": 21504,
+      "before_sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4",
+      "after_sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4",
+      "complete_equal": true
+    },
+    "tools": {
+      "entries": 7,
+      "before_sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11",
+      "after_sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11",
+      "complete_equal": true
+    }
+  },
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.027873002,
+      "deadline_seconds": 600,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20971520,
+      "retained_bytes": 14757,
+      "minimum_free_bytes": 75650625536,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "--profile",
+        "ci",
+        "-p",
+        "tcl-lsp-core",
+        "--lib",
+        "--test",
+        "lsp_edit_workspace",
+        "--no-run",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 699.499793708,
+      "deadline_seconds": 2400,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20956763,
+      "retained_bytes": 167542,
+      "minimum_free_bytes": 74474172416,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+        "package_resolver::original_names::tests::autoload_registration_structure_matches_full_source_records",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.339391921,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20789221,
+      "retained_bytes": 107,
+      "minimum_free_bytes": 74474151936,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+        "package_resolver::original_names::tests::autoload_registration_structure_matches_full_source_records",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 6.81176444,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20789114,
+      "retained_bytes": 116860,
+      "minimum_free_bytes": 74474024960,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+        "package_resolver::original_names::tests::autoload_structure_retains_current_source_and_input_refusals",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.339293747,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20672254,
+      "retained_bytes": 108,
+      "minimum_free_bytes": 74474012672,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+        "package_resolver::original_names::tests::autoload_structure_retains_current_source_and_input_refusals",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.415986945,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20672146,
+      "retained_bytes": 229,
+      "minimum_free_bytes": 74474004480,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/lsp_edit_workspace-1faef7d879dbb63b",
+        "minify_strips_comments_and_collapses_whitespace_factorial",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.300141471,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20671917,
+      "retained_bytes": 64,
+      "minimum_free_bytes": 74473996288,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/lsp_edit_workspace-1faef7d879dbb63b",
+        "minify_strips_comments_and_collapses_whitespace_factorial",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "elapsed_seconds": 0.641502285,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20671853,
+      "retained_bytes": 36089,
+      "minimum_free_bytes": 74473951232,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/lsp_edit_workspace-1faef7d879dbb63b",
+        "minify_preserves_string_and_expr_results",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.299649238,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20635764,
+      "retained_bytes": 47,
+      "minimum_free_bytes": 74473938944,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/lsp_edit_workspace-1faef7d879dbb63b",
+        "minify_preserves_string_and_expr_results",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.479094953,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20635717,
+      "retained_bytes": 12672,
+      "minimum_free_bytes": 74473914368,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+        "original_command_rename::tests::quiet_store_coverage_requires_actual_points_and_refuses_traced_foreign_source",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.339647477,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20623045,
+      "retained_bytes": 116,
+      "minimum_free_bytes": 74473906176,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-autoload-core2-target/ci/deps/tcl_lsp_core-8028975dd35167f1",
+        "original_command_rename::tests::quiet_store_coverage_requires_actual_points_and_refuses_traced_foreign_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.977490578,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20622929,
+      "retained_bytes": 42366,
+      "minimum_free_bytes": 74473852928,
+      "stop_reason": null
+    }
+  ],
+  "cases": [
+    {
+      "exit_code": 0,
+      "result": "PASS",
+      "selector": "package_resolver::original_names::tests::autoload_registration_structure_matches_full_source_records"
+    },
+    {
+      "exit_code": 0,
+      "result": "PASS",
+      "selector": "package_resolver::original_names::tests::autoload_structure_retains_current_source_and_input_refusals"
+    }
+  ],
+  "all_final_seals": {
+    "artifact": true,
+    "dependencies": true,
+    "integration_artifact": true,
+    "providers": true,
+    "source": true,
+    "tools": true
+  },
+  "remaining_log_bytes": 20580563,
+  "limits": [
+    "Only the exact separately selected tests; no original startup/scan/host/editor/whole-suite or shipping performance admission.",
+    "No selected ELF payload in ZIP; exact Cargo event/path/hash and owner before-after hashes, producer ELF-magic check only.",
+    "Exact current tracked membership/tree and10critical+roster payloads, not every Git blob independently rehashed.",
+    "Actual exact362e7ce33682831d4a2d96b1b110f24d830bf8fa source only. Diagnostic host logs are separate, and no performance acceptance follows from any diagnostic run."
+  ]
+}

@@ -1,0 +1,372 @@
+{
+  "utc": "2026-10-26T00:05:57.541422+00:00",
+  "source": "16a4b62c6e4ba99f28f803c52497f680f70cccbf",
+  "run": 40246402318,
+  "job": 121328785203,
+  "artifact": 12618649443,
+  "zip_bytes": 10931238,
+  "zip_sha256": "eb0d93e5987381a46a030f87737f430343eca909f01c503d3fc8d7b23dc32f13",
+  "all_member_count": 19,
+  "members": {
+    "build-tcl_compiler.process.json": {
+      "bytes": 2257,
+      "crc32": 270651157,
+      "sha256": "fe50f523cad56255f1928ca5f57f6eda4fe768934ab9695d57b8612cbfbfc087"
+    },
+    "build-tcl_compiler.stderr": {
+      "bytes": 5894,
+      "crc32": 1538060078,
+      "sha256": "d85eef5b718d37b002aeb39299e5759f4dc23d5b531b7b58f2a9da66621d9b82"
+    },
+    "build-tcl_compiler.stdout": {
+      "bytes": 147702,
+      "crc32": 4170387756,
+      "sha256": "d7de8b274d9a52c4d906312a738b74e4dbc1bcbd56724521059b0af5d0848570"
+    },
+    "compact-codec-outcomes.json": {
+      "bytes": 332,
+      "crc32": 2862311786,
+      "sha256": "23d38cdb461a1d7084b8adc4c0e1cc3ba2e1680beaf8eddef7b0e54ed60a68f8"
+    },
+    "dependencies-after.json": {
+      "bytes": 4812591,
+      "crc32": 4264134942,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "dependencies-before-build.json": {
+      "bytes": 4812591,
+      "crc32": 4264134942,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "fetch.process.json": {
+      "bytes": 2161,
+      "crc32": 220162518,
+      "sha256": "a89a5c4ce71fca0b6f195ea67d3e0981de94de51f3fd678c7728f6f6762f4c0d"
+    },
+    "fetch.stderr": {
+      "bytes": 14757,
+      "crc32": 3414977318,
+      "sha256": "110c5aae8571fa0ec6fdf49e4d68e645a0e1d5882540b46e8a6a38ad5e23b257"
+    },
+    "fetch.stdout": {
+      "bytes": 0,
+      "crc32": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final.json": {
+      "bytes": 128120,
+      "crc32": 2958284379,
+      "sha256": "306a48890fb39a5b643ec4d8703b1c5bd27bfe379cbfa365e5f79851e6ae52ca"
+    },
+    "job.json": {
+      "bytes": 92044,
+      "crc32": 1188432720,
+      "sha256": "75494c2ddf2e92a33bb87042cf2a455bf2f648ec3cb9d0d01fcb5790a4f14500"
+    },
+    "logical-body-entry-outcomes.json": {
+      "bytes": 1700,
+      "crc32": 225190303,
+      "sha256": "ddfa771cb6ca5896446afe821d554c535dc5a2f5634efbbd4238ea269f931fb2"
+    },
+    "original-child-outcomes.json": {
+      "bytes": 3396,
+      "crc32": 1433984227,
+      "sha256": "c7c4740d838bdb441a67bc9b5fec547c3c8655910cc8cb5be6e5919c0b6b69fe"
+    },
+    "outcomes.json": {
+      "bytes": 36398,
+      "crc32": 2079679018,
+      "sha256": "449a5baf7991abb48a0cfef505be3d859458726146e964af999b0787fa4c3385"
+    },
+    "providers-after.json": {
+      "bytes": 1901902,
+      "crc32": 2264880770,
+      "sha256": "560587ae080333cdbcba3aa5373f554a1fd376301a5527218f3e35e1d6fd8e43"
+    },
+    "providers-before.json": {
+      "bytes": 1901902,
+      "crc32": 2264880770,
+      "sha256": "560587ae080333cdbcba3aa5373f554a1fd376301a5527218f3e35e1d6fd8e43"
+    },
+    "source-after.json": {
+      "bytes": 32007546,
+      "crc32": 3486348338,
+      "sha256": "91de6f52e419c0fb09cad169f56a822552d9dfcbea9029e4887d4d2d5eea14ec"
+    },
+    "source-before.json": {
+      "bytes": 32007546,
+      "crc32": 3486348338,
+      "sha256": "91de6f52e419c0fb09cad169f56a822552d9dfcbea9029e4887d4d2d5eea14ec"
+    },
+    "tools-after.json": {
+      "bytes": 3283,
+      "crc32": 456526241,
+      "sha256": "6e126dc0d4304e2aa08708d4ce96639dd0973f1a0d85a5abcaaa5ba448d82f3e"
+    }
+  },
+  "all_members_CRC_SHA_read": true,
+  "full_source_Git_NUL_membership_exact": true,
+  "source_tree": "9432e57be60ac9c4bcb226c11df362aa6e05f75b",
+  "source_before_after_entries": 126439,
+  "seals": {
+    "source": {
+      "equal": true,
+      "entries": 126439
+    },
+    "providers": {
+      "equal": true,
+      "entries": 10202
+    },
+    "dependencies": {
+      "equal": true,
+      "entries": 21504
+    },
+    "tools": {
+      "equal": true
+    }
+  },
+  "key_source_Git_SHA256_pins": {
+    "docs/work/name-handling/validation-tools/compiler-closed-consumer-controls.json": "604f45e34d9ad26129fc058ddb306aa9cabaa99b16d09f537d938ff2410c40fb",
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py": "66ce2c5284ef8854edba373e4b5489bb1701988c81746507faf5a8e8d081f3f0",
+    "docs/work/name-handling/validation-tools/compiler-original58-table-filter.py": "7fcb9fec2c51b591a70845703c78b4326b2e24a3b7ec915279ebfc6d7f80b03b",
+    "rust/tcl-compiler/src/analyser/commands.rs": "5238fe75fc3cbfbbc050f2ec56688872f6db1e4e492817e691d699572bc851fd",
+    "rust/tcl-compiler/src/codegen/emitter/generate.rs": "0469a0ee50333b1242c766f9f9e72f516d6b1b27ac8743bab611a13a9a97de71",
+    "rust/tcl-compiler/src/codegen/native_control.rs": "13e5b3e6a9e940cfe2f52f9e44a35110d0b7880176c2208d134fe007326a1e3f",
+    "rust/tcl-compiler/src/codegen/statements.rs": "ca84ff3c1434d6bc3a1adaceec74febe557713d5c724ea1ece8c9f9f25d2a070",
+    "rust/tcl-compiler/src/codegen/values.rs": "a9aa017c22544154f98863bdb28eee2fffb80b4c8e5c5bed38eb0f5ed72abec4",
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "c2c865b13092f54623843bc08984458eb4825e52f350a327bda508ed11dd3f03",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "9ba965233c04a1eb696deadbcda1e772ef6b8e70bcf4db4775cd9c99cac0cc50",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "164bf2e50827bde0aaad69544b805478986bf231f4e08053f18dcff7704800d7",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "2ca7b08cb1474fa5700b26acff49ebea3fdb8d0565ab2a3de04f51be50fab5a1",
+    "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
+    "rust/tcl-compiler/src/command_binding/source_read_scope.rs": "e0307d2d5899247b692e5e38beb35bbf8c5f1408b8659f4816c2c4c2382e6ac5",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs": "2ea3e3367d849d9f3566637f1931c16b98af9733f1d0570bf93db4c19330e280",
+    "rust/tcl-compiler/src/command_binding/source_unavailability_advice.rs": "95aa817fc19ab2f472b6903fef46ff0b557c4e7fb09bc6583cea8b14048988e1",
+    "rust/tcl-compiler/src/compilation_unit.rs": "5672b39eb2520085b829d3bd3c66e9dcdfb35174de7c352fd1d7a7efeb46390c",
+    "rust/tcl-compiler/src/compile_service.rs": "9c8b354617f9beb8462f14705371bb38028df0dd2b01a712077f3a253fed0a93",
+    "rust/tcl-compiler/src/compile_service/native_procedure_source.rs": "cd4903269a528ae70414e3974c3ec53682f77794d8d8ca42e87c4b1de8bc0978",
+    "rust/tcl-compiler/src/inlining/mod.rs": "7c9038af006f50c3a52b0599427d67f2596700e1f985ce41fa8a5e7fcf0fee0f",
+    "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
+    "rust/tcl-compiler/src/lowering/mod.rs": "706a1cfe150945024ad8bd4563dd065be4cc2f0e820f3abe102f2f2024a4883f",
+    "rust/tcl-compiler/src/native_byte_compilation.rs": "4839d48b5993edb601dea708b89f606604ffdce550282a0291b622a5fb44f8a2",
+    "rust/tcl-compiler/src/optimiser/closed_consumer.rs": "f9571d7e7369b91d2597ba395931d2a93e349c3074254f74d12204179d0b2ca3",
+    "rust/tcl-compiler/src/realm/original_tokens.rs": "ce5316d9438bab96d276ceba111334e9ae624fdae521fe27e88a9e0ec5a8d84d",
+    "rust/tcl-compiler/src/registry_invocation/source_availability.rs": "e598bcb334e0a38f25d69b1842b50436b87375a86064480bf6948e89893f3992",
+    "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs": "5ff7dc17b6d44fb1f3075ef393ba0b94ed5e608ececc843e4b380e980171817f",
+    "rust/tcl-compiler/src/var_escape/api.rs": "ffa9d5332e81068811d625e96a5f8e25b7f2890f8c9bf964f8545d1e8ce7970e",
+    "rust/tcl-compiler/tests/inlining.rs": "ee4b227a6ada4b9c405f679178bb50a0d0e7c9c28935e55711de0f418329bd1a",
+    "rust/tcl-compiler/tests/optimiser.rs": "53e7b254886d6d3c9c2f5827e3f323134c5dc5019dcfe53272514b3b80e9dfc7",
+    "rust/tcl-compiler/tests/support/analysis_body_identity.rs": "2f7baea078affa320ee2b78ed12801e4c6687e58e063717c42d37b9c07d7fe3f",
+    "rust/tcl-compiler/tests/support/native_compiled_fixture.rs": "a2aea5fe12b55e859620cff6e184102c1a270f2ad75b5af9f2c34fab3e04d511",
+    "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d",
+    "rust/tcl-compiler/tests/var_escape_residual2.rs": "d672622a855a7c63839ff020c9c291e8868cbd59c2a5b76875fd8a8ff42f0131",
+    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+    "rust/tcl-engine-tclvm/src/closed_native_execution.rs": "21376983c0b5f8700ec7a0a60d92586bc8e5cb8e2b2ab6288fc3b29d8596644f",
+    "rust/tcl-registry/src/normal_source_case.rs": "2d9ebed8bf7ad8274eea70fd745b143933b0ba6fab9c1c169bf9d014ba400cd9",
+    "rust/tcl-runtime-api/src/closed_native_consumer.rs": "8c9b7e9e5e3debcfdae721fde3769d3dfed6c5973936adc81c562928690ad1b4",
+    "rust/tcl-runtime-api/src/lib.rs": "9daf2ba3e1927a246d9c028236028b2af023bb1b897711bf4836ba9167537d3b",
+    "rust/tcl-runtime-api/src/native_compiler_pass.rs": "bea79bd4c38b3d7b4fef315f71f60b86685dff737f53b3a2525fbf3ad4444bfc",
+    "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "0c16ce8734f57b556a70fb6e709e81b5f518e1fa40335736a96e20349c0e96ea",
+    "rust/tcl-runtime-api/src/native_procedure_roles.rs": "3035f14f4601af2399b52a1d6fb6b063ecf5bdcfe2bd731891e1132f28dfda4a",
+    "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+    "rust/tcl-vm/src/command/native_procedure.rs": "4f5ef0993bf26fe8be3ebc2f6fe7040e9d23a4cdb0a481c2b1b30e206b1202a4",
+    "rust/tcl-vm/src/exec.rs": "272e07ae53f33e698ceb2135f94eabea91695ee69fd3312eac792c9336d312bc",
+    "rust/tcl-vm/src/expr.rs": "6cee38a92df5f66c74cd1ee45d258530f7439b4ca0a99c35fbb41036fffe1816",
+    "rust/tcl-vm/src/expr/original_numeric_context.rs": "eb448d59de94641d43f71a94f811e9c30eb179e05dc6ce8d8f71ccb8fbbaa80c",
+    "rust/tcl-vm/src/interp.rs": "c7268af4a66f10f194a26816cfba9a393d475663a14bbb9b7a13d3e79fc15c05",
+    "rust/tcl-vm/src/interp/closed_native_execution.rs": "c0bd9482eed2b2324cbfad45e1ca2abdff710ca93a6970deeaaf4c153537a64f",
+    "rust/tcl-vm/src/interp/native_numeric_ops.rs": "105c4f3342875e614d90b2fc154f2822a9d09626f965a79f8188256070ad75f9",
+    "rust/tcl-vm/src/value.rs": "1ea4be15fd808babc83216b43a728a3ea2d55855df1764a9228bd347bfa357e3",
+    "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
+    "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+  },
+  "closed16_and_original_fold": [
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::actual_owners_reject_foreign_superseded_and_consumed_selections",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::actual_recapture_and_foreign_literal_owner_refuse_retained_preparation",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::actual_rebinding_and_owned_sink_refusal_prevent_a_grant_or_consume",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::private_consumer_preserves_the_complete_transcript",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::observer_channels_dynamic_heads_and_external_cells_are_not_admitted",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::arithmetic_and_output_bounds_refuse_before_publication",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "native_literal::empty_world_tests::retained_empty_observation_never_recaptures_or_revives_a_receipt",
+      "target": "tcl_runtime_api",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "native_literal::empty_world_tests::empty_world_capture_is_bound_to_actual_owner_epoch_and_capture",
+      "target": "tcl_runtime_api",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "diagnostic_output::tests::silence_is_thread_owned_and_has_no_restore_boundary",
+      "target": "tcl_runtime_api",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "pack_hooks::tests::private_worker_denies_installer_queries_and_receiver_installation",
+      "target": "tcl_registry",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "pack_hooks::tests::private_worker_denial_does_not_clear_an_existing_receiver",
+      "target": "tcl_registry",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_remains_correspondence_without_a_consumer",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_refuses_unbounded_and_unclassified_expression_effects",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::preparation_rejects_large_work_before_full_analysis",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_bounds_source_before_compilation_unit_preparation",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_retains_the_exact_source_and_registry_semantics",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "actual_status": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+      "target": "optimiser",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_CCG_ROW24": "1"
+      },
+      "actual_status": "UNRUN"
+    }
+  ],
+  "reported_seals": {
+    "artifacts": false,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "tools": true
+  },
+  "first_error": "RuntimeError('selected target build failed or unclosed: tcl_compiler')",
+  "final_errors": [],
+  "no_map_extraction_or_secondZIP": true,
+  "limits": [
+    "Only selected closed16 and unchanged originalfold process/terminal/subsetstderr protocol independently inspected here; compiler owner authenticates all102 counts/rosters/processes.",
+    "Sourcefullmembership and beforeafterhashmaps authenticated; keyGitcontent only, not allGitblobcontent.",
+    "No rawELFuploaded, independentchildbinarypayload rehash unavailable; nativeclosure/testsuccess requires actual selected childseals plus exactsource/provider/process protocol.",
+    "No globalrelease/sharedprocess/fullbaseline/performance admission. Originalfold firstcause unknown if no marker."
+  ]
+}
