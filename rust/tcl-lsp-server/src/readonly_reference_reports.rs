@@ -53,6 +53,25 @@ pub(super) struct CoarseSemanticTokenSource {
 }
 
 impl CoarseSemanticTokenSource {
+    fn from_fresh_analysis(analysis: WorkspaceSymbolSourceAnalysis) -> Option<Self> {
+        let WorkspaceSymbolAnalysisKind::Fresh(document) = &analysis.kind else {
+            return None;
+        };
+        if !matches!(
+            document.purpose,
+            FreshSourceAnalysisPurpose::SemanticStructure
+        ) {
+            return None;
+        }
+        let inputs_epoch = document.seed.analyser_inputs_epoch;
+        let factory_generation = document.seed.class_factory_generation;
+        Some(Self {
+            analysis,
+            inputs_epoch,
+            factory_generation,
+        })
+    }
+
     /// Actual configured structure-only analysis; no enriched completion grant.
     pub(super) fn analysis(&self) -> &AnalysisResult {
         match &self.analysis.kind {
@@ -620,8 +639,6 @@ impl Backend {
             // current configured analysis input, even when bytes are unchanged.
             return Ok(None);
         }
-        let inputs_epoch = self.diag_inputs_epoch();
-        let factory_generation = *self.class_factory_generation.read().await;
         let Some(analysis) = self
             .capture_fresh_source_analysis(
                 uri,
@@ -634,7 +651,10 @@ impl Backend {
             return Ok(None);
         };
         trace_coarse_source_check("capture.fresh_analysis", true);
-        if let WorkspaceSymbolAnalysisKind::Fresh(document) = &analysis.kind
+        let Some(source) = CoarseSemanticTokenSource::from_fresh_analysis(analysis) else {
+            return Ok(None);
+        };
+        if let WorkspaceSymbolAnalysisKind::Fresh(document) = &source.analysis.kind
             && std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1")
         {
             eprintln!(
@@ -643,17 +663,13 @@ impl Backend {
                 snapshot.version,
                 snapshot.revision,
                 snapshot.publication,
-                inputs_epoch,
+                source.inputs_epoch,
                 document.seed.analyser_inputs_epoch,
-                factory_generation,
+                source.factory_generation,
                 document.seed.class_factory_generation
             );
         }
-        Ok(Some(CoarseSemanticTokenSource {
-            analysis,
-            inputs_epoch,
-            factory_generation,
-        }))
+        Ok(Some(source))
     }
 
     /// Same bounded readonly transaction, including original provider lease,
@@ -4269,6 +4285,66 @@ mod coarse_semantic_source_tests {
             .await
             .insert(uri.clone(), document.clone());
         document
+    }
+
+    #[tokio::test]
+    async fn coarse_receipt_uses_actual_producer_generations_without_renewal() {
+        for advance_factory in [false, true] {
+            let backend = crate::tests::test_backend();
+            let uri: Uri = "file:///coarse-producer-generations.tcl".parse().unwrap();
+            let snapshot = actual_open_source(&backend, &uri).await;
+            let inputs_epoch = backend.diag_inputs_epoch();
+            let factory_generation = *backend.class_factory_generation.read().await;
+            advance_coarse_generation(&backend, advance_factory).await;
+            let analysis = backend
+                .capture_fresh_source_analysis(
+                    &uri,
+                    snapshot.clone(),
+                    FreshSourceAnalysisPurpose::SemanticStructure,
+                )
+                .await
+                .unwrap()
+                .unwrap();
+            let torn = CoarseSemanticTokenSource {
+                analysis,
+                inputs_epoch,
+                factory_generation,
+            };
+            assert!(!coarse_source_is_current(&backend, &torn).await);
+            let source = CoarseSemanticTokenSource::from_fresh_analysis(torn.analysis).unwrap();
+            assert!(coarse_source_is_current(&backend, &source).await);
+            assert!(!super::super::configured_coarse_semantic_tokens(
+                &snapshot.text, source.analysis(),
+            ).unwrap().is_empty());
+            advance_coarse_generation(&backend, !advance_factory).await;
+            assert!(!coarse_source_is_current(&backend, &source).await);
+            let old = CoarseSemanticTokenSource::from_fresh_analysis(source.analysis).unwrap();
+            assert!(!coarse_source_is_current(&backend, &old).await);
+            let fresh = backend
+                .capture_coarse_semantic_source(&uri, &snapshot)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(coarse_source_is_current(&backend, &fresh).await);
+            let complete = backend
+                .capture_fresh_source_analysis(
+                    &uri,
+                    snapshot.clone(),
+                    FreshSourceAnalysisPurpose::ReadonlyComplete,
+                )
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(CoarseSemanticTokenSource::from_fresh_analysis(complete).is_none());
+        }
+    }
+
+    async fn advance_coarse_generation(backend: &Backend, factory: bool) {
+        if factory {
+            *backend.class_factory_generation.write().await += 1;
+        } else {
+            backend.invalidate_diag_inputs();
+        }
     }
 
     #[tokio::test]
