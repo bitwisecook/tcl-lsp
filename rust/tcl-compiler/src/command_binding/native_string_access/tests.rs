@@ -63,9 +63,31 @@ fn same_actual_source_template_and_append_close_only_string_effects() {
             registry,
             tcl_registry::TraceOperation::Read,
         );
+        let stages = ["append greeting", "puts $greeting"].map(|spelling| {
+            let head = spelling.split_once(' ').unwrap().0;
+            let earlier = bindings
+                .invocation_at_source(head, u32::try_from(source.find(spelling).unwrap()).unwrap());
+            let variables = &earlier.variable_context;
+            let access = crate::var_resolve::resolve_literal_access(
+                "greeting",
+                variables,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            );
+            (
+                variables.contents_native_string_access_closed_at(&access, registry),
+                variables
+                    .contents_native_string_access_receipt_at(&access, registry)
+                    .is_some(),
+                variables.representation_epoch,
+            )
+        });
         assert!(
             context.contents_native_string_access_closed_at(&place, registry),
-            "{engine}"
+            "{engine}; before_append/before_puts={stages:?}; final_epoch={:?}; final_read={}",
+            context.representation_epoch,
+            context.read_produces_value(&place, registry),
         );
         assert!(
             context
