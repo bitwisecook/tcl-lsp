@@ -2315,6 +2315,43 @@ mod original_expression_purpose_frontier_tests {
     use super::super::AdviceTapeInputs;
     use super::*;
 
+    fn assert_native_expression_requires_its_parser(
+        owner: &AdviceInvocationContext<'_>,
+        graph: &mut AdviceGraph,
+        advice: &crate::command_binding::source_transition_advice::OriginalSourceCommandTransitionAdvice,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let native_policy = AdviceNamingPolicy::Native(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                .authored_name_policy()
+                .unwrap(),
+        );
+        let native_owner = AdviceInvocationContext {
+            origin: owner.origin,
+            context: owner.context,
+            config: owner.config,
+            dialect: owner.dialect,
+            policy: &native_policy,
+            query: None,
+        };
+        let mut native = BodyWalk {
+            context: &native_owner,
+            visited: 0,
+            unavailable_lifecycle_effects: false,
+            inventory: None,
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+            logical_scope: None,
+            member_catalogue_body: None,
+            catalogue_body: None,
+        };
+        assert!(native.expressions(graph, advice, schema, 0).is_none());
+        assert_eq!(native.visited, 0);
+        assert!(advice.original_head().native_input().is_none());
+        assert_eq!(advice.logical_source_input(), Some(input));
+    }
+
     #[test]
     fn original_logical_expression_topology_cannot_supply_missing_native_parser_purpose() {
         // naming.source.authored-command-transition-advice
@@ -2407,38 +2444,7 @@ mod original_expression_purpose_frontier_tests {
                 .is_some()
         );
         assert_eq!(logical.visited, 1);
-        let native_policy = AdviceNamingPolicy::Native(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
-                .authored_name_policy()
-                .unwrap(),
-        );
-        let native_owner = AdviceInvocationContext {
-            origin,
-            context: &context,
-            config,
-            dialect,
-            policy: &native_policy,
-            query: None,
-        };
-        let mut native = BodyWalk {
-            context: &native_owner,
-            visited: 0,
-            unavailable_lifecycle_effects: false,
-            inventory: None,
-            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
-            source_body: None,
-            logical_scope: None,
-            member_catalogue_body: None,
-            catalogue_body: None,
-        };
-        assert!(
-            native
-                .expressions(&mut graph, &advice, &schema, 0)
-                .is_none()
-        );
-        assert_eq!(native.visited, 0);
-        assert!(advice.original_head().native_input().is_none());
-        assert_eq!(advice.logical_source_input(), Some(&input));
+        assert_native_expression_requires_its_parser(&owner, &mut graph, &advice, &schema, &input);
     }
 }
 
