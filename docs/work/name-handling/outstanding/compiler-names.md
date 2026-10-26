@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-26T07:20:57.563315+00:00
+Last updated: 2026-10-26T08:47:06.069612+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-26T08:47:06.069612+00:00: Root recovered08:42; ownJim V2 source STATIC CLEAR34a1b667, all three controls/Jimtyping/Clippy/gains UNRUN. Coherent integration carryV3 e7d48448 current formalV5docs prefix plus EXACT ownV2 appendix, newGit-absent module manifest null/create, all8Rustbytes/Rustpatch EXACT clearedV2, F-R-F0 both lanes. SourceProc minimalcarrypeer pending; root soleintegration/finalpins. LayoutV5source CLEAR0ac94e3c+protocolV2 rootintegrating; Compiler owns separateOwnJim3 protocol AFTERlayout3 on SAMEfreshlibtest, old124selectors/env/budgets/deadline/sharedcapunchanged. No competingcentraldriver/metadataauthoring, no localbuild/bigcopy/newfunctionality untilnextwave. LatestfullyauthJim05952 remains35/45/original16/26; no inferredgains.
 
 Resume 2026-10-26T07:20:57.563315+00:00: OwnJim member6681bc05 V1 FROZEN BUT HELD by SourceProc strongpeer: missing exact member helper argument, missing protocol-derived member publication slot join in both routes, and association ledger drops applicability debts. Batch V2 will use exact readonly child, current+declaration slot comparisons via existing Jim publication recipe, and metadata association allows only inherent UnavailableActualLookup/WrittenTransition conditions; unknown/arity/deferred/declaration debts remain diagnostic but cannot insert methods/ledger. Equal-source foreign owner negative retained; component negatives must use genuinely different source because source memo may share canonical components. No integration/actualgain claim. LayoutV5 source CLEAR0ac94e3c; Compiler separate3 protocol conditional final source underreview, old124 unchanged. Rootcapacityblocked and disk briefly below2GiB; largewrites/downloads/sourcecopies paused, Codegen reversible closedJSON compression restored narrowheadroom. Currentreadonlyreview only, no canonical changes or deletions.
 

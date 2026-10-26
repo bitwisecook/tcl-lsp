@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T08:09:07Z
+Last updated: 2026-10-26T09:05:45Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Rootrecovered08:42; USER explicitlyAPPROVEDcompatiblechecked_character_view+genuineNativegetter (Rootrecordsactualdecision), no policyreopen. Getter8currentcarry7c92/Wec698/C04478 strongc243 nowcanonicalWORK30ef/Ccarryroot; oldas_chars/try_as_str signatures/defaultadapters/RawStringstrict controls retained, newNativeCoreentry postbootstrap+finalcleanup/currentness only, stale/profile-only/foreign/free/updater/retired inputs refuse. Restoredoriginal41ff42/count3/U00ff positive nowgenuineNativeCore checkeddoor; ownedview/UTF16/NativeIndexOpscount purposes separate. Getter11sameELFproto50375990 strong265e0385 afterold150→161, READMEb555 stronga7a9c594; ownerrowWc236/Cd0bb SourceProcpeerpending. No furtherRustthiswave; actualRust/Clippy/all11controlsUNRUN. Getter8+2newleaf/caller/testdependencyintentc86ed9c8 deliveredCodegensolefinal23union. Allocation2protocol peer9c786803 clearedandrootapplying; userallocation2→3/exactteardown ownedCodegen, no stalehelddecisionclaim. AppendV3currentcarry56ac/strong298163+semantic950/bounded625 nowcanonicald8f1/Ce627, actualpositive stillUNRUN. Latestsealedruntime059143 andSpecc6a4 scopes unchanged; allretainedoldfailures/CFI/full600incomplete remainhonest.
 
 Release handoff sealed in vm-runtime-ready-20261026T0805-v1/index.json SHAb4ff96fd. FinalNativeAppendV3 source b838cb17/W5f98f7dc/C12b65ec3 is strongSTATIC CLEAR95046020; V1name-inputhold andV2NEWscripted-negativepremise corrected. ActualRust/Clippy/positivecontrols remainUNRUN, Codegenboundedpeer pendingcapacity. ObserverV2sourcecanonicala2bc/ab882, approvedfocusedprotocol a5a575dc+ownerdocs c9a66d68 strong8a6cf938 awaitrootapply; conditionalheadroom2protocol46f0a183/00f2a3d3 likewise. Rootselectedmodelcapacityerror currentlyblocks authorizedroot-onlycanonicalintegration/pins/push/hosteddispatch; Runtimeperformedno takeover. c6a4SpecFULLAUTHf4e64b52 and059runtime143FULLAUTH7aa6540f fullysealed; no C1C2/globalruntime/CFIacceptance andallheldpublicAPI/allocationchoices unchanged.
 

@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T07:10:33.844768+00:00
+Last updated: 2026-10-26T09:15:21.615878+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Final b2a source union frozen9358189c/5b1fb05c independently CLEARafae344b:18files,40existingrefresh+32approveddeps, full23/17maps347records227Gitfiles, full10getter3maps/OwnJimparentfanout/headroom2maps/refsHostNav, histories/protocols/env/budgets unchanged. Both prospectiveV14PASS13/30/20 and all9 actualruntime source-functionguards PASS; Root canonicalapply/push/dispatch remains separate. User-approved allocationcurrentcarry231c strong34f2 and protocolbe4f strong9c786 complete, all actualnew results stillUNRUN; original25WASM scope now2to3+teardown asapproved. Sourceheadroom075fa integrated byRoot, oldmanual63/newprobe controls scheduled. Latest ordinaryf763 CI09:14 still shard2/E2E1/E2E2 active, preserve; all current source outcomes require newhosted runs. No latestbroad acceptance/performance claim.
+
+Root recovered and is integrating reviewed source/protocol cohorts. User allocation decision now authorized: exact calls2to3 object/buffer stability plus owned teardown conservation; compatible checked_character_view+genuine getter authorized separately. Preparing current carry of reviewed allocationV4 plus two-control protocol, with no old permission question. AppendV3 bounded API CLEAR62533632 and strong95046020 complete. Headroom075fa/source752b3790 and two-control00f2a3d3 are root-integrated; actual controls unrun. Root will supply one final source freeze for sole all23union with explicit new headroom/refs/OwnJim dependencies. No local builds or big writes.
 
 Capacity/disk interruption: LSP reports root errored, so no new canonical integration/final source freeze is assumed. At07:07 free2,120,904,704B below2GiB; all largewrites paused. Own closed Oct23 source/provider JSON evidence10paths losslessly deduplicated to5gzip archives, exact raw/compressed SHA+restore paths retained in ccg-closed-manifest-compression-v1; fresh free2,201,051,136B. No canonical/source/archive/executable/target/control deletion or healthy cancellation. Current headroom075fa raw packet retained; root alone integrates. Full CI captures remain owned; latest913 available baseline failures are scoped/incomplete, not latest acceptance.
 
