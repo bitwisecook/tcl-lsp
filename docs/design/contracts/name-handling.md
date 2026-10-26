@@ -337,6 +337,16 @@ reusing a closed analytical correspondence. Missing correspondence retains exact
 inputs or recomputes. Cache reuse grants no Native entry or selected-command
 authority.
 
+Cached Script child restoration discards template bindings and reselects the
+retained children from the current collector. A fresh source-syntax attachment
+requires the current complete parent, one retained contained child site, exact
+raw child binding and original word vector, full source input and Registry,
+and every actual compiler observation's source, configuration, namespace and
+table. The shared visitor keeps its existing Inline/Named selection and
+admission checks. Missing or conflicting current evidence leaves the child
+unattached. Ordinary consumers still require their exact attached analysis
+owner; restoration grants no Native entry, execution, completion or effects.
+
 Original source lattice callbacks additionally retain the exact source-issued
 request, full prepared CFG context, optional profile and complete worker inputs.
 A data-only memo descriptor must match that recipe before the existing CFG,
