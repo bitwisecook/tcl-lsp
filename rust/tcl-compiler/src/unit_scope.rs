@@ -5542,6 +5542,74 @@ mod tests {
         assert_eq!(evidence.slots[&0].values, BTreeSet::from(["FIRST".into()]));
     }
 
+    fn assert_original_argv_metadata_has_separate_purpose(
+        phase: &crate::ir::CommandTokens,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        module: &IrModule,
+        registry: &CommandRegistry,
+    ) {
+        let binding = phase.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_invocation_metadata_for_owner(phase, owner, registry)
+                .is_err()
+        );
+        assert!(
+            binding
+                .original_argument_metadata_for_owner(phase, owner, registry)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            binding
+                .original_argument_metadata_for_module(phase, module, registry)
+                .is_some()
+        );
+    }
+
+    fn assert_original_argv_child_refusals(
+        ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+        phase: &crate::ir::CommandTokens,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+    ) {
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
+        fn caller(
+            owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        ) -> CallerFrame<'_> {
+            CallerFrame {
+                metadata_owner: owner,
+                scope: CallerScopeId::Extra(0),
+                params: &[],
+                callers_tracked: true,
+            }
+        }
+        let mut missing_child = (*phase).clone();
+        missing_child.nested_bindings.clear();
+        let mut changed_vector = (*phase).clone();
+        changed_vector.argv_texts[1] = "changed".into();
+        for refused_tokens in [&missing_child, &changed_vector] {
+            let mut refused = CallSiteEvidence::default();
+            record_original_lifted_call_sites(
+                &mut refused,
+                ctx,
+                &caller(owner),
+                Some(refused_tokens),
+            );
+            assert!(refused.get("::add").unwrap().opaque_caller);
+        }
+        // A typed residual producer explicitly performs no argv evaluation.
+        let residual =
+            crate::ir::CommandTokens::marker(crate::ir::SyntheticMarker::EvaluatedWrapper);
+        let mut empty = CallSiteEvidence::default();
+        record_original_lifted_call_sites(
+            &mut empty,
+            ctx,
+            &caller(&Owner::Unavailable),
+            Some(&residual),
+        );
+        assert!(empty.is_empty());
+    }
+
     #[test]
     fn original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty() {
         fn caller(
@@ -5582,30 +5650,11 @@ mod tests {
                 })
             })
             .expect("actual return argv boundary");
-        let binding = phase.source_binding.as_ref().unwrap();
-        assert!(
-            binding
-                .original_invocation_metadata_for_owner(
-                    phase,
-                    &function.metadata_context,
-                    context.commands()
-                )
-                .is_err()
-        );
-        assert!(
-            binding
-                .original_argument_metadata_for_owner(
-                    phase,
-                    &function.metadata_context,
-                    context.commands()
-                )
-                .unwrap()
-                .is_some()
-        );
-        assert!(
-            binding
-                .original_argument_metadata_for_module(phase, module, context.commands())
-                .is_some()
+        assert_original_argv_metadata_has_separate_purpose(
+            phase,
+            &function.metadata_context,
+            module,
+            context.commands(),
         );
         let identities =
             crate::realm::document_realm_bindings_for_module(module, context.commands()).unwrap();
@@ -5662,31 +5711,7 @@ mod tests {
             assert!(refused.get("::add").unwrap().opaque_caller);
             assert!(refused.get("::add").unwrap().arg_counts.contains(&0));
         }
-        let mut missing_child = phase.clone();
-        missing_child.nested_bindings.clear();
-        let mut changed_vector = phase.clone();
-        changed_vector.argv_texts[1] = "changed".into();
-        for refused_tokens in [&missing_child, &changed_vector] {
-            let mut refused = CallSiteEvidence::default();
-            record_original_lifted_call_sites(
-                &mut refused,
-                &ctx,
-                &caller(&function.metadata_context),
-                Some(refused_tokens),
-            );
-            assert!(refused.get("::add").unwrap().opaque_caller);
-        }
-        // A typed residual producer explicitly performs no argv evaluation.
-        let residual =
-            crate::ir::CommandTokens::marker(crate::ir::SyntheticMarker::EvaluatedWrapper);
-        let mut empty = CallSiteEvidence::default();
-        record_original_lifted_call_sites(
-            &mut empty,
-            &ctx,
-            &caller(&Owner::Unavailable),
-            Some(&residual),
-        );
-        assert!(empty.is_empty());
+        assert_original_argv_child_refusals(&ctx, phase, &function.metadata_context);
     }
 
     #[test]

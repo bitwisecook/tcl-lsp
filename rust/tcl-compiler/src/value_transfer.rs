@@ -10741,6 +10741,105 @@ mod original_child_script_purpose_tests {
         (context, unit)
     }
 
+    fn assert_original_summary_scripts_keep_bom(
+        driver: &LatticeDriver<'_>,
+        originals: [&crate::interprocedural::OriginalSummaryScript; 2],
+        script: &str,
+        lattice: Lattice<
+            '_,
+            std::collections::hash_map::RandomState,
+            std::collections::hash_map::RandomState,
+        >,
+    ) {
+        for original in originals {
+            assert_eq!(original.text(), script);
+            assert!(original.base() > 0);
+            let command = original.command_at(original.base()).unwrap();
+            assert_eq!(command.argv_texts[0], "\u{feff}emit");
+            let ran = driver
+                .run_script(
+                    script,
+                    lattice,
+                    (Vec::new(), NestedPolicy::EffectFreeOnly),
+                    Some(original),
+                )
+                .unwrap();
+            assert_eq!(ran.head, "\u{feff}emit");
+            assert_eq!(ran.binding.identity, "list");
+            assert!(
+                driver
+                    .run_script(
+                        "list VALUE",
+                        lattice,
+                        (Vec::new(), NestedPolicy::EffectFreeOnly),
+                        Some(original)
+                    )
+                    .is_none()
+            );
+        }
+        assert!(
+            driver
+                .run_script(
+                    script,
+                    lattice,
+                    (Vec::new(), NestedPolicy::EffectFreeOnly),
+                    None
+                )
+                .is_none()
+        );
+    }
+
+    fn assert_missing_summary_owner(
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+        parents: &[crate::ir::CommandTokens],
+        script: &str,
+    ) {
+        let mut changed = (*unit).clone();
+        changed.ir_module.source_metadata_input = None;
+        let missing = crate::interprocedural::ModuleProcedures::of_unit(&changed, registry);
+        assert!(
+            parents
+                .iter()
+                .all(|parent| missing.original_body(parent, 0, script).is_none())
+        );
+    }
+
+    fn assert_protected_summary_keeps_original_source(
+        driver: &LatticeDriver<'_>,
+        script: &str,
+        state: &mut EvaluationState,
+        inputs: &LatticeInputs<
+            '_,
+            std::collections::hash_map::RandomState,
+            std::collections::hash_map::RandomState,
+        >,
+    ) {
+        assert!(matches!(
+            driver.protected_script(script, state, inputs),
+            EvalAnswer::Evaluated(_)
+        ));
+        assert!(matches!(
+            driver.protected_script("list VALUE", state, inputs),
+            EvalAnswer::Declined(_)
+        ));
+    }
+
+    fn assert_summary_config_keeps_original_grammar(
+        driver: &LatticeDriver<'_>,
+        unit: &CompilationUnit,
+        config: LexerConfig,
+    ) {
+        assert_eq!(driver.lexer_config, config);
+        assert_eq!(
+            unit.procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
+                .source_lexer_config(),
+            config
+        );
+    }
+
     #[test]
     fn original_summary_child_keeps_bom_alias_and_complete_parent_correspondence() {
         // naming.interprocedural.original-transfer-summary-source-context
@@ -10828,70 +10927,18 @@ mod original_child_script_purpose_tests {
             .get(&fixture_id(&unit.procedures, "::p"))
             .expect("authored fixture body")
             .ssa;
-        for original in [&body, &child] {
-            assert_eq!(original.text(), script);
-            assert!(original.base() > 0);
-            let command = original.command_at(original.base()).unwrap();
-            assert_eq!(command.argv_texts[0], "\u{feff}emit");
-            let ran = driver
-                .run_script(
-                    script,
-                    (&uses, &values, ssa),
-                    (Vec::new(), NestedPolicy::EffectFreeOnly),
-                    Some(original),
-                )
-                .unwrap();
-            assert_eq!(ran.head, "\u{feff}emit");
-            assert_eq!(ran.binding.identity, "list");
-            assert!(
-                driver
-                    .run_script(
-                        "list VALUE",
-                        (&uses, &values, ssa),
-                        (Vec::new(), NestedPolicy::EffectFreeOnly),
-                        Some(original)
-                    )
-                    .is_none()
-            );
-        }
-        assert!(
-            driver
-                .run_script(
-                    script,
-                    (&uses, &values, ssa),
-                    (Vec::new(), NestedPolicy::EffectFreeOnly),
-                    None
-                )
-                .is_none()
+        assert_original_summary_scripts_keep_bom(
+            &driver,
+            [&body, &child],
+            script,
+            (&uses, &values, ssa),
         );
         let inputs = driver.expression_inputs((&uses, &values, ssa));
         *inputs.nested_source.borrow_mut() = Some(body.clone());
         let mut state = EvaluationState::new(NestedPolicy::Protected);
-        assert!(matches!(
-            driver.protected_script(script, &mut state, &inputs),
-            EvalAnswer::Evaluated(_)
-        ));
-        assert!(matches!(
-            driver.protected_script("list VALUE", &mut state, &inputs),
-            EvalAnswer::Declined(_)
-        ));
-        assert_eq!(driver.lexer_config, config);
-        assert_eq!(
-            unit.procedures
-                .get(&fixture_id(&unit.procedures, "::p"))
-                .expect("authored fixture body")
-                .source_lexer_config(),
-            config
-        );
-        let mut changed = unit.clone();
-        changed.ir_module.source_metadata_input = None;
-        let missing =
-            crate::interprocedural::ModuleProcedures::of_unit(&changed, context.commands());
-        assert!(
-            parents
-                .iter()
-                .all(|parent| missing.original_body(parent, 0, script).is_none())
-        );
+        assert_protected_summary_keeps_original_source(&driver, script, &mut state, &inputs);
+        assert_summary_config_keeps_original_grammar(&driver, &unit, config);
+        assert_missing_summary_owner(&unit, context.commands(), &parents, script);
     }
 
     #[test]
