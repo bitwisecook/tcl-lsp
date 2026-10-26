@@ -149,6 +149,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-native-string-effects3-",
             "diagnostic-native-formal-layout2-",
             "diagnostic-analyser-layout3-",
+            "diagnostic-own-jim-member3-",
             "list-",
             "select-",
         )
@@ -172,6 +173,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-native-string-effects3-",
             "diagnostic-native-formal-layout2-",
             "diagnostic-analyser-layout3-",
+            "diagnostic-own-jim-member3-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -196,6 +198,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-native-string-effects3-",
             "diagnostic-native-formal-layout2-",
             "diagnostic-analyser-layout3-",
+            "diagnostic-own-jim-member3-",
         )
     ):
         require(
@@ -2311,6 +2314,200 @@ def run_analyser_layout_controls() -> None:
         )
 
 
+def run_own_jim_member_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows
+        ),
+        "own Jim member controls cannot precede original127 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in own_jim_member_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "own Jim member controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(own_jim_member_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "own Jim member current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "own Jim member requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "own Jim member artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "own-jim-member3"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "own-jim-member-outcomes.json", own_jim_member_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "own-jim-member-outcomes.json", own_jim_member_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "own-jim-member-outcomes.json", own_jim_member_rows)
+            raise
+        save(out / "own-jim-member-outcomes.json", own_jim_member_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -2711,7 +2908,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "7321dad0383235f0eb6c39df288c0d2fa418d786f1b34b7fd383a5b1b6ec810a",
+    == "fe17a427c80c0853da3d1512a6fa42097a6403ca4c8aa392912d4b27b4d794af",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -2854,6 +3051,19 @@ require(analyser_layout_validation["rows"] == [{'group': 'diagnostic-analyser-la
     and not {row["selector"] for row in analyser_layout_rows}.intersection(
         row["selector"] for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows),
     "analyser layout exact target/selectors/environment/no overlap")
+
+own_jim_member_validation = logical_validation["separate_own_jim_member_controls"]
+require(set(own_jim_member_validation) == {"schema", "expected_selected", "source", "source_peer_reference", "rows"}
+    and own_jim_member_validation["schema"] == "own-jim-member-control3-v1"
+    and own_jim_member_validation["expected_selected"] == len(own_jim_member_validation["rows"]) == 3
+    and own_jim_member_validation["source"] == 'rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs'
+    and own_jim_member_validation["source"] in logical_validation["source_pins"],
+    "own Jim member schema/count/current pinned test source")
+own_jim_member_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in own_jim_member_validation["rows"]]
+require(own_jim_member_validation["rows"] == [{'group': 'diagnostic-own-jim-member3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_keeps_before_and_after_factory_custody', 'env': {}}, {'group': 'diagnostic-own-jim-member3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_refuses_foreign_and_corrupt_recipes', 'env': {}}, {'group': 'diagnostic-own-jim-member3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::source_jim_member::tests::own_jim_member_refuses_rebound_class_and_replaced_initialisers', 'env': {}}]
+    and not {row["selector"] for row in own_jim_member_rows}.intersection(
+        row["selector"] for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows),
+    "own Jim member exact target/selectors/environment/no overlap")
 
 require(
     len(
@@ -3748,7 +3958,12 @@ try:
     status = 2
     run_analyser_layout_controls()
     require(len(analyser_layout_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in analyser_layout_rows), "analyser layout controls incomplete")
+    status = 2
+    run_own_jim_member_controls()
+    require(len(own_jim_member_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in own_jim_member_rows), "own Jim member controls incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    if any(row["state"] != "PASS" for row in own_jim_member_rows):
+        status = 1
     if any(row["state"] != "PASS" for row in analyser_layout_rows):
         status = 1
     if any(row["state"] != "PASS" for row in native_formal_rows):
@@ -3820,6 +4035,7 @@ finally:
     save(out / "native-string-effects-outcomes.json", native_string_rows)
     save(out / "native-formal-layout-outcomes.json", native_formal_rows)
     save(out / "analyser-layout-outcomes.json", analyser_layout_rows)
+    save(out / "own-jim-member-outcomes.json", own_jim_member_rows)
     save(out / "outcomes.json", rows)
     save(
         out / "final.json",
@@ -3885,6 +4101,10 @@ finally:
             ),
             "logical3_outcomes": logical_rows,
             "separate_logical_roster": logical_validation,
+            "required_separate_own_jim_member_controls": 3,
+            "own_jim_member_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in own_jim_member_rows),
+            "own_jim_member3_outcomes": own_jim_member_rows,
+            "own_jim_member3_roster": own_jim_member_validation,
             "required_separate_analyser_layout_controls": 3,
             "analyser_layout_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in analyser_layout_rows),
             "analyser_layout3_outcomes": analyser_layout_rows,
