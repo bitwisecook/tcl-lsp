@@ -279,7 +279,7 @@ impl CapturedContainerModel {
                 let keys = std::mem::take(&mut cell.borrow_mut().native_member_keys);
                 keys
             };
-            keys.retire_with_check(&same_root)?;
+            keys.retire_with_check(same_root)?;
             same_root()?;
             let published = root.as_ptr();
             let root_allocation = obj::NativeObjectLifetime::retain(published);

@@ -284,7 +284,10 @@ mod tests {
             crate::codegen_abi::tcl_runtime_set_current_interp(&mut interpreter);
             let arguments =
                 OriginalArguments::enter(&interpreter, &[first.as_ptr(), later.as_ptr()]).unwrap();
-            let failure = arguments.bytes(0).err().expect("original updater refuses");
+            let failure = arguments
+                .bytes(0)
+                .err()
+                .unwrap_or_else(|| panic!("original updater refuses"));
             let retained = interpreter.native_execution_refusal().unwrap();
             assert_eq!(failure.native_execution_refusal(), Some(&retained));
             assert!(arguments.bytes(1).is_err());
@@ -314,7 +317,7 @@ mod tests {
         let failure = arguments
             .bytes(0)
             .err()
-            .expect("allocation lease supplies no native role");
+            .unwrap_or_else(|| panic!("allocation lease supplies no native role"));
         let expected = NativeExecutionError::ValueAccessRefusal(
             NativeValueAccessRefusal::CommandProtocolUnavailable("retired native object"),
         );

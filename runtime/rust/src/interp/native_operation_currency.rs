@@ -584,7 +584,10 @@ mod tests {
         assert_eq!(interpreter.entered_native_operation_count(), 1);
         surviving.check().unwrap();
         change_and_restore(&mut interpreter);
-        let error = surviving.check().err().expect("original context retired");
+        let error = surviving
+            .check()
+            .err()
+            .unwrap_or_else(|| panic!("original context retired"));
         assert_eq!(error.native_execution_refusal(), Some(&stale()));
         assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
         assert!(OriginalArguments::enter(&interpreter, &argv).is_err());

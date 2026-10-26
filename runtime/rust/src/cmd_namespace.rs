@@ -991,7 +991,7 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
     for index in 2..argv.len() {
         let original = match arguments.bytes(index) {
             Ok(original) => original,
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error(error),
         };
         let Some(policy) = interp.name_policy_protocol() else {
             return interp.report_cmd_error(
@@ -1244,7 +1244,7 @@ pub(crate) fn ns_operation_not_found_using(
 ) -> Code {
     let bytes = match interp.original_c_name_bytes_using(original, stage) {
         Ok(bytes) => bytes,
-        Err(error) => return interp.report_cmd_error_using(error.into(), stage),
+        Err(error) => return interp.report_cmd_error_using(error, stage),
     };
     let Some(policy) = interp.name_policy_protocol() else {
         return interp.report_cmd_error_using(
@@ -1461,7 +1461,7 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let origin = match origin {
         Ok(origin) => origin,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return interp.report_cmd_error(error),
     };
     match origin {
         Some(fqn) => {

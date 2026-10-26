@@ -260,7 +260,9 @@ fn original_return_options_key_stops_on_frame_host_context_and_carried_record_ch
                     &objects,
                 )
                 .err()
-                .expect("original callback stops before stale options publication");
+                .unwrap_or_else(|| {
+                    panic!("original callback stops before stale options publication")
+                });
             first(&actual, &error, mode);
             assert_eq!(GETTERS.get(), 1);
             assert_eq!(LATER.get(), 0);
@@ -320,7 +322,7 @@ fn original_return_info_string_keeps_frame_and_private_role_before_second_getter
             } else {
                 let error = reached
                     .err()
-                    .expect("frame/Host callback blocks private info adoption");
+                    .unwrap_or_else(|| panic!("frame/Host callback blocks private info adoption"));
                 first(&actual, &error, mode);
                 assert!(actual.exc.borrow().native.info.is_none());
             }
@@ -360,7 +362,9 @@ fn original_return_stack_string_refuses_before_list_backing_and_private_stack_ad
                     &objects,
                 )
                 .err()
-                .expect("original stack conversion callback blocks backing adoption");
+                .unwrap_or_else(|| {
+                    panic!("original stack conversion callback blocks backing adoption")
+                });
             first(&actual, &error, mode);
             assert_eq!(GETTERS.get(), 1);
             assert_eq!(REFS.get(), 2);
@@ -406,7 +410,9 @@ fn original_return_info_retirement_keeps_reached_field_and_blocks_later_getter()
                 &objects,
             )
             .err()
-            .expect("private owner retirement blocks continuation under original frame");
+            .unwrap_or_else(|| {
+                panic!("private owner retirement blocks continuation under original frame")
+            });
         first(&actual, &error, 2);
         assert_eq!(GETTERS.get(), 1);
         assert_eq!(REFS.get(), 2);

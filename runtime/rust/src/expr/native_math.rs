@@ -312,7 +312,11 @@ mod tests {
         assert_eq!(unsafe { (*integer.ptr()).ref_count }, 2);
         let boolean = Owned::fresh(obj::new_string_bytes(b"true"));
         let operation = crate::builtins::math_operation(&mut interpreter).unwrap();
-        let result = operation.dispatch("bool", &[boolean.clone()]).unwrap();
+        let argument = boolean.clone();
+        let result = operation
+            .dispatch("bool", core::slice::from_ref(&argument))
+            .unwrap();
+        drop(argument);
         assert_eq!(obj::bytes_of(result.ptr()), b"1");
         assert_eq!(obj::bytes_of(boolean.ptr()), b"true");
         assert_eq!(unsafe { (*boolean.ptr()).ref_count }, 1);

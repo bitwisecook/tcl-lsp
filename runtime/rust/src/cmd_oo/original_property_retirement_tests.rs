@@ -195,7 +195,7 @@ fn property_registration_refusal_stops_later_direction_and_epoch_publication() {
             assert!(!interpreter.oo.borrow().objects.contains_key(&target));
             let error = outcome.err().unwrap();
             assert_eq!(
-                error.error_code_bytes().as_deref(),
+                error.error_code_bytes(),
                 Some(b"TCL OO MONKEY_BUSINESS".as_slice())
             );
             assert_first(&interpreter, 0);

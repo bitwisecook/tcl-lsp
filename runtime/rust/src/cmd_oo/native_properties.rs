@@ -1306,7 +1306,7 @@ fn invoke_default_original(
     };
     let bytes = match originals.bytes(0) {
         Ok(bytes) => bytes,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return interp.report_cmd_error(error),
     };
     let namespace = interp
         .oo
@@ -1323,7 +1323,7 @@ fn invoke_default_original(
     let mapped =
         match default_storage_name(interp, target, accessor.original.as_ptr(), recipe.strings()) {
             Ok(mapped) => mapped,
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error(error),
         };
     let variable_bytes = mapped.as_deref().unwrap_or(&bytes);
     let generated = recipe
@@ -1773,7 +1773,7 @@ mod original_slot_boundary_tests {
             let failure =
                 set_property_slot(&mut interpreter, target, true, false, original.as_ptr())
                     .err()
-                    .expect("reached original getter refuses");
+                    .unwrap_or_else(|| panic!("reached original getter refuses"));
             let first_cause = interpreter
                 .native_execution_refusal()
                 .expect("actual callback retains its typed first cause");
@@ -1821,7 +1821,7 @@ mod original_slot_boundary_tests {
             let failure =
                 set_property_slot(&mut interpreter, target, true, false, original.as_ptr())
                     .err()
-                    .expect("first member getter refuses");
+                    .unwrap_or_else(|| panic!("first member getter refuses"));
             let first_cause = interpreter
                 .native_execution_refusal()
                 .expect("actual callback retains its typed first cause");
@@ -1887,7 +1887,9 @@ mod original_slot_boundary_tests {
                 assert!(result.is_ok());
                 assert_eq!(interpreter.oo.borrow().property_foundation_epoch, epoch + 1);
             } else if mode == 3 {
-                let failure = result.err().expect("original target was deleted");
+                let failure = result
+                    .err()
+                    .unwrap_or_else(|| panic!("original target was deleted"));
                 assert!(failure.native_execution_refusal().is_none());
                 assert!(!interpreter.oo.borrow().objects.contains_key(&target));
                 assert_eq!(
@@ -1895,7 +1897,9 @@ mod original_slot_boundary_tests {
                     RETIREMENT_EPOCH.with(Cell::get),
                 );
             } else {
-                let failure = result.err().expect("reached original retirement refuses");
+                let failure = result
+                    .err()
+                    .unwrap_or_else(|| panic!("reached original retirement refuses"));
                 let first_cause = interpreter
                     .native_execution_refusal()
                     .expect("actual retirement retains its typed first cause");

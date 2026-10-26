@@ -640,7 +640,7 @@ impl Interp {
         // acquires the ALL-record entry role in the original C TclOO source.
         drop(steps);
         let check = || world.check(self, &originals, target, external, protocol);
-        obj::native_method_name::install(original, Rc::clone(&chain), protocol.strings(), &check)?;
+        obj::native_method_name::install(original, Rc::clone(&chain), protocol.strings(), check)?;
         check()?;
         let entered = ReachedMethodChain::from_cached(Rc::clone(&chain))
             .ok_or_else(OriginalCacheWorld::unavailable)?;

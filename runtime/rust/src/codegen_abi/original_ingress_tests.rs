@@ -291,7 +291,7 @@ fn original_guest_completion_uses_its_retained_interpreter_after_tls_retarget() 
     let mut interpreter = original();
     let mut other = original();
     let unrelated = NativeValueAccessRefusal::CommandProtocolUnavailable("unrelated interpreter");
-    other.refuse_native_access(unrelated.clone());
+    other.refuse_native_access(unrelated);
     OTHER.with(|slot| slot.set(&mut other));
     interpreter.register_builtin(b"retarget", retarget_command);
     tcl_runtime_set_current_interp(&mut interpreter);

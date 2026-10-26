@@ -2900,9 +2900,7 @@ pub const ROWS: &[Row] = &[
 pub fn unhex(input: &str) -> Vec<u8> {
     input
         .as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
+        .chunks_exact(2)
         .map(|b| u8::from_str_radix(std::str::from_utf8(b).unwrap(), 16).unwrap())
         .collect()
 }

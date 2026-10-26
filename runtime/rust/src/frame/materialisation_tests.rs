@@ -67,10 +67,7 @@ fn effect(original: *mut TclObj) {
         REFERENCES.with(|count| count.set(unsafe { (*original).ref_count }));
         let array = ARRAY.with(|array| array.borrow().as_ref().unwrap().clone());
         assert!(array.contents.try_borrow_mut().is_ok());
-        assert_eq!(
-            array.read(b"k").map(|value| obj::bytes_of(value)),
-            Some(b"V".to_vec())
-        );
+        assert_eq!(array.read(b"k").map(obj::bytes_of), Some(b"V".to_vec()));
     }
     match MODE.with(Counter::get) {
         1 => {

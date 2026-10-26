@@ -4720,7 +4720,7 @@ mod tests {
             let prior = interp.result_obj();
             let first =
                 tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;
-            interp.refuse_native_access(first.clone());
+            interp.refuse_native_access(first);
             let words = [
                 owned_word(b"string"),
                 owned_word(b"length"),
@@ -4750,7 +4750,7 @@ mod tests {
                 assert_eq!(
                     interp.native_execution_refusal(),
                     Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-                        first.clone()
+                        first
                     ),)
                 );
                 assert_eq!(out.code, 77);

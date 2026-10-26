@@ -124,7 +124,7 @@ impl RetiredVariableParts {
                     }
                 }
                 RetiredPart::Elements(elements) => {
-                    if let Err(error) = elements.retire_with_check(&current) {
+                    if let Err(error) = elements.retire_with_check(current) {
                         first.get_or_insert(error);
                     }
                 }

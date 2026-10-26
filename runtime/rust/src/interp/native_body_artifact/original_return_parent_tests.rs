@@ -280,7 +280,7 @@ fn original_compiled_errorcode_uses_selected_old_role_before_incoming_hold_witho
             } else {
                 let error = reached
                     .err()
-                    .expect("selected retirement stops incoming publication");
+                    .unwrap_or_else(|| panic!("selected retirement stops incoming publication"));
                 first(&actual, mode);
                 assert_eq!(
                     error.native_execution_refusal(),
