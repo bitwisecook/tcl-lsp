@@ -36,9 +36,10 @@
   "source_pins": {
     "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "c2c865b13092f54623843bc08984458eb4825e52f350a327bda508ed11dd3f03",
     "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "9ba965233c04a1eb696deadbcda1e772ef6b8e70bcf4db4775cd9c99cac0cc50",
-    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "50f563827b25b80b0efa7bc7366ea0e7723f27a82acea66ed0ceea35ac01eb84",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "0e269cc58bfcd2c26696ff4eac8b116f8165b432e398dd1d38289ab69040395f",
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
-    "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5"
+    "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
+    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "a79722e7adfc4da8c4884ba2fc8481cf295c5a6cce7d3c8c4a70bef53def5e06"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -224,9 +225,28 @@
       }
     ],
     "source_pins": {
-      "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "50f563827b25b80b0efa7bc7366ea0e7723f27a82acea66ed0ceea35ac01eb84"
+      "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "0e269cc58bfcd2c26696ff4eac8b116f8165b432e398dd1d38289ab69040395f"
     },
     "source_peer_reference": "source-peer-known-child-live-producer-v4/receipt.json sha256:571eb418358d3ba0483bb0ec5bbbd59f2df50de4482e0e96d943a4ebdfaa278e",
     "scope": "Separate appended source controls AFTER unchanged old108; SAME existing freshly built compiler library ELF; no extra build, env, flags, budget/reset or acceptance claim"
+  },
+  "separate_restored_child_owner_control": {
+    "schema": "restored-child-analysis-owner-control1-v1",
+    "expected_selected": 1,
+    "source": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+    "source_sha256": "a79722e7adfc4da8c4884ba2fc8481cf295c5a6cce7d3c8c4a70bef53def5e06",
+    "source_peer_reference": "LSP restored child V4 source peer aaa458e8, integrated",
+    "rows": [
+      {
+        "group": "diagnostic-restored-child-owner1",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::restored_nested_compiler_carriers_issue_only_current_complete_source_owners",
+        "env": {}
+      }
+    ]
   }
 }

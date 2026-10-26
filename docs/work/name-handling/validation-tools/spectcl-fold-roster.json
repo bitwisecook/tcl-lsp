@@ -35,7 +35,7 @@
     "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
     "rust/tcl-compiler/src/registry_invocation.rs": "c7017e62d5efd8721978c14121bdfd6e7c619dde5de4dbcf78a8f475e22fbe2b",
     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
-    "rust/tcl-compiler/src/value_transfer.rs": "e17db506591ed8c21a7ddee88819876f4fa614d47e60acb7f0842c81c76c0be6",
+    "rust/tcl-compiler/src/value_transfer.rs": "199a1a394535427351725ad21e3c6b1c8b0d3305ce5b3e1eaba9215840c27159",
     "rust/tcl-registry/src/model/context.rs": "84b8adfdf3397c393b6ee83742f3cbaa49e837555be87348255828ccc6bc8e65",
     "rust/tcl-registry/src/registry.rs": "faf1dff8ebc7a7911a99079229b0044373b6658f94a7e940faab9e41e54f4b76",
     "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d",

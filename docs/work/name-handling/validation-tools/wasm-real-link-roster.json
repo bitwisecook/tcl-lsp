@@ -35,7 +35,7 @@
     "rust/tcl-compiler/tests/common/wasm_link.rs": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe",
     "rust/tcl-compiler/tests/wasm_real_link.rs": "c99a55601a2e2e78736091e14cf945a4ad9c9adf9894633add3782d831478a57",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
-    "rust/tcl-runtime-api/src/codegen_abi.rs": "fd0d0f1a2a39fd9c64813871fae3e6f5322d5d6705f4e89bc6f0eb39c89b36fa",
+    "rust/tcl-runtime-api/src/codegen_abi.rs": "a8442a8bbf9734ed3ee7b6541c2702f01c4f59ed14a67b19ae085dc225437a96",
     "rust/tcl-compiler/src/codegen/wasm/pipeline.rs": "aea4e3ae171551cb3c4ab958e8d61313be0c88acf446658a026388a9ef0154f4",
     "rust/tcl-compiler/src/codegen/wasm/native_add.rs": "9ed1eff1d9f4993e4cf29fc2f0a181c51de2832cf18e368d505ca6b5e0ac004a",
     "rust/tcl-compiler/src/codegen/wasm/native_add/retained_publication.rs": "7c99c3a3510623678403da669596422da3aae3906357ee8f2dca3359fc2c9ea7",

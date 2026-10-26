@@ -142,7 +142,7 @@
     "runtime/rust/src/interp/native_i64_body.rs": "79fa3d0ecb7c476e6c40bf08365b99cb687eacb64b733744d5bbbac98a1f9f2b",
     "runtime/rust/src/interp/native_procedure_resources.rs": "98b7f9bde6e940ef1a68e82263f04ceb6603e23d19ef93008b6bfeb5fce7dcd4",
     "runtime/rust/src/interp.rs": "72c5080834fdf53d802329da5b95282a2ef3be46a8d4bb17a4b836d51190d401",
-    "rust/tcl-runtime-api/src/codegen_abi.rs": "fd0d0f1a2a39fd9c64813871fae3e6f5322d5d6705f4e89bc6f0eb39c89b36fa"
+    "rust/tcl-runtime-api/src/codegen_abi.rs": "a8442a8bbf9734ed3ee7b6541c2702f01c4f59ed14a67b19ae085dc225437a96"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",
