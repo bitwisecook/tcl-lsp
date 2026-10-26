@@ -1335,15 +1335,14 @@ fn interp_alias_original(
     if child.is_some_and(|child| !interp.child_exists(child)) {
         return not_found_original_path(interp, argv[2]);
     }
-    if argv.len() >= 5 {
-        if !match interp_path(interp, argv[4]) {
+    if argv.len() >= 5
+        && !match interp_path(interp, argv[4]) {
             Ok(path) => path,
             Err(code) => return code,
         }
         .is_empty()
-        {
-            return only_single_interp(interp);
-        }
+    {
+        return only_single_interp(interp);
     }
     let Some(recipe) = interp
         .name_policy_protocol()
@@ -4271,10 +4270,10 @@ mod original_alias_storage_tests {
                 assert_eq!(CALLS.with(Cell::get), 2);
                 let measured = fields(stream, "ROW", case, Some("capture-before-getters"));
                 for refs in CALLBACK_REFS.with(|v| v.borrow().clone()) {
-                    for role in 0..3 {
+                    for (role, reference) in refs[..3].iter().enumerate() {
                         assert_eq!(
-                            refs[role],
-                            number(&measured, &format!("r{}_refs", role + 1))
+                            reference,
+                            &number(&measured, &format!("r{}_refs", role + 1))
                         );
                     }
                 }

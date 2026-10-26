@@ -193,12 +193,11 @@ fn original_array_set_successful_rows_preserve_selected_header_getter_order() {
             }
             assert_eq!(
                 unsafe { (*later.as_ptr()).ref_count },
-                refs + if case == 4 && profile != "jim" {
-                    1
-                } else if case == 6
-                    && interp
-                        .native_c_variable_name_protocol()
-                        .is_some_and(|protocol| protocol.element_table_retains_original())
+                refs + if (case == 4 && profile != "jim")
+                    || (case == 6
+                        && interp
+                            .native_c_variable_name_protocol()
+                            .is_some_and(|protocol| protocol.element_table_retains_original()))
                 {
                     1
                 } else {

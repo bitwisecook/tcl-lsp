@@ -130,12 +130,12 @@ impl Interp {
         original
             .check(self)
             .map_err(|error| self.report_cmd_error(error))?;
-        let reached = (|| {
+        let reached = {
             let stored = self.store_native_compiled_temporary_checked(slot, value);
             stored.map_err(|_| {
                 self.report_cmd_error(unavailable("native dictionary anonymous cell").into())
             })
-        })();
+        };
         original
             .check(self)
             .map_err(|error| self.report_cmd_error(error))?;
@@ -150,7 +150,7 @@ impl Interp {
         original
             .check(self)
             .map_err(|error| self.report_cmd_error(error))?;
-        let reached = (|| {
+        let reached = {
             let value = self
                 .frames
                 .borrow()
@@ -160,7 +160,7 @@ impl Interp {
             value.map(obj::Owned::retain).ok_or_else(|| {
                 self.report_cmd_error(unavailable("native dictionary temporary value").into())
             })
-        })();
+        };
         original
             .check(self)
             .map_err(|error| self.report_cmd_error(error))?;
@@ -230,7 +230,7 @@ impl Interp {
                             .map(|bytes| bytes.to_vec())
                     })
                     .transpose()
-                    .map_err(|error| self.report_cmd_error(error.into()))?
+                    .map_err(|error| self.report_cmd_error(error))?
                     .unwrap_or_else(|| target.root.clone());
                 let access = self.trace_access(
                     &spelling,
@@ -333,7 +333,7 @@ impl Interp {
                             .map(|bytes| bytes.to_vec())
                     })
                     .transpose()
-                    .map_err(|error| self.report_cmd_error_using(error.into(), Some(&stage)))?
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?
                     .unwrap_or_else(|| target.root.clone());
                 let access = self.trace_access(
                     &spelling,
@@ -418,7 +418,7 @@ impl Interp {
                     .map_err(|error| self.report_cmd_error(error))?;
                 let bytes = original
                     .bytes(self, key)
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                    .map_err(|error| self.report_cmd_error(error))?;
                 key_view
                     .check(self, original)
                     .map_err(|error| self.report_cmd_error(error))?;
@@ -865,7 +865,7 @@ impl Interp {
                             },
                             &|error| original.refuse(error),
                         )
-                        .map_err(|error| self.report_cmd_error(error.into()))?;
+                        .map_err(|error| self.report_cmd_error(error))?;
                         self.assign_original_named_variable(key, value)?;
                     }
                     if let Some(slot) = keys_slot {
