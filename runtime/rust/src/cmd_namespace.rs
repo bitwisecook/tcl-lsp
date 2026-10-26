@@ -42,6 +42,12 @@ use tcl_syntax::value::ValueOps;
 
 /// Register the `namespace` command.
 pub fn install(interp: &mut Interp) {
+    install_core(interp);
+    interp.install_stock_jim_namespace_helpers();
+}
+
+/// Register primitive namespace commands without loading source libraries.
+pub(crate) fn install_core(interp: &mut Interp) {
     const NAMES: &[&[u8]] = &[
         b"children".as_slice(),
         b"code".as_slice(),
@@ -75,7 +81,6 @@ pub fn install(interp: &mut Interp) {
         STOCK_MEMBERS,
         admitted,
     );
-    interp.install_stock_jim_namespace_helpers();
 }
 
 const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
@@ -2217,6 +2222,10 @@ mod tests {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();
+            crate::cmd_proc::install_stock_scripted_library(
+                &mut interp,
+                tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+            );
             let context = interp.native_jim_object_context().unwrap();
             let namespace = obj::Owned::fresh(obj::new_wide_int_obj(42));
             crate::native_source::bind_context(namespace.as_ptr(), &context).unwrap();
@@ -2318,6 +2327,10 @@ mod tests {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
+        crate::cmd_proc::install_stock_scripted_library(
+            &mut interp,
+            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+        );
         let helper = interp
             .resolve_cmd_token(b"namespace which")
             .expect("actual helper allocation");
@@ -6915,6 +6928,10 @@ mod original_import_alias_tests {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
+        crate::cmd_proc::install_stock_scripted_library(
+            &mut interp,
+            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+        );
         assert_eq!(
             interp.eval_str(b"namespace eval src {}; namespace eval dest {}"),
             Code::Ok
