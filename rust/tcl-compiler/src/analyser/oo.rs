@@ -3096,32 +3096,52 @@ impl Analyser {
         scope_path: &[usize],
     ) -> bool {
         let Some(references) =
-            crate::registry_invocation::source_structure::source_authored_jim_procedure_members_at(
-                &self.source,
-                &self.result,
-                offset,
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.own_member.recipes",
+                crate::registry_invocation::source_structure::source_authored_jim_procedure_members_at(
+                    &self.source, &self.result, offset,
+                ),
             )
         else {
             return false;
         };
+        let _ = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.own_member.recipes_nonempty",
+            (!references.is_empty()).then_some(()),
+        );
         let mut recorded = false;
         for reference in references {
-            let Some(procedure) = reference.source_procedure(&self.result) else {
+            let Some(procedure) =
+                crate::registry_invocation::source_structure::trace_jim_source_option(
+                    "jim.own_member.procedure",
+                    reference.source_procedure(&self.result),
+                )
+            else {
                 continue;
             };
             if expected.is_some_and(|expected| procedure.metadata() != expected) {
                 continue;
             }
-            let Some(canonical) = reference.class_metadata(&self.result) else {
+            let Some(canonical) =
+                crate::registry_invocation::source_structure::trace_jim_source_option(
+                    "jim.own_member.class",
+                    reference.class_metadata(&self.result),
+                )
+            else {
                 continue;
             };
             let mut class = canonical.clone();
-            let Some(metadata) = self.original_authored_jim_procedure_member(
-                &reference,
-                procedure,
-                reference.member(),
-                &class,
-            ) else {
+            let Some(metadata) =
+                crate::registry_invocation::source_structure::trace_jim_source_option(
+                    "jim.own_member.association",
+                    self.original_authored_jim_procedure_member(
+                        &reference,
+                        procedure,
+                        reference.member(),
+                        &class,
+                    ),
+                )
+            else {
                 continue;
             };
             let Ok(label) = std::str::from_utf8(reference.member().bytes()) else {

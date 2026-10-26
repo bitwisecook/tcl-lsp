@@ -96,13 +96,24 @@ impl OriginalAuthoredJimProcedureMember {
             .grammar(&analysis.resolved_input.as_ref()?.context_registry())
     }
     pub(crate) fn supports_member_association(&self, analysis: &AnalysisResult) -> bool {
-        self.matches_analysis(analysis).is_some()
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.own_member.association_owner",
+            self.matches_analysis(analysis),
+        )
+        .is_some()
             && self.recipe.obligations.iter().all(|obligation| {
-                matches!(
+                let supported = matches!(
                     obligation,
                     SourceCommandTransitionObligation::UnavailableActualLookup
                         | SourceCommandTransitionObligation::WrittenTransitionApplicability
-                )
+                );
+                if !supported {
+                    let _ = crate::registry_invocation::source_structure::trace_jim_source_option(
+                        own_member_obligation_trace_tag(obligation),
+                        None::<()>,
+                    );
+                }
+                supported
             })
     }
     /// This relation never certifies quietness or successful publication.
@@ -372,6 +383,80 @@ fn authored_jim_member_recipe(
         class_input,
         member,
         obligations,
+    }
+}
+
+fn own_member_obligation_trace_tag(obligation: &SourceCommandTransitionObligation) -> &'static str {
+    match obligation {
+        SourceCommandTransitionObligation::WrittenTransitionApplicability => {
+            "jim.own_member.debt.WrittenTransitionApplicability"
+        }
+        SourceCommandTransitionObligation::UnavailableActualLookup => {
+            "jim.own_member.debt.UnavailableActualLookup"
+        }
+        SourceCommandTransitionObligation::NativeBaselineSourceApplicability => {
+            "jim.own_member.debt.NativeBaselineSourceApplicability"
+        }
+        SourceCommandTransitionObligation::UnknownEarlierMutation => {
+            "jim.own_member.debt.UnknownEarlierMutation"
+        }
+        SourceCommandTransitionObligation::UnacceptedSourceArity => {
+            "jim.own_member.debt.UnacceptedSourceArity"
+        }
+        SourceCommandTransitionObligation::ExplicitLogicalSourceApplicability => {
+            "jim.own_member.debt.ExplicitLogicalSourceApplicability"
+        }
+        SourceCommandTransitionObligation::ConditionalDeclarationApplicability => {
+            "jim.own_member.debt.ConditionalDeclarationApplicability"
+        }
+        SourceCommandTransitionObligation::ConditionalMemberBodyCatalogueApplicability => {
+            "jim.own_member.debt.ConditionalMemberBodyCatalogueApplicability"
+        }
+        SourceCommandTransitionObligation::ConditionalOriginalBodyCatalogueApplicability => {
+            "jim.own_member.debt.ConditionalOriginalBodyCatalogueApplicability"
+        }
+        SourceCommandTransitionObligation::DeferredLogicalBodyApplicability => {
+            "jim.own_member.debt.DeferredLogicalBodyApplicability"
+        }
+        SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability => {
+            "jim.own_member.debt.ConditionalLogicalBodyApplicability"
+        }
+        SourceCommandTransitionObligation::ConditionalCNamespaceApplicability => {
+            "jim.own_member.debt.ConditionalCNamespaceApplicability"
+        }
+        SourceCommandTransitionObligation::ConditionalCBodyApplicability => {
+            "jim.own_member.debt.ConditionalCBodyApplicability"
+        }
+        SourceCommandTransitionObligation::UnretainedCSourcePathProviderApplicability => {
+            "jim.own_member.debt.UnretainedCSourcePathProviderApplicability"
+        }
+        SourceCommandTransitionObligation::ConditionalCapturedLifecycleSourceApplicability => {
+            "jim.own_member.debt.ConditionalCapturedLifecycleSourceApplicability"
+        }
+        SourceCommandTransitionObligation::AuthoredCommandPrefixApplicability => {
+            "jim.own_member.debt.AuthoredCommandPrefixApplicability"
+        }
+        SourceCommandTransitionObligation::ProducedCommandPrefixApplicability => {
+            "jim.own_member.debt.ProducedCommandPrefixApplicability"
+        }
+        SourceCommandTransitionObligation::RegisteredFactoryApplicability => {
+            "jim.own_member.debt.RegisteredFactoryApplicability"
+        }
+        SourceCommandTransitionObligation::OriginalProcedureBodyApplicability => {
+            "jim.own_member.debt.OriginalProcedureBodyApplicability"
+        }
+        SourceCommandTransitionObligation::FutureOriginalProcedureSourceApplicability => {
+            "jim.own_member.debt.FutureOriginalProcedureSourceApplicability"
+        }
+        SourceCommandTransitionObligation::RegisteredHandleBindingApplicability => {
+            "jim.own_member.debt.RegisteredHandleBindingApplicability"
+        }
+        SourceCommandTransitionObligation::OriginalCallbackTargetApplicability => {
+            "jim.own_member.debt.OriginalCallbackTargetApplicability"
+        }
+        SourceCommandTransitionObligation::UnavailableCallbackLookupFrame => {
+            "jim.own_member.debt.UnavailableCallbackLookupFrame"
+        }
     }
 }
 
