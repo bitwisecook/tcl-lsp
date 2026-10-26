@@ -359,8 +359,10 @@ mcp_servers:
 theme: dark
 EOF
 write_yaml_mcp_config "$yaml_cfg" hermes
-grep -qF "    command: \"$MCP_PATH\"" "$yaml_cfg" \
-    || fail "Hermes native MCP command was not replaced"
+grep -qF "    command: \"$MCP_PATH\"" "$yaml_cfg" || {
+    cat "$yaml_cfg" >&2 || :
+    fail "Hermes native MCP command was not replaced"
+}
 grep -qF '    command: /keep/me' "$yaml_cfg" \
     || fail "unrelated Hermes MCP entry was not preserved"
 grep -qF 'theme: dark' "$yaml_cfg" || fail "unrelated Hermes root setting was not preserved"
