@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T05:45:17.887209+00:00
+Last updated: 2026-10-26T06:02:15+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current frozen WORK309425/CLEAN807181 next union is frozen eda96a89:8files/10existing refreshes+5 explicit expression_syntax dependencies in Core2/Logical3/Taint2/iRules/Spec, recursive descriptor coherence and complete byte inverses/F-R. Prospective adoptedV14 PASS13/30/20 SHA3a4f82be; Compiler independent peer active. All nine actual059 Clippy repairs are integrated in this frozen source but hosted closure remains unrun. Strict059 FULLAUTH70a99ae8 confirms9Clippy/0RustE; latest functional5c13 WASM FULLAUTH5329a471 remains23PASS/2FAIL, original allocation/depth assertions unchanged. Ordinary CLEANf763 CI40274598539 is active; all five shards reached actual nextest, runtime actual2291PASS/91FAIL; healthy work is preserved. Root alone owns paired performance40274595777. Deferred-tail compiler sidecar remains incomplete/off-tree with no execution grant; allocation user choice remains pending.
 
 Current retries: strict059761 run40274596490/job121414547696 and ordinaryCf763 fullCI40274598539 are sole captures, currently pending actual qualification; Root solely owns performance40274595777. Canonical44b carry peer8af3fbb3/V14PASS and Jim09b peer757733f2/V14PASS are integrated/pushed. Latest completed functional5c13 WASM FULLAUTH348 5329a471 actual23PASS/2FAIL; depth actual n60 selected function-address row eval127 shares live frame/ProcDef pointer with body126, n61 Return ABI128 andn62ExprABI128 refuse before handler selection. No n61 handler/liveness/artifact authority inferred. Strict5c13 FULLAUTH23 e76e1ef5 only immutable SourceImage.push E0599 in newformal test; paired genuine constructor fix699 already integrated before current retries. Private deferred-tail compiler sidecar remains off-tree/incomplete with exact dynamic frame retirement/word/instruction ownership obligations, no behavior/API/budget/assert changes admitted.
 

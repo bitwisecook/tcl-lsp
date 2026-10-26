@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-26T05:13:56Z
+Last updated: 2026-10-26T05:51:56Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 059761 hosted Spec40274593084 and fullTom14340274593837 remain sole VM capture ownership. Previous5c13 old16 and NativeStringVM1 actualPASS; string3/fullcorpus closedFAIL with17873/17873 successful attempted hooks and solethreeboundstring0attempt gap; final source/process authentication complete, cohort addendum pending. Highest functional work is genuine observer absence plus separate actual ordinary-frame initialization recipe for Compiler Store-only proof. Five-path observer draft remains unfrozen: whole-tree mutation census and actual firing hook controls required; zero params/topology alone cannot establish fresh cells. CAPI oracle49pins actual-flags addendum86cb independentlyclearba6a, corrected controls/Constructor3 and mathfunc source are in current059; no actual143 result yet. Public checked-character/allocation coverage decisions remain held.
 
 Latestb5fa runtime40268755592 FULLAUTHc476ca3a: all140ownedprocess observationsclosed/AOT5ALLPASS; old84nonpasses/CFIincomplete125retained. CAPIgenuineconstructor nowreachesworkers0..4; setterworker5wrongupdaterexpectation corrected byactualC86/C90 oracle7f3466f8 andheaderclosure55f1eb9d plusactualflags86cb8302 (SourceProcba6a622d custodyclear, originalchronologyqualified). CAPIoraclecontrolsV2c52/e674 SourceProc849a269f integratedPfdb134/C6eabb: setterretainsheaderwithoutgetter, explicitfirstrefusalGenericnegative+admittedGenericCprofilepositive, no constructor-onlyguard. Constructor3protocol7b413f6a strong74e2f771 integratedWORK1b795 (afterunchangedold140 sameELF/budgets); allnewactualRustoutcomespending. CLEAN-onlyobserverremoval0729strongf83d4ecf stripssoleobserverquery/printf whileWORKretainsaudit; currentC667 shippinggrep0. ProductconstructorREADME e2e8e915 andCAPIownershiprow392cfd52 prepared forrootreview. CurrentSpec5c1340271580958 solecapturepending (b5faSpec10ff4c3b allUNRUN2formalvisibilityerrors fixedinretry). HIGHESTnewfunctional priority: actualquietengine-observer/freshordinaryframeissuer forNativeStorecallee summaries; CompilerformalcustodyaloneHELD. Existinginline_disable onlyactiveStepScopes andpercommandhas_execution_trace areinsufficient; designingadditiveopaqueNativeCompilerPassOwner-ownedepoch/currentabsence receipt withimmutableEqHash/currentnessquery, no publicstruct/APIbreak, no emptyformals→freshcell assumption. No canonicalnewobserverchanges.
 
