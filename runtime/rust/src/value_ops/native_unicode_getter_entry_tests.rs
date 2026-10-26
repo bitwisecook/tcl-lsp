@@ -100,7 +100,7 @@ fn a_stale_entered_operation_cannot_consume_an_existing_unicode_cache() {
 fn generic_or_profile_only_construction_cannot_issue_a_native_getter() {
     for environment in ["tcl8.6", "tcl9.0", "f5-irules"] {
         leak_free(|| {
-            let mut interpreter = crate::Interp::new();
+            let mut interpreter = crate::interp::Interp::new();
             let profile = tcl_registry::model::resolve_environment(environment).unit_profile();
             assert_eq!(profile.name, environment);
             interpreter.set_dialect_profile(profile);

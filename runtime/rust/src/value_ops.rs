@@ -2694,6 +2694,8 @@ mod tests {
     /// Original invalid bytes use the checked selected Native Unicode entry.
     #[test]
     fn bytes_to_str_falls_back_on_invalid_utf8() {
+        use crate::obj;
+        use tcl_syntax::value::ValueOps;
         for environment in ["tcl8.6", "tcl9.0"] {
             let mut interpreter = Interp::with_native_core(
                 crate::interp::default_host(),
