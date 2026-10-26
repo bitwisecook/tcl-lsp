@@ -143,6 +143,8 @@ mod native_package_files;
 #[cfg(test)]
 mod native_precision_tests;
 mod native_procedure_artifacts;
+#[cfg(debug_assertions)]
+mod native_procedure_refusal_observer;
 mod native_rename;
 pub(crate) mod native_scalar_ingress;
 #[cfg(test)]
@@ -18330,23 +18332,28 @@ impl Vm {
                 )
             });
         entry.compiler_pass_environment = self.capture_native_compiler_pass_environment(procedure);
+        let declaration = owner
+            .filter(|owner| {
+                std::ptr::eq(parameters, owner.declaration.params.as_slice())
+                    && std::ptr::eq(original, &raw const owner.declaration.body_src)
+                    && namespace == owner.declaration.actual_namespace_id()
+            })
+            .map(|owner| owner.declaration);
         let reached = self.prepare_procedure_body_with_entry(
             admission,
             parameters,
             &path,
             ProcedureBodySource {
                 image: &source,
-                declaration: owner
-                    .filter(|owner| {
-                        std::ptr::eq(parameters, owner.declaration.params.as_slice())
-                            && std::ptr::eq(original, &raw const owner.declaration.body_src)
-                            && namespace == owner.declaration.actual_namespace_id()
-                    })
-                    .map(|owner| owner.declaration),
+                declaration,
             },
             &entry,
             original_name_scope,
         );
+        #[cfg(debug_assertions)]
+        if reached.is_err() {
+            native_procedure_refusal_observer::report(declaration, &source, &entry);
+        }
         let mut unit = self.original_name_tcl_outcome(original_name_scope, reached)?;
         let actual = self.actual_native_invocation_dialect();
         let protocol = actual.native_bytecode_storage_protocol().ok_or(
