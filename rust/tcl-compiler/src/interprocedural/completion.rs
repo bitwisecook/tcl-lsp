@@ -759,16 +759,8 @@ pub(super) mod tests {
         assert_eq!(nested.reads, ["a{b}c"]);
     }
 
-    #[test]
-    fn original_completion_declines_missing_foreign_native_and_mutated_headers() {
-        // naming.interprocedural.original-procedure-completion-source-context
-
-        let source = "proc leaf {x} {return $x}; proc p {x} {return [leaf $x]}";
-        let (context, unit) = logical_unit(source, DIALECT);
-        let module = &unit.ir_module;
-        let p_id = fixture_id(&module.procedures, "::p");
-        assert!(super::procedures_complete(module, context.commands(), &|_, _| true)[&p_id]);
-        let mutations: &[fn(&mut crate::ir::Module)] = &[
+    fn original_completion_header_mutations() -> &'static [fn(&mut crate::ir::Module)] {
+        &[
             |module| {
                 let id = fixture_id(&module.procedures, "::leaf");
                 let procedure = module.procedures.remove(&id).unwrap();
@@ -829,7 +821,19 @@ pub(super) mod tests {
                 .statements
                 .clear();
             },
-        ];
+        ]
+    }
+
+    #[test]
+    fn original_completion_declines_missing_foreign_native_and_mutated_headers() {
+        // naming.interprocedural.original-procedure-completion-source-context
+
+        let source = "proc leaf {x} {return $x}; proc p {x} {return [leaf $x]}";
+        let (context, unit) = logical_unit(source, DIALECT);
+        let module = &unit.ir_module;
+        let p_id = fixture_id(&module.procedures, "::p");
+        assert!(super::procedures_complete(module, context.commands(), &|_, _| true)[&p_id]);
+        let mutations = original_completion_header_mutations();
         for change in mutations {
             let mut changed = module.clone();
             change(&mut changed);
