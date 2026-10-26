@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T14:42:35.975940+00:00",
+  "scheduled_report_utc": "2026-10-26T14:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T14:45:00+00:00",
+  "change_since_previous_report": [
+    "Rootcapacityinterruption~13:00-14:30 missedscheduled13:15/13:45anddelayed14:15snapshot. Agentscontinuedread-only/sourceproposals/solecaptureswithoutcanonicaltakeover. Thiscatchupreportusesactualtimestamp, notbackdatedmeasurements. Next14:45reminder55078recordedimmediately. PreviouspublishedWORK5d2e83599/CLEANb7cedremainlastpusheduntilcurrentcohortcomplete.",
+    "UserexplicitanswerNOWauthorizes separatefourinliningcosttests/retainedeligibilityguards. Exactdecisionrecorddocs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261026T143103Z.json SHA29da8358, committedWORKf462a153e andmirroredtodocscheckout. ReviewedV3source6b220/6d7155isbeingimplementedWORKfirst/CLEANcarry; oldpublicsemanticclassifier/allAOT/inliner guards unchanged. Explicit4old\u21924costmappingandnew2Nativeunknown/retiredcontrolsprotocolawaitstrongreview. No donationofNativeexecutionproof/no fabricatedoldsemanticPASS.",
+    "Currentclearedcohortrootsequentialintegrationinflightreceiptroot-approved-cost-jim-lsp-lint-cohort-application.json: approvedcostAPI/testscope; all6actualLIBTESTlintrepairs Compiler8cc4/5863, Names2565/f72, LSP1eca/a8a5; genuinepositive-referencefixtureindex6549/f779(sameexistinganalysis_for+add_documentpipeline, all4asserts/inputsunchanged); WORKUVuserstate1370/ec1(supportedupstreamvariables, exactcommands/HOME/budgets/gateunchanged). No newallows/guardrelaxations.",
+    "SamecohortincludesproductiveJimCore/staticV2360f/e75+a520 (bareNativeCoreseparatefromexplicitNamespaceHelpers; actualsourcecontainerbeforeparser; originalInitStaticorder) withWORK164protocol23a9/8b1 addsoriginalcorecount+new2sameELFafterold161/sharedlimits/oldFAILpreserved. PairedC-oraclebackedtailcalloriginalname/expectrestorationd04e/0bab andWORKfailure-onlyNULstage0507/36a8 preserveallscripts/predicates. Top-levelpositive dd576 remainsOUTuntilpeer. AllnewRust/cohortoutcomesUNRUN.",
+    "Actual3ca compiler133FULLAUTHb744c2c091c51f562860a481faa61fcd49a7159455af33c005dba867cdc7ea14+98094fa24a0518b6917e0c9c4a13cc7744bcfc36a8a76cfaa5898f6c456574ab:123P10F/all285ownedclosed/0builddiagnostics. Formal2ALLPASS/cache3ALLPASSgenuinegains; old10298P4F, String3=2P1FatNEWNULeffectavailabilityassert(engine/stagesunobserved), Layout0P3F/Own1P2F. No source-bodyeffectinferencefromNativeformal/cachegains.",
+    "Actual3caALL5LSPFULLAUTH712eb9cb:WASIhost112referencesexact2NOWPASS9cbee, laterrenameappconditional-sourceunavailable; Coreold8PASS/SourceCut2P2F exactsuffix44@18direct-procedure-owner, Browserloaded49@0sameimplicitinheritedpurposefrontier. SourceRegistrypurposeexplicitlyrefusesinheritedsourcepointentries; productivefixmustconsumegenuinecutchild/regionowner, notwhitelist/Logical/Normaldonation. Unitnew4allsetupFAILbecauseDocStateIndexednotactualworkspaceindexroot; reviewedfixturepublication6549preservesallassertions. Startup86.33mstokens/scan30FAIL/native8UNREACHED/Context2COMPLETE.",
+    "3caSpecFULLAUTHe0ec2334399857de424e416ddbb0fdb23cff8544ebd272105e366a71edbb27adold16+VM1+VM4PASS, realLENGTH1success1attemptafterAppendVALUE, MAP/RANGE0attemptFAIL/full600INCOMPLETE-2/600.502s. NoC1C2closure. ExistingiRulesoriginalbootstrapFULLAUTH9acc2046stopsoriginal180sbudgetbeforefinalinitcompletion/reset; CLI2+scope1UNRUN/nofirst-declinefacet. No duplicate selector/newbudget/nativehostgrammarwaiver.",
+    "CorrectedCef60CIactual28nativejobsSUCCESS(7platforms\u00d7server/mcp/tcl/f5), API3ALL3PASS82247c40 scopedexactunitproof. Rustshard3closed3222P691F/18paniccausescapunobserved; E2E3closed577P262F(+5ignored); console-onlyshard4validated1519P551F12ignoredof3024selected,endcaptureinvalid110/runner shutdown/noartifact/lifecycleincomplete, nofullacceptance. Main24624partialjoin4829PASS1414FAIL18165UNOBSERVED216notselected3b2ec313; olderclosed-onlysnapshotsretained. RemaininghealthyRust2/5+E2E1/2preserved.",
+    "Baseline216sourceprovenance42ef identifiesall216definitions/209signatureeventsatoneinitialmigrationcommit76c7d2e;0automaticacceptances. Names35audit6sourcecandidates(allselectedshard5/outcomespending)plus29changed/missinggoals; Runtime18uncoverschangedtailcall/otheranswersandremovedtop-level4release8assertcoverage; exactoldtailcallC86/C90oracle2e93confirmsrestoredexpectation. CorrectlegacytracecounterpartactualCI failsmissingrequiredC8.4provider, notPASSwaiver. Compiler108/LSP51/root4obligationsremain; cost4onlyexplicitlyapprovedcoveragecorrection.",
+    "Latestexactb7prep-prFULLAUTH7d979d82 setupPASS0, exactmakeprep-prFAIL2format-pyuvtoolsuserdirectorypermission, latercodegen/checks/smokeUNREACHED; all59safeZIPmembers/18ownedprocesses/11082Gitfiles+mode/symlink+treeclean/sharedcapsverified. Supportedfreshowneduserstate correction1370/ec1rootintegrating; no skip/HOME/config/version/command/gatechange. Hostedretryrequired.",
+    "ShippingTclperformanceSTILLFAIL: ROOTmac3qualification58eba205 bothreleasebuilds0, baselinefirsttrials67/160/155s,candidateall1800deadline(small/mediumedit.tokens/fullcompletionafter7checks), cleanupkillpgPermissionError/notprovenclosed/noresultJSON,0acceptedpairs/ratios. Observedcheckpointmemorynotpeak/causeclaim. Cachelease5790sourceproposalsharedmutableRegionPayload.bindingsbackedgeremainsNativeDrop/cycle/activationstrictparityHOLD; no implementedperfpatch/gain. ExternalPerfrolestale,noduplicate/takeover.",
+    "ExternalBIGIP/perftrackersstale>60minremainnotifiedwithouttakeover; triagecomplete. No localRustworkspacebuilds/nativeELFextraction;artifactfloor+reserve/diskchecksretained. EveryFbox/currentzeroPTF/allrequiredgreen/acceptedTclperformance/finaldocs-comments-generated-fixtures-package-exactprep-pr-squashgateOPEN; noPR/merge/tag/release."
+  ],
+  "committed": [
+    "9548ea4c8a9330f72d4f7fb87093025342d57075"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finishreviewedcohortandapprovedcostprotocolmapping, onefinal23pinunion+independentpeer/rootpreflight/freshfetch/normalpushthenactualcurrentgates.",
+    "FixactualSourceCutdeclarationpurpose/positivefixture/Jim/runtime/Heavy/coverageproviderissuesandproveperformancewithoutguardorassertionweakening.",
+    "Completefinalshippingcleanup/allgreen/zeroPTF/performancebeforePR; originalsix-hourtargetmissedandneverclaimedmet."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Capacitymissedcyclesexplicit; actualreporttimestamp. Userdecisionrecordauthoritative. No audit-unitadmission orreleasecheckboxchange.",
+  "disk_free_bytes": 2272468992,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
