@@ -5,6 +5,7 @@
 //! Original interpreter environment for whole-unit native compiler passes.
 
 use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 
 use crate::native_compilation::{NativeInterpreterIdentity, NativeNamespaceContext};
@@ -27,6 +28,7 @@ pub struct NativeCompilerPassOwner {
     interpreter: NativeInterpreterIdentity,
     token: u64,
     lifetime: Arc<()>,
+    ordinary_entry_epoch: Arc<AtomicU64>,
 }
 
 impl NativeCompilerPassOwner {
@@ -43,7 +45,59 @@ impl NativeCompilerPassOwner {
             token: crate::checked_counter::allocate(&NEXT)
                 .expect("native compiler pass owner identities exhausted"),
             lifetime: Arc::new(()),
+            ordinary_entry_epoch: Arc::new(AtomicU64::new(1)),
         }
+    }
+
+    /// Withdraw ordinary-entry observations before an engine observer, limit
+    /// or policy mutation. Restoring the old state never revives a receipt.
+    pub fn invalidate_ordinary_entry_observation(&self) {
+        let _ =
+            self.ordinary_entry_epoch
+                .try_update(Ordering::AcqRel, Ordering::Acquire, |epoch| {
+                    (epoch != 0).then(|| epoch.checked_add(1).unwrap_or(0))
+                });
+    }
+
+    /// Permanently retire this interpreter's ordinary-entry observations.
+    pub fn retire_ordinary_entry_observation(&self) {
+        self.ordinary_entry_epoch.store(0, Ordering::Release);
+    }
+
+    /// Capture actual complete absence of implicit ordinary-entry observers.
+    /// The backend must inspect registered, pending and firing callbacks.
+    /// This supplies neither a fresh frame nor formals, storage or effects.
+    #[must_use]
+    pub fn capture_with_ordinary_entry_observation(
+        &self,
+        root_interpreter: bool,
+        command_limit_enabled: bool,
+        time_limit_enabled: bool,
+        procedure: Option<NativeCompilerPassProcedure>,
+        entry_observers_absent: bool,
+    ) -> NativeCompilerPassEnvironment {
+        let mut environment = self.capture(
+            root_interpreter,
+            command_limit_enabled,
+            time_limit_enabled,
+            procedure,
+        );
+        let epoch = self.ordinary_entry_epoch.load(Ordering::Acquire);
+        if entry_observers_absent && !environment.has_enabled_limits() && epoch != 0 {
+            environment.ordinary_entry_observation = Some(OrdinaryEntryObservation {
+                epoch,
+                currency: Arc::downgrade(&self.ordinary_entry_epoch),
+            });
+        }
+        environment
+    }
+
+    pub(crate) fn ordinary_entry_generation(&self) -> Option<OrdinaryEntryObservation> {
+        let epoch = self.ordinary_entry_epoch.load(Ordering::Acquire);
+        (epoch != 0).then(|| OrdinaryEntryObservation {
+            epoch,
+            currency: Arc::downgrade(&self.ordinary_entry_epoch),
+        })
     }
 
     pub(crate) fn procedure_compilation_identity(&self) -> NativeCompilerPassIdentity {
@@ -71,6 +125,7 @@ impl NativeCompilerPassOwner {
             command_limit_enabled,
             time_limit_enabled,
             procedure,
+            ordinary_entry_observation: None,
             lifetime: Arc::downgrade(&self.lifetime),
         }
     }
@@ -103,6 +158,34 @@ impl NativeCompilerPassIdentity {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct OrdinaryEntryObservation {
+    epoch: u64,
+    currency: Weak<AtomicU64>,
+}
+
+impl OrdinaryEntryObservation {
+    pub(crate) fn is_current(&self) -> bool {
+        self.epoch != 0
+            && self
+                .currency
+                .upgrade()
+                .is_some_and(|current| current.load(Ordering::Acquire) == self.epoch)
+    }
+}
+
+impl PartialEq for OrdinaryEntryObservation {
+    fn eq(&self, other: &Self) -> bool {
+        self.epoch == other.epoch && Weak::ptr_eq(&self.currency, &other.currency)
+    }
+}
+impl Eq for OrdinaryEntryObservation {}
+impl Hash for OrdinaryEntryObservation {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.epoch.hash(state);
+    }
+}
+
 /// Original compiler environment observed while its interpreter remains alive.
 /// Capturing this receipt does not retain the interpreter or native resources.
 #[derive(Debug, Clone)]
@@ -113,6 +196,7 @@ pub struct NativeCompilerPassEnvironment {
     command_limit_enabled: bool,
     time_limit_enabled: bool,
     procedure: Option<NativeCompilerPassProcedure>,
+    ordinary_entry_observation: Option<OrdinaryEntryObservation>,
     lifetime: Weak<()>,
 }
 
@@ -126,6 +210,21 @@ impl NativeCompilerPassEnvironment {
                 .procedure
                 .as_ref()
                 .is_none_or(|procedure| procedure.namespace.interpreter == interpreter)
+    }
+
+    /// Current complete absence of implicit callbacks before an ordinary entry.
+    /// The same actual request owner and fresh ordinary-frame induction remain
+    /// independent requirements; this is no Store or completion authority.
+    #[must_use]
+    pub fn ordinary_entry_observers_absent_for(
+        &self,
+        interpreter: NativeInterpreterIdentity,
+    ) -> bool {
+        self.is_current_for(interpreter)
+            && self
+                .ordinary_entry_observation
+                .as_ref()
+                .is_some_and(OrdinaryEntryObservation::is_current)
     }
 
     /// Actual interpreter has no parent.
@@ -165,6 +264,7 @@ impl PartialEq for NativeCompilerPassEnvironment {
             && self.command_limit_enabled == other.command_limit_enabled
             && self.time_limit_enabled == other.time_limit_enabled
             && self.procedure == other.procedure
+            && self.ordinary_entry_observation == other.ordinary_entry_observation
     }
 }
 impl Eq for NativeCompilerPassEnvironment {}
@@ -176,5 +276,101 @@ impl Hash for NativeCompilerPassEnvironment {
         self.command_limit_enabled.hash(state);
         self.time_limit_enabled.hash(state);
         self.procedure.hash(state);
+        self.ordinary_entry_observation.hash(state);
+    }
+}
+
+#[cfg(test)]
+mod ordinary_entry_observation_tests {
+    use super::*;
+    use std::collections::hash_map::DefaultHasher;
+
+    fn interpreter() -> NativeInterpreterIdentity {
+        NativeInterpreterIdentity {
+            owner: 1,
+            interpreter: 0,
+        }
+    }
+    fn hash(value: &NativeCompilerPassEnvironment) -> u64 {
+        let mut hash = DefaultHasher::new();
+        value.hash(&mut hash);
+        hash.finish()
+    }
+    #[test]
+    fn old_capture_foreign_owner_and_limits_never_supply_observer_absence() {
+        let id = interpreter();
+        let owner = NativeCompilerPassOwner::new(id);
+        let foreign = NativeCompilerPassOwner::new(id);
+        assert!(
+            !owner
+                .capture(true, false, false, None)
+                .ordinary_entry_observers_absent_for(id)
+        );
+        let observed =
+            owner.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        assert!(observed.ordinary_entry_observers_absent_for(id));
+        assert!(
+            !observed.ordinary_entry_observers_absent_for(NativeInterpreterIdentity {
+                owner: 2,
+                interpreter: 0
+            })
+        );
+        assert!(
+            !foreign
+                .procedure_compilation_identity()
+                .matches_environment(&observed)
+        );
+        for (commands, time) in [(true, false), (false, true)] {
+            assert!(
+                !owner
+                    .capture_with_ordinary_entry_observation(true, commands, time, None, true)
+                    .ordinary_entry_observers_absent_for(id)
+            );
+        }
+        assert!(
+            !owner
+                .capture_with_ordinary_entry_observation(true, false, false, None, false)
+                .ordinary_entry_observers_absent_for(id)
+        );
+    }
+    #[test]
+    fn mutation_restore_retirement_and_exhaustion_keep_captured_hash_immutable() {
+        let id = interpreter();
+        let owner = NativeCompilerPassOwner::new(id);
+        let original =
+            owner.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        let same = original.clone();
+        let before = hash(&original);
+        owner.invalidate_ordinary_entry_observation();
+        assert!(!original.ordinary_entry_observers_absent_for(id));
+        assert_eq!(original, same);
+        assert_eq!(hash(&original), before);
+        let restored =
+            owner.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        assert!(restored.ordinary_entry_observers_absent_for(id));
+        assert_ne!(restored, original);
+        owner.retire_ordinary_entry_observation();
+        assert!(!restored.ordinary_entry_observers_absent_for(id));
+        assert!(
+            !owner
+                .capture_with_ordinary_entry_observation(true, false, false, None, true)
+                .ordinary_entry_observers_absent_for(id)
+        );
+        let exhausted = NativeCompilerPassOwner::new(id);
+        exhausted
+            .ordinary_entry_epoch
+            .store(u64::MAX, Ordering::Release);
+        let last =
+            exhausted.capture_with_ordinary_entry_observation(true, false, false, None, true);
+        exhausted.invalidate_ordinary_entry_observation();
+        exhausted.invalidate_ordinary_entry_observation();
+        assert!(!last.ordinary_entry_observers_absent_for(id));
+        assert!(
+            !exhausted
+                .capture_with_ordinary_entry_observation(true, false, false, None, true)
+                .ordinary_entry_observers_absent_for(id)
+        );
+        drop(owner);
+        assert!(!original.is_current_for(id));
     }
 }

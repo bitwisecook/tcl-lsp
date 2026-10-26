@@ -43,6 +43,7 @@ impl ChildInterpreterCommand {
         self.deleted.set(true);
         if let Some(state) = self.interpreter.upgrade() {
             let interpreter = Interp(state);
+            interpreter.retire_ordinary_entry_observation();
             interpreter.pending_delete.set(true);
             interpreter.invalidate_interpreter_policy();
         }

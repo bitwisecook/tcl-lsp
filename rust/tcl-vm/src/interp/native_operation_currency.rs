@@ -600,6 +600,8 @@ impl Vm {
     }
 
     pub(super) fn advance_native_operation_context(&self) {
+        self.native_compiler_pass_owner
+            .invalidate_ordinary_entry_observation();
         self.native_operation_context.advance();
     }
 }

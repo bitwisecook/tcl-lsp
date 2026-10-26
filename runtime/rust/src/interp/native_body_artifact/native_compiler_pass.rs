@@ -27,6 +27,18 @@ use tcl_runtime_api::native_compiler_pass::{
 };
 
 impl Interp {
+    pub(crate) fn invalidate_ordinary_entry_observation(&self) {
+        if let Some(owner) = self.native_compiler_pass_owner.get() {
+            owner.invalidate_ordinary_entry_observation();
+        }
+    }
+
+    pub(crate) fn retire_ordinary_entry_observation(&self) {
+        if let Some(owner) = self.native_compiler_pass_owner.get() {
+            owner.retire_ordinary_entry_observation();
+        }
+    }
+
     pub(super) fn capture_body_compiler_pass_environment(
         &self,
         namespace: NsId,
@@ -65,11 +77,22 @@ impl Interp {
         let owner = self
             .native_compiler_pass_owner
             .get_or_init(|| NativeCompilerPassOwner::new(self.native_command_interpreter));
-        Some(owner.capture(
+        let observers_absent = self.traces.try_borrow().is_ok_and(|traces| {
+            !traces
+                .cmd_traces
+                .iter()
+                .any(|trace| trace.ops & crate::cmd_trace::ops::EXEC_ANY != 0)
+                && traces.step_active.is_empty()
+                && traces.firing_exec_traces.is_empty()
+                && traces.firing_cmd_traces.is_empty()
+                && traces.exec_firing == 0
+        }) && !self.pending_delete.get();
+        Some(owner.capture_with_ordinary_entry_observation(
             !self.native_child_interpreter.get(),
             limits.cmd_value.is_some(),
             limits.time_value.is_some(),
             procedure,
+            observers_absent,
         ))
     }
 }
@@ -456,5 +479,104 @@ mod tests {
             Some(&retired_command),
             [Hazard::Invocation]
         ));
+    }
+}
+
+#[cfg(test)]
+mod ordinary_entry_observer_tests {
+    use super::*;
+
+    fn native() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl9.0"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+    fn remove_trace_while_firing(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        assert_eq!(
+            interpreter.eval_str(b"trace remove execution watched enter callback"),
+            Code::Ok
+        );
+        assert!(!interpreter
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .any(|trace| trace.ops & crate::cmd_trace::ops::EXEC_ANY != 0));
+        let environment = interpreter
+            .capture_body_compiler_pass_environment(GLOBAL, None)
+            .unwrap();
+        assert!(!environment
+            .ordinary_entry_observers_absent_for(interpreter.native_command_interpreter));
+        interpreter.set_result_bytes(b"");
+        Code::Ok
+    }
+
+    #[test]
+    fn actual_self_removing_trace_cannot_capture_absence_while_firing() {
+        let mut interpreter = native();
+        interpreter.register_builtin(b"callback", remove_trace_while_firing);
+        assert_eq!(
+            interpreter.eval_str(
+                b"proc watched {} {}; trace add execution watched enter callback; watched"
+            ),
+            Code::Ok
+        );
+        let environment = interpreter
+            .capture_body_compiler_pass_environment(GLOBAL, None)
+            .unwrap();
+        assert!(
+            environment.ordinary_entry_observers_absent_for(interpreter.native_command_interpreter)
+        );
+    }
+
+    #[test]
+    fn actual_trace_registration_removal_and_state_retirement_stale_observation() {
+        let mut interpreter = native();
+        let id = interpreter.native_command_interpreter;
+        let original = interpreter
+            .capture_body_compiler_pass_environment(GLOBAL, None)
+            .unwrap();
+        assert!(original.ordinary_entry_observers_absent_for(id));
+        assert_eq!(interpreter.eval_str(b"proc watched {} {}; proc callback args {}; trace add execution watched enter callback"), Code::Ok);
+        assert!(!original.ordinary_entry_observers_absent_for(id));
+        assert!(!interpreter
+            .capture_body_compiler_pass_environment(GLOBAL, None)
+            .unwrap()
+            .ordinary_entry_observers_absent_for(id));
+        assert_eq!(
+            interpreter.eval_str(b"trace remove execution watched enter callback"),
+            Code::Ok
+        );
+        let restored = interpreter
+            .capture_body_compiler_pass_environment(GLOBAL, None)
+            .unwrap();
+        assert!(restored.ordinary_entry_observers_absent_for(id));
+        assert!(!original.ordinary_entry_observers_absent_for(id));
+        let foreign = native();
+        assert!(!restored.ordinary_entry_observers_absent_for(foreign.native_command_interpreter));
+        drop(interpreter);
+        assert!(!restored.ordinary_entry_observers_absent_for(id));
+    }
+    #[test]
+    fn actual_limit_mutation_refuses_old_and_new_ordinary_entry_observations() {
+        let interpreter = native();
+        let id = interpreter.native_command_interpreter;
+        let original = interpreter
+            .capture_body_compiler_pass_environment(GLOBAL, None)
+            .unwrap();
+        let option = obj::Owned::fresh(obj::new_string_bytes(b"-value"));
+        let value = obj::Owned::fresh(obj::new_wide_int_obj(10));
+        let result = interpreter
+            .limit_apply(b"commands", &[option.as_ptr(), value.as_ptr()])
+            .unwrap();
+        drop(obj::Owned::fresh(result));
+        assert!(!original.ordinary_entry_observers_absent_for(id));
+        assert!(!interpreter
+            .capture_body_compiler_pass_environment(GLOBAL, None)
+            .unwrap()
+            .ordinary_entry_observers_absent_for(id));
     }
 }
