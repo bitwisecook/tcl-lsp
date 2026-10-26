@@ -1146,7 +1146,7 @@ pub enum SuccessfulHandlerSpec {
     /// Variable access roles describe all selected target names on success.
     VariableOperands,
     /// Original string-append handler, with the same variable-name/observer
-    /// ordering as VariableOperands. Result header alternatives and COW retain
+    /// ordering as `VariableOperands`. Result header alternatives and COW retain
     /// their original recipe; no cache/type, Normal or opcode grant is implied.
     VariableStringAppend,
     /// Variable targets remain conditional until this native matcher proves
