@@ -4950,6 +4950,52 @@ mod tests {
         }
     }
 
+    fn assert_logical_instance_member_present(
+        class: &crate::analyser::types::ClassDef,
+        analysis: &crate::analyser::AnalysisResult,
+    ) {
+        let actual_input = analysis.resolved_input.as_ref().unwrap();
+        let actual_image = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        assert!(
+            class
+                .original_members
+                .logical_name_operand(
+                    MemberSide::Instance,
+                    &class.methods["m"],
+                    actual_input,
+                    actual_image
+                )
+                .is_some()
+        );
+    }
+
+    fn assert_logical_instance_member_absent(
+        class: &crate::analyser::types::ClassDef,
+        analysis: &crate::analyser::AnalysisResult,
+    ) {
+        let actual_input = analysis.resolved_input.as_ref().unwrap();
+        let actual_image = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        assert!(
+            class
+                .original_members
+                .logical_name_operand(
+                    MemberSide::Instance,
+                    &class.methods["m"],
+                    actual_input,
+                    actual_image
+                )
+                .is_none()
+        );
+    }
+
     #[test]
     fn logical_member_name_ingress_refuses_reconstructed_wrapper_vectors() {
         let source = "oo::class create C {self {method m {} {}}}";
@@ -5024,23 +5070,7 @@ mod tests {
             &command,
             &mut class,
         );
-        let actual_input = analysis.resolved_input.as_ref().unwrap();
-        let actual_image = analysis
-            .retained_command_realm()
-            .unwrap()
-            .original_source_image()
-            .unwrap();
-        assert!(
-            class
-                .original_members
-                .logical_name_operand(
-                    MemberSide::Instance,
-                    &class.methods["m"],
-                    actual_input,
-                    actual_image
-                )
-                .is_some()
-        );
+        assert_logical_instance_member_present(&class, &analysis);
         class.original_members = crate::analyser::types::OriginalSourceMemberLedger::default();
         command.argv[2] = command.argv[1];
         assert!(analyser.member_declaration_is_opaque(
@@ -5053,23 +5083,7 @@ mod tests {
             &command,
             &mut class,
         );
-        let actual_input = analysis.resolved_input.as_ref().unwrap();
-        let actual_image = analysis
-            .retained_command_realm()
-            .unwrap()
-            .original_source_image()
-            .unwrap();
-        assert!(
-            class
-                .original_members
-                .logical_name_operand(
-                    MemberSide::Instance,
-                    &class.methods["m"],
-                    actual_input,
-                    actual_image
-                )
-                .is_none()
-        );
+        assert_logical_instance_member_absent(&class, &analysis);
     }
 
     #[test]
