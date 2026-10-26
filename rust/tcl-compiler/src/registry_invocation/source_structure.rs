@@ -5205,6 +5205,12 @@ mod tests {
         assert!(original_logical_source_words_at(source, &native, 0).is_none());
     }
 
+    fn selected_source_variable_names(
+        invocation: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> Vec<(usize, tcl_registry::ArgRole)> {
+        invocation.authored_source_variable_name_arguments()
+    }
+
     #[test]
     fn original_source_prefix_catalogue_keeps_fatal_tail_separate() {
         for dialect in ["tcl", "tcl8.6"] {
@@ -5247,10 +5253,7 @@ mod tests {
                 Some(&plan.commands[0].words[1])
             );
             assert_eq!(
-                words.with_source_schema(
-                    &context,
-                    tcl_registry::ResolvedInvocation::authored_source_variable_name_arguments
-                ),
+                words.with_source_schema(&context, selected_source_variable_names),
                 Some(vec![(0, tcl_registry::ArgRole::VarWrite)])
             );
             assert!(source_registry_words_at(source, &analysis, 15).is_none());

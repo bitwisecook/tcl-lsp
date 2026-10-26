@@ -1038,7 +1038,7 @@ mod tests {
                             .iter()
                             .all(|input| input.original_word_key().is_none())
                     );
-                    assert_eq!(projected.compilation().mode, NativeCompilationMode::Direct);
+                    assert_eq!(projected.compilation.mode, NativeCompilationMode::Direct);
                     assert!(
                         super::original_trace_callback_words(None, &binding.variable_context)
                             .is_none()
