@@ -3622,7 +3622,7 @@ original_rows = [
 ]
 require(
     sha(BASE / "compiler-native35-supplemental3.json")
-    == "de64f9f29b62504ee075ed4fca62b8afc00b84bf854f8c4a7e69789b4521f10e",
+    == "70d1dd2bcd054963f6889dcc6b4efbe8ce03172fe7b8b8ad3e9b34f4b56234ec",
     "exact separate Native35 supplemental3 input pin",
 )
 supplemental = json.loads((BASE / "compiler-native35-supplemental3.json").read_text())
@@ -3773,7 +3773,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "dd92e0d33d93aa7b0a7d119fdec0f07d7341018c4e854041092cd6346ed2033c",
+    == "ba68774d75478e9bb385aa6b1a1c423b8c1ca89f851798f83bc3194fb31e56dd",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -3953,7 +3953,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "3f153ef1e86c64e97b7281d091b0beff36f21d33d6c38122394498ba7f2046cb",
+    == "008f4cb2b4d5df6584949c4926b6e813a55365a97b00066cb7e32297213a985c",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(

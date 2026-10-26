@@ -18,7 +18,7 @@ CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 COMMAND_SECONDS = 3600
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "6bbcc82287096118edb4b869145fbf76d5547b57d2710be095e4f659a136a116"
+ROSTER_SHA = "160770882cdad8a2de4e8c067d65c114e2723d178fc00f7463c52c3362fe2f53"
 BASE = Path(__file__).resolve().parent
 COMMANDS = {
     "browser": ["make", "lsp-server-wasm-test"],

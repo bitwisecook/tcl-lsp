@@ -46,9 +46,9 @@
     "scripts/verify-wasm-externref.mjs": "19410bf5475824d6d59c85b319fc129e826deebf32140fe06180a3e1df747366",
     "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
     "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
-    "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "237b866157640aa8aceec41dfa287d692cce777082b611c718617eb920aa2942",
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "f19fcd73127acecacc3f493e83d9f4022b2142f414e7d4b08d45cdffe5ead2bc",
     "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "bd0c2d385c1502d1f442bcb5c4bb5f3204050e4b8e9c8a4442ef8f422cbaf4af",
-    "rust/tcl-compiler/src/registry_invocation.rs": "9903a847a9d74903d76b23ab8e438cffae4f48c4123cd8a8b9649c0913f8a428",
+    "rust/tcl-compiler/src/registry_invocation.rs": "5d2bd232d7883692dc8f91c48cecbfdd6daccbfe1a46f844f464873e0c5fe484",
     "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "4e5c1369a02ed26df4becae20580292cf0b3419fe8915c118b4644a9e9dda96d"
   }
 }
