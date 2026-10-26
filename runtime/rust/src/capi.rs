@@ -754,6 +754,18 @@ pub extern "C" fn tcl_test_finalize() -> i64 {
     crate::counters::finalize()
 }
 
+/// Live native object headers; read-only leak-check instrumentation.
+#[no_mangle]
+pub extern "C" fn tcl_test_live_obj_count() -> i64 {
+    crate::counters::live_objs()
+}
+
+/// Live owned String buffers; read-only leak-check instrumentation.
+#[no_mangle]
+pub extern "C" fn tcl_test_live_buf_count() -> i64 {
+    crate::counters::live_bufs()
+}
+
 /// Copy already-held allocation roots for the opt-in failed-case diagnostic.
 ///
 /// # Safety
