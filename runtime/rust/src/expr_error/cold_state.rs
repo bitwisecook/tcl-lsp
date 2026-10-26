@@ -35,7 +35,7 @@ impl ExprError {
         self.state.get_or_insert_with(Default::default)
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, have_tommath))]
     pub(crate) fn retained_command_error(&self) -> Option<&tcl_cmd_core::CmdError> {
         self.state.as_ref()?.command_error.as_deref()
     }
