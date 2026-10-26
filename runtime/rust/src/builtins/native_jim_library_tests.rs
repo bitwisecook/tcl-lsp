@@ -97,9 +97,10 @@ fn selected_namespace_formal_conversion_retains_original_source_filename_and_lin
             Command::Proc(procedure) => procedure.clone(),
             _ => panic!("selected original procedure"),
         };
-        let original = procedure.jim_parameters.as_ref().unwrap();
+        let declaration = procedure.declaration();
+        let original = declaration.jim_parameters.as_ref().unwrap();
         let parameters = ValueOps::list_elements(&mut interp, &original.as_ptr()).unwrap();
-        assert_eq!(parameters.len(), procedure.params.len());
+        assert_eq!(parameters.len(), declaration.params.len());
         // JimCreateProcedureCmd calls Jim_ListLength on each formal. The
         // required-name wrapper is a List; its actual member owns Source.
         // See the retained Jim 0.84 C oracle and jim.c:4393/6953-6977.
