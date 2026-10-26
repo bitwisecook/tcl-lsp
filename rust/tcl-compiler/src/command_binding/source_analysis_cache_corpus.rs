@@ -1098,6 +1098,10 @@ fn source_point_cache_complete_original_corpus_old_and_mixed_reports_equal() {
 }
 
 fn generate(kind: &str, n: usize) -> String {
+    use std::fmt::Write as _;
+
+    // String's formatting sink cannot fail; these templates format only usize.
+    // Complete each formatting statement without adding an error or panic path.
     let mut s = String::new();
     match kind {
         "calls" => {
@@ -1108,20 +1112,21 @@ fn generate(kind: &str, n: usize) -> String {
         }
         "procs" => {
             for i in 0..n {
-                s.push_str(&format!("proc capped_{i} {{}} {{}}\n"));
+                let _ = writeln!(s, "proc capped_{i} {{}} {{}}");
             }
         }
         "sets" => {
             for i in 0..n {
-                s.push_str(&format!("set v{i} {i}\n"));
+                let _ = writeln!(s, "set v{i} {i}");
             }
         }
         "upvar" => {
             s.push_str("proc inc {name} {upvar 1 $name v; incr v}\n");
             for i in 0..n {
-                s.push_str(&format!(
-                    "proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}\n"
-                ));
+                let _ = writeln!(
+                    s,
+                    "proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}"
+                );
             }
         }
         _ => panic!("kind"),
