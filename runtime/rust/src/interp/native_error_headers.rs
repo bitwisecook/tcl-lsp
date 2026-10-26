@@ -1413,8 +1413,6 @@ mod original_prepared_stack_tests {
 
     #[test]
     fn original_prepared_stack_unavailable_releases_do_not_issue_or_retire_private_headers() {
-        // naming.error.original-private-error-stack-header
-
         // These real releases lack the private stack; they cannot borrow the modern positive premise.
         for name in ["tcl8.4", "tcl8.5"] {
             crate::counters::reset();
@@ -1463,8 +1461,6 @@ mod original_prepared_stack_tests {
 
     #[test]
     fn original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual software member frees/tickets; no external Native stack chronology is inferred.
         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for operation in 0..2 {
@@ -1573,8 +1569,6 @@ mod original_prepared_stack_tests {
 
     #[test]
     fn original_stack_configuration_publishes_roles_before_mandatory_header_retirement() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Generic configuration software publication and cleanup, not selected Reset/Setter order.
         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in 0..4 {
@@ -1637,8 +1631,6 @@ mod original_prepared_stack_tests {
 
     #[test]
     fn original_stack_frame_append_keeps_existing_members_and_actual_frame_roles() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Source-only actual List/member roles; no public getter or frame-admission grant.
         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             crate::counters::reset();
@@ -1820,8 +1812,6 @@ mod original_carried_option_tests {
 
     #[test]
     fn original_carried_option_retirement_stops_new_body_and_preserves_reached_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Software owning-member callbacks; no external C/Jim option retirement schedule is inferred.
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for action in 0..3 {
@@ -1898,8 +1888,6 @@ mod original_carried_option_tests {
 
     #[test]
     fn original_carried_option_key_getter_keeps_actual_roles_and_refuses_before_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for action in 0..3 {
                 crate::counters::reset();
@@ -1950,8 +1938,6 @@ mod original_carried_option_tests {
 
     #[test]
     fn original_carried_option_same_header_take_restore_cannot_revive_prepared_read() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // The retained Rust identity cannot wrap or be reused while held; no Native role is issued by it.
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             crate::counters::reset();
@@ -2002,8 +1988,6 @@ mod original_carried_option_tests {
 
     #[test]
     fn original_saved_option_cleanup_finishes_result_restore_after_host_or_context_withdrawal() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for action in 0..3 {
                 crate::counters::reset();
@@ -2053,8 +2037,6 @@ mod original_carried_option_tests {
 
     #[test]
     fn original_coroutine_option_handoff_renews_installed_and_parked_incarnations() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Mandatory physical handoff software currentness only, no coroutine Native chronology grant.
         let interpreter = native("tcl9.0");
         interpreter
@@ -2082,8 +2064,6 @@ mod original_carried_option_tests {
 
     #[test]
     fn original_procedure_option_body_start_refusal_still_tears_down_the_real_frame() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual stored procedure/entered frame and member free; no native procedure chronology inferred.
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for action in 0..3 {

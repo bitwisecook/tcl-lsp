@@ -1045,8 +1045,6 @@ list $root $nsresult $rootdict(k)
 
     #[test]
     fn original_upvar_error_publication_matches_all_six_native_sources() {
-        // naming.variable.original-upvar-error-publication
-
         // Each whole row preserves catch result and errorCode. The C9 trace
         // row records unavailable legacy API, independently of upvar rejection.
         let source = include_bytes!(
@@ -1141,8 +1139,6 @@ list $root $nsresult $rootdict(k)
 
     #[test]
     fn original_array_read_destruction_matches_six_native_source_results() {
-        // naming.variable.original-array-read-destruction
-
         // Exact completion/value/trace-log observations only. Jim's original
         // unavailable trace setup is independent of C's entered callbacks.
         macro_rules! provider {
@@ -1208,8 +1204,6 @@ list $root $nsresult $rootdict(k)
 
     #[test]
     fn whole_array_destruction_preserves_staged_native_member_lifetimes() {
-        // naming.variable.original-array-member-trace-retirement-horizon
-
         // Whole public callback logs, including later-member trace registration.
         use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)

@@ -149,8 +149,6 @@ fn first_is_original(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn original_stock_family_replacement_retires_configuration_outside_borrows_before_continuation() {
-    // naming.embedding.original-host-publication-and-fact-transport
-
     // A private configured role supplies its actual +1; slot observations add none.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for mode in 0..4 {
@@ -202,8 +200,6 @@ fn original_stock_family_replacement_retires_configuration_outside_borrows_befor
 #[test]
 fn original_stock_family_cleanup_restores_reached_records_after_first_refusal_without_reentry_grant(
 ) {
-    // naming.embedding.original-host-publication-and-fact-transport
-
     let mut interpreter = native("tcl8.6");
     interpreter.register_builtin(b"stockRetirementRoot", noop);
     let generation = interpreter
@@ -239,8 +235,6 @@ fn original_stock_family_cleanup_restores_reached_records_after_first_refusal_wi
 
 #[test]
 fn original_stock_refresh_checks_new_root_after_the_extracted_old_configuration_retires() {
-    // naming.embedding.original-host-publication-and-fact-transport
-
     // One real refresh family, plus its private owning-role fixture. No Native chronology.
     for mode in 0..4 {
         let mut interpreter = native("tcl8.6");

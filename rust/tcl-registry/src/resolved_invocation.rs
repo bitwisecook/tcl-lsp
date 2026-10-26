@@ -728,8 +728,6 @@ impl<'r> InvocationOptions<'r, '_> {
     /// This supplies no handler, successful dispatch or rewrite permission.
     #[must_use]
     pub fn keyword_table(self) -> crate::abbrev::KeywordTable<'static> {
-        // naming.minifier.complete-logical-metadata
-
         crate::spec::keyword_table_for_available_options(self.available(), self.prefix_matching)
     }
 
@@ -3060,8 +3058,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// prove all original binding-name uses plus isolated editing policy.
     #[must_use]
     pub fn authored_source_result_preserves_variable_bindings(&self) -> bool {
-        // naming.minifier.logical-formal-binding-alpha
-
         let (roles, complete) = self.authored_source_argument_roles();
         let barriers = crate::FRAME_REACH_TRAITS
             | Traits::INTROSPECTS_BY_NAME
@@ -3538,8 +3534,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     }
 
     fn source_frame_script_arguments(&self, logical: bool) -> Option<Vec<std::ops::Range<usize>>> {
-        // naming.diagnostic.registry-source-ownership
-
         use crate::frame_effect::FrameArgumentResolution as Layout;
         let frame = self.semantics.frame_effect?;
         if frame.layout != crate::FrameArgLayout::ScriptInSelectedFrame {
@@ -3747,8 +3741,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// native parameter acceptance nor a successful definition.
     #[must_use]
     pub fn authored_source_argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
-        // Implementation contract: naming.vendor.original-registry-metadata
-
         let (roles, complete) = self.argument_roles_with_native_definition(false, false);
         if self.uses_authored_jim_core_layout() {
             self.authored_jim_core_roles(roles, complete)
@@ -3834,8 +3826,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// transition and deferred source timing, without a native descriptor.
     #[must_use]
     pub fn authored_source_procedure_arguments(&self) -> Option<AuthoredSourceProcedureArguments> {
-        // naming.compiler.original-analysis-metadata-context
-
         let native_definition = self.semantics.procedure_definition.is_some();
         let authored_hook =
             self.semantics.analyser_hook == Some(crate::hooks::AnalyserHookId::Proc);
@@ -3944,8 +3934,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// grants no Native grammar, entered frame, effects or successful handler.
     #[must_use]
     pub fn authored_logical_source_argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
-        // naming.source.original-produced-command-prefix
-
         let layout = self
             .semantics
             .frame_effect
@@ -3961,8 +3949,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_logical_source_role_projection(
         &self,
     ) -> Option<AuthoredLogicalSourceRoleProjection> {
-        // naming.compiler.original-analysis-metadata-context
-
         if !matches!(
             self.subcommand,
             SubcommandResolution::NotApplicable
@@ -4215,8 +4201,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_command_prefix_arguments(
         &self,
     ) -> Option<Vec<(usize, crate::AppendedArity)>> {
-        // naming.source.original-structured-script-timing
-
         let (roles, complete) = self.authored_source_argument_roles();
         self.semantics
             .script_metadata
@@ -4485,8 +4469,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// result allocation, effect closure or successful handler entry follows.
     #[must_use]
     pub fn authored_source_ascii_list_result(&self) -> Option<Vec<u8>> {
-        // naming.source.original-structured-script-timing
-
         let arguments = self.words.arguments();
         let dialect = arguments.dialect()?;
         if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
@@ -4520,8 +4502,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// evaluated pattern, normal completion or edit equivalence.
     #[must_use]
     pub fn authored_source_pattern_arguments(&self) -> Option<Vec<crate::patterns::PatternArg>> {
-        // naming.core.original-pattern-retained-context
-
         if !matches!(
             self.subcommand,
             SubcommandResolution::NotApplicable
@@ -4617,8 +4597,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// template value validation, successful completion or edit permission.
     #[must_use]
     pub fn authored_source_format_arguments(&self) -> Option<Vec<crate::FormatStringArg>> {
-        // naming.core.original-inlay-retained-context
-
         if !matches!(
             self.subcommand,
             SubcommandResolution::NotApplicable
@@ -4674,8 +4652,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// Package windows remain explicit for consumers that decide floors later.
     #[must_use]
     pub fn authored_source_arity(&self) -> Option<AuthoredSourceArity<'r>> {
-        // naming.diagnostic.registry-source-ownership
-
         if !matches!(
             self.subcommand,
             SubcommandResolution::NotApplicable
@@ -4733,8 +4709,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// an unknown count. This establishes no actual lambda or invocation.
     #[must_use]
     pub fn authored_source_lambda_call(&self) -> Option<AuthoredSourceLambdaCall> {
-        // naming.diagnostic.registry-source-ownership
-
         if !matches!(
             self.subcommand,
             SubcommandResolution::NotApplicable
@@ -4810,8 +4784,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// unknown roles/cardinality decline. No store or cell value is proved.
     #[must_use]
     pub fn authored_source_assignment_arguments(&self) -> Option<Vec<(usize, Option<usize>)>> {
-        // naming.navigation.retained-path-source-inventory
-
         use crate::{ArgRole, Traits};
         let count = self.words.arguments().exact_argv_len()?;
         let (roles, complete) = self.authored_source_argument_roles();
@@ -4936,8 +4908,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         &self,
         (roles, complete): (Vec<(u8, ArgRole)>, bool),
     ) -> Option<AuthoredSourceExpressionArguments> {
-        // naming.diagnostic.registry-source-ownership
-
         if !matches!(
             self.subcommand,
             SubcommandResolution::NotApplicable
@@ -5116,8 +5086,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// be skipped to discover a later option. No execution or edit is implied.
     #[must_use]
     pub fn authored_source_diagnostic_options(&self) -> Option<AuthoredSourceOptionScan<'r>> {
-        // naming.diagnostic.registry-source-ownership
-
         let subcommands = self.authored_source_option_selector_path()?;
         let selected = self.semantics.script_metadata;
         let options = self.semantics.options;
@@ -5211,8 +5179,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_channel_configuration(
         &self,
     ) -> Option<crate::AuthoredSourceChannelConfiguration> {
-        // naming.diagnostic.registry-source-ownership
-
         let selected = self.authored_source_descriptors();
         let descriptor = selected
             .subcommand
@@ -5227,8 +5193,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// effective post-head ordinals; no literal value, exposure or edit follows.
     #[must_use]
     pub fn authored_source_credential_arguments(&self) -> Vec<AuthoredSourceCredentialArgument> {
-        // naming.diagnostic.registry-source-ownership
-
         let selected = self.authored_source_descriptors();
         let mut arguments = Vec::new();
         if !selected.command.credential_options.is_empty()
@@ -5356,8 +5320,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_option_relationships(
         &self,
     ) -> Option<AuthoredSourceOptionRelationships<'r>> {
-        // naming.diagnostic.registry-source-ownership
-
         let scan = self.authored_source_diagnostic_options()?;
         let arguments = self.words.arguments();
         let count = arguments.exact_argv_len()?;
@@ -5487,8 +5449,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_case_invocation(
         &self,
     ) -> Option<(crate::CaseListSpec, crate::spec::CaseInvocation)> {
-        // Implementation contract: naming.source.original-editor-body-structure
-
         if self.semantics.argument_offset != 0 {
             return None;
         }
@@ -5557,8 +5517,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_case_pattern_layout(
         &self,
     ) -> Option<(crate::CaseListSpec, crate::spec::CaseInvocation)> {
-        // naming.diagnostic.registry-source-ownership
-
         if self.semantics.argument_offset != 0 {
             return None;
         }
@@ -5578,8 +5536,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// despite unavailable executable roles; no matching/body/Normal follows.
     #[must_use]
     pub fn authored_source_case_presentation(&self) -> Option<(crate::CaseListSpec, usize)> {
-        // Implementation contract: naming.source.original-editor-body-structure
-
         if self.semantics.argument_offset != 0 {
             return None;
         }
@@ -5614,8 +5570,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         &self,
         argument: usize,
     ) -> Option<VariableReceiverOperandForm> {
-        // Implementation contract: naming.vendor.original-registry-metadata
-
         let (roles, complete) = self.authored_source_argument_roles();
         if !complete
             || self
@@ -5841,8 +5795,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// decline. This supplies source metadata only, never a published command.
     #[must_use]
     pub fn authored_source_command_publication(&self) -> Option<AuthoredSourceCommandPublication> {
-        // naming.source.original-command-name-publications
-
         let descriptors = self.authored_source_descriptors();
         let arguments = self.words.arguments();
         let count = arguments.exact_argv_len()?;
@@ -5975,8 +5927,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_definition_body_grammar(
         &self,
     ) -> Option<&'static crate::definer::DefinitionBodyGrammar> {
-        // naming.core.original-inlay-retained-context
-
         let grammar = self.authored_source_descriptors().command.definition_body?;
         let transitions = self.state_transitions();
         let target = transitions
@@ -6010,8 +5960,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// values and excluded options are not enumerable source values.
     #[must_use]
     pub fn authored_source_enum_arguments(&self) -> Vec<usize> {
-        // naming.core.original-inlay-retained-context
-
         let selected = self.authored_source_descriptors();
         let arguments = self.words.arguments();
         let version = self.semantics.options.availability.package_version;
@@ -6090,8 +6038,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_inline_case_clauses(
         &self,
     ) -> Option<Vec<crate::spec::InlineCaseClause>> {
-        // naming.source.original-editor-body-structure
-
         let (case, invocation) = self.authored_source_case_invocation()?;
         let start = invocation.inline_clause_start?;
         let arguments = self.words.arguments();
@@ -6972,8 +6918,6 @@ mod tests {
 
     #[test]
     fn original_destructive_source_paths_keep_dynamic_and_captured_option_boundaries() {
-        // naming.compiler.original-analysis-metadata-context
-
         use crate::InvocationWord::{Dynamic, Literal};
         let owner = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         for (arguments, expected, unknown) in [
@@ -7016,8 +6960,6 @@ mod tests {
 
     #[test]
     fn original_destructive_source_paths_refuse_unknown_widths_and_unselected_descriptors() {
-        // naming.compiler.original-analysis-metadata-context
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal, Opaque};
         let owner = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         for arguments in [
@@ -7046,8 +6988,6 @@ mod tests {
 
     #[test]
     fn original_selected_completion_keeps_descriptor_and_argument_grammar_independent() {
-        // naming.compiler.original-analysis-metadata-context
-
         // A source completion shape is not a reached handler or Normal receipt.
         use crate::registry::InvocationCompletion;
         let context =
@@ -7119,8 +7059,6 @@ mod tests {
 
     #[test]
     fn source_enum_projection_keeps_literal_and_native_byte_facets_separate() {
-        // naming.core.original-inlay-retained-context
-
         let mut registry = CommandRegistry::build_default();
         registry.insert(crate::CommandSpec {
             name: "enum_source_test",
@@ -7162,8 +7100,6 @@ mod tests {
 
     #[test]
     fn source_possible_options_branch_over_admitted_widths_and_terminators() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Pure selected descriptor/source layout, without handler execution.
         static OPTIONS: &[crate::hover::OptionSpec] = &[
             crate::hover::OptionSpec {
@@ -7230,7 +7166,6 @@ mod tests {
     }
 
     #[test]
-    // naming.core.original-registry-context-completion
 
     fn source_completion_options_keep_selected_form_and_surface() {
         use crate::InvocationWord::Literal;
@@ -7320,7 +7255,6 @@ mod tests {
     }
 
     #[test]
-    // naming.core.original-registry-context-completion
 
     fn source_completion_options_require_actual_nested_selector() {
         use crate::InvocationWord::{Dynamic, Literal};
@@ -7376,8 +7310,6 @@ mod tests {
 
     #[test]
     fn selected_option_variable_scope_shares_availability_prefix_and_value_geometry() {
-        // naming.compiler.original-analysis-metadata-context
-
         static OPTIONS: &[crate::hover::OptionSpec] = &[
             crate::hover::OptionSpec {
                 name: "-global",
@@ -7474,8 +7406,6 @@ mod tests {
 
     #[test]
     fn original_case_pattern_layout_keeps_unknown_payloads_and_actual_option_windows() {
-        // naming.diagnostic.registry-source-ownership
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         let current =
             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -7538,8 +7468,6 @@ mod tests {
 
     #[test]
     fn original_logical_case_role_projection_keeps_selected_options_and_body_residuals() {
-        // naming.compiler.original-analysis-metadata-context
-
         use crate::InvocationWord::{Dynamic, Expanded, KnownBytes, Literal};
         let current =
             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -7643,8 +7571,6 @@ mod tests {
 
     #[test]
     fn original_source_file_argument_keeps_available_forms_and_unknown_selectors() {
-        // naming.diagnostic.registry-source-ownership
-
         // Selected source form only; no native file or accepted handler follows.
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         let current =
@@ -7702,8 +7628,6 @@ mod tests {
 
     #[test]
     fn original_frame_script_advice_keeps_selected_and_logical_layouts_separate() {
-        // naming.diagnostic.registry-source-ownership
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         let registry = CommandRegistry::build_default();
         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
@@ -7752,8 +7676,6 @@ mod tests {
 
     #[test]
     fn original_invokehidden_options_keep_the_path_prefix_and_actual_availability() {
-        // naming.diagnostic.registry-source-ownership
-
         // Native source anchor: native_event_original/source/8.6.18/tclInterp.c
         // OPT_INVOKEHID scans i=3 while the path remains original objv[2].
         use crate::InvocationWord::{Dynamic, Literal};
@@ -7794,8 +7716,6 @@ mod tests {
 
     #[test]
     fn source_enum_values_and_definition_bodies_use_the_selected_invocation() {
-        // naming.core.original-inlay-retained-context
-
         let registry = CommandRegistry::build_default();
         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
         let query = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
@@ -7862,8 +7782,6 @@ mod tests {
 
     #[test]
     fn source_diagnostic_options_keep_nested_prefixes_and_unknown_boundaries() {
-        // naming.diagnostic.registry-source-ownership
-
         let registry = crate::CommandRegistry::build_default();
         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (words, expected) in [
@@ -7918,8 +7836,6 @@ mod tests {
 
     #[test]
     fn source_clause_roles_keep_resolver_roles_and_actual_availability() {
-        // naming.compiler.original-analysis-metadata-context
-
         use crate::InvocationWord::{Expanded, Literal};
         let current =
             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -7971,8 +7887,6 @@ mod tests {
 
     #[test]
     fn authored_source_procedure_roles_do_not_supply_native_definition_acceptance() {
-        // Implementation contract: naming.vendor.original-registry-metadata
-
         let registry = CommandRegistry::build_default();
         let arguments = [
             crate::InvocationWord::Literal("p"),
@@ -7993,7 +7907,6 @@ mod tests {
         assert!(complete);
         assert!(roles.contains(&(1, ArgRole::ParamList)));
         assert!(roles.contains(&(2, ArgRole::Body)));
-        // naming.compiler.original-analysis-metadata-context
 
         assert_eq!(
             selected.authored_source_procedure_arguments(),
@@ -8433,8 +8346,6 @@ mod tests {
 
     #[test]
     fn selected_subcommand_options_preserve_reserved_positional_values() {
-        // naming.minifier.complete-logical-metadata
-
         let registry = crate::CommandRegistry::build_default();
         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (arguments, expected) in [
@@ -8473,8 +8384,6 @@ mod tests {
 
     #[test]
     fn authored_case_presentation_keeps_incomplete_list_separate_from_invocation() {
-        // Implementation contract: naming.source.original-editor-body-structure
-
         let registry = crate::CommandRegistry::build_default();
         for version in tcl_dialect::TclVersion::ALL {
             let words = [
@@ -8542,8 +8451,6 @@ mod tests {
 
     #[test]
     fn authored_case_layout_retains_dynamic_subject_and_exact_control_words() {
-        // Implementation contract: naming.source.original-editor-body-structure
-
         let registry = CommandRegistry::build_default();
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = crate::InvocationDialect::for_version(version);
@@ -8819,8 +8726,6 @@ mod tests {
 
     #[test]
     fn authored_source_shape_advice_keeps_unknown_payloads_and_selected_dialect() {
-        // naming.diagnostic.registry-source-ownership
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context =
@@ -8906,8 +8811,6 @@ mod tests {
 
     #[test]
     fn authored_source_patterns_keep_selected_context_and_option_languages() {
-        // naming.core.original-pattern-retained-context
-
         use crate::InvocationWord::{Dynamic, Literal};
         let driver =
             crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -8980,8 +8883,6 @@ mod tests {
 
     #[test]
     fn authored_source_patterns_keep_payload_unknown_and_refuse_uncertain_layout() {
-        // naming.core.original-pattern-retained-context
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         use crate::patterns::PatternType::{Glob, Regex};
         let context =
@@ -9061,8 +8962,6 @@ mod tests {
 
     #[test]
     fn authored_source_formats_keep_selected_context_and_effective_ordinals() {
-        // naming.core.original-inlay-retained-context
-
         use crate::InvocationWord::{Dynamic, Literal};
         let driver =
             crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -9135,8 +9034,6 @@ mod tests {
 
     #[test]
     fn source_arity_count_layout_keeps_axis_prefix_data_and_expansion_bounds() {
-        // naming.diagnostic.registry-source-ownership
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         let owner = crate::model::ingress::static_context_for("tcl8.6");
         for (head, arguments, minimum, indeterminate, operands) in [
@@ -9193,8 +9090,6 @@ mod tests {
 
     #[test]
     fn source_expression_roles_keep_selected_tail_and_unknown_cardinality() {
-        // naming.diagnostic.registry-source-ownership
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         let context = crate::model::ingress::static_context_for("tcl8.6");
         for (head, arguments, expected, concatenates) in [
@@ -9404,8 +9299,6 @@ mod tests {
 
     #[test]
     fn structured_option_boundary_shares_alias_abbreviation_and_value_span_rules() {
-        // Implementation contract: naming.studio.source-word-role-projection
-
         use crate::InvocationWord::{Dynamic, Literal};
         let options = structured_boundary_options();
         let available = options.iter().collect::<Vec<_>>();
@@ -11433,7 +11326,6 @@ mod tests {
     }
 }
 #[test]
-// Implementation contract: naming.variable.registry-receiver-authoring-parity
 
 fn variable_receiver_fact_projection_preserves_form_precedence_and_member_offsets() {
     use VariableReceiverOperandForm::Combined;
@@ -11506,7 +11398,6 @@ fn variable_receiver_fact_projection_preserves_form_precedence_and_member_offset
 }
 
 #[test]
-// Implementation contract: naming.variable.registry-receiver-authoring-parity
 
 fn selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate() {
     let registry = crate::CommandRegistry::build_default();
@@ -11582,8 +11473,6 @@ fn selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separat
 
 #[test]
 fn authored_receiver_form_does_not_require_native_procedure_acceptance() {
-    // Implementation contract: naming.vendor.original-registry-metadata
-
     use crate::InvocationWord::{Dynamic, Expanded, Literal, Opaque};
     use VariableReceiverOperandForm::Combined;
     let mut registry = crate::CommandRegistry::build_default();
@@ -11696,7 +11585,6 @@ fn assert_original_trace_computed_receivers(
 }
 
 #[test]
-// Implementation contract: naming.variable.trace-source-receiver-purpose
 fn original_trace_receiver_forms_select_variable_grammar_ordinals_and_release() {
     use VariableReceiverOperandForm::TraceSubject;
     let registry = crate::CommandRegistry::build_default();
@@ -11814,8 +11702,6 @@ fn original_trace_subject_extent_preserves_counted_original_and_independent_arra
 mod original_source_presentation_tests {
     #[test]
     fn original_source_presentation_uses_selected_roles_and_effective_ordinals() {
-        // naming.core.original-command-source-schema
-
         use crate::{ArgPresentation, InvocationWord};
         let context = crate::model::ingress::static_context_for("tcl8.6");
         let arguments = [
@@ -11858,8 +11744,6 @@ mod original_source_presentation_tests {
     }
     #[test]
     fn selected_option_keyword_table_retains_prefix_positions_and_values() {
-        // naming.minifier.complete-logical-metadata
-
         let context = crate::model::ingress::static_context_for("tcl8.6");
         let arguments = [
             crate::InvocationWord::Literal("equal"),
@@ -11901,8 +11785,6 @@ mod logical_binding_result_tests {
     use crate::ArgRole;
     #[test]
     fn selected_logical_result_binding_axis_keeps_native_effects_unknown() {
-        // naming.minifier.logical-formal-binding-alpha
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = crate::model::ingress::context_for_profile(profile);
         assert!(
@@ -11963,8 +11845,6 @@ mod logical_binding_result_tests {
     }
     #[test]
     fn structured_conditional_and_output_roles_keep_unknown_payloads() {
-        // naming.source.authored-registry-role-projection
-
         use crate::InvocationWord::{Dynamic, Expanded, Literal};
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let owner = crate::model::ingress::static_context_for(profile);
@@ -12061,8 +11941,6 @@ mod logical_frame_source_role_tests {
 
     #[test]
     fn logical_frame_source_roles_use_consensus_without_native_frame_facts() {
-        // naming.source.original-produced-command-prefix
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = crate::model::ingress::context_for_profile(profile);
         let dialect = InvocationDialect::of_profile(profile);
@@ -12142,8 +12020,6 @@ mod logical_frame_source_role_tests {
 
     #[test]
     fn logical_frame_source_roles_keep_dynamic_divergent_and_expanded_layouts_unknown() {
-        // naming.source.original-produced-command-prefix
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = crate::model::ingress::context_for_profile(profile);
         for arguments in [
@@ -12649,8 +12525,6 @@ impl ResolvedInvocation<'_, '_> {
     /// Selection does not establish a native handler or substituted value.
     #[must_use]
     pub fn authored_source_index_bounds(&self) -> Option<crate::SourceIndexBoundsInvocation> {
-        // naming.diagnostic.registry-source-ownership
-
         let selected = self.semantics.script_metadata;
         let declared = selected
             .subcommand
@@ -12684,8 +12558,6 @@ impl ResolvedInvocation<'_, '_> {
     pub fn authored_source_path_operation(
         &self,
     ) -> Option<crate::source_path::SourcePathInvocation> {
-        // naming.navigation.retained-path-source-inventory
-
         if self.form.is_some() {
             return None;
         }
@@ -12711,8 +12583,6 @@ mod scope_alias_metadata_tests {
     use crate::CommandRegistry;
     #[test]
     fn selected_scope_alias_positions_keep_complete_roles_and_effective_ordinals() {
-        // naming.analysis.selected-scope-alias-role-metadata
-
         // Selected authored descriptor positions only; no native link or frame.
         let registry = CommandRegistry::build_default();
         let query = Some(tcl_dialect::model::SurfaceQuery::core(

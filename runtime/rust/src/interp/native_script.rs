@@ -407,8 +407,6 @@ impl Interp {
         filename: &[u8],
         frame: CmdFrame,
     ) -> Code {
-        // naming.source.jim-original-source-entry
-
         let context = match self.native_jim_object_context() {
             Ok(context) => context,
             Err(error) => return self.report_cmd_error(error.into()),
@@ -450,8 +448,6 @@ impl Interp {
             Err(first) => return self.refuse_native_execution(first),
         };
         let reached = (|| {
-            // naming.source.jim-original-source-entry
-
             let context = match self.native_jim_object_context() {
                 Ok(context) => context,
                 Err(error) => return self.report_cmd_error(error.into()),
@@ -546,8 +542,6 @@ impl Interp {
         &self,
         script: &tcl_syntax::native_jim_substitution::JimOrdinaryScript<Owned>,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
-        // naming.source.jim-original-source-entry
-
         let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
         let location = tcl_runtime_api::jim_error_stack::JimScriptLocation {
             file: script.filename.clone(),
@@ -724,8 +718,6 @@ mod tests {
 
     #[test]
     fn sourced_jim_body_tokens_keep_original_lines_and_unlocated_objects_stay_unlocated() {
-        // naming.source.jim-original-source-entry
-
         let mut interp = Interp::with_native_core(
             default_host(),
             crate::environment::profile_for_dialect("jim"),
@@ -770,8 +762,6 @@ mod tests {
 
     #[test]
     fn jim_control_body_preserves_original_source_in_error_frames() {
-        // naming.source.jim-original-source-entry
-
         let mut interp = Interp::with_native_core(
             default_host(),
             crate::environment::profile_for_dialect("jim"),
@@ -807,8 +797,6 @@ mod tests {
 
     #[test]
     fn jim_original_lookup_error_keeps_live_procedure_and_script_frames() {
-        // naming.source.jim-original-source-entry
-
         let mut interp = Interp::with_native_core(
             default_host(),
             crate::environment::profile_for_dialect("jim"),
@@ -830,8 +818,6 @@ mod tests {
 
     #[test]
     fn normal_original_script_does_not_materialise_its_borrowed_filename() {
-        // naming.source.jim-original-source-entry
-
         let mut interp = Interp::with_native_core(
             default_host(),
             crate::environment::profile_for_dialect("jim"),

@@ -949,8 +949,6 @@ fn register_define_ns_commands(interp: &mut Interp) {
 /// (for `configure`) and resolves `property` in the configurableclass /
 /// configurableobject definition namespaces.
 fn install_configurable(interp: &mut Interp) {
-    // naming.tcloo.original-configurable-factory-support
-
     let registry = crate::environment::store_for_profile(interp.dialect_profile());
     if let Some(support) = registry
         .native_class_factory_recipe(
@@ -2786,8 +2784,6 @@ fn install_original_method_vis(
 /// marks the methods/variables it defines as private (`my`-only). TIP 500.
 fn def_private(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
-        // naming.tcloo.private-definition-mode
-
         if interp.active_def_target().is_none() {
             return native_context::monkey_business(interp);
         }
@@ -9772,8 +9768,6 @@ mod tests {
 
     #[test]
     fn unknown_method_preserves_original_selector_for_returned_slot_data() {
-        // naming.tcloo.original-counted-variable-header
-
         // This Rust control isolates the dispatcher before the native proof's
         // direct declaration/query boundary; it claims no extra native observer.
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -9829,8 +9823,6 @@ mod tests {
 
     #[test]
     fn define_context_self_arity() {
-        // naming.tcloo.original-definition-context-self
-
         leak_free(|i| {
             ok(i, b"oo::class create Cls");
             ok(i, b"Cls create obj");
@@ -10351,8 +10343,6 @@ mod tests {
 
     #[test]
     fn definitionnamespace_semantics() {
-        // naming.tcloo.original-definitionnamespace-source-control
-
         leak_free(|i| {
             // TIP 524: a metaclass's -class definition namespace becomes the
             // resolution scope when defining its instances (classes).
@@ -10951,8 +10941,6 @@ mod tests {
 
     #[test]
     fn original_renamed_definition_matches_native_source_and_raw_return_boundaries() {
-        // naming.class.original-renamed-definition-error-context
-
         // Whole public completion/errorInfo only; no private class/header
         // identity follows. C8.4/8.5 stock TclOO is unavailable: their C API
         // settles top-level return to OK, while this raw evaluator retains RETURN.
@@ -11022,8 +11010,6 @@ mod tests {
 
     #[test]
     fn define_script_errorinfo_and_super_mixin_messages() {
-        // naming.tcloo.original-nonclass-superclass-mixin-errors
-
         leak_free(|i| {
             // superclass/mixin: not-an-object vs not-a-class messages (as-written
             // name; matches C's Tcl_GetObjectFromObj + ClassSuperSet/MixinSet).
@@ -11048,7 +11034,6 @@ mod tests {
                 Code::Error
             );
             assert_eq!(i.result_bytes(), b"only a class can be a mixin");
-            // naming.class.original-renamed-definition-error-context
 
             // The define-script errorInfo frame uses the *current* (renamed) name.
             ok(i, b"oo::class create base");
@@ -11862,8 +11847,6 @@ mod original_argument_tests {
 
     #[test]
     fn define_target_callback_stops_before_body_and_definition_effects() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Software getter/currency control; native OO operand order is separate.
         for mode in [1, 2] {
             let mut interpreter = native();
@@ -11896,8 +11879,6 @@ mod original_argument_tests {
 
     #[test]
     fn method_name_callback_withdraws_later_formal_body_and_installation_stages() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         for mode in [1, 2] {
             let mut interpreter = native();
             let (target, caller) = enter(&mut interpreter);
@@ -11934,8 +11915,6 @@ mod original_argument_tests {
 
     #[test]
     fn definition_frame_reporting_runs_updaters_outside_frame_borrow_and_cleans_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Definition entry retains the original tape without presentation.
         // The explicit report String stage reaches the original updater.
         for mode in [0, 1, 2] {
@@ -11999,8 +11978,6 @@ mod original_argument_tests {
 
     #[test]
     fn retired_method_callback_stops_before_later_name_and_result_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         for mode in [1, 2] {
             let mut interpreter = native();
             let (target, caller) = enter(&mut interpreter);

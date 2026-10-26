@@ -1038,8 +1038,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_syntax_result_getter_keeps_borrowed_header_and_full_first_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Genuine software extension callbacks/roles; no Native getter chronology is inferred.
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in 0..4 {
@@ -1099,8 +1097,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_syntax_shared_info_copy_checks_real_duplicate_before_adoption() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual extension duplication/borrowed roles, independent of Native reset/setter observations.
         for name in ["tcl8.5", "tcl8.6"] {
             for mode in [5, 6] {
@@ -1205,8 +1201,6 @@ mod original_syntax_transport_tests {
     };
     #[test]
     fn original_syntax_copy_primary_aba_precedes_actual_unused_copy_host_retirement() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Software duplicate/private-role currentness, not Native614c setter or reset chronology.
         for profile in ["tcl8.5", "tcl8.6"] {
             for change in [false, true] {
@@ -1286,8 +1280,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_syntax_literal_action_transports_reached_header_retirement_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         use super::super::native_literal_pool::{
             NativeRuntimeLiteral as Literal, NativeRuntimeLiteralAction as Action,
         };
@@ -1361,8 +1353,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_builder_syntax_retains_callback_cause_before_formatter_or_cache() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in [1, 2] {
                 crate::counters::reset();
@@ -1408,8 +1398,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_error_stack_replacement_checks_real_retirement_and_owner_aba() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // List-member retirement and mutation-ticket/backing callbacks are software controls, not Native error-stack timing.
         for name in ["tcl8.6", "tcl9.1"] {
             for mode in 0..5 {
@@ -1477,8 +1465,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_error_converters_check_real_primary_retirement_before_backing_adoption() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Real software freeIntRep callbacks test transport and adoption boundaries,
         // without attesting external Tcl converter or error-stack chronology.
         for name in ["tcl8.6", "tcl9.1"] {
@@ -1579,8 +1565,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_completion_reads_keep_original_borrowed_roles_and_full_callback_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Real software getter callbacks measure roles and typed transport, not external chronology.
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for operation in 0..2 {
@@ -1660,8 +1644,6 @@ mod original_syntax_transport_tests {
 
     #[test]
     fn original_completion_options_read_real_carried_key_before_duplicate_or_overlay() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual stored Dictionary members and software updater effects, independent of Native options order.
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in 7..10 {

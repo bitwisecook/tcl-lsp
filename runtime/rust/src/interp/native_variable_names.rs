@@ -3370,8 +3370,6 @@ mod tests {
 
     #[test]
     fn original_upvar_free_callback_checks_currency_before_cells_and_aliases() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual selected C worker; software callback currency, not native equivalence.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in 0..=2 {
@@ -3426,8 +3424,6 @@ mod tests {
 
     #[test]
     fn original_compiled_upvar_free_callback_refuses_later_slot_binding() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Genuine procedure artifact/slot and shared compiled worker, no codegen claim.
         for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in 0..=2 {
@@ -3532,8 +3528,6 @@ mod tests {
 
     #[test]
     fn original_canonical_name_free_callback_releases_borrows_and_stops_next_cache() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Reached original cache stays installed; the later canonical cache is refused.
         let mut interp = Interp::with_native_core(
             super::super::default_host(),
@@ -3592,8 +3586,6 @@ mod tests {
 
     #[test]
     fn legacy_existence_preserves_original_name_caches_and_object_reads_still_adopt_them() {
-        // naming.variable.original-upvar-and-exists-completion-and-name-windows
-
         // Native case16 binds the fresh scalar primary. The list-cache,
         // combined name and NUL controls separately test this source/API owner.
         for engine in ["tcl8.4", "tcl8.5"] {
@@ -5397,8 +5389,6 @@ mod original_assignment_tests {
 
     #[test]
     fn original_c_assignment_releases_old_value_before_trace_with_cell_borrows_released() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual receiver callbacks and ownership, without external refcount/order equivalence.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for element in [false, true] {
@@ -5460,8 +5450,6 @@ mod original_assignment_tests {
 
     #[test]
     fn original_jim_assignment_updates_actual_cached_cell_before_retirement_callback() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Jim_SetVariable keeps the old VarVal pointer during its decrement.
         // A refused software continuation cannot perform the later assignment.
         for fresh_name in [false, true] {

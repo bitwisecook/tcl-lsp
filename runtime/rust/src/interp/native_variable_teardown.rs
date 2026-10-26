@@ -178,8 +178,6 @@ impl Interp {
     }
 
     pub(super) fn retire_namespace_variables(&mut self, namespace: NsId) {
-        // naming.variable.original-owner-array-trace-retirement-horizon
-
         // The original table and cell retirement are software receipts; public
         // namespace observations do not expose those physical identities.
         let saved = super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
@@ -446,8 +444,6 @@ mod tests {
 
     #[test]
     fn original_unset_alias_refills_match_six_native_source_results() {
-        // naming.variable.original-unset-alias-trace-refill
-
         // Whole original script results retain the public refill and fresh trace.
         // Jim's unavailable trace command remains an independent guest outcome.
         const CONTROLS: &[OriginalControl] = &[
@@ -484,8 +480,6 @@ mod tests {
 
     #[test]
     fn direct_byte_unset_keeps_callback_refill_registrations() {
-        // naming.variable.original-unset-alias-trace-refill
-
         // This implementation control replaces one operation between unchanged
         // source prelude/tail. It asserts shared callback disposal chronology;
         // it does not claim a native C API or original operand/header comparison.
@@ -498,8 +492,6 @@ mod tests {
 
     #[test]
     fn direct_separate_member_unset_keeps_callback_refill_registrations() {
-        // naming.variable.original-unset-alias-trace-refill
-
         // The byte root/key consumer shares physical disposal. The native proof
         // measures only its original alias script, not this Rust call interface.
         const CONTROLS: &[OriginalControl] = &[control!(
@@ -511,8 +503,6 @@ mod tests {
 
     #[test]
     fn original_array_unset_refills_match_six_native_source_results() {
-        // naming.variable.original-array-unset-trace-refill
-
         // These are ArrayUnset originals, independent of the Unset alias source.
         const CONTROLS: &[OriginalControl] = &[
             control!("native_array_operational_unset355", "array-member-refill"),
@@ -523,8 +513,6 @@ mod tests {
 
     #[test]
     fn original_array_unset_keeps_release_selected_member_lookup() {
-        // naming.variable.original-array-unset-name-relookup
-
         // C84/85 relookup each member name; C86+ keep the selected array.
         // All C releases relookup a whole root after its array callback.
         // These public values do not expose private header/table identity.
@@ -537,8 +525,6 @@ mod tests {
 
     #[test]
     fn direct_varstore_byte_unset_keeps_callback_refill_registrations() {
-        // naming.variable.original-unset-alias-trace-refill
-
         // This independently tests the Rust operational byte adapter. The native
         // proof measures its original script, not this VarStore call interface.
         const CONTROLS: &[OriginalControl] = &[
@@ -569,8 +555,6 @@ mod tests {
 
     #[test]
     fn direct_noncurrent_varstore_byte_unset_keeps_callback_refill_registrations() {
-        // naming.variable.original-unset-alias-trace-refill
-
         // A Rust-owned additional frame exercises addressed removal. This is a
         // software control, not a native C API/frame or generated-body proof.
         const CONTROLS: &[OriginalControl] = &[
@@ -662,8 +646,6 @@ mod tests {
 
     #[test]
     fn original_undefined_member_callbacks_match_six_native_retirement_sources() {
-        // naming.variable.original-undefined-array-member-retirement
-
         // Each original result retains array existence/member absence before
         // destruction and the public callback log. No native cell identity claim.
         const CONTROLS: &[OriginalControl] = &[
@@ -676,8 +658,6 @@ mod tests {
 
     #[test]
     fn original_namespace_array_teardown_matches_six_native_owner_sources() {
-        // naming.variable.original-owner-array-trace-retirement-horizon
-
         // Three whole namespace results, including Jim's unavailable trace API.
         // The original public logs do not expose private namespace/member identity.
         const CONTROLS: &[OriginalControl] = &[
@@ -690,10 +670,6 @@ mod tests {
 
     #[test]
     fn original_frame_alias_refusals_do_not_claim_teardown_chronology() {
-        // naming.variable.original-owner-array-trace-retirement-horizon
-
-        // naming.variable.original-frame-array-trace-retirement-horizon
-
         // The original C bad-level/inverted-alias errors occur before traces.
         // Jim's unavailable trace command is retained independently.
         const CONTROLS: &[OriginalControl] = &[
@@ -707,8 +683,6 @@ mod tests {
 
     #[test]
     fn original_frame_callbacks_observe_caller_without_donating_member_traces() {
-        // naming.variable.original-frame-array-trace-caller-access
-
         // Positive owner reads and whole callback/caller results are compared.
         // No receipt to an inaccessible departing C frame is fabricated.
         const CONTROLS: &[OriginalControl] = &[

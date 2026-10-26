@@ -1477,8 +1477,6 @@ mod tests {
 
     #[test]
     fn original_static_list_bytes_keep_counted_names_and_capture_roles_separate() {
-        // Implementation contract: naming.procedure.original-jim-static-list-capture-inputs
-
         let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap();
         let dialect = crate::InvocationDialect::of_point(point);
         let bytes = b"x\xed\xa0\x80 &y\xed\xa0\x81 {z\0tail VALUE} {&literal PAIR}";
