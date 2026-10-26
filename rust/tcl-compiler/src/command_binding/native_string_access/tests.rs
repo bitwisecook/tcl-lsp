@@ -369,57 +369,179 @@ fn original_cell_values_remain_distinct_after_append(engine: &str) {
 
 fn representation_sensitive_data_never_borrows_string_effects_as_a_value() {
     for engine in ["tcl8.4", "tcl8.6", "tcl9.0"] {
-        for source in [
-            "set greeting é; append greeting !; string length $greeting",
-            r#"set greeting "\u0000"; append greeting !; string length $greeting"#,
-        ] {
-            let bindings = analyse(source, engine);
-            let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
-            let append = bindings.invocation_at_source(
-                "append",
-                u32::try_from(source.find("append greeting").unwrap()).unwrap(),
-            );
-            let before = crate::var_resolve::resolve_literal_access(
-                "greeting",
-                &append.variable_context,
-                false,
-                registry,
-                tcl_registry::TraceOperation::Read,
-            );
-            assert!(
-                append
-                    .variable_context
-                    .original_name_read_result(&before, registry)
-                    .is_some(),
-                "known original operand {source}"
-            );
-            let point = bindings.invocation_at_source(
-                "string",
-                u32::try_from(source.rfind("string length").unwrap()).unwrap(),
-            );
-            let place = crate::var_resolve::resolve_literal_access(
-                "greeting",
-                &point.variable_context,
-                false,
-                registry,
-                tcl_registry::TraceOperation::Read,
-            );
-            assert!(
-                point
-                    .variable_context
-                    .contents_native_string_access_closed_at(&place, registry),
-                "effect stays independent {source}"
-            );
-            assert!(
-                point.evaluated_written_argument_value(1).is_none(),
-                "no unsupported value laundering {source}"
-            );
-            assert!(
-                point
-                    .variable_context
-                    .literal_contents_at(&place, registry)
-                    .is_none()
-            );
-        }
+        let source = "set greeting é; append greeting !; string length $greeting";
+        let bindings = analyse(source, engine);
+        let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+        let append = bindings.invocation_at_source(
+            "append",
+            u32::try_from(source.find("append greeting").unwrap()).unwrap(),
+        );
+        let before = crate::var_resolve::resolve_literal_access(
+            "greeting",
+            &append.variable_context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        assert!(
+            append
+                .variable_context
+                .original_name_read_result(&before, registry)
+                .is_some(),
+            "known original operand {source}"
+        );
+        assert!(
+            append
+                .variable_context
+                .contents_native_string_result_input_closed_at(&before, registry),
+            "eligible actual append input {engine}"
+        );
+        assert!(
+            append
+                .variable_context
+                .contents_native_string_access_closed_at(&before, registry),
+            "eligible pre-append effect {engine}"
+        );
+        let point = bindings.invocation_at_source(
+            "string",
+            u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+        );
+        let place = crate::var_resolve::resolve_literal_access(
+            "greeting",
+            &point.variable_context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        assert!(
+            point
+                .variable_context
+                .contents_native_string_access_closed_at(&place, registry),
+            "effect stays independent {source}"
+        );
+        assert!(
+            point.evaluated_written_argument_value(1).is_none(),
+            "no unsupported value laundering {source}"
+        );
+        assert!(
+            point
+                .variable_context
+                .literal_contents_at(&place, registry)
+                .is_none()
+        );
     }
+    nul_source_value_never_borrows_an_append_effect_receipt();
+    an_unclosed_nul_template_does_not_gain_an_append_effect();
+}
+
+fn nul_source_value_never_borrows_an_append_effect_receipt() {
+    let source = r#"set greeting "\u0000"; append greeting !; string length $greeting"#;
+    for engine in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        let bindings = analyse(source, engine);
+        let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+        let append = bindings.invocation_at_source(
+            "append",
+            u32::try_from(source.find("append greeting").unwrap()).unwrap(),
+        );
+        let before = crate::var_resolve::resolve_literal_access(
+            "greeting",
+            &append.variable_context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        assert!(
+            append
+                .variable_context
+                .original_name_read_result(&before, registry)
+                .is_some(),
+            "known original NUL operand {engine}"
+        );
+        let point = bindings.invocation_at_source(
+            "string",
+            u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+        );
+        let place = crate::var_resolve::resolve_literal_access(
+            "greeting",
+            &point.variable_context,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        assert!(
+            point.evaluated_written_argument_value(1).is_none(),
+            "no unsupported NUL value laundering {engine}"
+        );
+        assert!(
+            point
+                .variable_context
+                .literal_contents_at(&place, registry)
+                .is_none(),
+            "no NUL constant from effect-only ownership {engine}"
+        );
+    }
+}
+
+fn an_unclosed_nul_template_does_not_gain_an_append_effect() {
+    // This C8.4 quoted template has a known source value without a retained
+    // stock-literal or String-input owner. Value bytes do not supply that owner.
+    let engine = "tcl8.4";
+    let source = r#"set greeting "\u0000"; append greeting !; string length $greeting"#;
+    let bindings = analyse(source, engine);
+    let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+    let append = bindings.invocation_at_source(
+        "append",
+        u32::try_from(source.find("append greeting").unwrap()).unwrap(),
+    );
+    let before = crate::var_resolve::resolve_literal_access(
+        "greeting",
+        &append.variable_context,
+        false,
+        registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    assert!(
+        !append
+            .variable_context
+            .contents_native_string_access_closed_at(&before, registry)
+    );
+    assert!(
+        !append
+            .variable_context
+            .contents_native_string_result_input_closed_at(&before, registry)
+    );
+    assert!(
+        append
+            .variable_context
+            .contents_stock_literal_object_at(&before, registry)
+            .is_none()
+    );
+    assert!(
+        append
+            .variable_context
+            .contents_native_string_access_receipt_at(&before, registry)
+            .is_none()
+    );
+    let point = bindings.invocation_at_source(
+        "string",
+        u32::try_from(source.rfind("string length").unwrap()).unwrap(),
+    );
+    let place = crate::var_resolve::resolve_literal_access(
+        "greeting",
+        &point.variable_context,
+        false,
+        registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    assert!(
+        !point
+            .variable_context
+            .contents_native_string_access_closed_at(&place, registry)
+    );
+    assert!(
+        point
+            .variable_context
+            .contents_native_string_access_receipt_at(&place, registry)
+            .is_none()
+    );
 }
