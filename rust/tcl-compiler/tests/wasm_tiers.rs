@@ -80,6 +80,10 @@ use tcl_registry::CommandRegistry;
 use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 mod common;
+#[path = "common/native_whole_program.rs"]
+mod native_whole_program;
+use native_whole_program::native_whole_program_fixture;
+
 use common::wasm_link::{REQUIRE_VAR, check_manifest, real_link_runtime, scratch, workspace_root};
 
 /// Set this to rewrite [`BUDGETS_PATH`] from the current emitter instead of
@@ -369,9 +373,10 @@ fn samples() -> Vec<Sample> {
 fn compile(sample: &Sample, plan: Plan) -> WasmModule {
     let source = std::fs::read_to_string(&sample.source)
         .unwrap_or_else(|e| panic!("read {}: {e}", sample.source.display()));
-    let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for_dialect(&source, &registry, false, "tcl9.0");
-    compile_wasm(&unit, &registry, plan.options()).module
+    // These are executable whole-program plans, not readonly source inventories.
+    // Keep the actual entry issuer alive through this same compile.
+    let fixture = native_whole_program_fixture(&source);
+    compile_wasm(&fixture.unit, fixture.context.commands(), plan.options()).module
 }
 
 /// What one linked run produced.
@@ -668,7 +673,15 @@ fn a_failed_native_add_names_every_rejected_premise() {
     let sealed = WasmCompileOptions::hosted()
         .for_sealed_program()
         .with_semantic_optimisations(requested);
-    let selected = compile_wasm(&unit, &registry, sealed).plan;
+    // Only the positive Native precondition receives a genuine live entry.
+    // The original static unit below still exercises every refusal unchanged.
+    let native_fixture = native_whole_program_fixture(PROGRAM);
+    let selected = compile_wasm(
+        &native_fixture.unit,
+        native_fixture.context.commands(),
+        sealed,
+    )
+    .plan;
     assert!(matches!(selected, WasmCodegenPlan::NativeI64Add { .. }));
     assert!(selected.native_declines().is_empty());
 

@@ -1147,6 +1147,44 @@ mod tests {
         )
     }
 
+    /// Positive whole-program fixtures retain the actual entry issuer through CU use.
+    /// This is the existing common-AOT test ingress, never a source-card promotion.
+    fn native_whole_program_unit(
+        source: &str,
+    ) -> (
+        crate::environment_ingress::RetainedNativeUnit,
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        (
+            crate::environment_ingress::RetainedNativeUnit::new(unit, owner),
+            context,
+        )
+    }
+
     const SEALED_NATIVE_ADD: &str =
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
 
@@ -1240,10 +1278,8 @@ mod tests {
 
     #[test]
     fn sealed_common_proofs_emit_native_i64_add_at_a_boxed_boundary() {
-        let registry = CommandRegistry::build_default();
-        let unit =
-            CompilationUnit::build_for_dialect(SEALED_NATIVE_ADD, &registry, false, "tcl9.0");
-        let mut output = compile_wasm(&unit, &registry, native_i64_options());
+        let (unit, context) = native_whole_program_unit(SEALED_NATIVE_ADD);
+        let mut output = compile_wasm(&unit, context.commands(), native_i64_options());
 
         assert!(matches!(output.plan, WasmCodegenPlan::NativeI64Add { .. }));
         let bytes = output.to_bytes();
