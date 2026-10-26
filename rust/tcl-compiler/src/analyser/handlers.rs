@@ -1911,13 +1911,24 @@ impl Analyser {
         {
             self.result.logical_procedure_declarations.push(declaration);
         }
-        if let (Some(original), Some(name)) = (original_name, proc.source_name.as_ref())
-            && let Some(record) =
+        if let (Some(original), Some(name)) = (
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.proc.original_name",
+                original_name,
+            ),
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.proc.source_name",
+                proc.source_name.as_ref(),
+            ),
+        ) && let Some(record) =
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.proc.declaration_record",
                 crate::signature_scan::original_name::SourceDeclarationMetadata::new(
                     original,
                     name.clone(),
                     proc.clone(),
-                )
+                ),
+            )
             && !self.result.original_procedure_metadata.contains(&record)
         {
             self.result.original_procedure_metadata.push(record);

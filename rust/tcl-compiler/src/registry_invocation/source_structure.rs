@@ -20,8 +20,25 @@ use tcl_registry::{CommandRegistry, InvocationArguments};
 /// Observe an existing source-owner Option without changing evaluation or authority.
 pub(crate) fn trace_jim_source_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
-        eprintln!("JIM_SOURCE_OWNER stage={stage} present={}", value.is_some());
+    {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        const LIMIT: u32 = 1024;
+        static ROWS: AtomicU32 = AtomicU32::new(0);
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            match ROWS.try_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                if used < LIMIT { Some(used + 1) } else { None }
+            }) {
+                Ok(index) if index < LIMIT - 1 => {
+                    eprintln!("JIM_SOURCE_OWNER stage={stage} present={}", value.is_some());
+                }
+                Ok(_) => {
+                    eprintln!(
+                        "JIM_SOURCE_OWNER stage=option_trace_quota state=UNOBSERVED limit=1024"
+                    );
+                }
+                Err(_) => {}
+            }
+        }
     }
     #[cfg(not(debug_assertions))]
     let _ = stage;

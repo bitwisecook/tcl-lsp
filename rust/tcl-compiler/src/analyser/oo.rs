@@ -3019,7 +3019,10 @@ impl Analyser {
         proc: &super::types::ProcDef,
         scope_path: &[usize],
     ) {
-        let Some(purpose) = self.retained_source_advice_purpose() else {
+        let Some(purpose) = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.raw_member.purpose",
+            self.retained_source_advice_purpose(),
+        ) else {
             return;
         };
         if purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical {
@@ -3031,17 +3034,29 @@ impl Analyser {
                         && original.metadata().body_span == proc.body_span
                         && original.metadata().source_name == proc.source_name)
                         .then_some(())?;
-                    let (input, member) = original_two_word_proc_name(original)?;
+                    let (input, member) =
+                        crate::registry_invocation::source_structure::trace_jim_source_option(
+                            "jim.raw_member.name_children",
+                            original_two_word_proc_name(original),
+                        )?;
                     let reference =
-                        crate::registry_invocation::source_structure::source_class_reference_at(
-                            &self.source,
-                            &self.result,
-                            original.declaration_site().offset,
-                            &input,
+                        crate::registry_invocation::source_structure::trace_jim_source_option(
+                            "jim.raw_member.class_reference",
+                            crate::registry_invocation::source_structure::source_class_reference_at(
+                                &self.source,
+                                &self.result,
+                                original.declaration_site().offset,
+                                &input,
+                            ),
                         )?;
                     Some((reference, member, original.clone()))
                 });
-            if let Some((reference, member, procedure)) = selected {
+            if let Some((reference, member, procedure)) =
+                crate::registry_invocation::source_structure::trace_jim_source_option(
+                    "jim.raw_member.selected",
+                    selected,
+                )
+            {
                 self.add_original_two_word_member(&reference, &member, &procedure, scope_path);
             }
             return;
