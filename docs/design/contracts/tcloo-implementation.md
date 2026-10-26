@@ -493,12 +493,9 @@ of reconstructing a report header from a sentinel-looking name. The VM retains
 its actual Foundation values and reports the same selected roles; its value
 identity assertions make no physical C refcount claim.
 
-The inspected initialization, teardown, worker and call-context source joins
-are tracked by
-naming.tcloo.original-selected-method-role-report.
-Ordinary CLI report values are an independent observation channel. Method cache
-and mutable client-data lifetime observations do not establish these report
-header roles.
+The original method-report path uses the selected protocol. Ordinary CLI
+report values remain an independent observation channel. Method cache and mutable
+client-data lifetime observations do not establish these report header roles.
 
 ### Native property slot replacement
 

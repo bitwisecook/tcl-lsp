@@ -4749,11 +4749,8 @@ C9-only `-scope` surface and its value catalogue. These are existing
 `OptionSpec`/`OptionValue` data fields: the SpecTcl option-block loader and
 Studio draft/Rust/SpecTcl renderers already carry them. The runtime selection
 recipe is native protocol code, rather than a new authorable DSL field.
-The native source and finite original-vector controls are linked by
-`naming.tcloo.method-info-option-source`,
-`naming.tcloo.method-info-option-selection`, and
-`naming.tcloo.method-info-scope-ordering`. Positive membership comparisons do
-not replace the independently required original method-name result owners.
+Neither native source selection nor finite original-vector results replace
+the independently required original method-name result owners.
 
 Original lambda diagnostics are owned by `tcl-registry::native_lambda::NativeLambdaDiagnosticProtocol`, selected from the independently identified invocation point. C8.5 conversion errors append the full counted original object; C8.6 and later and Jim format its CString view. C conversion and formal-parse error frames have separate extents and error-code rules. Both VM and Runtime retain operational getter/capability failures independently of guest list-syntax failure and use the original object getter at the reached formatter. This recipe grants no list-conversion success, lambda cache, body preparation, namespace, activation or result storage class.
 
