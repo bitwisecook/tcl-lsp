@@ -9614,15 +9614,45 @@ mod smoke {
 
     use super::CompilationUnit;
 
+    /// Keep the genuine native interpreter alive through this whole-program CU.
+    /// This is the same live-entry/Direct fixture ingress as the AOT pipeline;
+    /// neither a dialect label nor an original source body issues that entry.
+    fn native_smoke_unit(source: &str) -> crate::environment_ingress::RetainedNativeUnit {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            super::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
+    }
+
     /// The canonical "lex -> parse -> segment -> IR -> CFG -> codegen-ready"
-    /// pipeline on one tiny supplied Tcl document. Its genuine known dialect
-    /// and matching command store select the same fresh-document entry used by
-    /// dialect-bearing analyser, optimiser and explorer callers.
+    /// pipeline on one tiny whole-program compilation. Callable procedure IR
+    /// requires the genuine live native entry retained by this fixture; source
+    /// document metadata alone retains declaration analysis independently.
     #[test]
     fn smoke_compile_canonical_snippet() {
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let src = "proc double {n} { return [expr {$n * 2}] }\nset r [double 21]\n";
-        let unit = CompilationUnit::build_for_dialect(src, registry, false, "tcl8.6");
+        let unit = native_smoke_unit(src);
         assert!(
             fixture_id_if_present(&unit.procedures, "::double").is_some(),
             "expected a lowered ::double procedure, got {:?}",
