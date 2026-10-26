@@ -1589,8 +1589,17 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
                 error
             })
         };
-        let reached =
-            cell.native_array_search(sub, name, handle.copied(), bytes, cache, protocol, &check);
+        let reached = cell.native_array_search(
+            sub,
+            name,
+            crate::frame::NativeArraySearchInput {
+                handle: handle.copied(),
+                bytes,
+                cache,
+                protocol,
+            },
+            &check,
+        );
         check()?;
         let result = reached.map_err(|error| {
             self.clone().refuse_completion_value_access(error.clone());

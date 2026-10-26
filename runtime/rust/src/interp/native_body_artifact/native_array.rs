@@ -177,6 +177,12 @@ impl<'a> ArrayIteration<'a> {
         self.position.set(iteration);
     }
 }
+struct BodyArrayOriginalChecks<'a> {
+    entered: &'a crate::interp::native_arguments::OriginalArguments,
+    frame: &'a BodyListFrame,
+    body_original: &'a Rc<BodyObjectOperation>,
+}
+
 impl Interp {
     fn array_body_target(
         &mut self,
@@ -229,9 +235,11 @@ impl Interp {
             command,
             operation,
             execution,
-            &original,
-            &frame,
-            &body_original,
+            BodyArrayOriginalChecks {
+                entered: &original,
+                frame: &frame,
+                body_original: &body_original,
+            },
         );
         frame
             .check(self, &original)
@@ -245,10 +253,13 @@ impl Interp {
         command: &CommandInstruction,
         operation: &ArrayOperation,
         execution: &mut BodyExecution,
-        entered: &crate::interp::native_arguments::OriginalArguments,
-        frame: &BodyListFrame,
-        body_original: &Rc<BodyObjectOperation>,
+        originals: BodyArrayOriginalChecks<'_>,
     ) -> Result<Code, Code> {
+        let BodyArrayOriginalChecks {
+            entered,
+            frame,
+            body_original,
+        } = originals;
         let (evaluated, mut slot) =
             self.array_body_target(artifact, command, operation, execution)?;
         frame
