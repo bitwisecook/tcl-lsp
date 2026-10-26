@@ -21,7 +21,7 @@
     "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
     "runtime/rust/src/capi.rs": "db23d766170ee455383dfa736d79f5145014a65a8512e629ebe536fe17f93465",
     "runtime/rust/src/env_trace.rs": "6f60caf5075ed8bd23e9d15bebefd85bdb7d30d91b3f95b5189aa4baea2a35d9",
-    "runtime/rust/src/interp.rs": "f020f2431b9f2dc442579b9e24fa7fb59c8a5eb3e94682f0a29f00c12617ee83",
+    "runtime/rust/src/interp.rs": "70ca18a19244ddf2c8e70d329ec042b668aa2388f942d750e1b60ca38ebcb019",
     "runtime/rust/src/interp/command_guard_lookup.rs": "67f62a72049672b97b82c7459c9557553baa8a5e67d18ec04b337731c980efbf",
     "runtime/rust/src/interp/native_error_headers.rs": "9a0f62e8c9b966ee4089d34bcd994feb0a59657c73d80e7fce96a766c5e1e66a",
     "runtime/rust/src/namespace.rs": "d2b79b2daad7af30b0d963d132f2339a0612ad089dbaccbe0d9213dfa56778f9",
