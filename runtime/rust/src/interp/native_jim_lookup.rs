@@ -492,7 +492,7 @@ impl Interp {
                 self.original_jim_variable_inventory_preflight(original, arguments, selector)?;
             let namespace = self.current_ns();
             let namespace_scope =
-                OriginalJimLookupNamespace::capture(self, namespace).map_err(&refuse)?;
+                OriginalJimLookupNamespace::capture(self, namespace).map_err(refuse)?;
             let check = |actual: &Interp| {
                 OriginalJimLookupNamespace::check_current_arguments(
                     &namespace_scope,
@@ -505,14 +505,14 @@ impl Interp {
             if scope.variable_inventory_reads_namespace() {
                 let namespace_bytes = self.materialize_jim_namespace(namespace);
                 check(self)?;
-                let namespace_bytes = namespace_bytes.map_err(&refuse)?;
+                let namespace_bytes = namespace_bytes.map_err(refuse)?;
                 if namespace_bytes.is_empty() {
                     let bytes = original
                         .get(1)
                         .map(|value| self.native_string_bytes(value))
                         .transpose();
                     check(self)?;
-                    pattern = bytes.map_err(&refuse)?;
+                    pattern = bytes.map_err(refuse)?;
                 }
                 if scope.variable_inventory_uses_helper(&namespace_bytes, pattern.as_deref()) {
                     let helper = self
@@ -536,7 +536,7 @@ impl Interp {
             }
             let top = self.frames.borrow().current_level() == 0;
             if kind == tcl_registry::commands::tcl::NativeJimVariableInventoryKind::Locals && top {
-                let context = self.native_jim_object_context().map_err(&refuse)?;
+                let context = self.native_jim_object_context().map_err(refuse)?;
                 check(self)?;
                 self.set_result(context.empty_object().as_ptr());
                 check(self)?;
@@ -551,7 +551,7 @@ impl Interp {
                     .map(|value| self.native_string_bytes(value))
                     .transpose();
                 check(self)?;
-                pattern = bytes.map_err(&refuse)?;
+                pattern = bytes.map_err(refuse)?;
             }
             let lookup =
                 tcl_syntax::native_jim_lookup::NativeJimLookupProtocol::variable_inventory_lookup(
@@ -560,9 +560,9 @@ impl Interp {
                 );
             let inventory = self
                 .capture_original_jim_variable_inventory_table(kind, top, lookup)
-                .map_err(&refuse)?;
+                .map_err(refuse)?;
             check(self)?;
-            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(&refuse)?;
+            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(refuse)?;
             self.append_original_jim_inventory_keys(
                 &inventory,
                 pattern.as_deref(),
@@ -572,10 +572,10 @@ impl Interp {
                 &check,
             )?;
             check(self)?;
-            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(&refuse)?;
+            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(refuse)?;
             self.set_result(result.as_ptr());
             check(self)?;
-            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(&refuse)?;
+            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(refuse)?;
             Ok(Code::Ok)
         })();
         if let Err(first) = arguments.check_for(self) {
@@ -665,19 +665,19 @@ impl Interp {
         let refuse = |error: ValueError| arguments.retain_refusal(error.into());
         for key in crate::frame::OriginalJimVariableInventory::keys(inventory) {
             check(self)?;
-            crate::frame::OriginalJimVariableInventory::check(inventory).map_err(&refuse)?;
+            crate::frame::OriginalJimVariableInventory::check(inventory).map_err(refuse)?;
             let original_key =
-                crate::frame::OriginalJimVariableInventoryKey::original(key).map_err(&refuse)?;
+                crate::frame::OriginalJimVariableInventoryKey::original(key).map_err(refuse)?;
             let matched = if let Some(pattern) = pattern {
                 let bytes = self.native_string_bytes(&original_key);
                 check(self)?;
-                crate::frame::OriginalJimVariableInventory::check(inventory).map_err(&refuse)?;
-                crate::frame::OriginalJimVariableInventoryKey::original(key).map_err(&refuse)?;
+                crate::frame::OriginalJimVariableInventory::check(inventory).map_err(refuse)?;
+                crate::frame::OriginalJimVariableInventoryKey::original(key).map_err(refuse)?;
                 matcher
                     .match_name_pattern(
                         tcl_syntax::native_glob::NativeNameGlobPurpose::InfoVariablesScan,
                         pattern,
-                        &bytes.map_err(&refuse)?,
+                        &bytes.map_err(refuse)?,
                     )
                     .map_err(|_| {
                         refuse(ValueError::CommandProtocolUnavailable(
@@ -696,9 +696,9 @@ impl Interp {
                     currency,
                 );
                 check(self)?;
-                crate::frame::OriginalJimVariableInventory::check(inventory).map_err(&refuse)?;
-                crate::frame::OriginalJimVariableInventoryKey::original(key).map_err(&refuse)?;
-                appended.map_err(&refuse)?;
+                crate::frame::OriginalJimVariableInventory::check(inventory).map_err(refuse)?;
+                crate::frame::OriginalJimVariableInventoryKey::original(key).map_err(refuse)?;
+                appended.map_err(refuse)?;
             }
         }
         Ok(())
