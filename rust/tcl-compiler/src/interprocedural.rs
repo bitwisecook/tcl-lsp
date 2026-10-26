@@ -7229,6 +7229,76 @@ mod tests {
         )
     }
 
+    fn assert_authored_alias_variant_refusals() {
+        for body in [
+            "upvar #0 $n x; set x 1",
+            "upvar 0 $n x; set x 1",
+            "upvar 2 $n x; set x 1",
+            "upvar $level $n x; set x 1",
+            "upvar 1 $n x; unknownCommand; set x 1",
+            "upvar 1 $n x; global x; set x 1",
+            "if {1} {upvar 1 $n x}; set x 1",
+        ] {
+            let source = format!("proc p {{n level}} {{{body}}}");
+            let (context, unit) = original_reference_unit(&source);
+            let (&id, _) = unit
+                .ir_module
+                .original_authored_declaration_body_units
+                .iter()
+                .next()
+                .unwrap();
+            let facts = original_reference_facts(&unit, context.commands());
+            assert!(
+                !facts[&id]
+                    .param_trait_flags
+                    .get("n")
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite)),
+                "{body}"
+            );
+            assert!(facts[&id].upvar_aliases.is_empty(), "{body}");
+        }
+        let (_, rejected) = original_reference_unit("proc p {::n} {upvar 1 $::n x; set x 1}");
+        assert!(
+            rejected
+                .ir_module
+                .original_authored_declaration_body_units
+                .is_empty()
+        );
+        let (context, unit) = original_reference_unit("proc p {n} {upvar 1 $::n x; set x 1}");
+        let (&id, _) = unit
+            .ir_module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let facts = original_reference_facts(&unit, context.commands());
+        assert!(
+            !facts[&id]
+                .param_trait_flags
+                .get("::n")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
+        );
+        assert!(
+            !facts[&id]
+                .param_trait_flags
+                .get("n")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
+        );
+        assert!(facts[&id].upvar_aliases.is_empty());
+        let (context, unit) =
+            original_reference_unit("proc p {n other} {upvar 1 $n x; upvar 1 $other x; set x 1}");
+        let (&id, _) = unit
+            .ir_module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let facts = original_reference_facts(&unit, context.commands());
+        assert!(facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarRead));
+        assert!(!facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarWrite));
+        assert!(facts[&id].param_trait_flags["other"].contains(&ProcArgTrait::VarWrite));
+    }
+
     #[test]
     fn original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts() {
         let source = "proc p {n v spare} {upvar 1 $n x; set x $v}";
@@ -7324,73 +7394,78 @@ mod tests {
             .is_none()
         );
 
-        for body in [
-            "upvar #0 $n x; set x 1",
-            "upvar 0 $n x; set x 1",
-            "upvar 2 $n x; set x 1",
-            "upvar $level $n x; set x 1",
-            "upvar 1 $n x; unknownCommand; set x 1",
-            "upvar 1 $n x; global x; set x 1",
-            "if {1} {upvar 1 $n x}; set x 1",
-        ] {
-            let source = format!("proc p {{n level}} {{{body}}}");
+        assert_authored_alias_variant_refusals();
+    }
+
+    fn assert_authored_call_variant_refusals() {
+        for body in ["unknownCommand; ::helper $x", "$name $x", "::helper"] {
+            let source =
+                format!("proc ::helper {{v}} {{return $v}}\nproc ::f {{x name}} {{{body}}}");
             let (context, unit) = original_reference_unit(&source);
-            let (&id, _) = unit
-                .ir_module
+            let module = &unit.ir_module;
+            let (&id, _) = module
                 .original_authored_declaration_body_units
                 .iter()
-                .next()
+                .find(|(_, card)| card.name() == "::f")
                 .unwrap();
-            let facts = original_reference_facts(&unit, context.commands());
+            let procedure = &module.body_units[&id];
+            let statement = procedure.body.statements.last().unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let calls =
+                crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+                    tokens,
+                    module,
+                    context.commands(),
+                );
             assert!(
-                !facts[&id]
-                    .param_trait_flags
-                    .get("n")
-                    .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite)),
+                !calls.is_some_and(|calls| !calls.calls().is_empty()
+                    && calls.calls().iter().all(
+                        crate::registry_invocation::OriginalSourceProcedureCall::accepts_arguments
+                    )),
                 "{body}"
             );
-            assert!(facts[&id].upvar_aliases.is_empty(), "{body}");
+            assert!(
+                !original_reference_facts(&unit, context.commands())[&id]
+                    .param_trait_flags
+                    .values()
+                    .any(|traits| traits.contains(&ProcArgTrait::ForwardedToCallee)),
+                "{body}"
+            );
         }
-        let (_, rejected) = original_reference_unit("proc p {::n} {upvar 1 $::n x; set x 1}");
-        assert!(
-            rejected
-                .ir_module
-                .original_authored_declaration_body_units
-                .is_empty()
-        );
-        let (context, unit) = original_reference_unit("proc p {n} {upvar 1 $::n x; set x 1}");
-        let (&id, _) = unit
-            .ir_module
-            .original_authored_declaration_body_units
-            .iter()
-            .next()
-            .unwrap();
-        let facts = original_reference_facts(&unit, context.commands());
-        assert!(
-            !facts[&id]
-                .param_trait_flags
-                .get("::n")
-                .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
+    }
+
+    fn assert_authored_call_keeps_its_original_target(
+        call: &crate::registry_invocation::OriginalSourceProcedureCall<'_>,
+        module: &crate::ir::Module,
+        tokens: &crate::ir::CommandTokens,
+    ) {
+        assert!(call.accepts_arguments());
+        assert_eq!(call.argument_count(), Some(1));
+        assert!(std::ptr::eq(
+            call.procedure(),
+            std::ptr::from_ref(&module.body_units[&call.id()])
+        ));
+        assert_eq!(
+            module.original_authored_declaration_body_units[&call.id()].name(),
+            "::helper"
         );
         assert!(
-            !facts[&id]
-                .param_trait_flags
-                .get("n")
-                .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
+            crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots::from_module(
+                module,
+                call.procedure()
+            )
+            .is_none()
         );
-        assert!(facts[&id].upvar_aliases.is_empty());
-        let (context, unit) =
-            original_reference_unit("proc p {n other} {upvar 1 $n x; upvar 1 $other x; set x 1}");
-        let (&id, _) = unit
-            .ir_module
-            .original_authored_declaration_body_units
-            .iter()
-            .next()
-            .unwrap();
-        let facts = original_reference_facts(&unit, context.commands());
-        assert!(facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarRead));
-        assert!(!facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarWrite));
-        assert!(facts[&id].param_trait_flags["other"].contains(&ProcArgTrait::VarWrite));
+        assert!(
+            !tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .has_original_source_layout_owner()
+        );
     }
 
     #[test]
@@ -7430,30 +7505,7 @@ mod tests {
         let [call] = calls.calls() else {
             panic!("one actual original callee allocation");
         };
-        assert!(call.accepts_arguments());
-        assert_eq!(call.argument_count(), Some(1));
-        assert!(std::ptr::eq(
-            call.procedure(),
-            std::ptr::from_ref(&module.body_units[&call.id()])
-        ));
-        assert_eq!(
-            module.original_authored_declaration_body_units[&call.id()].name(),
-            "::helper"
-        );
-        assert!(
-            crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots::from_module(
-                module,
-                call.procedure()
-            )
-            .is_none()
-        );
-        assert!(
-            !tokens
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .has_original_source_layout_owner()
-        );
+        assert_authored_call_keeps_its_original_target(call, module, tokens);
         let observed = original_reference_facts(&unit, registry);
         assert!(observed[&id].param_trait_flags["x"].contains(&ProcArgTrait::ForwardedToCallee));
         assert!(observed[&id].param_observations_incomplete);
@@ -7495,43 +7547,7 @@ mod tests {
             .is_none()
         );
 
-        for body in ["unknownCommand; ::helper $x", "$name $x", "::helper"] {
-            let source =
-                format!("proc ::helper {{v}} {{return $v}}\nproc ::f {{x name}} {{{body}}}");
-            let (context, unit) = original_reference_unit(&source);
-            let module = &unit.ir_module;
-            let (&id, _) = module
-                .original_authored_declaration_body_units
-                .iter()
-                .find(|(_, card)| card.name() == "::f")
-                .unwrap();
-            let procedure = &module.body_units[&id];
-            let statement = procedure.body.statements.last().unwrap();
-            let tokens = procedure
-                .body
-                .retained_source_tokens_for_statement(statement)
-                .unwrap();
-            let calls =
-                crate::registry_invocation::original_authored_body_procedure_calls_for_module(
-                    tokens,
-                    module,
-                    context.commands(),
-                );
-            assert!(
-                !calls.is_some_and(|calls| !calls.calls().is_empty()
-                    && calls.calls().iter().all(
-                        crate::registry_invocation::OriginalSourceProcedureCall::accepts_arguments
-                    )),
-                "{body}"
-            );
-            assert!(
-                !original_reference_facts(&unit, context.commands())[&id]
-                    .param_trait_flags
-                    .values()
-                    .any(|traits| traits.contains(&ProcArgTrait::ForwardedToCallee)),
-                "{body}"
-            );
-        }
+        assert_authored_call_variant_refusals();
     }
 
     #[test]
