@@ -30209,6 +30209,21 @@ impl Backend {
         true
     }
 
+    fn workspace_scan_inputs_are_current(
+        &self,
+        scan_analyser_inputs_epoch: u64,
+        scan_class_factory_generation: u64,
+    ) -> bool {
+        self.analyser_inputs_gate.try_read().is_ok_and(|guard| {
+            let current = self.diag_inputs_epoch() == scan_analyser_inputs_epoch;
+            drop(guard);
+            current
+        }) && self
+            .class_factory_generation
+            .try_read()
+            .is_ok_and(|generation| *generation == scan_class_factory_generation)
+    }
+
     /// Reads and analyses `files` across a bounded worker pool, as the
     /// second half of [`Self::scan_workspace_folders`] (the `spawn_workspace_warm`
     /// semaphore pattern — acquire a permit before spawning, so at most
@@ -30241,45 +30256,51 @@ impl Backend {
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let permits = Arc::new(Semaphore::new(concurrency));
-        let mut tasks = crate::rt::JoinSet::new();
+        let mut tasks = WorkspaceScanTaskWindow::new(concurrency);
         let mut coverage_complete = true;
-        for path in files {
-            let Some(constructed) = constructed_file_uri(&path) else {
-                coverage_complete = false;
-                continue;
-            };
-            let uri = constructed.uri.clone();
-            let admission = Arc::new(constructed.admission(self.store.as_ref())?);
-            let driver = self.fresh_analysis_driver(admission).await;
-            let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
-                coverage_complete = false;
-                break;
-            };
-            let open = Arc::clone(&open);
-            let document_dialect_overrides = Arc::clone(&document_dialect_overrides);
-            let folder_dialects = Arc::clone(&folder_dialects);
-            let default_dialect = default_dialect.clone();
-            let store = Arc::clone(&self.store);
-            Self::enqueue_workspace_scan_candidate(
-                &mut tasks,
-                WorkspaceScanWorker {
-                    permit,
-                    open,
-                    uri,
-                    driver,
-                    store,
-                    path,
-                    scan_analyser_inputs_epoch,
-                    scan_class_factory_generation,
-                    document_dialect_overrides,
-                    folder_dialects,
-                    default_dialect,
-                },
-            );
-        }
+        let mut files = files.into_iter();
         let mut files_count = 0usize;
         let mut batch = Vec::new();
-        while let Some(result) = tasks.join_next().await {
+        loop {
+            while tasks.has_capacity() {
+                let Some(path) = files.next() else { break };
+                let Some(constructed) = constructed_file_uri(&path) else {
+                    coverage_complete = false;
+                    continue;
+                };
+                let uri = constructed.uri.clone();
+                let admission = Arc::new(constructed.admission(self.store.as_ref())?);
+                let driver = self.fresh_analysis_driver(admission).await;
+                let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                    coverage_complete = false;
+                    files = Vec::new().into_iter();
+                    break;
+                };
+                let open = Arc::clone(&open);
+                let document_dialect_overrides = Arc::clone(&document_dialect_overrides);
+                let folder_dialects = Arc::clone(&folder_dialects);
+                let default_dialect = default_dialect.clone();
+                let store = Arc::clone(&self.store);
+                Self::enqueue_workspace_scan_candidate(
+                    &mut tasks,
+                    WorkspaceScanWorker {
+                        permit,
+                        open,
+                        uri,
+                        driver,
+                        store,
+                        path,
+                        scan_analyser_inputs_epoch,
+                        scan_class_factory_generation,
+                        document_dialect_overrides,
+                        folder_dialects,
+                        default_dialect,
+                    },
+                );
+            }
+            let Some(result) = tasks.join_next().await else {
+                break;
+            };
             let item = result.unwrap_or_else(|error| Self::unavailable_scan_worker(&error));
             if !Self::append_workspace_scan_candidate(item, &mut batch, &mut coverage_complete) {
                 continue;
@@ -30320,14 +30341,10 @@ impl Backend {
                 &published_rows,
             );
         }
-        let inputs_current = self.analyser_inputs_gate.try_read().is_ok_and(|guard| {
-            let current = self.diag_inputs_epoch() == scan_analyser_inputs_epoch;
-            drop(guard);
-            current
-        }) && self
-            .class_factory_generation
-            .try_read()
-            .is_ok_and(|generation| *generation == scan_class_factory_generation);
+        let inputs_current = self.workspace_scan_inputs_are_current(
+            scan_analyser_inputs_epoch,
+            scan_class_factory_generation,
+        );
         Ok((resolver, files_count, inputs_current, coverage_complete))
     }
 
@@ -31797,6 +31814,146 @@ impl Backend {
     }
 }
 
+/// A scan window bounds undrained outputs as well as running workers.
+/// Completed task results can retain complete analyses until collected.
+struct WorkspaceScanTaskWindow<T> {
+    tasks: crate::rt::JoinSet<T>,
+    capacity: usize,
+}
+
+impl<T: Send + 'static> WorkspaceScanTaskWindow<T> {
+    fn new(capacity: usize) -> Self {
+        assert!(capacity > 0);
+        Self {
+            tasks: crate::rt::JoinSet::new(),
+            capacity,
+        }
+    }
+
+    fn has_capacity(&self) -> bool {
+        self.tasks.len() < self.capacity
+    }
+
+    fn spawn<F>(&mut self, task: F)
+    where
+        F: std::future::Future<Output = T> + Send + 'static,
+    {
+        assert!(
+            self.has_capacity(),
+            "scan window must drain before refilling"
+        );
+        self.tasks.spawn(task);
+    }
+
+    async fn join_next(&mut self) -> Option<Result<T, crate::rt::JoinError>> {
+        self.tasks.join_next().await
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod workspace_scan_task_window_controls {
+    use super::WorkspaceScanTaskWindow;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct RetainedOutput {
+        value: usize,
+        live: Arc<AtomicUsize>,
+        dropped: Arc<tokio::sync::Notify>,
+    }
+
+    impl RetainedOutput {
+        fn new(value: usize, live: &Arc<AtomicUsize>, dropped: &Arc<tokio::sync::Notify>) -> Self {
+            live.fetch_add(1, Ordering::SeqCst);
+            Self {
+                value,
+                live: Arc::clone(live),
+                dropped: Arc::clone(dropped),
+            }
+        }
+    }
+
+    impl Drop for RetainedOutput {
+        fn drop(&mut self) {
+            self.live.fetch_sub(1, Ordering::SeqCst);
+            self.dropped.notify_one();
+        }
+    }
+
+    #[tokio::test]
+    async fn completed_scan_outputs_are_drained_before_refilling_the_window() {
+        let live = Arc::new(AtomicUsize::new(0));
+        let dropped = Arc::new(tokio::sync::Notify::new());
+        let mut window = WorkspaceScanTaskWindow::new(2);
+        let mut pending = 0..9;
+        let mut observed = Vec::new();
+        loop {
+            while window.has_capacity() {
+                let Some(value) = pending.next() else { break };
+                let output = RetainedOutput::new(value, &live, &dropped);
+                window.spawn(async move { output });
+                assert!(live.load(Ordering::SeqCst) <= 2);
+            }
+            tokio::task::yield_now().await;
+            // Even completed results occupy the same bounded window.
+            assert!(live.load(Ordering::SeqCst) <= 2);
+            let Some(result) = window.join_next().await else {
+                break;
+            };
+            let output = result.unwrap();
+            observed.push(output.value);
+            drop(output);
+        }
+        observed.sort_unstable();
+        assert_eq!(observed, (0..9).collect::<Vec<_>>());
+        assert_eq!(live.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn dropped_scan_window_releases_pending_and_completed_outputs() {
+        let live = Arc::new(AtomicUsize::new(0));
+        let dropped = Arc::new(tokio::sync::Notify::new());
+        let mut window = WorkspaceScanTaskWindow::new(2);
+        let complete = RetainedOutput::new(1, &live, &dropped);
+        window.spawn(async move { complete });
+        let pending = RetainedOutput::new(2, &live, &dropped);
+        window.spawn(async move {
+            std::future::pending::<()>().await;
+            pending
+        });
+        tokio::task::yield_now().await;
+        assert!(!window.has_capacity());
+        assert_eq!(live.load(Ordering::SeqCst), 2);
+        drop(window);
+        while live.load(Ordering::SeqCst) != 0 {
+            dropped.notified().await;
+        }
+        assert_eq!(live.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn scan_window_preserves_worker_failure_and_other_outputs() {
+        let mut window = WorkspaceScanTaskWindow::new(2);
+        window.spawn(async { panic!("actual worker failure") });
+        window.spawn(async { 7usize });
+        let mut failures = 0;
+        let mut values = Vec::new();
+        while let Some(result) = window.join_next().await {
+            match result {
+                Ok(value) => values.push(value),
+                Err(error) => {
+                    assert!(error.is_panic());
+                    failures += 1;
+                }
+            }
+        }
+        assert_eq!(values, vec![7]);
+        assert_eq!(failures, 1);
+    }
+}
+
 struct WorkspaceScanWorker {
     permit: tokio::sync::OwnedSemaphorePermit,
     open: Arc<HashSet<Uri>>,
@@ -31819,7 +31976,7 @@ struct PublishedWorkspaceScanBatch {
 
 impl Backend {
     fn enqueue_workspace_scan_candidate(
-        tasks: &mut crate::rt::JoinSet<WorkspaceScanCandidate>,
+        tasks: &mut WorkspaceScanTaskWindow<WorkspaceScanCandidate>,
         worker: WorkspaceScanWorker,
     ) {
         let WorkspaceScanWorker {
