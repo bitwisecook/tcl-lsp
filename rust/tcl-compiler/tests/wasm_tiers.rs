@@ -720,7 +720,7 @@ fn a_failed_native_add_names_every_rejected_premise() {
         selected.as_str(),
         selected
             .semantic_decline()
-            .map(|decline| decline.detail_kind()),
+            .map(tcl_compiler::codegen::wasm::WasmSemanticDecline::detail_kind),
         selected
             .native_declines()
             .iter()
