@@ -741,7 +741,7 @@ mod tests {
             .original_analysis_owner
             .as_ref()
             .expect("genuine child source-analysis attachment");
-        assert!(Arc::ptr_eq(owner, &receipt.owner));
+        assert!(std::sync::Arc::ptr_eq(owner, &receipt.owner));
         let frame = receipt
             .original_static_child_frame(child.source_binding.as_ref().unwrap(), &advice)
             .unwrap();
@@ -777,7 +777,7 @@ mod tests {
                     .is_none()
             );
         }
-        for owner in [None, Some(Arc::new((*receipt.owner).clone()))] {
+        for owner in [None, Some(std::sync::Arc::new((*receipt.owner).clone()))] {
             let mut changed = child.clone();
             let binding = changed.source_binding.as_mut().unwrap();
             binding.original_analysis_owner = owner;
