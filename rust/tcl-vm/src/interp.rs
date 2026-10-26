@@ -1096,12 +1096,22 @@ pub(crate) struct NativeUsageScope {
     revision: u64,
 }
 
+struct DebugHookActivation<'a>(&'a std::cell::Cell<bool>);
+impl Drop for DebugHookActivation<'_> {
+    fn drop(&mut self) {
+        self.0.set(false);
+    }
+}
+
 #[derive(Default)]
 struct InterpreterDebugHooks {
     /// Optional debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
     debug_hook: Option<crate::debug::DebugHook>,
+    debug_hook_active: std::cell::Cell<bool>,
+    #[cfg(test)]
+    observer_probe: Option<fn(&Vm)>,
     /// Optional shared cell tracking the source line of the instruction being
     /// dispatched — the lightweight sibling of the debug hook, for an embedder
     /// that needs "what line is the interpreter on" (the `SpecTcl`
@@ -2285,6 +2295,7 @@ impl<'a> ProcedureCompilationInputs<'a> {
         complete_prefix_len: usize,
         issuer: &tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner,
         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+        activation: Option<tcl_registry::native_procedure::NativeProcedureActivationProtocol>,
     ) -> Result<Self, tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileError>
     {
         use tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileError;
@@ -2297,7 +2308,12 @@ impl<'a> ProcedureCompilationInputs<'a> {
                 interpreter,
             )
         }) {
-            Some(Ok(request)) => Some(request),
+            Some(Ok(request)) => Some(match activation {
+                Some(tcl_registry::native_procedure::NativeProcedureActivationProtocol::C(
+                    version,
+                )) => request.with_ordinary_frame_initialization(issuer, version),
+                _ => request,
+            }),
             Some(Err(OriginalProcedureCompileError::ChangedOriginal)) | None => None,
             Some(Err(error)) => return Err(error),
         };
@@ -4155,6 +4171,11 @@ impl Vm {
         if self.interps.get(id.0).is_none_or(|s| s.dying) {
             return;
         }
+        if let Some(state) = self.st_of(id) {
+            state
+                .native_compiler_pass_owner
+                .retire_ordinary_entry_observation();
+        }
         if let Some(state) = self.st_of(id)
             && state
                 .actual_native_invocation_dialect()
@@ -4812,6 +4833,8 @@ impl Vm {
     /// Install a debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). Pass `None` to detach.
     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
+        self.native_compiler_pass_owner
+            .invalidate_ordinary_entry_observation();
         self.debug_hooks.debug_hook = hook;
         self.debug_hooks.last_debug_key = None;
     }
@@ -4961,10 +4984,16 @@ impl Vm {
         if self.debug_hooks.debug_hook.is_none() {
             return false;
         }
+        self.debug_hooks.debug_hook_active.set(true);
+        let _debug_activation = DebugHookActivation(&self.debug_hooks.debug_hook_active);
         let snapshot = self.debug_snapshot(line, cmd_text);
         // Take the hook out so the closure can borrow `self`-derived data
         // (already captured in `snapshot`) without aliasing the field.
         let mut hook = self.debug_hooks.debug_hook.take();
+        #[cfg(test)]
+        if let Some(probe) = self.debug_hooks.observer_probe {
+            probe(self);
+        }
         let action = hook
             .as_mut()
             .map_or(crate::debug::DebugAction::Continue, |h| h(&snapshot));
@@ -8397,6 +8426,8 @@ impl Vm {
     /// against, in host-clock milliseconds. The embedder-facing wrapper is
     /// [`Vm::set_wall_clock_budget`].
     pub(crate) fn set_time_limit_deadline(&mut self, deadline_millis: Option<i128>) {
+        self.native_compiler_pass_owner
+            .invalidate_ordinary_entry_observation();
         self.forget_exceeded(LimitKind::WallClock);
         self.limits.time_value = deadline_millis.map(|deadline| {
             let seconds = i64::try_from(deadline / 1000).unwrap_or(i64::MAX);
@@ -8614,6 +8645,8 @@ impl Vm {
 
     /// Arm (or disarm) the `commands` limit.
     pub(crate) fn set_command_limit_value(&mut self, limit: Option<i64>) {
+        self.native_compiler_pass_owner
+            .invalidate_ordinary_entry_observation();
         self.forget_exceeded(LimitKind::Commands);
         self.limits.cmd_value = limit;
     }
@@ -8702,6 +8735,8 @@ impl Vm {
                                 ));
                             }
                             self.forget_exceeded(LimitKind::Commands);
+                            self.native_compiler_pass_owner
+                                .invalidate_ordinary_entry_observation();
                             self.limits.cmd_value = Some(n);
                         }
                     }
@@ -8790,6 +8825,8 @@ impl Vm {
                     sec = sec.saturating_add(ms.div_euclid(1000));
                     ms = ms.rem_euclid(1000);
                     self.forget_exceeded(LimitKind::WallClock);
+                    self.native_compiler_pass_owner
+                        .invalidate_ordinary_entry_observation();
                     self.limits.time_value = Some((sec, ms));
                 }
                 Ok(Value::string(""))
@@ -11789,6 +11826,13 @@ impl Vm {
     /// Keep this at the mutation owner: guard epochs are useful only when no
     /// registration path can bypass the bump.
     fn invalidate_guard_domain(&self, domain: GuardDomain) {
+        if matches!(
+            domain,
+            GuardDomain::CommandTrace | GuardDomain::VariableTrace | GuardDomain::Interpreter
+        ) {
+            self.native_compiler_pass_owner
+                .invalidate_ordinary_entry_observation();
+        }
         self.guards.borrow_mut().invalidate(domain);
     }
 
@@ -18493,6 +18537,9 @@ impl Vm {
             plan.complete_prefix_len,
             &self.native_compiler_pass_owner,
             entry.interpreter,
+            tcl_registry::native_procedure::procedure_activation_protocol(
+                self.actual_native_invocation_dialect(),
+            ),
         )
         .map_err(|error| {
             self.compile_service_error_bytes(
@@ -26314,12 +26361,23 @@ impl Vm {
         {
             return None;
         }
-        Some(self.native_compiler_pass_owner.capture(
-            self.interps.get(self.cur.0)?.is_root(),
-            self.limits.cmd_value.is_some(),
-            self.limits.time_value.is_some(),
-            procedure,
-        ))
+        Some(
+            self.native_compiler_pass_owner
+                .capture_with_ordinary_entry_observation(
+                    self.interps.get(self.cur.0)?.is_root(),
+                    self.limits.cmd_value.is_some(),
+                    self.limits.time_value.is_some(),
+                    procedure,
+                    self.exec_traces.values().all(Vec::is_empty)
+                        && self.exec_step_scopes.is_empty()
+                        && !self.trace_in_progress.get()
+                        && self.firing_cmd_traces.is_empty()
+                        && self.pending_exec_leave.is_none()
+                        && self.debug_hooks.debug_hook.is_none()
+                        && !self.debug_hooks.debug_hook_active.get()
+                        && !self.interps.get(self.cur.0).is_none_or(|slot| slot.dying),
+                ),
+        )
     }
 
     fn native_namespace_variable_tables(
@@ -35589,5 +35647,201 @@ mod host_bootstrap_storage_tests {
         assert!(vm.active_native_profile.is_none());
         assert!(vm.name_policy_protocol().is_none());
         assert!(vm.execution_refusal.is_none());
+    }
+}
+
+#[cfg(test)]
+mod ordinary_entry_observer_tests {
+    use super::*;
+
+    fn native() -> Vm {
+        crate::native_fixture::interpreter(tcl_dialect::DialectProfile::find("tcl9.0").unwrap())
+    }
+    fn capture(
+        vm: &Vm,
+    ) -> (
+        tcl_runtime_api::native_compiler_pass::NativeCompilerPassEnvironment,
+        tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    ) {
+        let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
+        (entry.compiler_pass_environment.unwrap(), entry.interpreter)
+    }
+    fn remove_trace_while_firing(vm: &mut Vm, _argv: &[Value]) -> Completion<Value> {
+        assert_eq!(
+            vm.try_eval_source("trace remove execution watched enter callback")
+                .unwrap()
+                .code,
+            tcl_runtime_api::Code::Ok
+        );
+        assert!(vm.exec_traces.values().all(Vec::is_empty));
+        let (environment, id) = capture(vm);
+        assert!(!environment.ordinary_entry_observers_absent_for(id));
+        ok(Value::string(""))
+    }
+
+    #[test]
+    fn self_removing_execution_trace_remains_an_observer_until_callback_settles() {
+        let mut vm = native();
+        vm.register("callback", remove_trace_while_firing);
+        assert_eq!(
+            vm.try_eval_source(
+                "proc watched {} {}; trace add execution watched enter callback; watched"
+            )
+            .unwrap()
+            .code,
+            tcl_runtime_api::Code::Ok
+        );
+        let (environment, id) = capture(&vm);
+        assert!(environment.ordinary_entry_observers_absent_for(id));
+    }
+
+    #[test]
+    fn actual_declaration_initialization_plan_rejects_old_capture_foreign_owner_and_restore() {
+        let mut vm = native();
+        assert_eq!(
+            vm.try_eval_source("proc p {} {set x A; set x B}")
+                .unwrap()
+                .code,
+            tcl_runtime_api::Code::Ok
+        );
+        let declaration = vm.proc_def("p").unwrap();
+        let bytes = vm
+            .native_name_operand_bytes_checked(&declaration.body_src)
+            .unwrap();
+        let source = tcl_runtime_api::SourceImage::native(bytes.as_ref());
+        let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
+        let namespace = tcl_core_types::ByteNamespacePath::root();
+        let inputs = ProcedureCompilationInputs::new(
+            ProcedureBodySource {
+                image: &source,
+                declaration: Some(&declaration),
+            },
+            &declaration.params,
+            &namespace,
+            source.len(),
+            &vm.native_compiler_pass_owner,
+            entry.interpreter,
+            tcl_registry::native_procedure::procedure_activation_protocol(
+                vm.actual_native_invocation_dialect(),
+            ),
+        )
+        .unwrap();
+        let request = inputs.original.unwrap();
+        assert!(request.ordinary_frame_initialization_for(&entry, tcl_dialect::TclVersion::V9_0));
+        assert!(!request.ordinary_frame_initialization_for(&entry, tcl_dialect::TclVersion::V8_6));
+        let mut missing_policy = entry.clone();
+        missing_policy.invocation_policy = None;
+        assert!(
+            !request
+                .ordinary_frame_initialization_for(&missing_policy, tcl_dialect::TclVersion::V9_0)
+        );
+        let mut logical_policy = entry.clone();
+        logical_policy.invocation_policy = Some(
+            tcl_dialect::DialectProfile::find("f5-irules")
+                .unwrap()
+                .cache_key(),
+        );
+        assert!(
+            !request
+                .ordinary_frame_initialization_for(&logical_policy, tcl_dialect::TclVersion::V9_0)
+        );
+        let mut foreign_engine = entry.clone();
+        foreign_engine.execution_point = Some(tcl_dialect::model::DialectPoint::for_tcl_version(
+            tcl_dialect::TclVersion::V8_6,
+        ));
+        assert!(
+            !request
+                .ordinary_frame_initialization_for(&foreign_engine, tcl_dialect::TclVersion::V9_0)
+        );
+        let foreign =
+            tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner::new(entry.interpreter);
+        let rejected = request
+            .clone()
+            .with_ordinary_frame_initialization(&foreign, tcl_dialect::TclVersion::V9_0);
+        assert!(!rejected.ordinary_frame_initialization_for(&entry, tcl_dialect::TclVersion::V9_0));
+        let mut old_entry = entry.clone();
+        old_entry.compiler_pass_environment = Some(
+            vm.native_compiler_pass_owner
+                .capture(true, false, false, None),
+        );
+        assert!(
+            !request.ordinary_frame_initialization_for(&old_entry, tcl_dialect::TclVersion::V9_0)
+        );
+        vm.set_debug_hook(Some(Box::new(|_| crate::debug::DebugAction::Continue)));
+        vm.set_debug_hook(None);
+        let restored = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
+        assert!(
+            restored
+                .compiler_pass_environment
+                .as_ref()
+                .unwrap()
+                .ordinary_entry_observers_absent_for(entry.interpreter)
+        );
+        assert!(
+            !request.ordinary_frame_initialization_for(&restored, tcl_dialect::TclVersion::V9_0)
+        );
+        let fresh = request.with_ordinary_frame_initialization(
+            &vm.native_compiler_pass_owner,
+            tcl_dialect::TclVersion::V9_0,
+        );
+        assert!(fresh.ordinary_frame_initialization_for(&restored, tcl_dialect::TclVersion::V9_0));
+    }
+
+    #[test]
+    fn registered_removed_and_firing_execution_observers_never_revive_old_receipt() {
+        let mut vm = native();
+        let (original, id) = capture(&vm);
+        assert!(original.ordinary_entry_observers_absent_for(id));
+        assert_eq!(vm.try_eval_source("proc watched {} {}; proc callback args {}; trace add execution watched enter callback").unwrap().code, tcl_runtime_api::Code::Ok);
+        assert!(!original.ordinary_entry_observers_absent_for(id));
+        assert!(!capture(&vm).0.ordinary_entry_observers_absent_for(id));
+        assert_eq!(
+            vm.try_eval_source("trace remove execution watched enter callback")
+                .unwrap()
+                .code,
+            tcl_runtime_api::Code::Ok
+        );
+        assert!(capture(&vm).0.ordinary_entry_observers_absent_for(id));
+        assert!(!original.ordinary_entry_observers_absent_for(id));
+    }
+    #[test]
+    fn debug_hooks_limits_and_retirement_withdraw_but_line_watch_does_not() {
+        let mut vm = native();
+        let (original, id) = capture(&vm);
+        vm.set_line_watch(Some(Rc::new(std::cell::Cell::new(0))));
+        assert!(original.ordinary_entry_observers_absent_for(id));
+        let calls = Rc::new(std::cell::Cell::new(0));
+        let seen = Rc::clone(&calls);
+        vm.set_debug_hook(Some(Box::new(move |_| {
+            seen.set(seen.get() + 1);
+            crate::debug::DebugAction::Continue
+        })));
+        assert!(!original.ordinary_entry_observers_absent_for(id));
+        assert!(!capture(&vm).0.ordinary_entry_observers_absent_for(id));
+        vm.debug_hooks.observer_probe = Some(|vm| {
+            assert!(vm.debug_hooks.debug_hook.is_none());
+            assert!(vm.debug_hooks.debug_hook_active.get());
+            let (environment, id) = capture(vm);
+            assert!(!environment.ordinary_entry_observers_absent_for(id));
+        });
+        assert!(!vm.fire_debug_hook(1, "set x 1"));
+        vm.debug_hooks.observer_probe = None;
+        assert_eq!(calls.get(), 1);
+        assert!(!vm.debug_hooks.debug_hook_active.get());
+        vm.set_debug_hook(None);
+        let (restored, _) = capture(&vm);
+        assert!(restored.ordinary_entry_observers_absent_for(id));
+        vm.set_command_limit_value(Some(10));
+        assert!(!restored.ordinary_entry_observers_absent_for(id));
+        assert!(!capture(&vm).0.ordinary_entry_observers_absent_for(id));
+        vm.set_command_limit_value(None);
+        let (restored, _) = capture(&vm);
+        vm.set_time_limit_deadline(Some(100));
+        assert!(!restored.ordinary_entry_observers_absent_for(id));
+        vm.set_time_limit_deadline(None);
+        let (restored, _) = capture(&vm);
+        assert!(restored.ordinary_entry_observers_absent_for(id));
+        drop(vm);
+        assert!(!restored.ordinary_entry_observers_absent_for(id));
     }
 }

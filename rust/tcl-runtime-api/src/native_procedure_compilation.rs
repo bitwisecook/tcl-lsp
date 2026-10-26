@@ -103,6 +103,13 @@ pub struct OriginalProcedureCompileRequest {
     source: Arc<OriginalProcedureSource>,
     prefix: SourceImage,
     reported_name: String,
+    ordinary_frame_initialization: Option<OrdinaryFrameInitialization>,
+}
+
+#[derive(Debug, Clone)]
+struct OrdinaryFrameInitialization {
+    version: tcl_dialect::TclVersion,
+    observation: crate::native_compiler_pass::OrdinaryEntryObservation,
 }
 
 impl OriginalProcedureCompileRequest {
@@ -145,7 +152,74 @@ impl OriginalProcedureCompileRequest {
             source,
             prefix,
             reported_name: input.reported_name,
+            ordinary_frame_initialization: None,
         })
+    }
+
+    /// Attach the ordinary C frame initialization algorithm selected by the
+    /// actual backend at this exact declaration/body preparation boundary.
+    /// This is an initialization plan, never an entered frame or local value.
+    /// A different compiler owner cannot attach a plan to this request.
+    #[must_use]
+    pub fn with_ordinary_frame_initialization(
+        mut self,
+        owner: &crate::native_compiler_pass::NativeCompilerPassOwner,
+        version: tcl_dialect::TclVersion,
+    ) -> Self {
+        self.ordinary_frame_initialization = None;
+        if self.is_live()
+            && self
+                .issuer
+                .same_owner(&owner.procedure_compilation_identity())
+            && self.ordinary_formals().is_some()
+        {
+            self.ordinary_frame_initialization =
+                owner
+                    .ordinary_entry_generation()
+                    .map(|observation| OrdinaryFrameInitialization {
+                        version,
+                        observation,
+                    });
+        }
+        self
+    }
+
+    /// The same actual request and current observer-free environment carry
+    /// the selected ordinary C initialization plan. The caller independently
+    /// proves empty actual formals and the complete body/store induction.
+    #[must_use]
+    pub fn ordinary_frame_initialization_for(
+        &self,
+        entry: &NativeCompilationEntry,
+        version: tcl_dialect::TclVersion,
+    ) -> bool {
+        let actual_c_version = |point: tcl_dialect::model::DialectPoint| {
+            if point.family() == tcl_dialect::model::Family::Tcl {
+                point.tcl_version()
+            } else {
+                None
+            }
+        };
+        let actual_engine = entry.execution_point.and_then(actual_c_version);
+        let actual_policy = entry
+            .invocation_policy
+            .and_then(|policy| policy.profile().core_point)
+            .and_then(actual_c_version);
+        actual_engine == Some(version)
+            && actual_policy == Some(version)
+            && self
+                .ordinary_frame_initialization
+                .as_ref()
+                .is_some_and(|plan| plan.version == version && plan.observation.is_current())
+            && self.matches_entry(entry)
+            && self.ordinary_formals().is_some()
+            && entry
+                .compiler_pass_environment
+                .as_ref()
+                .is_some_and(|environment| {
+                    environment.ordinary_entry_observers_absent_for(entry.interpreter)
+                        && !environment.has_enabled_limits()
+                })
     }
 
     /// Borrow only the source, formals and namespace owned by this request.

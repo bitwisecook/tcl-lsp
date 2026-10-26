@@ -3653,6 +3653,12 @@ impl Interp {
     }
 
     pub(crate) fn invalidate_guard_domain(&self, domain: GuardDomain) {
+        if matches!(
+            domain,
+            GuardDomain::CommandTrace | GuardDomain::VariableTrace | GuardDomain::Interpreter
+        ) {
+            self.invalidate_ordinary_entry_observation();
+        }
         if domain == GuardDomain::VariableTrace {
             // Every change to the variable-trace set already funnels through
             // here, so this is the one place the per-cell trace bit's epoch
@@ -17972,6 +17978,7 @@ impl Interp {
                     if n < 0 {
                         return Err(bad_limit_value("command limit value must be at least 0"));
                     }
+                    self.invalidate_ordinary_entry_observation();
                     self.limits.borrow_mut().cmd_value = Some(n);
                 }
             }
@@ -18057,6 +18064,7 @@ impl Interp {
             // Normalise excess milliseconds into seconds.
             sec = sec.saturating_add(ms.div_euclid(1000));
             ms = ms.rem_euclid(1000);
+            self.invalidate_ordinary_entry_observation();
             self.limits.borrow_mut().time_value = Some((sec, ms));
         }
         Ok(obj::new_string_bytes(b""))
@@ -18139,6 +18147,7 @@ impl Interp {
                     .retain(|_, binding| binding.generation != generation);
             }
         }
+        child.retire_ordinary_entry_observation();
         child.pending_delete.set(true);
         child.invalidate_interpreter_policy();
         self.retire_pending_children();
@@ -20793,6 +20802,9 @@ impl Default for Interp {
 
 impl Drop for InterpState {
     fn drop(&mut self) {
+        if let Some(owner) = self.native_compiler_pass_owner.get() {
+            owner.retire_ordinary_entry_observation();
+        }
         native_literal_pool::retire_arrays(&self.native_literal_arrays);
         if let Some(mut bindings) = self
             .namespaces
