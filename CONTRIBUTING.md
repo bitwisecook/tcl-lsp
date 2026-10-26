@@ -22,7 +22,6 @@ AI, we tend to take shortcuts ourselves.
 You MUST be honest about AI contributions, including the models used;
 including the prompts is welcome.
 
-Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 
 ## Style and formatting
 
