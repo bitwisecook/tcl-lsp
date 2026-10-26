@@ -289,6 +289,10 @@ pub(super) fn retain(key: SourceAnalysisCacheKey, bindings: &mut SourceCommandBi
     if bindings.points.len() > MAX_POINTS {
         return;
     }
+    #[cfg(test)]
+    if tests::retain_original_strong_for_corpus(&key, bindings) {
+        return;
+    }
     let mut snapshot = bindings.clone();
     snapshot.source_point_cache_lease = None;
     let entry = if key.entry.source_point_entry.is_some() {
@@ -782,4 +786,5 @@ mod tests {
             );
         }
     }
+    include!("source_analysis_cache_corpus.rs");
 }
