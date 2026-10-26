@@ -393,6 +393,87 @@ impl RetainedSourceModuleBindings {
         Some(&self.positioned)
     }
 
+    /// Report-only custody of an allocated declaration in this exact inherited
+    /// child. Generic authored/loaded body membership and runtime entry remain
+    /// independent; equal text cannot replace the sealed incoming point.
+    pub(crate) fn matches_inherited_point_report_body(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+        id: crate::ir::ProcedureId,
+        body: &Procedure,
+    ) -> bool {
+        let Some(positioned) = self.positioned_for_module(module, registry) else {
+            return false;
+        };
+        let Some(input) = module.source_metadata_input.as_ref() else {
+            return false;
+        };
+        let Some(point) = positioned.original_inherited_source_entry() else {
+            return false;
+        };
+        let Some(root) = positioned.source_origin() else {
+            return false;
+        };
+        let Some(allocation) = module.original_declaration_body_units.get(&id) else {
+            return false;
+        };
+        if point.conditional_region().is_some()
+            || module.source_entry.source_point_entry.as_ref() != Some(point)
+            || point.input() != input
+            || module.source_entry.native_entry.is_some()
+            || input.has_hosted_source_name_context()
+            || !positioned
+                .original_analysis_owner()
+                .is_some_and(|owner| owner.matches(positioned, input))
+            || !matches!(root.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+                if parent == &point.source_origin() && source == &module.source)
+            || !module.procedure_ids.owns(id)
+            || body.body_kind != crate::ir::ProcedureBodyKind::OriginalDeclaration
+            || !module
+                .body_units
+                .get(&id)
+                .is_some_and(|held| std::ptr::eq(held, body))
+            || body.declaration_site.as_ref() != Some(&allocation.site)
+            || !Arc::ptr_eq(&allocation.site.source, root)
+            || body.publication.is_some()
+        {
+            return false;
+        }
+        let Some(source) = body.body.executed_source.as_ref() else {
+            return false;
+        };
+        let mut matching = positioned.procedure_implementation_bodies().filter(|card| {
+            card.allocation == allocation
+                && card.allocation.command == body.name
+                && card.source == source.as_ref()
+                && Arc::ptr_eq(&card.source.origin, &source.origin)
+                && body.body.namespace_context.as_deref() == Some(card.namespace_key)
+                && body.body_offset == card.source.base()
+                && body.body_source.as_deref() == card.source.try_text().ok()
+                && body.span.start() == card.source.base()
+                && body
+                    .span
+                    .end()
+                    .checked_sub(body.span.start())
+                    .and_then(|length| usize::try_from(length).ok())
+                    == Some(card.source.text.len())
+                && card
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .eq(body.params.iter().map(String::as_str))
+                && body.params_raw
+                    == tcl_syntax::list::join_list(card.parameters.iter().map(|parameter| {
+                        tcl_syntax::list::join_list(
+                            std::iter::once(parameter.name.as_str())
+                                .chain(parameter.default.as_deref()),
+                        )
+                    }))
+        });
+        matching.next().is_some() && matching.next().is_none()
+    }
+
     /// Reborrow the selected source `ParamList` topology for one procedure
     /// still owned by this exact Module. Report names and raw parameter text
     /// never substitute for the original selected declaration layout.
@@ -1461,3 +1542,6 @@ mod tests {
         assert!(retained.projection(&module, registry, options).is_none());
     }
 }
+
+#[cfg(test)]
+mod inherited_point_report_tests;

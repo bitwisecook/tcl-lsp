@@ -131,7 +131,13 @@ impl ReportBodyInventory {
                 module,
                 registry,
                 *id,
-                Self::procedure(module, *id, body, ReportBodyRole::Named(body.body_kind))?,
+                Self::procedure(
+                    module,
+                    registry,
+                    *id,
+                    body,
+                    ReportBodyRole::Named(body.body_kind),
+                )?,
             )?;
         }
         for (id, body) in module.body_lowerings() {
@@ -145,7 +151,7 @@ impl ReportBodyInventory {
                 module,
                 registry,
                 *id,
-                Self::procedure(module, *id, body, role)?,
+                Self::procedure(module, registry, *id, body, role)?,
             )?;
         }
         for (id, body) in &module.methods {
@@ -314,6 +320,7 @@ impl ReportBodyInventory {
 
     fn procedure(
         module: &crate::ir::Module,
+        registry: &CommandRegistry,
         id: ProcedureId,
         body: &Procedure,
         role: ReportBodyRole,
@@ -334,9 +341,7 @@ impl ReportBodyInventory {
                     .body_units
                     .get(&id)
                     .is_some_and(|held| std::ptr::eq(held, body))
-                || !module
-                    .original_source_procedure_bodies()
-                    .any(|(candidate, held)| *candidate == id && std::ptr::eq(held, body))
+                || !Self::has_original_report_body(module, registry, id, body, purpose)
                 || (module
                     .source_metadata_input
                     .as_ref()?
@@ -364,6 +369,25 @@ impl ReportBodyInventory {
             original_word: None,
             definition_parent: None,
         })
+    }
+
+    fn has_original_report_body(
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+        id: ProcedureId,
+        body: &Procedure,
+        purpose: ReportDeclarationPurpose,
+    ) -> bool {
+        module
+            .original_source_procedure_bodies()
+            .any(|(candidate, held)| *candidate == id && std::ptr::eq(held, body))
+            || (purpose == ReportDeclarationPurpose::Allocated
+                && module
+                    .retained_source_bindings
+                    .as_ref()
+                    .is_some_and(|retained| {
+                        retained.matches_inherited_point_report_body(module, registry, id, body)
+                    }))
     }
 
     fn push(
@@ -488,7 +512,14 @@ impl ReportBodyInventory {
                 .is_some_and(|actual| Arc::ptr_eq(actual, source))
             && held.body.namespace_context.as_deref() == Some(namespace)
             && body.site.as_ref() == Some(&allocation.site)
-            && allocation.matches_source_declaration_image(&module.source, allocation.site.offset)
+            && (allocation
+                .matches_source_declaration_image(&module.source, allocation.site.offset)
+                || module
+                    .retained_source_bindings
+                    .as_ref()
+                    .is_some_and(|retained| {
+                        retained.matches_inherited_point_report_body(module, registry, id, held)
+                    }))
             && Arc::ptr_eq(&allocation.site.source, root)
             && Arc::ptr_eq(&source.origin, root)
             && source.text.bytes().is_empty()
