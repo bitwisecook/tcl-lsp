@@ -169,9 +169,7 @@ impl ValueCoercion {
         first: tcl_runtime_api::NativeExecutionError,
     ) -> ValueError {
         let value_error = match &first {
-            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause) => {
-                cause.clone().into()
-            }
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause) => (*cause).into(),
             // ValueOps has a value-domain error type. The actual interpreter
             // retains the full first execution cause for its command/ABI owner.
             _ => ValueError::ScalarNumericInputUnavailable,
@@ -3208,13 +3206,12 @@ impl tcl_cmd_core::clock::NativeClockDateOps for RuntimeClockDateOps {
             tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6),
             &check,
         )
-        .map_err(|error| {
+        .inspect_err(|error| {
             if let Some(first) = error.native_execution_refusal() {
                 self.interpreter
                     .clone()
                     .refuse_native_execution(first.clone());
             }
-            error
         });
         let result = result.map(obj::Owned::fresh);
         check()?;

@@ -245,11 +245,10 @@ impl VarStore for Interp {
     {
         let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|first| array_default_operation_refusal(self, first))?;
-        obj::check_native_liveness(value).map_err(|error| {
+        obj::check_native_liveness(value).inspect_err(|error| {
             if let Some(first) = error.native_access_refusal() {
                 self.clone().refuse_native_access(first);
             }
-            error
         })?;
         let _original = obj::NativeObjectLifetime::retain(value);
         if self.observed_name_policy_selected() {
@@ -1584,9 +1583,8 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
                     "original array search operation",
                 )
             })?;
-            crate::vars::array_search_target_current(self, &record).map_err(|error| {
+            crate::vars::array_search_target_current(self, &record).inspect_err(|error| {
                 self.clone().refuse_completion_value_access(error.clone());
-                error
             })
         };
         let reached = cell.native_array_search(
@@ -1601,9 +1599,8 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
             &check,
         );
         check()?;
-        let result = reached.map_err(|error| {
+        let result = reached.inspect_err(|error| {
             self.clone().refuse_completion_value_access(error.clone());
-            error
         })?;
         if sub == "startsearch" && protocol.start_handle_has_string_primary() {
             if let Ok(value) = result {
@@ -2370,7 +2367,7 @@ fn array_default_operation_refusal(
     first: tcl_runtime_api::NativeExecutionError,
 ) -> tcl_syntax::value::ValueError {
     let error = match &first {
-        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause) => cause.clone().into(),
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause) => (*cause).into(),
         _ => tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "array default entered operation",
         ),
