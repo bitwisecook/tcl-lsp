@@ -59,7 +59,8 @@
     "rust/tcl-compiler/src/lowering/mod.rs": "a4ce038783d4537cb4b707df38ea6e8008393c7b46e95b3aaa71310a5cfe4465",
     "rust/tcl-compiler/src/var_resolve.rs": "ec47b8fd33df4371dc738a5d7a16f7267ad8988d7cd23e1ab62235df46939c57",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e"
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15e6aaeef8d9b3251232ab5fce290392122a37bab2672bffd174b5c2a468453e",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "cf9d686307b909e2408b344b3ea1204788bdbe80f4dbf598a693d96cb30f80c4"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -333,6 +334,44 @@
         ],
         "target": "tcl_compiler",
         "selector": "command_binding::compiled_preflight::ordered_locals::original_native_request_tests::original_native_request_formals_refuse_foreign_scope_and_keep_existing_body_boundaries",
+        "env": {}
+      }
+    ]
+  },
+  "separate_analyser_layout_controls": {
+    "schema": "analyser-layout-control3-v1",
+    "expected_selected": 3,
+    "source": "rust/tcl-compiler/src/analyser/handlers.rs",
+    "source_peer_reference": "Names source layout V5 f0f04f0b strong source clearance and actual integration required",
+    "rows": [
+      {
+        "group": "diagnostic-analyser-layout3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "analyser::handlers::original_proc_source_layout_tests::original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-analyser-layout3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-analyser-layout3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_keeps_plain_and_rooted_jim_forms",
         "env": {}
       }
     ]

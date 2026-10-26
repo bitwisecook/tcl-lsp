@@ -148,6 +148,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-restored-child-owner1-",
             "diagnostic-native-string-effects3-",
             "diagnostic-native-formal-layout2-",
+            "diagnostic-analyser-layout3-",
             "list-",
             "select-",
         )
@@ -170,6 +171,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-restored-child-owner1-",
             "diagnostic-native-string-effects3-",
             "diagnostic-native-formal-layout2-",
+            "diagnostic-analyser-layout3-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -193,6 +195,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-restored-child-owner1-",
             "diagnostic-native-string-effects3-",
             "diagnostic-native-formal-layout2-",
+            "diagnostic-analyser-layout3-",
         )
     ):
         require(
@@ -2114,6 +2117,200 @@ def run_native_formal_layout_controls() -> None:
         )
 
 
+def run_analyser_layout_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows
+        ),
+        "analyser layout controls cannot precede original124 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in analyser_layout_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "analyser layout controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(analyser_layout_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "analyser layout current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "analyser layout requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "analyser layout artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "analyser-layout3"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "analyser-layout-outcomes.json", analyser_layout_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "analyser-layout-outcomes.json", analyser_layout_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "analyser-layout-outcomes.json", analyser_layout_rows)
+            raise
+        save(out / "analyser-layout-outcomes.json", analyser_layout_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -2514,7 +2711,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "c9d9494c29a8a3f53a6f2e777b98771ca76b37ab9f74f071135e30d486540459",
+    == "7321dad0383235f0eb6c39df288c0d2fa418d786f1b34b7fd383a5b1b6ec810a",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -2644,6 +2841,19 @@ require(native_formal_validation["rows"] == [{'group': 'diagnostic-native-formal
     and not {row["selector"] for row in native_formal_rows}.intersection(
         row["selector"] for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows),
     "native formal layout exact target/selectors/environment/no overlap")
+
+analyser_layout_validation = logical_validation["separate_analyser_layout_controls"]
+require(set(analyser_layout_validation) == {"schema", "expected_selected", "source", "source_peer_reference", "rows"}
+    and analyser_layout_validation["schema"] == "analyser-layout-control3-v1"
+    and analyser_layout_validation["expected_selected"] == len(analyser_layout_validation["rows"]) == 3
+    and analyser_layout_validation["source"] == 'rust/tcl-compiler/src/analyser/handlers.rs'
+    and analyser_layout_validation["source"] in logical_validation["source_pins"],
+    "analyser layout schema/count/current pinned test source")
+analyser_layout_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in analyser_layout_validation["rows"]]
+require(analyser_layout_validation["rows"] == [{'group': 'diagnostic-analyser-layout3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry', 'env': {}}, {'group': 'diagnostic-analyser-layout3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion', 'env': {}}, {'group': 'diagnostic-analyser-layout3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'analyser::handlers::original_proc_source_layout_tests::original_procedure_source_layout_keeps_plain_and_rooted_jim_forms', 'env': {}}]
+    and not {row["selector"] for row in analyser_layout_rows}.intersection(
+        row["selector"] for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows),
+    "analyser layout exact target/selectors/environment/no overlap")
 
 require(
     len(
@@ -3535,7 +3745,12 @@ try:
     status = 2
     run_native_formal_layout_controls()
     require(len(native_formal_rows) == 2 and all(row["state"] in ["PASS", "FAIL"] for row in native_formal_rows), "native formal layout controls incomplete")
+    status = 2
+    run_analyser_layout_controls()
+    require(len(analyser_layout_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in analyser_layout_rows), "analyser layout controls incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    if any(row["state"] != "PASS" for row in analyser_layout_rows):
+        status = 1
     if any(row["state"] != "PASS" for row in native_formal_rows):
         status = 1
     if any(row["state"] != "PASS" for row in native_string_rows):
@@ -3604,6 +3819,7 @@ finally:
     save(out / "restored-child-owner-outcomes.json", restored_child_rows)
     save(out / "native-string-effects-outcomes.json", native_string_rows)
     save(out / "native-formal-layout-outcomes.json", native_formal_rows)
+    save(out / "analyser-layout-outcomes.json", analyser_layout_rows)
     save(out / "outcomes.json", rows)
     save(
         out / "final.json",
@@ -3669,6 +3885,10 @@ finally:
             ),
             "logical3_outcomes": logical_rows,
             "separate_logical_roster": logical_validation,
+            "required_separate_analyser_layout_controls": 3,
+            "analyser_layout_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in analyser_layout_rows),
+            "analyser_layout3_outcomes": analyser_layout_rows,
+            "analyser_layout3_roster": analyser_layout_validation,
             "required_separate_native_formal_layout_controls": 2,
             "native_formal_layout_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in native_formal_rows),
             "native_formal_layout2_outcomes": native_formal_rows,
