@@ -478,7 +478,6 @@ mod tests {
 
     #[test]
     fn existence_name_cache_purpose_preserves_the_original_release_boundary() {
-        // naming.variable.original-upvar-and-exists-completion-and-name-windows
 
         // Native case16 observes the original scalar name primary; the caller
         // distinction follows C84 TclVarTraceExists -> byte TclLookupVar.
@@ -500,7 +499,6 @@ mod tests {
 
     #[test]
     fn generic_array_set_purposes_preserve_caller_and_release_boundaries() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // Native case21/23/27 supplies independent public result/name windows.
         // Dictionary and lookup purpose here are pure inspected-source recipes;
@@ -568,7 +566,6 @@ mod increment_lookup_purpose_tests {
     use super::NativeVariableNameLookupPurpose as Purpose;
     #[test]
     fn generic_increment_flags_distinguish_required_root_and_created_element() {
-        // naming.invocation.original-variable-and-introspection-getter-order
 
         // Pure source-purpose flags: C84 TclIncrVar2 read/create0,1 versus
         // C85+ TclIncrObjVar2 read/create1,1. No receiver/admission is issued.

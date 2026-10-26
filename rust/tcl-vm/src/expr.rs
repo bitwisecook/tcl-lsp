@@ -2135,7 +2135,6 @@ impl ExprOps for ExprEval<'_> {
 mod tests {
     #[test]
     fn original_numeric_comparison_keeps_retired_header_refusal_before_lexical_fallback() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real header retirement and executable adapter; no external provider outcome.
         let mut vm = crate::native_fixture::core(

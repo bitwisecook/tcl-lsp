@@ -896,7 +896,6 @@ pub fn expr_cache_len_for_tests() -> usize {
 mod tests {
     #[test]
     fn all_expression_ingress_keeps_selected_reference_roots_and_close_rules() {
-        // Implementation contract: naming.expression.selected-reference-root
 
         for version in TclVersion::ALL {
             let profile = DialectProfile::find(version.dialect_profile_name()).unwrap();

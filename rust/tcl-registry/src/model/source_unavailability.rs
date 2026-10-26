@@ -55,7 +55,6 @@ impl ResolvedContext {
         command: &str,
         realm: InvocationRealm,
     ) -> Option<CommandSourceUnavailability> {
-        // naming.diagnostic.original-command-source-unavailability
 
         if self
             .resolve_spec_in_realm(registry, command, realm)
@@ -92,7 +91,6 @@ impl ContextRegistry {
         command: &str,
         realm: InvocationRealm,
     ) -> Option<CommandSourceUnavailability> {
-        // naming.diagnostic.original-command-source-unavailability
 
         self.context()
             .command_source_unavailability(self.commands(), command, realm)
@@ -104,7 +102,6 @@ mod tests {
     use super::*;
     #[test]
     fn excluded_command_metadata_uses_related_providers_and_actual_realm() {
-        // naming.diagnostic.original-command-source-unavailability
 
         let old = crate::model::ingress::static_context_for("tcl8.4");
         let new = crate::model::ingress::static_context_for("tcl8.6");
@@ -161,7 +158,6 @@ mod tests {
     }
     #[test]
     fn excluded_overlay_rows_remain_in_the_actual_store_availability_query() {
-        // naming.diagnostic.original-command-source-unavailability
 
         const LATER: &[tcl_dialect::model::SpecSurface] =
             &[tcl_dialect::model::SpecSurface::core_in(

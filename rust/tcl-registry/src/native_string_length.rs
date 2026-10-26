@@ -91,7 +91,6 @@ mod tests {
             );
         }
         assert!(Representation::AnyByteArray.counts_byte_array(false, false));
-        // naming.string.original-counted-index-range-storage-and-results
 
         // Actual C9 case16 retains the proper ByteArray with resident String.
         assert!(Representation::PureProperByteArray.counts_byte_array(false, true));

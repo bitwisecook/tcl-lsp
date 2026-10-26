@@ -559,7 +559,6 @@ mod tests {
 
     #[test]
     fn original_branch_source_parser_keeps_retained_grammar_and_numeric_axes() {
-        // naming.optimiser.original-branch-expression-source-grammar
 
         // Source AST topology only, independent of native preparation/admission.
         let old = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -612,7 +611,6 @@ mod tests {
 
     #[test]
     fn original_branch_source_topology_keeps_equivalence_permission_separate() {
-        // naming.optimiser.original-branch-expression-source-grammar
 
         // Closed literal policy and missing original variable-object proof are
         // separate obligations; this is no native execution observation.

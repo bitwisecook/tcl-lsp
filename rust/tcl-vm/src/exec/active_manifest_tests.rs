@@ -60,7 +60,6 @@ fn retained_unit(vm: &mut Vm, asm: FunctionAsm) -> CompiledUnit {
 
 #[test]
 fn compiled_entry_checks_retained_manifest_and_actual_pack_claims() {
-    // naming.compiler.active-manifest-revalidation
 
     // Software artifact identity only; no Native provider behavior is asserted.
     let mut current = vm();
@@ -87,7 +86,6 @@ fn compiled_entry_checks_retained_manifest_and_actual_pack_claims() {
 
 #[test]
 fn active_currency_rechecks_pack_claims_and_manifest_package_floors() {
-    // naming.compiler.active-manifest-revalidation
 
     // Software artifact identity only; no Native provider behavior is asserted.
     let mut vm = vm();
@@ -118,7 +116,6 @@ fn active_currency_rechecks_pack_claims_and_manifest_package_floors() {
 
 #[test]
 fn stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch() {
-    // naming.compiler.active-manifest-revalidation
 
     // Software artifact identity only; no Native provider behavior is asserted.
     let mut vm = vm();
@@ -140,7 +137,6 @@ fn stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch() {
 
 #[test]
 fn refused_overlay_pin_preserves_the_active_artifact_identity() {
-    // naming.compiler.active-manifest-revalidation
 
     // Software artifact identity only; no Native provider behavior is asserted.
     let mut vm = vm();

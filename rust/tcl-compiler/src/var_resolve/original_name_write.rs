@@ -213,7 +213,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.byte-cell-correspondence
 
     fn before_store_completion_requires_kind_observers_and_old_class_independently() {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {

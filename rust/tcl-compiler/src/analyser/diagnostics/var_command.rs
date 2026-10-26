@@ -764,7 +764,6 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) -> FactoryObjectAdvice {
-        // naming.compiler.original-analysis-metadata-context
 
         // Possible result advice uses the same source and actual availability
         // generation as the supplied unit, without a completed result grant.
@@ -2164,7 +2163,6 @@ fn original_namespace_suffix(
 /// concrete non-command value.
 fn is_callback_array_slot(var_name: &str) -> bool {
     // This is a resolved name, so a leading dollar is literal.
-    // naming.diagnostics.original-variable-name-anchor
 
     let Some((_base, key)) = crate::naming::split_element_ref(var_name) else {
         return false;
@@ -2271,7 +2269,6 @@ fn dispatch_table_values(
     context: &tcl_registry::model::ContextRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<crate::table_value_provenance::TableValueContributor>> {
-    // naming.compiler.original-analysis-metadata-context
 
     // Availability and lexer overrides remain separate from reached cell contents.
     let registry = context.commands();
@@ -3061,7 +3058,6 @@ mod retained_constant_context_tests {
 
     #[test]
     fn array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original source-value advice; no executed store or Native argv claim.
         let source = r#"array set state "callback \U0001F600""#;
@@ -3128,7 +3124,6 @@ mod original_callback_slot_name_tests {
 
     #[test]
     fn callback_slot_hints_use_shared_resolved_element_name_boundaries() {
-        // naming.diagnostics.original-variable-name-anchor
 
         // Callback-shaped names are suppression hints only; these controls
         // assert neither current callback occupancy nor native variable reads.
@@ -3226,7 +3221,6 @@ mod factory_metadata_context_tests {
 
     #[test]
     fn factory_may_advice_uses_actual_availability_and_exact_supplied_source() {
-        // naming.compiler.original-analysis-metadata-context
 
         // These Registry declarations supply possible source result shapes,
         // never an actual factory implementation, allocation or return value.
@@ -3382,7 +3376,6 @@ mod original_abstract_factory_context_tests {
 
     #[test]
     fn original_abstract_factory_advice_keeps_actual_context_alias_and_nested_source() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual registration entry remains separate from conditional factory advice.
         let catalogue =
@@ -3409,7 +3402,6 @@ mod original_abstract_factory_context_tests {
 
     #[test]
     fn original_abstract_factory_advice_refuses_changed_availability_and_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Metadata never replaces the independently retained original class/factory owner.
         let source = "oo::abstract create Base {}; Base new";
@@ -3453,7 +3445,6 @@ mod original_abstract_factory_context_tests {
 
     #[test]
     fn original_abstract_factory_advice_preserves_known_class_lifecycle_barriers() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Current source incarnation and factory dependencies remain independent.
         let catalogue =

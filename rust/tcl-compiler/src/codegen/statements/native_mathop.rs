@@ -92,7 +92,6 @@ mod tests {
 
     #[test]
     fn original_comparison_preparation_reaches_nested_words_without_an_inline_hook() {
-        // naming.mathop-procedure-source-controls
 
         // Emission keeps the actual compiler recipe; the unchanged native
         // control separately checks public completion and operand effects.

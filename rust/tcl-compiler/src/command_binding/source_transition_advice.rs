@@ -1803,7 +1803,6 @@ impl AdviceGraph {
         head: &SourceAdviceNameInput,
         words: &[NativeWord],
     ) -> Option<super::DeclaredSourceSelection> {
-        // naming.source.original-declared-command-word-contract
 
         let key = self.selected_head_key(head.bytes())?;
         let AdviceCell::Declared(declaration) = self.cells.get(&key)? else {
@@ -3595,7 +3594,6 @@ mod tests {
 
     #[test]
     fn logical_original_advice_words_keep_lossless_values_and_native_units_independent() {
-        // naming.source.authored-command-transition-advice
 
         use super::{AdviceNamingPolicy, original_words};
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -3643,7 +3641,6 @@ mod tests {
 
     #[test]
     fn original_move_qualifier_retains_the_complete_operand_and_rejects_other_projections() {
-        // naming.interpreter.original-created-handle-source-body
 
         // This is a source-projection guard, not a successful runtime rename.
         use super::{AdviceNamingPolicy, original_transition_subject_matches, original_words};
@@ -3721,7 +3718,6 @@ mod tests {
 
     #[test]
     fn authored_source_catalogue_barriers_keep_known_shadow_and_unloaded_advice_distinct() {
-        // Implementation contract: naming.source.authored-command-transition-advice
 
         for source in [
             "package require Tk 8.6; proc entry args {}; entry .e -placeholder text",
@@ -3740,7 +3736,6 @@ mod tests {
 
     #[test]
     fn authored_source_tape_refusals_do_not_reissue_stock_declaration_advice() {
-        // Implementation contract: naming.source.authored-command-transition-advice
 
         assert_eq!(
             last_words("if {1} {puts original}", "tcl")
@@ -3791,7 +3786,6 @@ mod tests {
 
     #[test]
     fn authored_source_transitions_keep_order_prefixes_and_conditional_authority() {
-        // Implementation contract: naming.source.authored-command-transition-advice
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source =
@@ -3891,7 +3885,6 @@ mod tests {
 
     #[test]
     fn authored_immediate_bodies_keep_mutation_and_callback_obligations_separate() {
-        // Implementation contract: naming.source.original-immediate-body-mutation-advice
 
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = version.dialect_name();
@@ -3981,7 +3974,6 @@ mod tests {
 
     #[test]
     fn authored_dynamic_operands_keep_source_advice_before_the_future_barrier() {
-        // Implementation contract: naming.source.original-immediate-body-mutation-advice
 
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = version.dialect_name();
@@ -4020,7 +4012,6 @@ mod tests {
 
     #[test]
     fn authored_source_transition_tape_keeps_deletion_rebinding_and_namespace_geometry() {
-        // Implementation contract: naming.source.authored-command-transition-advice
 
         for source in [
             "opaque; interp alias {} pick {} switch; pick subject {default {puts yes}}",
@@ -4100,7 +4091,6 @@ mod tests {
 
     #[test]
     fn authored_logical_source_advice_keeps_its_explicit_input_and_original_operands() {
-        // Implementation contract: naming.source.authored-command-transition-advice
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -4190,7 +4180,6 @@ mod tests {
 
     #[test]
     fn authored_jim_root_alias_advice_keeps_the_jim_name_recipe() {
-        // Implementation contract: naming.source.authored-command-transition-advice
 
         let source = "opaque; alias pick puts; pick hello";
         let words = last_words(source, "jim").unwrap();
@@ -4236,7 +4225,6 @@ mod tests {
 
     #[test]
     fn original_logical_unicode_transitions_keep_exact_alias_and_move_inputs() {
-        // naming.source.authored-command-transition-advice
 
         // Conditional source transitions only; no Native input or successful dispatch.
         let input = original_unicode_source_input();
@@ -4311,7 +4299,6 @@ mod tests {
 
     #[test]
     fn original_logical_nested_expression_keeps_bom_head_and_parent_configuration() {
-        // naming.source.authored-command-transition-advice
 
         // Original expression child source schema; no entered matcher or output value.
         let input = original_unicode_source_input();

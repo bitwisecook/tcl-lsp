@@ -168,7 +168,6 @@ struct DiffDocument<'a> {
 
 impl<'a> DiffDocument<'a> {
     fn capture(source: &'a str, input: &ResolvedAnalysisInput, build_unit: bool) -> Option<Self> {
-        // naming.compiler.original-analysis-metadata-context
 
         let analysis = Analyser::new()
             .structure_only()
@@ -574,7 +573,6 @@ mod tests {
 
     #[test]
     fn original_diff_subcommands_use_current_source_targets_and_captured_prefixes() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);
@@ -601,7 +599,6 @@ mod tests {
 
     #[test]
     fn original_diff_pack_subcommands_keep_availability_and_refuse_withdrawn_inputs() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);
@@ -670,7 +667,6 @@ mod tests {
 
     #[test]
     fn original_diff_ir_and_cfg_share_the_exact_checked_source_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let mut config = LexerConfig::for_file_grammar(profile.grammar);

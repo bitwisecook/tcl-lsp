@@ -146,7 +146,6 @@ mod tests {
 
     #[test]
     fn original_lexical_projection_reuses_complete_geometry_across_source_queries() {
-        // naming.source.original-point-operand-projection
 
         let source = "# original prefix\r\nlist {} \"\" café \"\\x00\" {A\0B} {a\\}} [list value]";
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -222,7 +221,6 @@ mod tests {
 
     #[test]
     fn original_lexical_projection_refuses_changed_vector_grammar_and_partial_source() {
-        // naming.source.original-point-operand-projection
 
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
@@ -290,7 +288,6 @@ mod tests {
 
     #[test]
     fn original_lexical_projection_keeps_cache_warmth_and_independent_origins_separate() {
-        // naming.source.original-point-operand-projection
 
         use std::hash::{Hash, Hasher};
         let config = LexerConfig::default();
@@ -354,7 +351,6 @@ mod tests {
 
     #[test]
     fn original_lexical_projection_nested_cut_memo_matches_the_unmemoised_capture() {
-        // naming.source.original-point-operand-projection
 
         let source = "set x [list [list a] [list b]]\nlist [list [list a] {b}c]";
         let clean = source.find("list [list a] [list b]").unwrap();
@@ -431,7 +427,6 @@ mod tests {
 
     #[test]
     fn one_nested_cut_memo_serves_whole_input_and_nested_script_plans_in_any_order() {
-        // naming.source.original-point-operand-projection
 
         use tcl_lexer::{SourceSegmentationPurpose as Purpose, Span};
         // (source, whole input stops at a parse cut, some body stops at one)

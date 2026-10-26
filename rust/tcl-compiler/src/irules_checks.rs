@@ -3575,7 +3575,6 @@ mod tests {
 
     #[test]
     fn irule1005_retains_the_original_event_operand_instead_of_a_body_anchor() {
-        // naming.consumer.original-diagnostic-source-actions
 
         // Source geometry, with no Native event/TMM activation claim.
         for source in [
@@ -4505,7 +4504,6 @@ mod tests {
 
     #[test]
     fn generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations() {
-        // naming.analysis.resolved-static-variable-patterns
 
         // Fixed source-analysis controls; no iRule event or physical TMM executes here.
         for operation in [
@@ -4562,7 +4560,6 @@ mod tests {
 
     #[test]
     fn generic_static_warning_declines_foreign_module_source_without_spelling_fallback() {
-        // naming.analysis.resolved-static-variable-patterns
 
         // A real built source Module loses its actual document correspondence.
         let source = "when RULE_INIT {set static::debug 1}";
@@ -4806,7 +4803,6 @@ mod original_getter_source_config_tests {
 
     #[test]
     fn getter_source_keeps_function_config_and_selects_nested_parser_purpose() {
-        // naming.source.retained-explorer-consumers
 
         // Actual source metadata and parser-purpose control, no BIG-IP execution.
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
@@ -5255,7 +5251,6 @@ mod original_collection_source_tests {
 
     #[test]
     fn collection_query_uses_actual_function_config_and_separates_standalone() {
-        // naming.source.original-collection-body-owner
 
         // Actual source/config + extracted syntax purpose, not BIG-IP execution.
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
@@ -5422,7 +5417,6 @@ mod original_collection_source_tests {
 
     #[test]
     fn collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory() {
-        // naming.source.original-collection-body-owner
 
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
@@ -5663,7 +5657,6 @@ mod original_event_owner_tests {
 
     #[test]
     fn ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics() {
-        // naming.variable.registry-event-frame-identity
 
         // Source classification only; this does not execute an iRule or Tcl proc.
         let text = "namespace eval ::when {}; proc ::when::HTTP_REQUEST {} {\n\
@@ -5681,7 +5674,6 @@ mod original_event_owner_tests {
 
     #[test]
     fn selected_custom_event_definer_and_report_names_use_the_original_descriptor() {
-        // naming.variable.registry-event-frame-identity
 
         // Event-table policy and source descriptor only, without entered event/TMM facts.
         let text = "on ASM_RESPONSE_VIOLATION {HTTP::respond 200; HTTP::header insert X-Test yes}\n\
@@ -5733,7 +5725,6 @@ mod original_event_owner_tests {
 
     #[test]
     fn event_projection_withdraws_changed_or_missing_complete_owners() {
-        // naming.variable.registry-event-frame-identity
 
         let (unit, context) = supplied(
             "when HTTP_REQUEST {drop; HTTP::payload; set static::debug 1}",
@@ -5824,7 +5815,6 @@ mod original_event_owner_tests {
 
     #[test]
     fn explicitly_standalone_source_retains_events_without_report_name_assistance() {
-        // naming.variable.registry-event-frame-identity
 
         let (original, context) = supplied("when HTTP_REQUEST {drop}", false);
         let mut unit = CompilationUnit::build_for_with_config(

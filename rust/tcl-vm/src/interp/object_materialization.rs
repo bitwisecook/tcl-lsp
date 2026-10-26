@@ -110,7 +110,6 @@ mod tests {
 
     #[test]
     fn actual_object_materialization_survives_unknown_source_without_losing_original_members() {
-        // naming.invocation.original-object-materialization-purpose
 
         let mut vm = native_vm("tcl8.6");
         vm.set_dialect_profile(unknown_jim());
@@ -154,7 +153,6 @@ mod tests {
 
     #[test]
     fn selected_authored_materialization_refuses_without_physical_fallback() {
-        // naming.invocation.original-object-materialization-purpose
 
         let mut vm = native_vm("tcl9.0");
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
@@ -207,7 +205,6 @@ mod tests {
 
     #[test]
     fn standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe() {
-        // naming.invocation.original-object-materialization-purpose
 
         let mut vm = Vm::new();
         assert!(vm.actual_engine_profile.is_none());
@@ -252,7 +249,6 @@ mod tests {
 
     #[test]
     fn actual_object_materialization_preserves_foreign_compound_refusal() {
-        // naming.invocation.original-object-materialization-purpose
 
         let mut vm = native_vm("tcl8.6");
         vm.set_dialect_profile(unknown_jim());

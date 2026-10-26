@@ -268,7 +268,6 @@ pub(crate) fn caller_frame_bindings(
     cursor_off: u32,
     name: &str,
 ) -> Vec<CallerFrameBinding> {
-    // Implementation contract: naming.core.original-caller-frame-navigation
 
     let mut out: Vec<CallerFrameBinding> = Vec::new();
     let Some(config) = analysis.body_lexer_config else {
@@ -563,7 +562,6 @@ fn bindings_from_declared_self_dispatch(
     template: &tcl_compiler::command_binding::OriginalDeclaredSelfMethodTemplate,
     out: &mut Vec<CallerFrameBinding>,
 ) {
-    // naming.tcloo.original-declared-self-method-caller-template
 
     let names = template
         .formals()
@@ -972,7 +970,6 @@ oo::class create chart {
 
     #[test]
     fn original_caller_templates_keep_full_input_bom_namespace_and_source_currency() {
-        // Implementation contract: naming.core.original-caller-frame-navigation
 
         let source = "\u{feff}namespace eval N {\nproc setdef {d} {upvar 1 $d dst; set dst SET}\nproc caller {ok} {\nif {$ok} {setdef shared}\nputs $shared\n}\n}\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1050,7 +1047,6 @@ oo::class create chart {
 
     #[test]
     fn original_caller_reference_geometry_does_not_cross_a_nested_frame() {
-        // Implementation contract: naming.core.original-caller-frame-navigation
 
         let source = "proc setdef {d} {upvar 1 $d dst; set dst SET}\nproc caller {ok} {\nsetdef shared\nif {$ok} {puts $shared}\nproc unrelated {} {puts $shared}\nputs $shared\n}\n";
         let analysis = analyse(source);
@@ -1538,7 +1534,6 @@ oo::class create Widget {
 
     #[test]
     fn a_mixin_method_reached_by_my_dispatch_binds_its_literal_target() {
-        // naming.tcloo.original-declared-self-method-caller-template
 
         let analysis = analyse(MIXIN_SRC);
         let read = offset_of(MIXIN_SRC, "$name\"") + 1;
@@ -1738,7 +1733,6 @@ mod caller_frame_navigation_tests {
     /// is established by this navigation result.
     #[test]
     fn a_fully_qualified_upvar_target_navigates_from_word_and_read() {
-        // Implementation contract: naming.variable.original-alias-source-template
 
         let src = "\
 proc SetFocusGrab {grab focus} {
@@ -2230,7 +2224,6 @@ mod original_binding_region_purpose_tests {
 
     #[test]
     fn original_binding_regions_keep_selected_frame_body_and_whole_file_purposes() {
-        // naming.source.original-configured-script-completeness
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);

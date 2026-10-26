@@ -1110,7 +1110,6 @@ mod tests {
 
     #[test]
     fn original_package_index_handlers_retain_each_genuine_registration_point() {
-        // Implementation contract: naming.source.package-index-entry-values
 
         let cases = [
             (
@@ -1197,7 +1196,6 @@ mod tests {
 
     #[test]
     fn original_package_index_unknown_entry_value_cannot_close_registration_argv() {
-        // Implementation contract: naming.source.package-index-entry-values
 
         let source = "set {auto_index(p\\u0000tail)} [list source [file join $dir p.tcl]]";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();

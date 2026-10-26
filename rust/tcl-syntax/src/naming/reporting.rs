@@ -121,7 +121,6 @@ mod tests {
 
     #[test]
     fn reported_qname_namespaces_keep_purpose_and_literal_text() {
-        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
 
         // Shared analytical name contract:
         // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).

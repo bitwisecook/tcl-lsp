@@ -8,7 +8,6 @@ use super::Analyser;
 
 #[test]
 fn original_rule_call_producer_uses_selected_option_grammar_and_complete_target_word() {
-    // naming.consumer.original-rule-reference-candidates
 
     let source = "proc helper {} {}\nwhen RULE_INIT {call -debug {helper}; call helper}";
     let result = Analyser::new().analyse(source, "f5-irules");
@@ -34,7 +33,6 @@ fn original_rule_call_producer_uses_selected_option_grammar_and_complete_target_
 
 #[test]
 fn original_namespace_producer_preserves_alias_written_origins_and_known_shadowing() {
-    // naming.source.original-point-operand-projection
 
     let source = "namespace eval N {}\ninterp alias {} check {} namespace exists\ncheck N";
     let result = Analyser::new().analyse(source, "tcl8.6");
@@ -57,7 +55,6 @@ fn original_namespace_producer_preserves_alias_written_origins_and_known_shadowi
 
 #[test]
 fn original_dynamic_variable_producer_preserves_alias_written_origins_and_known_shadowing() {
-    // naming.source.authored-registry-role-projection
 
     let source = "interp alias {} assign {} set\nset name target\nassign $name 1";
     let result = Analyser::new().analyse(source, "tcl8.6");

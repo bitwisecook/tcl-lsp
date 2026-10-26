@@ -2482,7 +2482,6 @@ mod tests {
     /// spelling it `show`.
     #[test]
     fn original_primary_command_rename_uses_canonical_opaque_inputs_and_atomic_prepare() {
-        // Implementation contract: naming.editor.original-command-rename-plans
 
         let source = "proc p\\uD800 {argument} {return $argument}\np\\uD800 value\n";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -2525,7 +2524,6 @@ mod tests {
 
     #[test]
     fn original_primary_member_rename_does_not_enter_string_override_families() {
-        // Implementation contract: naming.editor.original-command-rename-plans
 
         let source =
             "oo::class create C {method ping {} {return}}\noo::class create D {superclass C}\n";
@@ -3719,7 +3717,6 @@ mod tests {
 
     #[test]
     fn original_reference_replacement_preserves_closed_elements_and_scalar_parentheses() {
-        // Implementation contract: naming.core.selected-variable-cursor-syntax
 
         for style in [
             tcl_dialect::BracedVarStyle::FirstClose,
@@ -3762,7 +3759,6 @@ mod tests {
 
     #[test]
     fn original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names() {
-        // Implementation contract: naming.core.selected-variable-cursor-syntax
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -5715,7 +5711,6 @@ mod tests {
 
     #[test]
     fn logical_rename_preserves_original_separator_runs_unicode_and_array_extent() {
-        // naming.editor.logical-written-component-geometry
 
         // Exact source geometry only; edit permission stays with the caller.
         let config =

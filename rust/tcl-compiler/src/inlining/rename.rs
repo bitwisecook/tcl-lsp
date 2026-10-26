@@ -872,7 +872,6 @@ mod tests {
     }
     #[test]
     fn original_rename_projection_keeps_selected_reference_grammar_and_literal_names() {
-        // naming.inlining.original-frame-source-context
 
         // Source edit projection only; native341 answers public expression results,
         // not alpha-renaming, compiled frames or runtime execution.
@@ -949,7 +948,6 @@ mod tests {
 
     #[test]
     fn original_rename_projection_keeps_literal_binding_indices_and_unrenamed_roots() {
-        // naming.inlining.original-frame-source-context
 
         let names = rn(&[("arr", "array"), ("idx", "index")]);
         let rename = Rename {

@@ -3355,7 +3355,6 @@ mod tests {
 
     #[test]
     fn ensemble_map_prefix_construction_preserves_counted_heads_before_lookup() {
-        // naming.ensemble.original-counted-map-prefix-construction
 
         // Native312 public map heads/calls are separate from this pure API
         // projection; a namespace report alone never selects a physical holder.
@@ -4361,9 +4360,7 @@ mod tests {
 
     #[test]
     fn original_lambda_namespace_preserves_counted_object_and_lookup_purposes() {
-        // naming.procedure.original-root-and-colon-holder-publication
 
-        // naming.lambda.original-namespace-constructor-and-getter
 
         // SDK raw String00 and ByteArray materialised C080 remain independent.
         // These projections retain selected getter bytes without claiming an
@@ -4473,7 +4470,6 @@ mod tests {
 
     #[test]
     fn original_root_procedure_publication_preserves_a_literal_colon() {
-        // naming.procedure.original-root-and-colon-holder-publication
 
         // C84/85 TclProcObjCmd only prepends a non-global holder's fullName.
         // CLI source observations are independent of these pure slot assertions.
@@ -4932,7 +4928,6 @@ fn native_oo_counted_method_and_cstring_object_publication_are_distinct() {
 
 #[test]
 fn alias_publication_retains_its_distinct_native_entry_point() {
-    // naming.class.jim-source-rooted-factory-initialiser-replacement
 
     // Native rooted factory observations motivate table-key comparison; extent
     // controls preserve original/reporting producer bytes independently.
@@ -5222,7 +5217,6 @@ mod command_source_word_tests {
 
 #[test]
 fn original_property_option_extent_is_separate_from_counted_declaration_names() {
-    // Implementation contract: naming.tcloo.original-property-accessor-source-advice
 
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
         let recipe = NativeNameProtocol::C(version);
@@ -5369,7 +5363,6 @@ mod coroutine_publication_tests {
 
 #[test]
 fn jim_two_word_factory_publication_uses_original_units_and_existing_publication_recipe() {
-    // naming.source.original-class-reference
 
     // Extent cases are pure owner coverage, not additional native probe claims.
     let jim = NativeNameProtocol::Jim084;
@@ -5442,7 +5435,6 @@ fn jim_two_word_factory_publication_uses_original_units_and_existing_publication
 
 #[test]
 fn child_alias_publication_has_its_own_counted_input_and_c_string_registration() {
-    // naming.alias.original-child-publication-and-inventory
 
     // Native298 separately measures child invocation/inventories. This pure
     // projection grants no installed command, original header or parent realm.
@@ -5504,7 +5496,6 @@ mod original_command_key_tests {
 
     #[test]
     fn original_jim_command_key_constructors_keep_independent_capture_purposes() {
-        // naming.alias.original-command-key-replacement-child-capture-and-rename
 
         // Constructor selection is a pure recipe, not object ownership or a
         // grant to install a command, evaluate a prefix or recover a context.

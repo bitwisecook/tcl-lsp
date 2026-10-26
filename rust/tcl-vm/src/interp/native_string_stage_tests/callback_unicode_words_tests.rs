@@ -27,7 +27,6 @@ impl NativeCommand for BatchCommand {
 }
 #[test]
 fn original_callback_batch_uses_actual_dispatch_and_counted_unicode_without_new_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software dispatch counts; no external callback/reference chronology claim.
     let (mut vm, formatter, queries) = provided();
@@ -47,7 +46,6 @@ fn original_callback_batch_uses_actual_dispatch_and_counted_unicode_without_new_
 }
 #[test]
 fn original_callback_batch_requires_entered_operation_and_genuine_string_provider() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     assert!(!vm.native_operation_context.has_entered_operation());
@@ -70,7 +68,6 @@ fn original_callback_batch_requires_entered_operation_and_genuine_string_provide
 }
 #[test]
 fn original_callback_batch_refuses_non_text_before_reaching_later_getters() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let args = [
@@ -92,7 +89,6 @@ fn original_callback_batch_refuses_non_text_before_reaching_later_getters() {
 }
 #[test]
 fn original_callback_batch_retains_formatter_failure_before_changed_name_owner() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied formatter fails and retires the actual world at its format stage.
     let (mut vm, formatter, _) = provided();
@@ -128,7 +124,6 @@ fn original_callback_batch_retains_formatter_failure_before_changed_name_owner()
 }
 #[test]
 fn supplied_callback_name_scope_keeps_original_frame_before_string_stages() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let operation = NativeOperationScope::enter(&mut vm).unwrap();

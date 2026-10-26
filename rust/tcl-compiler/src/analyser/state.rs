@@ -1416,7 +1416,6 @@ impl Analyser {
     /// own BOM treatment. Default ingress uses the selected file grammar:
     /// Tcl 9's `source` strips a leading U+FEFF; Tcl 8.x's does not.
     pub(super) fn file_lexer_config(&self) -> tcl_lexer::LexerConfig {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         // A supplied whole configuration owns the document boundary as well
         // as its retained body/Realm input. Only default ingress selects the
@@ -2166,9 +2165,7 @@ impl Analyser {
             return crate::realm::conditional_region_realm(region);
         }
 
-        // naming.minifier.logical-source-header
 
-        // naming.source.original-declared-command-word-contract
 
         let input = self.resolved_analysis_input();
         let unavailable_entry = self.source_analysis_entry.as_deref().and_then(|entry| {
@@ -3139,7 +3136,6 @@ impl Analyser {
     /// original realm and complete image as command analysis. Batches preserve
     /// prior lexical homes; namespace seeds remain constructed source scopes.
     fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
-        // naming.navigation.retained-path-source-inventory
 
         let mut inventory = std::mem::take(&mut self.result.path_constant_assignments);
         crate::auto_path_eval::extend_path_constant_assignments_from_analysis_commands(
@@ -3843,7 +3839,6 @@ mod tests {
 
     #[test]
     fn retained_analysis_fixture_keeps_the_returned_source_owner_for_private_queries() {
-        // naming.diagnostic.registry-source-ownership
 
         let source = "eval $script";
         let mut analyser = Analyser::new();
@@ -3903,7 +3898,6 @@ mod tests {
 
     #[test]
     fn original_whole_source_recovery_keeps_file_config_and_typed_warning_fields() {
-        // naming.source.original-configured-script-completeness
 
         // Original recovery/diagnostic streams, without entered-source admission.
         let source = "\u{feff}set x [foo bar\nputs done\n";
@@ -3970,7 +3964,6 @@ mod tests {
 
     #[test]
     fn original_prepared_input_records_the_file_boundary_and_preserves_supplied_config() {
-        // naming.source.original-configured-script-completeness
 
         // Original editing inputs; no runtime source or Native entry receipt.
         let source = "\u{feff}set name value";
@@ -4035,7 +4028,6 @@ mod tests {
 
     #[test]
     fn original_incremental_completeness_retains_the_supplied_parser_configuration() {
-        // naming.source.original-configured-script-completeness
 
         // Incremental source analysis must converge; this grants no entry.
         let environment = crate::environment_ingress::resolve_environment("tcl9.1");
@@ -4596,7 +4588,6 @@ mod tests {
 
     #[test]
     fn original_next_line_noqa_matches_all_actual_analyser_ingresses() {
-        // naming.core.original-comment-source-context
 
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {\n# noqa: W210\n# comment-only\n}\n";
         let profile =
@@ -6892,7 +6883,6 @@ mod tests {
     // Original move lineage retains the selected clause grammar.
     #[test]
     fn renamed_if_keeps_its_original_clause_shape() {
-        // naming.diagnostic.original-control-advice
 
         let src = "rename if myif\nmyif {1} { a } { b } { c }\n";
         let e004 = e004_diags(src);

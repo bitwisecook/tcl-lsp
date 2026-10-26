@@ -110,7 +110,6 @@ struct HighlightPlan {
 
 impl HighlightPlan {
     fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
-        // Implementation contract: naming.cli.original-source-highlight-geometry
 
         let structure = tcl_lsp_core::SourceSyntaxStructure::capture(source, analysis)?;
         let context = analysis.resolved_input.as_ref()?.context_registry();
@@ -378,7 +377,6 @@ mod tests {
 
     #[test]
     fn original_highlight_keeps_data_inert_and_single_line_bodies_visible() {
-        // naming.cli.original-source-highlight-geometry
 
         let profile = crate::environment::profile_for_dialect("tcl8.6");
         let registry = tcl_registry::model::context_for_profile(profile);
@@ -398,7 +396,6 @@ mod tests {
 
     #[test]
     fn original_highlight_html_shares_script_regions_and_source_escaping() {
-        // naming.cli.original-source-highlight-geometry
 
         let profile = crate::environment::profile_for_dialect("tcl8.6");
         let data = highlight_html("set value {\nnotACommand\n}", profile);
@@ -411,7 +408,6 @@ mod tests {
 
     #[test]
     fn original_highlight_keeps_selected_alias_prefix_and_shadow_roles() {
-        // naming.cli.original-source-highlight-geometry
 
         let profile = crate::environment::profile_for_dialect("tcl8.6");
         let registry = tcl_registry::model::context_for_profile(profile);
@@ -432,7 +428,6 @@ mod tests {
 
     #[test]
     fn original_highlight_keeps_actual_custom_and_reference_only_source_schemas() {
-        // naming.cli.original-source-highlight-geometry
 
         fn reference_only(
             _: tcl_registry::InvocationArguments<'_>,
@@ -474,7 +469,6 @@ mod tests {
 
     #[test]
     fn original_highlight_uses_actual_c_jim_and_irules_lexical_axes() {
-        // naming.cli.original-source-highlight-geometry
 
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = crate::environment::profile_for_dialect(name);

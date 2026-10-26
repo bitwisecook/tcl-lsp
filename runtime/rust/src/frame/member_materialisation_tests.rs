@@ -188,7 +188,6 @@ fn cause(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn original_c_member_birth_precedes_search_retirement_and_keeps_the_selected_parent() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The extension search handle is a software control. No stock callback timing is asserted.
     for profile in ["tcl9.0", "tcl9.1"] {
@@ -242,7 +241,6 @@ fn original_c_member_birth_precedes_search_retirement_and_keeps_the_selected_par
 
 #[test]
 fn original_c_alias_selection_cannot_adopt_a_rebound_or_restored_alias_after_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Weak observations supply no new alias/hash role and refuse a restored spelling's new issuer.
     for profile in ["tcl9.0", "tcl9.1"] {
@@ -280,7 +278,6 @@ fn original_c_alias_selection_cannot_adopt_a_rebound_or_restored_alias_after_ret
 
 #[test]
 fn original_c_member_receipt_refuses_late_member_rebirth_before_receiver_capture() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for transition in [0, 1, 2] {
@@ -392,7 +389,6 @@ fn original_c_member_receipt_refuses_late_member_rebirth_before_receiver_capture
 
 #[test]
 fn original_c_legacy_search_cursor_retirement_adds_no_native_handle_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     use tcl_cmd_core::native_array_search::NativeArraySearchBackend;
     for profile in ["tcl8.5", "tcl8.6"] {

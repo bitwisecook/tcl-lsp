@@ -305,7 +305,6 @@ mod tests {
 
     #[test]
     fn original_path_advice_keeps_alias_captures_literal_modes_and_unicode_spans() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input("tcl8.6");
         for (source, code, argument, written, operand) in [
@@ -385,7 +384,6 @@ mod tests {
 
     #[test]
     fn original_path_advice_respects_known_targets_options_and_actual_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current = current_input("tcl8.6");
         let older = Arc::new(
@@ -455,7 +453,6 @@ mod tests {
 
     #[test]
     fn original_path_values_use_the_complete_cu_at_the_written_source_point() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input("tcl8.6");
         for (source, call, code, expected) in [
@@ -545,7 +542,6 @@ mod tests {
 
     #[test]
     fn original_source_path_warning_keeps_a_proven_option_and_unproven_filename() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input("tcl8.6");
         let source = "proc f {path} {set option -encoding; source $option utf-8 $path}";
@@ -568,7 +564,6 @@ mod tests {
 
     #[test]
     fn original_path_refinement_cannot_borrow_missing_foreign_or_stale_cu_inputs() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input("tcl8.6");
         let source = "proc f {} {set p literal.txt; open $p}";
@@ -611,7 +606,6 @@ mod tests {
 
     #[test]
     fn original_path_advice_requires_the_unchanged_analysis_input_and_image() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input("tcl8.6");
         let analyser = analyse("open $path; source $path", &input);
@@ -645,7 +639,6 @@ mod tests {
 
     #[test]
     fn original_path_advice_has_whole_source_and_per_item_value_parity() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input("tcl8.6");
         for source in [

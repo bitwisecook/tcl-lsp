@@ -169,7 +169,6 @@ mod original_disassembly_document_tests {
 
     #[test]
     fn document_adapter_keeps_root_and_non_root_bom_roles_for_actual_dialects() {
-        // naming.source.original-configured-script-completeness
 
         // Original command geometry does not grant a Native implementation.
         let source = "\u{feff}probe root\n\u{feff}probe later\n";
@@ -226,7 +225,6 @@ mod original_disassembly_document_tests {
 
     #[test]
     fn document_adapter_keeps_the_actual_custom_grammar_over_the_profile_label() {
-        // naming.source.original-configured-script-completeness
 
         let environment = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
             .expect("actual C Tcl provider ingress");

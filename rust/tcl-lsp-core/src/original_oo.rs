@@ -411,7 +411,6 @@ mod tests {
 
     #[test]
     fn original_class_head_selection_keeps_earlier_call_horizons_and_known_terminals() {
-        // naming.source.original-class-publications
 
         let source = "oo::class create C {}; C; rename C M; C; M; interp alias {} A {} M method; A; rename M {}; M; A";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -446,7 +445,6 @@ mod tests {
 
     #[test]
     fn original_class_completion_declines_a_captured_selector_position() {
-        // naming.source.original-class-publications
 
         for (source, expected) in [
             ("oo::class create C {}; interp alias {} A {} C; A ", true),
@@ -505,7 +503,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.readonly-member-source-candidates
 
     fn original_readonly_loop_method_candidates_keep_values_separate_from_worker_geometry() {
         let source =

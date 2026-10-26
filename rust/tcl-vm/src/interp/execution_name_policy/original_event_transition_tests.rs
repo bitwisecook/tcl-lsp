@@ -43,7 +43,6 @@ fn fixture() -> Vm {
 
 #[test]
 fn original_event_input_transition_preserves_actual_scope_and_restores_selected_fields() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software issuer/actual frame storage; no physical BIG-IP chronology claim.
     let mut vm = fixture();
@@ -97,7 +96,6 @@ fn original_event_input_transition_preserves_actual_scope_and_restores_selected_
 
 #[test]
 fn original_event_input_transition_keeps_callback_aba_and_prior_host_terminal_after_restoration() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for prior_host in [false, true] {
         let mut vm = fixture();
@@ -147,7 +145,6 @@ fn original_event_input_transition_keeps_callback_aba_and_prior_host_terminal_af
 
 #[test]
 fn original_observed_cache_retirement_keeps_child_artifacts_on_actual_child_selection() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software stage selection after actual first cache clear; no Native
     // destructor scheduling/physical callback chronology is claimed.

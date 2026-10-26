@@ -1459,7 +1459,6 @@ impl Analyser {
     /// simulation can have a native-shaped naming policy without selecting a
     /// Native editing domain; actual entry and recipe remain separate barriers.
     pub(super) fn selected_logical_declaration_advice(&self) -> bool {
-        // naming.minifier.complete-logical-metadata
 
         crate::signature_scan::original_name::LogicalSourceNamePurpose::for_input(
             &self.resolved_analysis_input(),
@@ -2500,7 +2499,6 @@ impl Analyser {
     /// consumed; only positively retained Logical input permits reporting advice.
     pub(super) fn emit_w315_definition_cannot_run(&mut self, class: &mut super::types::ClassDef) {
         let aborts = core::mem::take(&mut class.definition_aborts);
-        // naming.diagnostics.original-definition-abort-admission
 
         if !self.result.allows_retained_logical_declaration_advice() || class.via_define {
             // A missing Logical admission or a cross-file extension cannot
@@ -3802,7 +3800,6 @@ impl Analyser {
         scope_path: &[usize],
         invocation_offset: Option<u32>,
     ) -> bool {
-        // Implementation contract: naming.source.original-point-operand-projection
 
         if args.len() < 2 {
             return false;
@@ -6993,7 +6990,6 @@ impl Analyser {
     /// instance source carriers supply neither allocation nor absence closure.
     pub(super) fn flush_objdefine_abort_diagnostics(&mut self) {
         let candidates = std::mem::take(&mut self.objdefine_abort_candidates);
-        // naming.diagnostics.original-object-abort-admission
 
         if !self.result.allows_retained_logical_declaration_advice()
             || candidates.is_empty()
@@ -13227,7 +13223,6 @@ mod tests {
 
     #[test]
     fn original_static_proc_selection_does_not_borrow_final_names_or_caller_labels() {
-        // Implementation contract: naming.compiler.original-static-procedure-selection
 
         let sources = [
             "namespace eval N {proc helper {} {return OLD}}; proc N::helper {} {return NEW}",
@@ -13322,7 +13317,6 @@ mod tests {
 
     #[test]
     fn original_logical_static_completion_keeps_alias_ordinals_and_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source result advice, without Native return completion.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -13671,7 +13665,6 @@ mod tests {
 
     #[test]
     fn dynamic_apply_scanner_uses_irules_brace_boundary_config() {
-        // naming.compiler.original-analysis-metadata-context
 
         // An original Logical builder with the supplied lexer overlay, without
         // any Native/F5 list execution or lambda-frame claim.
@@ -14388,7 +14381,6 @@ mod tests {
 
     #[test]
     fn logical_upvar_targets_share_literal_scalar_and_element_geometry() {
-        // naming.compiler.logical-upvar-target-element-geometry
 
         // These are readonly Logical source coordinates, not executed links.
         // Literal name parsing must preserve a scalar's unmatched parenthesis
@@ -15991,7 +15983,6 @@ mod tests {
 
     #[test]
     fn safe_interp_hides_unsafe_commands_and_expose_restores_945() {
-        // naming.interpreter.original-source-visibility-advice
 
         // tclsh 9.0.4: a `-safe` child hides `source` (and the rest of the
         // non-CMD_IS_SAFE set) — calling it raises `invalid command name`.
@@ -16065,7 +16056,6 @@ mod tests {
 
     #[test]
     fn safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945() {
-        // naming.interpreter.original-source-visibility-advice
 
         // tclsh 9.0.4: `proc source {} {…}` inside a safe interp creates a
         // real command in the ordinary command table — a table entirely
@@ -16140,7 +16130,6 @@ mod tests {
     /// Original command/list operands and the enclosing source child are required.
     #[test]
     fn safe_interp_w129_list_quoted_apply_lambda_body_reports_hidden_source_1001() {
-        // naming.interpreter.original-source-visibility-advice
 
         let mut a = Analyser::new();
         let r = a.analyse(
@@ -16563,7 +16552,6 @@ mod tests {
 
     #[test]
     fn namespace_scope_geometry_retains_the_actual_point_operand() {
-        // naming.source.original-point-operand-projection
 
         let source = "set target A; namespace eval $target {namespace eval B {set x 1}}";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -19810,7 +19798,6 @@ proc runs {body} {\n\
     /// Original command/list operands and the enclosing source child are required.
     #[test]
     fn safe_interp_w129_reaches_deferred_apply_body_under_per_item_1001() {
-        // naming.interpreter.original-source-visibility-advice
 
         let mut a = Analyser::new();
         let r = a.analyse_per_item(
@@ -19832,7 +19819,6 @@ proc runs {body} {\n\
     /// Original command/list operands and the enclosing source child are required.
     #[test]
     fn safe_interp_w129_reaches_deferred_method_body_under_per_item_1001() {
-        // naming.interpreter.original-source-visibility-advice
 
         let mut a = Analyser::new();
         let r = a.analyse_per_item(
@@ -20209,7 +20195,6 @@ mod original_registry_symbol_tests {
 
     #[test]
     fn original_registry_symbol_names_keep_opaque_inputs_without_command_identity_from_labels() {
-        // Implementation contract: naming.compiler.original-symbol-declaration-advice
 
         let source = r"package require tcltest; tcltest::test case\uD800 {first} -body {} -result {}; tcltest::test case\uD801 {second} -body {} -result {}";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -20265,7 +20250,6 @@ mod original_registry_symbol_tests {
 
     #[test]
     fn original_conditional_registry_symbol_cards_retain_unknown_applicability() {
-        // Implementation contract: naming.compiler.conditional-registry-source-metadata
 
         let source = r"package require tcltest; ::tcltest::test case\uD800 {first} -body {} -result {}; ::tcltest::test case\uD801 {second} -body {} -result {}";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -20302,7 +20286,6 @@ mod original_registry_symbol_tests {
 
     #[test]
     fn original_registry_symbol_cards_retain_the_actual_namespace_geometry() {
-        // Implementation contract: naming.compiler.original-symbol-declaration-advice
 
         let source =
             "namespace eval suite {::tcltest::test scoped {description} -body {} -result {}}";
@@ -20330,7 +20313,6 @@ mod original_registry_symbol_tests {
 
     #[test]
     fn original_registry_symbol_advice_preserves_hosted_source_event_declarations() {
-        // Implementation contract: naming.compiler.original-symbol-declaration-advice
 
         let result = Analyser::new().analyse("when HTTP_REQUEST {}", "f5-irules");
         assert!(!result.allows_lexical_declaration_advice());
@@ -20364,7 +20346,6 @@ mod original_registry_symbol_tests {
     }
     #[test]
     fn original_formal_counts_survive_procedure_and_signature_records() {
-        // naming.procedure.original-formal-count-shape
 
         use crate::signature_scan::formal_count::SourceFormalCountOrigin;
         let cases: &[(&str, &[usize], &[usize])] = &[
@@ -20452,7 +20433,6 @@ mod original_parent_purpose_tests {
 
     #[test]
     fn original_procedure_receipts_keep_file_config_and_extracted_body_bom() {
-        // naming.source.original-configured-script-completeness
 
         // Original declaration/body syntax, without entered procedure or frame authority.
         let body = r"namespace eval N {proc p\uD800 {x} {return $x}}";
@@ -20537,7 +20517,6 @@ mod constructed_projection_tests {
 
     #[test]
     fn computed_creation_placeholder_preserves_constructed_procedure_holder() {
-        // Implementation contract: naming.analysis.constructed-key-consumer-projections
 
         // Only a metadata placeholder is constructed; no creation is executed.
         for (procedure, expected) in [

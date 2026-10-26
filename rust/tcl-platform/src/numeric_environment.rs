@@ -344,7 +344,6 @@ mod checked_environment_tests {
     }
     #[test]
     fn original_checked_numeric_forwarding_keeps_every_selected_stage_and_parameters() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software forwarding only; the authored worker is not a libc/provider observation.
         let actual = Actual::new();
@@ -397,7 +396,6 @@ mod checked_environment_tests {
     }
     #[test]
     fn original_checked_numeric_forwarding_stops_before_and_after_a_reached_worker() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for refuse_at in [1, 2] {
             let actual = Actual::new();
@@ -425,7 +423,6 @@ mod checked_environment_tests {
     }
     #[test]
     fn original_checked_numeric_forwarding_refuses_a_changed_observed_abi() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let actual = Actual::new();
         let old = NativeCIntegerAbi {

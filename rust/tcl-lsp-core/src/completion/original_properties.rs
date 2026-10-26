@@ -257,7 +257,6 @@ mod tests {
         let mut analysis = Analyser::new().analyse(source, "tcl9.0").clone();
         analysis.all_classes.clear();
         let root = analysis.original_class_declarations().next().unwrap();
-        // naming.tcloo.original-property-accessor-source-advice
 
         let properties = root
             .metadata()
@@ -340,7 +339,6 @@ mod tests {
 
     #[test]
     fn original_property_options_require_receiver_selector_currency_and_do_not_retag_values() {
-        // naming.tcloo.original-property-accessor-source-advice
 
         let source = "oo::configurable create C {property readable -kind readable writable -kind writable}\nset object [C new]\n$object configure \n";
         let analysis = Analyser::new().analyse(source, "tcl9.0").clone();
@@ -379,9 +377,7 @@ mod source_instance_tests {
 
     #[test]
     fn original_property_options_share_symbolic_and_captured_receiver_source_argv() {
-        // naming.tcloo.original-property-accessor-source-advice
 
-        // naming.core.original-source-instance-completion
 
         for source in [
             "oo::configurable create C {property readable -kind readable writable -kind writable}; set o [C new]; $o configure ",

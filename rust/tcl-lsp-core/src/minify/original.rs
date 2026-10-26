@@ -194,9 +194,7 @@ pub fn minify_with_analysis(
         return result;
     }
     if analysis.allows_lexical_declaration_advice() {
-        // Implementation contract: naming.minifier.lexical-authoring-passes
 
-        // naming.minifier.retained-lexical-context
 
         let Some(input) = analysis.resolved_input.as_ref() else {
             result.refusals.push(MinifyRefusal::MissingAnalysisContext);
@@ -424,7 +422,6 @@ pub(super) fn analysis_for_profile(
     profile: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> AnalysisResult {
-    // Implementation contract: naming.minifier.lexical-authoring-passes
 
     let generation = crate::context_for_dialect_profile(profile);
     let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
@@ -441,7 +438,6 @@ pub(super) fn analysis_for_profile(
 
 /// A compatibility rewrite changes the source, retaining every actual input axis.
 pub(super) fn analysis_with_input(source: &str, input: &ResolvedAnalysisInput) -> AnalysisResult {
-    // naming.minifier.retained-lexical-context
 
     Analyser::new()
         .with_resolved_input(input.clone())
@@ -606,7 +602,6 @@ fn source_body_expression_gap_proofs(
 }
 
 fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
-    // Implementation contract: naming.minifier.original-syntax-correspondence
 
     let config = analysis
         .body_lexer_config
@@ -1096,7 +1091,6 @@ mod tests {
 
     #[test]
     fn original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion() {
-        // Implementation contract: naming.minifier.original-syntax-correspondence
 
         let source = "# comment\n  proc p\\uD800 {} { set x  1; return $x }\n  puts  ${x}  [list {# data} café]\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1130,7 +1124,6 @@ mod tests {
 
     #[test]
     fn original_recursive_minification_uses_only_current_authenticated_script_regions() {
-        // Implementation contract: naming.minifier.original-syntax-correspondence
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let source = "proc p {argument} {\n    set literal {  # data  }\n    if {1} {\n        return [list  $argument  $literal]\n    }\n}\np VALUE\n";
@@ -1175,7 +1168,6 @@ mod tests {
 
     #[test]
     fn original_hosted_syntax_compaction_preserves_zero_gap_word_and_bracket_boundaries() {
-        // Implementation contract: naming.minifier.original-syntax-correspondence
 
         let source = "  {list}{A}{}[list {C}{D}{}]\n";
         let analysis = analyse(source, "f5-irules");
@@ -1212,7 +1204,6 @@ mod tests {
 
     #[test]
     fn original_minifier_refuses_naming_insertion_and_keywords_without_promoting_isolation() {
-        // Implementation contract: naming.minifier.original-naming-permission
 
         let source = "proc longname {longvar} {return $longvar}\nset existing 1\ntrace add variable existing write observe\nlongname 7\n";
         let mut analysis = analyse(source, "tcl8.6");
@@ -1251,7 +1242,6 @@ mod tests {
 
     #[test]
     fn original_scalar_minification_requires_equivalence_and_complete_edit_geometry() {
-        // Implementation contract: naming.minifier.original-scalar-body-alpha
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             for name in ["longargument", "longé😀"] {
@@ -1313,9 +1303,7 @@ mod tests {
 
     #[test]
     fn original_scalar_minification_keeps_isolation_and_other_pass_permissions_separate() {
-        // Implementation contract: naming.minifier.original-scalar-body-alpha
 
-        // Implementation contract: naming.minifier.original-naming-permission
 
         let source = "proc publicname {longargument} {return $longargument}\n";
         let analysis = analyse(source, "tcl8.6");
@@ -1344,7 +1332,6 @@ mod tests {
 
     #[test]
     fn original_scalar_minification_declines_observers_stores_and_open_source() {
-        // Implementation contract: naming.minifier.original-scalar-body-alpha
 
         for source in [
             "proc p {longargument} {return [info locals]}\n",
@@ -1379,7 +1366,6 @@ mod tests {
 
     #[test]
     fn original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail() {
-        // Implementation contract: naming.minifier.original-syntax-correspondence
 
         let source = "set café 1\nputs $café\n";
         let mut analysis = analyse(source, "tcl8.6");
@@ -1427,7 +1413,6 @@ mod tests {
 
     #[test]
     fn original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label() {
-        // Implementation contract: naming.minifier.original-syntax-correspondence
 
         let mut profile = crate::profile_for_dialect("tcl8.4").clone();
         profile.name = "f5-irules";
@@ -1461,7 +1446,6 @@ mod tests {
 
     #[test]
     fn original_hosted_minifier_keeps_source_syntax_without_native_alpha_permission() {
-        // Implementation contract: naming.minifier.original-naming-permission
 
         let source = "proc longname {longvar} {return $longvar}\n";
         let analysis = analyse(source, "f5-irules");
@@ -1486,7 +1470,6 @@ mod tests {
 
     #[test]
     fn lexical_minifier_keeps_explicit_authoring_compaction_separate() {
-        // Implementation contract: naming.minifier.lexical-authoring-passes
 
         let source = "proc longname {longvar} {return $longvar}\n";
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
@@ -1510,7 +1493,6 @@ mod tests {
     }
     #[test]
     fn isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults() {
-        // naming.minifier.logical-formal-binding-alpha
 
         let source = "proc general {longleft {longright longleft}} {list $longleft $longright $longleft; return $longright}\n";
         let analysis =
@@ -1545,7 +1527,6 @@ mod tests {
 
     #[test]
     fn logical_formal_alpha_requires_isolation_and_closed_binding_observability() {
-        // naming.minifier.logical-formal-binding-alpha
 
         let source =
             "proc general {longleft longright} {list $longleft $longright; return $longleft}";
@@ -1600,7 +1581,6 @@ mod tests {
 
     #[test]
     fn lexical_roles_use_retained_context_instead_of_heterogeneous_last_spec() {
-        // Implementation contract: naming.minifier.retained-lexical-context
 
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
@@ -1643,7 +1623,6 @@ mod tests {
 
     #[test]
     fn lexical_context_refusal_retains_source_for_every_tier() {
-        // Implementation contract: naming.minifier.retained-lexical-context
 
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
@@ -1689,7 +1668,6 @@ mod tests {
 
     #[test]
     fn lexical_custom_configuration_refuses_every_tier_without_fallback() {
-        // Implementation contract: naming.minifier.retained-lexical-context
 
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
@@ -1732,7 +1710,6 @@ mod tests {
 
     #[test]
     fn lexical_intermediate_source_retains_actual_input_generation() {
-        // Implementation contract: naming.minifier.retained-lexical-context
 
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
@@ -1764,7 +1741,6 @@ mod tests {
     }
     #[test]
     fn lexical_case_shape_retains_dynamic_subject_and_expansion_uncertainty() {
-        // Implementation contract: naming.minifier.retained-lexical-context
 
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
@@ -1808,7 +1784,6 @@ mod tests {
 
     #[test]
     fn lexical_source_headers_keep_runtime_and_metadata_separate() {
-        // naming.minifier.logical-source-header
 
         let registry = CommandRegistry::build_default();
         let source = "if {1} {  puts  payload  }\n";
@@ -1832,7 +1807,6 @@ mod tests {
 
     #[test]
     fn lexical_source_headers_refuse_dynamic_argv_and_prior_mutations() {
-        // naming.minifier.logical-source-header
 
         let registry = CommandRegistry::build_default();
         for source in [
@@ -1866,7 +1840,6 @@ mod tests {
 
     #[test]
     fn lexical_source_header_checks_retained_input_source_and_configuration() {
-        // naming.minifier.logical-source-header
 
         let registry = CommandRegistry::build_default();
         let source = "expr {1 + 2}\n";
@@ -1919,7 +1892,6 @@ mod tests {
 
     #[test]
     fn lexical_complete_heads_preserve_computed_body_data() {
-        // Implementation contract: naming.minifier.complete-lexical-head
 
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
@@ -1945,7 +1917,6 @@ mod tests {
 
     #[test]
     fn lexical_complete_static_heads_keep_selected_body_roles() {
-        // Implementation contract: naming.minifier.complete-lexical-head
 
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
@@ -1964,7 +1935,6 @@ mod tests {
 
     #[test]
     fn lexical_head_value_checks_whole_image_config_and_tokens() {
-        // Implementation contract: naming.minifier.complete-lexical-head
 
         let source = "if {1} {puts payload}\n";
         let config = LexerConfig::for_profile(Some(lexical_profile()));
@@ -1994,7 +1964,6 @@ mod tests {
 
     #[test]
     fn lexical_head_value_keeps_expansion_and_opaque_units_unavailable() {
-        // Implementation contract: naming.minifier.complete-lexical-head
 
         let mut config = LexerConfig::for_profile(Some(lexical_profile()));
         config.expand_syntax = true;
@@ -2216,7 +2185,6 @@ mod tests {
 
     #[test]
     fn logical_keyword_metadata_edits_whole_selected_controls_only() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "string equal -nocase A a\n";
         let (output, count) = with_lexical_metadata(source, |env| {
@@ -2251,7 +2219,6 @@ mod tests {
 
     #[test]
     fn logical_keyword_walk_distinguishes_data_from_selected_script_regions() {
-        // naming.minifier.complete-logical-metadata
 
         let data = "list {string equal -nocase A a}\n";
         with_lexical_metadata(data, |env| {
@@ -2281,7 +2248,6 @@ mod tests {
 
     #[test]
     fn logical_positioned_metadata_retains_unknown_values_and_exact_owner() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "string equal -nocase $value other\n";
         with_lexical_metadata(source, |env| {
@@ -2370,7 +2336,6 @@ mod tests {
 
     #[test]
     fn logical_barriers_use_complete_selected_form_and_unknown_coverage() {
-        // naming.minifier.complete-logical-metadata
 
         for source in ["info locals\n", "info locals$tail\n", "mystery\n"] {
             let registry = CommandRegistry::build_default();
@@ -2403,7 +2368,6 @@ mod tests {
 
     #[test]
     fn logical_metadata_never_supplies_native_or_hosted_keyword_permission() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "string equal -nocase A a\n";
         for name in ["tcl8.6", "f5-irules"] {

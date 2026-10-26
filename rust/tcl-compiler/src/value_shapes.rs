@@ -281,7 +281,6 @@ mod tests {
 
     #[test]
     fn original_bracket_projection_keeps_body_bom_and_original_child_coordinates() {
-        // naming.source.original-configured-script-completeness
 
         // Genuine original parent/child word geometry; no evaluated child result/admission.
         let mut prepared = crate::analyser::Analyser::new();
@@ -800,7 +799,6 @@ mod original_value_word_purpose_tests {
 
     #[test]
     fn original_authored_value_word_keeps_bom_and_parent_variable_grammar() {
-        // naming.source.original-configured-script-completeness
 
         // Authored operand syntax, without a source entry or evaluated value receipt.
         let config = tcl_lexer::LexerConfig {

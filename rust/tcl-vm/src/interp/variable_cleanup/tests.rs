@@ -104,7 +104,6 @@ fn observer(
 
 #[test]
 fn original_trace_epilogue_releases_original_operations_and_keeps_child_storage() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = native();
     let original_id = vm.cur;
@@ -136,7 +135,6 @@ fn original_trace_epilogue_releases_original_operations_and_keeps_child_storage(
 
 #[test]
 fn original_owned_variable_teardown_keeps_first_cause_and_releases_its_real_trace_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 4] {
         let mut vm = native();
@@ -181,7 +179,6 @@ fn original_owned_variable_teardown_keeps_first_cause_and_releases_its_real_trac
 
 #[test]
 fn original_variable_finish_refuses_unbalanced_frame_and_allows_balanced_reentry() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [2, 3] {
         let mut vm = native();
@@ -215,7 +212,6 @@ fn original_variable_finish_refuses_unbalanced_frame_and_allows_balanced_reentry
 
 #[test]
 fn original_arena_withdrawal_never_releases_same_numbered_replacement_cell() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Explicit real storage allocation fixture; a VarId grants no Native purpose.
     let mut vm = native();
@@ -243,7 +239,6 @@ fn original_arena_withdrawal_never_releases_same_numbered_replacement_cell() {
 
 #[test]
 fn original_dying_namespace_table_finishes_owned_rows_after_child_callback() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = native();
     let original_id = vm.cur;
@@ -283,7 +278,6 @@ fn original_dying_namespace_table_finishes_owned_rows_after_child_callback() {
 
 #[test]
 fn original_c_array_detach_keeps_default_roles_until_actual_old_member_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software counts of the actual C91 descriptor, not public Native free callbacks.
     let mut vm = native();

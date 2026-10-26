@@ -849,7 +849,6 @@ mod tests {
     }
     #[test]
     fn retiring_registered_bytecode_releases_nested_literals_outside_world_borrow() {
-        // naming.runtime.original-literal-owner-retirement
 
         // Software original-object allocation control, separate from native
         // namespace teardown's public values and callback logs.

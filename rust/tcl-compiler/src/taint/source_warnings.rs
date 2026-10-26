@@ -389,7 +389,6 @@ mod tests {
 
     #[test]
     fn original_source_warnings_keep_alias_operands_and_full_variable_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         let owner =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -437,7 +436,6 @@ mod tests {
 
     #[test]
     fn original_source_warnings_require_current_module_function_and_point_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let baseline =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -492,7 +490,6 @@ mod tests {
 
     #[test]
     fn original_cu_warning_compatibility_requires_explicit_standalone_tags() {
-        // naming.compiler.original-analysis-metadata-context
 
         // This public compatibility producer has no supplied source authority.
         // Its source warnings remain conditional, without Native execution.
@@ -545,7 +542,6 @@ mod tests {
 
     #[test]
     fn original_setter_warnings_use_the_independent_hosted_source_schema() {
-        // naming.consumer.hosted-source-taint-descriptor
 
         let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
         let owner = environment.default_context_registry();

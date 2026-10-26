@@ -534,7 +534,6 @@ mod tests {
 
     #[test]
     fn original_argument_carriers_retire_independently_without_withdrawing_live_siblings() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software ownership control; leases do not acquire native references.
         use crate::interp::native_arguments::OriginalArguments;
@@ -570,7 +569,6 @@ mod tests {
 
     #[test]
     fn original_argument_early_retirement_does_not_refresh_a_surviving_context_receipt() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual context ABA remains terminal after a different carrier retires.
         use crate::interp::native_arguments::OriginalArguments;
@@ -600,7 +598,6 @@ mod tests {
 
     #[test]
     fn original_nested_operation_stops_before_a_later_store_after_context_restore() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software-only original operation currency; no external Tcl process claim.
         let mut interpreter = original();
@@ -657,7 +654,6 @@ mod tests {
 
     #[test]
     fn original_observer_refusal_keeps_reached_store_and_stops_later_observers() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Both callbacks are genuine physical registrations; the first Host
         // cause does not permit trace-error rendering or a later callback.
@@ -709,7 +705,6 @@ mod tests {
 
     #[test]
     fn original_operation_retains_ordinary_guest_completion_and_nested_cells() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Positive current operation and full genuine Guest completion, with
         // no Host cause or external-provider equivalence inferred.
@@ -756,7 +751,6 @@ mod tests {
 
     #[test]
     fn original_script_trace_refusal_stops_the_later_script_command() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // This reaches a real source trace and command callback. Configuration
         // currency is independent of the selected variable/command identities.
@@ -813,7 +807,6 @@ mod tests {
 
     #[test]
     fn original_string_updater_retains_reached_bytes_and_refuses_later_guest_capture() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // An authentic extension descriptor reaches its original header. Its
         // changed/restored context never creates a result-publication receipt.
@@ -849,7 +842,6 @@ mod tests {
 
     #[test]
     fn legal_guest_command_policy_mutations_keep_original_context_and_scalar_issuer() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software interpreter/issuer purpose; no original provider result is claimed.
         use tcl_runtime_api::guard::GuardDomain;
@@ -916,7 +908,6 @@ mod tests {
 
     #[test]
     fn operation_context_aba_and_first_host_do_not_refresh_original_receipts() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real ingress changes with software receipt assertions; not a Native callback proof.
         for change in 0..3 {
@@ -969,7 +960,6 @@ mod tests {
 
     #[test]
     fn actual_logical_ingress_changes_context_without_granting_native_purpose() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Explicit authored ingress currency; no vendor/physical execution is asserted.
         for provider in 0..4 {
@@ -997,7 +987,6 @@ mod tests {
 
     #[test]
     fn unchanged_pin_and_exhausted_context_epoch_keep_distinct_admission() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Counter exhaustion is a software owner control, not a Tcl behaviour claim.
         let mut interpreter = original();

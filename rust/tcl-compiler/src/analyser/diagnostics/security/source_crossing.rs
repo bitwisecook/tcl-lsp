@@ -234,7 +234,6 @@ mod tests {
 
     #[test]
     fn original_frame_reparse_keeps_possible_layouts_alias_prefixes_and_whole_words() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for source in [
@@ -283,7 +282,6 @@ mod tests {
 
     #[test]
     fn original_interpreter_reparse_uses_selected_script_words_without_path_or_value_drift() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for (source, argument, written, text) in [
@@ -352,7 +350,6 @@ mod tests {
 
     #[test]
     fn original_crossing_advice_keeps_selected_option_availability_and_missing_owner_refusals() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current = current_input();
         let older = Arc::new(

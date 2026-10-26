@@ -217,7 +217,6 @@ mod tests {
 
     #[test]
     fn original_math_selection_keeps_fixed_and_command_metadata_purposes_separate() {
-        // Implementation contract: naming.core.original-math-function-selection
 
         let source = "expr {abs(-2)}\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -250,7 +249,6 @@ mod tests {
 
     #[test]
     fn original_math_selection_joins_actual_override_allocation_after_reporting_clear() {
-        // Implementation contract: naming.core.original-math-function-selection
 
         let source = "proc ::tcl::mathfunc::abs {argument} {return OVERRIDE}\nexpr {abs(-2)}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -275,7 +273,6 @@ mod tests {
 
     #[test]
     fn original_math_references_cannot_supply_a_command_word_rename() {
-        // Implementation contract: naming.core.original-math-rename-coverage
 
         let source = "proc ::tcl::mathfunc::local {argument} {return $argument}\nexpr {local(1)}\n::tcl::mathfunc::local 2\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -327,7 +324,6 @@ mod tests {
 
     #[test]
     fn original_math_unknown_target_does_not_borrow_an_unrelated_same_named_procedure() {
-        // Implementation contract: naming.core.original-math-function-selection
 
         let source = "proc ghost {argument} {return WRONG}\nexpr {ghost(1)}\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

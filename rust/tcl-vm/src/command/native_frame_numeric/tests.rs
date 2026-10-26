@@ -52,7 +52,6 @@ fn provided(available: bool) -> (Vm, Rc<RecordedNumericEnvironment>, Rc<Cell<usi
 
 #[test]
 fn original_frame_numeric_probe_preserves_cached_level_and_borrowed_reference_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // This adapter uses a genuine queried Host ABI, not an external Tcl frame/getter execution.
     let (mut vm, numeric, acquisitions) = provided(true);
@@ -75,7 +74,6 @@ fn original_frame_numeric_probe_preserves_cached_level_and_borrowed_reference_ro
 
 #[test]
 fn original_frame_numeric_unavailable_cannot_become_a_guest_bad_level_or_default() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, numeric, _) = provided(false);
     let original = Value::int(0);
@@ -102,7 +100,6 @@ fn original_frame_numeric_unavailable_cannot_become_a_guest_bad_level_or_default
 
 #[test]
 fn original_frame_numeric_scope_preserves_first_refusal_before_callback_continuation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The actual Vm callback is a software context mutation, not an extension updater issuer.
     let (mut vm, numeric, acquisitions) = provided(true);
@@ -150,7 +147,6 @@ fn original_frame_numeric_scope_preserves_first_refusal_before_callback_continua
 
 #[test]
 fn original_frame_temporary_int_refuses_foreign_protocol_without_host_query_or_cache_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, numeric, acquisitions) = provided(true);
     let original = Value::string("#0");
@@ -232,7 +228,6 @@ impl Host for FormatterHost {
 }
 #[test]
 fn original_frame_string_stage_keeps_formatter_reference_role_and_stops_retired_level() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Closed VM object retirement and software formatter transport do not attest an external Tcl updater.
     for retire in [false, true] {
@@ -291,7 +286,6 @@ fn original_frame_string_stage_keeps_formatter_reference_role_and_stops_retired_
 
 #[test]
 fn original_frame_single_script_list_checks_header_before_default_selection() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Closed VM List/header controls do not attest an external updater callback.
     for engine in ["tcl9.0", "tcl9.1"] {
@@ -347,7 +341,6 @@ fn original_frame_single_script_list_checks_header_before_default_selection() {
 
 #[test]
 fn original_frame_list_worker_checks_header_after_ok_and_guest_error() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The closure retires the real closed VM owner after the actual cached List probe.
     for engine in ["tcl9.0", "tcl9.1"] {

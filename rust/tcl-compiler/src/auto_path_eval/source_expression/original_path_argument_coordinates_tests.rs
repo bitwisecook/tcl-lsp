@@ -29,7 +29,6 @@ fn original(source: &str) -> (AnalysisResult, NativeWord) {
 
 #[test]
 fn original_selected_source_path_values_keep_root_and_bound_prefix_arguments() {
-    // naming.navigation.retained-path-source-inventory
 
     // Genuine retained Logical source operation and original argument vector;
     // no source evaluation, host path or Native filename is issued.

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original C String storage, index units and range result constructors.
 //!
-//! Native proof: naming.string.original-counted-index-range-storage-and-results
 
 //! The original operation and operand headers supply authority. Public native
 //! rows bound cache-name/resident/result-byte predicates; source and software

@@ -382,7 +382,6 @@ mod source_words_tests {
 
     #[test]
     fn original_source_words_share_roles_and_original_geometry() {
-        // naming.core.original-command-source-schema
 
         let source = "set first 1\nset second 2\n";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -521,7 +520,6 @@ mod original_diagnostic_value_tests {
 
     #[test]
     fn original_core_word_contents_use_logical_advice_without_executable_constants() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

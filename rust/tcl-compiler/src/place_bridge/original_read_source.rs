@@ -161,7 +161,6 @@ mod tests {
 
     #[test]
     fn original_argument_inventory_keeps_full_config_and_excludes_enclosing_roles() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source argv inventory only; no Expr/body entry, handler or Native read grant.
         for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
@@ -291,7 +290,6 @@ mod tests {
 
     #[test]
     fn original_argument_inventory_refuses_changed_missing_and_foreign_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = source_input(tcl_lexer::LexerConfig::default());
         let registry = input.borrowed_context_registry().commands();
@@ -383,7 +381,6 @@ mod tests {
 
     #[test]
     fn original_argument_inventory_separates_incomplete_from_cached_phases_and_standalone() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = source_input(tcl_lexer::LexerConfig::default());
         let registry = input.borrowed_context_registry().commands();
@@ -434,7 +431,6 @@ mod tests {
 
     #[test]
     fn original_cfg_argument_phase_retains_owner_and_missing_input_clobbers_all_consumers() {
-        // naming.variable.invocation-caller-ssa-frame
 
         // Genuine CFG argv producer; unknown liveness is Quoted, never a definite read.
         let config = tcl_lexer::LexerConfig::from_grammar(
@@ -536,7 +532,6 @@ mod tests {
     }
     #[test]
     fn original_return_argument_source_is_retained_while_unpositioned_payload_stays_unknown() {
-        // naming.compiler.original-analysis-metadata-context
 
         let config = tcl_lexer::LexerConfig::from_grammar(
             tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,

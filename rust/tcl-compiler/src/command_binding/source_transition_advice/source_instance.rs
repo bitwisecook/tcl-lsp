@@ -596,7 +596,6 @@ mod tests {
 
     #[test]
     fn original_class_instance_receiver_keeps_named_moves_alias_prefix_and_whole_vector() {
-        // naming.source.original-class-instance-receiver
 
         let source = "oo::class create C {method ping {x} {}}; C create obj; rename obj moved; interp alias {} call {} moved ping; call value";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -642,7 +641,6 @@ mod tests {
 
     #[test]
     fn original_class_instance_receiver_keeps_anonymous_exact_setter_without_slot_or_cell() {
-        // naming.source.original-class-instance-receiver
 
         for source in [
             "oo::class create C {}; set o [C new]; $o ping value",
@@ -673,7 +671,6 @@ mod tests {
     #[test]
     fn original_class_instance_receiver_named_handle_refuses_known_slot_moves_and_terminal_mutations()
      {
-        // naming.source.original-class-instance-receiver
 
         let source = "oo::class create C {}; set o [C create obj]; $o ping";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -704,7 +701,6 @@ mod tests {
 
     #[test]
     fn original_class_instance_receiver_refuses_nonwhole_unknown_or_overridden_construction() {
-        // naming.source.original-class-instance-receiver
 
         for source in [
             "oo::class create C {}; set o prefix[C new]; $o ping",
@@ -727,7 +723,6 @@ mod tests {
 
     #[test]
     fn original_class_instance_receiver_keeps_future_body_without_borrowing_parent_handles() {
-        // naming.source.original-class-instance-receiver
 
         let source = "proc p {} {set o [C new]; $o ping}; oo::class create C {}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -752,7 +747,6 @@ mod tests {
 
     #[test]
     fn original_class_instance_receiver_provider_layout_preserves_type_method_refusals() {
-        // naming.source.original-class-instance-receiver
 
         for source in [
             "snit::type Type {method ping {} {}}; Type obj; obj ping",
@@ -779,7 +773,6 @@ mod tests {
     #[test]
     fn original_logical_class_instance_body_retains_source_axis_without_native_manufacturer_grant()
     {
-        // naming.source.original-class-instance-receiver
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         for (source, obligation) in [
@@ -848,7 +841,6 @@ mod tests {
     }
     #[test]
     fn original_native_instance_and_handle_names_delegate_purpose_name_units() {
-        // naming.source.original-class-instance-receiver
 
         // Source receipt coverage; no Unicode object creation or stored-value observation.
         let source =

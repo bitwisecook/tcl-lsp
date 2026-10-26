@@ -182,7 +182,6 @@ fn role(interpreter: &Interp, level: usize, name: &[u8]) -> Rc<OriginalJimLinkTa
 }
 #[test]
 fn original_jim_link_detaches_before_getter_and_retires_visible_old_pointer_before_assignment() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine stored role callback; pinned Jim source order and software refusal are separate claims.
     for mode in [0, 1, 2, 3, 4] {
@@ -266,7 +265,6 @@ fn original_jim_link_detaches_before_getter_and_retires_visible_old_pointer_befo
 }
 #[test]
 fn original_jim_same_target_rebinding_uses_only_existing_temporary_and_cell_references() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     interpreter.frames.borrow_mut().push(GLOBAL);
@@ -303,7 +301,6 @@ fn original_jim_same_target_rebinding_uses_only_existing_temporary_and_cell_refe
 }
 #[test]
 fn original_jim_qualified_missing_link_keeps_stripped_fresh_name_role_and_same_local_cell() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     interpreter.frames.borrow_mut().push(GLOBAL);
@@ -341,7 +338,6 @@ fn original_jim_qualified_missing_link_keeps_stripped_fresh_name_role_and_same_l
 
 #[test]
 fn original_jim_static_link_rebinding_keeps_shared_cell_without_new_local_table_entry() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     interpreter.frames.borrow_mut().push(GLOBAL);

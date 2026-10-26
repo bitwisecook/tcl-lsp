@@ -543,7 +543,6 @@ mod tests {
 
     #[test]
     fn readonly_self_selectors_retain_own_and_inherited_source_members() {
-        // naming.editor.original-method-candidates
 
         for dialect in ["tcl8.6", "tcl9.0"] {
             for (source, expected) in [
@@ -592,7 +591,6 @@ mod tests {
 
     #[test]
     fn readonly_self_selectors_follow_nested_potential_evaluation_bodies() {
-        // naming.editor.original-method-candidates
         // tclsh 8.6.18 / 9.0.4: every body below dispatches `my ping` in the
         // method frame (`get a` reaches `ping` once for each form).
         let mut failures = Vec::new();
@@ -632,7 +630,6 @@ mod tests {
 
     #[test]
     fn readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources() {
-        // naming.editor.original-method-candidates
 
         for source in [
             "oo::class create C {method ping {} {}; method body {} {ping}}",
@@ -722,7 +719,6 @@ mod original_source_correspondence_tests {
 
     #[test]
     fn readonly_member_correspondence_retains_both_issuers_and_strong_query_result() {
-        // naming.editor.original-method-candidates
 
         let source = "oo::class create C {method ping {} {}; method body {} {my ping}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -804,7 +800,6 @@ mod original_head_correspondence_tests {
 
     #[test]
     fn readonly_member_parent_retains_written_and_selected_head_issuers() {
-        // naming.editor.original-method-candidates
 
         let source = "oo::class create C {method ping {} {}; method body {} {my ping}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

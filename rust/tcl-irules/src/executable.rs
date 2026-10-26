@@ -570,7 +570,6 @@ mod tests {
 
     #[test]
     fn source_calls_do_not_invent_global_marker_equivalence() {
-        // Implementation contract: naming.consumer.original-irules-source-context
 
         let source = "proc ::helper {} { pool rooted_helper }\nwhen HTTP_REQUEST { call helper }\n";
         let facts = commands(source);

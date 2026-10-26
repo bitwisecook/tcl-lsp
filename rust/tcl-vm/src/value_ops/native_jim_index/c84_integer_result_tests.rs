@@ -30,7 +30,6 @@ fn actual() -> Vm {
 }
 #[test]
 fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Native descriptor facts and software receiver counts are independent observations.
     // A genuine Wide42 operand fits C84 search Int; the recorded Wide4294967296
@@ -91,7 +90,6 @@ fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_
 }
 #[test]
 fn original_c84_index_result_keeps_first_cause_without_querying_a_refreshed_target() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2, 3] {
         let mut vm = actual();

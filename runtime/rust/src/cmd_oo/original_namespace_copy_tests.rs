@@ -86,7 +86,6 @@ static BODY: obj::TclObjType = obj::TclObjType {
 #[test]
 fn original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication()
 {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual occupied destination Proc retirement precedes original namespace publication.
     // This software callback does not measure Native copy chronology or Class lifetime.
@@ -185,7 +184,6 @@ fn original_namespace_copy_checks_occupied_procedure_retirement_before_original_
 }
 #[test]
 fn original_namespace_copy_propagates_reached_ordinary_store_failure() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Ordinary Array/scalar transport is independent of the retained Host cause.
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {

@@ -861,7 +861,6 @@ fn replace_c<O: NativeIndexOps>(
     args: &[O::Value],
     version: tcl_dialect::TclVersion,
 ) -> Result<index::IndexResult<O::Value>, CmdError> {
-    // naming.string.original-counted-replacement-and-index-stages
 
     // C84–86 reach original Unicode first. C9 reaches CharLength first
     // and defers Unicode until a range is actually replaced.
@@ -1055,7 +1054,6 @@ fn replace_c_parsed_range_result<O: NativeIndexOps>(
                 "original C binary suffix extent",
             ))?;
         if let Some(replacement) = replacement {
-            // naming.string.original-binary-replacement-direct-helper-sharing
 
             // Whole replacement returns the exact insertPtr before its getter.
             if first == 0 && after == bytes.len() {
@@ -1083,7 +1081,6 @@ fn replace_c_parsed_range_result<O: NativeIndexOps>(
             }
         } else {
             if !prefix.is_empty() || !suffix.is_empty() {
-                // naming.string.original-binary-replacement-sharing-and-result-roles
 
                 // Nonzero NULL-source constructor storage is not initialised.
                 // No recorded allocator bytes authenticate a deterministic producer.

@@ -429,7 +429,6 @@ mod settlement_tests {
 
     #[test]
     fn original_script_and_native_trace_settlement_separate_host_from_guest_failure() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real reached trace/result ownership, not an external callback-equivalence claim.
         for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -507,7 +506,6 @@ mod settlement_tests {
 
     #[test]
     fn c84_host_trace_settlement_uses_only_the_selected_script_saved_state() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // C84 has Script SaveResult and no chain saved state; neither grants the other purpose.
         for script_callback in [false, true] {
@@ -609,7 +607,6 @@ mod settlement_tests {
 
     #[test]
     fn original_trace_result_retirement_is_checked_after_saved_owner_restoration() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual extension free hook sees publication outside borrows and retains its first cause.
         for mode in [2, 3] {

@@ -923,7 +923,6 @@ mod tests {
 
     #[test]
     fn original_boolean_imports_separate_operand_purpose_from_expression_production() {
-        // naming.numeric.original-primitive-boolean-vs-expression-truth
 
         use CodegenAbiValueType::I32;
         for (id, name) in [

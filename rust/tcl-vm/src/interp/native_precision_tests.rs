@@ -6,7 +6,6 @@
 
 #[test]
 fn original_precision_unset_matches_all_six_native_sources() {
-    // naming.variable.original-precision-unset-publication
 
     // Exact public results only; these rows do not observe hidden cell
     // identities or establish a pointer-equivalence claim.

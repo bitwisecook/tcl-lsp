@@ -1579,7 +1579,6 @@ mod original_frame_walk_tests {
 
     #[test]
     fn original_frame_walk_keeps_full_document_context_and_absolute_components() {
-        // Implementation contract: naming.refactor.original-frame-traversal
 
         let source = "proc p {x} {expr {$x + [string length VALUE]}}\np 2\n";
         let mut analyser = tcl_compiler::analyser::Analyser::new();
@@ -1638,7 +1637,6 @@ mod selected_frame_context_tests {
 
     #[test]
     fn original_frame_roles_keep_actual_availability_captures_and_source_currency() {
-        // naming.refactor.original-frame-traversal
 
         let mut registry = CommandRegistry::build_default();
         let mut setter = registry.get("set").unwrap().clone();
@@ -1678,7 +1676,6 @@ write 2";
 
     #[test]
     fn original_frame_regions_keep_selected_expression_template_and_replacement_horizon() {
-        // naming.refactor.original-frame-traversal
 
         let source = "rename expr evaluate
 evaluate {$x + [string length VALUE]}
@@ -1720,7 +1717,6 @@ mod original_parse_purpose_tests {
     use super::*;
     #[test]
     fn original_frame_segmentation_labels_document_and_nested_sources_explicitly() {
-        // naming.refactor.original-frame-traversal
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig {

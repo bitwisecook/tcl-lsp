@@ -2530,7 +2530,6 @@ mod tests {
 
     #[test]
     fn original_incremental_callbacks_retain_full_source_targets_and_barriers() {
-        // naming.source.original-callback-procedure-target
 
         // Incremental and full consumers share the genuine registration-horizon
         // issuer. Empty bodies keep this control on the incremental fast path;
@@ -2918,7 +2917,6 @@ mod tests {
 
     #[test]
     fn original_lexical_member_body_keeps_the_whole_source_owner() {
-        // naming.tcloo.original-lexical-member-context
 
         let source = "oo::class create C {method a::b {} {return body}}";
         let (gate, result) = gate_and_result(source, "tcl8.6");
@@ -2946,7 +2944,6 @@ mod tests {
 
     #[test]
     fn original_next_advice_reconstructs_whole_source_after_preceding_edits() {
-        // naming.tcloo.original-lexical-member-context
 
         for prefix in ["", "# preceding line\nset unrelated value\n"] {
             let source = format!(
@@ -3506,7 +3503,6 @@ mod original_configured_entry_tests {
     use super::*;
     #[test]
     fn original_isolated_body_projects_its_genuine_parent_input_to_nested_source() {
-        // naming.source.original-configured-script-completeness
 
         // An actual deferred source body; no entered procedure or frame claim.
         let environment = crate::environment_ingress::resolve_environment("tcl");
@@ -3559,7 +3555,6 @@ mod original_configured_entry_tests {
 
     #[test]
     fn original_per_item_entry_uses_retained_configuration_and_unknown_is_distinct() {
-        // naming.source.original-configured-script-completeness
 
         // Source-only fast-path control; no native entry or completion grant.
         let environment = crate::environment_ingress::resolve_environment("tcl9.1");
@@ -3617,7 +3612,6 @@ mod original_parent_purpose_tests {
 
     #[test]
     fn original_per_item_recovery_retains_the_whole_file_bom_boundary() {
-        // naming.source.original-configured-script-completeness
 
         // The shell's original command stream, without execution admission.
         let source = "\u{feff}set x 1\nputs after\n";

@@ -310,7 +310,6 @@ mod tests {
 
     #[test]
     fn command_range_empty_result_has_actual_list_store_only_in_c90() {
-        // naming.list.original-range-objects-and-instructions
 
         // Inspect reached result birth before string/list result materialisation.
         for version in [

@@ -219,7 +219,6 @@ mod tests {
 
     #[test]
     fn attested_provider_entry_keeps_original_qualified_and_imported_slots() {
-        // Implementation contract: naming.package.attested-source-loader-transfer
 
         let source = "package require tcltest; namespace import ::tcltest::test; list done";
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -257,7 +256,6 @@ mod tests {
 
     #[test]
     fn attested_provider_transfer_declines_unknown_revoked_and_shadowed_preludes() {
-        // Implementation contract: naming.package.attested-source-loader-transfer
 
         for prefix in [
             "unknown_before; ",

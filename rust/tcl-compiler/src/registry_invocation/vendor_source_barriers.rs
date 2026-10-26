@@ -477,7 +477,6 @@ mod tests {
 
     #[test]
     fn original_hosted_source_barriers_keep_declarations_moves_and_unknowns_separate() {
-        // naming.compiler.conditional-registry-source-metadata
 
         for (source, marker) in [
             (

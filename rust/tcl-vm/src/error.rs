@@ -760,7 +760,6 @@ mod checked_projection_tests {
     }
     #[test]
     fn borrowed_projection_refuses_conversion_and_actual_context_reads_original_values() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software getter/transport control, not a new original-provider receipt.
         let mut vm = native();
@@ -804,7 +803,6 @@ mod checked_projection_tests {
     }
     #[test]
     fn checked_guest_projection_preserves_first_host_cause_without_materialising() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let cause = NativeValueAccessRefusal::ExpressionEngineUnavailable;
@@ -827,7 +825,6 @@ mod checked_projection_tests {
 
     #[test]
     fn original_completion_unicode_keeps_counted_nul_and_refuses_non_utf8() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual getter and host display controls, independent of Native source admission.
         for code in [Code::Ok, Code::Error] {

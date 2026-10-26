@@ -247,7 +247,6 @@ fn assert_original(observation: &Observation, fields: &BTreeMap<&str, &str>) {
 
 #[test]
 fn original_property_replacement_matches_incoming_hash_and_cache_reference_stages() {
-    // naming.property.original-slot-storage-reference-order
 
     // Only matched C9.1 worker, held-cache and raw List stages; presentation is separate.
     for (case, class, writable, held) in [
@@ -385,7 +384,6 @@ fn original_property_replacement_matches_incoming_hash_and_cache_reference_stage
 
 #[test]
 fn original_property_old_retirement_refuses_before_any_hash_getter_or_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine software Host/ABA callbacks; original509b contains no such callback mode.
     for mode in [1, 2] {
@@ -444,7 +442,6 @@ fn original_property_old_retirement_refuses_before_any_hash_getter_or_adoption()
 
 #[test]
 fn original_property_hash_refusal_preserves_reached_string_and_stops_later_keys() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software-only refusal after the genuine first selected hash String getter.
     for mode in [3, 4] {

@@ -1111,7 +1111,6 @@ impl HostCommand for RefusingHost {
 fn host_refusal_bypasses_guest_catch_and_keeps_prior_effects() {
     // Software integration: naming.embedding.original-host-publication-and-fact-transport
 
-    // naming.interpreter.original-child-host-refusal-transport
     let Some(built) = built() else {
         return;
     };
@@ -1320,7 +1319,6 @@ fn completion_metadata_getter_failure_preserves_host_channel_and_prior_guest_eff
 
 #[test]
 fn original_typed_host_failure_survives_wasm_callback_settlement_and_next_entry() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     struct Refusing(tcl_engine_api::NativeExecutionError);
     impl HostCommand for Refusing {
@@ -1349,7 +1347,6 @@ fn original_typed_host_failure_survives_wasm_callback_settlement_and_next_entry(
 
 #[test]
 fn original_typed_wasm_host_failure_isolated_across_instances_and_real_destruction() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     struct Typed(tcl_engine_api::NativeExecutionError);
     impl HostCommand for Typed {

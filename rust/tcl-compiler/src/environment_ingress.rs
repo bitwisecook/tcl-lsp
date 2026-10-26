@@ -527,7 +527,6 @@ mod tests {
 
     #[test]
     fn original_compiler_entry_capture_reaches_actual_c_and_jim_compile_providers() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Genuine VM compiler-entry capture; no external native execution claim.
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -554,7 +553,6 @@ mod tests {
 
     #[test]
     fn original_compiler_entry_capture_retains_weak_owner_without_donating_foreign_identity() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original weak registration observation, independent from command semantics.
         for name in ["tcl8.4", "jimtcl"] {

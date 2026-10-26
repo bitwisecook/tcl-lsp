@@ -179,7 +179,6 @@ pub fn ilx_method_calls_from_source_context(
     source: &str,
     context: &crate::OriginalIrulesSourceContext,
 ) -> Vec<IlxMethodCall> {
-    // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
     if !context.matches_source(source) {
         return Vec::new();
@@ -954,7 +953,6 @@ mod tests {
 
     #[test]
     fn original_ilx_source_cards_keep_inline_candidates_and_current_owners() {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         let registry = irules_registry();
         let source = "when HTTP_REQUEST { ILX::call [ILX::init p e] -timeout 3000 -- m }";
@@ -983,7 +981,6 @@ mod tests {
 
     #[test]
     fn original_ilx_source_cards_do_not_derive_handles_from_cell_or_label_guesses() {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         for source in [
             "when HTTP_REQUEST {set h [ILX::init p e]; ILX::call $h m}",

@@ -800,7 +800,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_restores_its_captured_previous_after_the_first_host_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, slot, original_token, released) = selected_local();
         let scope =
@@ -841,7 +840,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_refuses_recreate_delete_aba_and_retires_the_detached_previous() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, slot, original_token, released) = selected_local();
         let scope =
@@ -886,7 +884,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_permits_an_independent_child_table_mutation() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, slot, original_token, released) = selected_local();
         vm.create_child(Some("independent".into()), false);
@@ -924,7 +921,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_refuses_an_exhausted_table_stamp() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, slot, _, released) = selected_local();
         let scope =
@@ -968,7 +964,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_frame_receipt_completes_cleanup_after_pre_entry_host_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, slot, original_token, released) = selected_local();
         let (original, record) = captured_local_record(&mut vm, &slot);
@@ -1032,7 +1027,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_frame_receipt_keeps_a_recreated_binding_unreached_after_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, slot, _, released) = selected_local();
         let (original, record) = captured_local_record(&mut vm, &slot);

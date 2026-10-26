@@ -71,7 +71,6 @@ mod tests {
 
     #[test]
     fn original_jim_table_key_retains_publication_spelling_across_replacement() {
-        // naming.jim.original-command-table-key-publication
 
         let protocol = NativeNameProtocol::Jim084;
         let project = |name: &[u8]| {

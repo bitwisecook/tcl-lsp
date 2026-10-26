@@ -848,7 +848,6 @@ fn classify_large_single_call_is_if_single_call() {
 
 #[test]
 fn original_inlining_activation_requires_selected_c_parameter_grammar() {
-    // naming.variable.original-readonly-formal-topology
 
     // IR transform capability only; no native procedure activation is asserted.
     let source = "proc ::noop {} {}\nnoop\nputs after";
@@ -1549,7 +1548,6 @@ fn a_body_that_substitutes_a_command_stays_a_call_in_another_namespace() {
 
 #[test]
 fn original_list_argument_projection_uses_selected_whole_word_syntax() {
-    // naming.inlining.original-frame-source-context
 
     // Generated source-word advice, independently of any list worker or frame.
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
@@ -1602,7 +1600,6 @@ fn original_list_argument_projection_uses_selected_whole_word_syntax() {
 
 #[test]
 fn original_inlining_eligibility_retains_whole_module_and_selected_frame_context() {
-    // naming.inlining.original-frame-source-context
 
     // Conditional Logical IR transform only; no Native cell or entry is issued.
     let source = "proc ::p {x} {return $x}; p VALUE; puts after";

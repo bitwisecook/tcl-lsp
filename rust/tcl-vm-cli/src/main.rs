@@ -556,7 +556,6 @@ mod tests {
 
     #[test]
     fn repl_uses_original_result_getter_and_preserves_counted_nul_output() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Distribution CLI owner and original result/header; no Native-provider comparison.
         let bytes = Rc::new(RefCell::new(Vec::new()));
@@ -596,7 +595,6 @@ mod tests {
 
     #[test]
     fn repl_completeness_keeps_selected_source_configuration_and_document_channel() {
-        // naming.source.original-configured-script-completeness
 
         // Distribution Document contract, independent of native String
         // observations and native handler/header/entry admission.

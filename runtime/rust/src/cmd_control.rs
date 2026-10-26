@@ -1413,7 +1413,6 @@ mod tests {
 
     #[test]
     fn time_retains_original_list_body_and_result_objects() {
-        // Source proof: naming.time.original-script-object-evaluation
 
         for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let mut interp = Interp::with_native_core(

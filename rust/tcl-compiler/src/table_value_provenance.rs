@@ -618,7 +618,6 @@ mod tests {
 
     #[test]
     fn original_table_values_keep_actual_constructor_selection_and_whole_module_owner() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original literal ancestry of a separately admitted cell/read and
         // construction handler; neither context nor ancestry grants execution.

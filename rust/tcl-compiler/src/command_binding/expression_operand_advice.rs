@@ -271,7 +271,6 @@ mod tests {
 
     #[test]
     fn sole_expression_child_retains_original_local_read_and_withdrawals() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Alias exclusion requires complete original body ownership, not an
         // installed alias, entered variable frame or successful read.

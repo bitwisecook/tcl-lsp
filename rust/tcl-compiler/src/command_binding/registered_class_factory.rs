@@ -154,7 +154,6 @@ mod tests {
 
     #[test]
     fn original_configurable_class_retains_the_selected_support_allocation() {
-        // Implementation contract: naming.tcloo.original-configurable-factory-support
 
         for version in [tcl_dialect::TclVersion::V9_0, tcl_dialect::TclVersion::V9_1] {
             let source = "oo::configurable create C {property readable -kind readable writable -kind writable}; C create object; object configure";
@@ -194,7 +193,6 @@ mod tests {
 
     #[test]
     fn original_configurable_existing_classes_keep_moved_support_but_new_factories_reselect() {
-        // Implementation contract: naming.tcloo.original-configurable-factory-support
 
         for version in [tcl_dialect::TclVersion::V9_0, tcl_dialect::TclVersion::V9_1] {
             let source = "oo::configurable create C {}; rename ::oo::configuresupport::configurable ::HeldSupport; C create object; object configure; oo::configurable create Later {}";

@@ -1109,7 +1109,6 @@ mod tests {
     #[cfg(have_tommath)]
     #[test]
     fn original_jim_container_and_regex_indices_share_one_original_expression_cache() {
-        // naming.jim.original-index-conversion-and-result-object
 
         let mut interp = actual();
         let original = obj::Owned::fresh(obj::new_string_bytes(b"2*3"));
@@ -1137,7 +1136,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_integer_bypass_and_bad_string_preserve_primary_and_error_code_stage() {
-        // naming.jim.original-index-conversion-and-result-object
 
         // Native case 8 observes failed String->Int; second call clamp is source/API control.
         let mut interp = actual();
@@ -1165,7 +1163,6 @@ mod tests {
     #[test]
     fn original_jim_index_getter_and_free_callbacks_preserve_full_cause_without_protective_references(
     ) {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual extension callbacks are software controls; no native hostile-callback chronology claim.
         for stage in [1, 2] {
@@ -1199,7 +1196,6 @@ mod tests {
     }
     #[test]
     fn original_jim_list_indices_precede_list_getters_but_string_range_gets_its_subject_first() {
-        // naming.jim.original-index-conversion-and-result-object
 
         // Pinned-source order is checked with actual Runtime extension headers.
         // The original 17-case native probe measures conversion, not this callback program.
@@ -1255,7 +1251,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_lifetime_lease_keeps_allocation_without_reviving_a_native_header() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut interp = actual();
         let original = obj::Owned::fresh(obj::new_string_bytes(b"end"));
@@ -1273,7 +1268,6 @@ mod tests {
     }
     #[test]
     fn original_indexed_string_count_refuses_before_later_indices_and_cache_adoption() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Genuine Runtime extension callbacks test this checked API. Native
         // Jim command/cache observations remain the separate pinned17 rows.
@@ -1319,7 +1313,6 @@ mod tests {
 
     #[test]
     fn original_indexed_list_conversion_refuses_before_backing_adoption() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Direct shared List API, original foreign updater/free, same actual
         // entered currency. No native adversarial-callback source claim.
@@ -1374,7 +1367,6 @@ mod replacement_native_rows629 {
 
     #[test]
     fn original_replacement_matches_every_native_observed_projection() {
-        // naming.string.original-counted-replacement-and-index-stages
 
         // Direct software API controls compare retained public cache/alias/string
         // projections, not EvalObjv stack holds, guest-result publication, native
@@ -1482,7 +1474,6 @@ mod direct_binary_native_rows634a {
     }
     #[test]
     fn original_direct_c9_binary_replacement_matches_deterministic_native_roles() {
-        // naming.string.original-binary-replacement-direct-helper-sharing
 
         // Direct parsed-range API, exact input constructor/native references;
         // pre-result-getter public primaries/aliases and counted String bytes.
@@ -1602,7 +1593,6 @@ mod index_key_ownership_controls {
     }
     #[test]
     fn abstract_index_key_clones_keep_fresh_zero_role_without_native_references_or_element_cache() {
-        // naming.list.arithseries-original-multiple-index-conversion
 
         // Genuine Runtime abstract Index constructor and allocation guard API.
         // Guard/refcount/cache cleanup predicates are software controls, not new
@@ -1632,7 +1622,6 @@ mod index_key_ownership_controls {
     }
     #[test]
     fn nested_selected_member_has_actual_hold_before_created_parent_cleanup_and_detached_result() {
-        // naming.list.arithseries-original-multiple-index-conversion
 
         // Shared key-result API preserves child lifetime across actual created
         // parent retirement; this is an independent software ownership control.
@@ -1680,7 +1669,6 @@ mod indexed_binary_native_projections633 {
     }
     #[test]
     fn original_indexed_binary_inputs_match_supported_native_public_projections() {
-        // naming.string.original-binary-replacement-sharing-and-result-roles
 
         // Every native633 input controls supported cache/type/String geometry.
         // This direct API supplies its own explicit caller references. It does
@@ -1767,7 +1755,6 @@ mod parsed_empty_duplicate_control {
     use super::*;
     #[test]
     fn omitted_zero_count_without_in_place_uses_original_duplicate_constructor() {
-        // naming.string.original-binary-replacement-direct-helper-sharing
 
         // The pinned helper source includes this early duplicate branch. This
         // direct software constructor control is not one of the16 native rows.
@@ -1811,7 +1798,6 @@ mod original_index_range_native_rows635 {
     }
     #[test]
     fn original_index_and_range_project_exact_measured_public_predicates() {
-        // naming.string.original-counted-index-range-storage-and-results
 
         // Direct API provides its own original owners. We compare public type,
         // residency, deterministic byte and alias predicates, not EvalObjv
@@ -1966,9 +1952,7 @@ mod original_c_string_stage_controls637 {
     }
     #[test]
     fn original_c_binary_pointer_and_reread_stages_use_actual_header_and_no_protective_reference() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
-        // naming.string.original-counted-index-range-storage-and-results
 
         // Real software extension updater mutates the selected subject during
         // its original index getter. Native635 public rows do not observe this
@@ -2032,7 +2016,6 @@ mod original_c_string_stage_controls637 {
     #[test]
     fn original_count_free_callback_preserves_first_cause_before_any_index_getter_or_string_cache_adoption(
     ) {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual original extension free callback, not native adversarial evidence.
         for profile in ["tcl8.5", "tcl8.6", "tcl9.0"] {
@@ -2067,7 +2050,6 @@ mod original_c_string_stage_controls637 {
     }
     #[test]
     fn original_primary_receipt_refuses_scalar_change_and_restore() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software epoch control; no native private-epoch observation.
         let value = obj::Owned::fresh(obj::alloc_typed(&REPLACED, 7));

@@ -144,7 +144,6 @@ mod script_body_metadata_tests {
 
     #[test]
     fn original_script_child_without_lookup_keeps_its_sealed_source_premises() {
-        // Implementation contract: naming.vendor.original-source-context-input
 
         let source = "proc f {} { ILX::call $h m }";
         let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");

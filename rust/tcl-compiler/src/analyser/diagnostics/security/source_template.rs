@@ -373,7 +373,6 @@ mod tests {
 
     #[test]
     fn original_template_diagnostics_follow_aliases_and_refuse_known_replacements() {
-        // naming.diagnostic.registry-source-ownership
 
         // Selected source advice only; no actual template value or evaluation.
         let input = current_input("tcl8.6");
@@ -422,7 +421,6 @@ mod tests {
 
     #[test]
     fn original_template_subject_keeps_captured_switches_and_whole_unicode_word() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input("tcl8.6");
         let source = "interp alias {} render {} subst -nocommands; render \"pré $tmpl\"";
@@ -456,7 +454,6 @@ mod tests {
 
     #[test]
     fn original_template_advice_keeps_actual_option_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current = current_input("tcl9.1");
         let source = "subst -backslashes $tmpl";
@@ -491,7 +488,6 @@ mod tests {
 
     #[test]
     fn original_template_advice_refuses_missing_foreign_and_stale_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
@@ -545,7 +541,6 @@ mod tests {
 
     #[test]
     fn original_template_refinement_requires_matching_cu_and_selected_switch_values() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Real source CU records supplement original written values only.
         let input = current_input("tcl8.6");

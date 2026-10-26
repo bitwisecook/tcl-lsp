@@ -578,7 +578,6 @@ mod tests {
 
     #[test]
     fn logical_complete_value_words_keep_explicit_compatibility_behaviour() {
-        // Implementation contract: naming.refactor.logical-single-word-extraction
 
         let source = "puts {salt and pepper}";
         let action = run(source, 5, u32::try_from(source.len()).unwrap(), "seasoning").unwrap();
@@ -639,7 +638,6 @@ mod tests {
     /// pepper"` is already valid, wrapping it in `expr {…}` breaks it.
     #[test]
     fn logical_invalid_multiword_value_never_becomes_a_four_argument_set() {
-        // Implementation contract: naming.refactor.logical-single-word-extraction
 
         let source = "puts helper {a and b} $x";
         assert!(run(source, 5, u32::try_from(source.len()).unwrap(), "result").is_none());
@@ -655,7 +653,6 @@ mod tests {
 
     #[test]
     fn logical_one_line_body_insertion_remains_inside_the_original_body() {
-        // Implementation contract: naming.refactor.logical-single-word-extraction
 
         let source = "proc p {} {puts literal}";
         let start = u32::try_from(source.find("literal").unwrap()).unwrap();
@@ -668,7 +665,6 @@ mod tests {
 
     #[test]
     fn logical_extraction_keeps_supplied_availability_and_source_configuration() {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
@@ -732,7 +728,6 @@ mod tests {
 
     #[test]
     fn original_variable_extraction_never_promotes_naming_proposals_to_motion_permission() {
-        // Implementation contract: naming.refactor.original-variable-extraction-permission
 
         for source in [
             "proc p {} {puts literal}; p",
@@ -789,7 +784,6 @@ mod tests {
     }
     #[test]
     fn original_extraction_validates_complete_word_before_unlicensed_advice() {
-        // naming.refactor.original-variable-extraction-permission
 
         // Geometry is read-only; this genuine Native input supplies no motion or store licence.
         let source = "proc p {} {puts literal}; p";

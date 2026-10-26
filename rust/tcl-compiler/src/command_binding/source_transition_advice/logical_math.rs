@@ -237,7 +237,6 @@ impl AdviceInvocationContext<'_> {
         parent: &OriginalSourceCommandTransitionAdvice,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
-        // naming.source.logical-expression-function-candidates
 
         let AdviceNamingPolicy::Logical(input) = self.policy else {
             return;

@@ -3173,7 +3173,6 @@ fn cmd_encoding_in_scope(
         },
         "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
         "convertto" => {
-            // naming.encoding.original-utf8-convertto-object-storage
 
             let data = match args {
                 [_, data] if vm.system_encoding() == tcl_platform::SystemEncoding::Utf8 => data,
@@ -4633,9 +4632,7 @@ mod tests {
 
     #[test]
     fn c84_primitive_failure_keeps_direct_code_and_eval_completion_supplies_none() {
-        // naming.numeric.original-capi-scalar-publication-width
 
-        // naming.numeric.seeded-wide-frontier
 
         // Actual VM command-completion projection only; the neutral original
         // getter and failure renderer retain their independent direct purpose.
@@ -4687,7 +4684,6 @@ mod tests {
 
     #[test]
     fn original_command_core_refusal_keeps_typed_first_host_cause() {
-        // naming.interpreter.original-child-host-refusal-transport
 
         // Central CmdCore adapter control only; this does not enter a child or
         // supply native invocation, command or value-operation availability.
@@ -4706,7 +4702,6 @@ mod tests {
 
     #[test]
     fn jim_core_alias_query_retains_original_prefix_header_and_members() {
-        // naming.alias.jim-original-core-prefix-object-storage
 
         // Native273 independently measures name/member identity and absent
         // resident member strings. Repeated query header identity is a current
@@ -4748,9 +4743,7 @@ mod tests {
 
     #[test]
     fn native_wrong_arguments_completion_preserves_the_selected_string_producer() {
-        // naming.variable.original-upvar-and-exists-completion-and-name-windows
 
-        // naming.list.original-assign-objects-and-instructions
 
         // Shared presenter binding, separately from the original native rows.
         use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
@@ -4808,7 +4801,6 @@ mod tests {
 
     #[test]
     fn time_keeps_original_counted_script_and_skips_zero_count_materialization() {
-        // Source proof: naming.time.original-script-object-evaluation
 
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
@@ -5287,7 +5279,6 @@ mod tests {
 
     #[test]
     fn original_frame_value_adapter_requires_selected_environment_and_live_header() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // VM Value/Host operation control; Runtime interpreter currency remains independent.
         use tcl_registry::frame_effect::NativeFrameLevelObject;
@@ -5647,7 +5638,6 @@ mod tests {
 
     #[test]
     fn original_legacy_bareword_profile_labels_do_not_issue_native_function_or_error_owners() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for dialect in ["tcl8.4", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
@@ -5764,7 +5754,6 @@ mod tests {
 
     #[test]
     fn original_absent_f5_expression_and_eval_providers_do_not_borrow_native_core_receipts() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let actual = crate::environment::profile_for_dialect("tcl9.0");
         let source = tcl_dialect::DialectProfile::irules();

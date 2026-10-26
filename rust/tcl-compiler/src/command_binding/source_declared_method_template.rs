@@ -98,7 +98,6 @@ impl AnalysisResult {
         command: &crate::segmenter::SegmentedCommand,
         read: u32,
     ) -> Option<OriginalDeclaredSelfMethodTemplate> {
-        // naming.tcloo.original-declared-self-method-caller-template
 
         let (context, caller) = caller_context(self, source, command, read)?;
         let image = SourceImage::document(source);
@@ -350,7 +349,6 @@ mod tests {
     }
     #[test]
     fn original_declared_self_template_uses_source_mixin_without_entering_a_receiver() {
-        // naming.tcloo.original-declared-self-method-caller-template
 
         let source = "oo::class create M {method pick {name} {upvar name local; set local VALUE}}
 oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
@@ -387,7 +385,6 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
     }
     #[test]
     fn original_declared_self_template_declines_unknown_relations_shadow_and_foreign_source() {
-        // naming.tcloo.original-declared-self-method-caller-template
 
         for source in [
             "oo::class create C {mixin Missing; constructor {} {my pick name; puts $name}}",
@@ -404,7 +401,6 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
     }
     #[test]
     fn original_declared_receiver_traits_keep_caller_names_without_runtime_entry() {
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         let source = "oo::class create M {method pick {input} {upvar name local; set local VALUE; upvar $input alias; set alias VALUE}}
 oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
@@ -454,7 +450,6 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
 
     #[test]
     fn original_declared_receiver_traits_refuse_shadowed_and_foreign_layouts() {
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         for prelude in [
             "proc upvar {args} {}\n",

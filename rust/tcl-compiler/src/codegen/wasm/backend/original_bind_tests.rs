@@ -233,7 +233,6 @@ fn execute(
 
 #[test]
 fn original_analysed_binding_nonzero_status_retires_unbound_parameters_before_body() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual production emission with a software ABI status/transfer observer; no Native callback or refcount claim.
     let mut module = original_module();
@@ -252,7 +251,6 @@ fn original_analysed_binding_nonzero_status_retires_unbound_parameters_before_bo
 
 #[test]
 fn original_analysed_binding_host_and_entry_failures_finish_parameter_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The existing Host owner remains independent of the ABI status; software provider cause only.
     let mut module = original_module();
@@ -275,7 +273,6 @@ fn original_analysed_binding_host_and_entry_failures_finish_parameter_cleanup() 
 
 #[test]
 fn original_analysed_binding_success_reaches_expression_and_retires_bound_cells() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Positive original source/slot admission reaches the same actual expression emitter.
     let mut module = original_module();

@@ -97,7 +97,6 @@ fn observe(vm: &mut Vm, index: usize) -> Vec<String> {
 
 #[test]
 fn original_counted_map_prefix_vectors_match_all_20_c_public_windows() {
-    // naming.ensemble.original-counted-map-prefix-construction
 
     // Every original construction/getter/call row is compared independently;
     // raw-NUL String heads never pass through a source or ByteArray substitute.

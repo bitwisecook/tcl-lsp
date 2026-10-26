@@ -20,7 +20,6 @@ fn call(interp: &mut Interp, words: &[&[u8]]) -> Code {
 }
 #[test]
 fn original_binary_maxlen_uses_selected_primitive_errors_and_never_index_grammar() {
-    // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
     // Native628 measures stock final results; these exercise the actual Runtime adapter.
     for (profile, primitive) in [
@@ -56,7 +55,6 @@ fn original_binary_maxlen_uses_selected_primitive_errors_and_never_index_grammar
 }
 #[test]
 fn original_binary_base64_wide_and_uuencode_int_remain_distinct() {
-    // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
     for profile in ["tcl9.0", "tcl9.1"] {
         let mut interp = native(profile);
@@ -117,7 +115,6 @@ static ORIGINAL: obj::TclObjType = obj::TclObjType {
 };
 #[test]
 fn original_binary_numeric_updater_withdrawal_stops_before_data_and_guest_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual extension updater ABA; no external Native updater chronology claim.
     let mut interp = native("tcl9.0");

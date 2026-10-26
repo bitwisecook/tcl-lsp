@@ -508,9 +508,7 @@ mod tests {
 
     #[test]
     fn original_trace_subject_requires_its_actual_non_head_operand_and_context() {
-        // naming.compiler.original-analysis-metadata-context
 
-        // naming.core.original-command-source-schema
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -556,7 +554,6 @@ mod tests {
 
     #[test]
     fn original_opaque_trace_target_keeps_the_hazard_dynamic() {
-        // naming.core.original-command-source-schema
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -612,7 +609,6 @@ mod tests {
 
     #[test]
     fn original_native_token_observers_follow_add_remove_and_rename() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -680,7 +676,6 @@ mod tests {
 
     #[test]
     fn captured_native_trace_flag_is_reached_before_empty_module_inventory() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -767,7 +762,6 @@ mod tests {
 
     #[test]
     fn original_native_trace_owner_survives_alias_and_root_fallback_without_label_substitution() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -818,7 +812,6 @@ mod tests {
 
     #[test]
     fn original_native_trace_absence_requires_full_vector_target_and_actual_receiver() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -957,7 +950,6 @@ mod tests {
 
     #[test]
     fn genuine_jim_entry_cannot_borrow_raw_logical_metadata_for_trace_absence() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::command_binding::OriginalInvocationSourcePurpose;
         let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
@@ -1058,7 +1050,6 @@ mod tests {
 
     #[test]
     fn authored_simulation_source_advice_keeps_trace_absence_unavailable() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::command_binding::OriginalInvocationSourcePurpose;
         let context =

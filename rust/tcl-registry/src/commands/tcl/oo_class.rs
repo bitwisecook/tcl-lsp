@@ -336,7 +336,6 @@ mod tests {
 
     #[test]
     fn class_creation_keeps_opaque_native_target_and_conditional_commit() {
-        // Implementation contract: naming.invocation.known-native-byte-values
 
         for value in [
             b"C\xed\xa0\x80".as_slice(),
@@ -424,7 +423,6 @@ mod tests {
 
     #[test]
     fn class_creation_owns_installation_write_but_keeps_body_and_trace_callbacks() {
-        // Implementation contract: naming.tcloo.class-installation-effect-coverage-contract
 
         use crate::{
             EffectAccessMode, InvocationDialect, InvocationWord, InvocationWords,
@@ -522,7 +520,6 @@ mod tests {
 
     #[test]
     fn original_stock_metaclass_compilation_has_no_hook_without_factory_authority() {
-        // Implementation contract: naming.tcloo.original-stock-metaclass-no-hook-selection
 
         use crate::native_compilation::{
             NativeCompilationContext, NativeCompilationGrammar, NativeCompilationSelection,

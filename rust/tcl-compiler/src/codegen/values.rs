@@ -1832,7 +1832,6 @@ mod tests {
     #[test]
     fn original_lexical_cache_reuses_one_vector_and_restores_nested_scope() {
         // Software lexical-owner control; no Native object cache or execution grant.
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = CommandRegistry::build_default();
         let config = tcl_lexer::LexerConfig::default();
@@ -1874,7 +1873,6 @@ mod tests {
 
     #[test]
     fn original_lexical_cache_keys_allocation_channel_and_full_configuration() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = CommandRegistry::build_default();
         let config = tcl_lexer::LexerConfig::default();
@@ -1918,7 +1916,6 @@ mod tests {
 
     #[test]
     fn original_lexical_cache_rechecks_protocol_and_current_entry_issuer() {
-        // naming.compiler.original-analysis-metadata-context
 
         use tcl_syntax::native_string::NativeStringProtocol;
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
@@ -1954,7 +1951,6 @@ mod tests {
 
     #[test]
     fn original_lexical_cache_keeps_the_retained_invocation_source_owner() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = CommandRegistry::build_default();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();

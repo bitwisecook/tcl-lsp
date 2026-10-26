@@ -239,7 +239,6 @@ mod tests {
 
     #[test]
     fn original_created_handle_body_retains_source_order_and_refuses_unowned_entries() {
-        // naming.interpreter.original-created-handle-source-body
 
         // Native CLI answers basic creation/handle/path/delete equivalence in
         // naming.interpreter.original-created-parent-command. This assertion
@@ -326,7 +325,6 @@ mod tests {
 
     #[test]
     fn original_created_handle_moves_keep_child_path_and_parent_lineage_separate() {
-        // naming.interpreter.original-created-handle-source-body
 
         // Independent CLI observations: naming.interpreter.original-created-parent-command-move
 

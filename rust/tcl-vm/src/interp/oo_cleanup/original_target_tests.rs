@@ -58,7 +58,6 @@ fn original_oo_cleanup_selects_physical_namespace_teardown_order() {
 
 #[test]
 fn original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for entered in [false, true] {
         let mut vm = native();
@@ -100,7 +99,6 @@ fn original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration() {
 
 #[test]
 fn original_oo_saved_cleanup_transports_same_target_after_scope_expiry_and_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = native();
     let entered = NativeOperationScope::enter(&mut vm).unwrap();

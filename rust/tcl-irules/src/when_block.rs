@@ -72,7 +72,6 @@ mod tests {
     use super::*;
 
     #[test]
-    // naming.consumer.original-irules-source-context
 
     fn original_when_inventory_keeps_event_words_bodies_and_conditional_cards() {
         let source =
@@ -117,7 +116,6 @@ mod tests {
     }
 
     #[test]
-    // naming.consumer.original-irules-source-context
 
     fn original_when_inventory_distinguishes_empty_and_unavailable_source_sites() {
         for source in ["", "# no source commands\n", "set value 1"] {
@@ -143,7 +141,6 @@ mod tests {
     }
 
     #[test]
-    // naming.consumer.original-irules-source-context
 
     fn original_when_inventory_preserves_preceding_unknown_source_debt() {
         let source = "unmodelled_source_effect; when HTTP_REQUEST {}";

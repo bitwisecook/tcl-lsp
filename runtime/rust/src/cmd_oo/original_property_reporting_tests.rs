@@ -280,7 +280,6 @@ impl tcl_platform::Host for ReportOutputHost {
 }
 #[test]
 fn materialized_property_reports_preserve_native_snapshot_and_table_index_roles() {
-    // naming.property.original-configure-retained-table-and-read-snapshot
 
     // Exact ordinary scripts measured independently on C9.0.4 and C9.1.0.
     // This physical adapter comparison is restricted to its selected C9.1 purpose.

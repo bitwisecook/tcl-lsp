@@ -1243,7 +1243,6 @@ mod tests {
 
     #[test]
     fn original_info_complete_retains_checked_string_worker_and_selected_runtime_grammar() {
-        // naming.source.original-configured-script-completeness
 
         // Form original scalar text through format%c as in the captured String
         // request. Raw source encoding, object/header and entry remain separate.
@@ -1663,7 +1662,6 @@ mod tests {
 
     #[test]
     fn info_consts_includes_only_tcloo_instance_links() {
-        // naming.tcloo.original-constant-link-introspection
 
         leak_free(|i| {
             assert_eq!(

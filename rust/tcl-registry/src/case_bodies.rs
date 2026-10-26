@@ -275,7 +275,6 @@ mod tests {
 
     #[test]
     fn possible_case_subject_does_not_close_native_option_selection() {
-        // naming.source.original-editor-body-structure
 
         // The original subject branch is conditional; it cannot select an
         // unreadable option or provide a definite Native invocation layout.

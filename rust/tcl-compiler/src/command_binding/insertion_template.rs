@@ -290,7 +290,6 @@ mod tests {
 
     #[test]
     fn proposed_assignment_retains_current_registry_slot_and_source_point() {
-        // Implementation contract: naming.compiler.current-assignment-command-template
 
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = tcl_registry::model::ingress::static_context_for(environment).commands();
@@ -348,7 +347,6 @@ mod tests {
 
     #[test]
     fn proposed_assignment_declines_missing_shadowed_wrapped_and_unknown_setters() {
-        // Implementation contract: naming.compiler.current-assignment-command-template
 
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = tcl_registry::model::ingress::static_context_for(environment).commands();

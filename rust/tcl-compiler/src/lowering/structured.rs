@@ -2537,7 +2537,6 @@ mod original_body_word_caller_tests {
 
     #[test]
     fn original_structured_body_caller_keeps_parent_ordinal_and_namespace() {
-        // naming.source.original-point-operand-projection
 
         // Actual software lowering and selected source context; no external
         // provider execution or proof that a conditional body entered.
@@ -2621,7 +2620,6 @@ mod original_body_word_caller_tests {
 
     #[test]
     fn original_structured_body_word_caller_refuses_full_extent_and_changed_parent() {
-        // naming.source.original-point-operand-projection
 
         let source = "if {$condition} {set first café} else {set second two}";
         let (_, unit) = original_unit(source, "tcl9.0");

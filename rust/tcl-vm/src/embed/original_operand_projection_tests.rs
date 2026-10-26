@@ -22,7 +22,6 @@ use tcl_syntax::raw_string::{NativeValueAccessRefusal, UnicodeAccessError};
 
 #[test]
 fn original_raw_operand_projection_observes_none_without_native_or_unicode_grants() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = Vm::new();
     let value = Value::new_native_string_bytes(b"A\xc0\x80B".as_slice());
@@ -82,7 +81,6 @@ fn original_raw_operand_projection_observes_none_without_native_or_unicode_grant
 
 #[test]
 fn original_operand_projection_refuses_real_header_retirement_before_legacy_cache() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = Vm::new();
     let owner = Value::int(i64::MIN);

@@ -56,7 +56,6 @@ fn original_direct(
 
 #[test]
 fn original_direct_parse_entry_uses_actual_engine_and_keeps_unknown_terminal() {
-    // naming.source.original-configured-script-completeness
 
     // Held interpreter entry supplies this physical policy; no external run claim.
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -101,7 +100,6 @@ fn original_direct_parse_entry_uses_actual_engine_and_keeps_unknown_terminal() {
 
 #[test]
 fn original_jim_whole_script_parse_refuses_prefix_publication_but_keeps_valid_scripts() {
-    // naming.source.original-configured-script-completeness
 
     let invalid = "proc selected {} {}; {a}b; selected";
     let (jim, input, _owner) = original_direct(invalid, "jimtcl", false);
@@ -138,9 +136,7 @@ fn original_jim_whole_script_parse_refuses_prefix_publication_but_keeps_valid_sc
 
 #[test]
 fn original_jim_nested_script_parse_stops_body_prefix_and_later_outer_commands() {
-    // naming.source.original-configured-script-completeness
 
-    // naming.source.jim-nested-direct-entry-and-prefix-effects
 
     // Fixed native probes bound physical Direct effects; this is a held-entry
     // software source-model control with independent input and binding guards.
@@ -163,9 +159,7 @@ fn original_jim_nested_script_parse_stops_body_prefix_and_later_outer_commands()
 
 #[test]
 fn original_jim_command_child_parse_keeps_root_prefix_but_refuses_child_prefix() {
-    // naming.source.original-configured-script-completeness
 
-    // naming.source.jim-nested-direct-entry-and-prefix-effects
 
     // Fixed native probes bound physical Direct effects; this is a held-entry
     // software source-model control with independent input and binding guards.
@@ -181,9 +175,7 @@ fn original_jim_command_child_parse_keeps_root_prefix_but_refuses_child_prefix()
 
 #[test]
 fn original_jim_direct_delimiter_scan_does_not_borrow_c_bare_brace_syntax() {
-    // naming.source.original-configured-script-completeness
 
-    // naming.source.jim-nested-direct-entry-and-prefix-effects
 
     // Fixed native probes bound physical Direct effects; this is a held-entry
     // software source-model control with independent input and binding guards.

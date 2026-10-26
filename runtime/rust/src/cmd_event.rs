@@ -341,7 +341,6 @@ impl NativeVariableObserver<Interp> for WaitFlag {
     }
 }
 fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // Implementation contract: naming.event.original-vwait-operand-boundaries
 
     let p = match selected(interp) {
         Ok(p) => p,

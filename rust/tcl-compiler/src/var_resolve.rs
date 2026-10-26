@@ -6434,7 +6434,6 @@ mod worker_execution_ingress_tests {
 
     #[test]
     fn execution_context_join_cannot_retain_equal_values_from_different_cells() {
-        // Implementation contract: naming.variable.event-cell-execution-isolation
 
         use tcl_registry::f5::WorkerExecution;
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
@@ -6541,7 +6540,6 @@ mod worker_execution_ingress_tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.hosted-storage-context
 
     fn hosted_storage_requires_selected_context_and_retained_namespace_geometry() {
         use tcl_registry::f5::{BigIpExecutionContext, VariableStorageDomain};
@@ -6598,7 +6596,6 @@ mod worker_execution_ingress_tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.hosted-storage-context
 
     fn different_hosted_contexts_with_equal_values_withdraw_cell_contents() {
         use tcl_registry::f5::BigIpExecutionContext;
@@ -6865,7 +6862,6 @@ mod byte_cell_identity_tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.variable.byte-cell-correspondence
 
     fn retained_cell_key_uses_exact_bytes_independently_of_display() {
         let owner = CellOwner::Activation("entered-call".into());
@@ -6905,7 +6901,6 @@ mod namespace_simple_projection_tests {
 
     #[test]
     fn namespace_simple_key_projection_keeps_resolved_bytes_separate_from_display_and_frames() {
-        // naming.analysis.resolved-static-variable-patterns
 
         // Actual authored resolver places only; no Native namespace/getter or TMM grant.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();

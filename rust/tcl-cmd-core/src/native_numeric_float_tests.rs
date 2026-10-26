@@ -401,7 +401,6 @@ fn assert_c84_fresh_boolean_fixture_rows(
 
 #[test]
 fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and_errno() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     // Actual host conversion effects, separately from expression truth and
     // original object/handler admission. The pure value/cache recipe is joined
@@ -494,7 +493,6 @@ impl NumericEnvironment for ObservedBooleanEnvironment {
 
 #[test]
 fn c84_boolean_preserves_reached_errno_and_refuses_missing_target_before_numeric_calls() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     // Native-stage reachability and host availability software control. The
     // deliberate prior ERANGE is not an inferred baseline or guest error code.

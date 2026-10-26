@@ -217,7 +217,6 @@ mod tests {
 
     #[test]
     fn original_descended_body_keeps_parent_word_config_and_nested_bom_content() {
-        // naming.source.original-configured-script-completeness
 
         // Source geometry and grammar; no header/value/worker authority.
         let source = "\u{feff}proc p {} {\u{feff}set name value}";

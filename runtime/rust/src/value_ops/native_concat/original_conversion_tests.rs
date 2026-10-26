@@ -35,7 +35,6 @@ static ORIGINAL_STRING: TclObjType = TclObjType {
 };
 #[test]
 fn original_concat_first_getter_refusal_stops_later_getters_and_result_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software original updater; native concat fixture windows remain independent.
     for mode in [1, 2] {
@@ -77,7 +76,6 @@ fn original_concat_first_getter_refusal_stops_later_getters_and_result_publicati
 }
 #[test]
 fn original_concat_checked_source_conversion_retains_first_cause_before_working_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Direct real append stage: the caller owns its existing working List.
     let mut interpreter = fixture::native("tcl9.0");
@@ -112,7 +110,6 @@ fn original_concat_checked_source_conversion_retains_first_cause_before_working_
 }
 #[test]
 fn original_concat_authored_route_keeps_selected_portable_algorithm_without_native_entry() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Native capability is absent; pure operation currency is no capability grant.
     let mut interpreter = Interp::new();

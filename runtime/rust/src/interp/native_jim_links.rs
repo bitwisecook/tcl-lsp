@@ -81,7 +81,6 @@ impl Interp {
         Ok(match element {
             Some(element) => self.var_unset_elem(&root, &element),
             None => {
-                // naming.procedure-static.jim-primary-table-unset
 
                 let scope = super::native_operation_currency::NativeOperationScope::enter(self)
                     .map_err(|first| self.refuse_native_execution(first))?;

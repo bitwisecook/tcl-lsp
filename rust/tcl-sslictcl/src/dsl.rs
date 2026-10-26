@@ -1968,7 +1968,6 @@ mod original_configured_document_tests {
     use super::*;
     #[test]
     fn original_sslictcl_document_segment_keeps_body_config_and_crlf_channel() {
-        // naming.source.original-configured-script-completeness
 
         // Readonly DSL source parsing; no native String or execution receipt.
         let source = "set x ${a{}";

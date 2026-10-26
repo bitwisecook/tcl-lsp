@@ -106,7 +106,6 @@ impl AnalysisResult {
         image: &SourceImage,
         config: LexerConfig,
     ) -> Option<Vec<OriginalVariableAliasTemplate>> {
-        // Implementation contract: naming.variable.original-alias-source-template
 
         self.matches_original_source_image(image, config)
             .then_some(())?;
@@ -469,7 +468,6 @@ mod tests {
 
     #[test]
     fn original_alias_source_templates_keep_unknown_elements_and_source_order_separate() {
-        // Implementation contract: naming.variable.original-alias-source-template
 
         let source = "proc p {i} {upvar ::n::a($i) data; lappend data value; puts $data}; proc sibling {} {puts $data}";
         for version in tcl_dialect::TclVersion::ALL {
@@ -521,7 +519,6 @@ mod tests {
     }
     #[test]
     fn original_alias_templates_join_qualified_targets_in_their_current_source_frame() {
-        // naming.variable.original-alias-source-template
 
         let source = "namespace eval ns {variable foo 1}; proc p {} {global ::ns::foo; puts $foo; puts $::ns::foo; puts $::other::foo}; proc sibling {} {puts $foo}";
         let logical = tcl_dialect::DialectProfile::plain_tcl();

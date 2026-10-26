@@ -1457,7 +1457,6 @@ mod tests {
 
     #[test]
     fn original_trace_type_roles_use_selected_native_index_extent_without_cache_authority() {
-        // Implementation contract: naming.variable.trace-source-receiver-purpose
 
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = crate::InvocationDialect::for_version(version);

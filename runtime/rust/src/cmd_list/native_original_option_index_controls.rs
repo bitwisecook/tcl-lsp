@@ -52,7 +52,6 @@ fn kind(pointer: *mut TclObj) -> &'static str {
 }
 #[test]
 fn original_search_sort_public_outcomes_and_child_cache_match_native636() {
-    // naming.list.original-option-index-path-preparation-and-results
 
     // Each observed original child has a declared observer ref1 plus the real
     // containing List holds. No provider EvalObjv transient count, error-stack

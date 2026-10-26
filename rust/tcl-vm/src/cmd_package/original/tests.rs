@@ -79,7 +79,6 @@ impl tcl_platform::Host for FormatterHost {
 }
 #[test]
 fn original_package_version_string_uses_actual_formatter_and_full_first_failure() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied software formatter forwarding and first cause only; no C84 minimum-integer formatter equivalence.
     for failed in [false, true] {
@@ -170,7 +169,6 @@ impl NativeCommand for Withdraw {
 }
 #[test]
 fn original_package_unknown_and_loader_restore_before_original_currency_settlement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual VM callbacks, saved table/file/global-frame cleanup and first cause only.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -240,7 +238,6 @@ fn original_package_unknown_and_loader_restore_before_original_currency_settleme
 }
 #[test]
 fn original_package_pending_host_precedes_operand_materialisation_and_table_effects() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Existing first software Host channel only; no additional native argument chronology.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -260,7 +257,6 @@ fn original_package_pending_host_precedes_operand_materialisation_and_table_effe
 
 #[test]
 fn original_embedding_package_provide_uses_actual_database_protocol() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Selected software package protocol only; the suffix input is a fixed source control, not an additional native observation.
     for (actual, logical, expected) in [

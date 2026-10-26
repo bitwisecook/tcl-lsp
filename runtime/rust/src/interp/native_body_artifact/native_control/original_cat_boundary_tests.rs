@@ -113,7 +113,6 @@ fn assert_first(actual: &Interp, mode: u8) {
 
 #[test]
 fn original_dynamic_expression_cat_refuses_before_later_getter_and_backend() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software callbacks on genuine compiled cells, including no-TomMath builds.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

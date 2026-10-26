@@ -494,7 +494,6 @@ mod tests {
     }
     #[test]
     fn original_comparison_updater_stops_before_second_operand_cache_and_lexical_fallback() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Reached software updater/ABA; neither a native numeric route nor opcode observation.
         let mut context = native();
@@ -531,7 +530,6 @@ mod tests {
     }
     #[test]
     fn original_comparison_keeps_current_numeric_and_genuine_lexical_acceptance() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software acceptance control of actual selected owner; no provider equivalence.
         let mut context = native();
@@ -572,7 +570,6 @@ mod tests {
     };
     #[test]
     fn entered_scalar_preparation_preserves_original_first_host_without_access_projection() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A genuine extension updater reaches Host refusal; no external conversion result is asserted.
         let mut context = Context(
@@ -610,7 +607,6 @@ mod tests {
     }
     #[test]
     fn original_arithmetic_updater_preserves_first_refusal_before_second_operand_and_kernel() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Genuine software updater/ABA; this does not measure a C arithmetic opcode or errno sequence.
         let mut context = native();
@@ -644,7 +640,6 @@ mod tests {
     }
     #[test]
     fn original_unary_preparation_keeps_reached_host_cause_and_consumed_reference() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A real updater supplies its own first Host cause, independently of Guest numeric rejection.
         let mut context = native();
@@ -670,7 +665,6 @@ mod tests {
     }
     #[test]
     fn selected_arithmetic_rejection_cannot_reparse_an_original_spelling_with_ambient_syntax() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The deliberately different ambient parser is a software control, not an original C process observation.
         let mut context = Context(
@@ -701,7 +695,6 @@ mod tests {
     }
     #[test]
     fn original_c84_left_rejection_stops_before_right_updater_and_guest_replacement() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software sequencing control; the updater would refuse if reached.
         // The selected C84 left conversion must reject before right conversion.
@@ -743,7 +736,6 @@ mod tests {
     }
     #[test]
     fn original_arithmetic_and_unary_positive_paths_share_selected_current_operands() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Bounded software acceptance/identity controls; no full release arithmetic equivalence is asserted.
         for version in ["tcl8.4", "tcl8.6"] {
@@ -792,7 +784,6 @@ mod tests {
     };
     #[test]
     fn original_expr_add_facade_consumes_partial_null_and_first_host_inputs_before_return() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real public facade with transferred references; original pending cause remains independent of Guest arithmetic.
         for pending in [false, true] {

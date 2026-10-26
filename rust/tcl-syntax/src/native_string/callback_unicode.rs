@@ -46,7 +46,6 @@ mod tests {
 
     #[test]
     fn callback_unicode_keeps_counted_zero_and_actual_selected_units() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Pure returned-byte projection, not a native getter or Unicode cache receipt.
         for version in [
@@ -81,7 +80,6 @@ mod tests {
 
     #[test]
     fn callback_unicode_pairs_c8_units_without_forgiving_c9_surrogates() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Fixed selected-unit inputs; no runtime or platform conversion grant.
         let cesu = b"\xed\xa0\xbd\xed\xb9\x82";

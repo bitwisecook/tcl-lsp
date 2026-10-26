@@ -245,7 +245,6 @@ impl CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         name: &str,
     ) -> Option<String> {
-        // naming.minifier.logical-source-header
 
         if !self.matches_resolved_analysis_input(input)
             || input.has_hosted_source_name_context()
@@ -280,7 +279,6 @@ impl CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         words: &[tcl_lexer::NativeWord],
     ) -> Option<String> {
-        // naming.minifier.complete-logical-metadata
 
         if !self.matches_resolved_analysis_input(input)
             || input.has_hosted_source_name_context()
@@ -435,7 +433,6 @@ impl CommandBindingRealm {
     /// Each consumer must select its own purpose projection afterwards;
     /// attachment itself grants neither dispatch nor body-entry authority.
     pub fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         self.bindings
             .stamp_original_tokens_with_bindings(tokens, |offset| {
@@ -529,7 +526,6 @@ impl CommandBindingRealm {
         cursor: u32,
         registry: &CommandRegistry,
     ) -> Option<tcl_lexer::Span> {
-        // Implementation contract: naming.source.incomplete-body-header-metadata
 
         self.bindings
             .original_incomplete_body_region_at(image, config, cursor, registry)
@@ -877,7 +873,6 @@ pub(crate) fn document_realm_bindings_with_resolved_input(
     input: &crate::analyser::ResolvedAnalysisInput,
     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
 ) -> CommandBindingRealm {
-    // naming.diagnostic.original-math-function-subject
 
     let context = input.context_registry();
     let config = input.lexer_config();
@@ -912,7 +907,6 @@ pub(crate) fn document_lexical_realm_with_resolved_input(
     input: &crate::analyser::ResolvedAnalysisInput,
     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
 ) -> CommandBindingRealm {
-    // naming.minifier.logical-source-header
 
     let context = input.context_registry();
     let options = logical_source_options(input);
@@ -983,7 +977,6 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
     input: &crate::analyser::ResolvedAnalysisInput,
     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
 ) -> CommandBindingRealm {
-    // naming.vendor.original-source-context-input
 
     let context = input.context_registry();
     let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
@@ -1026,7 +1019,6 @@ pub fn document_realm_bindings_for_module(
     module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<CommandBindingRealm> {
-    // naming.source.retained-positioned-command-realm
 
     let retained = module.retained_source_bindings.as_deref()?;
     let bindings = retained.positioned_for_module(module, registry)?;
@@ -1118,7 +1110,6 @@ mod tests {
 
     #[test]
     fn original_module_realm_reuses_positioned_inventory_across_native_engine_profiles() {
-        // naming.source.retained-positioned-command-realm
 
         let source = "namespace eval N {proc p {} {return OK}}; interp alias {} forwarding {} N::p; rename forwarding moved; moved";
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1151,7 +1142,6 @@ mod tests {
 
     #[test]
     fn original_module_realm_refuses_missing_and_same_store_foreign_availability() {
-        // naming.source.retained-positioned-command-realm
 
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -1202,7 +1192,6 @@ mod tests {
 
     #[test]
     fn resolved_input_preserves_math_policy_without_catalogue_default() {
-        // naming.diagnostic.original-math-function-subject
 
         use tcl_registry::mathfunc::NativeMathFunctionDispatch;
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1456,7 +1445,6 @@ mod tests {
     /// Creating a named child also installs its own parent command.
     #[test]
     fn a_safe_interpreters_hidden_command_states_nothing_here() {
-        // naming.interpreter.original-created-parent-command
 
         // Native CLI observes named child creation/deletion and handle/path
         // evaluation. These assertions exercise source command-table advice;
@@ -1926,7 +1914,6 @@ mod original_resolved_realm_input_tests {
 
     #[test]
     fn original_resolved_realm_producers_keep_exact_input_and_independent_source_currency() {
-        // naming.source.retained-positioned-command-realm
 
         // Retaining editing input supplies no Native admission or frame entry.
         let source = "\u{feff}set saved 1\nset final 2";
@@ -1968,7 +1955,6 @@ mod original_resolved_realm_input_tests {
 
     #[test]
     fn original_resolved_realm_producers_refuse_missing_foreign_and_changed_inputs() {
-        // naming.source.retained-positioned-command-realm
 
         let source = "set retained 1";
         for (label, input, producer) in original_inputs() {

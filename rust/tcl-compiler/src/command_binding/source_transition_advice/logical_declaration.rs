@@ -17,7 +17,6 @@ impl crate::command_binding::SourceCommandBindings {
         context: &ContextRegistry,
         original: &[NativeWord],
     ) -> Option<OriginalSourceCommandTransitionAdvice> {
-        // naming.minifier.complete-logical-metadata
 
         let input = self.original_logical_source_name_advice_input()?;
         if !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context) {
@@ -103,7 +102,6 @@ impl crate::command_binding::SourceCommandBindings {
 mod tests {
     #[test]
     fn original_logical_nested_header_retains_declared_body_and_full_input() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "proc p {longname} {return $longname}\n";
         let profile = tcl_dialect::DialectProfile::plain_tcl();

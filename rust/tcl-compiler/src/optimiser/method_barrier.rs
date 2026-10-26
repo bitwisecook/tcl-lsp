@@ -726,7 +726,6 @@ mod tests {
 
     #[test]
     fn nested_dispatch_uses_retained_availability_and_source_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source-only dispatch advice; Native frame and implementation entry stay absent.
         let current =
@@ -825,7 +824,6 @@ mod tests {
 
     #[test]
     fn dispatch_metadata_requires_actual_module_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual original registrations are retained independently of metadata
         // availability. The owner stays alive through every refusal control.
@@ -900,7 +898,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_dispatch_purpose_preserves_unknown_reachability() {
-        // naming.optimisation.original-source-purpose
 
         let source = "proc helper {} {dict create key value}";
         // Actual software Vm entry; no external Jim/provider execution.
@@ -1032,7 +1029,6 @@ mod original_relation_tests {
 
     #[test]
     fn original_class_relation_uses_retained_allocations_without_same_tail_edges() {
-        // naming.tcloo.original-class-relation-candidates
 
         let source = "namespace eval left {oo::class create Same {method safe {} {return LEFT}}}
 namespace eval right {oo::class create Same {method safe {} {return RIGHT}}}
@@ -1056,7 +1052,6 @@ oo::class create Derived {superclass ::left::Same; method safe {} {return DERIVE
 
     #[test]
     fn original_class_relation_unavailable_source_widens_before_empty_bad_class_shortcut() {
-        // naming.tcloo.original-class-relation-candidates
 
         let source = "oo::class create Base {method safe {} {return BASE}}
 oo::class create Derived {superclass Base; method safe {} {return DERIVED}}";
@@ -1090,7 +1085,6 @@ oo::class create Derived {superclass Base; method safe {} {return DERIVED}}";
 
     #[test]
     fn original_class_relation_alias_and_external_obligations_do_not_become_empty_edges() {
-        // naming.tcloo.original-class-relation-candidates
 
         for source in [
             "oo::class create Base {method safe {} {return BASE}}
@@ -1107,7 +1101,6 @@ oo::class create Derived {superclass OtherTail; method safe {} {return DERIVED}}
 
     #[test]
     fn original_class_relation_keeps_protected_literal_punctuation_as_source_data() {
-        // naming.tcloo.original-class-relation-candidates
 
         let (module, context) = original_module(
             "oo::class create Derived {superclass {$literal}; method safe {} {return DERIVED}}",
@@ -1123,7 +1116,6 @@ oo::class create Derived {superclass OtherTail; method safe {} {return DERIVED}}
     #[test]
     fn original_configure_relation_joins_existing_class_allocation_separate_from_configuration_site()
      {
-        // naming.tcloo.original-class-relation-candidates
 
         let source = "oo::class create Base {method safe {} {return BASE}}
 oo::class create Derived {method safe {} {return DERIVED}}

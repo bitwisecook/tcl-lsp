@@ -88,7 +88,6 @@ mod tests {
 
     #[test]
     fn array_existence_results_share_only_the_selected_native_environment_constant() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // Original C case15/16/17 header windows bind the producer selection.
         // This VM control separately checks owned model identity, not a C pointer.

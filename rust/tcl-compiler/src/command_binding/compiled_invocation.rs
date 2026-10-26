@@ -2497,7 +2497,6 @@ impl SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> bool {
-        // Implementation contract: naming.compiler.original-name-effect-separation
 
         self.original_compiler_preserves_names.is_preserved()
             && self.original_lexer_config_for_tokens(tokens).is_some()
@@ -3217,7 +3216,6 @@ mod tests {
 
     #[test]
     fn string_equal_public_replacement_follows_its_original_compiler_shape() {
-        // Implementation contract: naming.compiler.original-compiler-operand-coordinates
 
         // The native scalar argv windows independently establish member shape;
         // this source-model control checks the replacement horizon, not a native run.
@@ -3742,7 +3740,6 @@ mod original_logical_compiler_purpose_tests {
 
     #[test]
     fn original_logical_root_procedure_and_alias_select_no_native_compiler_admission() {
-        // naming.compiler.original-name-effect-separation
 
         for source in [
             "list VALUE",
@@ -3786,7 +3783,6 @@ mod original_logical_compiler_purpose_tests {
 
     #[test]
     fn original_logical_unknown_callback_stays_open_without_compiler_admission() {
-        // naming.compiler.original-name-effect-separation
 
         let source = "proc selected {value} {}; unknown; selected VALUE";
         let (bindings, input) = logical_source(source);
@@ -3823,7 +3819,6 @@ mod original_logical_compiler_purpose_tests {
 
     #[test]
     fn original_native_and_authored_unknown_compiler_purposes_are_not_logical_source() {
-        // naming.compiler.original-name-effect-separation
 
         let environment =
             tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();

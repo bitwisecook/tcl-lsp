@@ -10,7 +10,6 @@ use tcl_syntax::scalar_getter::{
 
 #[test]
 fn original_switch_exact_lower_keeps_actual_shared_and_unshared_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for shared in [false, true] {
         let mut interpreter = fixture::native("tcl9.1");
@@ -52,7 +51,6 @@ fn original_switch_exact_lower_keeps_actual_shared_and_unshared_roles() {
 
 #[test]
 fn original_switch_scalar_retirement_checks_frame_and_first_host_before_cache() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for (kind, bytes) in [
         (Kind::Wide, b"42".as_slice()),
@@ -112,7 +110,6 @@ fn original_switch_scalar_retirement_checks_frame_and_first_host_before_cache() 
 
 #[test]
 fn original_switch_lower_refusal_precedes_string_mutation_and_later_stage() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2, 3] {
         let mut interpreter = fixture::native("tcl9.1");
@@ -158,7 +155,6 @@ fn original_switch_lower_refusal_precedes_string_mutation_and_later_stage() {
 
 #[test]
 fn original_switch_guest_scalar_failure_preserves_existing_public_getter_fields() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let interpreter = fixture::native("tcl9.1");
     let operation = BodyObjectOperation::capture(&interpreter).unwrap();
@@ -186,7 +182,6 @@ fn original_switch_guest_scalar_failure_preserves_existing_public_getter_fields(
 
 #[test]
 fn original_switch_selected_bodies_keep_exact_integer_and_empty_regexp_results() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = fixture::native("tcl9.1");
     for script in [

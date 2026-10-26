@@ -193,7 +193,6 @@ mod tests {
 
     #[test]
     fn original_increment_adapters_keep_selected_cached_receivers_and_amount_owners() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // These are actual software adapters/owners, not external getter/refcount chronology.
         for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -244,7 +243,6 @@ mod tests {
 
     #[test]
     fn original_increment_adapters_refuse_retired_inputs_before_prepare_probe_and_store() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for legacy in [false, true] {
             let mut vm = core(if legacy { "tcl8.4" } else { "tcl8.6" });
@@ -269,7 +267,6 @@ mod tests {
 
     #[test]
     fn original_increment_completion_keeps_prior_full_cause_and_stops_variable_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = core("tcl8.6");
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -283,7 +280,6 @@ mod tests {
 
     #[test]
     fn original_increment_store_checks_withdrawal_before_cache_or_string_invalidation() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A supplied stage checker releases the real header; it is not a C free callback issuer.
         for legacy in [false, true] {
@@ -325,7 +321,6 @@ mod tests {
     }
     #[test]
     fn original_increment_adapter_refuses_actual_scope_aba_after_probe_before_store() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // This software mutable adapter callback changes and restores the actual Host;
         // it does not claim a callback in the closed Number getter itself.
@@ -375,7 +370,6 @@ mod tests {
     #[test]
     fn original_jim_wide_expression_keeps_cached_current_context_and_refuses_foreign_or_retired_owners()
      {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Cached current-context branch and actual foreign context admission only;
         // external Jim expression getter chronology is a separate proof.
@@ -409,7 +403,6 @@ mod tests {
 
     #[test]
     fn original_jim_wide_expression_refuses_retired_header_before_context_or_guest_work() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = core("jim");
         let original = Value::int(6);

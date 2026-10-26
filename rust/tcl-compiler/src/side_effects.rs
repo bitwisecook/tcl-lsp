@@ -1930,7 +1930,6 @@ mod tests {
 
     #[test]
     fn namespace_place_storage_scope_requires_the_selected_domain_before_static_reporting() {
-        // naming.analysis.resolved-static-variable-patterns
 
         // Actual resolver/domain software inputs; no physical BIG-IP worker is observed.
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();

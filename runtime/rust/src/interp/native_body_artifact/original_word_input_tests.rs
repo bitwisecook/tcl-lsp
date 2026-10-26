@@ -114,7 +114,6 @@ fn assert_first(actual: &Interp, mode: u8) {
 }
 #[test]
 fn original_compiled_word_cat_keeps_entered_frame_inside_first_string_before_later_component() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine cached arena/local cells and their original getters. Reference
     // observations are software roles, not external Native callback chronology.
@@ -187,7 +186,6 @@ fn original_compiled_word_cat_keeps_entered_frame_inside_first_string_before_lat
 }
 #[test]
 fn original_compiled_word_cat_checks_after_genuine_component_retirement_before_returning_result() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The real second component is the sole native owner, so actual checked
     // Cat completion retires it without a protective native hold.
@@ -277,7 +275,6 @@ fn command_component(actual: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 }
 #[test]
 fn original_compiled_command_component_restores_saved_metadata_before_refusal_settlement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual command component and its displaced owning header, software-only.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

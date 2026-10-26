@@ -24,7 +24,6 @@ use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
 use tcl_registry::{InvocationWord, InvocationWords, ResolvedInvocation};
 
 pub(super) fn abbreviate(source: &str, env: MinifyEnv<'_>) -> (String, usize) {
-    // naming.minifier.complete-logical-metadata
 
     let Some(census) = lexical_metadata::command_census(source, env) else {
         return (source.to_owned(), 0);

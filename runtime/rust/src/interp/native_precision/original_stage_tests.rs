@@ -247,7 +247,6 @@ fn original(
 
 #[test]
 fn original_precision_safe_write_precedes_string_and_numeric_stages() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6"] {
         let host = NumericHost::new();
@@ -288,7 +287,6 @@ fn original_precision_safe_write_precedes_string_and_numeric_stages() {
 
 #[test]
 fn original_precision_modern_int_uses_cache_and_rejects_double_without_string() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for engine in ["tcl8.5", "tcl8.6"] {
         let host = NumericHost::new();
@@ -339,7 +337,6 @@ fn original_precision_modern_int_uses_cache_and_rejects_double_without_string() 
 
 #[test]
 fn original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual linked libc/ABI, software callback purpose; no external Tcl32 recipe.
     let host = NumericHost::new();
@@ -390,7 +387,6 @@ fn original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset() {
 
 #[test]
 fn original_precision_string_and_numeric_callbacks_stop_before_publication_on_aba() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for at_string in [true, false] {
         let host = NumericHost::new();
@@ -420,7 +416,6 @@ fn original_precision_string_and_numeric_callbacks_stop_before_publication_on_ab
 
 #[test]
 fn original_precision_c84_restore_keeps_reached_cell_and_first_retirement_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let host = NumericHost::new();
     let mut interpreter = native("tcl8.4", host.clone());
@@ -459,7 +454,6 @@ fn original_precision_c84_restore_keeps_reached_cell_and_first_retirement_cause(
 
 #[test]
 fn original_precision_missing_environment_and_prior_cause_remain_outer_refusals() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6"] {
         let host = NumericHost::new();
@@ -513,7 +507,6 @@ fn original_precision_missing_environment_and_prior_cause_remain_outer_refusals(
 
 #[test]
 fn original_precision_read_ignores_guest_array_store_without_promoting_host_failure() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6"] {
         let host = NumericHost::new();
@@ -535,7 +528,6 @@ fn original_precision_read_ignores_guest_array_store_without_promoting_host_fail
 
 #[test]
 fn original_precision_unsigned_long_default_absence_cannot_borrow_another_worker() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The environment supplies its genuine target and other actual workers,
     // while omitting precisely the newly selected optional unsigned-long stage.
@@ -607,7 +599,6 @@ fn original_precision_unsigned_long_default_absence_cannot_borrow_another_worker
 
 #[test]
 fn original_precision_absent_value_keeps_the_selected_null_getter_worker() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6"] {
         let host = NumericHost::new();
@@ -642,7 +633,6 @@ fn original_precision_absent_value_keeps_the_selected_null_getter_worker() {
 
 #[test]
 fn original_precision_string_getter_keeps_the_borrowed_cell_reference_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software extension observes the original native header. The allocation
     // lease changes no public reference or sharing state at the getter.

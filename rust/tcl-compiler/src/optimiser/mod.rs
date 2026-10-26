@@ -717,7 +717,6 @@ mod tests {
             }
             .retained_metadata_context()
         }
-        // naming.compiler.original-analysis-metadata-context
 
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

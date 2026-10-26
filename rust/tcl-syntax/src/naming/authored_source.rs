@@ -24,7 +24,6 @@ pub fn authored_source_command_slot(
     current: &ByteNamespacePath,
     written: &[u8],
 ) -> Option<ByteCommandSlot> {
-    // naming.source.original-declared-command-word-contract
 
     source_units(current, written)?;
     let parts = super::qualifier_segments(written);
@@ -62,7 +61,6 @@ pub fn authored_source_command_candidates(
     path: &[ByteNamespacePath],
     written: &[u8],
 ) -> Option<Vec<ByteCommandSlot>> {
-    // naming.source.original-declared-command-word-contract
 
     source_units(current, written)?;
     let mut result = Vec::new();
@@ -87,7 +85,6 @@ pub fn authored_source_namespace_path(
     current: &ByteNamespacePath,
     written: &[u8],
 ) -> Option<ByteNamespacePath> {
-    // naming.source.original-declared-command-word-contract
 
     source_units(current, written)?;
     let mut namespace = if written.starts_with(b"::") {
@@ -139,7 +136,6 @@ mod tests {
 
     #[test]
     fn original_authored_scope_preserves_constructed_components_and_empty_tail() {
-        // naming.source.original-declared-command-word-contract
 
         let mut current = ByteNamespacePath::root();
         current.push(NameBytes::from(&b"literal::component"[..]));
@@ -161,7 +157,6 @@ mod tests {
 
     #[test]
     fn original_authored_candidates_keep_order_and_decline_unmodelled_units() {
-        // naming.source.original-declared-command-word-contract
 
         let mut current = ByteNamespacePath::root();
         current.push(NameBytes::from(&b"current"[..]));
@@ -186,7 +181,6 @@ mod tests {
     }
     #[test]
     fn original_authored_unicode_scope_keeps_raw_components_and_canonical_colons() {
-        // naming.source.original-declared-command-word-contract
 
         // Conditional Logical geometry only; no Native name or table binding.
         let mut current = ByteNamespacePath::root();
@@ -237,7 +231,6 @@ mod tests {
 
     #[test]
     fn original_authored_unicode_scope_refuses_invalid_written_and_retained_units() {
-        // naming.source.original-declared-command-word-contract
 
         let root = ByteNamespacePath::root();
         for written in [

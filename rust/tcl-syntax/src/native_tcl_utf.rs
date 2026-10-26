@@ -679,7 +679,6 @@ mod original_storage_unit_controls {
     use super::*;
     #[test]
     fn legacy_storage_plain_char_promotion_is_separate_from_public_unit_decoding() {
-        // naming.string.original-counted-replacement-and-index-stages
 
         // The measured legacy provider has signed char. Unsigned is a pure
         // supplied-ABI control; no external unsigned-build process is claimed.

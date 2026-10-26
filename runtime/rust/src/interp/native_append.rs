@@ -1010,7 +1010,6 @@ mod original_c84_counted_append_tests {
 
     #[test]
     fn original_c84_seed_getter_refuses_before_any_global_setter() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Allocation-only original result observation and software first-cause transport.
         for action in 1..3 {
@@ -1054,9 +1053,7 @@ mod original_c84_counted_append_tests {
 
     #[test]
     fn original_c84_counted_worker_checks_getter_and_primary_retirement_before_write() {
-        // naming.error.c84-publication-order
 
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Runtime updater/free observations see the genuine cell-only +1;
         // software Host/ABA behaviour is separate from external C84 observations.
@@ -1125,7 +1122,6 @@ mod original_c84_counted_append_tests {
 
     #[test]
     fn original_c84_changed_same_cell_cannot_combine_old_append_bytes_with_new_value() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A genuine legal cell replacement keeps context current; the prepared original header still refuses.
         for append in [true, false] {
@@ -1191,9 +1187,7 @@ mod original_c84_counted_append_tests {
 
     #[test]
     fn original_c84_error_caller_preserves_reached_seed_and_blocks_later_code_and_result() {
-        // naming.error.c84-publication-order
 
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual installed error worker under its original entry; no modern order or free-callback getter grant.
         for action in 0..3 {
@@ -1347,9 +1341,7 @@ mod original_c84_counted_append_tests {
     }
     #[test]
     fn original_c84_write_outcome_settles_flags_before_refusing_later_getters() {
-        // naming.error.nonempty-info-publication-order
 
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Genuine cached counted write and callback effects; Guest-ignore/Host-stop is software transport.
         for mode in 0..4 {
@@ -1602,9 +1594,7 @@ mod original_c84_pending_scalar_tests {
 
     #[test]
     fn original_c84_cow_publishes_pending_allocation_and_settles_only_the_same_live_role() {
-        // naming.error.c84-publication-order
 
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Selected original C84 publication/refcount stages plus software refusal;
         // no external callback/Host/teardown equivalence is inferred.
@@ -1747,7 +1737,6 @@ mod original_c84_pending_scalar_tests {
 
     #[test]
     fn original_c84_missing_cell_adopts_counted_message_before_write_without_working_hold() {
-        // naming.error.c84-publication-order
 
         // Selected C84 missing-cell source role; no later-version COW or Native teardown claim.
         crate::counters::reset();

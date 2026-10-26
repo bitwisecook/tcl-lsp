@@ -196,7 +196,6 @@ mod tests {
 
     #[test]
     fn original_named_projection_keeps_complete_source_ownership_and_selected_ordinals() {
-        // Implementation contract: naming.compiler.original-named-operand-projection
 
         let source = r"namespace export p\uD800";
         let image = tcl_lexer::SourceImage::document(source);
@@ -252,7 +251,6 @@ mod tests {
 
     #[test]
     fn original_named_namespace_helper_retains_counted_operand_input() {
-        // Implementation contract: naming.compiler.original-named-operand-projection
 
         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();

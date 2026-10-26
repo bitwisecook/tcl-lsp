@@ -118,7 +118,6 @@ fn observe(interp: &mut Interp, index: usize) -> Vec<String> {
 
 #[test]
 fn original_counted_map_prefix_vectors_match_all_20_c_public_windows() {
-    // naming.ensemble.original-counted-map-prefix-construction
 
     // Original counted String/list/map vectors in an actual entered namespace;
     // all construction/readback/call rows match independently. C8.4 and Jim

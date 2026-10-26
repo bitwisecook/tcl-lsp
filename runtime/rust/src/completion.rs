@@ -84,7 +84,6 @@ mod tests {
 
     #[test]
     fn public_completion_returns_original_reached_host_metadata_outside_catch() {
-        // naming.namespace.procedure-call-level-context
 
         // Native scripts establish the direct/nested info-level distinction.
         // The original Host metadata below is a separate software control.
@@ -118,7 +117,6 @@ mod tests {
 
     #[test]
     fn namespace_eval_and_direct_procedure_calls_preserve_native_level_distinction() {
-        // naming.namespace.procedure-call-level-context
 
         // All six native script transcripts report nested2/direct1. This does
         // not assert a native frame structure or a Host metadata ABI.

@@ -3098,7 +3098,6 @@ mod original_ledger_tests {
 
     #[test]
     fn original_ledger_subject_uses_actual_direct_slot_and_complete_source_vector() {
-        // naming.compiler.original-dispatch-ledger-subjects
 
         // Actual Logical source point; no Native pristine-world inference.
         let registry = tcl_registry::CommandRegistry::build_default();
@@ -3137,7 +3136,6 @@ mod original_ledger_tests {
 
     #[test]
     fn original_alias_and_moved_slots_cannot_borrow_descriptor_pristine_subjects() {
-        // naming.compiler.original-dispatch-ledger-subjects
 
         // Genuine authored source transitions, not edited binding rows.
         let registry = tcl_registry::CommandRegistry::build_default();
@@ -3170,7 +3168,6 @@ mod original_ledger_tests {
 
     #[test]
     fn held_jim_entry_receives_no_authored_pristine_dispatch_proof() {
-        // naming.compiler.original-dispatch-ledger-subjects
 
         // Genuine software VM entry; no external Jim execution or trace result.
         let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
@@ -3227,7 +3224,6 @@ mod original_ledger_tests {
 
     #[test]
     fn shared_written_ledger_geometry_preserves_trailing_separator_and_literal_colons() {
-        // naming.compiler.original-dispatch-ledger-subjects
 
         // Authored written geometry only; selected descriptor bytes stay data.
         for (written, key) in [
@@ -3249,7 +3245,6 @@ mod original_ledger_tests {
 
     #[test]
     fn authored_simulation_entry_has_layout_purpose_without_pristine_dispatch_coverage() {
-        // naming.compiler.original-dispatch-ledger-subjects
 
         // Real authored entry policy; no Native interpreter or invocation grant.
         let context =

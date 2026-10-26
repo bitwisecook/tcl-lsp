@@ -5,7 +5,6 @@ use super::*;
 
 #[test]
 fn object_eval_retains_original_script_and_concat_children() {
-    // Source proof: naming.tcloo.object-eval-original-script
 
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for concatenate in [false, true] {

@@ -335,7 +335,6 @@ mod tests {
 
     #[test]
     fn original_numeric_command_recipes_keep_actual_width_order_and_unavailable_workers() {
-        // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
         // Source/API recipe checks only; provider observations are separate.
         use NativeNumericCommandPurpose as Purpose;
@@ -438,7 +437,6 @@ mod tests {
 
     #[test]
     fn original_numeric_command_recipes_refuse_absent_and_foreign_scalar_axes() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use NativeNumericCommandPurpose as Purpose;
         let original = InvocationDialect::for_version(TclVersion::V8_6);
@@ -475,7 +473,6 @@ mod tests {
     }
     #[test]
     fn original_stride_recipes_keep_actual_command_tables_primitive_widths_and_minima() {
-        // naming.list.original-stride-primitive-and-results
 
         // Source/API purpose controls; actual108 command outcomes are independent.
         use NativeNumericCommandPurpose as Purpose;
@@ -563,7 +560,6 @@ mod original_list_numeric_purpose_controls {
     use super::*;
     #[test]
     fn list_numeric_recipes_select_original_search_sort_widths_and_jim_option_support() {
-        // naming.list.original-numeric-pattern-key-getters-and-results
 
         // Source-selected primitive recipes; native645 Glob and647 Exact rows
         // bound separate original public effects, not general callback scheduling.

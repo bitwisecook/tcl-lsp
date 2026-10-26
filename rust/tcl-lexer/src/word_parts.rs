@@ -1313,7 +1313,6 @@ mod template_policy_tests {
 
     #[test]
     fn c_template_retains_disabled_sigil_and_escape_token_boundaries() {
-        // Source proof: naming.substitution.template-token-and-index-source
 
         // v6 source0/flags5 has four native pushes before strcat, so C9
         // returns a String rather than one unchanged literal with no primary.
@@ -1485,7 +1484,6 @@ mod tests {
 
     #[test]
     fn original_bracket_boundaries_keep_selected_variable_name_grammar() {
-        // naming.source.original-configured-script-completeness
 
         // Original lexical geometry only; no variable read or command entry.
         let selected = LexerConfig {
@@ -1539,7 +1537,6 @@ mod tests {
 
     #[test]
     fn outer_substitution_mask_does_not_disable_array_index_commands() {
-        // Source proof: naming.substitution.template-token-and-index-source
 
         // The C v6 array-index control runs its command with outer commands
         // disabled. JimExpandDictSugar separately selects JIM_NONE.
@@ -1729,7 +1726,6 @@ mod tests {
 
     #[test]
     fn original_name_extent_requires_the_actual_source_allocation() {
-        // naming.inlining.original-frame-source-context
 
         // Exact lexical extent only; no Native name, frame or edit grant.
         for original in ["${café}", "${$literal}", "${arr(key)}", "${}", "$arr($key)"] {
@@ -2105,7 +2101,6 @@ mod tests {
 
     #[test]
     fn raw_index_geometry_keeps_empty_and_foreign_source_distinct() {
-        // Implementation contract: naming.grammar.checked-expression-substitution-context
 
         let source = b"$a()".to_vec();
         let reference = scan_var_ref(&source, 0, nine()).unwrap().unwrap();

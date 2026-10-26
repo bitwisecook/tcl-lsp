@@ -779,7 +779,6 @@ mod tests {
 
     #[test]
     fn original_allocation_and_grouped_names_control_tail_rewrites() {
-        // Implementation contract: naming.optimiser.original-tail-call-inventory
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(dialect)
@@ -821,7 +820,6 @@ mod tests {
 
     #[test]
     fn produced_expression_commands_retain_readonly_self_identity() {
-        // Implementation contract: naming.optimiser.original-tail-call-inventory
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(dialect)
@@ -1210,7 +1208,6 @@ mod tests {
 
     #[test]
     fn unchanged_original_formal_objects_continue_without_releasing_or_rendering_them() {
-        // Implementation contract: naming.optimiser.original-tail-call-inventory
 
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(name)
@@ -1384,7 +1381,6 @@ mod original_tail_parser_purpose_tests {
 
     #[test]
     fn original_tail_command_slices_keep_bom_and_retained_return_geometry() {
-        // naming.optimiser.original-tail-call-inventory
 
         // Original parser geometry only; the inventory retains independent rewrite obligations.
         let mut prepared = crate::analyser::Analyser::new();
@@ -1461,7 +1457,6 @@ mod original_tail_parser_purpose_tests {
 
     #[test]
     fn original_tail_command_extent_keeps_each_written_closer_and_selected_trivia() {
-        // naming.optimiser.original-tail-call-inventory
 
         // Actual retained lexical extents only, independently of tail-call rewrites or native entry.
         let profile = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
@@ -1511,7 +1506,6 @@ mod original_tail_parser_purpose_tests {
 
     #[test]
     fn original_tail_command_extent_refuses_changed_source_config_vector_and_multiple_commands() {
-        // naming.optimiser.original-tail-call-inventory
 
         let profile = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
             .unwrap()

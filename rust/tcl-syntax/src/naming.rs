@@ -2321,7 +2321,6 @@ mod tests {
 
     #[test]
     fn scalar_parentheses_share_the_closed_element_partition() {
-        // Implementation contract: naming.expression.selected-reference-root
 
         // Native341 public values establish the distinct scalar/element cases;
         // these assertions bind only the source-name projection, not a cell.
@@ -2415,7 +2414,6 @@ mod tests {
 
     #[test]
     fn selected_reference_roots_keep_whole_scalar_and_combined_element_bytes() {
-        // Implementation contract: naming.expression.selected-reference-root
 
         for style in [
             tcl_dialect::BracedVarStyle::FirstClose,
@@ -3005,7 +3003,6 @@ mod tests {
 
     #[test]
     fn written_component_extents_share_segmentation_and_preserve_original_byte_geometry() {
-        // naming.editor.logical-written-component-geometry
 
         // Written segmentation only; no native input/namespace or edit admission.
         for (written, wanted) in [
@@ -3077,7 +3074,6 @@ mod shared_boundary_tests {
 
     #[test]
     fn written_separator_spans_retain_complete_runs_and_counted_units() {
-        // Implementation contract: naming.grammar.shared-written-name-boundaries
 
         // Counted source geometry only; no native extent or name identity.
         for (written, separator, tail) in [
@@ -3098,7 +3094,6 @@ mod shared_boundary_tests {
 
     #[test]
     fn key_suffixes_preserve_constructed_colon_segments_without_lookup_authority() {
-        // naming.analysis.procedure-summary-candidate-keys
 
         // Pure constructed labels only, never Native namespace interpretation.
         assert_eq!(

@@ -1592,7 +1592,6 @@ impl BodyWalk<'_, '_> {
                 super::logical_navigation::LogicalCallbackScope::Declared,
             ),
         );
-        // naming.source.original-editor-body-structure
 
         if graph.blocks_registry_source(invocation.head) {
             tape.registry_barriers
@@ -1775,7 +1774,6 @@ mod logical_body_inventory_tests {
 
     #[test]
     fn logical_immediate_body_schema_keeps_original_geometry_and_unknown_effects_separate() {
-        // naming.source.original-editor-body-structure
 
         for source in [
             "switch $subject one {set local 1} default {set other 2}",
@@ -1828,7 +1826,6 @@ mod logical_body_inventory_tests {
 
     #[test]
     fn logical_immediate_body_schema_keeps_child_mutations_and_foreign_owners_terminal() {
-        // naming.source.original-editor-body-structure
 
         let source = "switch $subject one {rename set gone; set blocked 1}";
         let analysis = analyse(source);
@@ -1871,7 +1868,6 @@ mod logical_body_inventory_tests {
     }
     #[test]
     fn logical_root_substitutions_keep_alias_point_without_future_body_applicability() {
-        // naming.source.original-editor-body-structure
 
         let source = "interp alias {} make {} list set x; eval [make $value]";
         let analysis = analyse(source);
@@ -1919,7 +1915,6 @@ mod logical_body_inventory_tests {
 
     #[test]
     fn logical_root_substitutions_keep_earlier_mutations_and_owner_refusals() {
-        // naming.compiler.original-analysis-metadata-context
 
         let source = "interp alias {} make {} list set x; eval [make $value]";
         let baseline = analyse(source);
@@ -2058,7 +2053,6 @@ mod original_empty_coverage_tests {
 
     #[test]
     fn original_reference_only_coverage_is_complete_empty_and_keeps_following_source_lookup() {
-        // naming.source.original-script-region-purpose
 
         // Conditional source mutation coverage only; no execution or handler grant.
         let (projection, unchanged) = projection(
@@ -2074,7 +2068,6 @@ mod original_empty_coverage_tests {
 
     #[test]
     fn original_unavailable_evaluated_body_coverage_cannot_claim_complete_empty() {
-        // naming.source.original-script-region-purpose
 
         // A dynamic or recooked selected body remains unavailable mutation coverage.
         for source in [
@@ -2112,7 +2105,6 @@ mod original_source_expression_topology_tests {
 
     #[test]
     fn original_logical_expression_child_retains_alias_actual_base_and_no_native_recipe() {
-        // naming.source.authored-command-transition-advice
 
         // Original conditional source schema only; no entered command or runtime output.
         let input = input();
@@ -2204,7 +2196,6 @@ mod original_expression_purpose_frontier_tests {
 
     #[test]
     fn original_logical_expression_topology_cannot_supply_missing_native_parser_purpose() {
-        // naming.source.authored-command-transition-advice
 
         // Descriptive source/name/parser axes only, without a Native invocation.
         let profile = tcl_dialect::DialectProfile::plain_tcl();

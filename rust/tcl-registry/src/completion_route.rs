@@ -458,7 +458,6 @@ mod tests {
         use crate::InvocationWord::{Dynamic, Literal};
         use crate::registry::native_return_state_effect;
         use crate::world_effect::WorldStateDomain;
-        // Implementation contract: naming.registry.return-identity-effect-coverage
 
         let registry = CommandRegistry::build_default();
         let selected = registry.get("return").expect("core return spec");

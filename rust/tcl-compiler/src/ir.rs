@@ -3965,7 +3965,6 @@ mod tests {
 
     #[test]
     fn original_word_carrier_keeps_actual_quotes_escapes_and_expansion_presentations() {
-        // naming.source.original-direct-token-owner
 
         // This only checks a genuine written token carrier's compatibility
         // projections. It supplies no source provenance or evaluated argv.
@@ -4005,7 +4004,6 @@ mod tests {
 
     #[test]
     fn original_word_carrier_refuses_same_count_text_and_word_changes() {
-        // naming.source.original-direct-token-owner
 
         let source = "list ONE";
         let config = LexerConfig::default();

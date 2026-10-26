@@ -2471,7 +2471,6 @@ mod original_operand_tests {
     use crate::obj::Owned;
     #[test]
     fn original_variable_trace_queries_preserve_cells_and_first_host() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for legacy in [false, true] {
             for mode in [Update::Host, Update::Restore] {

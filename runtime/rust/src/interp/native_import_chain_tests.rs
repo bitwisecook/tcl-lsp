@@ -98,7 +98,6 @@ fn query_rows(stdout: &str) -> Vec<&str> {
 
 #[test]
 fn original_deep_import_queries_match_all_546_c_and_jim_public_rows() {
-    // naming.namespace.original-deep-import-chain
 
     // The complete original ASCII/LF probe is unchanged. Only 91 public
     // code/result rows per provider are compared; CLI version/path and helper
@@ -211,7 +210,6 @@ fn placeholder(_: &mut Interp, _: &[*mut crate::obj::TclObj]) -> Code {
 
 #[test]
 fn malformed_actual_import_generation_cycle_has_no_partial_query_origin() {
-    // naming.namespace.original-deep-import-chain
 
     // Software-only invariant control: direct owned table mutation deliberately
     // bypasses the public import loop rejection to exercise query termination.

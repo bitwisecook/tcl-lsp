@@ -31,7 +31,6 @@ impl SourceInvocationBinding {
         context: &ContextRegistry,
         realm: InvocationRealm,
     ) -> Option<OriginalNativeUnavailableCommand> {
-        // naming.diagnostic.original-command-source-unavailability
 
         let lookup = self.original_static_head_lookup_for_tokens(tokens)?;
         let registry = context.commands().snapshot().semantic_key();
@@ -80,7 +79,6 @@ impl SourceInvocationBinding {
         realm: InvocationRealm,
         written: &str,
     ) -> Option<(CommandSourceUnavailability, Vec<Vec<NameBytes>>)> {
-        // naming.diagnostic.original-command-source-unavailability
 
         let snapshot = self.lookup_state.as_ref()?;
         let state = &snapshot.state;

@@ -142,7 +142,6 @@ fn glob_arg_roles(
     args: crate::InvocationArguments<'_>,
     options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
-    // naming.core.original-pattern-retained-context
 
     let count = args.exact_argv_len()?;
     if count > usize::from(u8::MAX) + 1 {

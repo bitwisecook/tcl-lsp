@@ -470,7 +470,6 @@ fn through_preserved(
 /// Registry spelling of an authored startup key. Named namespaces retain their
 /// qualification; Native cells use their independently retained namespace owner.
 pub(super) fn startup_var_name(name: &str) -> &str {
-    // naming.diagnostics.original-resolved-variable-name-advice
 
     let normalised = crate::naming::split_array_name_braced(name, true).0;
     tcl_syntax::naming::unroot_rooted_key(normalised).unwrap_or(normalised)
@@ -1316,7 +1315,6 @@ fn collect_original_expression_writes(
     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
     out: &mut FxHashSet<String>,
 ) {
-    // naming.diagnostic.original-materialized-write-footprint
 
     let Some(input) = metadata.source_analysis_input() else {
         return;
@@ -2496,7 +2494,6 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn qualified_alias_tail_advice_uses_retained_context_over_catalogue_profile() {
-        // naming.compiler.original-analysis-metadata-context
 
         // This checks authored metadata availability and source-name suppression,
         // without claiming native namespace-link execution or cell identity.
@@ -2665,7 +2662,6 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn materialized_suppression_keeps_original_aliases_and_literal_names() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // The real diagnostic suppression consumer receives possible names,
         // never a Native write, successful evaluation or child argv receipt.
@@ -2705,7 +2701,6 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn expression_suppression_uses_each_original_child_lookup_horizon() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         for (source, expected) in [
             (
@@ -2754,7 +2749,6 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn materialized_suppression_refuses_missing_foreign_and_stale_source_input() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         let source = "proc f {} {eval set output VALUE; puts $output}";
         let (unit, analysis, input) = footprint_inputs(source);
@@ -2785,7 +2779,6 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn original_definition_advice_refuses_missing_and_foreign_function_metadata() {
-        // naming.compiler.original-analysis-metadata-context
 
         // These are selected source/API definition places, not measured native stores.
         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -2839,7 +2832,6 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn original_existence_guards_use_retained_availability_and_refuse_missing_foreign() {
-        // naming.compiler.retained-existence-metadata
 
         // Conditional branch advice only; no native query result or current contents proof.
         let mut registry = tcl_registry::CommandRegistry::build_default();
@@ -3278,7 +3270,6 @@ mod original_resolved_variable_advice_tests {
 
     #[test]
     fn authored_startup_advice_preserves_literal_dollars_and_exact_global_aliases() {
-        // naming.diagnostics.original-resolved-variable-name-advice
 
         // Authored reporting advice only. These names grant no Native cell,
         // startup value, trace, completed getter or entered frame.
@@ -3316,7 +3307,6 @@ mod original_resolved_variable_advice_tests {
 
     #[test]
     fn literal_variable_diagnostics_keep_defined_names_and_startup_advice_distinct() {
-        // naming.diagnostics.original-resolved-variable-name-advice
 
         // Genuine retained Logical analysis, not original Native read or store
         // admission. Check emitted diagnostics and exact read geometry.
@@ -3351,7 +3341,6 @@ mod original_resolved_variable_advice_tests {
     }
     #[test]
     fn literal_scalar_parentheses_do_not_borrow_array_root_parameters() {
-        // naming.diagnostics.original-resolved-variable-name-advice
 
         // Retained Logical read-before-set advice only: these authored names
         // and spans do not establish a Native array kind or current element.

@@ -663,11 +663,9 @@ mod tests {
         }
     }
 
-    // Implementation contract: naming.editor.original-instance-member-rename-plans
 
     #[test]
     fn original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear() {
-        // Implementation contract: naming.editor.original-instance-member-rename-plans
 
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for name in ["pick", r"m\uD800"] {
@@ -702,7 +700,6 @@ mod tests {
 
     #[test]
     fn original_member_body_coverage_uses_whole_words_and_formed_content() {
-        // Implementation contract: naming.editor.original-instance-member-rename-plans
 
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for (body, expected) in [
@@ -751,11 +748,9 @@ mod tests {
         }
     }
 
-    // Implementation contract: naming.editor.original-instance-member-rename-plans
 
     #[test]
     fn original_member_rename_checks_builtin_roster_visibility_and_source_family_closure() {
-        // Implementation contract: naming.editor.original-instance-member-rename-plans
 
         let source =
             "oo::class create C {method pick {} {return body}}\nC create object\nobject pick\n";

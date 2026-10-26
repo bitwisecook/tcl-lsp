@@ -857,7 +857,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.scalar-formal-body-alpha-equivalence
 
     fn original_scalar_body_alpha_preserves_frame_argv_and_whole_object_return() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -955,7 +954,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.scalar-formal-body-alpha-equivalence
 
     fn original_scalar_body_alpha_declines_observers_introspection_and_changed_topology() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -993,7 +991,6 @@ mod original_alpha_body_parser_purpose_tests {
 
     #[test]
     fn original_scalar_body_site_keeps_body_bom_and_original_declaration_geometry() {
-        // naming.variable.scalar-formal-body-alpha-equivalence
 
         // Genuine declared body geometry, independently of an alpha rewrite receipt.
         let mut prepared = crate::analyser::Analyser::new();

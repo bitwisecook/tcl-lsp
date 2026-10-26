@@ -2186,7 +2186,6 @@ mod tests {
 
     #[test]
     fn summary_dependencies_read_original_static_heads_under_source_grammar() {
-        // naming.compiler.original-summary-dependency-source-heads
 
         // Lexical memo dependencies supply no selected command or execution.
         let known: HashSet<_> = ["::foo", "::café", "::ns::local", "::unused"]
@@ -2239,7 +2238,6 @@ mod tests {
 
     #[test]
     fn summary_dependencies_keep_unresolved_and_dialect_residuals() {
-        // naming.compiler.original-summary-dependency-source-heads
 
         let known: HashSet<_> = ["::foo", "::other"]
             .into_iter()
@@ -2868,7 +2866,6 @@ mod original_return_taint_word_purpose_tests {
 
     #[test]
     fn original_return_word_keeps_bom_and_actual_ssa_exit_versions() {
-        // naming.source.original-configured-script-completeness
 
         // Lexical SSA-use projection only; no executable return-taint closure.
         let config = tcl_lexer::LexerConfig {

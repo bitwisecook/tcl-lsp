@@ -249,7 +249,6 @@ mod tests {
 
     #[test]
     fn original_handle_layout_requires_only_known_binding_operands() {
-        // naming.core.original-inlay-retained-context
 
         use crate::InvocationWord::{Dynamic, Expanded, KnownBytes, Literal};
         let spec = SNIT_INSTALL_BINDS_HANDLE;

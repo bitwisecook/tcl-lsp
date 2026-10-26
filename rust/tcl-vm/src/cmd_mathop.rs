@@ -102,7 +102,6 @@ mod tests {
 
     #[test]
     fn original_jim_namespace_info_guard_retains_its_original_headers() {
-        // naming.mathop.original-jim-source-and-helper-context
 
         // This compares the unchanged original guarded Jim source and public
         // completion. Optional header-access diagnostics supply no provider evidence.
@@ -144,7 +143,6 @@ mod tests {
 
     #[test]
     fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
-        // naming.mathop.original-jim-source-and-helper-context
 
         // The pinned current Jim distribution reconfirms these ten unchanged
         // Jim public code/result pairs with its actual NamespaceInfo library.
@@ -201,7 +199,6 @@ mod tests {
 
     #[test]
     fn original_mathop_compilation_matches_all_84_native_controls() {
-        // naming.mathop.original-jim-source-and-helper-context
 
         // Current Jim independently reconfirms these fourteen unchanged guarded
         // script completions with NamespaceInfo. The unavailable mathop branch

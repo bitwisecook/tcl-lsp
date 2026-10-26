@@ -255,7 +255,6 @@ fn exercise(profile: &str, mode: u8, source_callback: bool) {
 }
 #[test]
 fn original_compiled_string_append_checks_actual_cow_retirement_before_cache_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual duplicate working +1 and original cell/caller roles; software-only.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -266,7 +265,6 @@ fn original_compiled_string_append_checks_actual_cow_retirement_before_cache_ado
 }
 #[test]
 fn original_compiled_string_append_checks_source_getter_before_mutation_and_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2, 3, 4] {
@@ -276,7 +274,6 @@ fn original_compiled_string_append_checks_source_getter_before_mutation_and_publ
 }
 #[test]
 fn original_neutral_append_keeps_authored_worker_without_native_entry_or_extra_hold() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Authored neutral purpose remains independent of compiled Native admission.
     let mut actual = Interp::new();

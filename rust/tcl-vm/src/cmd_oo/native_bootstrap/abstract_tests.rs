@@ -81,7 +81,6 @@ fn binding(
 
 #[test]
 fn original_abstract_bootstrap_retains_actual_metaclass_and_class_side_visibility() {
-    // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
 
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let vm = crate::native_fixture::core(crate::environment::profile_for_dialect(version));
@@ -121,7 +120,6 @@ fn original_abstract_bootstrap_retains_actual_metaclass_and_class_side_visibilit
 
 #[test]
 fn original_abstract_bootstrap_entry_joins_real_token_without_factory_role_donation() {
-    // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
 
     for version in ["tcl9.0", "tcl9.1"] {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(version));
@@ -168,7 +166,6 @@ fn original_abstract_bootstrap_entry_joins_real_token_without_factory_role_donat
 
 #[test]
 fn original_abstract_bootstrap_preserves_surface_absence_without_erasing_physical_class() {
-    // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.1"));
     let actual = original(&vm).unwrap();
@@ -180,7 +177,6 @@ fn original_abstract_bootstrap_preserves_surface_absence_without_erasing_physica
 
 #[test]
 fn original_abstract_command_replacement_keeps_new_binding_separate_from_old_class() {
-    // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.1"));
     let original = original(&vm).unwrap();
@@ -225,7 +221,6 @@ fn original_abstract_command_replacement_keeps_new_binding_separate_from_old_cla
 
 #[test]
 fn original_abstract_metaclass_manufactures_only_through_the_actual_public_maker() {
-    // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.1"));
     let result = vm.invoke_command(
@@ -271,7 +266,6 @@ fn original_abstract_metaclass_manufactures_only_through_the_actual_public_maker
 
 #[test]
 fn original_abstract_public_rooted_lookup_joins_canonical_token_and_registry_marker() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software initializer, public rooted lookup and held entry; no Native output grant.
     for version in ["tcl9.0", "tcl9.1"] {

@@ -42,7 +42,6 @@ fn first(vm: &Vm) -> tcl_runtime_api::NativeExecutionError {
 
 #[test]
 fn original_namespace_activation_birth_survives_real_hide_selection_and_flow_transport() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let namespace = vm.definition_namespace_token("active_transport");
@@ -68,7 +67,6 @@ fn original_namespace_activation_birth_survives_real_hide_selection_and_flow_tra
 
 #[test]
 fn original_namespace_cleanup_refuses_same_token_activation_rebirth_without_popping_it() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let namespace = vm.definition_namespace_token("active_namespace_aba");
@@ -90,7 +88,6 @@ fn original_namespace_cleanup_refuses_same_token_activation_rebirth_without_popp
 
 #[test]
 fn original_call_frame_cleanup_refuses_real_same_level_replacement_and_keeps_new_namespace() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let namespace = vm.definition_namespace_token("active_call_aba");
@@ -121,7 +118,6 @@ fn original_call_frame_cleanup_refuses_real_same_level_replacement_and_keeps_new
 
 #[test]
 fn original_parked_call_cleanup_retires_original_state_and_preserves_the_child_activation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let original_id = vm.cur;
@@ -157,7 +153,6 @@ fn original_parked_call_cleanup_retires_original_state_and_preserves_the_child_a
 
 #[test]
 fn original_dispatch_cleanup_restores_captured_depth_without_decrementing_the_child() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let original_id = vm.cur;
@@ -178,7 +173,6 @@ fn original_dispatch_cleanup_restores_captured_depth_without_decrementing_the_ch
 
 #[test]
 fn original_call_cleanup_keeps_full_first_host_while_retiring_the_owned_frame_and_namespace() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let namespace = vm.definition_namespace_token("active_first_host");
@@ -229,7 +223,6 @@ impl NativeCommand for ForwardObserver {
 }
 #[test]
 fn original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_namespace() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in 0..4 {
         let mut vm = provided();
@@ -342,7 +335,6 @@ impl NativeCommand for SamePositionObserver {
 }
 #[test]
 fn original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let setup = vm.eval_source("oo::class create SamePositionC {forward fw same_position_observer}; SamePositionC create samePositionObject").unwrap();
@@ -409,7 +401,6 @@ impl NativeCommand for ProcedureObserver {
 }
 #[test]
 fn original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual public method invocation owns its Frame; saved cleanup metadata adds no Native role.
     for mode in 0..4 {

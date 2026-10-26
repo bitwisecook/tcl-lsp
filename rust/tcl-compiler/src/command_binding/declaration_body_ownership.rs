@@ -17,7 +17,6 @@ impl DeclarationLayoutObservation {
         registry: &tcl_registry::CommandRegistry,
         purpose: crate::script_binds::Ownership,
     ) -> Option<crate::ir_helpers::VariableWriteEffects> {
-        // naming.compiler.original-analysis-metadata-context
 
         let source = self.entry.source();
         let state = &self.snapshot.state;
@@ -66,7 +65,6 @@ mod tests {
 
     #[test]
     fn original_body_ownership_keeps_explicit_standalone_and_missing_supplied_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         // A conditional source alias name is not an installed alias/frame.
         let context =
@@ -110,7 +108,6 @@ mod tests {
 
     #[test]
     fn original_body_ownership_rejects_foreign_input_and_changed_body_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

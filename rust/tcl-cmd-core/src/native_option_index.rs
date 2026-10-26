@@ -214,7 +214,6 @@ pub fn prepare_original<O: NativeListIndexOps>(
                 vec![NativeCompiledListIndex::from_encoded(coordinate)]
             });
         }
-        // naming.list.original-option-index-path-preparation-and-results
 
         // Borrow original path members. No recreated String or protective +1.
         let members = ops.index_option_members_checked(original)?;
@@ -426,7 +425,6 @@ mod local_layout_source_controls {
 
     #[test]
     fn local_list_store_bound_and_c9_encoding_edges_follow_pinned_source_arithmetic() {
-        // naming.list.original-option-index-path-preparation-and-results
 
         // Source controls: source-windows.json /anchors/19/snippet TclIndexEncode;
         // retained pinned-input-map.json + pinned-input-bytes.tar.gz contain

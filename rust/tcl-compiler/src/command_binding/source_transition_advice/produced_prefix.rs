@@ -303,7 +303,6 @@ fn original_single_command_substitution_words_with_plan(
     operand: &NativeWord,
     checked_parent: Option<&tcl_lexer::NativeScriptWordsPlan>,
 ) -> Option<OriginalSingleCommandSubstitution> {
-    // naming.source.original-produced-command-prefix
 
     let arena = operand.executable_parts();
     let [part] = arena.list(arena.root()) else {
@@ -345,7 +344,6 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         retained_producer: Option<&OriginalSourceCommandTransitionAdvice>,
     ) {
-        // naming.source.original-authored-command-prefix-data
 
         if tape.authored_prefixes.len() >= 256
             || !schema
@@ -394,7 +392,6 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         retained_parent: Option<&OriginalSourceCommandTransitionAdvice>,
     ) {
-        // naming.source.original-produced-command-prefix
 
         if schema.semantics.body_interpreter.resolve_with(|ordinal| {
             std::str::from_utf8(invocation.arguments.get(ordinal)?.value.as_deref()?).ok()
@@ -658,7 +655,6 @@ mod tests {
 
     #[test]
     fn authored_prefix_data_keeps_builder_point_without_a_deferred_parent() {
-        // naming.source.original-authored-command-prefix-data
 
         // Software source/data correspondence; no result object or future dispatch.
         use crate::registry_invocation::source_structure::source_authored_command_prefix;
@@ -712,7 +708,6 @@ mod tests {
 
     #[test]
     fn authored_prefix_keeps_alias_origins_and_known_target_barriers() {
-        // naming.source.original-authored-command-prefix-data
 
         use crate::registry_invocation::source_structure::source_authored_command_prefix;
         let source = "interp alias {} sourceList {} list upvar #0 originalName; set cb [sourceList localName]";
@@ -771,7 +766,6 @@ mod tests {
 
     #[test]
     fn substitution_geometry_keeps_expansion_and_declines_compound_or_multiple_commands() {
-        // naming.source.original-produced-command-prefix
 
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
@@ -801,7 +795,6 @@ mod tests {
 
     #[test]
     fn logical_produced_prefix_retains_consensus_roles_without_an_entered_frame() {
-        // naming.source.original-produced-command-prefix
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = crate::analyser::ResolvedAnalysisInput::new(
@@ -851,7 +844,6 @@ mod tests {
 
     #[test]
     fn original_produced_prefix_keeps_deferred_parent_builder_and_each_word() {
-        // naming.source.original-produced-command-prefix
 
         let source = "after idle [list apply {{x} {puts $x}} 5]";
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -911,7 +903,6 @@ mod tests {
 
     #[test]
     fn original_produced_prefix_keeps_logical_context_capture_and_terminal_refusals() {
-        // naming.source.original-produced-command-prefix
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);

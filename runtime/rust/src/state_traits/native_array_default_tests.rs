@@ -94,7 +94,6 @@ fn cleanup(interpreter: &mut Interp) {
 
 #[test]
 fn original_array_default_replacement_retires_outside_borrows_after_actual_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software actual callback/current/refcount control; no whole Native array grant.
     for version in ["tcl9.0", "tcl9.1"] {
@@ -148,7 +147,6 @@ fn original_array_default_replacement_retires_outside_borrows_after_actual_publi
 
 #[test]
 fn original_array_default_unset_retires_selected_default_before_first_cause_settlement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2] {
         let mut interpreter = native("tcl9.1");
@@ -180,7 +178,6 @@ fn original_array_default_unset_retires_selected_default_before_first_cause_sett
 
 #[test]
 fn original_array_default_pending_first_host_precedes_storage_or_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native("tcl9.1");
     reset(&interpreter, 0);
@@ -212,7 +209,6 @@ fn original_array_default_pending_first_host_precedes_storage_or_retirement() {
 
 #[test]
 fn original_array_default_unavailable_protocol_precedes_storage_and_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // ArrayDefault is independently selected only for actual C9. No C8/Jim storage grant.
     for version in ["tcl8.4", "tcl8.5", "tcl8.6", "jim"] {

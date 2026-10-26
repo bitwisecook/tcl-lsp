@@ -555,7 +555,6 @@ fn lexical_navigation_link(
     navigation: tcl_registry::source_navigation::SourceNavigationOperand,
     inputs: &LexicalNavigationInputs<'_>,
 ) -> Option<DocumentLink> {
-    // naming.navigation.retained-path-source-inventory
 
     use tcl_registry::source_navigation::SourceNavigationOperand;
     let (SourceNavigationOperand::File { argument }
@@ -661,7 +660,6 @@ fn original_logical_link_anchor(
     config: tcl_lexer::LexerConfig,
     word: &tcl_lexer::NativeWord,
 ) -> Option<(u32, u32)> {
-    // naming.navigation.retained-path-source-inventory
 
     if word.image().channel() != tcl_lexer::SourceChannel::Document
         || word.image().bytes() != source.as_bytes()
@@ -1014,7 +1012,6 @@ mod tests {
 
     #[test]
     fn original_namespace_source_links_use_typed_jim_local_scope_without_export() {
-        // naming.navigation.retained-path-source-inventory
 
         let source = "namespace eval N {set dir /FIRST; source $dir/a.tcl}; namespace eval N {source $dir/b.tcl}; source $dir/c.tcl";
         let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
@@ -1071,7 +1068,6 @@ mod tests {
 
     #[test]
     fn original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
@@ -1772,7 +1768,6 @@ mod original_document_link_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-document-link-selection
 
     fn original_document_links_use_actual_handlers_values_and_current_source() {
         let source = "source {a $b [c].tcl}";
@@ -1803,7 +1798,6 @@ mod original_document_link_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-document-link-selection
 
     fn original_document_links_retain_package_inputs_and_versioned_source_grammar() {
         let ctx = LinkContext {
@@ -1841,7 +1835,6 @@ mod original_hosted_document_link_tests {
 
     #[test]
     fn original_hosted_links_keep_source_schema_and_name_purposes_independent() {
-        // Implementation contract: naming.vendor.original-source-navigation
 
         let context = LinkContext {
             workspace_root: Some("/work"),
@@ -1888,7 +1881,6 @@ mod original_hosted_document_link_tests {
     }
     #[test]
     fn original_source_path_links_use_selected_operations_and_authentic_bound_values() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
@@ -1920,7 +1912,6 @@ mod original_link_parse_purpose_tests {
     use super::*;
     #[test]
     fn original_pack_links_keep_document_marks_distinct_from_include_body_content() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = crate::profile_for_dialect("spectcl");
         let config = tcl_lexer::LexerConfig {
@@ -1962,7 +1953,6 @@ mod original_link_parse_purpose_tests {
     }
     #[test]
     fn original_link_anchors_parse_actual_substitution_content_without_file_prologue_rules() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig {
@@ -2007,7 +1997,6 @@ mod original_logical_link_prefix_tests {
 
     #[test]
     fn logical_path_links_use_the_original_prefix_before_invocation_effects() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = LinkContext {
@@ -2039,7 +2028,6 @@ mod original_logical_link_prefix_tests {
 
     #[test]
     fn logical_path_link_anchors_use_authentic_static_tail_words() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = LinkContext {
@@ -2093,7 +2081,6 @@ mod original_logical_link_operand_order_tests {
 
     #[test]
     fn logical_path_prefix_constants_require_static_earlier_written_operands() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = LinkContext {
@@ -2127,7 +2114,6 @@ mod authored_source_link_purpose_tests {
 
     #[test]
     fn authored_jim_path_advice_keeps_scope_without_becoming_public_native_value() {
-        // naming.navigation.retained-path-source-inventory
 
         let source = "namespace eval N {set dir /FIRST; source $dir/a.tcl}; namespace eval N {source $dir/b.tcl}; source $dir/c.tcl";
         let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();

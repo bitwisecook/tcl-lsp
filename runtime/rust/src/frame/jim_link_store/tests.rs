@@ -121,7 +121,6 @@ fn stored(interp: &mut Interp, value: &Owned) -> Result<(), Code> {
 
 #[test]
 fn captured_compatibility_link_publishes_before_retirement_outside_owner_borrows() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual Link(None) compatibility store, not original Jim recursive-name/COW parity.
     for mode in [0, 1, 2] {
@@ -161,7 +160,6 @@ fn captured_compatibility_link_publishes_before_retirement_outside_owner_borrows
 
 #[test]
 fn captured_compatibility_link_does_not_adopt_missing_or_recreated_target() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     reset(3);
     let mut interp = native();
@@ -206,7 +204,6 @@ fn captured_compatibility_link_does_not_adopt_missing_or_recreated_target() {
 
 #[test]
 fn captured_compatibility_dictionary_getter_refusal_stops_copy_and_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2, 3] {
         reset(mode);
@@ -238,7 +235,6 @@ fn captured_compatibility_dictionary_getter_refusal_stops_copy_and_publication()
 
 #[test]
 fn captured_compatibility_dictionary_copy_keeps_original_and_new_owned_members() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Explicit existing compatibility always-copy policy; no original Jim COW claim.
     reset(0);
@@ -278,7 +274,6 @@ fn captured_compatibility_dictionary_copy_keeps_original_and_new_owned_members()
 
 #[test]
 fn captured_compatibility_root_retirement_stops_list_adoption_on_recreated_cell() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine extension freeIntRep inside the existing Jim List conversion;
     // an independent native owner keeps the old allocation live, not its cell.

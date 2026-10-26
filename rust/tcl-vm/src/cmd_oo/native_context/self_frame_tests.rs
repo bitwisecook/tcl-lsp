@@ -117,7 +117,6 @@ fn provided(mode: Option<u8>) -> (Vm, Rc<Cell<usize>>) {
 }
 #[test]
 fn original_self_report_reacquires_the_same_entered_frame_without_method_payload_holds() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, hits) = provided(None);
     let result = vm.invoke_command("obj", &[Value::string("m")]);
@@ -132,7 +131,6 @@ fn original_self_report_reacquires_the_same_entered_frame_without_method_payload
 }
 #[test]
 fn original_self_report_refuses_chain_or_index_withdrawal_and_keeps_the_first_host_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software mutation follows an actual checked option read in a real Method frame.
     for mode in [0, 1, 2] {

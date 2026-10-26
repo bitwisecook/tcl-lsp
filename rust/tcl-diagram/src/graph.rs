@@ -343,7 +343,6 @@ mod original_completion_tests {
 
     #[test]
     fn original_diagram_renderer_does_not_infer_completion_from_action_labels() {
-        // Implementation contract: naming.consumer.original-structural-diagrams
 
         let mut builder = Builder {
             nodes: Vec::new(),

@@ -1238,7 +1238,6 @@ mod tests {
 
     #[test]
     fn retained_increment_reads_use_literal_operand_names_without_reparsing_sigils() {
-        // naming.compiler.retained-representation-metadata
 
         // Exact original SSA read projection, not execution or cache equivalence.
         let context =

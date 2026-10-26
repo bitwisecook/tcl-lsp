@@ -799,7 +799,6 @@ fn lexical_compact(
     input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     isolated: bool,
 ) -> Result<(String, SymbolMap), MinifyRefusal> {
-    // Implementation contract: naming.minifier.lexical-authoring-passes
 
     let (renamed, symbol_map) = compact_names(source, input, isolated);
     let current = original::analysis_with_input(&renamed, input);
@@ -822,7 +821,6 @@ pub fn minify_with_profile(
 }
 
 fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
-    // naming.minifier.retained-lexical-context
 
     let input = analysis
         .resolved_input
@@ -1108,7 +1106,6 @@ fn find_rename_barriers<'a>(
     commands: &[tcl_lexer::NativeScriptCommandWords],
     include_global: bool,
 ) -> RenameBarriers<'a> {
-    // naming.minifier.complete-logical-metadata
 
     let mut out = RenameBarriers::default();
     for command in commands {
@@ -1426,7 +1423,6 @@ fn compact_logical_formals(
     symbol_map: &mut SymbolMap,
     edits: &mut Vec<Edit>,
 ) {
-    // naming.minifier.logical-formal-binding-alpha
 
     if !isolated {
         return;
@@ -1707,7 +1703,6 @@ fn rmw_target_var_names(
     env: MinifyEnv<'_>,
     commands: &[tcl_lexer::NativeScriptCommandWords],
 ) -> FxHashSet<String> {
-    // naming.minifier.complete-logical-metadata
 
     let mut names = FxHashSet::default();
     for command in commands {
@@ -2914,7 +2909,6 @@ fn parse_var_ref(
 /// Project shared complete groups into the renderer's argument container.
 /// Group kinds/ranges and expansion ownership come from the same lexer owner.
 fn parse_commands(source: &str, tokens: &[Token], config: LexerConfig) -> Vec<Vec<Arg>> {
-    // naming.minifier.complete-lexical-head
 
     tcl_lexer::group_commands(tokens, source, config)
         .into_iter()
@@ -3042,7 +3036,6 @@ fn lexical_script_words(
     source: &str,
     config: LexerConfig,
 ) -> Option<tcl_lexer::NativeScriptWordsPlan> {
-    // naming.minifier.complete-lexical-head
 
     let image = tcl_lexer::SourceImage::document(source);
     let region = tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?);
@@ -3057,7 +3050,6 @@ fn lexical_head_value(
     word: &tcl_lexer::NativeWord,
     config: LexerConfig,
 ) -> Option<String> {
-    // naming.minifier.complete-lexical-head
 
     if word.image().channel() != tcl_lexer::SourceChannel::Document
         || word.image().bytes() != sm.source().as_bytes()
@@ -3131,7 +3123,6 @@ fn lexical_source_schema<'r: 'w, 'w, T>(
     arguments: &'w [tcl_registry::InvocationWord<'w>],
     project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, 'w>) -> T,
 ) -> Option<T> {
-    // naming.minifier.retained-lexical-context
 
     if name.is_empty()
         || env.context.commands().snapshot().semantic_key()
@@ -3842,7 +3833,6 @@ mod tests {
 
     #[test]
     fn original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config() {
-        // naming.source.original-configured-script-completeness
 
         // Original source geometry only; this does not grant body execution.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -5603,9 +5593,7 @@ mod constructed_compatibility_tests {
 
     #[test]
     fn constructed_minifier_call_sites_keep_original_indirect_and_naming_guards() {
-        // naming.analysis.constructed-key-consumer-projections
 
-        // naming.minifier.original-naming-permission
 
         // Descriptive compatibility rows do not authorise public source rewriting.
         use tcl_compiler::analyser::Analyser;

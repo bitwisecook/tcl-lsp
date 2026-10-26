@@ -757,7 +757,6 @@ mod tests {
 
     #[test]
     fn original_interpreter_diagnostic_uses_live_birth_without_result_or_cause_getters() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_runtime_api::engine_interpreter_identity::EngineInterpreterIdentity;
         let mut original = core("tcl8.6");

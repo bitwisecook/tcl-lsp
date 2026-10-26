@@ -226,7 +226,6 @@ mod tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.vendor.original-source-context-input
 
     fn vendor_source_context_and_observed_variable_purpose_are_independent() {
         for context in [

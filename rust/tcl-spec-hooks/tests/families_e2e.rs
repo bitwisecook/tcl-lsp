@@ -326,7 +326,6 @@ on_both_engines! {
 
 on_both_engines! {
     fn a_clause_shape_check_reports_the_first_structural_defect(host) {
-        // naming.diagnostic.original-control-advice
 
         let slot = one_hook(host, HookProgram::new(
             "mylib::if",
@@ -788,7 +787,6 @@ on_both_engines! {
 
 #[test]
 fn script_timing_resolver_retains_structured_payload_kinds() {
-    // naming.source.original-structured-script-timing
 
     let slot = one_hook(tcl_spec_hooks::tclvm_host, HookProgram::new(
         "mylib::timed", HookFamily::ScriptTimingResolver,

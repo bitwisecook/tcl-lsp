@@ -540,7 +540,6 @@ mod original_expression_position_tests {
     use tcl_compiler::analyser::Analyser;
 
     #[test]
-    // Implementation contract: naming.core.original-expression-source-selection
 
     fn original_expression_positions_keep_handler_roles_and_source_currency() {
         let source = "expr {sin(1)}";
@@ -569,7 +568,6 @@ mod original_expression_position_tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-expression-source-selection
 
     fn original_expression_positions_retain_nested_hosted_source_candidates() {
         let source = "when HTTP_REQUEST {if {1 == 1} {HTTP::respond 200}}";

@@ -336,7 +336,6 @@ mod tests {
 
     #[test]
     fn original_diagnostic_argv_contents_do_not_require_complete_handler_roles() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Written argument values remain conditional source advice; dynamic
         // handler topology still refuses the enclosing role inventory.
@@ -414,7 +413,6 @@ mod tests {
 
     #[test]
     fn original_conditional_scalar_store_contents_keep_source_definition_and_native_refusal() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Quiet Logical source continuation only; no Native store or Normal completion.
         let context =
@@ -515,7 +513,6 @@ mod tests {
 
     #[test]
     fn original_logical_diagnostic_contents_keep_executable_values_independent() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source contents do not establish a Native read, result or replacement.
         let context =
@@ -609,7 +606,6 @@ mod tests {
     #[test]
     fn original_advisory_template_plans_keep_current_producer_and_refuse_foreign_or_missing_owners()
     {
-        // naming.compiler.original-analysis-metadata-context
 
         // Plans describe source contents only; executable switches stay unavailable.
         let context =
@@ -711,7 +707,6 @@ mod tests {
 
     #[test]
     fn original_logical_diagnostic_contents_preserve_aliases_literal_names_and_read_versions() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -778,7 +773,6 @@ mod tests {
 
     #[test]
     fn original_logical_diagnostic_contents_refuse_changed_availability_and_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let mut registry = CommandRegistry::build_default().project_for_profile(profile);
@@ -875,7 +869,6 @@ mod tests {
 
     #[test]
     fn original_logical_diagnostic_contents_refuse_a_same_input_foreign_populated_projection() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The complete input alone does not identify another function's producer.
         let context =
@@ -976,7 +969,6 @@ mod tests {
 
     #[test]
     fn original_logical_diagnostic_contents_keep_nested_and_return_source_carriers() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

@@ -138,7 +138,6 @@ mod tests {
     #[test]
     fn original_channel_roles_keep_values_words_and_declaration_owners() {
         // Implementation ownership check; does not establish channel existence.
-        // naming.diagnostic.original-channel-source-ownership
 
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let source = "puts {$literal} message";
@@ -176,7 +175,6 @@ mod tests {
 
     #[test]
     fn original_channel_diagnostics_preserve_typed_anchor_and_shadow_controls() {
-        // naming.diagnostic.original-channel-source-ownership
 
         for source in [
             "puts bogus hello",

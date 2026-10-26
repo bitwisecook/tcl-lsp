@@ -31,7 +31,6 @@ struct SelectedConstructor {
 
 /// Independently selected absence of constructor/filter/initializer callbacks,
 /// with the complete original scalar argv retained before fresh allocation.
-// Implementation contract: naming.tcloo.original-named-manufacture-cell-transfer
 struct DefaultConstructorCompletion {
     site: super::CommandAllocationSite,
     class: SourceCommandTarget,

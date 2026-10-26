@@ -115,7 +115,6 @@ impl OriginalDeclaredLogicalBodyContext {
         input: &ResolvedAnalysisInput,
         parent: Option<Arc<Self>>,
     ) -> Option<Self> {
-        // naming.source.original-declared-command-word-contract
 
         if !input.has_logical_source_name_context()
             || scope_name.original_word().image() != scope.original_container().image()
@@ -234,7 +233,6 @@ impl OriginalDeclaredLogicalBodyContext {
     }
 
     pub(crate) fn with_body(&self, body: Arc<OriginalSourceScriptBody>) -> Option<Self> {
-        // naming.source.original-declared-command-word-contract
 
         let scope = self.scope.content_span();
         let child = body.content_span();

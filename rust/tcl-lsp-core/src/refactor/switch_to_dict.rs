@@ -385,7 +385,6 @@ mod tests {
 
     #[test]
     fn original_dictionary_conversion_keeps_selected_case_shape_and_original_subject() {
-        // Implementation contract: naming.refactor.original-exact-case-source
 
         for subject in ["{$x}", "fixed", "\"literal$x\"", "$array(key)", "${a b}"] {
             let source =
@@ -448,7 +447,6 @@ mod tests {
 
     #[test]
     fn original_dictionary_conversion_keeps_effective_alias_layout_and_current_source() {
-        // Implementation contract: naming.refactor.original-exact-case-source
 
         let source = "interp alias {} choose {} switch -exact --\nchoose {$x} {a {return one} b {return two}}";
         let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
@@ -480,7 +478,6 @@ mod tests {
 
     #[test]
     fn original_dictionary_case_receipt_does_not_grant_native_rewrite_permissions() {
-        // Implementation contract: naming.refactor.original-exact-case-source
 
         let source = "switch -exact -- {$x} {a {return one} b {return two}}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -517,7 +514,6 @@ mod original_branch_parser_tests {
     }
     #[test]
     fn original_dictionary_branches_keep_nested_bom_content_and_parent_edit_geometry() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig {

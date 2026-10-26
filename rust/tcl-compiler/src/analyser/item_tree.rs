@@ -184,7 +184,6 @@ impl SourceDeclarationSignature {
     /// It carries no source image, activation or argument-binding capability.
     #[must_use]
     pub const fn formal_count_projection(&self) -> SourceFormalCountProjection {
-        // naming.database.original-formal-count-header
 
         self.formal_count
     }
@@ -317,7 +316,6 @@ impl ItemTree {
     /// the result). See the module docs for why the tree anchors to `analyse`.
     #[must_use]
     pub fn from_analysis(result: &AnalysisResult, ensembles: &HashSet<String>) -> Self {
-        // naming.database.original-formal-count-header
 
         let mut items: Vec<Item> = Vec::new();
 
@@ -725,7 +723,6 @@ mod tests {
 
     #[test]
     fn formal_count_headers_retain_c_and_jim_grammar_without_body_bytes() {
-        // naming.database.original-formal-count-header
 
         use crate::signature_scan::formal_count::SourceFormalCountOrigin;
         for (dialect, minimum, grammar) in [
@@ -840,7 +837,6 @@ mod tests {
 
     #[test]
     fn original_formal_count_header_ignores_reported_parameter_labels() {
-        // naming.database.original-formal-count-header
 
         let mut analyser = Analyser::new();
         let mut result = analyser.analyse("proc p {a args} {}", "tcl8.6");

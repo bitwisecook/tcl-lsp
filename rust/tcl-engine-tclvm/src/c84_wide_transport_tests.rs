@@ -18,7 +18,6 @@ fn native() -> Vm {
 }
 #[test]
 fn original_c84_wide_recursive_bridge_retains_actual_ingress_for_plain_and_resident_members() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = native();
     let dialect = vm.native_scalar_carrier_dialect();
@@ -107,7 +106,6 @@ impl HostCommand for WideReply {
 #[test]
 fn original_c84_wide_host_reply_uses_pre_callback_receipt_and_finishes_only_the_real_outer_boundary()
  {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2] {
         let mut vm = native();

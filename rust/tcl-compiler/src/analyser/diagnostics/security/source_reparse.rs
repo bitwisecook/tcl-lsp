@@ -212,7 +212,6 @@ mod tests {
 
     #[test]
     fn original_reparse_diagnostics_keep_alias_targets_and_known_source_barriers() {
-        // naming.diagnostic.registry-source-ownership
 
         // Original source descriptor advice, not a result or entered worker.
         let input = current_input();
@@ -259,7 +258,6 @@ mod tests {
 
     #[test]
     fn original_list_idiom_uses_the_child_schema_and_retains_concat_and_shadow_warnings() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for source in [
@@ -294,7 +292,6 @@ mod tests {
 
     #[test]
     fn original_reparse_fix_keeps_whole_quoted_unicode_span_and_review_premise() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         let source = "interp alias {} run {} eval; run \"pré $value\"";
@@ -334,7 +331,6 @@ mod tests {
 
     #[test]
     fn original_nested_reparse_keeps_both_aliases_and_declines_replaced_child_or_parent() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for source in [
@@ -382,7 +378,6 @@ mod tests {
 
     #[test]
     fn original_reparse_selection_retains_actual_availability_and_unavailable_owner_refusals() {
-        // naming.compiler.original-analysis-metadata-context
 
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline

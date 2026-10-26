@@ -132,7 +132,6 @@ fn selected(vm: &Vm, target: OoId) -> Rc<Vec<Step>> {
 }
 #[test]
 fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrade() {
-    // naming.tcloo.original-method-cache-and-active-call-lifetime
 
     // The direct existing cache worker isolates its real String stage; no C callback/count equivalence.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -171,7 +170,6 @@ fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrad
 }
 #[test]
 fn original_method_cache_string_refusal_or_header_withdrawal_precedes_cache_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual formatter failure/last header release, not a Native MethodType delete simulation.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {

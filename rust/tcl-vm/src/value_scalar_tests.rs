@@ -34,7 +34,6 @@ fn neutral_probe_retains_absent_string_and_exact_nan_payload() {
         value.native_scalar_getter(dialect, Kind::Int),
         Err(ValueError::NativeScalarGetter(_))
     ));
-    // naming.numeric.original-capi-scalar-publication-width
 
     // C86 original case24/getter0 has no String access for constant overflow.
     assert!(alias.resident_string_bytes().is_none());

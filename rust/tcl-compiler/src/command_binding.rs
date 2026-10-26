@@ -2010,7 +2010,6 @@ impl OriginalCompilationLookupAdvice {
         &self,
         entry: &SourceDeclaredReceiverBodyEntry,
     ) -> bool {
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         let state = &self.snapshot.state;
         !self.unknown
@@ -3065,7 +3064,6 @@ impl SourceBindingPoint {
     }
 
     fn original_lookup_binding(&self) -> SourceInvocationBinding {
-        // naming.consumer.original-workspace-diagnostic-refinement
 
         // The immutable Logical entry owns this interpreted head. It does
         // not supply a Native name input or permit a source-label fallback.
@@ -6603,7 +6601,6 @@ struct SourceOutcomes {
 /// Construction temporaries end in this leaf before recursion begins.
 #[inline(never)]
 fn boxed_source_completion_receipt<T>(capture: impl FnOnce() -> Option<T>) -> Option<Box<T>> {
-    // Implementation contract: naming.source.recursive-driver-state-transport
 
     capture().map(Box::new)
 }
@@ -8310,7 +8307,6 @@ impl SourceCommandBindings {
     /// Logical declaration through its existing full source/vector issuer.
     /// Unmatched children keep the ordinary raw query; no offset is added.
     fn restore_original_nested_bindings(&self, tokens: &mut crate::ir::CommandTokens) {
-        // naming.compiler.original-positioned-callee-body-availability
 
         for (offset, binding) in &mut tokens.nested_bindings {
             *binding = self.invocation_at_source("", *offset);
@@ -8430,7 +8426,6 @@ impl SourceCommandBindings {
         tokens: &mut crate::ir::CommandTokens,
         mut binding_at: impl FnMut(u32) -> SourceInvocationBinding,
     ) {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         let Some(head) = tokens.words().first() else {
             return;
@@ -8738,7 +8733,6 @@ impl SourceCommandBindings {
             binding
                 .evaluated_argument_words
                 .clone_from(&point.evaluated_argument_words);
-            // naming.source.logical-original-operation-transfer
 
             // Keep the same conditional Logical lookup selected above. It has
             // no Native head receipt and supplies no Native execution permits.
@@ -10673,7 +10667,6 @@ impl SourceCommandBindings {
         };
         let mut outcomes =
             self.walk_prepared_native_target(native, state, context, facts, route, incoming);
-        // Implementation contract: naming.variable.original-set-read-completion
 
         if read_complete
             || write_complete
@@ -16825,7 +16818,6 @@ impl ModuleCommandBindings {
             .and_then(|(left, right)| left.joined(right));
         let pool_changed = self.ordinary_literal_pool != pool;
         self.ordinary_literal_pool = pool;
-        // naming.command.shared-noop-source-joins
 
         // The enclosing join requires one original baseline. Skip only a pure
         // collection self-join authenticated by its actual immutable Arc;
@@ -21310,7 +21302,6 @@ mod tests {
 
     #[test]
     fn logical_command_layout_keeps_unknown_physical_frames_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -21406,7 +21397,6 @@ mod tests {
 
     #[test]
     fn constructed_builder_argv_preserves_retained_lexer_overlays() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = current.commands();
@@ -22326,7 +22316,6 @@ mod tests {
     /// summary fails to compile here until it is carried.
     #[test]
     fn opaque_namespace_imports_preserve_empty_command_tails() {
-        // naming.analysis.constructed-key-consumer-projections
 
         let mutations = ModuleCommandMutations {
             opaque_namespaces: ["::ns".to_owned()].into_iter().collect(),
@@ -22684,7 +22673,6 @@ mod tests {
 
     #[test]
     fn consumed_cfg_commands_retain_the_original_native_entry_baseline() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let context =
@@ -24157,7 +24145,6 @@ Animal new",
 
     #[test]
     fn rebound_candidates_include_relative_qualified_names() {
-        // naming.analysis.constructed-key-consumer-projections
 
         let namespace = crate::ir::ExecutionNamespace::exact("::ns");
         for (written, expected) in [
@@ -24774,7 +24761,6 @@ mod hosted_storage_entry_tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.variable.hosted-storage-context
 
     fn hosted_storage_entry_is_independent_of_registry_and_source_name_policy() {
         use tcl_registry::f5::BigIpExecutionContext;
@@ -24851,7 +24837,6 @@ mod selected_replay_formal_tests {
 
     #[test]
     fn original_procedure_replay_validity_requires_the_selected_formal_grammar() {
-        // naming.variable.original-readonly-formal-topology
 
         // Registry replay syntax only, without installed procedure or body entry.
         let namespace = crate::ir::ExecutionNamespace::exact("::");
@@ -24904,7 +24889,6 @@ mod original_definition_body_purpose_tests {
 
     #[test]
     fn original_definition_body_projection_keeps_bom_geometry_and_parent_config_separate() {
-        // naming.source.original-configured-script-completeness
 
         // Local syntax shared by validation/publication, never a member or Native admission receipt.
         let mut prepared = crate::analyser::Analyser::new();
@@ -24975,7 +24959,6 @@ mod shared_noop_source_join_tests {
 
     #[test]
     fn actual_same_owner_join_keeps_shared_storage_and_complete_semantics() {
-        // naming.command.shared-noop-source-joins
 
         // Original model snapshot storage only; no external interpreter or
         // Native currency/handler/read/write authority is asserted here.
@@ -25046,7 +25029,6 @@ mod shared_noop_source_join_tests {
 
     #[test]
     fn genuine_different_observer_and_namespace_owners_still_join_without_mutating_snapshots() {
-        // naming.command.shared-noop-source-joins
 
         let source = "proc helper {} {}; trace add execution helper enter {list}";
         let observed = original(source);
@@ -25120,7 +25102,6 @@ mod original_explicit_script_purpose_tests {
 
     #[test]
     fn original_binding_purpose_retains_full_input_and_separates_cached_interpretations() {
-        // naming.source.original-configured-script-completeness
 
         // The same original Document can have independently selected parser purposes.
         // Neither interpretation issues Native admission or a fresh body activation.
@@ -25249,7 +25230,6 @@ mod original_logical_source_layout_tests {
 
     #[test]
     fn original_logical_reached_roles_distinguish_literal_and_expression_inventory() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual original source roles; no Native parser, compiler or handler grant.
         let input = input();
@@ -25299,7 +25279,6 @@ mod original_logical_source_layout_tests {
 
     #[test]
     fn original_logical_reached_roles_refuse_unknown_observers_and_rebound_tokens() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = input();
         let registry = input.borrowed_context_registry().commands();
@@ -25324,7 +25303,6 @@ mod original_logical_source_layout_tests {
 
     #[test]
     fn original_logical_reached_roles_require_same_scope_source_targets_and_vector() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = input();
         let registry = input.borrowed_context_registry().commands();
@@ -25391,7 +25369,6 @@ mod original_logical_source_layout_tests {
 
     #[test]
     fn original_logical_reached_roles_keep_full_metadata_and_selected_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = input();
         let registry = input.borrowed_context_registry().commands();
@@ -25435,7 +25412,6 @@ mod original_logical_source_layout_tests {
 
     #[test]
     fn original_native_unknown_frame_cannot_borrow_logical_source_layout() {
-        // naming.compiler.original-analysis-metadata-context
 
         let environment =
             tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();

@@ -200,7 +200,6 @@ impl Interp {
             .native_object_vector_protocol();
         // The missing-command formatter has its own reporting extent. Lookup
         // and child registration retain their separately selected input/key.
-        // naming.alias.original-child-publication-and-inventory
 
         let Some(names) = self.name_policy_protocol() else {
             return self.report_cmd_error(

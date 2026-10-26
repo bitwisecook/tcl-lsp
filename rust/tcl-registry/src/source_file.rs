@@ -283,7 +283,6 @@ mod tests {
 
     #[test]
     fn source_load_transitions_retain_only_selected_original_path_ordinals() {
-        // Implementation contract: naming.interpreter.original-source-visibility-advice
 
         for version in TclVersion::ALL {
             let words = [InvocationWord::Dynamic];

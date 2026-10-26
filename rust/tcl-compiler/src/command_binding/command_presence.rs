@@ -519,7 +519,6 @@ mod tests {
 
     #[test]
     fn logical_source_slot_advice_uses_the_retained_input_instead_of_site_kind() {
-        // naming.consumer.original-workspace-diagnostic-refinement
 
         let input = logical_source_input();
         for (source, expected) in [
@@ -585,7 +584,6 @@ mod tests {
 
     #[test]
     fn logical_source_slot_advice_uses_the_interpreted_head_not_query_labels() {
-        // naming.consumer.original-workspace-diagnostic-refinement
 
         let input = logical_source_input();
         let source = "missing 1 2";
@@ -613,7 +611,6 @@ mod tests {
 
     #[test]
     fn logical_source_slot_advice_requires_authentic_complete_ingress() {
-        // naming.consumer.original-workspace-diagnostic-refinement
 
         let input = logical_source_input();
         let context = input.context_registry();
@@ -682,7 +679,6 @@ mod tests {
 
     #[test]
     fn logical_source_slot_advice_keeps_unknown_and_hosted_contexts_outside_absence() {
-        // naming.consumer.original-workspace-diagnostic-refinement
 
         let input = logical_source_input();
         let context = input.context_registry();
@@ -774,7 +770,6 @@ mod tests {
 
     #[test]
     fn original_slot_diagnostics_keep_opaque_heads_and_refuse_missing_producers() {
-        // Implementation contract: naming.compiler.original-slot-presence
 
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source = r"missing\uD800 argument";

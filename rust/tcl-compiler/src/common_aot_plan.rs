@@ -2797,7 +2797,6 @@ mod tests {
 
     #[test]
     fn authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants() {
-        // naming.variable.aot-original-slot-purpose
 
         // These positives describe original schemas and future storage templates.
         // Executable coverage retains its independent entry/provider requirement.
@@ -2876,7 +2875,6 @@ mod tests {
 
     #[test]
     fn authored_source_templates_withdraw_changed_module_and_point_owners() {
-        // naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -2940,7 +2938,6 @@ mod tests {
 
     #[test]
     fn authored_source_inventory_keeps_availability_replacement_and_native_entry_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -2992,7 +2989,6 @@ mod tests {
 
     #[test]
     fn original_declared_argument_slots_do_not_borrow_the_parent_native_frame() {
-        // Implementation contract: naming.variable.aot-original-slot-purpose
 
         use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
         use tcl_syntax::naming::NativeCompiledVariableEnvironment;
@@ -3043,7 +3039,6 @@ mod tests {
 
     #[test]
     fn original_procedure_body_preflight_keeps_entry_and_missing_provider_independent() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Compiler traversal only: no body execution, numeric result, old frame
         // slot or direct-body specialisation is certified by this control.
@@ -3096,7 +3091,6 @@ mod tests {
 
     #[test]
     fn original_empty_procedure_direct_call_keeps_formals_without_body_specialisation() {
-        // Implementation contract: naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -3139,7 +3133,6 @@ mod tests {
 
     #[test]
     fn retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = tcl_registry::CommandRegistry::build_default();
         let unit = CompilationUnit::build_for_dialect(
@@ -3208,7 +3201,6 @@ mod tests {
 
     #[test]
     fn original_source_queries_require_unanimous_statement_carriers() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -3270,7 +3262,6 @@ mod tests {
 
     #[test]
     fn structural_call_candidates_keep_original_nested_words_and_literal_boundaries() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -3320,7 +3311,6 @@ mod tests {
 
     #[test]
     fn original_direct_expression_body_requires_the_actual_nested_operation_receipts() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -3648,7 +3638,6 @@ mod tests {
 
     #[test]
     fn original_literal_actual_types_do_not_create_native_or_ssa_value_identity() {
-        // naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -3695,7 +3684,6 @@ mod tests {
 
     #[test]
     fn declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts() {
-        // naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -3765,7 +3753,6 @@ mod tests {
 
     #[test]
     fn declared_arguments_refuse_missing_owners_changed_contents_and_future_callers() {
-        // naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -3887,7 +3874,6 @@ mod tests {
 
     #[test]
     fn retained_native_program_coverage_does_not_donate_root_frame_slots() {
-        // naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -4127,7 +4113,6 @@ mod tests {
 
     #[test]
     fn unknown_actual_type_poisons_cross_call_formal_propagation() {
-        // naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -4180,7 +4165,6 @@ mod tests {
 
     #[test]
     fn unentered_unknown_caller_keeps_a_refusal_without_fabricating_a_reached_call() {
-        // naming.variable.aot-original-slot-purpose
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();

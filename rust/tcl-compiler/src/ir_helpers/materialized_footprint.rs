@@ -709,7 +709,6 @@ mod original_materialized_word_purpose_tests {
 
     #[test]
     fn original_materialized_body_keeps_bom_value_and_parent_word_rules_separate() {
-        // naming.source.original-configured-script-completeness
 
         // Original body geometry and materialized value syntax, without child entry or complete effect closure.
         let config = LexerConfig {
@@ -753,7 +752,6 @@ mod original_written_footprint_tests {
 
     #[test]
     fn original_materialized_written_words_do_not_reborrow_component_spans() {
-        // naming.source.original-configured-script-completeness
 
         let config = LexerConfig {
             braced_var: tcl_lexer::BracedVarStyle::FirstClose,

@@ -246,7 +246,6 @@ mod tests {
     }
     #[test]
     fn reached_error_capture_retains_original_argv_members_after_invocation_release() {
-        // naming.error.original-invocation-context-capture
 
         // Software ownership contract: no native private-pointer observation or
         // execution/frame permission follows from these VM reference counts.
@@ -304,7 +303,6 @@ mod tests {
 
     #[test]
     fn reached_error_capture_declines_retired_argv_and_missing_protocol() {
-        // naming.error.original-invocation-context-capture
 
         // No source text, fresh strings or retired-header revival repairs a view.
         let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
@@ -343,7 +341,6 @@ mod tests {
 
     #[test]
     fn reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes() {
-        // naming.error.original-invocation-context-capture
 
         // Software transport: no Native execution or source-object observation.
         use tcl_runtime_api::NativeExecutionError;
@@ -395,7 +392,6 @@ mod tests {
 
     #[test]
     fn reached_instruction_capture_preserves_missing_owner_refusal() {
-        // naming.error.original-invocation-context-capture
 
         use tcl_registry::native_return_options::NativeReturnOptionsApplication;
         use tcl_runtime_api::NativeExecutionError;

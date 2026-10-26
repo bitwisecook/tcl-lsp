@@ -1038,7 +1038,6 @@ mod original_boundary_tests {
     use std::cell::Cell;
     #[test]
     fn original_compiled_dictionary_writeback_restores_saved_fields_before_frame_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual compiled recipe/locals and software callback transport only.
         for mode in [0, 1, 3] {

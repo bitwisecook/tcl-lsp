@@ -48,7 +48,6 @@ fn inventory(
     class: &ClassDef,
     method: &str,
 ) -> Option<(Vec<Span>, bool)> {
-    // naming.core.original-member-reference-hazard
 
     let input = analysis.resolved_input.as_ref()?;
     let config = input.lexer_config();
@@ -355,7 +354,6 @@ mod tests {
 
     #[test]
     fn member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary() {
-        // naming.core.original-member-reference-hazard
 
         // Readonly source syntax; no native table, entered worker or edit permission.
         let source = "class-maker create C {method m {} {}; export m; self {export m}; if {1} {export m}}; configure-class C {export m}; class-maker create D {export m}";
@@ -380,7 +378,6 @@ mod tests {
 
     #[test]
     fn member_hazards_follow_original_configured_target_moves_and_captured_operands() {
-        // naming.core.original-member-reference-hazard
 
         for dialect in ["tcl", "tcl9.0"] {
             for (tail, visible) in [
@@ -413,7 +410,6 @@ mod tests {
 
     #[test]
     fn member_hazards_refuse_stale_missing_and_unowned_class_metadata() {
-        // naming.core.original-member-reference-hazard
 
         let source =
             "class-maker create C {method m {} {}; export m}; configure-class C {export m}";

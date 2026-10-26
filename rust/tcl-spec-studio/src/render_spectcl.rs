@@ -4214,7 +4214,6 @@ mod tests {
 
     #[test]
     fn original_abstract_grammar_roundtrip_keeps_created_class_and_factory_visibilities() {
-        // naming.tcloo.original-abstract-manufacturer-public-visibility
 
         let registry = tcl_registry::CommandRegistry::build_default();
         let selected = registry.get("oo::abstract").unwrap();
@@ -4350,7 +4349,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.registry-receiver-authoring-parity
 
     fn combined_variable_receiver_metadata_round_trips_commands_members_and_forms() {
         use tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined;
@@ -4442,7 +4440,6 @@ mod tests {
 
     #[test]
     fn source_deprecation_advice_survives_both_renderers_and_pack_reload() {
-        // naming.diagnostic.registry-source-ownership
 
         let spec = tcl_registry::CommandSpec {
             name: "probe::legacy",
@@ -4478,7 +4475,6 @@ mod tests {
 
     #[test]
     fn positional_option_prefix_survives_both_renderers_and_pack_reload() {
-        // naming.diagnostic.registry-source-ownership
 
         const NESTED: &[tcl_registry::SubSubCommand] = &[tcl_registry::SubSubCommand {
             name: "configure",
@@ -5598,7 +5594,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.trace-source-receiver-purpose
 
     fn trace_subject_receiver_metadata_round_trips_commands_members_and_forms() {
         use tcl_registry::resolved_invocation::VariableReceiverOperandForm::{
@@ -5656,7 +5651,6 @@ mod tests {
     }
     #[test]
     fn authored_source_path_operations_survive_render_load_and_draft() {
-        // naming.navigation.retained-path-source-inventory
 
         static MEMBERS: &[tcl_registry::SubCommand] = &[
             tcl_registry::SubCommand {
@@ -5832,7 +5826,6 @@ mod tests {
 
     #[test]
     fn authored_channel_configuration_survives_render_load_and_draft() {
-        // naming.diagnostic.registry-source-ownership
 
         static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "configure",
@@ -5887,7 +5880,6 @@ mod tests {
 
     #[test]
     fn authored_source_index_bounds_survive_render_load_and_draft() {
-        // naming.diagnostic.registry-source-ownership
 
         static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "insert",

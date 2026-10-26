@@ -2359,7 +2359,6 @@ mod tests {
 
     #[test]
     fn original_inline_body_tokens_keep_nested_bom_and_parent_point_correspondence() {
-        // naming.source.original-configured-script-completeness
 
         // Original source geometry only; this control supplies no Native compilation admission.
         let mut prepared = crate::analyser::Analyser::new();
@@ -2440,7 +2439,6 @@ mod tests {
 
     #[test]
     fn original_try_handler_argument_emission_keeps_the_child_source_scope() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = CommandRegistry::build_default();
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);

@@ -618,7 +618,6 @@ fn native_dictionary_array_pairs(
     interp: &Interp,
     target: &ArrayTarget,
 ) -> Result<Option<Vec<(*mut TclObj, *mut TclObj)>>, tcl_syntax::value::ValueError> {
-    // naming.array.jim-original-dictionary-runtime-enumeration
 
     let Some(root) = VarStore::get_bytes(interp, target.frame(), target.name_bytes())? else {
         return Ok(None);
@@ -1661,7 +1660,6 @@ mod tests {
 
     #[test]
     fn unsupported_variable_inventory_policy_preserves_original_guest_state() {
-        // naming.invocation.original-variable-inventory-policy
 
         // Software purpose/refusal control; no original C/Jim observation.
         leak_free(|interp| {
@@ -2024,7 +2022,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_completion_capture_keeps_options_getter_host_cause_and_owned_handles() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for route in 0..3 {
             let mut interpreter = original();
@@ -2102,7 +2099,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_completion_capture_refuses_restored_context_before_abi_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for route in 0..3 {
             let mut interpreter = original();
@@ -2164,7 +2160,6 @@ mod original_completion_capture_tests {
     }
     #[test]
     fn original_completion_capture_preserves_counted_guest_codes_options_and_references() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for code in 0..=7 {
             let mut interpreter = original();
@@ -2250,7 +2245,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_command_roles_keep_typed_capture_refusal_and_borrowed_argv() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for route in 0..3 {
             let mut interpreter = original();
@@ -2313,7 +2307,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_public_completion_keeps_before_body_currency_and_reached_script_effects() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for (sourced, guest_code) in [
             (false, 0),

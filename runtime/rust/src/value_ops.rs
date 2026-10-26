@@ -2209,7 +2209,6 @@ impl ValueOps for Interp {
         list: &mut *mut TclObj,
         item: &*mut TclObj,
     ) -> Result<bool, ValueError> {
-        // naming.list.original-value-append-storage-currency
 
         obj::check_native_liveness(*list)?;
         obj::check_native_liveness(*item)?;
@@ -2285,7 +2284,6 @@ mod tests {
 
     #[test]
     fn original_value_append_preserves_storage_for_the_next_native_mutation() {
-        // naming.list.original-value-append-storage-currency
 
         use crate::obj;
         use tcl_syntax::native_string::NativeStringProtocol;
@@ -2321,7 +2319,6 @@ mod tests {
 
     #[test]
     fn original_value_append_does_not_rebuild_after_unavailable_storage() {
-        // naming.list.original-value-append-storage-currency
 
         use crate::obj;
         use tcl_syntax::native_string::NativeStringProtocol;

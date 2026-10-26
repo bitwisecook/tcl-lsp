@@ -1010,7 +1010,6 @@ mod tests {
 
     #[test]
     fn lambda_deferred_writes_retain_module_metadata_and_refuse_withdrawn_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -1077,7 +1076,6 @@ mod tests {
 
     #[test]
     fn deferred_source_installers_keep_original_horizons_and_literal_names() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source names only; the retained world is the installer's,
         // not an observation of the command table when a future callback runs.
@@ -1107,7 +1105,6 @@ mod tests {
 
     #[test]
     fn deferred_source_installers_use_actual_availability_and_refuse_missing_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut registry = CommandRegistry::build_default();
         let installer = registry.get("after").unwrap().clone();

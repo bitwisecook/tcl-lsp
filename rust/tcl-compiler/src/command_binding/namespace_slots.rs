@@ -245,7 +245,6 @@ impl ModuleCommandBindings {
     /// Apply the reached Ensure operation using a genuine static original
     /// operand. Allocated keys retain the real source site and bounded lifetime;
     /// this conditional source transfer creates no native namespace token.
-    // Implementation contract: naming.namespace.original-counted-namespace-allocation
     pub(super) fn ensure_original_namespace_key_at(
         &mut self,
         current: &SourceNamespaceKey,
@@ -763,7 +762,6 @@ mod tests {
 
     #[test]
     fn original_lambda_namespace_uses_native_list_children_and_proved_omission() {
-        // naming.lambda.original-namespace-constructor-and-getter
 
         // This tests a genuine source-list projection and retained namespace
         // inventory, independently of the SDK's actual Apply worker.
@@ -803,7 +801,6 @@ mod tests {
 
     #[test]
     fn original_lambda_namespace_refuses_foreign_source_and_configuration() {
-        // naming.lambda.original-namespace-constructor-and-getter
 
         let version = tcl_dialect::TclVersion::V8_6;
         let source = "namespace eval ns {}; apply {{} {} ns}";
@@ -841,7 +838,6 @@ mod tests {
 
     #[test]
     fn original_counted_namespace_allocation_retains_components_and_lifetimes() {
-        // Implementation contract: naming.namespace.original-counted-namespace-allocation
 
         for version in tcl_dialect::TclVersion::ALL {
             let (mut state, input) =
@@ -893,7 +889,6 @@ mod tests {
 
     #[test]
     fn original_counted_namespace_frame_uses_relative_original_children() {
-        // Implementation contract: naming.namespace.original-counted-namespace-allocation
 
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"namespace eval N\uD800 {namespace eval child {proc p {} {}; namespace export p}; set insideCheckpoint READY}; set checkpoint READY";
@@ -952,7 +947,6 @@ mod tests {
 
     #[test]
     fn original_counted_namespace_allocation_refuses_foreign_unknown_and_duplicate_geometry() {
-        // Implementation contract: naming.namespace.original-counted-namespace-allocation
 
         for version in tcl_dialect::TclVersion::ALL {
             let (mut state, input) =

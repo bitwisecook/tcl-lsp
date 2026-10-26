@@ -150,7 +150,6 @@ fn assert_first(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn original_c_alias_retirement_keeps_metadata_without_postponing_its_native_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The C9 object-key callback observes the genuine key role, not a C8 string-key surrogate.
     for profile in ["tcl9.0", "tcl9.1"] {
@@ -238,7 +237,6 @@ fn original_c_alias_retirement_keeps_metadata_without_postponing_its_native_role
 
 #[test]
 fn original_generic_link_publication_retires_old_scalar_after_actual_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Generic software publication keeps its existing adopt-before-retire order, independent of C upvar.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -289,7 +287,6 @@ fn original_generic_link_publication_retires_old_scalar_after_actual_adoption() 
 
 #[test]
 fn original_shared_link_metadata_transfers_one_role_and_real_removal_withdraws_it_once() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut target = VarTable::default();
     let role = target.retain_native_scalar_alias(b"target");
@@ -319,7 +316,6 @@ fn original_shared_link_metadata_transfers_one_role_and_real_removal_withdraws_i
 
 #[test]
 fn original_c_same_target_noop_issues_no_new_alias_role_for_every_selected_profile() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = native(profile);
@@ -353,7 +349,6 @@ fn original_c_same_target_noop_issues_no_new_alias_role_for_every_selected_profi
 
 #[test]
 fn original_compiled_alias_distinguishes_c84_target_reference_from_later_hash_only_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual installed compiled cells exercise the selected source recipe; software counters are not native measurements.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

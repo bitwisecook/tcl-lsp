@@ -189,7 +189,6 @@ mod original_selected_body_purpose_tests {
 
     #[test]
     fn original_selected_body_keeps_bom_value_and_complete_parent_word_geometry() {
-        // naming.source.original-configured-script-completeness
 
         // Selected-word/value syntax only; callers retain independent rewrite permissions.
         let config = tcl_lexer::LexerConfig {

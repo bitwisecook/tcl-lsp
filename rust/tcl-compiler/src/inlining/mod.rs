@@ -2627,7 +2627,6 @@ mod reported_namespace_tests {
 
     #[test]
     fn procedure_body_reporting_namespace_retains_its_selected_prefix() {
-        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
 
         // Shared analytical name contract:
         // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).

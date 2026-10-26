@@ -394,7 +394,6 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<Arc<OriginalSourceProcedureBody>> {
-        // naming.source.original-future-procedure-body
 
         if !matches!(self.policy, AdviceNamingPolicy::Native(_))
             || !schema.semantics.traits.contains(Traits::DEFERS_BODY)
@@ -781,7 +780,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_joins_later_current_factory_with_authentic_parent_body() {
-        // naming.source.original-future-procedure-body
 
         for source in [
             "proc touch {} {.t bogus}; ttk::treeview .t; touch",
@@ -808,7 +806,6 @@ mod tests {
 
     #[test]
     fn original_uncalled_procedure_uses_authentic_final_source_graph_without_call_or_frame() {
-        // naming.source.original-future-procedure-body
 
         for source in [
             "proc p {} {C new one}; oo::class create C {constructor {x y} { }}",
@@ -857,7 +854,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_source_roles_retain_independently_selected_c_and_jim_grammar() {
-        // naming.source.original-future-procedure-body
 
         let source = "proc p {} {if {1} {puts value}}; p";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -885,7 +881,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_refuses_known_replacement_deletion_and_malformed_formals() {
-        // naming.source.original-future-procedure-body
 
         for source in [
             "proc touch {} {.t bogus}; ttk::treeview .t; proc touch {} {}; touch",
@@ -903,7 +898,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_local_handle_does_not_borrow_parent_value_or_escape_branch() {
-        // naming.source.original-future-procedure-body
 
         let source = "set lb [listbox .l]; proc p {} {$lb bogus}; p";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

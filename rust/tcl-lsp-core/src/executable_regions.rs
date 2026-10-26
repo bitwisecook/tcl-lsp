@@ -477,7 +477,6 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
             &tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion,
         >,
     ) -> bool {
-        // naming.core.original-executable-region-context
 
         let Some(analysis) = self.analysis else {
             return false;
@@ -833,7 +832,6 @@ mod tests {
 
     #[test]
     fn quoted_case_actions_retain_absolute_spans_for_each_registry_descriptor() {
-        // naming.core.original-executable-region-context
 
         for (source, dialect, written) in [
             ("switch $x {a \"format {%d} 1\"}", "tcl8.6", "format"),
@@ -854,7 +852,6 @@ mod tests {
 
     #[test]
     fn quoted_case_actions_preserve_identity_and_abstain_for_dynamic_or_malformed_lists() {
-        // naming.core.original-executable-region-context
 
         let aliased = "interp alias {} fmt {} format\nswitch $x {a \"fmt {%d} 1\"}";
         assert_eq!(
@@ -890,7 +887,6 @@ mod tests {
 
     #[test]
     fn quoted_declared_bodies_recurse_only_when_source_mappable() {
-        // naming.core.original-executable-region-context
 
         let dialect = "tcl8.6";
         let literal = "proc p {} \"format {%d} 1\"";
@@ -923,7 +919,6 @@ mod tests {
 
     #[test]
     fn original_analysis_regions_keep_alias_case_and_shadow_source_ownership() {
-        // naming.core.original-executable-region-context
 
         for source in [
             "interp alias {} choose {} switch\nchoose x {x {format live}}",
@@ -955,7 +950,6 @@ mod tests {
 
     #[test]
     fn original_analysis_regions_decline_stale_source_config_and_registry() {
-        // naming.core.original-executable-region-context
 
         let source = "if 1 {format live}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -990,7 +984,6 @@ mod tests {
 
     #[test]
     fn retained_analysis_regions_respect_reference_only_script_purpose() {
-        // naming.source.original-script-region-purpose
 
         fn reference_only_first(
             _args: tcl_registry::InvocationArguments<'_>,
@@ -1053,7 +1046,6 @@ mod tests {
 
     #[test]
     fn original_analysis_definition_vocabulary_clears_ordinary_and_procedure_bodies() {
-        // naming.core.original-executable-region-context
 
         for (source, expected) in [
             (
@@ -1098,7 +1090,6 @@ mod tests {
 
     #[test]
     fn original_analysis_member_regions_keep_parent_vocabulary_and_whole_geometry() {
-        // naming.core.original-executable-region-context
 
         for (source, dialect, expected) in [
             (
@@ -1172,7 +1163,6 @@ mod tests {
 
     #[test]
     fn original_analysis_declared_body_roles_keep_syntax_separate_from_timing() {
-        // naming.core.original-comment-source-context
 
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {format source-only}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -1207,7 +1197,6 @@ mod tests {
 
     #[test]
     fn reference_only_bodies_are_not_executable_regions() {
-        // naming.core.original-executable-region-context
 
         fn reference_only_first(
             _args: tcl_registry::InvocationArguments<'_>,
@@ -1260,7 +1249,6 @@ mod original_compound_region_parser_purpose_tests {
 
     #[test]
     fn original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates() {
-        // naming.core.original-executable-region-context
 
         // Original compound-word geometry only, without evaluated child or frame authority.
         let mut prepared = tcl_compiler::analyser::Analyser::new();

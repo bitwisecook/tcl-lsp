@@ -1876,7 +1876,6 @@ mod tests {
 
     #[test]
     fn known_native_bytes_keep_argv_shape_without_a_logical_value() {
-        // Implementation contract: naming.invocation.known-native-byte-values
 
         let payload = [b'n', 0, 0xff, 0xed, 0xa0, 0x80];
         let words = [

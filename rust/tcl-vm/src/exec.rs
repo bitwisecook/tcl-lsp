@@ -12598,7 +12598,6 @@ mod tests {
 
     #[test]
     fn original_arithmetic_opcode_workers_keep_cached_values_and_retained_host_failure() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Calls the actual opcode workers with a placeholder frame; this does
         // not claim compiler admission or external native execution.

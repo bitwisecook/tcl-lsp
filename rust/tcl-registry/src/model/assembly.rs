@@ -673,7 +673,6 @@ pub fn resolve_structured_invocation_in_resolved_context<'r, 'w>(
     words: crate::InvocationWords<'w>,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> crate::StructuredInvocationResolution<'r, 'w> {
-    // Implementation contract: naming.vendor.original-registry-metadata
 
     let Some(context) = context else {
         let query = commands

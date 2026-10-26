@@ -382,7 +382,6 @@ mod original_format_grammar_tests {
     use super::*;
     #[test]
     fn original_binary_grammar_distinguishes_literal_and_modified_zero_units() {
-        // naming.binary.original-object-format-grammar-extent
 
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let protocol = crate::InvocationDialect::of_profile(

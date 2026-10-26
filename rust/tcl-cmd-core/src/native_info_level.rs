@@ -125,9 +125,7 @@ mod tests {
 
     #[test]
     fn native_level_integer_error_retains_primitive_fields_and_string_producer() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
-        // naming.numeric.primitive-int-original-width-cache
 
         // Native introspection case13 observes the String result. Primitive
         // row10 separately supplies this exact original String bad's message
@@ -184,7 +182,6 @@ mod tests {
 
     #[test]
     fn native_level_width_failure_keeps_the_fresh_result_producer() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // Native C90 case12 reaches GetInt width overflow and observes no
         // result primary. C86/C91 select Wide for that source operand, so this

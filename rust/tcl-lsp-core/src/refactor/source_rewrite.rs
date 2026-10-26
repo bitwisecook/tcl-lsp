@@ -257,11 +257,9 @@ mod tests {
 
     use tcl_compiler::analyser::Analyser;
 
-    // Implementation contract: naming.refactor.original-source-rewrite-permissions
 
     #[test]
     fn original_source_rewrites_require_current_handler_and_distinct_permissions() {
-        // Implementation contract: naming.refactor.original-source-rewrite-permissions
 
         let source = "expr 1 + 2";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -300,7 +298,6 @@ mod tests {
 
     #[test]
     fn source_rewrites_keep_actual_availability_and_command_horizons() {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
@@ -389,7 +386,6 @@ mod tests {
 
     #[test]
     fn logical_source_rewrite_keeps_captured_values_outside_written_clause_positions() {
-        // naming.refactor.original-source-rewrite-permissions
 
         let plain = "interp alias {} evaluate {} expr\nevaluate 1 + 2";
         let analysis = Analyser::new().analyse(plain, "tcl");
@@ -418,11 +414,9 @@ mod tests {
         );
     }
 
-    // Implementation contract: naming.refactor.original-source-rewrite-permissions
 
     #[test]
     fn original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell() {
-        // Implementation contract: naming.refactor.original-source-rewrite-permissions
 
         for prefix in [
             "set result_map kept; ",

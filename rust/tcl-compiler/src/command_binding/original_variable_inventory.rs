@@ -70,7 +70,6 @@ mod tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.variable.original-ssa-definition-operand
 
     fn original_operand_inventory_keeps_runtime_bytes_and_withdraws_missing_or_conflicting_owners()
     {

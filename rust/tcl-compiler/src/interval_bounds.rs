@@ -1639,7 +1639,6 @@ mod tests {
 
     #[test]
     fn retained_bounds_context_keeps_availability_source_operands_and_store_identity() {
-        // naming.compiler.original-analysis-metadata-context
 
         // A custom gated source descriptor; no stock release-availability or Native-entry claim.
         use super::*;

@@ -4443,7 +4443,6 @@ mod tests {
 
     #[test]
     fn original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim() {
-        // naming.runtime.original-command-source-extent
 
         // This emitter contract binds physical source metadata only; Native286
         // separately measures public C/Jim results and supplies no opcode grant.
@@ -4603,7 +4602,6 @@ mod tests {
 
     #[test]
     fn nested_value_tokens_keep_the_retained_lexer_policy_without_lookup_permission() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Lexical source control; this supplies no Native selection or body admission.
         let context =
@@ -5103,7 +5101,6 @@ mod tests {
 
     #[test]
     fn original_expanded_calls_keep_complete_words_and_lexical_nul_values() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = CommandRegistry::build_default();
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);

@@ -129,7 +129,6 @@ fn arm(vm: &mut Vm, formatter: &Formatter, body: &Value, defaults: &[Value]) -> 
 
 #[test]
 fn original_procedure_query_checks_selected_declaration_after_each_actual_string_stage() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual VM producer and Host callback roles; no Native Proc pointer equivalence.
     for mode in 0..4 {
@@ -186,7 +185,6 @@ fn original_procedure_query_checks_selected_declaration_after_each_actual_string
 
 #[test]
 fn shared_proc_body_consumer_preserves_outer_refusal_instead_of_reporting_missing_procedure() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The generic consumer transports full CmdError from the selected original query.
     let (mut vm, formatter) = provided();
@@ -218,7 +216,6 @@ fn shared_proc_body_consumer_preserves_outer_refusal_instead_of_reporting_missin
 
 #[test]
 fn original_alias_query_keeps_resident_headers_and_pending_first_host() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Byte projection of the actual existing VM alias, without a new Name/String recipe.
     let (mut vm, formatter) = provided();

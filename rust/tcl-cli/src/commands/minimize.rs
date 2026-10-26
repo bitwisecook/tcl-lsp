@@ -625,7 +625,6 @@ mod tests {
 
     #[test]
     fn minimise_variable_edits_use_actual_availability_and_atomic_list_containers() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual source roles and edits are tested; no body entry or runtime
         // availability is inferred from an assistance declaration.
@@ -644,7 +643,6 @@ mod tests {
 
     #[test]
     fn minimise_diagnostic_retains_supplied_input_across_reduction() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = input_for("tcl8.6");
         let source = "# removable\nset unused 1";

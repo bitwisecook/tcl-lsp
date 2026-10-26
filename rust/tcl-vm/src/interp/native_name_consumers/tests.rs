@@ -123,7 +123,6 @@ fn unchanged_result(vm: &Vm, original: &crate::NativeObjectLifetimeLease) {
 
 #[test]
 fn original_name_consumer_keeps_restored_nested_frame_and_namespace_contexts() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();
@@ -156,7 +155,6 @@ fn original_name_consumer_keeps_restored_nested_frame_and_namespace_contexts() {
 
 #[test]
 fn original_name_consumer_refuses_reborn_same_level_before_the_next_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     vm.declare_namespace("nested");
@@ -196,7 +194,6 @@ fn original_name_consumer_refuses_reborn_same_level_before_the_next_getter() {
 
 #[test]
 fn original_name_consumer_reached_formatter_withdraws_the_table_before_later_operands() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let result = prior(&mut vm);
@@ -244,7 +241,6 @@ fn original_name_consumer_reached_formatter_withdraws_the_table_before_later_ope
 
 #[test]
 fn original_name_consumer_host_change_and_restore_keeps_the_first_context_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let result = prior(&mut vm);
@@ -273,7 +269,6 @@ fn original_name_consumer_host_change_and_restore_keeps_the_first_context_cause(
 
 #[test]
 fn original_name_consumer_pending_typed_cause_prevents_later_header_work() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let result = prior(&mut vm);
@@ -300,7 +295,6 @@ fn original_name_consumer_pending_typed_cause_prevents_later_header_work() {
 
 #[test]
 fn original_name_consumer_selected_namespace_does_not_rebind_from_its_old_spelling() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     vm.declare_namespace("selected");
@@ -338,7 +332,6 @@ fn original_name_consumer_selected_namespace_does_not_rebind_from_its_old_spelli
 
 #[test]
 fn original_name_consumer_info_boundary_preserves_the_reached_getter_cause_and_result_owner() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, _) = provided();
     let result = prior(&mut vm);
@@ -630,7 +623,6 @@ fn ensemble_map_nested_prefix_list_getter_checks_the_original_caller() {
 
 #[test]
 fn original_jim_namespace_eval_uses_its_actual_holder_without_c_tree_registration() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
     let outer =
@@ -662,7 +654,6 @@ fn original_jim_namespace_eval_uses_its_actual_holder_without_c_tree_registratio
 
 #[test]
 fn original_jim_namespace_holder_withdrawal_refuses_invalid_and_retired_births() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
     let namespace = vm.intern_jim_namespace_object(b"originalJimHolder");
@@ -684,7 +675,6 @@ fn original_jim_namespace_holder_withdrawal_refuses_invalid_and_retired_births()
 
 #[test]
 fn original_jim_namespace_consumer_rejects_foreign_world_with_same_numeric_slot() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
     let foreign = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
@@ -713,7 +703,6 @@ fn original_jim_namespace_consumer_rejects_foreign_world_with_same_numeric_slot(
 
 #[test]
 fn original_variable_name_array_worker_retains_formatter_cause_before_later_operands() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software worker/callback transport; no external Tcl formatter or array chronology grant.
     let (mut vm, formatter, queries) = provided();
@@ -764,7 +753,6 @@ fn original_variable_name_array_worker_retains_formatter_cause_before_later_oper
 
 #[test]
 fn original_variable_name_dictionary_worker_refuses_retired_header_before_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A real withdrawn original operand is not an apparent variable miss or a generic Host message.
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
@@ -805,7 +793,6 @@ fn original_variable_name_dictionary_worker_refuses_retired_header_before_public
 
 #[test]
 fn original_variable_name_array_worker_keeps_current_counted_header_and_cell_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Current software success keeps the actual source name and selected existing array owner.
     let (mut vm, formatter, queries) = provided();
@@ -851,7 +838,6 @@ fn original_variable_name_array_worker_keeps_current_counted_header_and_cell_rol
 
 #[test]
 fn original_name_consumer_rejects_foreign_world_before_same_spelled_namespace_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Equal namespace labels do not replace the retained actual command-world owner.
     let (mut vm, formatter, queries) = provided();
@@ -882,7 +868,6 @@ fn original_name_consumer_rejects_foreign_world_before_same_spelled_namespace_ge
 
 #[test]
 fn original_variable_cache_stage_refuses_restored_context_before_member_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software stage observer after real List retirement; not an external free-hook chronology claim.
     let (mut vm, formatter, queries) = provided();
@@ -944,7 +929,6 @@ fn original_variable_cache_stage_refuses_restored_context_before_member_adoption
 
 #[test]
 fn original_variable_cache_stage_keeps_current_real_retirement_and_adoption_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Exact software worker order/currentness; no physical Tcl extension equivalence.
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -996,7 +980,6 @@ fn original_variable_cache_stage_keeps_current_real_retirement_and_adoption_role
 
 #[test]
 fn original_variable_trace_registration_retains_prefix_failure_before_cell_creation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let scope = NativeOperationScope::enter(&mut vm).unwrap();
@@ -1035,7 +1018,6 @@ fn original_variable_trace_registration_retains_prefix_failure_before_cell_creat
 
 #[test]
 fn original_named_variable_read_retains_first_getter_failure_before_receiver_lookup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let scope = NativeOperationScope::enter(&mut vm).unwrap();
@@ -1070,7 +1052,6 @@ fn original_named_variable_read_retains_first_getter_failure_before_receiver_loo
 
 #[test]
 fn original_name_selected_compiled_slot_refuses_replacement_before_the_next_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     vm.install_compiled_local_slots(&[tcl_core_types::NameBytes::from(b"local".as_slice())])
@@ -1111,7 +1092,6 @@ fn original_name_selected_compiled_slot_refuses_replacement_before_the_next_gett
 
 #[test]
 fn original_name_explicit_namespace_refuses_reborn_target_before_the_next_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     vm.declare_namespace("target");
@@ -1151,7 +1131,6 @@ fn original_name_explicit_namespace_refuses_reborn_target_before_the_next_getter
 
 #[test]
 fn original_jim_dictionary_tuple_checks_real_retirement_before_adopting_children() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software stage observation; no external Jim callback chronology claim.
     for withdraw in [false, true] {

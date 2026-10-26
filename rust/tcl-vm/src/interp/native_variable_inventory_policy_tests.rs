@@ -20,7 +20,6 @@ use super::*;
 
 #[test]
 fn variable_inventory_uses_the_actual_selected_name_purpose() {
-    // naming.invocation.original-variable-inventory-policy
 
     // Software admission and result control, not an original-provider receipt.
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -53,7 +52,6 @@ fn variable_inventory_uses_the_actual_selected_name_purpose() {
 
 #[test]
 fn unsupported_inventory_policy_refuses_before_a_pattern_getter() {
-    // naming.invocation.original-variable-inventory-policy
 
     // Standalone ingress supplies no independently retained actual native core.
     let mut vm = Vm::without_native_engine();
@@ -86,7 +84,6 @@ fn unsupported_inventory_policy_refuses_before_a_pattern_getter() {
 
 #[test]
 fn genuine_native_inventory_policy_survives_unknown_source_profile() {
-    // naming.invocation.original-variable-inventory-policy
 
     // Source compatibility cannot revoke the independently retained native issuer.
     let mut vm = crate::native_fixture::interpreter(

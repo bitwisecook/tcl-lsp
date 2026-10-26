@@ -3205,7 +3205,6 @@ impl Interp {
         artifact: &NativeBodyArtifact,
         command: &CommandInstruction,
     ) -> Result<bool, Code> {
-        // naming.command.native-command-entry-currency
 
         // C's START_CMD checks compiler/resolver currency before arguments.
         // The selected operation remains captured during those arguments.
@@ -4542,7 +4541,6 @@ mod tests {
     }
     #[test]
     fn original_compiled_generic_expansion_stops_before_real_target_dispatch() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use crate::cmd_control::original_list_conversion_tests as fixture;
         use std::cell::Cell;

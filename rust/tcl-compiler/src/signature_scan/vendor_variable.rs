@@ -379,7 +379,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.vendor.original-source-context-input
 
     fn vendor_variable_advice_preserves_selected_body_and_formal_source_owners() {
         let source = "proc p {argument {optional DEFAULT} args} {set local 1; set {v\\uD800} 2; return $argument}\n";
@@ -464,7 +463,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.vendor.original-source-context-input
 
     fn vendor_variable_advice_retains_actual_keyed_context_and_rejects_foreign_roles() {
         use tcl_dialect::model::bigip_execution_context::BigIpExecutionContext;
@@ -536,7 +534,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.vendor.original-source-context-input
 
     fn vendor_event_and_root_source_advice_do_not_select_runtime_domains() {
         let source = "when RULE_INIT {set static::shared 1}\nwhen HTTP_REQUEST {set local 2}\n";

@@ -109,7 +109,6 @@ fn expect_target_refusal(vm: &Vm) {
 }
 #[test]
 fn original_oo_name_target_keeps_rename_and_ordinary_method_mutation_without_reference_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, target, formatter) = provided();
     let name_owner = Rc::clone(&vm.oo.objects[&target].cached_name);
@@ -154,7 +153,6 @@ fn original_oo_name_target_keeps_rename_and_ordinary_method_mutation_without_ref
 }
 #[test]
 fn original_oo_name_withdrawal_refuses_recreated_written_object_before_later_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, target, formatter) = provided();
     let original = numeric(&vm);
@@ -183,7 +181,6 @@ fn original_oo_name_withdrawal_refuses_recreated_written_object_before_later_get
 }
 #[test]
 fn original_oo_name_facet_replacement_keeps_object_and_namespace_guards_independent() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real Default/map metadata replacement; no Native Class pointer or demotion API claim.
     let (mut vm, target, formatter) = provided();
@@ -215,7 +212,6 @@ impl NativeCommand for Body {
 }
 #[test]
 fn original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_body() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied formatter callback behavior is software evidence only.
     let (mut vm, target, formatter) = provided();
@@ -293,7 +289,6 @@ fn original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_b
 }
 #[test]
 fn original_oo_definition_name_refusal_restores_real_definition_activation_before_return() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, target, formatter) = provided();
     let original = numeric(&vm);
@@ -350,7 +345,6 @@ impl NativeCommand for ReplaceDeclaringFacet {
 }
 #[test]
 fn original_oo_name_declaring_facet_comes_from_the_genuine_entered_method_chain() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Selected live chain plus real metadata replacement; no Native Class lifetime claim.
     let (mut vm, target, formatter) = provided();
@@ -434,7 +428,6 @@ impl NativeCommand for WithdrawDeclaringStep {
 
 #[test]
 fn original_oo_name_present_method_requires_its_actual_declaring_step() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual entered method, then software index withdrawal; no Native Class lifetime claim.
     let (mut vm, _target, formatter) = provided();

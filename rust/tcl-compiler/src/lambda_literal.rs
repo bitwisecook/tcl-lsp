@@ -113,7 +113,6 @@ pub fn split_lambda_literal(source: &str, tok: Token) -> Option<LambdaLiteralEle
 pub fn split_original_lambda_literal(
     word: &tcl_lexer::NativeWord,
 ) -> Option<LambdaLiteralElements> {
-    // Implementation contract: naming.source.original-editor-body-structure
 
     if word.group().kind != tcl_lexer::WordKind::Braced {
         return None;
@@ -217,7 +216,6 @@ pub fn split_original_lambda_literal_decoded(
     word: &tcl_lexer::NativeWord,
     input: &crate::signature_scan::scope::SignatureSourceNameInput,
 ) -> Option<DecodedLambdaLiteral<'static>> {
-    // Implementation contract: naming.source.original-editor-body-structure
 
     let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = input else {
         return None;
@@ -252,7 +250,6 @@ pub fn split_original_lambda_literal_decoded(
 pub fn split_original_lambda_literal_lexical_decoded(
     word: &tcl_lexer::NativeWord,
 ) -> Option<DecodedLambdaLiteral<'static>> {
-    // naming.editor.logical-formatting-context
 
     if word.image().channel() != tcl_lexer::SourceChannel::Document
         || word.group().kind != tcl_lexer::WordKind::Braced
@@ -407,7 +404,6 @@ mod tests {
 
     #[test]
     fn original_lexical_lambda_decoding_retains_word_config_and_channel() {
-        // naming.editor.logical-formatting-context
 
         let source = "apply {a {puts a\\
  b}}";
@@ -585,7 +581,6 @@ mod tests {
 mod original_geometry_tests {
     #[test]
     fn original_lambda_geometry_uses_its_parent_selected_list_grammar() {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         let source = tcl_lexer::SourceImage::document("apply {{} {puts x}tail}");
         for (profile, expected) in [("tcl8.6", None), ("jim0.84", Some("puts x"))] {
@@ -611,7 +606,6 @@ mod original_geometry_tests {
 mod original_decoded_tests {
     #[test]
     fn original_lambda_decoding_retains_parent_native_units_without_cooked_geometry() {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim0.84"] {
             let profile =

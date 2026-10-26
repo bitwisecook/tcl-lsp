@@ -35,7 +35,6 @@ impl OriginalCommandTokenCache {
         key: OriginalCommandTokenKey,
         prepare: impl FnOnce() -> Option<Arc<CommandTokens>>,
     ) -> Option<Arc<CommandTokens>> {
-        // Implementation contract: naming.source.original-command-token-memo
 
         if let Some(retained) = self
             .entries
@@ -107,7 +106,6 @@ impl CommandBindingRealm {
         offset: u32,
         representatives: &[Token],
     ) -> Option<Arc<CommandTokens>> {
-        // Implementation contract: naming.source.original-command-token-memo
 
         let key = OriginalCommandTokenKey {
             image: image.clone(),
@@ -187,7 +185,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_keeps_zero_written_arguments_and_captured_prefix_separate() {
-        // naming.source.original-command-token-memo
 
         let source = "interp alias {} clean {} unset -nocomplain\nclean";
         let (realm, image, config, _) = fixture(source);
@@ -220,7 +217,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_shares_only_the_same_immutable_query() {
-        // Implementation contract: naming.source.original-command-token-memo
 
         let (realm, image, config, representatives) = fixture("namespace eval A {set x 1}");
         let clone = realm.clone();
@@ -241,7 +237,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_retains_full_source_config_and_representatives() {
-        // Implementation contract: naming.source.original-command-token-memo
 
         let (realm, image, config, representatives) = fixture("set x 1");
         let first = realm
@@ -279,7 +274,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_does_not_reuse_a_foreign_or_unknown_realm() {
-        // Implementation contract: naming.source.original-command-token-memo
 
         let source = "set x 1";
         let (realm, image, config, representatives) = fixture(source);
@@ -317,7 +311,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_has_bounded_retention() {
-        // Implementation contract: naming.source.original-command-token-memo
 
         let (realm, _, config, _) = fixture("set x 1");
         for value in 0..=MAX_RETAINED_COMMANDS {
@@ -346,7 +339,6 @@ mod original_command_slice_purpose_tests {
 
     #[test]
     fn original_token_memo_preserves_bom_heads_after_the_actual_file_prologue() {
-        // naming.source.original-command-token-memo
 
         // Original command geometry/cache sharing only; an unknown head stays unknown.
         let mut prepared = crate::analyser::Analyser::new();

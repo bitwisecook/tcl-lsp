@@ -80,7 +80,6 @@ fn assert_first(actual: &Interp, mode: u8) {
 }
 #[test]
 fn original_coroutine_concat_keeps_frame_inside_source_conversion_before_tailcall_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The real C91 expanded-tailcall recipe; software callbacks, no Native chronology claim.
     for mode in [0, 1, 2, 3] {
@@ -173,7 +172,6 @@ fn original_coroutine_concat_keeps_frame_inside_source_conversion_before_tailcal
 }
 #[test]
 fn original_coroutine_name_checks_reached_last_result_retirement_before_success() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2, 3] {
         let mut actual = fixture::native("tcl9.1");

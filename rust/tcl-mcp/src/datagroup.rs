@@ -440,7 +440,6 @@ mod tests {
 
     #[test]
     fn selected_if_suggestions_share_actual_scalar_reference_grammar() {
-        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
 
         for (dialect, subject, root) in [
             ("tcl8.6", "${a b}", "a b"),
@@ -569,7 +568,6 @@ mod tests {
 
     #[test]
     fn original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility() {
-        // Implementation contract: naming.mcp.original-datagroup-suggestion-eligibility
 
         let source = "if {$host eq \"a.com\"} {pool p} elseif {$host eq \"b.com\"} {pool p} elseif {$host eq \"c.com\"} {pool p}";
         let hosted = crate::tools::analyse(source, DIALECT);
@@ -631,7 +629,6 @@ mod tests {
 
     #[test]
     fn original_switch_suggestions_share_scalar_subject_and_literal_case_values() {
-        // Implementation contract: naming.refactor.original-datagroup-variable-subject
 
         for (subject, name) in [
             ("${café}", "café"),
@@ -664,7 +661,6 @@ mod tests {
 
     #[test]
     fn original_switch_suggestions_keep_selected_alias_and_current_analysis() {
-        // Implementation contract: naming.refactor.original-datagroup-variable-subject
 
         let source = "interp alias {} select {} switch -exact --\nselect ${café} {GET {drop} POST {drop} PUT {drop}}";
         let mut analysis = crate::tools::analyse(source, DIALECT);
@@ -698,7 +694,6 @@ mod original_arm_parser_purpose_tests {
 
     #[test]
     fn original_datagroup_arm_parser_preserves_body_bom_and_actual_grammar_overrides() {
-        // naming.source.original-configured-script-completeness
 
         // Heuristic body shape only; static edit eligibility is independent.
         let profile = tcl_dialect::DialectProfile::plain_tcl();

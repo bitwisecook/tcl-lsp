@@ -368,7 +368,6 @@ mod tests {
 
     #[test]
     fn original_namespace_body_keeps_completed_child_and_restores_parent() {
-        // Implementation contract: naming.namespace.original-entered-body-completion
 
         for version in tcl_dialect::TclVersion::ALL {
             let source = "namespace eval A {proc p {} {}}; set checkpoint READY";
@@ -399,7 +398,6 @@ mod tests {
 
     #[test]
     fn original_namespace_activation_retains_selected_source_identity_before_child_words() {
-        // Implementation contract: naming.namespace.original-entered-body-completion
 
         for version in tcl_dialect::TclVersion::ALL {
             let source = "namespace eval A {proc p {} {}}; set checkpoint READY";
@@ -428,7 +426,6 @@ mod tests {
 
     #[test]
     fn original_namespace_body_refuses_unrepresented_and_abrupt_children() {
-        // Implementation contract: naming.namespace.original-entered-body-completion
 
         for version in tcl_dialect::TclVersion::ALL {
             for source in [

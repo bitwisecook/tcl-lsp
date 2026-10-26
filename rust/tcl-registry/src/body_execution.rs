@@ -836,7 +836,6 @@ mod tests {
         // Native question: naming.package.ifneeded-native-entry-frame
 
         // These assertions constrain authored family data, not guest execution.
-        // naming.package.original-file-candidate-provenance
 
         let descriptor =
             BodyExecutionSpec::DeferredGlobalScriptForFamily(tcl_dialect::model::Family::Tcl);

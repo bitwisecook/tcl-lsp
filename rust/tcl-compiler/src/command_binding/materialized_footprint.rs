@@ -218,7 +218,6 @@ impl SourceInvocationBinding {
         registry: &CommandRegistry,
         purpose: OriginalWordSourcePurpose,
     ) -> Option<InvocationMetadataContext<'a>> {
-        // naming.diagnostic.original-materialized-write-footprint
 
         if !module
             .retained_source_bindings
@@ -567,7 +566,6 @@ impl SourceInvocationBinding {
         module: &crate::ir::Module,
         registry: &'a CommandRegistry,
     ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
-        // naming.diagnostic.original-materialized-write-footprint
 
         let metadata = self.original_invocation_metadata_for_module(tokens, module, registry)?;
         let source = self
@@ -588,7 +586,6 @@ impl SourceInvocationBinding {
         registry: &'a CommandRegistry,
         metadata: Option<InvocationMetadataContext<'a>>,
     ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
-        // naming.diagnostic.original-materialized-write-footprint
 
         let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
         let input = metadata.source_analysis_input()?;
@@ -1174,7 +1171,6 @@ mod tests {
 
     #[test]
     fn original_tagged_point_selection_keeps_supplied_refusal_distinct_from_standalone() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::registry_invocation::OwnedInvocationMetadataContext;
         let context =
@@ -1446,7 +1442,6 @@ mod tests {
 
     #[test]
     fn original_declaration_flow_keeps_selected_point_availability_and_supplied_refusal() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional setter metadata supplies no successful store or physical frame.
         use crate::registry_invocation::OwnedInvocationMetadataContext;
@@ -1551,7 +1546,6 @@ mod tests {
 
     #[test]
     fn original_caller_alias_operands_keep_captured_geometry_and_selected_metadata() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional formal mentions only: no reached upvar or caller cell.
         use crate::command_binding::SourceAnalysisOptions;
@@ -1654,7 +1648,6 @@ mod tests {
 
     #[test]
     fn warmed_original_lexical_projection_cannot_donate_changed_module_metadata() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -1726,7 +1719,6 @@ mod tests {
 
     #[test]
     fn original_installer_module_projection_keeps_snapshot_and_future_scope_refusal() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Software source snapshot/lookup controls, not callback or frame entry.
         let context =
@@ -1813,7 +1805,6 @@ mod tests {
 
     #[test]
     fn original_installer_module_projection_withdraws_changed_entry_and_frame_owner() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Full source-owner reuse controls, independently of physical frame entry.
         let context =
@@ -1871,7 +1862,6 @@ mod tests {
 
     #[test]
     fn original_installer_module_projection_accepts_only_the_retained_nested_input() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Independently produced source points retain their explicit nested policy.
         let context =
@@ -1943,7 +1933,6 @@ mod tests {
 
     #[test]
     fn original_point_metadata_keeps_unknown_lookup_and_changed_vector_separate() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Source/API ownership only: metadata does not prove a reached command.
         let context =
@@ -1986,7 +1975,6 @@ mod tests {
 
     #[test]
     fn original_function_point_metadata_retains_input_without_granting_module_or_normality() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual FU/point metadata is distinct from whole-Module currency and
         // from a reached handler, successful read, physical frame or result.
@@ -2033,7 +2021,6 @@ mod tests {
 
     #[test]
     fn original_function_point_metadata_declines_missing_foreign_stale_and_changed_geometry() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Even a same-store availability change cannot replace the point's
         // original full input. Missing supplied input is never Standalone.
@@ -2107,7 +2094,6 @@ mod tests {
 
     #[test]
     fn original_materialized_footprint_keeps_alias_targets_and_literal_roots() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Source/API possible names only; no process result, child argv or store.
         let context =
@@ -2209,7 +2195,6 @@ mod tests {
 
     #[test]
     fn original_materialized_footprint_uses_actual_availability_on_the_same_store() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // The command generation is identical; only actual availability changes.
         let mut registry = tcl_registry::CommandRegistry::build_default();
@@ -2256,7 +2241,6 @@ mod tests {
 
     #[test]
     fn materialized_bodies_keep_the_original_entry_availability_phase() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Exact source/API phase selection only. The explicit entry has no
         // native interpreter, body-entry, worker or successful store receipt.
@@ -2326,7 +2310,6 @@ mod tests {
 
     #[test]
     fn original_materialized_footprint_refuses_missing_foreign_and_stale_owners() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -2397,7 +2380,6 @@ mod tests {
     }
     #[test]
     fn original_literal_body_ownership_keeps_named_purposes_and_literal_roots() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional lexical names only, never installed aliases or current reads.
         let context =
@@ -2483,7 +2465,6 @@ mod tests {
 
     #[test]
     fn original_literal_body_aliases_keep_local_names_and_opaque_residuals() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Held alias names/captures and a conditional residual, no frame or execution.
         let context =
@@ -2530,7 +2511,6 @@ mod tests {
 
     #[test]
     fn original_literal_body_ownership_keeps_availability_and_source_currency() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source names only; availability is not actual execution.
         let current =
@@ -2627,7 +2607,6 @@ mod tests {
 
     #[test]
     fn original_source_realm_keeps_sealed_declaration_and_reached_owners_independent() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Readonly source realm; no reached lookup or body/frame permission.
         let context = logical_script_context();
@@ -2725,7 +2704,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_names_keep_static_and_captured_source_horizons() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Conditional MAY names; no reached handler, child entry or physical store.
         // An actual abrupt prefix retains lexical declarations without a source dispatch point.
@@ -3030,7 +3008,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_names_refuse_changed_and_missing_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
@@ -3147,7 +3124,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_horizon_refuses_dynamic_expanded_and_invalid_vectors() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
@@ -3280,7 +3256,6 @@ mod tests {
 
     #[test]
     fn original_procedure_argument_roles_keep_native_entry_and_logical_source_owners_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Software-owned source argv roles, independently of entered calls and Normal.
         for source in [
@@ -3334,7 +3309,6 @@ mod tests {
 
     #[test]
     fn original_procedure_argument_roles_refuse_changed_missing_and_open_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let source = "proc selected {value} {}; selected VALUE";
         let (_owner, context, input, tokens) = original_native_procedure_argument_tokens(source);
@@ -3436,9 +3410,7 @@ mod tests {
     }
     #[test]
     fn original_logical_procedure_roles_keep_declaration_layout_separate_from_allocation_advice() {
-        // naming.compiler.original-positioned-callee-body-availability
 
-        // naming.source.original-point-operand-projection
 
         let context = logical_script_context();
         for source in [
@@ -3489,7 +3461,6 @@ mod tests {
 
     #[test]
     fn original_native_source_procedure_roles_keep_the_genuine_allocation_purpose() {
-        // naming.compiler.original-positioned-callee-body-availability
 
         // The actual held software Native entry remains distinct from the
         // positive Logical source model. No external Native execution is observed.
@@ -3518,7 +3489,6 @@ mod tests {
 
     #[test]
     fn original_logical_procedure_argv_keeps_unentered_alias_prefix_and_literal_child() {
-        // naming.compiler.original-positioned-callee-body-availability
 
         // Lexical argv roles retain the real declaration prefix, not a call frame.
         let context = logical_script_context();
@@ -3564,7 +3534,6 @@ mod tests {
 
     #[test]
     fn original_logical_procedure_argv_refuses_replaced_receipt_vector_and_source_world() {
-        // naming.compiler.original-positioned-callee-body-availability
 
         let context = logical_script_context();
         let source = "proc selected {value} {}; return DONE; selected {LITERAL}";
@@ -3666,7 +3635,6 @@ mod tests {
 
     #[test]
     fn original_logical_procedure_argv_cannot_repair_open_or_registry_targets() {
-        // naming.compiler.original-positioned-callee-body-availability
 
         let context = logical_script_context();
         for source in [
@@ -3690,7 +3658,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_root_keeps_its_actual_source_lookup_point() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // The root source point supplies conditional schema and MAY names;
         // it is distinct from an unentered suffix and grants no handler/store.

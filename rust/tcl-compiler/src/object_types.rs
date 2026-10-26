@@ -3626,7 +3626,6 @@ mod tests {
     }
     #[test]
     fn factory_return_metadata_keeps_supplied_availability_and_refuses_missing_or_foreign_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional factory class candidates; no successful return or allocated receiver.
         let baseline = crate::environment_ingress::context_for_profile(
@@ -3733,7 +3732,6 @@ mod tests {
 
     #[test]
     fn normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership() {
-        // naming.source.original-collection-body-owner
 
         // Conditional result types under existing allocation guards, not runtime execution.
         let source = "proc make {} {return 1}\nmake\n";

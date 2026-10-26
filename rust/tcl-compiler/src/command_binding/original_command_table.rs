@@ -455,7 +455,6 @@ mod tests {
 
     #[test]
     fn original_conditional_catalogue_keeps_unknowns_but_blocks_known_cells() {
-        // Implementation contract: naming.compiler.conditional-registry-source-metadata
 
         use super::super::OriginalCatalogueSourceObligation as Obligation;
         for version in tcl_dialect::TclVersion::ALL {
@@ -976,7 +975,6 @@ mod tests {
     }
     #[test]
     fn original_mutation_selector_stops_at_the_first_occupied_cell() {
-        // Implementation contract: naming.command.original-occupied-mutation-transfer
 
         for version in [
             tcl_dialect::TclVersion::V8_6,
@@ -3001,7 +2999,6 @@ impl ModuleCommandBindings {
 mod conditional_catalogue_source_tests {
     #[test]
     fn original_conditional_source_catalogue_requires_current_custom_cell_barriers() {
-        // naming.compiler.conditional-registry-source-metadata
 
         for (dialect, source, target) in [
             (

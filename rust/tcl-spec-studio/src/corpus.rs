@@ -852,7 +852,6 @@ mod tests {
 
     #[test]
     fn original_corpus_switch_pairs_use_selected_list_values_and_nested_body_purpose() {
-        // naming.source.original-configured-script-completeness
 
         let profile = crate::environment::profile_for_dialect("tcl9.0");
         let config = LexerConfig::for_file_grammar(profile.grammar);

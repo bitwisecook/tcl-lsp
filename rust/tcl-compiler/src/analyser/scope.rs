@@ -3793,7 +3793,6 @@ impl Analyser {
         invocation_offset: u32,
         span: Span,
     ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
-        // Implementation contract: naming.source.original-point-operand-projection
 
         let policy = self.declaration_name_policy()?;
         self.head_identities
@@ -5178,7 +5177,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.byte-cell-correspondence
 
     fn qualified_variable_inputs_keep_document_units_and_producer_kind() {
         use crate::signature_scan::scope::SignatureSourceNameInput;
@@ -5298,7 +5296,6 @@ mod tests {
     #[test]
     fn original_conditional_variable_receivers_keep_absolute_source_geometry_and_unknown_coverage()
     {
-        // Implementation contract: naming.variable.conditional-registry-receiver-geometry
 
         let source = r"namespace eval n\uD800 {}
 namespace exists n\uD800
@@ -5360,7 +5357,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_conditional_variable_receivers_do_not_invent_bare_namespace_targets() {
-        // Implementation contract: naming.variable.conditional-registry-receiver-geometry
 
         let source = "unknown_command; namespace eval N {set bare 1; info exists bare}";
         for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
@@ -5383,7 +5379,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_write_name_advice_keeps_source_cards_and_authentic_local_frames() {
-        // Implementation contract: naming.variable.conditional-write-name-advice
 
         let source = r"set v\uD800 1; set v\uD801 2; proc p {} {set local 3; set local; unset local; global shared}";
         for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
@@ -6565,7 +6560,6 @@ mod original_positioned_reference_tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.trace-source-receiver-purpose
 
     fn original_trace_references_use_selected_subject_and_preserve_source_currency() {
         use crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver;
@@ -6613,7 +6607,6 @@ mod original_positioned_reference_tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.trace-source-receiver-purpose
 
     fn original_trace_reference_aliases_and_unknown_scope_remain_independent() {
         use crate::signature_scan::variable_symbol::{
@@ -6667,7 +6660,6 @@ mod original_parent_purpose_tests {
 
     #[test]
     fn original_variable_frames_and_aliases_keep_the_whole_parent_config() {
-        // naming.variable.conditional-write-name-advice
 
         // Original lexical frames and source alias advice supply no entered link or edit.
         let body = "set ::g VALUE; proc p {} {global g; set local 1; set local; set g}";

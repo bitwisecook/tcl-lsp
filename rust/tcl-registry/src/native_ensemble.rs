@@ -696,7 +696,6 @@ mod configuration_surface_tests {
 
     #[test]
     fn actual_ensemble_missing_selector_usage_is_selected_independently_of_info() {
-        // naming.ensemble.original-missing-selector-source-usage
 
         // The separate public originals exercise stock info; this pure API control
         // independently checks the generic dispatcher recipe. Pinned source:

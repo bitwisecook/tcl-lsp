@@ -4,7 +4,6 @@
 
 //! Source-bound whole-document results; transformation safety stays with each worker.
 
-// naming.lsp.original-document-transform-currency
 
 #[cfg(test)]
 use super::Analyser;

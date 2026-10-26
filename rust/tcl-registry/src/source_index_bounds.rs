@@ -80,7 +80,6 @@ mod tests {
 
     #[test]
     fn authored_index_bounds_keep_selected_operations_and_effective_count_axes() {
-        // naming.diagnostic.registry-source-ownership
 
         let context = crate::model::ingress::static_context_for("tcl9.0");
         let registry = context.commands();

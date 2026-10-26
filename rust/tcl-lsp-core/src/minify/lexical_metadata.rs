@@ -28,7 +28,6 @@ pub(super) fn with_command_schema<T>(
     command: &NativeScriptCommandWords,
     project: impl FnOnce(&ResolvedInvocation<'_, '_>) -> T,
 ) -> Option<T> {
-    // naming.minifier.complete-logical-metadata
 
     let words = tcl_compiler::registry_invocation::source_structure::original_logical_registry_words_for_command(
         env.identities, env.input, command,
@@ -50,7 +49,6 @@ pub(super) fn with_editable_command_schema<T>(
     command: &NativeScriptCommandWords,
     project: impl FnOnce(&ResolvedInvocation<'_, '_>) -> T,
 ) -> Option<T> {
-    // naming.minifier.complete-logical-metadata
 
     let words = tcl_compiler::registry_invocation::source_structure::original_logical_registry_words_for_command(
         env.identities, env.input, command,
@@ -162,7 +160,6 @@ impl CommandCensus<'_> {
 /// vector. Missing schema/body/vector ownership remains explicit incomplete
 /// coverage; no local body/case/Expr/lambda walker infers missing regions.
 pub(super) fn command_census<'a>(source: &str, env: MinifyEnv<'a>) -> Option<CommandCensus<'a>> {
-    // naming.minifier.complete-logical-metadata
 
     let analysis = env.analysis;
     let image = SourceImage::document(source);
@@ -265,7 +262,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_owns_selected_full_vectors_and_complete_regions() {
-        // naming.minifier.complete-logical-metadata
 
         for (source, count) in [
             ("list {string equal -nocase A a}", 1),
@@ -300,7 +296,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_retains_partial_candidates_without_barrier_absence() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "string equal -nocase A a; if {1} $body";
         with_analysis(source, |env| {
@@ -326,7 +321,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete() {
-        // naming.minifier.complete-logical-metadata
 
         for source in [
             "mystery",
@@ -343,7 +337,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_refuses_foreign_analysis_realm_and_full_config() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "string equal -nocase A a";
         with_analysis(source, |env| {

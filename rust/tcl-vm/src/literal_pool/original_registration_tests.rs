@@ -20,7 +20,6 @@ use super::*;
 use std::cell::Cell;
 #[test]
 fn original_literal_registration_checks_episode_inside_same_value_string_worker() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software node-aware callbacks and Value roles, no external Native chronology.
     for mutate in [false, true] {

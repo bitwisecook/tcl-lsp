@@ -740,7 +740,6 @@ fn dispatch_definer(
 /// No-op when the context carries no registry (focused unit tests) or the call
 /// has no arguments.
 fn record_command_prefix_invocations(cmd: &SegmentedCommand, ctx: &mut ScanCtx<'_>) {
-    // naming.callback.lookup-scope-owner
 
     for written in 1..cmd.argv.len() {
         let Some(original) = ctx.original_callback_prefix(cmd, written) else {
@@ -977,7 +976,6 @@ mod tests {
 
     #[test]
     fn original_signature_root_and_bodies_keep_file_bom_and_parent_word_geometry() {
-        // naming.source.original-configured-script-completeness
 
         // Readonly signature/header geometry, not successful creation or body execution.
         let mut prepared = crate::analyser::Analyser::new();
@@ -1021,7 +1019,6 @@ mod tests {
 
     #[test]
     fn selected_scan_clauses_use_availability_and_original_keyword_values() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source/API contract: naming.source.original-registry-header-advice
 
@@ -1045,7 +1042,6 @@ mod tests {
 
     #[test]
     fn selected_scan_variable_elements_use_member_effect_and_written_offsets() {
-        // naming.compiler.original-analysis-metadata-context
 
         const SUBCOMMANDS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "grow",
@@ -1105,7 +1101,6 @@ mod tests {
 
     #[test]
     fn selected_scan_inventory_keeps_replacements_and_direct_renamed_operands() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source/API contract: naming.source.original-registry-header-advice
 
@@ -1172,7 +1167,6 @@ mod tests {
 
     #[test]
     fn selected_scan_captured_prefixes_cannot_borrow_written_body_tokens() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source/API contract: naming.source.original-registry-header-advice
 
@@ -1199,7 +1193,6 @@ mod tests {
 
     #[test]
     fn factory_scan_shares_selected_clause_values_and_dynamic_withdrawal() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for (source, count) in [

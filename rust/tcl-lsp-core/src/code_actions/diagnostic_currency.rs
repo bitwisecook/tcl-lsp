@@ -25,7 +25,6 @@ impl<'a> DiagnosticEditSource<'a> {
     /// Existing analysis is required; no profile label reconstructs its owner.
     #[must_use]
     pub fn for_analysis(source: &'a str, analysis: &'a AnalysisResult) -> Option<Self> {
-        // Implementation contract: naming.editor.original-diagnostic-edit-currency
 
         if analysis.analysis_context_unavailable.is_some() {
             return None;
@@ -193,7 +192,6 @@ mod tests {
 
     #[test]
     fn original_diagnostic_actions_require_current_whole_source_and_owned_fixes() {
-        // Implementation contract: naming.editor.original-diagnostic-edit-currency
 
         let source = "set x [foo\n# tail";
         let current = Analyser::new().analyse(source, "tcl8.6");
@@ -328,7 +326,6 @@ mod tests {
 
     #[test]
     fn original_check_actions_require_the_issuers_source_config_and_registry() {
-        // Implementation contract: naming.editor.original-diagnostic-edit-currency
 
         let source = "set x hello
 incr x
@@ -400,7 +397,6 @@ incr x
 
     #[test]
     fn original_check_currency_refuses_same_store_changed_availability_and_missing_input() {
-        // naming.editor.original-diagnostic-edit-currency
 
         // This conditional source warning supplies no physical frame or Normal effect.
         let source = "set x hello\nincr x\n";
@@ -459,7 +455,6 @@ incr x
 
     #[test]
     fn original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel() {
-        // Implementation contract: naming.editor.original-diagnostic-edit-currency
 
         let source = r#"set x "🦀""#;
         let current = Analyser::new().analyse(source, "tcl8.6");

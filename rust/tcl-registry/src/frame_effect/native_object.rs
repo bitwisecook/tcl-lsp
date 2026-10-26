@@ -128,7 +128,6 @@ impl NativeFrameLevelProtocol {
         current: usize,
         original: &mut O,
     ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
-        // naming.variable.original-upvar-and-exists-completion-and-name-windows
 
         self.resolve_object_with_requirement(current, original, true)
     }

@@ -1275,7 +1275,6 @@ mod tests {
 
     #[test]
     fn original_array_set_name_and_values_keep_their_genuine_headers() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // Native case23 observes the source operand's parsedVarName cache.
         // This API control separately checks empty/nonempty stores and original
@@ -1297,7 +1296,6 @@ mod tests {
 
     #[test]
     fn original_array_set_selects_root_before_parity_and_keeps_callback_results() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // Source/API controls supplement the unchanged native case21/23/27
         // completion/cache windows; no callback timing inference comes from them.
@@ -1321,7 +1319,6 @@ mod tests {
                     b"list must have an even number of elements"
                 );
                 assert_eq!(run(interp, b"array exists ::oddArray"), b"0");
-                // naming.variable.original-traced-array-root-materialisation
 
                 // Public callback result only, independent of native cache windows.
                 let script = include_bytes!(
@@ -1334,7 +1331,6 @@ mod tests {
 
     #[test]
     fn original_array_set_declines_without_a_genuine_c_variable_issuer() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // Actual Jim naming supplies no C variable issuer. Refusal precedes
         // either original header's conversion; this is a source/API control.
@@ -1354,7 +1350,6 @@ mod tests {
 
     #[test]
     fn original_array_set_default_engine_keeps_its_actual_variable_recipe() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // The default interpreter owns a known C execution release even with
         // an unpinned assistance profile. No compiler or bootstrap grant is
@@ -1421,7 +1416,6 @@ mod tests {
 
     #[test]
     fn jim_dictionary_array_reads_keep_static_copies_and_selected_frames() {
-        // naming.array.jim-original-dictionary-runtime-enumeration
 
         leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
             assert_eq!(run(interp, b"set a(k) VALUE; proc p {} {a} {array get a}; set a(k) NEW; list [p] [array get a]"), b"{k VALUE} {k NEW}");
@@ -1432,7 +1426,6 @@ mod tests {
 
     #[test]
     fn jim_array_byte_keys_count_and_unset_without_unicode_projection() {
-        // naming.array.jim-original-dictionary-runtime-enumeration
 
         leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
             let dictionary = crate::list::new_list_obj(&[

@@ -4812,7 +4812,6 @@ mod tests {
 
     #[test]
     fn generation_location_projects_actual_constructed_slots_and_declines_replacement() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Fixed table-owner control; no Native namespace or callback timing is asserted.
         let mut namespaces = Namespaces::new();
@@ -4847,7 +4846,6 @@ mod tests {
 
     #[test]
     fn generation_publication_projection_excludes_the_actual_saved_jim_previous_worker() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real previous-edge and restoration workers; this is a software ownership control.
         let mut namespaces = Namespaces::new();

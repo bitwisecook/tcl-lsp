@@ -39,7 +39,6 @@ fn probe(
 
 #[test]
 fn scalar_null_access_requires_original_engine_and_changes_no_guest_state() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     let mut interpreter = core("tcl8.6");
     interpreter.set_result_bytes(b"SEEDED RESULT");
@@ -77,7 +76,6 @@ fn scalar_null_access_requires_original_engine_and_changes_no_guest_state() {
 
 #[test]
 fn scalar_context_rejects_foreign_engine_and_policy_change_and_restore() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     let mut interpreter = core("tcl8.6");
     let foreign = core("tcl8.6");
@@ -169,7 +167,6 @@ fn scalar_context_same_profile_world_change_and_restore_cannot_revive_issuer() {
 
 #[test]
 fn scalar_context_duplicate_and_replacement_keep_owner_without_native_refs() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     let interpreter = core("tcl8.6");
     let foreign = core("tcl8.6");
@@ -198,7 +195,6 @@ fn scalar_context_duplicate_and_replacement_keep_owner_without_native_refs() {
 
 #[test]
 fn scalar_context_does_not_keep_engine_or_retired_object_alive() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     let value = string(b"17");
     {
@@ -241,7 +237,6 @@ impl Host for NoNumeric {
 
 #[test]
 fn scalar_context_missing_numeric_abi_and_first_host_cause_are_terminal() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     let mut interpreter = core("tcl8.6");
     interpreter.set_host(Rc::new(NoNumeric(interpreter.host())));
@@ -292,7 +287,6 @@ fn scalar_context_missing_numeric_abi_and_first_host_cause_are_terminal() {
 
 #[test]
 fn scalar_engine_importer_issues_context_only_for_selected_scalar_purpose() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     let mut interpreter = core("tcl8.6");
     let value = crate::engine_abi::value_carriers::scalar(
@@ -518,7 +512,6 @@ fn scalar_public_facade_matches_recorded_live_and_null_c_primitives() {
 
 #[test]
 fn scalar_jim_context_cannot_borrow_a_foreign_original_numeric_host() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     let interpreter = core("jim");
     let foreign = core("jim");

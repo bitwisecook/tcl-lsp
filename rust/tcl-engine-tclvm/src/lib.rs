@@ -3854,7 +3854,6 @@ mod tests {
 
     #[test]
     fn checked_completion_projection_keeps_guest_option_conversion_error_guest() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A constructed malformed carrier reaches the actual checked guest
         // conversion owner; this is not an original-provider observation.
@@ -3880,7 +3879,6 @@ mod tests {
 
     #[test]
     fn checked_completion_projection_retains_host_before_original_result_getter() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // This deliberately retained owner failure proves adapter channel and
         // ordering only; no getter failure or original-provider pass is claimed.
@@ -3928,7 +3926,6 @@ mod tests {
 
     #[test]
     fn guest_byte_error_retains_complete_native_options() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let completion = tcl_vm::Completion::new(
             tcl_vm::Code::Error,
@@ -3961,7 +3958,6 @@ mod tests {
 
     #[test]
     fn guest_error_export_preserves_original_stringless_dictionary_and_members() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_dialect::TclVersion;
         for version in [
@@ -4025,7 +4021,6 @@ mod tests {
 
     #[test]
     fn guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let options = tcl_vm::Value::native_dictionary_constructor(

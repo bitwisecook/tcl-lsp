@@ -172,7 +172,6 @@ mod controls {
 
     #[test]
     fn actual_local_sort_has_no_comparator_for_zero_or_one_and_refuses_invalid_permutations() {
-        // naming.list.original-numeric-pattern-key-getters-and-results
 
         // Genuine local host controls only; native645/647 ran no software callbacks.
         let host = NativeListSortingEnvironment;
@@ -198,7 +197,6 @@ mod controls {
 
     #[test]
     fn actual_local_sort_stops_callback_effects_and_classifies_the_real_error_frontier() {
-        // naming.list.original-numeric-pattern-key-getters-and-results
 
         // Real local qsort, not a claim about a foreign Jim/libc callback sequence.
         // A mid-merge vector can contain duplicates; unsupported frontier is honest.
@@ -228,7 +226,6 @@ mod controls {
 
     #[test]
     fn nested_actual_sort_and_caught_panic_restore_the_selected_callback_owner() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Source-owned TLS/reentrancy and panic cleanup control, no Native chronology.
         let host = NativeListSortingEnvironment;

@@ -142,7 +142,6 @@ pub fn convert_to_utf8<O: ValueOps>(
     }
     let source = ops.native_string_bytes(original)?;
     let external = external_utf8_octets(version, &source).map_err(|failure| {
-        // naming.encoding.original-utf8-convertto-error-offset
 
         failure.command_error(version)
     })?;

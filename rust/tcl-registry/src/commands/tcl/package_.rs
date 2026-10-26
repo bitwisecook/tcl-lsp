@@ -585,7 +585,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // passed `-exact` (a literal extra "-exact" word) — which is
         // likewise always >= 2, so AtLeast(2) holds for every version.
         command_prefixes: &[(0, AppendedArity::AtLeast(2))],
-        // naming.callback.original-unknown-handler-lookup-scope
 
         // Tcl's package loader evaluates the fallback with TCL_EVAL_GLOBAL.
         script_lookup_scope: Some(crate::ScriptLookupScope::GlobalFrame),
@@ -865,7 +864,6 @@ mod tests {
 
     #[test]
     fn package_ifneeded_stores_future_script_without_current_callback_effect() {
-        // Implementation contract: naming.package.ifneeded-current-effect-contract
 
         use crate::{CallbackKinds, InvocationDialect, InvocationWords, WorldStateDomain};
         let registry = CommandRegistry::build_default();
@@ -1091,11 +1089,8 @@ mod tests {
 
     #[test]
     fn jim_package_inventory_keeps_hidden_list_and_excludes_ifneeded() {
-        // naming.package.jim-source-operation-table
 
-        // naming.package.jim-hidden-list
 
-        // naming.package.ifneeded-native-entry-frame
 
         // Authored catalogue coverage; this does not execute the native provider.
         let dialect = crate::InvocationDialect::of_point(

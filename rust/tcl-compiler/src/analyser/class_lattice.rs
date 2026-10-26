@@ -1559,7 +1559,6 @@ mod tests {
 
     #[test]
     fn assignment_kind_metadata_keeps_effective_alias_words_and_supplied_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source candidate classification only; no receiver allocation or current class.
         let baseline = crate::environment_ingress::context_for_profile(

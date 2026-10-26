@@ -438,7 +438,6 @@ impl DeclarationFlowReport {
         &self,
         site: &CommandAllocationSite,
     ) -> bool {
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         self.source == site.source
             && self
@@ -2348,7 +2347,6 @@ impl Builder<'_> {
             let Some(state) = &warning_paths[id] else {
                 continue;
             };
-            // naming.compiler.original-formal-argument-entry
 
             if let Some(site) = node.site
                 && !state.unknown_writers

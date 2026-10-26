@@ -704,7 +704,6 @@ mod tests {
 
     #[test]
     fn original_namespace_export_storage_keeps_exact_opaque_units() {
-        // Implementation contract: naming.namespace.original-byte-pattern-transfers
 
         // Native question: naming.namespace.source-export-filter-units
 
@@ -733,7 +732,6 @@ mod tests {
 
     #[test]
     fn original_namespace_import_and_forget_keep_actual_origin_with_closed_prelude() {
-        // Implementation contract: naming.namespace.original-quiet-pattern-completion
 
         // Native question: naming.namespace.source-import-token-lifetime
 
@@ -766,7 +764,6 @@ mod tests {
 
     #[test]
     fn original_namespace_import_completion_requires_closed_prelude_and_destinations() {
-        // Implementation contract: naming.namespace.original-quiet-pattern-completion
 
         // Native question: naming.namespace.source-pattern-options-and-errors
 

@@ -1451,7 +1451,6 @@ mod complete_cu_input_tests {
 
     #[test]
     fn actual_diagnostic_cu_construction_retains_the_complete_source_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source contents only, independently of Native execution.
         let input = input();
@@ -1481,7 +1480,6 @@ mod complete_cu_input_tests {
 
     #[test]
     fn actual_diagnostic_cu_construction_refuses_withdrawn_and_changed_input_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = input();
         for axis in [
@@ -1603,7 +1601,6 @@ mod original_logical_command_availability_tests {
 
     #[test]
     fn original_logical_body_availability_uses_closed_root_and_nested_captured_targets() {
-        // naming.compiler.original-positioned-callee-body-availability
 
         let input = input();
         for (source, selected, captured) in [
@@ -1655,7 +1652,6 @@ mod original_logical_command_availability_tests {
     #[test]
     fn original_logical_procedure_body_availability_keeps_the_selected_declaration_separate_from_allocation()
      {
-        // naming.compiler.original-positioned-callee-body-availability
 
         let input = input();
         for (source, selected) in [
@@ -1695,7 +1691,6 @@ mod original_logical_command_availability_tests {
 
     #[test]
     fn original_logical_body_availability_refuses_absent_and_opaque_original_callees() {
-        // naming.compiler.original-positioned-callee-body-availability
 
         let input = input();
         for (source, selected) in [
@@ -1728,7 +1723,6 @@ mod original_logical_command_availability_tests {
 
     #[test]
     fn original_logical_body_availability_requires_full_input_vector_and_actual_generation() {
-        // naming.compiler.original-positioned-callee-body-availability
 
         let input = input();
         let source = "interp alias {} ensure {} package require; proc subject {} {ensure Tcl}";

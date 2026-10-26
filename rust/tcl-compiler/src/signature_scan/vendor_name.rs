@@ -212,7 +212,6 @@ mod tests {
     use tcl_syntax::naming::VendorSourceNameAuthority;
 
     #[test]
-    // Implementation contract: naming.vendor.original-source-context-input
 
     fn original_vendor_words_keep_context_units_and_unknown_producers_separate() {
         let source = "proc {p\\uD800} {arg} {return $arg}\npackage require {pkg\\uD800}\nsource {file\\uD800}\nset {v\\uD800} 1";
@@ -287,7 +286,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.vendor.original-source-context-input
 
     fn explicit_vendor_context_does_not_rewrite_grammar_or_attest_a_build() {
         let environment = tcl_registry::model::ingress::resolve_environment("f5-iapps");

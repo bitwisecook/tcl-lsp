@@ -89,7 +89,6 @@ fn native(version: &str) -> Interp {
 }
 #[test]
 fn original_foundation_headers_and_inherited_next_keep_genuine_report_roles() {
-    // naming.tcloo.original-selected-method-role-report
 
     // Source/API header and reached-role control; ordinary CLI value proof is separate.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -133,7 +132,6 @@ fn original_foundation_headers_and_inherited_next_keep_genuine_report_roles() {
 }
 #[test]
 fn original_foundation_report_refuses_missing_headers_and_unsupported_selection() {
-    // naming.tcloo.original-selected-method-role-report
 
     // Unsupported original entry never receives a Foundation report header.
     for version in ["tcl8.4", "tcl8.5", "jim"] {

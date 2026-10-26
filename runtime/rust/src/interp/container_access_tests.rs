@@ -157,7 +157,6 @@ fn query(interpreter: &Interp, route: u8) -> bool {
 }
 #[test]
 fn original_container_queries_check_the_reached_getter_before_dictionary_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Byte-container compatibility is independent of original Jim command COW.
     for route in 0..4 {
@@ -199,7 +198,6 @@ fn original_container_queries_check_the_reached_getter_before_dictionary_adoptio
 }
 #[test]
 fn original_container_conversion_retires_the_primary_outside_all_storage_borrows() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in 0..3 {
         let mut interpreter = native("jim");
@@ -234,7 +232,6 @@ fn original_container_conversion_retires_the_primary_outside_all_storage_borrows
 }
 #[test]
 fn original_container_frame_observation_cannot_adopt_a_new_frame_at_the_same_level() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native("jim");
     interpreter.frames.borrow_mut().push(GLOBAL);
@@ -268,7 +265,6 @@ fn original_container_frame_observation_cannot_adopt_a_new_frame_at_the_same_lev
 }
 #[test]
 fn original_container_queries_keep_existing_reference_roles_across_all_native_profiles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
@@ -305,7 +301,6 @@ fn original_container_queries_keep_existing_reference_roles_across_all_native_pr
 }
 #[test]
 fn original_container_transition_retires_real_member_keys_before_root_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // An explicit physical model transition is software state, not a Native C/Jim observation.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -367,7 +362,6 @@ fn original_container_transition_retires_real_member_keys_before_root_publicatio
 }
 #[test]
 fn original_container_member_getters_refuse_changed_and_restored_dictionary_backings() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 5, 6] {
         let mut interpreter = native("jim");

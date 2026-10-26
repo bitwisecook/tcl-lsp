@@ -2569,7 +2569,6 @@ mod tests {
 
     #[test]
     fn original_try_handler_codes_keep_source_grammar_over_catalogue_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source-clause selection only; no native completion was executed.
         let context =

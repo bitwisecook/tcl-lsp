@@ -76,7 +76,6 @@ fn supplied() -> (Vm, Rc<Numeric>) {
 }
 #[test]
 fn original_c84_wide_ingress_preserves_descriptor_without_changing_semantic_getter_equations() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied ABI is a software provider; it supplies no recorded Native observation.
     let (mut vm, numeric) = supplied();
@@ -127,7 +126,6 @@ fn original_c84_wide_ingress_preserves_descriptor_without_changing_semantic_gett
 }
 #[test]
 fn original_c84_wide_ingress_requires_actual_receipt_and_unchanged_queried_abi() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, numeric) = supplied();
     let dialect = vm.native_scalar_carrier_dialect();
@@ -155,7 +153,6 @@ fn original_c84_wide_ingress_requires_actual_receipt_and_unchanged_queried_abi()
 }
 #[test]
 fn original_c84_wide_ingress_stops_before_abi_after_actual_host_context_or_descriptor_withdrawal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2, 3] {
         let (mut vm, numeric) = supplied();

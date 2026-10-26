@@ -1190,7 +1190,6 @@ mod tests {
 
     #[test]
     fn incoming_native_operands_use_declared_arguments_without_inventing_ssa() {
-        // naming.variable.aot-original-slot-purpose
 
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let context =

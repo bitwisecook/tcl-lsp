@@ -671,7 +671,6 @@ mod written_group_geometry_tests {
 
     #[test]
     fn original_written_group_geometry_keeps_every_closer_and_expansion_marker() {
-        // naming.source.original-configured-script-completeness
 
         // Lexical written geometry only; no entered source or Native recipe grant.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -714,7 +713,6 @@ mod written_group_geometry_tests {
 
     #[test]
     fn original_written_group_geometry_refuses_unowned_groups_and_markers() {
-        // naming.source.original-configured-script-completeness
 
         let source = b"list {*}${name}";
         let config = LexerConfig::default();

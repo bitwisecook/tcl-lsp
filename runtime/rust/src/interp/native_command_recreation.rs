@@ -288,7 +288,6 @@ mod tests {
 
     #[test]
     fn original_jim_public_constructor_owns_root_cstring_key_and_retains_occupied_key() {
-        // naming.embedding.original-command-recreation-discard
 
         // Actual software CString/key/client-data roles, independent of the
         // native recreation probe's finite callback-count comparison.
@@ -377,7 +376,6 @@ mod tests {
 
     #[test]
     fn original_public_constructor_stops_after_delete_host_or_restored_context_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Reached genuine delete callback and first cause are software controls;
         // this does not infer provider callback chronology or active ownership.
@@ -450,7 +448,6 @@ mod tests {
 
     #[test]
     fn original_idle_object_recreation_matches_all_six_public_callback_windows() {
-        // naming.embedding.original-command-recreation-discard
 
         // Preserve the original held client records and exact invocation source.
         // Token addresses, native generation reuse, active/Proc/local cases and
@@ -539,7 +536,6 @@ mod tests {
 
     #[test]
     fn original_idle_jim_recreation_keeps_the_occupied_key_until_public_delete() {
-        // naming.embedding.original-command-recreation-discard
 
         // Software table-key lifetime, separate from original486 callback rows.
         // Observe the real header without another native reference or name lookup.
@@ -612,7 +608,6 @@ mod tests {
 
     #[test]
     fn original_recreation_extra_owner_and_non_object_purposes_cannot_borrow_idle_discard() {
-        // naming.embedding.original-command-recreation-discard
 
         // These are software refusal controls beyond the original idle probe.
         for mode in [1, 2, 3, 4, 5] {
@@ -692,7 +687,6 @@ mod tests {
 
     #[test]
     fn original_owned_shim_purpose_survives_the_public_constructor_facade() {
-        // naming.embedding.original-command-recreation-discard
 
         // Actual software producer control: owning Rust shim cleanup is not the
         // external legacy public C callback retirement purpose.
@@ -747,7 +741,6 @@ mod tests {
 
     #[test]
     fn original_idle_retirement_requires_completed_original_delete_and_exact_creation_slot() {
-        // naming.embedding.original-command-recreation-discard
 
         // Exact ownership checks do not infer idleness from an Rc count or a
         // same-spelled command, and do not donate the measured purpose to Proc.

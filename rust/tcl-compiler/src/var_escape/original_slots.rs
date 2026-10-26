@@ -367,7 +367,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.aot-original-slot-purpose
 
     fn original_argument_slots_keep_counted_order_and_reject_nonpositional_bindings() {
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -442,7 +441,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.aot-original-slot-purpose
 
     fn original_native_slots_require_selected_primary_frame_and_current_layout() {
         let module = native_module(vec![
@@ -503,7 +501,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.aot-original-slot-purpose
 
     fn original_native_slot_usage_requires_the_actual_selected_activation() {
         let module = native_module(vec![Some(b"x".as_slice().into())]);

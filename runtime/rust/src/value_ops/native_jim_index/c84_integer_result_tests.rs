@@ -55,7 +55,6 @@ fn wide(interpreter: &Interp) -> obj::Owned {
 }
 #[test]
 fn original_c84_index_integer_result_has_its_actual_long_descriptor_and_receiving_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Direct software constructors/receivers; no EvalObjv or Native count chronology.
     // A genuine Wide42 operand fits C84 search Int; the recorded Wide4294967296
@@ -138,7 +137,6 @@ fn original_c84_index_integer_result_has_its_actual_long_descriptor_and_receivin
 }
 #[test]
 fn original_c84_index_result_refuses_stale_foreign_and_overwidth_before_selected_construction() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2, 3] {
         let mut interpreter = actual();
@@ -208,7 +206,6 @@ impl Drop for Current {
 }
 #[test]
 fn original_c84_all_search_retires_reached_integer_prefix_after_provider_callback_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real provided ABI-entry callback; source-only software cleanup counts.
     let mut interpreter = actual();

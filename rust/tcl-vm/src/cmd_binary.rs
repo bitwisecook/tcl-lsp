@@ -1193,7 +1193,6 @@ mod original_decode_owner_tests {
 
     #[test]
     fn original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
@@ -1223,7 +1222,6 @@ mod original_decode_owner_tests {
 
     #[test]
     fn original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real codec adapter and closed VM headers; no extension-object ABI claim.
         let mut vm =
@@ -1276,7 +1274,6 @@ mod original_format_scan_tests {
 
     #[test]
     fn original_binary_counted_formats_keep_literal_zero_extent_and_reached_scan_assignment() {
-        // naming.binary.original-object-format-grammar-extent
 
         // Actual VM software callers; Native captures are independent evidence.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1373,7 +1370,6 @@ mod original_format_scan_tests {
 
     #[test]
     fn original_binary_result_recipe_scalar_list_and_cache_issuer_stay_distinct() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
@@ -1438,7 +1434,6 @@ mod original_format_scan_tests {
 
     #[test]
     fn original_authored_binary_scalar_fronts_keep_none_entry_and_full_header_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
@@ -1511,7 +1506,6 @@ mod original_format_scan_tests {
 
     #[test]
     fn original_binary_scan_trace_first_cause_stops_later_assignment() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
@@ -1555,7 +1549,6 @@ mod original_format_scan_tests {
     }
     #[test]
     fn original_codec_binary_results_keep_recipe_for_format_and_scan_roundtrip() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual supported C codec producers and checked consumers, not a Native observation.
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {

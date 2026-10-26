@@ -82,7 +82,6 @@ fn assert_original_cause(interpreter: &Interp, change: bool) {
 }
 #[test]
 fn original_dictionary_subcommand_getter_refuses_before_name_and_worker_effects() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for change in [false, true] {
         let mut interpreter = native();
@@ -119,7 +118,6 @@ fn original_dictionary_subcommand_getter_refuses_before_name_and_worker_effects(
 }
 #[test]
 fn original_dictionary_key_refusal_retains_early_empty_publication_and_stops_later_keys() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for change in [false, true] {
         let mut interpreter = native();
@@ -167,7 +165,6 @@ fn original_dictionary_key_refusal_retains_early_empty_publication_and_stops_lat
 }
 #[test]
 fn original_dictionary_stock_set_and_unset_use_retained_alias_and_member_roots() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine actual worker integration; no argument-reference parity inferred.
     let mut interpreter = native();
@@ -189,7 +186,6 @@ fn original_dictionary_stock_set_and_unset_use_retained_alias_and_member_roots()
 }
 #[test]
 fn original_dictionary_generic_unset_missing_root_and_sugar_required_unset_remain_distinct() {
-    // naming.dictionary.original-path-missing-variable-publication
 
     let mut interpreter = native();
     let command = text(b"dict");

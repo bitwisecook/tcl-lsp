@@ -329,7 +329,6 @@ impl NativeVariableObserver<Vm> for WaitFlag {
     }
 }
 fn cmd_vwait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // Implementation contract: naming.event.original-vwait-operand-boundaries
 
     let p = match selected(vm) {
         Ok(p) => p,
@@ -604,7 +603,6 @@ mod original_numeric_consumer_tests {
 
     #[test]
     fn original_event_cached_duration_refuses_withdrawn_owner_before_scheduling() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
         let dialect = vm.actual_native_invocation_dialect();

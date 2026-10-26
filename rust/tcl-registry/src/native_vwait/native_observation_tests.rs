@@ -76,9 +76,7 @@ fn observation(provider: &str, version: &str, case: &str) -> (u8, String) {
 
 #[test]
 fn original_vwait_basic_boundaries_match_twenty_four_native_source_rows() {
-    // naming.event.vwait-native-basic-name-boundaries
 
-    // naming.event.original-vwait-operand-boundaries
 
     for (provider, version, dialect) in providers() {
         let protocol = dialect.native_vwait_protocol().unwrap();
@@ -193,9 +191,7 @@ fn original_vwait_boundary_cases() -> [NativeVwaitCase; 10] {
 
 #[test]
 fn original_vwait_extended_boundaries_match_sixty_native_source_rows() {
-    // naming.event.vwait-native-extended-argv-boundaries
 
-    // naming.event.original-vwait-operand-boundaries
 
     let cases = original_vwait_boundary_cases();
     for (provider, version, dialect) in providers() {

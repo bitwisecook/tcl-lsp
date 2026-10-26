@@ -220,7 +220,6 @@ mod tests {
     }
     #[test]
     fn original_list_builder_projection_preserves_selected_producers_and_refuses_shadows() {
-        // naming.source.original-produced-command-prefix
 
         for (source, expected) in [
             ("uplevel #0 [list upvar #0 original local]", true),

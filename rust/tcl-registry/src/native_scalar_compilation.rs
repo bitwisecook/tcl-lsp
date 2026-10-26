@@ -338,9 +338,7 @@ mod tests {
 
     #[test]
     fn original_scalar_coordinates_retain_the_selected_public_member() {
-        // Implementation contract: naming.compiler.original-compiler-operand-coordinates
 
-        // naming.variable.scalar-original-argv-compiler-and-result-windows
 
         // Those native windows prove compiler shapes. This test checks the
         // shared coordinate projection from selected metadata onto original words.

@@ -353,7 +353,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-declaration-graphs
 
     fn original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps() {
         let source = "proc p\\uD800 {} {return FIRST}; p\\uD800; proc p\\uD801 {} {return OTHER}; p\\uD801; proc p\\uD800 {} {return LAST}; p\\uD800";
@@ -399,7 +398,6 @@ mod tests {
 
     #[test]
     fn original_graph_alias_edges_select_terminal_allocation_without_reporting_names() {
-        // Implementation contract: naming.core.original-declaration-graphs
 
         let source = "proc target {} {return ok}; proc alias {} {return displaced}; interp alias {} alias {} target; alias";
         let mut analysis = Analyser::new().analyse(source, "tcl9.0").clone();
@@ -414,7 +412,6 @@ mod tests {
     }
     #[test]
     fn original_graph_summary_requires_body_allocation_even_when_ir_labels_agree() {
-        // Implementation contract: naming.core.original-declaration-graphs
 
         let source = "proc p {} {return SAFE}; p";
         let profile = crate::profile_for_dialect("tcl8.6");

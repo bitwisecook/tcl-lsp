@@ -51,7 +51,6 @@ impl InvocationProjectionMemo {
         offset: u32,
         prepare: impl FnOnce() -> super::SourceInvocationBinding,
     ) -> Arc<super::SourceInvocationBinding> {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         if let Some(retained) = self
             .entries
@@ -186,7 +185,6 @@ mod tests {
             .unwrap()
     }
 
-    // Implementation contract: naming.source.namespace-inventory-selection-sharing
 
     #[test]
     fn original_body_projection_shares_exact_namespace_inventory_and_keeps_body_ranges() {
@@ -263,7 +261,6 @@ mod tests {
         );
     }
 
-    // Implementation contract: naming.source.namespace-inventory-selection-sharing
 
     #[test]
     fn original_body_projection_children_cannot_restore_filtered_or_foreign_origins() {
@@ -312,7 +309,6 @@ mod tests {
         );
     }
 
-    // Implementation contract: naming.compiler.original-analysis-metadata-context
 
     #[test]
     fn original_body_projection_keeps_full_logical_input_and_withdrawn_owner_separate() {
@@ -390,7 +386,6 @@ mod tests {
         assert!(!retained.points.is_empty());
     }
 
-    // Implementation contract: naming.source.namespace-inventory-selection-sharing
 
     #[test]
     fn original_body_projection_uses_actual_native_namespace_incarnation() {

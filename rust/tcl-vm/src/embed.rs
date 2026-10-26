@@ -1253,7 +1253,6 @@ mod embedding_settlement_tests {
 
     #[test]
     fn public_completion_option_bytes_retains_opaque_empty_and_absent_members() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software API control: these constructed carriers do not establish an
         // original C Tcl/Jim physical-object or completion observation.
@@ -1322,7 +1321,6 @@ mod embedding_settlement_tests {
 
     #[test]
     fn public_completion_option_bytes_preserves_first_host_before_any_getter() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The retained refusal is a software owner control, not a measured
         // original-provider failure or a claim that a getter was reached.

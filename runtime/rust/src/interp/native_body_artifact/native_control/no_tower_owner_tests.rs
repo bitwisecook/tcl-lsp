@@ -13,7 +13,6 @@ fn native() -> Interp {
 
 #[test]
 fn original_no_tower_body_keeps_non_expression_commands_and_actual_cached_owner() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine constructor/source/cache software control in the absent backend build.
     let mut interpreter = native();
@@ -36,7 +35,6 @@ fn original_no_tower_body_keeps_non_expression_commands_and_actual_cached_owner(
 
 #[test]
 fn original_no_tower_reached_refusal_preserves_actual_result_and_prior_full_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The actual stage owner is exercised; this does not issue an unavailable expression recipe.
     for prior in [false, true] {

@@ -904,7 +904,6 @@ impl Analyser {
         original: Option<crate::registry_invocation::OriginalSourceCommandAvailability>,
         scope_path: &[usize],
     ) {
-        // naming.diagnostic.original-command-source-unavailability
 
         use tcl_registry::model::CommandSourceUnavailabilityKind;
         let Some(original) = original else {
@@ -3378,7 +3377,6 @@ mod selected_formal_tests {
 
     #[test]
     fn original_formal_diagnostics_use_selected_name_grammar_and_whole_words() {
-        // naming.variable.original-readonly-formal-topology
 
         // Source consumer contract; these assertions do not enter a native frame.
         for name in ["a::b", "a(1)"] {
@@ -3406,7 +3404,6 @@ mod selected_formal_tests {
 
     #[test]
     fn original_formal_diagnostics_reject_three_fields_and_withdraw_known_shadows() {
-        // naming.variable.original-readonly-formal-topology
 
         let malformed = "proc target {{a b c}} {}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -3477,7 +3474,6 @@ mod logical_class_family_tests {
 
     #[test]
     fn logical_class_family_uses_observed_definer_without_borrowing_native_formals() {
-        // naming.diagnostics.retained-logical-class-family
 
         let analyser = inspected_analysis("tcl");
         assert!(analyser.result.allows_retained_logical_declaration_advice());
@@ -3506,7 +3502,6 @@ mod logical_class_family_tests {
 
     #[test]
     fn logical_class_family_refuses_defaults_missing_and_stale_source_context() {
-        // naming.diagnostics.retained-logical-class-family
 
         let mut analyser = inspected_analysis("tcl");
         assert!(family_is_tcloo(&analyser));
@@ -3562,7 +3557,6 @@ mod logical_class_family_tests {
 
     #[test]
     fn native_and_hosted_family_classification_cannot_fall_back_to_logical_reports() {
-        // naming.diagnostics.retained-logical-class-family
 
         for dialect in [
             "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl", "irules", "tmsh",
@@ -3617,7 +3611,6 @@ mod original_expression_assistance_tests {
 
     #[test]
     fn original_operator_assistance_preserves_retained_variable_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Recognition and warning geometry only; no Native syntax acceptance.
         let source = "expr {${a{b}c} in {λ}}";
@@ -3642,7 +3635,6 @@ mod original_expression_assistance_tests {
 
     #[test]
     fn original_function_assistance_keeps_lexer_overlays_and_missing_owner_refusals() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original source references only, independently of dispatch/frames.
         let source = "expr {max(${a{b}c}, 1)}";

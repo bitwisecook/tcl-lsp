@@ -856,7 +856,6 @@ mod tests {
     }
     #[test]
     fn original_existence_metadata_keeps_genuine_advice_and_declines_missing_foreign_input() {
-        // naming.compiler.retained-existence-metadata
 
         let (tokens, registry) = original_query_tokens("tcl8.6", "", "info exists u");
         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -894,7 +893,6 @@ mod tests {
 
     #[test]
     fn original_unpositioned_existence_requires_retained_logical_input() {
-        // naming.compiler.retained-existence-metadata
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl").default_context_registry();

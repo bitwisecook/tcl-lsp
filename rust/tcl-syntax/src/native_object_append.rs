@@ -56,7 +56,6 @@ impl NativeObjectAppendProtocol {
     /// Later releases return before reaching its primary representation.
     #[must_use]
     pub const fn converts_empty_counted_receiver(self) -> bool {
-        // naming.object.original-empty-counted-append
 
         matches!(
             self.string.tcl_version(),

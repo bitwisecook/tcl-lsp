@@ -1712,7 +1712,6 @@ mod tests {
 
     #[test]
     fn detached_previous_retirement_releases_the_actual_chain_outside_world_borrows() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software owner cleanup; no Native pointer or reference-count parity.
         let mut vm = actual_jim();
@@ -1749,7 +1748,6 @@ mod tests {
 
     #[test]
     fn detached_previous_retirement_preserves_its_real_active_invocation_owner() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software entered-role cleanup, independent of idle table ownership.
         let mut vm = actual_jim();
@@ -1781,7 +1779,6 @@ mod tests {
 
     #[test]
     fn detached_previous_retirement_uses_its_original_world_when_another_vm_is_current() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Explicit original world custody grants no authority to another interpreter.
         let mut original_vm = actual_jim();

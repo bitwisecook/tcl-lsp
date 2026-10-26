@@ -168,7 +168,6 @@ fn assert_prior(interpreter: &Interp, prior: *mut TclObj) {
 
 #[test]
 fn original_usage_projection_keeps_actual_rewrite_counts_and_leaves_operands_unread() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software sharing/control only; no external wrong-args chronology grant.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -198,7 +197,6 @@ fn original_usage_projection_keeps_actual_rewrite_counts_and_leaves_operands_unr
 
 #[test]
 fn original_usage_first_getter_refusal_stops_later_header_and_guest_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2] {
         let mut interpreter = native("tcl8.6");
@@ -228,7 +226,6 @@ fn original_usage_first_getter_refusal_stops_later_header_and_guest_publication(
 
 #[test]
 fn original_procedure_argv_zero_refusal_precedes_real_body_getter_and_activation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2] {
         let mut interpreter = native("tcl8.6");
@@ -258,7 +255,6 @@ fn original_procedure_argv_zero_refusal_precedes_real_body_getter_and_activation
 
 #[test]
 fn original_usage_rewrite_birth_refuses_nested_and_clear_recreate_aba() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [3, 4] {
         let mut interpreter = native("tcl8.6");
@@ -278,7 +274,6 @@ fn original_usage_rewrite_birth_refuses_nested_and_clear_recreate_aba() {
 
 #[test]
 fn original_rewrite_retirement_reenters_extracted_owner_and_keeps_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2] {
         let mut interpreter = native("tcl8.6");
@@ -303,7 +298,6 @@ fn original_rewrite_retirement_reenters_extracted_owner_and_keeps_first_cause() 
 
 #[test]
 fn original_handler_prefix_retirement_reenters_after_extraction_before_success() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     fn release_caller(_: &mut Interp, _: &[*mut TclObj]) -> Code {
         let caller = CALLER.with(|value| value.borrow_mut().take());
@@ -334,7 +328,6 @@ fn original_handler_prefix_retirement_reenters_after_extraction_before_success()
 
 #[test]
 fn original_ensemble_arity_and_selector_refusals_precede_target_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for arity in [true, false] {
         let mut interpreter = native("tcl8.6");
@@ -389,7 +382,6 @@ fn original_ensemble_arity_and_selector_refusals_precede_target_publication() {
 
 #[test]
 fn original_procedure_body_getter_refusal_keeps_real_declaration_and_frame_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [5, 6] {
         let mut interpreter = native("tcl8.6");
@@ -423,7 +415,6 @@ fn original_procedure_body_getter_refusal_keeps_real_declaration_and_frame_clean
 
 #[test]
 fn original_usage_actual_receiver_refuses_foreign_interpreter_before_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let original = native("tcl8.6");
     let mut foreign = native("tcl8.6");
@@ -581,7 +572,6 @@ fn configured_unknown(
 
 #[test]
 fn original_unknown_current_guest_results_keep_true_prefix_and_reparse_contracts() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [7, 8, 9, 10] {
         let mut interpreter = native("tcl8.6");
@@ -658,7 +648,6 @@ fn original_unknown_current_guest_results_keep_true_prefix_and_reparse_contracts
 
 #[test]
 fn original_unknown_member_refusal_stops_later_getter_and_real_dispatch() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2] {
         let mut interpreter = native("tcl8.6");
@@ -702,7 +691,6 @@ fn original_unknown_member_refusal_stops_later_getter_and_real_dispatch() {
 
 #[test]
 fn original_unknown_result_primary_retirement_refuses_before_list_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2] {
         let mut interpreter = native("tcl8.6");
@@ -764,7 +752,6 @@ fn original_unknown_result_primary_retirement_refuses_before_list_adoption() {
 
 #[test]
 fn original_unknown_returned_string_refusal_stops_result_list_and_guest_context() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2] {
         let mut interpreter = native("tcl8.6");

@@ -962,7 +962,6 @@ mod tests {
 
     #[test]
     fn original_numeric_facade_keeps_cached_header_string_and_reference_roles() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The supplied Host is an authored software worker, not provider evidence.
         let (mut vm, numeric) = provided("tcl8.6");
@@ -994,7 +993,6 @@ mod tests {
 
     #[test]
     fn original_numeric_facade_refuses_withdrawn_currency_before_host_or_cache() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, numeric) = provided("tcl8.6");
         let value = Value::new_native_string_bytes(b"6".as_slice());
@@ -1015,7 +1013,6 @@ mod tests {
 
     #[test]
     fn original_numeric_reached_host_worker_retains_first_cause_before_cache() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The software checker introduces refusal at the reached Host boundary;
         // no VM extension object callback issuer is asserted.
@@ -1069,7 +1066,6 @@ mod tests {
 
     #[test]
     fn original_numeric_primary_retirement_checker_prevents_later_cache_installation() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // This exercises the software checker after actual primary retirement.
         // VM Value has no extension free-callback issuer; no such callback is claimed.
@@ -1108,7 +1104,6 @@ mod tests {
 
     #[test]
     fn original_precision_safe_and_cached_modern_reads_preserve_getter_order() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software integration uses the selected source policy; no native run is implied.
         for safe in [false, true] {
@@ -1142,7 +1137,6 @@ mod tests {
 
     #[test]
     fn original_c84_precision_null_read_reaches_decimal_worker_without_reset() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, numeric) = provided("tcl8.4");
         let cell = vm.trace_cell_bytes(b"tcl_precision").unwrap();
@@ -1166,7 +1160,6 @@ mod tests {
 
     #[test]
     fn original_checked_jim_context_keeps_its_host_and_stops_the_next_worker() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // These are software Host stages with genuine retained VM Jim context,
         // not an extension-object updater or external Jim execution claim.
@@ -1239,7 +1232,6 @@ mod tests {
 
     #[test]
     fn original_precision_getters_borrow_the_cell_without_a_native_reference() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The actual software Host observes the original cell header during
         // the selected worker; the observer itself holds an allocation-only lease.
@@ -1291,7 +1283,6 @@ mod tests {
 
     #[test]
     fn original_checked_jim_probe_refuses_changed_abi_between_context_stages() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A supplied outer worker is not the retained Jim context's numeric Host.
         let (mut vm, numeric) = provided("jim");
@@ -1330,7 +1321,6 @@ mod tests {
 
     #[test]
     fn original_value_ops_scalar_consumers_keep_cached_headers_and_jim_context() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_syntax::value::ValueOps;
         let (mut vm, numeric) = provided("tcl8.6");
@@ -1365,7 +1355,6 @@ mod tests {
 
     #[test]
     fn original_value_error_numeric_seam_returns_the_retained_host_cause_at_completion() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_syntax::value::ValueOps;
         let (mut vm, numeric) = provided("tcl8.6");
@@ -1394,7 +1383,6 @@ mod tests {
 
     #[test]
     fn original_list_index_and_info_numeric_consumers_keep_their_selected_purposes() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_cmd_core::{
             native_info_level::NativeInfoLevelObjects, native_list_index::NativeListIndexOps,
@@ -1436,7 +1424,6 @@ mod tests {
 
     #[test]
     fn original_numeric_value_seam_keeps_genuine_guest_scalar_receipts() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_syntax::value::ValueOps;
         let (mut vm, _) = provided("tcl8.6");
@@ -1454,7 +1441,6 @@ mod tests {
 
     #[test]
     fn original_authored_numeric_selection_does_not_query_the_native_host() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_syntax::value::ValueOps;
         let (mut vm, numeric) = provided("tcl9.0");
@@ -1495,7 +1481,6 @@ mod tests {
     }
     #[test]
     fn original_authored_expression_increment_and_boolean_policies_do_not_query_host() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // These assertions reach the actual routing adapters, not just the selector.
         let (mut vm, numeric) = provided("tcl9.0");
@@ -1531,7 +1516,6 @@ mod tests {
 
     #[test]
     fn original_value_environment_keeps_the_same_header_and_shared_numeric_stages() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual VM header and software Host stages; no Runtime extension issuer is claimed.
         let (mut vm, numeric) = provided("tcl8.4");
@@ -1588,7 +1572,6 @@ mod tests {
 
     #[test]
     fn original_value_environment_retains_header_refusal_before_the_next_host_worker() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A software callback releases the actual VM owner; the lease retains allocation only.
         for stage in ["abi", "state", "unsigned"] {
@@ -1655,7 +1638,6 @@ mod tests {
 
     #[test]
     fn original_scalar_facade_preserves_retired_header_cause_through_quiet_value_error() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Genuine reached numeric callbacks retire the actual header before any returned cache publication.
         for stage in ["abi", "double"] {
@@ -1700,7 +1682,6 @@ mod tests {
 
     #[test]
     fn original_value_header_check_preserves_an_earlier_entered_scope_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, numeric) = provided("tcl8.6");
         let original = Value::new_native_string_bytes(b"6".as_slice());
@@ -1728,7 +1709,6 @@ mod tests {
     }
     #[test]
     fn original_arithmetic_context_keeps_cached_values_and_actual_expression_adapters() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Authored software Host workers and actual VM adapters; no external provider run.
         use tcl_syntax::expr::{BinOp, ExprOps, UnaryOp};
@@ -1806,7 +1786,6 @@ mod tests {
 
     #[test]
     fn original_arithmetic_context_stops_each_reached_worker_on_header_retirement() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The supplied numeric worker drops the real owner. This is a software
         // continuation test, not a Tcl extension updater/free callback claim.
@@ -1847,7 +1826,6 @@ mod tests {
 
     #[test]
     fn original_arithmetic_context_refuses_protocol_and_prior_owner_before_host_acquisition() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let (mut vm, numeric) = provided("tcl8.6");
         vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl8.4"));
@@ -1883,7 +1861,6 @@ mod tests {
 
     #[test]
     fn original_arithmetic_context_preserves_guest_operand_failure_and_authored_route() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use tcl_syntax::expr::{BinOp, ExprOps};
         let (mut vm, _) = provided("tcl8.6");
@@ -1925,7 +1902,6 @@ mod tests {
 
     #[test]
     fn original_arithmetic_cache_checks_the_actual_header_before_replacement() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Withdrawal is in the supplied software String stage, not an external updater.
         let (mut vm, _) = provided("tcl8.6");
@@ -1956,7 +1932,6 @@ mod tests {
     }
     #[test]
     fn original_arithmetic_pure_context_keeps_the_existing_cached_header_guard() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The explicit pure policy issues no VM scope. It still checks the
         // original Value header before accepting its descriptive cached number.

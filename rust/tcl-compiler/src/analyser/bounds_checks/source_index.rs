@@ -21,7 +21,6 @@ use crate::analyser::{
 pub(in crate::analyser) fn original_index_diagnostics(
     original: &OriginalDiagnosticInvocation,
 ) -> Vec<Diagnostic> {
-    // naming.diagnostic.registry-source-ownership
 
     let Some(selected) = original
         .with_schema(crate::registry_invocation::source_schema_queries::index_bounds)
@@ -341,7 +340,6 @@ mod tests {
 
     #[test]
     fn original_index_bounds_select_aliases_moves_and_reject_source_replacements() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for source in [
@@ -373,7 +371,6 @@ mod tests {
 
     #[test]
     fn original_index_subjects_keep_captured_ordinals_unicode_and_written_pair_geometry() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         let source = "interp alias {} at {} string range {λé} 9; at 12";
@@ -405,7 +402,6 @@ mod tests {
 
     #[test]
     fn original_index_advice_retains_availability_and_refuses_missing_foreign_or_stale_owners() {
-        // naming.diagnostic.registry-source-ownership
 
         let current = current_input();
         let source = "string insert {λé} -1 VALUE";
@@ -453,7 +449,6 @@ mod tests {
 
     #[test]
     fn original_index_supplemental_values_keep_literal_subjects_and_nested_list_paths() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         let source = "interp alias {} at {} lindex; at $literal $index";

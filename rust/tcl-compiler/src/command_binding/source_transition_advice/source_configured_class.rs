@@ -98,7 +98,6 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
-        // naming.source.original-class-reference
 
         let transitions = schema.state_transitions();
         let mut targets = transitions
@@ -173,7 +172,6 @@ mod tests {
     }
     #[test]
     fn original_configured_class_retains_moved_target_and_captured_operand() {
-        // naming.source.original-class-reference
 
         let source = "oo::class create C {method m {} {}}; rename C Held; interp alias {} configure {} oo::define Held; unavailable; configure {export m}";
         for profile in ["tcl", "tcl9.0"] {
@@ -224,7 +222,6 @@ mod tests {
     }
     #[test]
     fn original_configured_class_refuses_known_barriers_and_object_targets() {
-        // naming.source.original-class-reference
 
         for operation in [
             "rename C {}",
@@ -257,7 +254,6 @@ mod tests {
     }
     #[test]
     fn original_configured_class_keeps_full_input_and_unique_logical_metadata() {
-        // naming.source.original-class-reference
 
         let source = "oo::class create C {method m {} {}}; oo::define C {export m}";
         let mut analysis = Analyser::new().analyse(source, "tcl");

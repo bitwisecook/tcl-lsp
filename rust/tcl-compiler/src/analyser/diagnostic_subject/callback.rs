@@ -166,7 +166,6 @@ impl SourceCallbackAritySubject {
         prefix: Arc<OriginalCallbackPrefix>,
         headers: &[SourceDeclarationSignature],
     ) -> Option<Self> {
-        // naming.diagnostic.original-callback-signature-subject
 
         let lookup = prefix.lookup()?;
         if lookup.name_input() != prefix.name_input()
@@ -185,7 +184,6 @@ impl SourceCallbackAritySubject {
         selection: Arc<SourceCallbackSignatureLookup>,
         external_headers: &[SourceDeclarationSignature],
     ) -> Option<Self> {
-        // naming.source.original-callback-procedure-target
 
         use crate::command_binding::OriginalSourceCallbackProcedureTargetKind as Kind;
         let original = selection.original();
@@ -424,7 +422,6 @@ mod tests {
 
     #[test]
     fn original_callback_subject_retains_prefix_counts_headers_and_source_purpose() {
-        // naming.diagnostic.original-callback-signature-subject
 
         // Source assistance only: lsort/trace are not executed here.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -475,7 +472,6 @@ mod tests {
     }
     #[test]
     fn original_absolute_trace_subject_retains_source_signature_without_trigger_frame() {
-        // naming.diagnostic.original-callback-signature-subject
 
         // Qualification supplies target geometry only. No triggering frame,
         // installed trace, future command occupancy or actual argv is observed.
@@ -517,7 +513,6 @@ mod tests {
 
     #[test]
     fn original_callback_subject_withdraws_unknown_counts_and_missing_frame() {
-        // naming.diagnostic.original-callback-signature-subject
 
         for source in [
             "proc cb $params {}; lsort -command cb {1 2}",
@@ -567,7 +562,6 @@ mod tests {
 
     #[test]
     fn original_callback_alias_signature_composes_separate_capture_counts() {
-        // naming.source.original-callback-procedure-target
 
         // Source signature control; native public args/order are independently recorded.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -615,7 +609,6 @@ mod tests {
 
     #[test]
     fn original_callback_alias_signature_retains_nested_and_baked_premises() {
-        // naming.source.original-callback-procedure-target
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let aliases = if dialect == "jimtcl" {
@@ -650,7 +643,6 @@ mod tests {
 
     #[test]
     fn original_callback_alias_signature_keeps_alias_move_and_target_replacement() {
-        // naming.source.original-callback-procedure-target
 
         for tail in [
             "rename cb moved_cb\nlsort -command moved_cb {2 1}",
@@ -685,7 +677,6 @@ mod tests {
 
     #[test]
     fn original_callback_source_barriers_cannot_resurrect_project_headers() {
-        // naming.source.original-callback-procedure-target
 
         for (prefix, tail) in [
             (
@@ -724,7 +715,6 @@ mod tests {
     }
     #[test]
     fn original_callback_signature_lookup_requires_its_complete_source_input() {
-        // naming.source.original-callback-procedure-target
 
         let source =
             "proc target {a b c d} {}\ninterp alias {} cb {} target FIXED\nlsort -command cb {2 1}";

@@ -99,7 +99,6 @@ impl SourceCommandBindings {
         write: &crate::var_resolve::OriginalNormalValueWrite,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        // Implementation contract: naming.variable.quiet-normal-continuation
 
         if !write.is_current(&before.source_variables, registry)
             || !unobserved_command_boundary(before, native)
@@ -216,7 +215,6 @@ fn unobserved_command_boundary(
 mod tests {
     #[test]
     fn quiet_normal_store_continuation_requires_actual_write_and_handler_closure() {
-        // Implementation contract: naming.variable.quiet-normal-continuation
 
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());

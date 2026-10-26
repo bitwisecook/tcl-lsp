@@ -197,7 +197,6 @@ fn frame_reference_cache_refuses_foreign_issuers_and_retired_headers() {
 
 #[test]
 fn required_upvar_level_does_not_borrow_optional_leading_frame_default() {
-    // naming.variable.original-upvar-and-exists-completion-and-name-windows
 
     // Case11's unchanged original C8.6/9.0/9.1 native tables require bad level k.
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -399,7 +398,6 @@ static FRAME_UPDATER: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_frame_level_uses_entered_environment_and_preserves_native_counts() {
-    // naming.variable.original-level-object-conversion-and-selection
 
     // Software operation-owner control; existing provider recordings remain independent.
     for engine in ["tcl8.4", "tcl8.6", "tcl9.1", "jimtcl"] {
@@ -485,7 +483,6 @@ fn original_frame_level_uses_entered_environment_and_preserves_native_counts() {
 
 #[test]
 fn original_frame_level_missing_environment_is_terminal_only_at_reached_numeric_stage() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Host refusal is independent of a native bad-level outcome or portable level cache.
     let mut interp = actual("tcl8.4");
@@ -554,7 +551,6 @@ fn original_frame_level_missing_environment_is_terminal_only_at_reached_numeric_
 
 #[test]
 fn original_frame_level_callbacks_cannot_restore_currency_before_script_or_cache() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Reached extension effects remain; these are software currency controls, not native rows.
     for change in [false, true] {
@@ -593,7 +589,6 @@ fn original_frame_level_callbacks_cannot_restore_currency_before_script_or_cache
 
 #[test]
 fn original_frame_level_numeric_callbacks_stop_after_reached_environment_effect() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual Host stages may change and restore policy; no later stage inherits new currency.
     for stage in [1, 2] {
@@ -631,7 +626,6 @@ fn original_frame_level_numeric_callbacks_stop_after_reached_environment_effect(
 
 #[test]
 fn original_frame_level_lease_refuses_retired_header_and_replaced_current_activation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let interp = actual("tcl8.6");
     let original = Owned::fresh(obj::new_string_bytes(b"1"));
@@ -671,7 +665,6 @@ fn original_frame_level_lease_refuses_retired_header_and_replaced_current_activa
 
 #[test]
 fn compiled_frame_and_single_script_list_use_same_original_operation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Single-List and compiled C9.1 routes retain the same original allocation and purpose.
     let mut interp = actual("tcl9.1");

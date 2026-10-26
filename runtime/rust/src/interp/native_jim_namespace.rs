@@ -900,7 +900,6 @@ mod tests {
 
     #[test]
     fn jim_root_command_context_requires_its_live_original_top_object() {
-        // Implementation contract: naming.runtime.original-root-command-context
 
         let mut interp = Interp::new();
         interp.set_dialect_profile(profile());

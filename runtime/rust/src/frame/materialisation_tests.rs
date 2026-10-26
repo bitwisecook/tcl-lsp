@@ -153,7 +153,6 @@ fn cause(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn original_formal_metadata_retires_before_adoption_under_the_same_frame_and_cell() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2, 3] {
@@ -267,7 +266,6 @@ fn array(interpreter: &mut Interp) -> (RetainedArrayCell, ArrayTarget) {
 
 #[test]
 fn original_search_string_keeps_the_same_node_birth_without_a_native_snapshot_hold() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The extension header is a software callback control, not a stock handle producer comparison.
     for profile in ["tcl9.0", "tcl9.1"] {
@@ -348,7 +346,6 @@ fn original_search_string_keeps_the_same_node_birth_without_a_native_snapshot_ho
 
 #[test]
 fn original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2] {
@@ -407,7 +404,6 @@ fn original_done_search_retires_its_actual_handle_before_result_publication_outs
 
 #[test]
 fn original_search_chain_and_formal_availability_keep_their_selected_physical_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
@@ -472,7 +468,6 @@ fn original_search_chain_and_formal_availability_keep_their_selected_physical_ro
 
 #[test]
 fn original_array_search_requires_the_actual_captured_operation_receipt() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Preserve the old fixture premise as an explicit negative: same numeric
     // cell/header observations do not replace the genuine LocateArray receipt.

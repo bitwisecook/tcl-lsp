@@ -250,7 +250,6 @@ mod tests {
 
     #[test]
     fn info_commands_selection_matches_one_hundred_fifty_five_original_compiler_windows() {
-        // naming.compiler.original-info-commands-literal-resolution
 
         // Rows project original native opcode observations; no registration or runtime
         // authority is supplied by the pure source recipe comparison.

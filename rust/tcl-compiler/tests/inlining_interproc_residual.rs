@@ -1447,7 +1447,6 @@ fn proc_arity_is_at_least_required_count_for_variadic_decl() {
 
 #[test]
 fn protective_proc_index_unions_every_colliding_parameter_and_default_read() {
-    // naming.analysis.procedure-summary-candidate-keys
 
     // Actual software summary/CFG producer; MAY protection selects no callee.
     let positional = call_by_name_reads(
@@ -1468,7 +1467,6 @@ fn protective_proc_index_unions_every_colliding_parameter_and_default_read() {
 
 #[test]
 fn protective_proc_index_missing_key_retains_literal_possible_name_arguments() {
-    // naming.analysis.procedure-summary-candidate-keys
 
     // The opaque effects owner remains separate; no absence proof from a label.
     let reads = call_by_name_reads(

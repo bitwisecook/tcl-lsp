@@ -207,7 +207,6 @@ impl<'a> FileCandidateScanner<'a> {
         exists: &dyn Fn(&Path) -> bool,
         list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
     ) -> Vec<OriginalPackageFileCandidate> {
-        // Implementation contract: naming.package.original-file-candidate-provenance
 
         let image = SourceImage::document(self.source);
         let Some(config) = self.analysis.body_lexer_config else {
@@ -360,7 +359,6 @@ mod tests {
 
     #[test]
     fn original_package_files_keep_source_ordinals_data_and_directory_hints_distinct() {
-        // Implementation contract: naming.package.original-file-candidate-provenance
 
         for version in TclVersion::ALL {
             let source = "package ifneeded P 1.0 {source actual.tcl; set data {source inert.tcl}; puts source}\n";
@@ -418,7 +416,6 @@ mod tests {
 
     #[test]
     fn original_package_file_scanner_keeps_the_full_input_generation() {
-        // naming.package.original-file-candidate-provenance
 
         let source = "package ifneeded P 1.0 {source actual.tcl}";
         let retained = analysis(source, TclVersion::V9_0);
@@ -440,7 +437,6 @@ mod tests {
 
     #[test]
     fn original_package_file_currency_keeps_file_ingress_and_nested_bom_distinct() {
-        // naming.package.original-file-candidate-provenance
 
         let source = "package ifneeded P 1.0 {source actual.tcl}";
         for version in TclVersion::ALL {
@@ -516,7 +512,6 @@ mod tests {
 
     #[test]
     fn original_package_file_advice_keeps_future_values_shadow_arity_and_currency_separate() {
-        // Implementation contract: naming.package.original-file-candidate-provenance
 
         let version = TclVersion::V8_6;
         let source = "package ifneeded P 1.0 {source $dir/path.tcl}";
@@ -581,9 +576,7 @@ mod tests {
 
     #[test]
     fn original_package_file_candidates_require_potential_loader_evaluation() {
-        // naming.source.original-script-region-purpose
 
-        // naming.package.original-file-candidate-provenance
 
         let source = "package {source selected.tcl}";
         for reference_only in [true, false] {

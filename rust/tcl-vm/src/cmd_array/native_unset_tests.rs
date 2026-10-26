@@ -59,9 +59,7 @@ const CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_array_unset_matches_native_refills_and_release_selected_lookup() {
-    // naming.variable.original-array-unset-trace-refill
 
-    // naming.variable.original-array-unset-name-relookup
 
     // Whole unchanged originals compare public results only. No native table,
     // original-header or compiled activation equivalence follows from them.

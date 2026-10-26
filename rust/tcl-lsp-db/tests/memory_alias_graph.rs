@@ -27,7 +27,6 @@ fn document_analysis(source: &str, dialect: &str) -> Arc<AnalysisResult> {
 
 #[test]
 fn actual_document_memory_graph_keeps_conditional_aliases_and_opaque_residuals() {
-    // naming.compiler.original-analysis-metadata-context
 
     // MAY exposure and unresolved effects are source facts; no Native frame or link is proved.
     for (source, has_global_pair) in [
@@ -81,7 +80,6 @@ fn actual_document_memory_graph_keeps_conditional_aliases_and_opaque_residuals()
 
 #[test]
 fn actual_document_memory_graph_refuses_missing_and_foreign_input() {
-    // naming.compiler.original-analysis-metadata-context
 
     let source = "proc aliaser {} {global ::shared; set shared 1}";
     let logical = document_analysis(source, "tcl");
@@ -118,9 +116,7 @@ fn actual_document_memory_graph_refuses_missing_and_foreign_input() {
 
 #[test]
 fn actual_document_graphs_keep_native_jim_and_hosted_source_cards() {
-    // naming.compiler.original-analysis-metadata-context
 
-    // naming.core.original-declaration-graphs
 
     // Readonly headers do not establish a compiled function, runtime frame or executed effect.
     let source = "proc graph_subject {first} {global ::n::shared; set shared $first}";
@@ -185,9 +181,7 @@ fn source_function_card(graph: &serde_json::Value) -> Option<&serde_json::Value>
 
 #[test]
 fn actual_document_graph_cards_respect_a_known_replaced_definer() {
-    // naming.compiler.original-analysis-metadata-context
 
-    // naming.core.original-declaration-graphs
 
     let source = "proc proc args {return}; proc graph_subject {first} {return}";
     let analysis = document_analysis(source, "tcl9.1");

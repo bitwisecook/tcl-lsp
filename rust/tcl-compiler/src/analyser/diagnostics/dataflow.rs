@@ -1078,7 +1078,6 @@ is renamed or deleted in this file."
         // The SSA name is already resolved: a leading dollar is literal.
         // Source sigils and the selected release's lexical extent belong to
         // the shared scanner, separately from the combined-name split owner.
-        // naming.diagnostics.original-variable-name-anchor
 
         /// First `$target` `Var` token within `slice` (whose absolute start
         /// is `abs_base`), descending into command-substitution contents.
@@ -3027,7 +3026,6 @@ is renamed or deleted in this file."
         ctx: &ReadBeforeSetCtx<'_>,
         params: &HashSet<&str>,
     ) {
-        // naming.diagnostics.original-matcher-output-retention
 
         let Some(input) = self.result.resolved_input.as_ref() else {
             return;
@@ -5155,7 +5153,6 @@ fn selected_matcher_no_match_outputs(
     context: &tcl_registry::model::ContextRegistry,
 ) -> Vec<String> {
     use tcl_registry::variable_output::NativeVariableOutputSpec;
-    // naming.diagnostics.original-matcher-output-retention
 
     let Some(layout) = SourceMatcherLayout::from_original(words, context) else {
         return Vec::new();
@@ -5407,7 +5404,6 @@ mod issue996_tests {
 
     #[test]
     fn opaque_body_local_set_requires_original_body_owner() {
-        // naming.source.original-editor-body-structure
 
         // Conditional source suppression only; no entered interpreter or store.
         let source = "interp eval {} {set x 1; puts $x}\n";
@@ -5464,7 +5460,6 @@ mod issue996_tests {
 
     #[test]
     fn original_body_ownership_keeps_installer_horizon_and_child_refusal() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // Conditional suppression, never an entered child or completed store.
         for (source, target, expected) in [
@@ -5559,7 +5554,6 @@ mod source_body_purpose_tests {
 
     #[test]
     fn original_reference_only_body_cannot_supply_local_store_suppression() {
-        // naming.source.original-script-region-purpose
 
         // Diagnostic suppression capability; no executed store or child entry.
         let source = "reference-script {set x 1; puts $x}\nrun-script {set x 1; puts $x}";
@@ -5660,7 +5654,6 @@ mod original_variable_anchor_tests {
 
     #[test]
     fn variable_read_anchor_preserves_literal_name_and_complete_reference_geometry() {
-        // naming.diagnostics.original-variable-name-anchor
 
         // Lexical anchor controls, not variable existence, W210 admission or
         // successful native reads. A braced scalar may contain an unmatched '('.
@@ -5701,7 +5694,6 @@ mod original_variable_anchor_tests {
 
     #[test]
     fn variable_read_anchor_uses_retained_braced_and_bare_name_grammar() {
-        // naming.diagnostics.original-variable-name-anchor
 
         // Exact source/configuration discrimination, not a native cell or
         // completion observation. Bare Unicode is Jim syntax only.
@@ -5753,7 +5745,6 @@ mod original_matcher_admission_tests {
 
     #[test]
     fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_barriers() {
-        // naming.diagnostics.original-matcher-output-retention
 
         // Selected conditional source protocol and decoded original argv only;
         // none of these Native analyses grants current output cells or reads.
@@ -5805,7 +5796,6 @@ mod original_matcher_admission_tests {
 
     #[test]
     fn original_matcher_query_refuses_missing_foreign_and_stale_source_inputs() {
-        // naming.diagnostics.original-matcher-output-retention
 
         let source = "regexp x y v";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -5855,7 +5845,6 @@ mod original_matcher_admission_tests {
 
     #[test]
     fn logical_no_match_diagnostics_keep_prior_and_intervening_values_and_literal_names() {
-        // naming.diagnostics.original-matcher-output-retention
 
         // Emitted conditional Logical diagnostics, not Native current contents.
         for (source, expected) in [
@@ -5936,7 +5925,6 @@ mod original_store_context_tests {
 
     #[test]
     fn original_store_points_keep_actual_module_function_and_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         // This authentic original point validates metadata only. A native cell,
         // literal contents, adjacency and callbacks remain separate store gates.
@@ -6023,7 +6011,6 @@ mod original_body_parser_config_tests {
 
     #[test]
     fn original_body_reference_suppression_keeps_bom_in_the_selected_head() {
-        // naming.source.original-configured-script-completeness
 
         // Unknown literal heads cannot grant a script role to inert argument data.
         let config = tcl_lexer::LexerConfig::for_file_grammar(
@@ -6055,7 +6042,6 @@ mod original_condition_child_purpose_tests {
 
     #[test]
     fn original_condition_child_keeps_bom_alias_and_actual_expression_base() {
-        // naming.diagnostics.original-matcher-output-retention
 
         // Selected conditional matcher/output schema only, no executed matcher or output cell contents.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -6138,7 +6124,6 @@ mod original_condition_extent_tests {
 
     #[test]
     fn original_condition_matcher_retains_multibyte_inclusive_extent_and_refuses_overflow() {
-        // naming.diagnostics.original-matcher-output-retention
 
         // Original conditional matcher schema, without execution or output values.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -6205,7 +6190,6 @@ mod constructed_projection_tests {
 
     #[test]
     fn w214_namespace_grouping_keeps_literal_reporting_prefix() {
-        // Implementation contract: naming.analysis.constructed-key-consumer-projections
 
         // Literal String grouping only; overlapping pairs are not native paths.
         for (qname, expected) in [

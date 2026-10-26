@@ -5,7 +5,6 @@ use crate::{counters, interp::Interp};
 
 #[test]
 fn original_traced_array_root_materialisation_matches_six_native_source_results() {
-    // naming.variable.original-traced-array-root-materialisation
 
     // Compare exact original completion and final values only. Jim's unavailable
     // trace API remains a guest error, without granting any entered callback.

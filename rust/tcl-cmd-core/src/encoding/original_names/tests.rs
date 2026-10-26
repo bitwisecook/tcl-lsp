@@ -4,7 +4,6 @@ use std::cell::Cell;
 
 #[test]
 fn original_byte_names_keep_c_extent_raw_diagnostics_and_actual_reset_default() {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
     for version in TclVersion::ALL {
         let queries = Cell::new(0);
@@ -59,7 +58,6 @@ fn original_byte_names_keep_c_extent_raw_diagnostics_and_actual_reset_default() 
 
 #[test]
 fn original_channel_pseudo_encodings_stay_distinct_from_system_reset_and_catalogue_absence() {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
     for version in TclVersion::ALL {
         for name in [b"".as_slice(), b"binary".as_slice()] {
@@ -152,7 +150,6 @@ impl OriginalSourceFileOps for Stages {
 
 #[test]
 fn original_source_stage_failure_stops_before_later_lookup_or_backend() {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
     let mut stages = Stages {
         events: Vec::new(),
@@ -203,7 +200,6 @@ fn original_source_stage_failure_stops_before_later_lookup_or_backend() {
 
 #[test]
 fn original_filename_external_zero_has_separate_backend_and_report_extents() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     let mut stages = Stages {
         events: Vec::new(),
@@ -278,7 +274,6 @@ fn original_filename_external_zero_has_separate_backend_and_report_extents() {
 
 #[test]
 fn original_filename_other_codec_requires_actual_filesystem_conversion() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut stages = Stages {
         events: Vec::new(),
@@ -334,7 +329,6 @@ impl OriginalSourceFileOps for ChangingEncoding {
 
 #[test]
 fn original_filename_uses_system_encoding_reached_after_string_callbacks() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut ops = ChangingEncoding {
         stages: Stages {
@@ -360,7 +354,6 @@ fn original_filename_uses_system_encoding_reached_after_string_callbacks() {
 
 #[test]
 fn original_filename_iso88591_and_identity_select_actual_external_bytes() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     let mut stages = Stages {
         events: Vec::new(),
@@ -418,7 +411,6 @@ fn original_filename_iso88591_and_identity_select_actual_external_bytes() {
 
 #[test]
 fn original_c9_identity_name_uses_actual_catalogue_instead_of_builtin_codec() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     let queries = Cell::new(0);
     let error = resolve_original_encoding_name(
@@ -448,7 +440,6 @@ fn original_c9_identity_name_uses_actual_catalogue_instead_of_builtin_codec() {
 
 #[test]
 fn original_filename_utf8_surrogates_keep_selected_conversion_and_error_owner() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     let mut stages = Stages {
         events: Vec::new(),

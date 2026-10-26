@@ -288,13 +288,10 @@ mod tests {
 
     use tcl_compiler::analyser::Analyser;
 
-    // Implementation contract: naming.core.original-workspace-procedure-completion
 
     #[test]
     fn original_workspace_completion_uses_shared_conditional_procedure_slots() {
-        // naming.source.original-procedure-publications
 
-        // naming.core.original-workspace-procedure-completion
 
         let source = "m\n";
         let consumer = Analyser::new().analyse(source, "tcl8.6");
@@ -320,7 +317,6 @@ mod tests {
 
     #[test]
     fn original_workspace_completion_keeps_opaque_slots_and_source_spelling_after_ui_clear() {
-        // Implementation contract: naming.core.original-workspace-procedure-completion
 
         let source = "p\n";
         let mut consumer = Analyser::new().analyse(source, "tcl8.6");
@@ -371,11 +367,9 @@ mod tests {
         assert!(items(source, 1, &consumer, &index, "p").is_empty());
     }
 
-    // Implementation contract: naming.core.original-workspace-procedure-completion
 
     #[test]
     fn original_workspace_completion_requires_the_consumers_own_protocol() {
-        // Implementation contract: naming.core.original-workspace-procedure-completion
 
         let producer = Analyser::new().analyse("proc public {} {}", "tcl8.6");
         let index = WorkspaceIndex::from_documents([("file:///producer.tcl", &producer)]);
@@ -398,11 +392,9 @@ mod tests {
                 .contains("Source declaration")
         );
     }
-    // Implementation contract: naming.core.original-workspace-procedure-completion
 
     #[test]
     fn original_workspace_hosted_completion_preserves_its_own_source_policy_and_unknown_inputs() {
-        // Implementation contract: naming.core.original-workspace-procedure-completion
 
         let source = "p\n";
         let mut consumer = Analyser::new().analyse(source, "f5-irules");

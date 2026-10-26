@@ -19,7 +19,6 @@ fn clear_reports(analysis: &mut AnalysisResult) {
 
 #[test]
 fn original_instance_candidates_join_genuine_construction_without_reporting_maps() {
-    // naming.core.original-source-instance-completion
 
     for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for source in [
@@ -55,7 +54,6 @@ fn original_instance_candidates_join_genuine_construction_without_reporting_maps
 
 #[test]
 fn original_instance_method_geometry_keeps_captured_selectors_and_later_arguments_separate() {
-    // naming.core.original-source-instance-completion
 
     let source = "oo::class create C {method longMethod args {}}; C create object; interp alias {} fixed {} object longMethod; fixed argument; object longMet argument; object \\\n\tlongMet";
     let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -95,7 +93,6 @@ fn original_instance_method_geometry_keeps_captured_selectors_and_later_argument
 
 #[test]
 fn original_instance_selector_edits_keep_whole_grouped_words_without_identity_grants() {
-    // naming.core.original-source-instance-completion
 
     let source = "oo::class create C {method longMethod {} {}}; set o [C new]; $o {longMet}";
     let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -138,7 +135,6 @@ fn original_instance_selector_edits_keep_whole_grouped_words_without_identity_gr
 
 #[test]
 fn original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation() {
-    // naming.core.original-source-instance-completion
 
     let source =
         "proc p {} {set o [C new]; $o longMethod}; oo::class create C {method longMethod {} {}}";
@@ -180,7 +176,6 @@ fn original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation(
 
 #[test]
 fn original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports() {
-    // naming.core.original-source-instance-completion
 
     let source = "oo::class create C {method longMethod {} {}}; set o [C new]; $o longMet";
     let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -226,7 +221,6 @@ fn original_instance_candidates_refuse_stale_input_terminal_mutations_and_detach
 
 #[test]
 fn original_instance_candidates_keep_opaque_canonical_class_inputs_distinct() {
-    // naming.core.original-source-instance-completion
 
     let source = r"oo::class create C\uD800 {method left {} {}}; oo::class create C\uD801 {method right {} {}}; set o [C\uD800 new]; $o left";
     let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -245,7 +239,6 @@ fn original_instance_candidates_keep_opaque_canonical_class_inputs_distinct() {
 
 #[test]
 fn original_instance_operand_projection_never_borrows_native_purpose_from_a_class() {
-    // naming.core.original-source-instance-completion
 
     let source = "oo::class create C {}; proc p {} {set o [C new]; $o ping}";
     let profile = tcl_dialect::DialectProfile::plain_tcl();

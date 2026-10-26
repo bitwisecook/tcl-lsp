@@ -402,7 +402,6 @@ mod tests;
 mod original_deletion_epoch_tests {
     #[test]
     fn original_command_deletion_epoch_predicates_keep_outer_recursive_and_unlink_stages() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Pure source predicates only; no Native callbacks/cache observations.
         use tcl_dialect::TclVersion;

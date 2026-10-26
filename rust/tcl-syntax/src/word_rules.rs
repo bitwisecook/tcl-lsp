@@ -835,7 +835,6 @@ pub fn original_static_word_ascii_source_offset(
     offset: usize,
 ) -> Option<u32> {
     use tcl_lexer::{ExecutablePart, ExecutableText, SourceChannel, WordKind};
-    // naming.core.original-inlay-retained-context
 
     let value = original_static_word_ascii_presentation(word)?;
     if offset > value.len() {
@@ -1309,7 +1308,6 @@ mod original_metadata_tests {
 
     #[test]
     fn static_unicode_values_keep_original_units_separate_from_replacement_presentation() {
-        // naming.source.original-static-unicode-value-projection
 
         // This checked Document view does not classify Native string values.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1364,7 +1362,6 @@ mod original_metadata_tests {
 
     #[test]
     fn static_ascii_boundaries_keep_original_literal_and_escape_components() {
-        // naming.core.original-inlay-retained-context
 
         let config = LexerConfig::default();
         for (source, expected) in [
@@ -1391,7 +1388,6 @@ mod original_metadata_tests {
 
     #[test]
     fn static_ascii_boundaries_keep_selected_grammar_and_refuse_other_value_domains() {
-        // naming.core.original-inlay-retained-context
 
         for (profile, expected) in [("tcl8.5", 6), ("tcl8.6", 4)] {
             let config = LexerConfig::for_profile(tcl_dialect::DialectProfile::find(profile));
@@ -1418,7 +1414,6 @@ mod original_metadata_tests {
 
     #[test]
     fn static_ascii_boundaries_keep_aggregated_escapes_and_original_literal_tails() {
-        // naming.core.original-inlay-retained-context
 
         for profile in [
             "tcl8.4",
@@ -1467,7 +1462,6 @@ mod original_metadata_tests {
 
     #[test]
     fn decoded_ascii_boundaries_refuse_channel_mismatch_and_non_ascii_units() {
-        // naming.core.original-inlay-retained-context
 
         let config = LexerConfig::default();
         assert_eq!(

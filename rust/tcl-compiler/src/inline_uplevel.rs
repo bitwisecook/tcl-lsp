@@ -485,7 +485,6 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     }
     let catalogue = module.clone();
     let config = module.lexer_config;
-    // naming.source.retained-positioned-command-realm
 
     // Keep the actual producer alive independently of the Module mutations.
     // Refusal stops the rewrite before any statement is moved or changed.
@@ -1154,7 +1153,6 @@ mod tests {
 
     #[test]
     fn rewriter_uses_the_original_positioned_owner_and_stops_before_writes_on_refusal() {
-        // naming.source.retained-positioned-command-realm
 
         // Model rewrite and exact original-owner refusal only; this fixture
         // does not execute an external uplevel or observe a physical frame.
@@ -1376,7 +1374,6 @@ mod reported_namespace_tests {
 
     #[test]
     fn uplevel_caller_reporting_namespace_roots_relative_prefixes() {
-        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
 
         // Shared analytical name contract:
         // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).

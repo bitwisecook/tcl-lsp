@@ -108,7 +108,6 @@ pub(crate) fn host(first: &NativeExecutionError) {
 }
 #[test]
 fn original_each_variable_copy_retirement_refuses_before_value_and_body_getters() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software free callback, not a native C/Jim callback chronology claim.
     for mode in [1, 2] {
@@ -157,7 +156,6 @@ fn original_each_variable_copy_retirement_refuses_before_value_and_body_getters(
 }
 #[test]
 fn original_each_value_copy_retirement_keeps_prepared_variable_owner_and_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native("tcl8.6");
     let _current = install(&mut interpreter, 1);

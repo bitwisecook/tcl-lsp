@@ -14,7 +14,6 @@ impl AdviceGraph {
         context: &ContextRegistry,
         entry: &NativeCompilationEntry,
     ) -> Option<()> {
-        // naming.source.native-baseline-conditional-source-roles
 
         if !entry.closed || self.policy.native() != entry.command_name_policy() {
             return None;
@@ -104,7 +103,6 @@ mod tests {
 
     #[test]
     fn native_baseline_source_roles_keep_unknown_actual_lookup_independent() {
-        // naming.source.native-baseline-conditional-source-roles
 
         let source = "unavailable\ninfo body missing";
         let analysis = native_analysis(source);
@@ -152,7 +150,6 @@ mod tests {
 
     #[test]
     fn native_baseline_source_roles_refuse_original_shadows_and_deletions() {
-        // naming.source.native-baseline-conditional-source-roles
 
         for source in [
             "proc info args {}; info body missing",

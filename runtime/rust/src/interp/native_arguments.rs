@@ -247,7 +247,6 @@ mod tests {
 
     #[test]
     fn original_argument_entry_keeps_counts_and_does_not_read_later_strings() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software API control; counted transport grants no external naming equivalence.
         let interpreter = native();
@@ -269,7 +268,6 @@ mod tests {
 
     #[test]
     fn original_argument_getter_first_host_or_context_restore_stops_later_read_and_effect() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Genuine extension updater effects remain reached; no native C/Jim order claim.
         for change in [false, true] {
@@ -306,7 +304,6 @@ mod tests {
 
     #[test]
     fn original_argument_lifetime_does_not_revive_a_retired_native_header() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let interpreter = native();
         let original = obj::Owned::fresh(obj::new_string_bytes(b"retired"));
@@ -335,7 +332,6 @@ mod tests {
     }
     #[test]
     fn original_dispatch_owns_currency_before_worker_and_preserves_reached_guest_state() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut interpreter = native();
         interpreter.register_builtin(b"originalChangingWorker", changing_worker);
@@ -375,7 +371,6 @@ mod original_receiver_tests {
 
     #[test]
     fn captured_arguments_accept_only_the_same_physical_receiver_and_original_header() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software ownership controls; equal native context is no issuer.
         let interpreter = actual();
@@ -416,7 +411,6 @@ mod original_receiver_tests {
 
     #[test]
     fn foreign_receiver_mismatch_keeps_its_existing_complete_first_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let interpreter = actual();
         let mut receiver = actual();

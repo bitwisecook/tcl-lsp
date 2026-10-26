@@ -1737,7 +1737,6 @@ mod tests {
 
     #[test]
     fn report_retains_typed_subjects_independently_of_diagnostic_presentation() {
-        // naming.diagnostic.typed-subject-reporting
 
         // Problem: Report conversion must retain counted subject units, even when prose changes.
         // This transport control asserts no Native publication or handler execution.

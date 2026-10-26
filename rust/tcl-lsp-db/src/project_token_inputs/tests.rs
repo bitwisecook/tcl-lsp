@@ -129,7 +129,6 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
     use tcl_compiler::registry_invocation::source_structure::{
         OriginalProjectProcedureRoles, original_project_procedure_arguments,
     };
-    // naming.compiler.original-analysis-metadata-context
 
     // Source-only parameter hints; no Native invocation or variable binding.
     let mut db = TclDatabase::default();
@@ -319,7 +318,6 @@ fn project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labe
 
 #[test]
 fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
-    // naming.compiler.original-analysis-metadata-context
 
     let mut db = TclDatabase::default();
     let current = configuration(&db, 0);
@@ -400,7 +398,6 @@ fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
 
 #[test]
 fn supplied_project_indexes_keep_the_structure_only_firewall_across_source_edits() {
-    // naming.compiler.original-analysis-metadata-context
 
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let sink = Arc::clone(&events);

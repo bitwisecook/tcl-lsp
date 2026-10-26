@@ -59,7 +59,6 @@ fn stale() -> NativeExecutionError {
 
 #[test]
 fn original_trace_facades_keep_the_complete_host_cause_outside_guest_values() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual selected trace callbacks and full software Host payload, not a provider chronology measurement.
     for unicode in [false, true] {
@@ -93,7 +92,6 @@ fn original_trace_facades_keep_the_complete_host_cause_outside_guest_values() {
 
 #[test]
 fn original_trace_read_update_and_array_wrappers_refuse_before_guest_wrapping() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The real changed-and-restored context invalidates the owned callback stage; no mutable receipt is fabricated.
     for route in 0..4 {
@@ -127,7 +125,6 @@ fn original_trace_read_update_and_array_wrappers_refuse_before_guest_wrapping() 
 
 #[test]
 fn original_c84_trace_refusal_keeps_reached_header_and_settles_the_real_flag() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software C8.4 global setter ownership under the actual callback; external publication-order observations remain separate.
     let mut interpreter = native("tcl8.4");

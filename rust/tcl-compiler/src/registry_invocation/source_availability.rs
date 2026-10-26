@@ -99,7 +99,6 @@ impl OriginalSourceCommandAvailability {
     /// no currency. The exact immutable Registry generation remains retained.
     #[must_use]
     pub fn matches_source_input(&self, image: &SourceImage, input: &ResolvedAnalysisInput) -> bool {
-        // naming.diagnostic.original-command-source-unavailability
 
         self.input == *input
             && self
@@ -142,7 +141,6 @@ impl OriginalSourceCommandAvailability {
     /// Current analysis and original Realm retain the same immutable issuer.
     #[must_use]
     pub fn matches_analysis(&self, analysis: &AnalysisResult) -> bool {
-        // naming.diagnostic.original-command-source-unavailability
 
         analysis.resolved_input.as_ref().is_some_and(|input| {
             self.matches_source_input(self.original_head().image(), input)
@@ -174,7 +172,6 @@ pub fn original_source_command_availability(
     analysis: &AnalysisResult,
     tokens: &crate::ir::CommandTokens,
 ) -> Option<OriginalSourceCommandAvailability> {
-    // naming.diagnostic.original-command-source-unavailability
 
     let input = analysis.resolved_input.as_ref()?;
     let image = SourceImage::document(source);
@@ -353,7 +350,6 @@ mod tests {
 
     #[test]
     fn unavailable_command_source_owns_native_words_context_and_shadow_barriers() {
-        // naming.diagnostic.original-command-source-unavailability
 
         let source = "::dict get {a 1} a";
         let mut analysis = Analyser::new().analyse(source, "tcl8.4");
@@ -409,7 +405,6 @@ mod tests {
 
     #[test]
     fn unavailable_hosted_literal_retains_source_policy_and_separate_loader_metadata() {
-        // naming.diagnostic.original-command-source-unavailability
 
         let source = "rename a b";
         let analysis = Analyser::new().analyse(source, "f5-irules");
@@ -438,7 +433,6 @@ mod tests {
 
     #[test]
     fn unavailable_logical_source_requires_its_complete_positive_domain() {
-        // naming.diagnostic.original-command-source-unavailability
 
         let profile = tcl_dialect::DialectProfile::projected_from_point(
             "logical-unavailability-advice",

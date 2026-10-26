@@ -2398,7 +2398,6 @@ mod original_boolean_transport_tests {
 
     #[test]
     fn original_boolean_stage_imports_check_first_host_cause_before_guest_status_or_out_slots() {
-        // naming.numeric.original-primitive-boolean-vs-expression-truth
 
         // Typed software transport only. The original provider rows attest
         // reached getter/result effects separately from emitted instructions.

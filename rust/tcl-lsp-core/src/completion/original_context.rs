@@ -335,7 +335,6 @@ mod tests {
     use tcl_compiler::analyser::Analyser;
 
     #[test]
-    // naming.core.original-registry-context-completion
 
     fn source_option_value_completion_keeps_selected_options_and_currency() {
         let source = "fconfigure stdout -blocking ";
@@ -359,7 +358,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-registry-context-completion
 
     fn original_context_completion_preserves_actual_handler_and_effective_ordinals() {
         let source = "string is al";
@@ -406,7 +404,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-registry-context-completion
 
     fn original_context_completion_rejects_stale_owners_and_keeps_hosted_schema() {
         let source = "when HTTP_RE";
@@ -444,7 +441,6 @@ mod tests {
 
     #[test]
     fn original_logical_completion_uses_actual_availability_and_captured_ordinals() {
-        // naming.core.original-registry-context-completion
 
         let mut registry = tcl_registry::CommandRegistry::build_default();
         let surface = registry.get("dict").unwrap().surface;
@@ -490,7 +486,6 @@ mod tests {
 
     #[test]
     fn original_completion_switches_use_actual_option_surface_and_current_source() {
-        // naming.core.original-registry-context-completion
 
         let store = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
         let source = "chan configure stdin -inputm";

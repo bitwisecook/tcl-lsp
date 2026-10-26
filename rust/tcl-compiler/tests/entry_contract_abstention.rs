@@ -263,7 +263,6 @@ fn assert_panics(f: impl FnOnce()) {
 
 #[test]
 fn production_driver_makes_every_deferred_body_kind_abstain() {
-    // naming.compiler.original-analysis-metadata-context
 
     let (unit, registry) = fixture();
     assert_production_entry_contract(&unit, "build_for_dialect");
@@ -277,7 +276,6 @@ fn production_driver_makes_every_deferred_body_kind_abstain() {
 
 #[test]
 fn deep_contract_rejects_noop_and_unavailable_body_evidence() {
-    // naming.compiler.original-analysis-metadata-context
 
     let (unit, registry) = fixture();
 

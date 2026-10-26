@@ -679,7 +679,6 @@ fn declared_alias_targets_caller(
     alias: &tcl_registry::VariableCellAliasTransition,
     dialect: tcl_registry::InvocationDialect,
 ) -> bool {
-    // naming.tcloo.original-declared-receiver-caller-traits
 
     use tcl_registry::state_transition::{CallerFrameSelection, VariableAliasTarget};
     let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {

@@ -33,9 +33,7 @@ fn hex(bytes: &[u8]) -> String {
 
 #[test]
 fn original_utf8_conversion_matches_all_55_c_object_storage_windows() {
-    // naming.encoding.original-utf8-convertto-object-storage
 
-    // naming.encoding.original-utf8-convertto-error-offset
 
     // Execute the exact original object-vector operands, not a source/CLI
     // rewrite. Observe actual primary/residency before result getters, including

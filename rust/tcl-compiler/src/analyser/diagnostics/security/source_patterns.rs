@@ -324,7 +324,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_keeps_captured_ordinals_and_list_field_spans() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for (source, argument, written, path, span) in [
@@ -400,7 +399,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_uses_selected_modes_targets_and_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
@@ -457,7 +455,6 @@ mod tests {
 
     #[test]
     fn original_pattern_list_geometry_keeps_the_full_selected_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input();
         let source =
@@ -493,7 +490,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_values_require_the_complete_original_cu() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input();
         for source in [
@@ -577,7 +573,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_keeps_a_proven_mode_and_original_literal_clause() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input();
         let source = "proc f {s} {set mode -regexp; switch $mode $s {(é+)+ {BODY}}}";
@@ -608,7 +603,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_refuses_changed_or_missing_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input();
         let source = "regexp {(a+)+} literal";
@@ -642,7 +636,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_keeps_whole_source_and_per_item_parity() {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = current_input();
         for source in [

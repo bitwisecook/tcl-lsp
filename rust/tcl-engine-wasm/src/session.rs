@@ -1014,7 +1014,6 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn original_typed_wasm_host_failure_preserves_prior_runtime_pending_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Linked Rust/WASM software control: invoke the genuine published host
         // procedure after the real Runtime pending owner is reached. No new

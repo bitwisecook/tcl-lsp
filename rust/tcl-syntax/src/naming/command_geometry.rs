@@ -69,7 +69,6 @@ mod tests {
 
     #[test]
     fn original_command_tail_replacement_preserves_qualifiers_and_selected_extent() {
-        // Implementation contract: naming.editor.original-command-rename-plans
 
         for version in tcl_dialect::TclVersion::ALL {
             let protocol = NativeNameProtocol::C(version);

@@ -60,7 +60,6 @@ fn positioned<'a>(module: &'a Module, input: &ResolvedAnalysisInput) -> &'a Sour
 
 #[test]
 fn original_native_restoration_retains_required_script_and_procedure_provider_plans() {
-    // naming.compiler.original-positioned-callee-body-availability
 
     // Original held source/metadata only; no compiler or successful execution grant.
     let (_held, input, module) =
@@ -97,7 +96,6 @@ fn original_native_restoration_retains_required_script_and_procedure_provider_pl
 
 #[test]
 fn original_native_restoration_refuses_missing_changed_and_foreign_obligations_without_repair() {
-    // naming.compiler.original-positioned-callee-body-availability
 
     let (_held, input, module) =
         native_module("tcl8.6", "puts [list VALUE]; foreach item [list VALUE] {}");
@@ -139,7 +137,6 @@ fn original_native_restoration_refuses_missing_changed_and_foreign_obligations_w
 
 #[test]
 fn original_native_restoration_requires_full_failure_contexts_and_dependency_generations() {
-    // naming.compiler.original-positioned-callee-body-availability
 
     // A native compiler failure stays an entry obligation after metadata restoration.
     let (_held, input, module) =

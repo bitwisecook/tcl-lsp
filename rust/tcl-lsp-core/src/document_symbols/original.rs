@@ -667,7 +667,6 @@ mod tests {
 
     #[test]
     fn original_vendor_outline_keeps_source_cards_after_reporting_maps_are_erased() {
-        // Implementation contract: naming.vendor.original-source-declaration-consumers
 
         let source = "proc helper {argument} {return $argument}\nproc p\\uD800 {} {}\nwhen HTTP_REQUEST {}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-irules");
@@ -736,7 +735,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.original-variable-outline-advice
 
     fn original_write_advice_cards_do_not_require_or_donate_storage_symbols() {
         let source = "set v\\uD800 1\nset v\\uD801 2\nproc p {} {set local 3}\n";
@@ -773,7 +771,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.core.readonly-member-source-candidates
 
     fn original_readonly_loop_names_are_outline_cards_without_static_declaration_keys() {
         let source =
@@ -861,7 +858,6 @@ mod registry_ledger_tests {
 
     #[test]
     fn original_registry_outline_uses_sealed_roles_and_names_after_reporting_maps_clear() {
-        // Implementation contract: naming.compiler.original-symbol-declaration-advice
 
         let source = r"package require tcltest; tcltest::test case\uD800 first -body {} -result {}; tcltest::test case\uD801 second -body {} -result {}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");

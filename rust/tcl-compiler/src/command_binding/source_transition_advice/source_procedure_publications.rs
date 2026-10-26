@@ -180,7 +180,6 @@ impl OriginalSourceProcedurePublications {
         &'a self,
         records: impl IntoIterator<Item = &'a SourceDeclarationMetadata<ProcDef>>,
     ) -> Vec<OriginalSourceProcedureCandidate<'a>> {
-        // naming.source.original-procedure-publications
 
         let mut candidates = Vec::new();
         for record in records {
@@ -283,7 +282,6 @@ mod tests {
 
     #[test]
     fn original_procedure_publications_keep_current_slots_and_canonical_headers() {
-        // naming.source.original-procedure-publications
 
         let source = "proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -331,7 +329,6 @@ mod tests {
 
     #[test]
     fn original_procedure_publications_keep_unknown_mutations_and_known_terminals_distinct() {
-        // naming.source.original-procedure-publications
 
         for (source, expected) in [
             (
@@ -385,7 +382,6 @@ mod tests {
 
     #[test]
     fn original_procedure_publications_require_full_source_input_and_keep_body_cards_separate() {
-        // naming.source.original-procedure-publications
 
         let source = "proc owner {} {proc inner {} {}}; rename owner held";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

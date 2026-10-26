@@ -57,7 +57,6 @@ pub fn resolve_original_encoding_name(
     original: &[u8],
     catalogue: impl FnOnce(&[u8]) -> Result<Option<SystemEncoding>, CmdError>,
 ) -> Result<ChannelEncoding, CmdError> {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
     let name = tcl_core_types::c_string_extent(original);
     if name.is_empty()
@@ -255,7 +254,6 @@ fn prepare_source_filename<O: OriginalSourceFileOps>(
     system: SystemEncoding,
     original: &[u8],
 ) -> Result<SourceFilename, CmdError> {
-    // naming.source.original-counted-filename-filesystem-extent
 
     let reported = tcl_core_types::c_string_extent(original).to_vec();
     if protocol == NativeSourceFileProtocol::Jim {

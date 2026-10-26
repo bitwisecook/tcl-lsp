@@ -727,7 +727,6 @@ pub fn substitute_expr_constants_in_context<S: std::hash::BuildHasher>(
 /// Scalar constants need a complete selected reference, not an analytical
 /// array root. Current constant maps retain no original element-key receipt.
 fn scalar_expression_reference_name(written: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
-    // naming.expression.scalar-reference-constant-source-projection
 
     let reference = tcl_lexer::word_parts::whole_var_ref(written.as_bytes(), config).ok()??;
     if reference.index.is_some()
@@ -2109,7 +2108,6 @@ mod tests {
 
     #[test]
     fn scalar_constant_source_substitution_keeps_exact_literal_names_and_array_refusal() {
-        // naming.expression.scalar-reference-constant-source-projection
 
         // Source/API emitter controls. Native public scalar-value observations
         // are separate; these constants establish no runtime object/read proof.
@@ -2161,7 +2159,6 @@ mod tests {
 
     #[test]
     fn scalar_constant_context_uses_jim_variable_grammar_without_catalogue_profile() {
-        // naming.expression.scalar-reference-constant-source-projection
 
         assert!(tcl_dialect::DialectProfile::find("jimtcl").is_none());
         let jim = tcl_registry::InvocationDialect::of_point(
@@ -2184,7 +2181,6 @@ mod tests {
 
     #[test]
     fn scalar_constant_reference_selection_uses_actual_brace_close_grammar() {
-        // naming.expression.scalar-reference-constant-source-projection
 
         let constants = consts(&[("a{b", "15"), ("a{b}c", "16"), ("a", "99")]);
         let first = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();

@@ -11,7 +11,6 @@ use tcl_syntax::native_frame_error::NativeFrameLevelFailure;
 /// birth or rebuilding a primitive getter failure from its rendered text.
 #[must_use]
 pub fn present(failure: NativeFrameLevelFailure) -> CmdError {
-    // naming.variable.original-upvar-and-exists-completion-and-name-windows
 
     // C tclProc.c uses Tcl_AppendResult84/85 and Tcl_ObjPrintf86+.
     match failure {

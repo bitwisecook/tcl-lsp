@@ -193,7 +193,6 @@ fn bind_jim(interp: &Interp, originals: &[*mut TclObj]) {
 
 #[test]
 fn original_increment_successful_rows_keep_legacy_amount_before_modern_name() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // Bounded successful505b12 public code/result and worker getter tape only.
     for &(profile, capture) in ORIGINALS {
@@ -218,7 +217,6 @@ fn original_increment_successful_rows_keep_legacy_amount_before_modern_name() {
 
 #[test]
 fn original_unset_successful_rows_preserve_sequential_original_names() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // Successful505b16 comparison; API error-context getters are not worker facts.
     for &(profile, capture) in ORIGINALS {
@@ -263,7 +261,6 @@ fn original_unset_successful_rows_preserve_sequential_original_names() {
 
 #[test]
 fn original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software updater/currency control, separate from Native505b order proof.
     for &(profile, _) in ORIGINALS {
@@ -315,7 +312,6 @@ fn original_increment_first_refusal_retains_selected_reached_operand_and_amount_
 
 #[test]
 fn original_unset_prefix_effect_survives_host_refusal_without_reading_later_name() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real reached unset effect plus callback first cause, no Native error tape claim.
     for profile in ["tcl8.4", "tcl8.6", "tcl9.1", "jim"] {
@@ -384,7 +380,6 @@ impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp> for 
 }
 #[test]
 fn original_increment_write_callback_keeps_reached_store_before_first_cause_settlement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Source-only reached-store/currency control; no Native505b trace observation.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

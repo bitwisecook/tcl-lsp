@@ -555,7 +555,6 @@ mod tests {
 
     #[test]
     fn active_retirement_keeps_trace_registration_separate_from_value_access() {
-        // naming.variable.original-array-member-trace-retirement-horizon
 
         // Software allocation control; the native proof observes callback logs.
         let mut table = VarTable::default();

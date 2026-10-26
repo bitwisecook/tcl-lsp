@@ -978,7 +978,6 @@ mod tests {
 
     #[test]
     fn retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots() {
-        // naming.compiler.retained-representation-metadata
 
         // Original SSA/representation projection; no C process/cache identity claim.
         let context =

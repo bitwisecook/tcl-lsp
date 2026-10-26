@@ -1223,7 +1223,6 @@ mod original_jim_replacement_controls {
     use super::*;
     #[test]
     fn original_jim_after_part_uses_the_measured_character_derived_byte_extent() {
-        // naming.string.original-counted-replacement-and-index-stages
 
         // Native Jim629 cases4/5 measure the suffix byte extent. This pure
         // geometry test grants no header cache, caller role or callback claim.

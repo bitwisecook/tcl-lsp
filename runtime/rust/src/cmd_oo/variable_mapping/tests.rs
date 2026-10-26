@@ -215,7 +215,6 @@ fn reset() {
 }
 #[test]
 fn original_runtime_mapping_retires_old_visible_roles_before_unique_original_keys() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = provided(engine, false);
@@ -243,7 +242,6 @@ fn original_runtime_mapping_retires_old_visible_roles_before_unique_original_key
 }
 #[test]
 fn original_runtime_mapping_first_retirement_refusal_stops_keys_and_cleans_matching_visibility() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for private in [false, true] {
         for mode in [1, 2, 3, 5] {
@@ -285,7 +283,6 @@ fn original_runtime_mapping_first_retirement_refusal_stops_keys_and_cleans_match
 }
 #[test]
 fn original_runtime_private_mapping_copy_keeps_both_stored_headers_and_original_storage_identity() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = provided("tcl9.1", true);
     let original = obj::Owned::fresh(obj::new_string_bytes(b"p\0tail"));
@@ -329,7 +326,6 @@ fn original_runtime_private_mapping_copy_keeps_both_stored_headers_and_original_
 }
 #[test]
 fn original_runtime_mapping_preserves_recursive_roster_until_outer_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = provided("tcl9.1", false);
     let (old, _) = install_old(&mut interpreter);
@@ -351,7 +347,6 @@ fn original_runtime_mapping_preserves_recursive_roster_until_outer_publication()
 
 #[test]
 fn original_runtime_private_link_uses_the_stored_full_name_header_for_its_actual_cache() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = provided("tcl9.1", true);
     let original = obj::Owned::fresh(obj::new_string_bytes(b"p"));
@@ -391,7 +386,6 @@ fn original_runtime_private_link_uses_the_stored_full_name_header_for_its_actual
 
 #[test]
 fn original_runtime_mapping_requires_current_definition_frame_and_allows_balanced_nested_frame() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real FrameStack births check software continuation, not Native frame chronology.
     for mode in [6, 7] {

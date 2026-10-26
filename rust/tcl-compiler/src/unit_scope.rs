@@ -2969,7 +2969,6 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     // in any scanned file is visible — matching Tcl, where `::unknown` is one
     // command shared by the whole interpreter, not a per-file one.
     let unresolved_handler = unresolved_command_handler(registry, known);
-    // naming.source.retained-positioned-command-realm
 
     // Lowering owns this exact independent source ingress. Query that owner;
     // refusal retracts reachable caller seeds instead of replaying its text.
@@ -3605,7 +3604,6 @@ mod tests {
 
     #[test]
     fn independent_caller_ingresses_keep_their_actual_sources_and_loader_identity() {
-        // naming.source.retained-positioned-command-realm
 
         // Actual independent ingress remains available; changing source text
         // starts its own producer rather than querying a mismatched Module.
@@ -4583,7 +4581,6 @@ mod tests {
 
     #[test]
     fn normal_procedure_invoker_retains_operand_offsets_and_real_uncertainty() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source caller metadata; no appliance or entered-frame claim.
         let profile = tcl_dialect::DialectProfile::irules();
@@ -4833,7 +4830,6 @@ mod tests {
 
     #[test]
     fn original_callback_callers_share_source_horizons_without_parameter_seeds() {
-        // naming.source.original-callback-procedure-target
 
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
@@ -4960,7 +4956,6 @@ mod tests {
 
     #[test]
     fn unit_linkage_keeps_supplied_availability_without_inventing_missing_boundaries() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional Registry trait inventory only; no actual loading or export claim.
         let baseline = crate::environment_ingress::context_for_profile(
@@ -5009,7 +5004,6 @@ mod tests {
 
     #[test]
     fn scope_variable_facts_keep_actual_availability_and_refuse_missing_or_foreign_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original normal-write metadata only; no physical variable or frame claim.
         let context = crate::environment_ingress::context_for_profile(
@@ -5071,7 +5065,6 @@ mod tests {
 
     #[test]
     fn unit_caller_seeds_require_the_retained_metadata_owner() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual source-owned caller operands, not a complete Native command world.
         let context = crate::environment_ingress::context_for_profile(
@@ -5097,7 +5090,6 @@ mod tests {
 
     #[test]
     fn supplied_native_caller_scan_retains_source_input_without_entry_or_frame_donation() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let context = std::sync::Arc::new(crate::environment_ingress::context_for_profile(profile));
@@ -5151,7 +5143,6 @@ mod tests {
 
     #[test]
     fn source_entry_caller_metadata_requires_an_independent_supplied_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Trusted source allocation remains independent of source metadata availability.
         let source = "source library.tcl; helper dev";
@@ -5223,7 +5214,6 @@ mod tests {
 
     #[test]
     fn original_cfg_caller_inventory_keeps_consumed_expression_source_and_configuration() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source caller alternatives only; no Native parameter or Normal grant.
         let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
@@ -5255,7 +5245,6 @@ mod tests {
 
     #[test]
     fn original_cfg_caller_inventory_refuses_missing_foreign_and_stale_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let source = "proc helper {mode} {return $mode}\nhelper FIXED";
@@ -5343,7 +5332,6 @@ mod tests {
 
     #[test]
     fn original_body_caller_inventory_requires_each_original_child_sidecar() {
-        // naming.source.original-script-region-purpose
 
         // Whole authored body syntax is separate from dispatch and Native frame entry.
         let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
@@ -5478,7 +5466,6 @@ mod tests {
 
     #[test]
     fn original_argument_caller_phase_keeps_real_return_and_direct_argument_counts() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The actual catch region captures this Return as an argv phase.
         let (_, unit) = native_argument_caller_unit(
@@ -5520,7 +5507,6 @@ mod tests {
 
     #[test]
     fn original_argument_caller_child_keeps_its_own_expression_roles() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (_, unit) = native_argument_caller_unit(
             "proc helper {x} {return $x}; proc run {} {return [expr {[helper SECOND]}]}; helper FIRST; run",
@@ -5623,7 +5609,6 @@ mod tests {
             }
         }
         use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
-        // naming.compiler.original-analysis-metadata-context
 
         // The actual catch region captures this Return as an argv phase.
         let source = "proc add {b c} {catch {return [expr {$b + $c}]}}; add 2 4; add 3 5";
@@ -5717,7 +5702,6 @@ mod tests {
     #[test]
     fn original_argument_caller_metadata_joins_from_the_module_to_its_nested_owner() {
         use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual retained Native source and CFG argv phase; no handler entry or
         // runtime variable result follows from this metadata-only observation.
@@ -5809,7 +5793,6 @@ mod tests {
 
     #[test]
     fn original_native_procedure_argv_roles_do_not_invent_registry_body_callers() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual held Vm entry and source call inventory, not a successful native call.
         let (_, unit) = native_argument_caller_unit(
@@ -5833,7 +5816,6 @@ mod tests {
 
     #[test]
     fn original_native_procedure_argv_roles_keep_authentic_alias_prefix_counts() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (_, unit) = native_argument_caller_unit(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED; selected PREFIX FIXED",
@@ -5896,7 +5878,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_keeps_actual_publication_and_prefix_owner() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The held Vm supplies actual Native source entry, not successful alias execution.
         let (context, unit) = native_argument_caller_unit(
@@ -5951,7 +5932,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_refuses_missing_foreign_source_and_vector_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (context, unit) = native_argument_caller_unit(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED",
@@ -6041,7 +6021,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_keeps_rebinding_unknown_and_callback_opacity() {
-        // naming.compiler.original-analysis-metadata-context
 
         for source in [
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; interp alias {} forwarded {} selected PREFIX; forwarded FIXED",
@@ -6064,7 +6043,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_requires_original_entered_continuation() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (context, current) = native_argument_caller_unit(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED",
@@ -6097,7 +6075,6 @@ mod tests {
 
     #[test]
     fn original_direct_return_keeps_terminator_argv_without_captured_phase_marker() {
-        // naming.compiler.original-analysis-metadata-context
 
         // A procedure exit retains its original argv as a terminator. Captured
         // completions use the distinct EvaluatedArguments statement purpose.

@@ -136,7 +136,6 @@ fn protocol() -> NativeStringProtocol {
 
 #[test]
 fn original_checked_string_and_concat_keep_actual_formatter_children_and_reference_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software formatter methods answer supplied Host stages; this is not an external Tcl formatter experiment.
     use tcl_syntax::value::ValueOps;
@@ -212,7 +211,6 @@ fn original_checked_string_and_concat_keep_actual_formatter_children_and_referen
 
 #[test]
 fn original_checked_compound_string_stops_after_first_reached_formatter_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The checker withdraws the actual original VM after the recorded software callback stage.
     for stage in ["build", "format", "failed-format"] {
@@ -294,7 +292,6 @@ fn original_checked_compound_string_stops_after_first_reached_formatter_refusal(
 
 #[test]
 fn original_string_facade_refuses_wrong_protocol_and_withdrawn_scope_before_host_acquisition() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions) = provided();
     let original = value(&vm, i64::MIN);
@@ -324,7 +321,6 @@ fn original_string_facade_refuses_wrong_protocol_and_withdrawn_scope_before_host
 
 #[test]
 fn original_checked_compound_string_refuses_a_retired_root_before_later_children() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The original VM Value owner is released at a software checker seam. The lease adds no native reference.
     let (mut vm, formatter, _) = provided();
@@ -368,7 +364,6 @@ fn original_checked_compound_string_refuses_a_retired_root_before_later_children
 
 #[test]
 fn original_string_facade_retains_header_refusal_at_actual_formatter_callbacks() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied software callbacks retire the actual VM root; no external object-type updater is asserted.
     for stage in ["build", "format", "failed-format"] {
@@ -434,7 +429,6 @@ fn original_string_facade_retains_header_refusal_at_actual_formatter_callbacks()
 
 #[test]
 fn original_string_facade_retains_child_header_refusal_after_live_root_shimmer() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A software formatter shimmers the actual live root; original backing views pin allocation, not child ownership.
     let (mut vm, formatter, _) = provided();
@@ -488,7 +482,6 @@ fn original_string_facade_retains_child_header_refusal_after_live_root_shimmer()
 
 #[test]
 fn original_resident_string_checks_owner_and_protocol_without_querying_formatter_host() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // This observes actual software Host query counts, not external native String chronology.
     let (mut vm, formatter, acquisitions) = provided();
@@ -648,7 +641,6 @@ fn compound_provided() -> (Vm, Rc<Formatter>, Rc<Cell<usize>>, Rc<CompoundNumeri
 
 #[test]
 fn original_scalar_and_expression_compound_strings_keep_the_actual_formatter_once() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Numeric/formatter methods are authored software workers. This observes
     // forwarding/ref roles, not C strtod/strtoul or external execution chronology.
@@ -728,7 +720,6 @@ fn original_scalar_and_expression_compound_strings_keep_the_actual_formatter_onc
 
 #[test]
 fn original_scalar_compound_formatter_withdrawal_stops_before_later_numeric_workers() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied software formatter releases the real root reference;
     // allocation-only leases supply no extension/free callback issuer.
@@ -779,7 +770,6 @@ fn original_scalar_compound_formatter_withdrawal_stops_before_later_numeric_work
 
 #[test]
 fn original_number_and_failure_string_providers_check_currentness_before_interpretation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // This directly supplies the String worker's result before withdrawing its
     // actual owner, so it claims no arbitrary callback in the closed Number parser.
@@ -834,7 +824,6 @@ fn original_number_and_failure_string_providers_check_currentness_before_interpr
 
 #[test]
 fn original_expression_source_preparation_keeps_current_cache_and_explicit_independent_route() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual source/cache handoff; this does not execute or compare an external compiler.
     for engine in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -859,7 +848,6 @@ fn original_expression_source_preparation_keeps_current_cache_and_explicit_indep
 
 #[test]
 fn original_expression_source_checks_actual_formatter_refusal_before_parser_and_cache() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual Host formatter drops the real root; no external updater/compiler chronology.
     for stage in ["build", "format", "failed-format"] {
@@ -901,7 +889,6 @@ fn original_expression_source_checks_actual_formatter_refusal_before_parser_and_
 
 #[test]
 fn original_expression_source_keeps_live_root_child_refusal_before_cache_replacement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The real formatter shimmers a live root, retiring its actual child backing.
     let (mut vm, formatter, _) = provided();
@@ -936,7 +923,6 @@ fn original_expression_source_keeps_live_root_child_refusal_before_cache_replace
 
 #[test]
 fn original_expression_cache_publication_checks_actual_header_before_replacement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied checker withdraws the original header at the cache worker;
     // it supplies no arbitrary callback or external cache-retirement chronology.
@@ -980,7 +966,6 @@ fn original_expression_cache_publication_checks_actual_header_before_replacement
 
 #[test]
 fn original_integer_operations_keep_selected_cache_and_magnitude_reference_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     use tcl_syntax::{number::Radix, value::ValueOps};
     let (mut vm, formatter, acquisitions) = provided();
@@ -1022,7 +1007,6 @@ fn original_integer_operations_keep_selected_cache_and_magnitude_reference_roles
 
 #[test]
 fn original_integer_magnitude_stops_actual_formatter_header_withdrawal_before_guest_render() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied software formatter retires a genuine VM root, without an external C callback claim.
     use tcl_syntax::{number::Radix, value::ValueOps};
@@ -1055,7 +1039,6 @@ fn original_integer_magnitude_stops_actual_formatter_header_withdrawal_before_gu
 
 #[test]
 fn original_integer_addition_stops_withdrawn_compound_before_cache_and_result_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     use tcl_syntax::value::ValueOps;
     let (mut vm, formatter, _) = provided();
@@ -1079,7 +1062,6 @@ fn original_integer_addition_stops_withdrawn_compound_before_cache_and_result_pu
 
 #[test]
 fn original_integer_operations_preserve_guest_input_and_authored_routing_without_host_queries() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     use tcl_syntax::{number::Radix, value::ValueOps};
     let (mut vm, formatter, acquisitions) = provided();
@@ -1114,7 +1096,6 @@ fn original_integer_operations_preserve_guest_input_and_authored_routing_without
 
 #[test]
 fn original_integer_error_keeps_prior_typed_cause_before_misleading_guest_projection() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions) = provided();
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -1141,7 +1122,6 @@ fn fixed_math(vm: &mut Vm, name: &str, args: &[Value]) -> tcl_runtime_api::Compl
 
 #[test]
 fn original_math_dispatch_keeps_cached_positives_and_object_preserving_integer_results() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions) = provided();
     let first = Value::int(2);
@@ -1173,7 +1153,6 @@ fn original_math_dispatch_keeps_cached_positives_and_object_preserving_integer_r
 
 #[test]
 fn original_math_dispatch_stops_formatter_refusal_before_later_operand_and_random_seed() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A supplied software Host formatter retires the genuine root at a reached stage.
     for name in ["pow", "srand"] {
@@ -1212,7 +1191,6 @@ fn original_math_dispatch_stops_formatter_refusal_before_later_operand_and_rando
 
 #[test]
 fn original_math_option_and_wide_workers_distinguish_withdrawal_from_genuine_absence() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for kind in ["int", "wide", "i128", "double", "bool", "big"] {
         let (mut vm, formatter, _) = provided();
@@ -1259,7 +1237,6 @@ fn original_math_option_and_wide_workers_distinguish_withdrawal_from_genuine_abs
 
 #[test]
 fn original_math_grammar_remains_selected_when_formatter_constructs_another_vm() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software callback constructs a second VM; it supplies no external getter chronology.
     let (mut vm, formatter, _) = provided();
@@ -1285,7 +1262,6 @@ fn original_math_grammar_remains_selected_when_formatter_constructs_another_vm()
 
 #[test]
 fn original_math_classification_boolean_and_big_workers_preserve_selected_guest_purposes() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
     let classification = vm
@@ -1348,7 +1324,6 @@ fn original_channel_cursor(vm: &Vm, name: &str) -> usize {
 
 #[test]
 fn original_io_and_debug_resident_arguments_keep_cursor_flag_and_no_formatter_queries() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software command adapters only; no public C/Jim default-routing assertion.
     let (mut vm, formatter, acquisitions) = provided();
@@ -1431,7 +1406,6 @@ fn original_io_and_debug_resident_arguments_keep_cursor_flag_and_no_formatter_qu
 
 #[test]
 fn original_io_formatter_withdrawal_stops_read_and_seek_before_mutation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The actual supplied software formatter retires the original borrowed root.
     for purpose in ["read", "seek", "seek-current"] {
@@ -1468,7 +1442,6 @@ fn original_io_formatter_withdrawal_stops_read_and_seek_before_mutation() {
 
 #[test]
 fn original_binary_maxlen_retired_header_refuses_before_guest_line_length_and_data_conversion() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine entered VM/header refusal; no arbitrary binary extension chronology.
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
@@ -1502,7 +1475,6 @@ fn original_binary_maxlen_retired_header_refuses_before_guest_line_length_and_da
 
 #[test]
 fn original_numeric_command_scope_stops_host_aba_before_backend_and_retires_unpublished_result() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual set_host changes in the software worker; no Native I/O callback grant.
     struct ReachedResult(Box<dyn Fn()>);
@@ -1549,7 +1521,6 @@ fn original_numeric_command_scope_stops_host_aba_before_backend_and_retires_unpu
 
 #[test]
 fn original_numeric_command_prior_host_cause_remains_typed_before_guest_defaults() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions) = provided();
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -1582,7 +1553,6 @@ fn original_numeric_command_prior_host_cause_remains_typed_before_guest_defaults
 
 #[test]
 fn original_debug_retired_header_stops_supported_boolean_before_flag_or_guest_error() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.5"));
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -1619,7 +1589,6 @@ fn original_numeric_public_error(completion: crate::Completion<Value>) -> (Rc<[u
 
 #[test]
 fn original_public_read_counts_preserve_selected_errors_and_untouched_cursor() {
-    // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
     // Native628 proves public ASCII results/code/cursor only; these are source/API controls.
     for (dialect, bad, negative) in [
@@ -1685,7 +1654,6 @@ fn original_public_read_counts_preserve_selected_errors_and_untouched_cursor() {
 
 #[test]
 fn original_public_seek_errors_preserve_conversion_order_and_negative_target_position() {
-    // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let profile = crate::environment::profile_for_dialect(dialect);
@@ -1753,7 +1721,6 @@ fn original_public_seek_errors_preserve_conversion_order_and_negative_target_pos
 
 #[test]
 fn original_public_binary_line_length_uses_actual_primitive_and_negative_code() {
-    // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
     for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(dialect));
@@ -1790,7 +1757,6 @@ fn original_public_binary_line_length_uses_actual_primitive_and_negative_code() 
 
 #[test]
 fn original_public_debug_bad_boolean_refuses_before_flag_and_numeric_boolean_succeeds() {
-    // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
     for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(dialect));
@@ -1819,7 +1785,6 @@ fn original_public_debug_bad_boolean_refuses_before_flag_and_numeric_boolean_suc
 
 #[test]
 fn original_open_channel_retains_the_actual_checked_path_for_jim_seek_error() {
-    // naming.numeric.io-debug-public-conversion-and-side-effect-order
 
     // Software channel integration with an actual owned file, not opaque I/O callbacks.
     let path = std::env::temp_dir().join(format!(

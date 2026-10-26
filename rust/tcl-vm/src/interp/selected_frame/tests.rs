@@ -97,7 +97,6 @@ impl NativeCommand for Probe {
 }
 #[test]
 fn original_package_global_selection_restores_hidden_parent_and_preserves_callback_child() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual procedure, NativeCommand, physical switch and saved frame/tail controls only.
     // The probe restores its caller before ordinary-proc abort; that separate owner is not closed by this control.

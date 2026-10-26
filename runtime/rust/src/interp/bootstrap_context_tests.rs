@@ -193,7 +193,6 @@ fn element(interp: &Interp, name: &[u8], key: &[u8]) -> Option<*mut crate::obj::
 
 #[test]
 fn original_native_constructor_keeps_selected_inventory_and_checked_host_values() {
-    // naming.bootstrap.original-root-cells
 
     // Actual software constructor, not an additional external-provider row.
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -243,7 +242,6 @@ fn original_native_constructor_keeps_selected_inventory_and_checked_host_values(
 
 #[test]
 fn original_native_bootstrap_stops_after_each_reached_host_callback_mutates_context() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Replay the selected bootstrap owner under a real retained interpreter;
     // this is not a fresh native birth or external callback-timing assertion.
@@ -294,7 +292,6 @@ fn original_native_bootstrap_stops_after_each_reached_host_callback_mutates_cont
 
 #[test]
 fn original_host_setter_preserves_old_globals_when_a_reached_callback_changes_host() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for stage in [Stage::Encoding, Stage::Environment, Stage::Get, Stage::Vars] {
         let old_host = CallbackHost::new("before");
@@ -333,7 +330,6 @@ fn original_host_setter_preserves_old_globals_when_a_reached_callback_changes_ho
 
 #[test]
 fn original_bootstrap_and_setter_preserve_prior_host_refusal_without_callbacks() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let host = CallbackHost::new("before");
     let mut interp = native(host.clone(), "tcl8.6");
@@ -363,7 +359,6 @@ fn original_bootstrap_and_setter_preserve_prior_host_refusal_without_callbacks()
 
 #[test]
 fn original_ordinary_host_bootstrap_updates_snapshot_globals_without_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let before = CallbackHost::new("before");
     let after = CallbackHost::new("after");
@@ -391,7 +386,6 @@ fn original_ordinary_host_bootstrap_updates_snapshot_globals_without_refusal() {
 
 #[test]
 fn original_native_bootstrap_reports_storage_failure_and_stops_later_installation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let host = CallbackHost::new("before");
     let mut interp = native(host, "tcl8.4");
@@ -413,7 +407,6 @@ fn original_native_bootstrap_reports_storage_failure_and_stops_later_installatio
 
 #[test]
 fn original_hidden_error_shell_installer_refuses_stale_entry_without_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interp = native(CallbackHost::new("before"), "tcl8.6");
     let cells = interp.native_error_cells.borrow().clone();
@@ -432,7 +425,6 @@ fn original_hidden_error_shell_installer_refuses_stale_entry_without_retirement(
 
 #[test]
 fn original_previous_host_retirement_cannot_refresh_the_outer_setter_entry() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let before = CallbackHost::new("before");
     let retirement = Rc::new(CallbackState::new());
@@ -494,7 +486,6 @@ impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp> for 
 
 #[test]
 fn original_native_bootstrap_keeps_reached_write_and_stops_after_its_host_observer() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software observer registration and entered publication, without
     // a new external C trace-order or constructor timing claim.
@@ -576,7 +567,6 @@ static BOOTSTRAP_RESULT_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
 
 #[test]
 fn original_bootstrap_reporting_retirement_preserves_the_reached_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A genuine owned software result and its actual final destructor; no
     // native getter, foreign header, or external disposal-order claim.
@@ -611,7 +601,6 @@ fn original_bootstrap_reporting_retirement_preserves_the_reached_first_cause() {
 
 #[test]
 fn original_native_bootstrap_current_write_observers_keep_stored_value_and_result() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software publication/observer stages, not external constructor timing.
     use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
@@ -673,7 +662,6 @@ impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp>
 
 #[test]
 fn original_native_bootstrap_guest_write_failure_keeps_store_and_stops_later_stages() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
     let mut interp = native(CallbackHost::new("guest"), "tcl8.6");
@@ -734,7 +722,6 @@ fn bootstrap_in_actual_procedure(interp: &mut Interp, _: &[*mut crate::obj::TclO
 
 #[test]
 fn original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The actual native procedure supplies a distinct local env cell; bootstrap
     // publication retains frame zero without borrowing the ambient local frame.
@@ -802,7 +789,6 @@ impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp>
 
 #[test]
 fn original_native_bootstrap_list_publication_reaches_observer_without_string_conversion() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Readonly header/backing observations do not measure an external Tcl getter.
     use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;

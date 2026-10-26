@@ -403,7 +403,6 @@ mod tests {
 
     #[test]
     fn original_authored_namespace_selector_keeps_table_members_and_strict_utf8_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = host();
         let original = Value::string("ex");

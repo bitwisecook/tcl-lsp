@@ -102,7 +102,6 @@ fn retired_header() -> tcl_runtime_api::NativeExecutionError {
 
 #[test]
 fn original_compound_copy_keeps_actual_backing_member_roles_and_queries_no_host() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions, numeric) = provided();
     let root = Value::native_list_constructor(
@@ -144,7 +143,6 @@ fn original_compound_copy_keeps_actual_backing_member_roles_and_queries_no_host(
 
 #[test]
 fn original_compound_dictionary_member_uses_the_supplied_key_string_once() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions, numeric) = provided();
     let root = Value::new_native_string_bytes(b"old value".as_slice());
@@ -185,7 +183,6 @@ fn original_compound_dictionary_member_uses_the_supplied_key_string_once() {
 
 #[test]
 fn original_compound_dictionary_conversion_stops_at_actual_root_retirement_before_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied software formatter drops the actual final root owner.
     let (mut vm, formatter, acquisitions, numeric) = provided();
@@ -218,7 +215,6 @@ fn original_compound_dictionary_conversion_stops_at_actual_root_retirement_befor
 
 #[test]
 fn original_compound_failed_string_preserves_typed_host_before_dictionary_guest_work() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions, numeric) = provided();
     formatter.fail.set(true);
@@ -248,7 +244,6 @@ fn original_compound_failed_string_preserves_typed_host_before_dictionary_guest_
 
 #[test]
 fn original_compound_protocol_refusal_precedes_formatter_or_conversion() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, acquisitions, numeric) = provided();
     let root = Value::new_native_string_bytes(b"key value".as_slice());

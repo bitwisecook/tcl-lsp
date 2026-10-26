@@ -781,7 +781,6 @@ mod tests {
 
     #[test]
     fn checked_substitutions_retain_overridden_variable_and_comment_grammar() {
-        // Implementation contract: naming.grammar.checked-expression-substitution-context
 
         let profile = DialectProfile::find("tcl8.6").unwrap();
         let mut context = ExprParseContext::for_profile(profile);
@@ -819,7 +818,6 @@ mod tests {
 
     #[test]
     fn checked_substitutions_keep_command_script_ownership_separate() {
-        // Implementation contract: naming.grammar.checked-expression-substitution-context
 
         let context = ExprParseContext::for_profile(DialectProfile::find("tcl8.6").unwrap());
         let source = "$a($index[set inside $other]) + [set result $value]";
@@ -850,7 +848,6 @@ mod original_expression_span_tests {
 
     #[test]
     fn inclusive_expression_extent_keeps_complete_multibyte_source_and_checked_boundaries() {
-        // naming.grammar.checked-expression-substitution-context
 
         // Geometry only; no original operand or command selection is issued.
         let command = "[regexp λ λ out]";
@@ -883,7 +880,6 @@ mod original_source_topology_tests {
 
     #[test]
     fn original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax() {
-        // naming.grammar.checked-expression-substitution-context
 
         // Complete source topology only; unknown Native syntax remains unavailable.
         let context = ExprParseContext::for_profile(DialectProfile::plain_tcl());
@@ -915,7 +911,6 @@ mod original_source_topology_tests {
     #[test]
     fn original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix()
      {
-        // naming.grammar.checked-expression-substitution-context
 
         let mut context = ExprParseContext::for_profile(DialectProfile::plain_tcl());
         for source in [

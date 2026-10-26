@@ -46,7 +46,6 @@ fn kind(original: *mut obj::TclObj) -> &'static str {
 }
 #[test]
 fn original_numeric_search_sort_public_predicates_match_independent_native645_and647() {
-    // naming.list.original-numeric-pattern-key-getters-and-results
 
     //645 Glob negative controls and647 Exact/Sorted are independent original rows.
     // Narrow Guest/bytes and reached public primary CATEGORY/residency only.

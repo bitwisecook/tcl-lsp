@@ -274,7 +274,6 @@ mod tests {
 
     #[test]
     fn original_configurable_bootstrap_roles_require_selected_stock_release() {
-        // Implementation contract: naming.tcloo.original-configurable-factory-support
 
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
@@ -335,7 +334,6 @@ mod abstract_bootstrap_tests {
 
     #[test]
     fn original_abstract_bootstrap_recipe_is_c9_initial_state_without_live_factory_authority() {
-        // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
 
         for version in [
             TclVersion::V8_4,

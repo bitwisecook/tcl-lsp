@@ -8903,7 +8903,6 @@ mod tests {
 
     #[test]
     fn lattice_driver_retains_actual_cfg_availability_and_source_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
         use std::sync::Arc;
@@ -9296,7 +9295,6 @@ mod tests {
 
     #[test]
     fn original_dictionary_body_plan_keeps_aliases_literal_names_and_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original lexical binder plan only; the supplied dictionary is a
         // separate premise, with no successful body entry or store claim.
@@ -10234,7 +10232,6 @@ mod tests {
 
     #[test]
     fn expression_services_forward_full_config_and_inclusive_unicode_child_positions() {
-        // naming.expression.original-positioned-analysis-services
 
         // Test inputs supply a software result; this proves callback/config transport only.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
@@ -10842,7 +10839,6 @@ mod original_child_script_purpose_tests {
 
     #[test]
     fn original_summary_child_keeps_bom_alias_and_complete_parent_correspondence() {
-        // naming.interprocedural.original-transfer-summary-source-context
 
         // Conditional source/value modelling, not Native Normal completion or store permission.
         let script = "\u{feff}emit VALUE";
@@ -10943,7 +10939,6 @@ mod original_child_script_purpose_tests {
 
     #[test]
     fn original_return_region_keeps_bom_alias_first_close_and_whole_word_config() {
-        // naming.source.original-configured-script-completeness
 
         // Actual reached CFG return source geometry; Native value/read/observer gates remain independent.
         for argument in ["VALUE", "${a{b}}"] {
@@ -10991,7 +10986,6 @@ mod original_child_script_purpose_tests {
 
     #[test]
     fn standalone_loop_child_keeps_bom_and_registered_utility_purpose() {
-        // naming.source.original-configured-script-completeness
 
         // Explicit independent registry utility; no original Module, frame or Native entry is issued.
         let mut registry = tcl_registry::CommandRegistry::build_default();

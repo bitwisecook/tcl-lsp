@@ -1483,7 +1483,6 @@ mod tests {
 
     #[test]
     fn original_alias_effects_separate_policy_reads_from_binding_lifecycle() {
-        // Implementation contract: naming.alias.original-fresh-creation-transfer
 
         for version in tcl_dialect::TclVersion::ALL {
             let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();

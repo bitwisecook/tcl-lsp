@@ -241,7 +241,6 @@ mod tests {
 
     #[test]
     fn lookup_layout_keeps_literal_group_after_dynamic_key() {
-        // Implementation contract: naming.consumer.original-source-attachment-candidates
 
         use InvocationWord::{Dynamic, Literal};
         assert_eq!(

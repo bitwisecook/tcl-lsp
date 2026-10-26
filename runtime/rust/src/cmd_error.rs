@@ -1385,7 +1385,6 @@ mod tests {
     #[test]
     fn error_info_stack_traces() {
         leak_free(|i| {
-            // naming.runtime.original-command-source-extent
 
             // The worked example: proc body error → proc frame → call frame.
             // The public Read invokes the native hidden error-global observer.
@@ -1577,7 +1576,6 @@ mod tests {
 
     #[test]
     fn automatic_jim_error_stacks_match_the_actual_native_interpreter() {
-        // naming.source.jim-original-source-entry
 
         let Some(reference) = tcl_test_support::locate_jimsh().expect("Jim oracle discovery")
         else {

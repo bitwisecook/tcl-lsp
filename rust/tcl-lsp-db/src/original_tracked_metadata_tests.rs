@@ -73,7 +73,6 @@ fn has_variable(tokens: &SemanticTokens, source: &str, value: &str) -> bool {
 
 #[test]
 fn tracked_source_units_share_checked_input_and_memoized_procedure_grammar() {
-    // naming.compiler.original-analysis-metadata-context
 
     // A real Logical document supplies conditional source advice, no Native entry.
     let mut db = TclDatabase::default();
@@ -138,7 +137,6 @@ fn tracked_source_units_share_checked_input_and_memoized_procedure_grammar() {
 
 #[test]
 fn tracked_document_input_reloads_actual_pack_roles_and_refuses_stale_grammar() {
-    // naming.compiler.original-analysis-metadata-context
 
     let mut db = TclDatabase::default();
     let packs = read_pack(true);
@@ -200,7 +198,6 @@ fn tracked_document_input_reloads_actual_pack_roles_and_refuses_stale_grammar() 
 
 #[test]
 fn tracked_document_input_refuses_unavailable_generation_before_any_source_walk() {
-    // naming.compiler.original-analysis-metadata-context
 
     let mut db = TclDatabase::default();
     let config = configuration(&db, u64::MAX - 349);
@@ -238,7 +235,6 @@ fn tracked_document_input_refuses_unavailable_generation_before_any_source_walk(
 
 #[test]
 fn tracked_document_input_keeps_keyed_availability_on_the_same_command_store() {
-    // naming.compiler.original-analysis-metadata-context
 
     // A source lifecycle query supplies no appliance or TMM execution receipt.
     let mut db = TclDatabase::default();

@@ -1431,7 +1431,6 @@ mod tests {
 
     #[test]
     fn host_dictionary_surface_without_actual_object_owner_refuses_construction() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software ingress purpose only; a surface profile supplies no object owner.
         let mut vm = Vm::new();
@@ -1727,11 +1726,8 @@ mod native_rmw_fixture_tests {
     fn dictionary_body_writeback_compares_original_native_observation_windows() {
         // Native proofs: naming.dictionary.update-with-body-and-observer-frontiers;
 
-        // naming.dictionary.c85-original-update-write-error-object-lifetime
 
-        // naming.dictionary.original-update-write-error-object-lifetime
 
-        // naming.dictionary.original-with-write-error-object-lifetime
 
         // All 329 captured outer completions remain compared; 326 retain whole
         // public observations. Independent update and with lifetime observations
@@ -1889,7 +1885,6 @@ mod native_rmw_fixture_tests {
 
     #[test]
     fn c86_dictionary_write_error_retains_its_own_defined_host_storage() {
-        // naming.dictionary.original-update-write-error-object-lifetime
 
         // The native counter window is independent of the VM's safe policy.
         // Neither native freed contents nor original compiled frame ownership
@@ -1950,7 +1945,6 @@ mod native_rmw_fixture_tests {
 
     #[test]
     fn c86_dictionary_with_write_error_retains_independent_defined_host_storage() {
-        // naming.dictionary.original-with-write-error-object-lifetime
 
         // The native witness samples WithFinish before final free. Subsequent
         // public fields are process observations; the VM's retained live storage
@@ -2112,7 +2106,6 @@ mod native_path_publication_tests {
 
     #[test]
     fn original_path_missing_variable_publication_matches_all_15_available_native_windows() {
-        // naming.dictionary.original-path-missing-variable-publication
 
         // Each complete original caller result keeps the error, existence,
         // caller read and alias/member publication together. No private object

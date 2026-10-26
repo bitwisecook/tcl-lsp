@@ -149,7 +149,6 @@ fn assert_first(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn property_registration_refusal_stops_later_direction_and_epoch_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine reached owner callbacks; registration chronology is not a Native probe result.
     for mode in 0..4 {
@@ -218,7 +217,6 @@ fn property_registration_refusal_stops_later_direction_and_epoch_publication() {
 
 #[test]
 fn mandatory_property_retirement_releases_both_caches_before_original_members() {
-    // naming.property.original-slot-storage-reference-order
 
     // Release order is inspected C91 source, not a measured teardown callback tape.
     for mode in 0..3 {
@@ -262,7 +260,6 @@ fn mandatory_property_retirement_releases_both_caches_before_original_members() 
 
 #[test]
 fn property_invalidation_retires_stale_lists_outside_borrows_and_transports_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual derived cache survives a Foundation change; no speculative cache owner is planted.
     for mode in 0..3 {

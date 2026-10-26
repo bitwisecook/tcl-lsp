@@ -44,7 +44,6 @@ impl NativeCommand for MethodEntry {
 }
 #[test]
 fn original_method_table_replacement_preserves_record_and_retires_original_payload() {
-    // naming.tcloo.original-method-cache-and-active-call-lifetime
 
     // Real build_method/table producers and VM header retirement, not C MethodType chronology.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -92,7 +91,6 @@ fn original_method_table_replacement_preserves_record_and_retires_original_paylo
 }
 #[test]
 fn original_unnamed_slot_replacement_keeps_only_genuine_entered_original_owner() {
-    // naming.tcloo.original-method-cache-and-active-call-lifetime
 
     // Actual unnamed slots and retained chains; allocation leases add no native body references.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -159,7 +157,6 @@ fn original_unnamed_slot_replacement_keeps_only_genuine_entered_original_owner()
 }
 #[test]
 fn original_missing_method_role_never_revives_a_present_table_record() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A real precedence observation intentionally lacks the executable record role.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {

@@ -1392,7 +1392,6 @@ impl ExprNode {
 mod tests {
     #[test]
     fn raw_expression_reads_share_selected_scalar_and_array_roots() {
-        // Implementation contract: naming.expression.selected-reference-root
 
         let raw = ExprNode::Raw {
             text: "${scalar(open} + ${scalar(open)tail} + ${arr(key)}".to_owned(),

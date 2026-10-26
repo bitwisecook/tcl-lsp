@@ -84,7 +84,6 @@ fn check_original_option_index_result(
 
 #[test]
 fn original_search_sort_public_outcomes_and_child_cache_match_native636() {
-    // naming.list.original-option-index-path-preparation-and-results
 
     // Declared observer ref1 plus real containing-List references. Original
     // cached Int input uses a selected local cache constructor; this does not

@@ -1115,7 +1115,6 @@ mod tests {
 
     #[test]
     fn original_connection_destruction_keeps_current_availability_and_source_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The actual entry retains native source lookup. This query describes
         // selected destruction; it does not execute an unset or supply a cell.
@@ -1218,7 +1217,6 @@ mod tests {
 
     #[test]
     fn original_connection_destruction_keeps_captured_aliases_and_unknown_members_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Genuine Logical selected source operations grant no Native handler,
         // successful mutation, event worker, storage identity or definite exit.
@@ -1325,7 +1323,6 @@ mod tests {
 
     #[test]
     fn original_connection_summary_requires_the_hosted_module_and_function_owner() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Retained appliance authoring policy identifies a source handler; it
         // supplies no executing TMM worker or current connection-frame slots.
@@ -1369,7 +1366,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.registry-event-frame-identity
 
     fn original_event_frames_require_the_selected_body_and_not_function_labels() {
         let registry = CommandRegistry::build_default()
@@ -1452,7 +1448,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.registry-event-frame-identity
 
     fn original_procedure_prefix_and_foreign_body_cannot_select_event_storage() {
         let registry = CommandRegistry::build_default()
@@ -1550,7 +1545,6 @@ mod tests {
 
     #[test]
     fn cross_event_cells_keep_native_bytes_and_supplied_execution_context() {
-        // Implementation contract: naming.variable.event-cell-execution-isolation
 
         use crate::place::{CellGeneration, CellIdentity, CellOwner};
         use tcl_registry::f5::WorkerExecution;

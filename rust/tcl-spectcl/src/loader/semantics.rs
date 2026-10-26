@@ -1148,7 +1148,6 @@ speclib probe 2.2 {
     /// nothing.
     #[test]
     fn declared_binding_keeps_written_name_and_projects_expected_identity_separately() {
-        // naming.grammar.shared-written-name-boundaries
 
         // Authored pack dependency descriptors; no binding receipt or native lookup grant.
         let source = TENANT.replace(

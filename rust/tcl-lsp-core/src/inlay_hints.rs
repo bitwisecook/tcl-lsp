@@ -663,7 +663,6 @@ fn format_args(
     analysis: &AnalysisResult,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(FormatHintOperand, tcl_registry::FormatType)> {
-    // naming.core.original-inlay-retained-context
 
     let Some(selected) = source_registry_words(source, analysis, seg) else {
         return Vec::new();
@@ -2248,7 +2247,6 @@ mod original_hint_tests {
 
     #[test]
     fn original_builtin_alias_and_expansion_hints_keep_effective_slots_and_original_extents() {
-        // Implementation contract: naming.core.original-hint-effective-origins
 
         let source = "interp alias {} slice {} string range CAPTURED; slice 1 2";
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
@@ -2312,7 +2310,6 @@ mod original_hint_tests {
 
     #[test]
     fn original_format_alias_expansion_and_escape_hints_use_the_template_producer() {
-        // Implementation contract: naming.core.original-format-hint-producer
 
         let hints = |source: &str| {
             let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
@@ -2382,7 +2379,6 @@ mod original_hint_tests {
 
     #[test]
     fn original_builtin_hints_use_retained_descriptor_and_do_not_borrow_shadowed_prototype() {
-        // Implementation contract: naming.core.original-hint-effective-origins
 
         let source = "set value 1";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
@@ -2430,7 +2426,6 @@ mod original_variable_type_tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.original-ssa-definition-operand
 
     fn original_type_hints_match_exact_ssa_cells_without_reporting_variable_maps() {
         let source = "set v\\uD800 42\nset v\\uD801 TEXT\n";
@@ -2509,7 +2504,6 @@ mod original_procedure_topology_hint_tests {
 
     #[test]
     fn original_procedure_hints_share_expanded_children_and_formal_binding_topology() {
-        // naming.source.original-procedure-argument-topology
 
         for source in [
             "proc target {captured written} {}; target {*}{FIXED VALUE}",
@@ -2669,7 +2663,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_format_hints_keep_actual_context_and_full_source_currency() {
-        // naming.core.original-inlay-retained-context
 
         let source = "clock scan 2020 -format {%Y}";
         for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
@@ -2709,7 +2702,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors() {
-        // naming.core.original-inlay-retained-context
 
         let input = logical_format_input("tcl9.1");
         let context = input.context_registry();
@@ -2758,7 +2750,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_format_escape_hints_use_the_complete_selected_grammar() {
-        // naming.core.original-inlay-retained-context
 
         let source = r"format \x25d 7";
         let modern = logical_format_input("tcl9.1");
@@ -2896,7 +2887,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_parameter_hints_keep_actual_context_and_original_source_currency() {
-        // naming.core.original-inlay-retained-context
 
         let source = "string cat A B";
         for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
@@ -2935,7 +2925,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors() {
-        // naming.core.original-inlay-retained-context
 
         let input = logical_format_input("tcl9.1");
         let context = input.context_registry();
@@ -2987,7 +2976,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_builtin_hints_use_the_selected_availability_not_registry_profile() {
-        // naming.core.original-inlay-retained-context
 
         let source = "string cat A B";
         let current = analysis_with_availability(source, "tcl9.1");
@@ -3034,7 +3022,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_format_hints_use_selected_option_roles_under_the_actual_context() {
-        // naming.core.original-inlay-retained-context
 
         let source = "clock scan 2020 -format {%Y}";
         let current = analysis_with_availability(source, "tcl9.1");
@@ -3070,7 +3057,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared() {
-        // naming.core.original-inlay-retained-context
 
         let source = "format {%d} 3";
         let mut analysis = analysis_with_availability(source, "tcl9.1");
@@ -3106,7 +3092,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_inlay_hints_keep_retained_profile_registry_and_whole_source() {
-        // naming.core.original-inlay-retained-context
 
         let source = "set value 42\nformat {%d} 3";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -3149,7 +3134,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_format_hints_follow_actual_nested_roles_and_known_shadow() {
-        // naming.core.original-inlay-retained-context
 
         let source = "proc p {} {format {%d} 3}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -3268,7 +3252,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_type_hints_keep_constructed_colon_scopes_and_original_source() {
-        // naming.analysis.constructed-key-consumer-projections
 
         let source = "namespace eval Ω {\nproc :pair {} {set x 42}\nproc pair {} {set x 3.5}\n}\n";
         let analysis = Analyser::new().analyse(source, "tcl");

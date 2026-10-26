@@ -694,7 +694,6 @@ mod tests {
 
     #[test]
     fn namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal() {
-        // naming.core.original-dispatch-region-context
 
         // Source edit refusal inventory, not a native namespace or runtime call.
         use std::sync::Arc;
@@ -760,7 +759,6 @@ mod tests {
 
     #[test]
     fn supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles() {
-        // naming.core.original-dynamic-name-value-purpose
 
         use std::sync::Arc;
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -1191,7 +1189,6 @@ mod tests {
 
     #[test]
     fn logical_written_namespace_geometry_retains_complete_separator_runs_and_purpose() {
-        // naming.editor.logical-written-component-geometry
 
         assert_written_variable_and_entity_separators();
         for (written, resolved, purpose) in [
@@ -1284,7 +1281,6 @@ mod tests {
 
     #[test]
     fn logical_braced_variable_geometry_uses_the_actual_header_span_and_close_rule() {
-        // naming.editor.logical-written-component-geometry
 
         // Actual produced source span; no Native cell or edit admission.
         let source = "namespace eval {::app::old(x)} {}\nset {::app::old(x)::v} 1\nputs ${::::app:::old(x)::v}\n";
@@ -1371,7 +1367,6 @@ mod tests {
 
     #[test]
     fn logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage() {
-        // naming.editor.logical-written-component-geometry
 
         let source = "namespace eval ::::app:::old {}\nset ::::app::::old:::v 1\n";
         let analysis = Analyser::new().analyse(source, "tcl");
@@ -1466,7 +1461,6 @@ mod tests {
 
     #[test]
     fn logical_namespace_forget_rename_retains_complete_source_and_hazard_guards() {
-        // naming.editor.logical-written-component-geometry
 
         let source = "namespace eval 茶 {}\nnamespace forget ::茶::*\n";
         let analysis = Analyser::new().analyse(source, "tcl");

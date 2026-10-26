@@ -36,7 +36,6 @@ fn direct_formal_argument_value(
     parameters: &[&str],
     registry: &CommandRegistry,
 ) -> Option<(CommandTokens, String)> {
-    // naming.tcloo.original-declared-receiver-caller-traits
 
     let context = &observation.snapshot.state.source_variables;
     // Command-table uncertainty cannot change this conditional input.
@@ -190,7 +189,6 @@ impl SourceCommandBindings {
         let (registry, owner) = selection;
         self.formal_source_owner_matches(owner, registry)?;
 
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         if self.root_origin.as_ref() != Some(origin) {
             return None;
@@ -270,7 +268,6 @@ impl SourceCommandBindings {
                     Some(origin),
                     site.offset,
                 ));
-                // naming.compiler.original-formal-argument-entry
 
                 // Source entry precedes this handler. All original operand
                 // effects were independently closed above, so unavailable
@@ -299,7 +296,6 @@ impl SourceCommandBindings {
         observation: &super::declaration_layout::DeclarationLayoutObservation,
         registry: &CommandRegistry,
     ) -> bool {
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         let context = &observation.snapshot.state.source_variables;
         if matches!(
@@ -799,7 +795,6 @@ mod tests {
 
     #[test]
     fn original_formal_copy_query_retains_full_source_metadata_and_explicit_compatibility() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
         use std::sync::Arc;
@@ -891,7 +886,6 @@ mod tests {
 
     #[test]
     fn original_receiver_formal_value_uses_its_unentered_declaration() {
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
@@ -1034,7 +1028,6 @@ mod tests {
 
     #[test]
     fn original_receiver_formal_prefix_keeps_unrelated_aliases_and_refuses_clobbers() {
-        // naming.tcloo.original-declared-receiver-caller-traits
 
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for (prefix, expected) in [
@@ -1213,13 +1206,11 @@ mod tests {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
             let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-            // naming.compiler.original-formal-source-domain
 
             for (source, expected) in [
                 ("proc p {target} {upvar 1 $target v}", Some("target")),
                 ("proc p\\uD800 {target} {upvar 1 $target v}", Some("target")),
                 ("proc p\\uD801 {target} {upvar 1 $target v}", Some("target")),
-                // naming.compiler.original-formal-argument-entry
                 (
                     "proc p\\uD800 {target} {upvar 1 $target local; set local 1}\nproc p\\uD801 {target} {upvar 1 $target local; set local}\np\\uD800 written\np\\uD801 read",
                     Some("target"),

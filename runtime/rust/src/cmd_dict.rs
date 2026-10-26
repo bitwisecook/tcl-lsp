@@ -2207,7 +2207,6 @@ mod native_path_publication_tests {
 
     #[test]
     fn original_path_missing_variable_publication_matches_all_15_available_native_windows() {
-        // naming.dictionary.original-path-missing-variable-publication
 
         // Each complete original caller result keeps the error, existence,
         // caller read and alias/member publication together. No private object
@@ -2299,7 +2298,6 @@ mod original_map_option_cleanup_tests {
     };
     #[test]
     fn original_dict_map_option_refusal_retires_its_allocated_accumulator() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software accumulator cleanup under a member free, not a Native map chronology claim.
         crate::counters::reset();

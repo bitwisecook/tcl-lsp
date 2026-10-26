@@ -592,7 +592,6 @@ pub fn source_candidates(
     ctx: IlxContext<'_>,
     call: &IlxMethodCall,
 ) -> Vec<IlxSourceLocation> {
-    // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
     if !current_source_call(doc, ctx, call) {
         return Vec::new();
@@ -944,7 +943,6 @@ pub fn source_candidates_from_registration(
     ctx: IlxContext<'_>,
     registration: &IlxMethodRegistration,
 ) -> Vec<IlxSourceLocation> {
-    // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
     if !extension_registrations(doc.text).contains(registration)
         || !is_extension_entry(doc.path, ctx.files)
@@ -1861,7 +1859,6 @@ mod tests {
     }
     #[test]
     fn original_ilx_navigation_does_not_join_unresolved_handles_by_method_labels() {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "when HTTP_REQUEST {ILX::call $left m; ILX::call $right m}";
@@ -1957,7 +1954,6 @@ mod tests {
 
     #[test]
     fn original_ilx_source_navigation_keeps_candidate_paths_and_handle_identity_separate() {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         let registry = registry();
         let store = workspace_store();
@@ -2013,7 +2009,6 @@ mod tests {
 
     #[test]
     fn original_ilx_analysis_ingress_keeps_configuration_and_never_recaptures_stale_source() {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         let source = "\u{feff}when HTTP_REQUEST {ILX::call [ILX::init my_plugin my_extension] my_js_function}";
         let profile = tcl_dialect::DialectProfile::irules();
@@ -2106,7 +2101,6 @@ mod tests {
 
     #[test]
     fn original_ilx_hover_keeps_constructor_source_labels_separate_from_handles() {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "when HTTP_REQUEST {ILX::call [ILX::init p e] m}";

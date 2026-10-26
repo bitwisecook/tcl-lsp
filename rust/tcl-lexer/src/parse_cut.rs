@@ -961,7 +961,6 @@ mod tests {
 
     #[test]
     fn original_bracket_child_cut_keeps_bom_content_at_local_zero() {
-        // naming.source.original-configured-script-completeness
 
         // A true bracket child keeps nested syntax even at its local byte zero.
         let config = LexerConfig {
@@ -1467,9 +1466,7 @@ mod original_parse_descent_tests {
 
     #[test]
     fn original_enclosing_script_cut_delays_child_syntax_without_hiding_root_delimiters() {
-        // naming.source.original-configured-script-completeness
 
-        // naming.source.jim-nested-direct-entry-and-prefix-effects
 
         // The physical Direct observations are separate from this syntax-only
         // projection; neither channel nor descent issues an execution receipt.
@@ -1527,7 +1524,6 @@ mod original_parse_descent_tests {
 
     #[test]
     fn original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct() {
-        // naming.source.original-configured-script-completeness
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let config = LexerConfig::for_dialect(dialect);

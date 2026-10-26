@@ -311,7 +311,6 @@ fn assert_original_alias_public_window(case: &str, observed: &[u8], captured: &[
 
 #[test]
 fn original_alias_queries_and_inventory_compare_all_24_native_windows() {
-    // naming.alias.jim-original-query-and-inventory
 
     // Original source bytes and captured streams are immutable. The last Jim
     // namespace inventory field is an explicitly bounded member comparison;
@@ -370,7 +369,6 @@ const ALIAS_EXTENT_CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_alias_diagnostic_extents_match_all_12_native_public_windows() {
-    // naming.alias.jim-original-alias-diagnostic-name-extent
 
     // Whole unchanged ASCII source programs produce the name bytes through
     // binary format H*: counted NUL, UTF8 e-acute, and invalid FF are runtime
@@ -446,7 +444,6 @@ const PROCEDURE_USAGE_CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_procedure_usage_extents_match_all_24_native_public_windows() {
-    // naming.procedure.original-called-name-and-formal-usage-extents
 
     // Four unchanged ASCII source programs produce their NUL through binary
     // format H*. Name/formal lengths, definition completion/result, and caught
@@ -507,7 +504,6 @@ const INFO_DISPATCH_CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_info_dispatch_matches_all_12_native_public_windows() {
-    // naming.info.original-missing-and-empty-selector-dispatch
 
     // Both original ASCII sources catch the original invocation and retain its
     // code and complete message as separate fields. Every provider executes its

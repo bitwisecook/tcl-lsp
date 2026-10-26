@@ -59,7 +59,6 @@ fn info_report(
 }
 #[test]
 fn original_call_report_uses_payload_descriptors_before_literal_names_and_stock_fallbacks() {
-    // naming.tcloo.original-entered-call-chain-report-record-and-flags
 
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);
@@ -150,7 +149,6 @@ fn original_call_report_uses_payload_descriptors_before_literal_names_and_stock_
 }
 #[test]
 fn original_call_report_keeps_filter_unknown_and_declaring_facet_flags_independent() {
-    // naming.tcloo.original-entered-call-chain-report-record-and-flags
 
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);
@@ -219,7 +217,6 @@ fn original_call_report_keeps_filter_unknown_and_declaring_facet_flags_independe
 #[test]
 fn original_call_report_keeps_exact_entered_record_through_deletion_rename_and_payload_replacement()
 {
-    // naming.tcloo.original-entered-call-chain-report-record-and-flags
 
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);
@@ -326,7 +323,6 @@ impl Drop for Cleanup {
 }
 #[test]
 fn original_call_report_retains_original_name_until_checked_presentation_and_first_cause() {
-    // naming.tcloo.original-entered-call-chain-report-record-and-flags
 
     for version in ["tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2] {

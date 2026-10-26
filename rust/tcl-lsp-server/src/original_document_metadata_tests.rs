@@ -89,7 +89,6 @@ async fn install_workspace_read_pack(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unindexed_semantic_tokens_keep_workspace_pack_roles() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Authoring roles only; loading this spec grants no native command entry.
     let (backend, registry) = workspace_pack_backend().await;
@@ -119,7 +118,6 @@ async fn unindexed_semantic_tokens_keep_workspace_pack_roles() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unindexed_range_request_keeps_workspace_pack_roles() {
-    // naming.compiler.original-analysis-metadata-context
 
     // The public viewport provider consumes the actual workspace source roles.
     let (backend, _) = workspace_pack_backend().await;
@@ -166,7 +164,6 @@ async fn unindexed_range_request_keeps_workspace_pack_roles() {
 
 #[test]
 fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
-    // naming.compiler.original-analysis-metadata-context
 
     let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
     let mut registry = baseline
@@ -244,7 +241,6 @@ fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn pull_compiler_and_code_actions_keep_supplied_diagnostic_context() {
-    // naming.compiler.original-analysis-metadata-context
 
     let backend = crate::tests::test_backend();
     let uri = Uri::from_str("file:///workspace/retained-compiler.tcl").unwrap();
@@ -305,7 +301,6 @@ async fn pull_compiler_and_code_actions_keep_supplied_diagnostic_context() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unindexed_deep_compiler_checks_borrow_the_shared_base_input() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Conditional Logical source advice retains its issuer; no execution entry.
     let backend = crate::tests::test_backend();
@@ -358,7 +353,6 @@ async fn unindexed_deep_compiler_checks_borrow_the_shared_base_input() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unindexed_deep_compiler_checks_refuse_missing_base_and_preserve_cancellation() {
-    // naming.compiler.original-analysis-metadata-context
 
     let backend = crate::tests::test_backend();
     let uri = Uri::from_str("file:///workspace/unindexed-deep-refused.tcl").unwrap();
@@ -416,7 +410,6 @@ async fn unindexed_deep_compiler_checks_refuse_missing_base_and_preserve_cancell
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn workspace_class_analysis_keeps_actual_pack_input_and_reloads_changed_roles() {
-    // naming.compiler.original-analysis-metadata-context
 
     // The real secondary consumer keeps source hints separate from Native class identity.
     let (backend, registry) = workspace_pack_backend().await;
@@ -474,7 +467,6 @@ async fn workspace_class_analysis_keeps_actual_pack_input_and_reloads_changed_ro
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn workspace_class_analysis_refuses_withdrawn_base_before_cached_hints() {
-    // naming.compiler.original-analysis-metadata-context
 
     let (backend, _) = workspace_pack_backend().await;
     let uri = Uri::from_str("file:///workspace/workspace-class-withdrawn.tcl").unwrap();
@@ -586,7 +578,6 @@ fn index_evidence_handles(backend: &Backend) -> EvidenceHandles {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
-    // naming.compiler.original-analysis-metadata-context
 
     // These are published source references, without a Native command entry.
     let (backend, _) = workspace_pack_backend().await;
@@ -615,7 +606,6 @@ async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn startup_index_and_factory_reindex_keep_checked_document_roles() {
-    // naming.compiler.original-analysis-metadata-context
 
     let (backend, _) = workspace_pack_backend().await;
     let root = index_metadata_directory();
@@ -651,7 +641,6 @@ async fn startup_index_and_factory_reindex_keep_checked_document_roles() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace() {
-    // naming.compiler.original-analysis-metadata-context
 
     // The written source namespace is conditional source advice, not a Native frame.
     let (backend, _) = workspace_pack_backend().await;
@@ -695,7 +684,6 @@ async fn source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
-    // naming.compiler.original-analysis-metadata-context
 
     let (backend, _) = workspace_pack_backend().await;
     let uri = Uri::from_str("file:///workspace/index-seed-currency.tcl").unwrap();
@@ -766,7 +754,6 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
-    // naming.compiler.original-analysis-metadata-context
 
     // No appliance execution or handler entry is inferred from configured availability.
     let backend = crate::tests::test_backend();
@@ -896,7 +883,6 @@ async fn prepare_aggressive_optimiser_document(backend: &Backend, uri: &Uri, sou
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Source rewrites retain authored pack roles without a Native entry.
     let (backend, registry) = workspace_pack_backend().await;
@@ -1103,7 +1089,6 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generation() {
-    // naming.compiler.original-analysis-metadata-context
 
     // The real token worker consumes per-file source advice without Native entry.
     let (backend, _) = workspace_pack_backend().await;
@@ -1194,7 +1179,6 @@ async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generat
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn project_token_config_publication_drops_partial_locks_and_preserves_snapshots() {
-    // naming.compiler.original-analysis-metadata-context
 
     let backend = crate::tests::test_backend();
     let first_uri = Uri::from_str("file:///project-publication354/first.tcl").unwrap();
@@ -1258,7 +1242,6 @@ async fn project_token_config_publication_drops_partial_locks_and_preserves_snap
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn callback_project_worker_uses_each_librarys_published_configuration() {
-    // naming.database.original-project-callback-projection
 
     // Authentic source headers/counts remain independent of callback execution.
     let backend = crate::tests::test_backend();
@@ -1354,7 +1337,6 @@ async fn callback_project_worker_uses_each_librarys_published_configuration() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn configured_factory_rounds_refuse_stale_publication_and_withdraw_unavailable_library_hints()
 {
-    // naming.compiler.original-analysis-metadata-context
 
     // The real fixpoint publishes conditional manufacturers, not Native receivers.
     let (backend, _) = workspace_pack_backend().await;
@@ -1421,7 +1403,6 @@ async fn configured_factory_rounds_refuse_stale_publication_and_withdraw_unavail
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn project_evidence_publication_withdraws_incomplete_checked_contributors() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Actual host publication retains conditional caller facts, not Native entry.
     let backend = crate::tests::test_backend();
@@ -1511,7 +1492,6 @@ async fn project_evidence_publication_withdraws_incomplete_checked_contributors(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay() {
-    // naming.core.original-tk-source-context
 
     // This public command projects source hints, without creating a widget.
     let backend = crate::tests::test_backend();
@@ -1632,7 +1612,6 @@ fn assert_formatter_request_edit(edits: Option<Vec<TextEdit>>, ending: &str) {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input()
 {
-    // naming.editor.original-source-formatting
 
     // These public requests retain actual source/configuration; no appliance
     // execution or Native body entry is supplied by the event/source roles.

@@ -954,7 +954,6 @@ impl Analyser {
         invocation_offset: u32,
         argument_tokens: &[Token],
     ) -> Option<Arc<crate::ir::CommandTokens>> {
-        // Implementation contract: naming.source.original-command-token-memo
 
         self.head_identities.retained_original_tokens(
             &original_document_source_image(
@@ -1158,7 +1157,6 @@ impl Analyser {
             &std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBodyOrigin>,
         >,
     ) {
-        // Implementation contract: naming.vendor.original-source-context-input
 
         let bindings = self.head_identities.source_bindings_ref();
         let Some(origin) = bindings.source_origin() else {
@@ -1315,7 +1313,6 @@ impl Analyser {
             &self.command_surface(registry),
             &tokens,
         );
-        // naming.source.native-baseline-conditional-source-roles
 
         let context = generation;
         if let Some(advice) = self
@@ -4313,7 +4310,6 @@ impl Analyser {
             let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
                 continue;
             };
-            // Implementation contract: naming.source.original-point-operand-projection
 
             let logical = self.selected_logical_declaration_advice();
             let (original_input, source_context) = self.original_namespace_reference_input(
@@ -5907,7 +5903,6 @@ impl Analyser {
     /// Retain a source class label from the genuine setter and constructor.
     /// The canonical original declaration never comes from its printed head.
     fn class_from_constructor_subst(&self, site_offset: u32) -> Option<(String, String)> {
-        // naming.source.original-class-constructor-call
 
         let construction =
             crate::registry_invocation::source_structure::source_handle_construction_at(
@@ -6023,7 +6018,6 @@ impl Analyser {
         &self,
         class_q: &str,
     ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
-        // naming.diagnostics.retained-logical-class-family
 
         if !self.result.allows_retained_logical_declaration_advice() {
             return None;
@@ -6346,7 +6340,6 @@ fn nested_source_words(
     analysis: &super::types::AnalysisResult,
     segment: &SegmentedCommand,
 ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
-    // naming.source.original-editor-body-structure
 
     crate::registry_invocation::source_structure::source_registry_words(
         sm.source(),
@@ -6412,7 +6405,6 @@ fn nested_source_prefixes(
     segment: &SegmentedCommand,
     config: LexerConfig,
 ) -> Vec<CollectedHead> {
-    // naming.source.original-editor-body-structure
 
     let Some(input) = &analysis.resolved_input else {
         return Vec::new();
@@ -6917,7 +6909,6 @@ mod tests {
 
     #[test]
     fn original_body_heads_keep_parent_file_config_and_nested_bom_content() {
-        // naming.source.original-configured-script-completeness
 
         // Source syntax only; a command-head observation grants no execution.
         let body = "if 1 {\u{feff}set hidden value; set visible value}\nset result [\u{feff}set inner value; set tail value]";
@@ -7191,7 +7182,6 @@ mod tests {
 
     #[test]
     fn interp_create_original_name_positions_keep_option_width_and_terminators() {
-        // naming.source.original-command-name-publications
 
         for (source, name) in [
             ("interp create -safe sandbox", "sandbox"),
@@ -7234,7 +7224,6 @@ mod tests {
 
     #[test]
     fn interp_create_with_no_name_records_nothing() {
-        // naming.source.original-command-name-publications
 
         let source = "interp create -safe";
         let result = Analyser::new().analyse(source, "tcl9.0");
@@ -8227,7 +8216,6 @@ mod original_conditional_variable_read_tests {
 
     #[test]
     fn original_conditional_variable_reads_keep_distinct_absolute_opaque_operands() {
-        // Implementation contract: naming.variable.conditional-registry-receiver-geometry
 
         let source = r"namespace eval n\uD800 {}
 namespace exists n\uD800
@@ -8284,7 +8272,6 @@ info exists ::N::v\uD801";
 
     #[test]
     fn original_conditional_variable_reads_preserve_shadow_and_unknown_scope_barriers() {
-        // Implementation contract: naming.variable.conditional-registry-receiver-geometry
 
         for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
             for (source, operand) in [
@@ -8318,7 +8305,6 @@ mod original_lexical_source_inventory_tests {
 
     #[test]
     fn original_lexical_inventory_retains_brackets_without_parent_execution() {
-        // Implementation contract: naming.vendor.original-source-context-input
 
         for source in [
             "when HTTP_REQUEST {ILX::call [ILX::init p e] m}",
@@ -8389,7 +8375,6 @@ mod original_lexical_source_inventory_tests {
 
     #[test]
     fn original_lexical_inventory_keeps_inert_braces_and_escapes_opaque() {
-        // Implementation contract: naming.vendor.original-source-context-input
 
         for source in [
             "unknown {[ILX::init p e]}",
@@ -8416,9 +8401,7 @@ mod original_script_body_inventory_tests {
 
     #[test]
     fn original_script_inventory_uses_whole_authored_body_and_case_regions() {
-        // Implementation contract: naming.vendor.original-source-context-input
 
-        // Implementation contract: naming.source.original-editor-body-structure
 
         for source in [
             "proc f {} { ILX::call $h m }",
@@ -8476,7 +8459,6 @@ mod original_script_body_inventory_tests {
 
     #[test]
     fn original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque() {
-        // Implementation contract: naming.vendor.original-source-context-input
 
         // The moved-handler control has an independently checked positive
         // parent and child schema in the very same hosted authoring context.
@@ -8668,7 +8650,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn named_receiver_inventory_uses_original_ordered_source_carriers() {
-        // naming.source.original-class-instance-receiver
 
         for (source, marker, expected) in [
             (
@@ -8719,7 +8700,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn direct_callbacks_retain_selected_schema_and_exact_prefix_producers() {
-        // naming.source.original-editor-body-structure
 
         for source in [
             "lsort -command {compare fixed} {b a}",
@@ -8767,7 +8747,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn nested_source_bodies_follow_original_moves_alias_prefixes_and_shadow_barriers() {
-        // naming.source.original-editor-body-structure
 
         for source in [
             "rename switch choose; set result [choose key {key {puts nested}}]",
@@ -8788,7 +8767,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn nested_source_bodies_use_the_actual_dialect_availability() {
-        // naming.source.original-editor-body-structure
 
         let source = "set result [dict for {key value} {} {puts nested}]";
         assert!(
@@ -8805,7 +8783,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn nested_source_callbacks_keep_the_original_input_baked_count_and_purpose() {
-        // naming.source.original-structured-script-timing
 
         let source = "proc compare args {}; set result [lsort -command {compare fixed} {a b}]";
         let heads = nested_heads(source, "tcl8.6");
@@ -8829,7 +8806,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch() {
-        // naming.source.original-script-region-purpose
 
         let source = "set result [puts {format nested}]";
         for reference_only in [true, false] {
@@ -8895,7 +8871,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn source_user_class_setters_join_original_moves_aliases_and_whole_substitutions() {
-        // naming.source.original-class-constructor-call
 
         for source in [
             "oo::class create C {}; rename C Held; set object [Held \"new\"]",
@@ -8944,7 +8919,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn pending_constructor_heads_preserve_real_variable_and_selector_geometry() {
-        // naming.source.original-produced-command-prefix
 
         for (source, expected) in [
             (
@@ -8980,7 +8954,6 @@ mod original_nested_source_tests {
 
     #[test]
     fn source_named_constructors_do_not_publish_permanent_speculative_commands() {
-        // naming.source.original-class-constructor-call
 
         let source = "oo::class create C {}; rename C Held; interp alias {} make {} Held create; make object";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -9005,7 +8978,6 @@ mod original_nested_source_tests {
     }
     #[test]
     fn source_pending_constructor_values_do_not_select_native_reporting_class_labels() {
-        // naming.source.original-class-constructor-call
 
         let source = "oo::class create C {}; set class C; set object [$class new]";
         for dialect in [
@@ -9052,7 +9024,6 @@ mod original_nested_source_tests {
     }
     #[test]
     fn logical_reported_class_lookup_respects_lexical_candidates_without_native_identity() {
-        // naming.source.original-class-constructor-call
 
         let source = "oo::class create Global {}; namespace eval ns {oo::class create Local {}; namespace eval inner {set marker 1}}";
         let mut analyser = Analyser::new();
@@ -9077,7 +9048,6 @@ mod original_nested_source_tests {
     }
     #[test]
     fn analyser_hook_metadata_uses_retained_context_without_stashed_store_donation() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let generation = tcl_registry::model::context_for_profile(profile);

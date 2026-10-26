@@ -105,7 +105,6 @@ pub(super) fn candidates<'a>(
     ctx: ScriptCtx<'a>,
     command: &SegmentedCommand,
 ) -> Result<ReceiverSourceCandidates<'a>, ReceiverSourceUnavailable> {
-    // naming.core.original-inlay-retained-context
 
     let analysis = ctx
         .analysis

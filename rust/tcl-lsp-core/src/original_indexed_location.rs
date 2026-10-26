@@ -697,7 +697,6 @@ mod tests {
 
     #[test]
     fn original_indexed_variable_locations_require_complete_current_source_and_fact() {
-        // Implementation contract: naming.editor.original-indexed-source-location
 
         let source = r"namespace eval N {set v\uD800 1; set v\uD801 2}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -742,7 +741,6 @@ mod tests {
 
     #[test]
     fn original_indexed_namespace_locations_ignore_reports_and_reject_foreign_facts() {
-        // Implementation contract: naming.editor.original-indexed-source-location
 
         let source = r"namespace eval N\uD800 {}; namespace eval N\uD801 {}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -784,7 +782,6 @@ mod tests {
 
     #[test]
     fn original_indexed_locations_reject_changed_registry_with_identical_source_and_config() {
-        // Implementation contract: naming.editor.original-indexed-source-location
 
         let source = r"namespace eval N\uD800 {}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -837,7 +834,6 @@ mod tests {
 
     #[test]
     fn original_indexed_implicit_parents_require_current_declaring_geometry() {
-        // Implementation contract: naming.editor.original-indexed-source-location
 
         let source = r"namespace eval N\uD800::child {}; namespace exists N\uD800";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

@@ -5284,7 +5284,6 @@ impl WorkspaceIndex {
             tcl_syntax::naming::NamePolicyProtocol,
         ),
     > {
-        // naming.source.original-procedure-publications
 
         self.docs.iter().flat_map(|document| {
             document
@@ -5311,7 +5310,6 @@ impl WorkspaceIndex {
             tcl_syntax::naming::NamePolicyProtocol,
         ),
     > {
-        // naming.source.original-class-publications
 
         self.docs.iter().flat_map(|document| {
             document.original_class_source_candidates().into_iter().map(
@@ -9320,7 +9318,6 @@ p\uD801";
 
     #[test]
     fn original_requirement_graph_keeps_constraints_preference_and_unknowns() {
-        // Implementation contract: naming.workspace.original-package-requirement-transport
 
         use crate::package_resolver::{PackagePrefer, PackageRequirementAdviceKey};
         let source = "package require -exact p\\uD800 1.2\npackage prefer latest\npackage require p\\uD800 1.0 2.0\npackage require $computed\n";
@@ -11392,7 +11389,6 @@ p\uD801";
 
     #[test]
     fn retained_source_routes_share_original_plans_across_graph_consumers() {
-        // naming.navigation.retained-path-source-inventory
 
         let app = analyse(
             "interp alias {} build {} file join /proj; package require Tk; package prefer latest; source [build lib.tcl]",
@@ -15287,7 +15283,6 @@ mod original_settlement_transport_tests {
 
     #[test]
     fn original_source_procedure_candidates_share_slots_and_reindex_currency() {
-        // naming.source.original-procedure-publications
 
         let source = "proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}";
         let mut analysis = original_analysis(source);
@@ -15340,7 +15335,6 @@ mod original_settlement_transport_tests {
 
     #[test]
     fn original_source_class_candidates_share_current_slots_and_canonical_navigation() {
-        // naming.source.original-class-publications
 
         let source = "oo::class create Old {}; oo::class create Removed {}; rename Old New; rename Removed {}";
         let mut analysis = original_analysis(source);
@@ -15404,7 +15398,6 @@ mod original_settlement_transport_tests {
 
     #[test]
     fn original_source_class_dependencies_retain_mutation_premises_and_known_barriers() {
-        // naming.source.original-class-publications
 
         let uri = "file:///source-classes.tcl";
         let source = "oo::class create C {}";
@@ -15439,7 +15432,6 @@ mod original_settlement_transport_tests {
 
     #[test]
     fn original_source_class_candidates_require_the_retained_input_and_availability() {
-        // naming.source.original-class-publications
 
         let source = "oo::class create C {}";
         let uri = "file:///source-classes.tcl";
@@ -15522,7 +15514,6 @@ mod original_settlement_transport_tests {
 
     #[test]
     fn lexical_rename_advice_requires_every_captured_provider_and_refuses_vendor_contexts() {
-        // Implementation contract: naming.workspace.lexical-rename-advice-eligibility
 
         let point =
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
@@ -15701,9 +15692,7 @@ mod original_settlement_transport_tests {
 
     #[test]
     fn workspace_symbols_require_current_source_context_before_report_advice() {
-        // naming.editor.original-indexed-source-location
 
-        // naming.minifier.complete-logical-metadata
 
         let source = "proc visible {} {}";
         let uri = "file:///symbols.tcl";
@@ -15752,7 +15741,6 @@ mod original_settlement_transport_tests {
 
     #[test]
     fn diagnostic_source_context_retains_currency_and_clears_reused_slots() {
-        // Implementation contract: naming.editor.original-diagnostic-invalidation
 
         let uri = "file:///provider.tcl";
         let source = "proc p\\uD800 {} {}";
@@ -15905,7 +15893,6 @@ mod original_namespace_export_index_tests {
 
     #[test]
     fn original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -15972,7 +15959,6 @@ mod original_namespace_export_index_tests {
 
     #[test]
     fn original_import_index_retains_opaque_patterns_without_reporting_rows() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = r"namespace import -force ::n\uD800::p\uD801";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -15991,7 +15977,6 @@ mod original_namespace_export_index_tests {
 
     #[test]
     fn original_export_unknown_operand_blocks_source_absence_and_match_advice() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = "proc p {} {}; namespace export p; namespace export $unavailable";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -16054,7 +16039,6 @@ mod retained_store_consumer_tests {
 
     #[test]
     fn indexed_class_family_retains_its_actual_store_and_unknown_stays_unknown() {
-        // naming.core.original-dispatch-region-context
 
         let source = "source_class C {proc make {} {return OK}}";
         let mut analysis = analyse(source, false, true);
@@ -16080,7 +16064,6 @@ mod retained_store_consumer_tests {
 
     #[test]
     fn actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement() {
-        // naming.core.original-dispatch-region-context
 
         // Readonly authored import metadata; no installed native import is issued.
         let library_source = "namespace eval Mine {proc p {} {}; namespace export p}\n";
@@ -16110,7 +16093,6 @@ mod retained_store_consumer_tests {
 
     #[test]
     fn indexed_registry_borrow_rejects_foreign_input_and_cleared_slot() {
-        // naming.core.original-dispatch-region-context
 
         let source = "proc p {} {}; p";
         let original = analyse(source, false, false);
@@ -16492,7 +16474,6 @@ mod original_source_order_transport_tests {
 
     #[test]
     fn workspace_order_keeps_original_export_evidence_without_conditional_clear_completion() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         // Within one document the source sequence is known, so this
         // same-document unconditional `-clear` follows the pattern and revokes
@@ -16551,7 +16532,6 @@ mod original_source_order_transport_tests {
 
     #[test]
     fn workspace_order_keeps_cross_document_clear_conditional() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         // Which of two documents runs first is not a static fact, so a
         // `-clear` in another document is never ordered after the pattern and

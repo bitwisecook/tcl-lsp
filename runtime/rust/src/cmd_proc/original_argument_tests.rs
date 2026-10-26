@@ -8,7 +8,6 @@ use crate::cmd_namespace::original_argument_tests::{
 
 #[test]
 fn original_procedure_definition_matches_all_c_name_body_and_formal_getter_windows() {
-    // naming.invocation.original-naming-argument-getter-and-effect-order
 
     // Exact C499c original String reachability/public results, independently of
     // body duplication, sharing counts, compiled code or Jim procedure semantics.
@@ -80,7 +79,6 @@ fn original_procedure_definition_matches_all_c_name_body_and_formal_getter_windo
 
 #[test]
 fn original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters() {
-    // naming.invocation.original-naming-argument-getter-and-effect-order
 
     // Jim499d reaches the original formals and name at definition. The body
     // updater is reached by case11's later invocation, not by definition.
@@ -150,7 +148,6 @@ fn original_procedure_definition_matches_jim_formal_name_and_deferred_body_gette
 
 #[test]
 fn original_shared_body_refusal_stops_before_formals_and_procedure_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software refusal/currency control: the genuine shared body String stage
     // is reached after a resident name, before the original formal getter.

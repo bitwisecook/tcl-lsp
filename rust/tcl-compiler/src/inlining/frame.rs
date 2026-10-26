@@ -737,7 +737,6 @@ mod tests {
 
     #[test]
     fn original_frame_context_keeps_selected_aliases_and_shadow_refusal() {
-        // naming.inlining.original-frame-source-context
 
         // Conditional Logical source eligibility; no Native activation is issued.
         for source in [
@@ -785,7 +784,6 @@ mod tests {
 
     #[test]
     fn original_frame_context_declines_missing_foreign_and_stale_carriers() {
-        // naming.inlining.original-frame-source-context
 
         let (context, original) =
             crate::inlining::tests::logical_module_for("proc p {x} {return $x}; p 1");
@@ -824,7 +822,6 @@ mod tests {
 
     #[test]
     fn original_frame_context_declines_modified_procedure_headers_and_bodies() {
-        // naming.inlining.original-frame-source-context
 
         // The retained producer signature is shared with source completion;
         // it provides no native frame or source-edit permission.
@@ -967,7 +964,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_module_purpose_cannot_open_a_logical_inline_frame() {
-        // naming.optimisation.original-source-purpose
 
         let source = "proc p {x} {return $x}; p VALUE";
         // Actual software Vm entry; no external Jim/provider execution.

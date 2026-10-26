@@ -267,7 +267,6 @@ fn range_formatting_impl(
     // The normalised text is only an internal formatter input; raw spans and
     // client coordinates still use the LSP line index below.
     let normalised = normalise_document_line_endings(source);
-    // Implementation contract: naming.editor.original-source-formatting-budget
 
     // Budget withdrawal preserves the caller's complete original document and
     // never constructs an unavailable layout that could borrow nominal roles.
@@ -422,7 +421,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_keeps_current_source_and_typed_unavailability() {
-        // naming.editor.original-source-formatting
 
         use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
         let source = "if 1 {\nset value 1\n}\n";
@@ -475,7 +473,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency() {
-        // naming.editor.original-source-formatting
 
         use tcl_compiler::analyser::Analyser;
         for ending in ["\n", "\r\n", "\r"] {
@@ -492,7 +489,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode() {
-        // naming.editor.original-source-formatting
 
         // Source layout/edit coordinates only; captured prefixes gain no written word.
         use tcl_compiler::analyser::Analyser;
@@ -537,7 +533,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate() {
-        // naming.editor.original-source-formatting
 
         // The coverage field neither closes unknown dispatch nor cancels authentic syntax advice.
         use tcl_compiler::analyser::Analyser;
@@ -566,7 +561,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_retains_selected_definition_parent_body_geometry() {
-        // naming.editor.original-source-formatting
 
         // Member script applicability comes from the genuine retained parent vocabulary.
         use tcl_compiler::analyser::Analyser;
@@ -587,7 +581,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias() {
-        // naming.editor.original-source-formatting
 
         // Genuine parent syntax; a global alias grants no member role or trait.
         use tcl_compiler::analyser::Analyser;
@@ -624,7 +617,6 @@ mod tests {
 
     #[test]
     fn range_formatting_withdraws_before_analysis_above_lexical_budget() {
-        // Implementation contract: naming.editor.original-source-formatting-budget
 
         let source = format!(
             "set value {{{}}}\r\n",
@@ -690,7 +682,6 @@ mod tests {
 
     #[test]
     fn range_depth_uses_selected_bodies_and_ignores_quoted_braces() {
-        // naming.editor.original-source-whitespace-geometry
 
         let source = "set literal \"{\n}\"\nproc p {} {\nif {1} {\nset x 1\n}\n}\n";
         let edits = range_fmt(
@@ -708,7 +699,6 @@ mod tests {
 
     #[test]
     fn partial_data_word_ranges_preserve_exact_crlf_and_opaque_spelling() {
-        // naming.editor.original-source-whitespace-geometry
 
         for source in [
             "set x \"literal   \r\n{ \\uD800   \r\n}\"\r\n",

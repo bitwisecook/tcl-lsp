@@ -88,7 +88,6 @@ fn instance() -> (Vm, OoId, OoId) {
 }
 #[test]
 fn original_property_report_sort_uses_canonical_string_and_actual_member_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual owning metadata and formatter stages are software fixtures, not Native SortPropList callbacks.
     for fail in [false, true] {
@@ -196,7 +195,6 @@ impl NativeCommand for ChangeReport {
 }
 #[test]
 fn original_property_derivation_cannot_adopt_a_changed_roster_or_class_facet() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real callback and fresh Class birth fixtures give no public Native demotion/lifetime claim.
     for facet in [false, true] {
@@ -229,7 +227,6 @@ fn original_property_derivation_cannot_adopt_a_changed_roster_or_class_facet() {
 }
 #[test]
 fn materialized_property_reports_preserve_native_snapshot_and_table_index_roles() {
-    // naming.property.original-configure-retained-table-and-read-snapshot
 
     // Literal Native335 scripts and observed output tuples; C91 physical roles remain distinct from C90 results.
     let cases = [
@@ -283,7 +280,6 @@ impl NativeCommand for LaterGetter {
 }
 #[test]
 fn property_output_key_refusal_stops_before_the_next_original_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A real first getter withdraws only its original key's String cache; this does not simulate Native hooks.
     let mut vm = interpreter();
@@ -374,7 +370,6 @@ impl NativeCommand for ReplacePrivateRoster {
 }
 #[test]
 fn private_property_inventory_replacement_is_independent_of_method_epochs() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual entered method and declaration publisher; no Native callback or method-epoch permission.
     let mut vm = interpreter();
@@ -423,7 +418,6 @@ fn private_property_inventory_replacement_is_independent_of_method_epochs() {
 
 #[test]
 fn original_property_temporary_table_does_not_reread_its_frozen_member_strings() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Explicit software String withdrawal checks frozen table use, not Native char-pointer mutation.
     let (mut vm, _, target) = instance();
@@ -470,7 +464,6 @@ fn original_property_temporary_table_does_not_reread_its_frozen_member_strings()
 
 #[test]
 fn original_dictionary_constructor_retains_first_key_refusal_before_input_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Same constructor kernel and real formatter/input roles; no Native Dictionary callback chronology.
     let (mut vm, _, target) = instance();
@@ -536,7 +529,6 @@ fn original_dictionary_constructor_retains_first_key_refusal_before_input_cleanu
 
 #[test]
 fn original_cached_accessor_reaches_success_without_a_property_string_getter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual successful getter and cached accessor, with an explicit software String-withdrawal input.
     let (mut vm, class, target) = instance();

@@ -308,7 +308,6 @@ mod tests {
 
     #[test]
     fn original_event_compatibility_constructor_uses_current_source_cards() {
-        // naming.core.original-snippet-source-context
 
         let profile = tcl_registry::model::ingress::resolve_environment(D).analyser_profile();
         let source = "when HTTP_REQUEST {pool selected}";

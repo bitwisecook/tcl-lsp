@@ -649,7 +649,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.formal.original-topology-and-storage
 
     fn original_formal_topology_keeps_counted_storage_and_native_list_extent() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -667,7 +666,6 @@ mod tests {
         }
     }
 
-    // Implementation contract: naming.formal.original-topology-and-storage
 
     #[test]
     fn original_formals_bind_duplicate_default_rest_and_jim_setter_roles() {
@@ -701,7 +699,6 @@ mod tests {
         assert!(fixture("tcl8.6", b"{*}{a}").is_none());
     }
 
-    // Implementation contract: naming.formal.original-topology-and-storage
 
     #[test]
     fn decoded_formal_installation_uses_storage_keys_and_fresh_frame_only() {

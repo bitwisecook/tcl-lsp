@@ -479,7 +479,6 @@ mod export_order_tests {
     use super::*;
     #[test]
     fn selected_export_operand_order_does_not_grant_uninspected_releases() {
-        // naming.tcloo.original-definition-getter-and-effect-owner
 
         for version in TclVersion::ALL {
             let selected = NativeTclooMethodDefinitionProtocol::select(
@@ -506,7 +505,6 @@ mod tests {
 
     #[test]
     fn original_method_rename_verdict_keeps_entry_identity_and_diagnostic_extent_separate() {
-        // naming.tcloo.original-method-rename-operands-and-records
 
         // Pure verdict over supplied actual entry facts; no table or invocation admission.
         use NativeTclooMethodRenameFailure as Failure;
@@ -604,7 +602,6 @@ mod classvariable_tests {
 
     #[test]
     fn selected_classvariable_schedule_keeps_availability_and_cstring_shapes_distinct() {
-        // naming.tcloo.original-classvariable-preflight-and-link-owner
 
         for version in TclVersion::ALL {
             let selected =
@@ -654,7 +651,6 @@ mod call_report_tests {
     use super::{NativeTclooCallReportKind as Kind, NativeTclooMethodPayloadType as Type};
     #[test]
     fn original_call_report_flags_and_payload_types_do_not_classify_selector_spellings() {
-        // naming.tcloo.original-entered-call-chain-report-record-and-flags
 
         assert_eq!(Kind::from_flags(true, true, true), Kind::Filter);
         assert_eq!(Kind::from_flags(false, true, true), Kind::Unknown);

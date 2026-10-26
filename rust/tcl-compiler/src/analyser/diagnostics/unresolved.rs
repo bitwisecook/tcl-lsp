@@ -449,7 +449,6 @@ impl Analyser {
     fn original_package_advice_invocations(
         &self,
     ) -> Vec<super::super::diagnostic_registry::OriginalDiagnosticInvocation> {
-        // naming.diagnostic.original-package-source-advice
 
         use crate::signature_scan::types::SignatureCommandLookup;
         let context = self.analysis_context();
@@ -697,7 +696,6 @@ fn original_command_suggestion_fix(
     candidate: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<super::types::CodeFix> {
-    // naming.diagnostic.original-command-suggestion-source
 
     let super::super::DiagnosticSubject::UnresolvedCommand(subject) = subject else {
         return None;
@@ -869,7 +867,6 @@ mod require_ordering_tests {
         use crate::signature_scan::types::SignatureCommandLookup;
         let source = "if {$unknown} {rename info original; proc info args {return ordinary}}; info body missing";
         let result = Analyser::new().analyse(source, "tcl8.6");
-        // naming.source.native-baseline-conditional-source-roles
 
         assert_eq!(slot_count(source, "W123"), 0);
         let reference = result
@@ -955,7 +952,6 @@ mod require_ordering_tests {
     }
     #[test]
     fn original_package_advice_distinguishes_queries_and_genuine_source_provisions() {
-        // naming.diagnostic.original-package-source-advice
 
         assert_eq!(count("package provide csv\ncsv::join {a b}", "W120"), 1);
         assert_eq!(count("package provide csv 1\ncsv::join {a b}", "W120"), 0);
@@ -988,7 +984,6 @@ mod require_ordering_tests {
 
     #[test]
     fn package_source_advice_does_not_reparse_mutated_reporting_invocations_or_packages() {
-        // naming.diagnostic.original-package-source-advice
 
         for source in ["csv::join {a b}", "csv::join {a b}\npackage require csv"] {
             let mut analyser = Analyser::new();
@@ -1028,7 +1023,6 @@ mod require_ordering_tests {
 
     #[test]
     fn reviewed_command_suggestions_keep_original_word_extent_and_full_context() {
-        // naming.diagnostic.original-command-suggestion-source
 
         let source = "{puta} hi";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -1080,7 +1074,6 @@ mod original_parent_subject_tests {
 
     #[test]
     fn original_unresolved_subjects_keep_default_and_supplied_file_configuration() {
-        // naming.diagnostic.original-math-function-subject
 
         // Original diagnostic operands; no runtime absence/dispatch authority.
         let mut prepared = Analyser::new();

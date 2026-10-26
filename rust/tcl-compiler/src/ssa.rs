@@ -5906,7 +5906,6 @@ fn set_value_reads(
     selection: SsaInvocationContext<'_>,
 ) -> BTreeSet<String> {
     let registry = selection.registry;
-    // naming.variable.selected-setter-expression-reads
 
     // Queried commands already use original entered/conditional child owners
     // in scan_nested_substitution_words. A written head cannot add another
@@ -7527,7 +7526,6 @@ fn invocation_read_bindings(
     context: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<VariableCellKey> {
-    // Implementation contract: naming.variable.invocation-caller-ssa-frame
 
     points
         .source_tokens_at(block, index)
@@ -7552,7 +7550,6 @@ fn invocation_read_key_in_context(
     key: VariableCellKey,
     context: &ResolveContext,
 ) -> Option<VariableCellKey> {
-    // Implementation contract: naming.variable.invocation-caller-ssa-frame
 
     key.activation_identity()
         .is_none_or(|activation| context.activation.as_deref() == Some(activation))
@@ -9737,7 +9734,6 @@ mod tests {
 
     #[test]
     fn supplied_ssa_availability_without_source_cannot_reopen_standalone_ownership() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Lexical software advice only, independent of Native frames or stores.
         let context =
@@ -9772,7 +9768,6 @@ mod tests {
 
     #[test]
     fn original_ssa_body_ownership_exclusion_keeps_literal_roots_and_opaque_residuals() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The bridge consumes conditional body names, never actual read exclusion.
         use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
@@ -9842,7 +9837,6 @@ mod tests {
 
     #[test]
     fn supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Selected source roles are independent of Native NamePolicy and actual execution.
         use crate::registry_invocation::InvocationMetadataContext;
@@ -9923,7 +9917,6 @@ mod tests {
 
     #[test]
     fn supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (context, unit) = logical_role_metadata_fixture();
         let registry = context.commands();
@@ -10037,9 +10030,7 @@ mod tests {
 
     #[test]
     fn original_definition_subjects_keep_supplied_availability_and_missing_input_separate() {
-        // naming.variable.original-ssa-definition-operand
 
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::registry_invocation::InvocationMetadataContext;
         use std::sync::Arc;
@@ -10115,7 +10106,6 @@ mod tests {
 
     #[test]
     fn original_operand_symbols_keep_actual_availability_and_source_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::registry_invocation::InvocationMetadataContext;
         use std::sync::Arc;
@@ -12373,7 +12363,6 @@ mod tests {
 
     #[test]
     fn source_ownership_classification_uses_the_retained_lexical_config() {
-        // naming.variable.ssa-retained-lexical-config
 
         let registry = default_registry();
         let tcl = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
@@ -12415,7 +12404,6 @@ mod tests {
 
     #[test]
     fn nested_source_expression_roles_use_the_retained_lexical_config() {
-        // naming.variable.ssa-retained-lexical-config
 
         let registry = default_registry();
         let statement = call_with_words("puts", &["[expr\u{000b} {$nested}]"]);
@@ -13414,7 +13402,6 @@ mod tests {
 
     #[test]
     fn setter_source_reads_use_selected_child_expression_owners() {
-        // naming.variable.selected-setter-expression-reads
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
@@ -14402,7 +14389,6 @@ mod cell_resolution_tests {
 
     #[test]
     fn caller_ssa_read_key_uses_typed_activation_identity() {
-        // Implementation contract: naming.variable.invocation-caller-ssa-frame
 
         let context = ResolveContext::default().in_frame(
             &crate::var_resolve::VariableExecutionFrame::Procedure {
@@ -14450,7 +14436,6 @@ mod cell_resolution_tests {
 
     #[test]
     fn invocation_read_projection_keeps_physical_inventory_and_root_alias_reads() {
-        // Implementation contract: naming.variable.invocation-caller-ssa-frame
 
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for (source, foreign) in [
@@ -15816,7 +15801,6 @@ mod original_definition_name_tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.variable.original-ssa-definition-operand
 
     fn original_ssa_definition_names_preserve_exact_operands_and_distinct_cells() {
         let source = r"set v\uD800 42; set v\uD801 TEXT; set a(k) 7";

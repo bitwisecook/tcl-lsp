@@ -1069,7 +1069,6 @@ mod original_hierarchy_tests {
 
     #[test]
     fn original_hierarchy_preserves_document_owners_and_refuses_duplicate_providers() {
-        // Implementation contract: naming.consumer.original-type-hierarchy
 
         let base_source = "oo::class create Base {}\n";
         let child_source = "oo::class create Child {superclass Base}\n";
@@ -1123,7 +1122,6 @@ mod original_hierarchy_tests {
 
     #[test]
     fn original_hierarchy_earlier_nonclass_headers_block_later_class_candidates() {
-        // Implementation contract: naming.consumer.original-type-hierarchy
 
         let source = "oo::class create Base {}\nnamespace eval N {proc Base {} {}; oo::class create Child {superclass Base}}\n";
         let analysis = cleared(source);

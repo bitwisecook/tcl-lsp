@@ -6,7 +6,6 @@ use tcl_syntax::value::ValueOps;
 
 #[test]
 fn variable_info_validates_original_options_before_target_lookup() {
-    // Source proof: naming.tcloo.variable-info-option-order
 
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();

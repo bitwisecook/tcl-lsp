@@ -601,7 +601,6 @@ mod tests {
 
     #[test]
     fn original_body_word_extent_keeps_inner_and_whole_geometry_separate() {
-        // naming.source.original-point-operand-projection
 
         // Lexical projection alone: the full native extent and the compiler's
         // original inner-end span describe the same written word, without any
@@ -671,7 +670,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Namespace syntax is independent of a reached body, compiler child,
         // successful condition, variable frame or executable IR admission.
@@ -747,7 +745,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_refuses_changed_and_missing_original_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let fixture = original_fixture("if {$condition} {set result A}", "tcl8.6");
         let parent = &fixture.tokens[0];
@@ -825,7 +822,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_refuses_noncurrent_and_structural_descriptors() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Genuine selected body metadata cannot be inferred from a body-like
         // string or from a command's printed namespace.
@@ -859,7 +855,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_keeps_logical_source_and_native_entry_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         let source = "if {$condition} {set result VALUE}";
         let context =
@@ -919,7 +914,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_keeps_the_retained_nonroot_incarnation() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The original namespace row supplies identity; its presentation is
         // used only to author the software fixture's namespace-eval operand.
@@ -974,7 +968,6 @@ mod tests {
     }
     #[test]
     fn original_conditional_entry_retains_selected_native_source_without_entered_frames() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual captured software entry/input; source selection is independent
         // of an entered handler frame or a physical Native callback measurement.
@@ -1046,7 +1039,6 @@ mod tests {
 
     #[test]
     fn original_conditional_calls_lambda_and_materialized_sources_preserve_the_entry_purpose() {
-        // naming.compiler.original-analysis-metadata-context
 
         // These are retained source continuations under an actual selected C
         // software entry. The control observes no external Native execution.
@@ -1119,7 +1111,6 @@ mod tests {
 
     #[test]
     fn original_known_compiler_branch_and_finally_keep_the_selected_frame() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The genuine held compiler entry selects BytecodeObject independently
         // of namespace syntax. No Direct handler or absent Jim compiler is inferred.

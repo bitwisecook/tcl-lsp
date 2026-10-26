@@ -145,7 +145,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.fresh-scalar-proposal
 
     fn original_fresh_scalar_proposal_requires_unoccupied_actual_frame_and_quiet_observers() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {

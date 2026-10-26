@@ -48,7 +48,6 @@ fn original(integer: i64) -> Value {
 
 #[test]
 fn original_jim_cached_boolean_uses_independent_target_without_string_access() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     // Software transport of the bounded public primitive; no ExprBool or
     // runtime admission is inferred from this supplied descriptive target.
@@ -81,7 +80,6 @@ fn original_jim_cached_boolean_uses_independent_target_without_string_access() {
 
 #[test]
 fn original_cached_getter_refuses_missing_or_unsupported_target_before_mutation() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     for environment in [
         TargetOnly(None),
@@ -113,7 +111,6 @@ fn original_cached_getter_refuses_missing_or_unsupported_target_before_mutation(
 
 #[test]
 fn descriptive_target_does_not_admit_retired_or_foreign_original_cache() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     let environment = TargetOnly(Some(NativeCIntegerAbi {
         char_bits: 8,
@@ -152,7 +149,6 @@ fn descriptive_target_does_not_admit_retired_or_foreign_original_cache() {
 #[cfg(all(target_os = "linux", target_env = "gnu", target_pointer_width = "64"))]
 #[test]
 fn retained_jim_context_queries_its_actual_host_target_without_default_width() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     // Actual software context supplies the independent host; descriptive layout
     // does not supply handler admission or a foreign original object.
@@ -178,7 +174,6 @@ fn retained_jim_context_queries_its_actual_host_target_without_default_width() {
 
 #[test]
 fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fields() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     // C85+ original case24/getter4 live fields. This primitive receipt does not
     // select a NOT/conditional/ExprBool result or interpreter result header.
@@ -256,7 +251,6 @@ fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fiel
 
 #[test]
 fn operand_dependent_scalar_failure_uses_original_getter_after_a_single_neutral_probe() {
-    // naming.numeric.original-capi-scalar-publication-width
 
     // Contrasting software transport of C86 Long's original cached Double
     // failure: null probe leavesString0, live rendering reaches its operand.

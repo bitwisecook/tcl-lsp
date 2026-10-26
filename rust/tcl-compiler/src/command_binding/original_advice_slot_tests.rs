@@ -57,7 +57,6 @@ fn input(
 
 #[test]
 fn advice_slot_index_preserves_original_collisions_and_map_birth() {
-    // naming.command.original-world-readonly-query
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
@@ -110,7 +109,6 @@ fn advice_slot_index_preserves_original_collisions_and_map_birth() {
 
 #[test]
 fn warmed_advice_index_keeps_current_tombstones_and_document_override() {
-    // naming.command.original-world-readonly-query
 
     for version in tcl_dialect::TclVersion::ALL {
         let (original, config, policy) = state(version);
@@ -178,7 +176,6 @@ fn warmed_advice_index_keeps_current_tombstones_and_document_override() {
 
 #[test]
 fn warmed_advice_index_preserves_original_namespace_path_barriers() {
-    // naming.command.original-world-readonly-query
 
     for version in [
         tcl_dialect::TclVersion::V8_6,
@@ -245,7 +242,6 @@ fn warmed_advice_index_preserves_original_namespace_path_barriers() {
 
 #[test]
 fn conditional_catalogue_index_preserves_actual_live_binding_obligations() {
-    // naming.compiler.conditional-registry-source-metadata
 
     use super::super::OriginalCatalogueSourceObligation as Obligation;
     for version in tcl_dialect::TclVersion::ALL {
@@ -344,7 +340,6 @@ fn conditional_catalogue_imports_follow_retained_original_implementations() {
 
 #[test]
 fn advice_index_warmth_preserves_full_baseline_equality_and_bounded_fallback() {
-    // naming.command.original-world-readonly-query
 
     use std::hash::{Hash, Hasher};
     let (original, config, policy) = state(tcl_dialect::TclVersion::V9_1);

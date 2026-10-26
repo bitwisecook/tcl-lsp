@@ -796,7 +796,6 @@ mod tests {
     }
     #[test]
     fn original_cst_lexer_tokens_keep_actual_trivia_and_empty_terminators() {
-        // naming.source.original-point-operand-projection
 
         // Source/API roundtrip only: actual configured lexer records are the
         // independent input to the CST projection; no Native execution claim.

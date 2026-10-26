@@ -6,7 +6,6 @@ use crate::obj;
 use std::cell::Cell;
 #[test]
 fn original_array_for_length_retirement_refuses_before_array_and_script_getters() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The original first converter is Length, not the later ListCopy worker.
     for mode in [1, 2] {

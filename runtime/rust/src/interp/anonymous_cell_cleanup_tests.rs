@@ -104,7 +104,6 @@ static OLD: obj::TclObjType = obj::TclObjType {
 };
 #[test]
 fn original_anonymous_unset_retires_outside_borrows_before_original_context_and_frame_checks() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for mode in [0, 1, 2, 3] {
@@ -160,7 +159,6 @@ fn original_anonymous_unset_retires_outside_borrows_before_original_context_and_
 }
 #[test]
 fn original_anonymous_unset_allows_same_cell_reentry_and_empty_cleanup_without_fresh_receipt() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
@@ -193,7 +191,6 @@ fn original_anonymous_unset_allows_same_cell_reentry_and_empty_cleanup_without_f
 }
 #[test]
 fn original_pending_anonymous_unset_keeps_original_cell_owner_unreached() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);

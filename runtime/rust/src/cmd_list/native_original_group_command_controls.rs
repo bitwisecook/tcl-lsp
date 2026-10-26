@@ -67,7 +67,6 @@ fn callback(interp: &mut Interp, arguments: &[*mut obj::TclObj]) -> Code {
 }
 #[test]
 fn grouped_sort_and_original_comparator_result_public_predicates_match_native651() {
-    // naming.list.original-grouped-stride-and-command-result-getters
 
     // Actual containing List-only key holds and ONE deliberate returned-object
     // observer are retained. Compare only Guest/bytes and public primary
@@ -179,7 +178,6 @@ fn unreached_group_callback(_: &mut Interp, _: &[*mut obj::TclObj]) -> Code {
 }
 #[test]
 fn original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_and_source() {
-    // naming.list.original-grouped-stride-and-command-result-getters
 
     // Size count3/index0 matches observed651 case7 C86/9 exact code/message.
     // Leading index2 and simultaneous size/index errors are pinned-source
@@ -282,7 +280,6 @@ fn original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_an
 include!("../../tests/data/native_original_list_group_cli656/software_controls.rs");
 #[test]
 fn original_cli_group_fields_match_native656_source_capture() {
-    // naming.list.original-cli-group-boundary-results
 
     // Same fixed Tcl capture prefix with separately initialised argv; compare
     // exact script/code/result/errorCode/errorInfo/presence and callback count.
@@ -316,7 +313,6 @@ fn original_cli_group_fields_match_native656_source_capture() {
 
 #[test]
 fn original_guest_compare_failure_preserves_result_and_native651_context() {
-    // naming.list.original-grouped-stride-and-command-result-getters
 
     // Native651 case27 records the same returned original, NONE and the exact
     // compare suffix. This direct adapter boundary excludes Eval's outer frame.

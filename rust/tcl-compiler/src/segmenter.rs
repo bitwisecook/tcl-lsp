@@ -475,7 +475,6 @@ pub fn segment_script_image_with_offset_and_config(
     base_offset: u32,
     config: LexerConfig,
 ) -> Result<SegmentedScript, tcl_lexer::ParseCutUnavailable> {
-    // naming.source.original-configured-script-completeness
 
     let unavailable = || {
         tcl_lexer::ParseCutUnavailable::SourceGeometry(
@@ -1399,7 +1398,6 @@ mod tests {
 
     #[test]
     fn original_incremental_suffix_keeps_whole_file_and_midfile_bom_purposes() {
-        // naming.source.original-configured-script-completeness
 
         // Original Document command geometry only; no entered/native source grant.
         let mut analyser = crate::analyser::Analyser::new();
@@ -2172,7 +2170,6 @@ mod original_clause_element_purpose_tests {
 
     #[test]
     fn original_clause_elements_keep_parent_geometry_and_nested_bom_content() {
-        // naming.source.original-configured-script-completeness
 
         // Original Document/list geometry only; the public String completeness
         // observations supply no list value, header or handler receipt.
@@ -2235,7 +2232,6 @@ mod checked_script_tests {
 
     #[test]
     fn selected_braced_variable_cut_preserves_complete_prefix_and_editor_tail() {
-        // naming.source.original-configured-script-completeness
 
         let source = SourceImage::document("set before 1; puts ${a{b}; set after 2");
         let first_close = LexerConfig::for_dialect("tcl8.4");
@@ -2259,7 +2255,6 @@ mod checked_script_tests {
 
     #[test]
     fn terminal_word_error_keeps_prefix_without_inventing_an_incomplete_command() {
-        // naming.source.original-configured-script-completeness
 
         let image = SourceImage::document("set before 1; set invalid {a}b; set after 2");
         let config = LexerConfig::for_dialect("tcl9.1");
@@ -2281,7 +2276,6 @@ mod checked_script_tests {
 
     #[test]
     fn checked_f5_cut_ordinal_joins_before_if_else_lookahead() {
-        // naming.source.original-configured-script-completeness
 
         let image = SourceImage::document("if 1 {set a 1}\nelse {set b 2}\nputs ${abc");
         let config = LexerConfig::for_dialect("f5-irules");
@@ -2296,7 +2290,6 @@ mod checked_script_tests {
 
     #[test]
     fn checked_script_refuses_opaque_structural_views_and_offset_overflow() {
-        // naming.source.original-configured-script-completeness
 
         let config = LexerConfig::for_dialect("tcl9.1");
         for (image, base) in [

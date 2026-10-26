@@ -582,7 +582,6 @@ fn operator(text: &str, prefix: bool) -> Option<Operator> {
 mod tests {
     #[test]
     fn jim_reference_tree_shares_selected_utf8_and_opaque_roots() {
-        // Implementation contract: naming.expression.selected-reference-root
 
         for (source, expected) in [
             (b"${scalar(open}".as_slice(), b"scalar(open".as_slice()),

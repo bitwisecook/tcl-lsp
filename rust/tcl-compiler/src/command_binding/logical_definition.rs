@@ -29,7 +29,6 @@ pub(super) fn transfer(
     state: &mut ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<SourceOutcomes> {
-    // naming.source.logical-procedure-definition-model
 
     if let Some(definition) =
         LogicalProcedureDefinition::capture(words, target, offset, state, context)
@@ -47,7 +46,6 @@ pub(super) fn transfer_selected(
     state: &mut ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<SourceOutcomes> {
-    // naming.source.logical-procedure-definition-model
 
     let original = original_invocation_words(words, offset, state, context)?;
     let head = static_value(original.first()?)?;
@@ -69,7 +67,6 @@ impl LogicalProcedureDefinition {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<Self> {
-        // naming.source.logical-procedure-definition-model
 
         let input = logical_entry(state, context)?;
         let origin = Arc::clone(state.current_source_origin.as_ref()?);
@@ -150,7 +147,6 @@ impl LogicalProcedureDefinition {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
-        // naming.source.logical-procedure-definition-model
 
         if logical_entry(state, context) != Some(&self.input)
             || state.current_source_origin.as_ref() != Some(&self.site.source)
@@ -590,7 +586,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_publishes_general_static_procedures_in_the_authored_model() {
-        // naming.source.logical-procedure-definition-model
 
         let input = input();
         for source in [
@@ -626,7 +621,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_keeps_unicode_moves_and_captured_factory_operands() {
-        // naming.source.logical-procedure-definition-model
 
         // Original source values remain conditional authored data, without
         // Native publication, handler entry or successful allocation.
@@ -649,7 +643,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_static_values_keep_checked_source_and_native_channel_boundaries() {
-        // naming.source.logical-procedure-definition-model
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
@@ -685,7 +678,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_keeps_unrepresentable_names_distinct_from_literal_replacement() {
-        // naming.source.logical-procedure-definition-model
 
         // Authored source lookup remains separate from Native string/name units.
         let input = input();
@@ -715,7 +707,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_captured_values_keep_exact_unicode_bytes_and_refuse_unknown_units() {
-        // naming.source.logical-procedure-definition-model
 
         use crate::registry_invocation::EffectiveInvocationWord;
         let bytes = EffectiveInvocationWord::ByteLiteral(Arc::from("café $literal".as_bytes()));
@@ -759,7 +750,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs() {
-        // naming.source.logical-procedure-definition-model
 
         let input = input();
         for source in [
@@ -783,7 +773,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_model_roster_requires_the_complete_current_input_and_source_mode() {
-        // naming.source.logical-procedure-definition-model
 
         let input = input();
         let context = input.context_registry();
@@ -854,7 +843,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_receipt_rechecks_source_configuration_and_entry_without_native_normal() {
-        // naming.source.logical-procedure-definition-model
 
         let input = input();
         let context_registry = input.context_registry();

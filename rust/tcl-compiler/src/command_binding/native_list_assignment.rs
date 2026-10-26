@@ -636,7 +636,6 @@ mod tests {
 
     #[test]
     fn original_argument_context_borrows_its_evaluator_owned_compilation() {
-        // naming.source.recursive-driver-state-transport
 
         let source = "lassign {one two} first second";
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -775,7 +774,6 @@ mod tests {
 
     #[test]
     fn original_native_assignment_projects_each_store_before_the_next_target() {
-        // Implementation contract: naming.variable.original-set-read-completion
 
         for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();

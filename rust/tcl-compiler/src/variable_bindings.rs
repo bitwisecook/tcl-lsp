@@ -4240,7 +4240,6 @@ fn transfer_source_state_transitions(
                         .cloned()
                 })
             {
-                // naming.namespace.original-counted-namespace-allocation
 
                 state.namespace_identities.insert(namespace.clone());
                 state.namespace_addressable_identities.insert(namespace);
@@ -4413,7 +4412,6 @@ mod tests {
 
     #[test]
     fn original_logical_store_point_refuses_changed_words_context_and_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::analyser::ResolvedAnalysisInput;
         use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
@@ -4917,7 +4915,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.byte-cell-correspondence
 
     fn original_alias_operands_ignore_display_and_preserve_runtime_units() {
         use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};

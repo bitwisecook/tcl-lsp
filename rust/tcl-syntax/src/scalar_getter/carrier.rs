@@ -374,7 +374,6 @@ mod tests {
     // claim that a native interpreter independently produced these caches.
     #[test]
     fn scalar_carriers_preserve_full_payload_and_independent_origins() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut cases = vec![
             Carrier::Tcl84Long(i64::MIN),
@@ -428,7 +427,6 @@ mod tests {
 
     #[test]
     fn missing_boolean_origin_refuses_and_storage_is_never_inferred() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         assert_eq!(
             export_scalar(NativeScalarCache::WordBoolean(true), None),
@@ -510,7 +508,6 @@ mod wide84_transport_tests {
     use super::*;
     #[test]
     fn explicit_c84_wide_wire_keeps_descriptor_data_distinct_from_integer_and_long() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for value in [17, 4_294_967_296, i64::MIN, i64::MAX] {
             let wide = Carrier::Tcl84Wide(value);

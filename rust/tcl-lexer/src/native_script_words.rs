@@ -127,7 +127,6 @@ pub fn source_region_tokens_in(
     region: Span,
     config: LexerConfig,
 ) -> Result<Vec<Token>, NativeScriptWordsUnavailable> {
-    // naming.cli.original-source-highlight-geometry
 
     let (_, _, mut tokens) =
         local_region_tokens(image, region, config, SourceSegmentationPurpose::WholeInput)?;
@@ -406,7 +405,6 @@ mod tests {
 
     #[test]
     fn original_region_tokens_keep_global_offsets_and_opaque_source_bytes() {
-        // naming.cli.original-source-highlight-geometry
 
         let image =
             SourceImage::native(b"prefix[puts \xff\0; # comment\nset x $value]suffix".as_slice());
@@ -474,7 +472,6 @@ mod tests {
 
     #[test]
     fn original_command_extent_rebases_inside_its_genuine_region() {
-        // naming.runtime.original-command-source-extent
 
         let image =
             SourceImage::native(b"outer [  error {marker}   ; list \"done\" \t] tail".as_slice());
@@ -557,7 +554,6 @@ mod original_script_purpose_tests {
 
     #[test]
     fn original_script_purpose_keeps_parent_words_at_zero_and_body_offsets() {
-        // naming.source.original-configured-script-completeness
 
         // Source geometry and parent configuration only; no Native entry grant.
         let config = LexerConfig {

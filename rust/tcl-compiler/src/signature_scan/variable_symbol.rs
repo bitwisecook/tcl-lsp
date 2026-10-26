@@ -1520,7 +1520,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.trace-source-receiver-purpose
 
     fn original_trace_source_geometry_and_rename_preserve_ignored_original_suffix() {
         use tcl_registry::resolved_invocation::VariableReceiverOperandForm::TraceSubject;

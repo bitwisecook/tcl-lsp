@@ -850,7 +850,6 @@ mod tests {
 
     #[test]
     fn chain_uses_authentic_alias_captures_and_moved_append() {
-        // naming.optimiser.original-chain-write-metadata
 
         for (source, code, expected) in [
             (
@@ -893,7 +892,6 @@ mod tests {
 
     #[test]
     fn chain_preserves_literal_scalar_names_and_closed_array_refusal() {
-        // naming.optimiser.original-chain-write-metadata
 
         for (name, expected) in [
             ("$scalar(open", "{$scalar(open}"),
@@ -928,7 +926,6 @@ mod tests {
 
     #[test]
     fn chain_requires_supplied_function_and_module_metadata() {
-        // naming.optimiser.original-chain-write-metadata
 
         let registry = registry();
         let source = "set s {}; append s A; append s B";
@@ -986,7 +983,6 @@ mod tests {
 
     #[test]
     fn chain_requires_original_statement_tape_after_structured_lowering() {
-        // naming.optimiser.original-chain-write-metadata
 
         // The source sidecar survives typed lowering without becoming a Native receipt.
         let registry = registry();
@@ -1012,7 +1008,6 @@ mod tests {
 
     #[test]
     fn chain_uses_retained_availability_over_catalogue_generation() {
-        // naming.optimiser.original-chain-write-metadata
 
         let mut registry = registry();
         let append = registry.get("append").unwrap().clone();
@@ -1033,7 +1028,6 @@ mod tests {
 
     #[test]
     fn native_chain_layout_never_grants_erasure() {
-        // naming.optimiser.original-chain-write-metadata
 
         // Original API receipts only; this is not a native execution comparison.
         let source = "set s {}; append s A; append s B";
@@ -1114,7 +1108,6 @@ mod tests {
 
     #[test]
     fn traced_interleaved_write_ends_chain() {
-        // naming.optimiser.original-chain-write-metadata
 
         let source = "proc observe args {puts $::s}; trace add variable ::t write observe; set s {}; set t A; append s B";
         assert!(
@@ -1379,7 +1372,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_chain_advice_cannot_become_a_logical_rewrite() {
-        // naming.optimisation.original-source-purpose
 
         let source = "set s {}; append s FIRST; append s SECOND";
         // Actual software Vm entry; no external Jim/provider execution.
@@ -1449,7 +1441,6 @@ mod tests {
     }
     #[test]
     fn retained_authored_simulation_chain_layout_stays_hint_only() {
-        // naming.optimisation.original-source-purpose
 
         // Actual authored source entry/policy; no supplied Native interpreter.
         let context =

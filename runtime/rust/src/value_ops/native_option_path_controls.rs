@@ -61,9 +61,7 @@ static LAST: TclObjType = TclObjType {
 };
 #[test]
 fn original_option_backing_withdrawal_stops_later_coordinate_without_protective_native_hold() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
-    // naming.list.original-option-index-path-preparation-and-results
 
     // Real local extension updater withdraws the original path while both old
     // children retain independent observer refs. The native636 processes did

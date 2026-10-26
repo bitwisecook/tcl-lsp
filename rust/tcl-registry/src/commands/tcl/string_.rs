@@ -27,7 +27,6 @@ fn match_arg_roles(
     args: crate::InvocationArguments<'_>,
     options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
-    // naming.core.original-pattern-retained-context
 
     let count = args.exact_argv_len()?;
     let index = options.leading_word_count(args)?;
@@ -2902,7 +2901,6 @@ mod tests {
 
     #[test]
     fn original_class_type_projection_requires_its_own_family_and_release() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Software class-policy selection only; no Native cache/frame/store
         // observation or successful command evaluation is asserted.

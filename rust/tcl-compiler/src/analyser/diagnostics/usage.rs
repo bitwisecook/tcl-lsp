@@ -1383,7 +1383,6 @@ fn build_w216_replacement(
     inner: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    // naming.diagnostics.original-w216-literal-source-replacement
 
     if name.is_empty() || name.contains('(') {
         return None;
@@ -1869,7 +1868,6 @@ mod original_expression_grammar_tests {
 
     #[test]
     fn original_expression_advice_keeps_whole_input_and_body_comment_bom() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual parser input and lexical comment geometry; no expression execution grant.
         let mut prepared = Analyser::new();
@@ -1921,7 +1919,6 @@ mod original_expression_grammar_tests {
 
     #[test]
     fn original_string_comparison_advice_uses_retained_variable_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source parser and warning/edit geometry only; no runtime equivalence.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();

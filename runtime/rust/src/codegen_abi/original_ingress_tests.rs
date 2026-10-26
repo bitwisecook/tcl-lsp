@@ -81,7 +81,6 @@ static ORIGINAL_UPDATER: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_argv_callback_refusal_keeps_borrowed_words_and_completion_output() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine registered callback and source effects; no external Tcl claim.
     let mut interpreter = original();
@@ -114,7 +113,6 @@ fn original_argv_callback_refusal_keeps_borrowed_words_and_completion_output() {
 
 #[test]
 fn original_intrinsic_and_guard_getters_refuse_before_dispatch_or_fallback() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The original extension updater is reached, while no later command or
     // completion is published. A form decline cannot swallow a Host refusal.
@@ -211,7 +209,6 @@ fn original_intrinsic_and_guard_getters_refuse_before_dispatch_or_fallback() {
 
 #[test]
 fn original_compound_word_preserves_counted_bytes_and_refuses_after_updater_effects() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Counted String transport is independent of command/name syntax and of
     // original Native cache observations.
@@ -241,7 +238,6 @@ fn original_compound_word_preserves_counted_bytes_and_refuses_after_updater_effe
 #[test]
 #[cfg(have_tommath)]
 fn original_legacy_eval_getter_refusal_adopts_input_without_running_source() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual extension updater and transferred rc-0 input; no successful
     // evaluation, result or Boolean output is inferred from its rendered bytes.
@@ -285,7 +281,6 @@ fn retarget_command(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::inter
 
 #[test]
 fn original_guest_completion_uses_its_retained_interpreter_after_tls_retarget() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Mutable ambient presentation cannot choose the completion owner.
     let mut interpreter = original();

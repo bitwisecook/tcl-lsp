@@ -41,7 +41,6 @@ fn register(world: &Rc<RefCell<NativeLiteralWorld<Rc<Vec<u8>>>>>) -> (usize, Rc<
 }
 #[test]
 fn original_registration_episode_refuses_getter_and_factory_mutation_before_acquisition() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Pure Rust incarnation controls grant no native constructor or callback policy.
     for factory in [false, true] {
@@ -103,7 +102,6 @@ fn original_registration_episode_refuses_getter_and_factory_mutation_before_acqu
 }
 #[test]
 fn original_registration_exhaustion_refuses_without_clone_or_slot_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let world = Rc::new(RefCell::new(NativeLiteralWorld::default()));
     let (index, local) = register(&world);

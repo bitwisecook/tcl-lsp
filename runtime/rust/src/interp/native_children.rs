@@ -243,7 +243,6 @@ impl Interp {
         child: &mut Interp,
         initialisation: tcl_registry::special_vars::NativeChildInitialisation,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        // naming.interpreter.original-child-bootstrap-context
 
         if !initialisation.initialises_jim_static_extensions() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -280,7 +279,6 @@ impl Interp {
     /// interp_cmd_eval performs Concat even for one argument, then string
     /// copies in both directions. Jim returns the raw code without C options.
     fn eval_original_jim_child(&mut self, name: &[u8], arguments: &[*mut TclObj]) -> Code {
-        // naming.interpreter.jim-original-object-crossing
 
         let script = match self.concat_original_arguments(arguments) {
             Ok(script) => obj::Owned::retain(script),
@@ -410,7 +408,6 @@ mod tests {
 
     #[test]
     fn jim_child_crossing_copies_counted_strings_and_preserves_original_context_refusal() {
-        // naming.interpreter.jim-original-object-crossing
 
         // This Rust ownership control complements public native rows; it is no
         // claim about private pointer identities observed from jimsh.
@@ -616,7 +613,6 @@ mod tests {
 
     #[test]
     fn jim_child_bootstrap_copies_global_variable_extents_without_parent_object_sharing() {
-        // naming.interpreter.original-child-bootstrap-context
 
         // Public native startup-value controls and source anchors govern this
         // purpose; no exhaustive extension roster or native header identity claim.
@@ -783,7 +779,6 @@ mod tests {
 
     #[test]
     fn child_host_failure_keeps_its_typed_cause_and_parent_result() {
-        // naming.interpreter.original-child-host-refusal-transport
 
         // A host-worker control in the authored model, not native Tcl evidence.
         use tcl_syntax::raw_string::NativeValueAccessRefusal;
@@ -1120,7 +1115,6 @@ mod completion_capture_tests {
 
     #[test]
     fn original_child_completion_capture_keeps_guest_handles_and_custom_code() {
-        // naming.interpreter.original-child-host-refusal-transport
 
         // Software actual-object/+1 control; no external native completion claim.
         run_original_capture(0);
@@ -1128,7 +1122,6 @@ mod completion_capture_tests {
 
     #[test]
     fn original_child_completion_capture_transports_reached_metadata_host_and_aba() {
-        // naming.interpreter.original-child-host-refusal-transport
 
         // Real extension getter during capture, under the actual child scope;
         // original provider observations remain independent.

@@ -411,7 +411,6 @@ mod tests {
 
     #[test]
     fn jim_required_usage_extent_is_independent_of_counted_default_and_storage_names() {
-        // naming.procedure.original-called-name-and-formal-usage-extents
 
         // Pure suffix construction; Runtime/VM independently compare unchanged
         // native public sources and their final formatted messages. Storage

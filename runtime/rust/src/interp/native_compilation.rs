@@ -1171,7 +1171,6 @@ impl Interp {
             // TclInitCompiledLocals in C8, InitResolvedLocals in C9. Actual
             // formal slots keep their local cells; retained layout None entries
             // independently exclude unnamed temporaries.
-            // naming.procedure.compiled-local-resolver-formal-exclusion
 
             for (slot, primary) in layout.names.iter().enumerate().skip(params.len()) {
                 let Some(primary) = primary else { continue };

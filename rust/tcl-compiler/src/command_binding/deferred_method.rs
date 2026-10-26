@@ -203,7 +203,6 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
         facts: &InvocationFacts,
     ) -> bool {
-        // naming.tcloo.original-lexical-member-context
 
         let Some(BoundedMethodDefinition {
             grammar,
@@ -667,7 +666,6 @@ impl ModuleCommandBindings {
             return None;
         }
         let definition = self.class_definitions.get(identity)?;
-        // naming.tcloo.original-forward-registration-prefix
 
         // The sealed declaration already owns the selected factory and local
         // workers. A compatibility body rescan cannot withdraw that receipt
@@ -1689,7 +1687,6 @@ pub(super) fn closed_definition_member(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-    // naming.tcloo.original-forward-registration-prefix
 
     let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
     let values = source_effective_words(words.words(), state.baseline.dialect, None);
@@ -2241,7 +2238,6 @@ mod tests {
 
     #[test]
     fn original_overlapping_mixin_keeps_declared_body_without_a_dispatch_chain() {
-        // naming.tcloo.original-lexical-member-context
 
         let source = "oo::class create M {method a::b {arg} {}}\n\
                       oo::class create C {mixin M; method a::b {} {next 1 2}}";

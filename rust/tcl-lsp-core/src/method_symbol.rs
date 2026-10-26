@@ -1461,7 +1461,6 @@ mod tests {
 
     #[test]
     fn logical_class_calls_keep_their_separate_source_consumer_domain() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "oo::class create C {self method ping {} {}}; C ping";
         let result = Analyser::new().analyse(source, "tcl");
@@ -1498,7 +1497,6 @@ mod tests {
 
     #[test]
     fn original_class_call_method_candidates_keep_call_horizons_and_captured_selectors() {
-        // naming.source.original-class-publications
 
         let source = "oo::class create C {self method ping {} {}}; C ping; rename C M; C ping; M ping; interp alias {} A {} M ping; A; rename M {}; M ping";
         let result = analysis(source);
@@ -1541,7 +1539,6 @@ mod tests {
 
     #[test]
     fn original_workspace_class_method_candidates_use_current_slots_and_canonical_targets() {
-        // naming.source.original-class-publications
 
         let library_source = "oo::class create C {self method ping {} {}}; rename C M";
         let library = analysis(library_source);
@@ -1910,7 +1907,6 @@ mod own_object_tests {
 
     #[test]
     fn original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables() {
-        // Implementation contract: naming.editor.original-own-object-member-navigation
 
         let source = r"oo::class create C {method shared {} {return CLASS}}; C create object; C create sibling; oo::objdefine object {method shared {} {}; method p\uD800 {} {}; method p\uD801 {} {}}; object shared; object p\uD800; object p\uD801; sibling shared";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1958,7 +1954,6 @@ mod own_object_tests {
 
     #[test]
     fn original_own_object_generation_and_private_entries_block_class_advice() {
-        // Implementation contract: naming.editor.original-own-object-member-navigation
 
         let source = "oo::class create C {method shared {} {return CLASS}; method Hidden {} {}; export Hidden}; C create object; oo::objdefine object {method shared {} {return FIRST}; method Hidden {} {}}; object shared; oo::objdefine object method shared {} {return SECOND}; object shared; object Hidden";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

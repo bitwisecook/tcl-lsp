@@ -37,7 +37,6 @@ fn invoke(interpreter: &mut Interp, words: &[&[u8]]) -> super::super::Code {
 
 #[test]
 fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_lookup() {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
     let (mut interpreter, stages) = supplied(b"set ::encoded \xe9; return YES");
     assert_eq!(
@@ -78,9 +77,7 @@ fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_looku
 
 #[test]
 fn original_system_reset_and_catalogue_callback_keep_original_currency() {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut interpreter, stages) = supplied(b"return YES");
     assert_eq!(
@@ -124,7 +121,6 @@ fn original_system_reset_and_catalogue_callback_keep_original_currency() {
 
 #[test]
 fn original_unknown_io_refusal_is_retained_before_mandatory_close_callback() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual supplied read/close callbacks, without external Native errno or close chronology.
     let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
@@ -161,7 +157,6 @@ fn original_unknown_io_refusal_is_retained_before_mandatory_close_callback() {
 
 #[test]
 fn original_filename_external_zero_refuses_before_open_and_keeps_report_bytes() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     for suffix in [b"\0TAIL".as_slice(), b"\xc0\x80TAIL".as_slice()] {
         let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
@@ -198,7 +193,6 @@ fn original_filename_external_zero_refuses_before_open_and_keeps_report_bytes() 
 
 #[test]
 fn original_filename_supplied_codec_checks_currency_before_open() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
     assert_eq!(
@@ -232,7 +226,6 @@ fn original_filename_supplied_codec_checks_currency_before_open() {
 
 #[test]
 fn original_filename_iso88591_selected_system_keeps_plain_source_working() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     let (mut interpreter, stages) = supplied(b"set ::filename_effect YES; return DONE");
     assert_eq!(

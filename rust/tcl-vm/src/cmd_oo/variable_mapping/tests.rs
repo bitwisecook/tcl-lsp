@@ -135,7 +135,6 @@ fn formatting(vm: &mut Vm, target: OoId, originals: &[&Value], fail: bool) -> Rc
 }
 #[test]
 fn original_variable_mapping_acquires_all_and_retires_old_before_sequential_first_unique_keys() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual VM roles/formatter are software observations; no Native callback equivalence.
     let (mut vm, target) = provided();
@@ -162,7 +161,6 @@ fn original_variable_mapping_acquires_all_and_retires_old_before_sequential_firs
 #[test]
 fn original_variable_mapping_string_refusal_keeps_full_first_cause_and_skips_later_key_and_adoption()
  {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, target) = provided();
     let first = numeric(&vm, 42);
@@ -187,7 +185,6 @@ fn original_variable_mapping_string_refusal_keeps_full_first_cause_and_skips_lat
 }
 #[test]
 fn original_private_variable_mapping_keeps_counted_key_and_stored_cstring_full_name_copy_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, target) = provided();
     let original = Value::new_native_string_bytes(b"p\0tail".as_slice());
@@ -252,7 +249,6 @@ fn original_private_variable_mapping_keeps_counted_key_and_stored_cstring_full_n
 #[test]
 fn original_variable_mapping_allows_recursive_roster_and_ordinary_method_changes_without_world_epoch()
  {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Two actual entered mapping workers share target/currency; no Native reentry assertion.
     let (mut vm, target) = provided();
@@ -315,7 +311,6 @@ fn original_variable_mapping_allows_recursive_roster_and_ordinary_method_changes
 }
 #[test]
 fn original_variable_mapping_refuses_changed_facet_and_context_before_any_incoming_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for context in [false, true] {
         let (mut vm, target) = provided();

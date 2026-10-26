@@ -2652,7 +2652,6 @@ impl CommandRegistry {
     /// Canonical authored names across the compiled universe and actual store.
     /// Availability, source identity and runtime binding remain separate queries.
     pub fn command_names_in_any_dialect(&self) -> impl Iterator<Item = &'static str> {
-        // naming.diagnostic.original-command-source-unavailability
 
         all_dialect_command_names()
             .rootable
@@ -2679,7 +2678,6 @@ impl CommandRegistry {
     /// actual store's authored rows. Neither collection establishes a lookup.
     #[must_use]
     pub fn source_availability_providers(&self, command: &str) -> Option<NameProviders> {
-        // naming.diagnostic.original-command-source-unavailability
 
         let name = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
         if !all_dialect_command_names().rootable.contains(name)
@@ -3622,7 +3620,6 @@ impl CommandRegistry {
         context: &crate::model::ResolvedContext,
         realm: tcl_dialect::model::InvocationRealm,
     ) -> Arc<EffectiveRegistrySemantics> {
-        // naming.source.logical-procedure-definition-model
 
         let mut commands = FxHashMap::default();
         let mut binding_names = BTreeSet::new();
@@ -4448,7 +4445,6 @@ impl CommandRegistry {
         // This is a stock implementation admission query. A live custom
         // native binding is not constrained by the fresh engine's roster.
         // Catalogue absence is not permission for an original stock identity.
-        // naming.mathop-binding-and-written-head-controls
 
         (dialect.core_point
             == Some(tcl_dialect::model::DialectPoint::canonical(
@@ -4685,7 +4681,6 @@ impl CommandRegistry {
         require_complete: bool,
     ) -> Result<Vec<(&'static CommandSpec, &'static SubCommand)>, InstanceMethodContextUnavailable>
     {
-        // naming.source.original-registered-instance-words
 
         let Some(selected) = self.get_for_surface(class_spec.name, dialect) else {
             return Err(InstanceMethodContextUnavailable::FactorySelection);
@@ -4964,7 +4959,6 @@ impl CommandRegistry {
         package_version: Option<&'w str>,
         dialect: Option<SurfaceQuery<'w>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
-        // naming.source.original-registered-instance-words
 
         let words = words.with_profile(self.profile());
         let arguments = words.arguments();
@@ -7482,7 +7476,6 @@ impl CommandRegistry {
         wanted: &[ArgRole],
         resolved: &ResolvedInvocation<'_, '_>,
     ) -> Option<Vec<(usize, ArgRole)>> {
-        // naming.source.authored-registry-role-projection
 
         Some(
             resolved
@@ -9793,7 +9786,6 @@ mod tests {
 
     #[test]
     fn private_registration_facts_keep_actual_operand_indices() {
-        // Implementation contract: naming.invocation.effective-transition-operands
 
         let registry = CommandRegistry::build_default();
         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
@@ -9917,7 +9909,6 @@ mod tests {
 
     #[test]
     fn original_registration_source_descriptor_retains_parent_and_override_provenance() {
-        // Implementation contract: naming.namespace.original-quiet-pattern-completion
 
         let mut registry = CommandRegistry::build_default();
         let realm = tcl_dialect::model::InvocationRealm::RuleLoader;
@@ -11380,7 +11371,6 @@ mod tests {
     /// profile's own point, so the profile's operator exclusion applies to it.
     #[test]
     fn a_floor_on_the_own_query_leaves_it_the_profiles_own_point() {
-        // naming.compiler.original-analysis-metadata-context
 
         let iapps = tcl_dialect::DialectProfile::find("f5-iapps").expect("catalogue profile");
         assert!(!iapps.operators_as_commands);
@@ -15334,7 +15324,6 @@ mod tests {
 
     #[test]
     fn source_procedure_roles_do_not_require_native_definition_acceptance() {
-        // naming.source.authored-registry-role-projection
 
         let registry = CommandRegistry::build_default();
         let values = [
@@ -16130,7 +16119,6 @@ mod tests {
 
     #[test]
     fn arg_indices_for_role_dict_update_multirole() {
-        // naming.compiler.original-analysis-metadata-context
 
         let reg = CommandRegistry::build_default();
         let reads = reg.arg_indices_for_role(
@@ -16318,7 +16306,6 @@ mod tests {
 
     #[test]
     fn variable_effect_footprints_keep_actual_availability_over_argument_dialect() {
-        // naming.compiler.original-analysis-metadata-context
 
         // This is authored metadata, not a Native read/store or command result.
         let mut registry = CommandRegistry::build_default();
@@ -16554,7 +16541,6 @@ mod tests {
     /// widens the frame.
     #[test]
     fn variable_read_projection_names_a_destroyers_targets() {
-        // naming.compiler.original-analysis-metadata-context
 
         use crate::InvocationWord::{Dynamic, Literal};
         let reg = CommandRegistry::build_default();
@@ -18173,7 +18159,6 @@ mod tests {
 
     #[test]
     fn authored_source_model_roster_keeps_context_separate_from_native_release_evidence() {
-        // naming.source.logical-procedure-definition-model
 
         let driver =
             crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -19515,7 +19500,6 @@ mod original_document_grammar_tests {
 
     #[test]
     fn original_document_member_grammar_keeps_source_vocabulary_separate_from_execution() {
-        // Implementation contract: naming.consumer.typed-spec-pack-notice-actions
 
         let context = crate::model::ingress::static_context_for("spectcl");
         let registry = context.commands();
@@ -19565,7 +19549,6 @@ mod native_return_effect_ingress_tests {
 
     #[test]
     fn native_return_effect_requires_its_independent_selected_protocol() {
-        // naming.minifier.logical-formal-binding-alpha
 
         let arguments = [InvocationWord::Dynamic];
         let logical = InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
@@ -19631,7 +19614,6 @@ mod native_return_effect_ingress_tests {
 mod original_instance_descriptor_tests {
     #[test]
     fn original_instance_descriptor_keeps_registry_identity_prefixes_and_lifecycle() {
-        // naming.source.original-registered-instance-words
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry =
@@ -19713,7 +19695,6 @@ mod declaration_key_tests {
 
     #[test]
     fn rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes() {
-        // naming.registry.constructed-command-declaration-keys
 
         // Pure catalogue keys; these declarations do not install commands.
         let mut registry = CommandRegistry::build_default();
@@ -19740,7 +19721,6 @@ mod declaration_key_tests {
 
     #[test]
     fn catalogue_declarations_keep_operator_context_and_package_metadata_separate() {
-        // naming.registry.constructed-command-declaration-keys
 
         // Existing authored declaration conventions; no loaded-table claim.
         let context = crate::model::ingress::static_context_for("tcl9.0");

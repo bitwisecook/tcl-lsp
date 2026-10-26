@@ -999,7 +999,6 @@ mod tests {
 
     #[test]
     fn original_native_body_template_keeps_tagged_owner_and_original_rebased_vectors() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Existing native closure/alpha proof remains independently required.
         let source = "proc p {} {set x VALUE; set x}; p";
@@ -1105,7 +1104,6 @@ mod tests {
 
     #[test]
     fn original_native_template_keeps_standalone_explicit_and_refuses_unowned_nested_commands() {
-        // naming.compiler.original-analysis-metadata-context
 
         let source = "proc p {} {list [list VALUE]}; p";
         let registry = CommandRegistry::build_default()

@@ -1436,7 +1436,6 @@ pub fn diagnostic_subject_data(diagnostic: &Diagnostic) -> Option<Value> {
 mod tests {
     #[test]
     fn callback_signature_transport_retains_original_counts_and_source_purpose() {
-        // naming.diagnostic.original-callback-signature-subject
 
         // Readonly source assessment; the callback is not executed.
         use std::sync::Arc;
@@ -1491,7 +1490,6 @@ mod tests {
 
     #[test]
     fn original_callback_transport_keeps_unavailable_frame_and_registration_premises() {
-        // naming.source.original-callback-procedure-target
 
         // Genuine source signature advice; the callback is not executed and
         // its unknown frame is never replaced by the registration frame.
@@ -1534,7 +1532,6 @@ mod tests {
 
     #[test]
     fn constructor_source_subject_retains_count_and_purpose_without_messages() {
-        // naming.source.original-class-constructor-call
 
         let source =
             "oo::class create C {constructor {a b} { }}\ninterp alias {} make {} C new fixed\nmake";
@@ -1553,7 +1550,6 @@ mod tests {
     fn constructor_transport_retains_distinct_source_applicability_obligations() {
         use tcl_compiler::command_binding::SourceCommandTransitionObligation as Obligation;
 
-        // naming.source.original-class-constructor-call
 
         // Source inventory is conditional; the procedure is not invoked.
         let source = "proc make {} {C new 1}\noo::class create C {constructor {a b} { }}";
@@ -1601,7 +1597,6 @@ mod tests {
 
     #[test]
     fn lexical_next_arity_transport_retains_declaration_and_effective_count() {
-        // naming.tcloo.original-lexical-member-context
 
         let source = "oo::class create Base {method f {a b} {}}\noo::class create C {superclass Base; method f {} {::::next 1}}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
@@ -1627,7 +1622,6 @@ mod tests {
 
     #[test]
     fn registered_instance_transport_retains_factory_and_applicability_without_message_identity() {
-        // naming.source.original-registered-instance-words
 
         let source = "ttk::treeview .t; .t bogus";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -1670,7 +1664,6 @@ mod tests {
 
     #[test]
     fn conditional_visibility_transport_preserves_assumptions_without_message_parsing() {
-        // Implementation contract: naming.interpreter.original-source-visibility-advice
 
         let source = "interp create -safe s\ninterp eval s {::source a.tcl}";
         let result = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -1775,7 +1768,6 @@ mod tests {
 
     #[test]
     fn shape_advice_transport_keeps_original_purpose_and_operand_axes() {
-        // naming.diagnostic.registry-source-ownership
 
         for (source, code, purpose, argument, written) in [
             (
@@ -1823,7 +1815,6 @@ mod tests {
 
     #[test]
     fn math_transport_preserves_expression_kind_without_reconstructing_a_command() {
-        // naming.diagnostic.original-math-function-subject
 
         for (dialect, dispatch) in [
             ("tcl8.4", "fixedTable"),
@@ -1874,7 +1865,6 @@ mod tests {
     }
     #[test]
     fn declared_source_transport_preserves_contract_purpose_and_provenance() {
-        // naming.source.original-declared-command-word-contract
 
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub select {expression:expr}\n# tcl-lsp: stubs-end\nselect \"$value + 1\"";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -1906,7 +1896,6 @@ mod tests {
     }
     #[test]
     fn unavailable_command_transport_retains_the_original_purpose_without_messages() {
-        // naming.diagnostic.original-command-source-unavailability
 
         for (source, dialect, code, command, class, domain) in [
             (
@@ -1991,7 +1980,6 @@ mod tests {
     }
     #[test]
     fn declared_variable_name_transport_keeps_its_authored_purpose() {
-        // naming.source.original-declared-command-word-contract
 
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub store {destination:var value}\n# tcl-lsp: stubs-end\nstore $name payload";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -2012,7 +2000,6 @@ mod tests {
     }
     #[test]
     fn original_package_source_subject_transport_retains_selected_purpose_and_package() {
-        // naming.diagnostic.original-package-source-advice
 
         let source = "csv::join {a b}";
         let result = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -2034,7 +2021,6 @@ mod tests {
     }
     #[test]
     fn callback_alias_transport_keeps_capture_baked_and_suffix_premises() {
-        // naming.source.original-callback-procedure-target
 
         use std::sync::Arc;
         use tcl_compiler::analyser::{
@@ -2096,7 +2082,6 @@ mod tests {
     }
     #[test]
     fn original_index_transport_preserves_captured_operand_purpose_without_message_names() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2130,7 +2115,6 @@ mod tests {
     }
     #[test]
     fn original_template_transport_keeps_selected_prefix_purpose_and_ignores_presentation() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2161,7 +2145,6 @@ mod tests {
     }
     #[test]
     fn original_reparse_transport_keeps_both_selected_purposes_without_presentation_names() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2206,7 +2189,6 @@ mod tests {
     }
     #[test]
     fn original_path_transport_keeps_alias_ordinals_and_proven_value_premises() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2250,7 +2232,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_transport_keeps_selected_captured_option_values() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2286,7 +2267,6 @@ mod tests {
 
     #[test]
     fn original_credential_transport_keeps_captured_literals_separate_from_lexical_policy() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2330,7 +2310,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_transport_keeps_child_ancestry_and_value_premises() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2396,7 +2375,6 @@ mod tests {
 
     #[test]
     fn original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation() {
-        // naming.diagnostic.registry-source-ownership
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(

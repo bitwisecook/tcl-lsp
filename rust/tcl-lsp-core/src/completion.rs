@@ -1578,7 +1578,6 @@ fn registry_method_items(
     class_q: &str,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Vec<CompletionItem>> {
-    // naming.consumer.original-receiver-completion-domain
 
     if !analysis.allows_lexical_declaration_advice() {
         return None;
@@ -1891,7 +1890,6 @@ fn grammar_member_completions(
     config: tcl_lexer::LexerConfig,
     context: &tcl_registry::model::ResolvedContext,
 ) -> Vec<CompletionItem> {
-    // naming.consumer.selected-catalogue-completion-provider
 
     let query = context.authoring_query();
     grammar
@@ -2174,7 +2172,6 @@ fn builtin_completions(
     else {
         return Vec::new();
     };
-    // naming.consumer.selected-catalogue-completion-provider
 
     // Retain one descriptor from the actual document availability context.
     // A same-name row from another provider cannot decide any later filter.
@@ -2331,7 +2328,6 @@ fn proc_completions(
     partial: &str,
     usage: &FxHashMap<String, usize>,
 ) -> Vec<CompletionItem> {
-    // naming.source.original-procedure-publications
 
     let source_inventory = analysis
         .retained_command_realm()
@@ -6085,7 +6081,6 @@ mod original_proc_completion_tests {
     fn moved_and_deleted_completions_use_conditional_source_publication_slots() {
         let source = "proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
-        // naming.source.original-procedure-publications
 
         assert!(analysis.original_completed_command_world().is_none());
         let inventory =
@@ -6159,7 +6154,6 @@ mod original_proc_completion_tests {
 
     #[test]
     fn original_vendor_command_completion_keeps_owned_unknown_names_out_of_suggestions() {
-        // Implementation contract: naming.vendor.original-source-declaration-consumers
 
         let source = "proc helper {argument} {return $argument}\nproc p\\uD800 {} {}\nhel";
         let mut analysis = Analyser::new().analyse(source, "f5-iapps");
@@ -6495,7 +6489,6 @@ mod original_own_object_completion_tests {
 
     #[test]
     fn original_own_object_completion_keeps_allocations_and_opaque_routes_after_reporting_clear() {
-        // Implementation contract: naming.core.original-own-object-completion
 
         let source = r"oo::class create C {method shared {} {}}; C create object; C create sibling; oo::objdefine object {method shared {} {}; method p\uD800 {} {}; method p\uD801 {} {}}; object shared; sibling shared";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -6544,7 +6537,6 @@ mod original_own_object_completion_tests {
 
     #[test]
     fn original_own_object_completion_requires_the_actual_generation_and_canonical_declaration() {
-        // Implementation contract: naming.core.original-own-object-completion
 
         let source = "oo::class create C {method shared {} {}}; C create object; oo::objdefine object {method own {} {}}; object own";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -6587,7 +6579,6 @@ mod original_expression_completion_tests {
     use tcl_compiler::analyser::Analyser;
 
     #[test]
-    // Implementation contract: naming.core.original-expression-source-selection
 
     fn original_expression_completion_does_not_borrow_a_shadowed_role() {
         for (source, expected) in [
@@ -6624,7 +6615,6 @@ mod original_document_grammar_tests {
 
     #[test]
     fn original_document_grammar_completion_preserves_full_source_configuration() {
-        // Implementation contract: naming.core.original-document-grammar-completion
 
         let source = "\u{feff}endpoint www {\n    hsts {\n        \n    }\n}\n";
         let profile =
@@ -6683,7 +6673,6 @@ mod original_scoped_completion_tests {
 
     #[test]
     fn original_scoped_completion_uses_source_body_receipts_and_current_owners() {
-        // Implementation contract: naming.core.original-scoped-body-completion
 
         let source = "::report::defstyle st {} {\n    to\n}\n";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -6767,7 +6756,6 @@ mod original_snippet_context_tests {
 
     #[test]
     fn original_snippet_variable_choices_keep_source_references_after_ui_erasure() {
-        // naming.core.original-snippet-source-context
 
         let source = "set {café🙂} LIST\nset v\\uD800 OTHER\ntcl-foreach";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -6854,7 +6842,6 @@ mod original_snippet_context_tests {
 
     #[test]
     fn original_snippet_events_keep_retained_cards_and_actual_script_placement() {
-        // naming.core.original-snippet-source-context
 
         let source = "when RULE_INIT {\n  irule-http-request\n}\nirule-http-request";
         let mut analysis = Analyser::new().analyse(source, "f5-irules");
@@ -6907,7 +6894,6 @@ mod original_package_completion_tests {
 
     #[test]
     fn original_package_completion_uses_retained_context_and_ignores_reported_names() {
-        // Implementation contract: naming.core.original-package-completion-advice
 
         let source = "package require Tk\nbutt\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -6975,7 +6961,6 @@ mod original_receiver_domain_tests {
 
     #[test]
     fn native_fuzzy_methods_keep_original_class_and_object_records_without_reports() {
-        // naming.consumer.original-receiver-completion-domain
 
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for source in [
@@ -7032,7 +7017,6 @@ mod original_receiver_domain_tests {
 
     #[test]
     fn native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports() {
-        // naming.consumer.original-receiver-completion-domain
 
         let source = ".w confgure";
         let mut analysis = Analyser::new().analyse(source, "tk");
@@ -7082,7 +7066,6 @@ mod original_source_instance_completion_tests {
 
     #[test]
     fn original_source_instance_methods_reach_prefix_and_fuzzy_consumers_without_reports() {
-        // naming.core.original-source-instance-completion
 
         for selector in ["longMet", "longMethd"] {
             let source = format!(
@@ -7398,7 +7381,6 @@ mod configured_receiver_completion_tests {
 
     #[test]
     fn logical_method_completion_keeps_whole_scalar_heads_and_current_source() {
-        // naming.consumer.original-receiver-completion-domain
 
         let source_for = |head: &str, selector: &str| {
             format!(
@@ -7679,7 +7661,6 @@ mod configured_receiver_completion_tests {
 
     #[test]
     fn configured_scalar_completion_projection_keeps_array_and_brace_boundaries() {
-        // naming.consumer.original-receiver-completion-domain
 
         let first = tcl_lexer::LexerConfig {
             braced_var: tcl_dialect::BracedVarStyle::FirstClose,
@@ -7806,7 +7787,6 @@ mod selected_catalogue_provider_tests {
 
     #[test]
     fn builtin_filters_keep_the_actual_selected_provider_through_every_gate() {
-        // naming.consumer.selected-catalogue-completion-provider
 
         let profile = crate::profile_for_dialect("tcl8.6");
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
@@ -7912,7 +7892,6 @@ mod selected_catalogue_provider_tests {
 
     #[test]
     fn grammar_member_details_use_the_same_current_availability_context() {
-        // naming.consumer.selected-catalogue-completion-provider
 
         use tcl_registry::definer::{DefinitionBodyGrammar, MemberSpec, TCLOO_GRAMMAR};
         static MEMBERS: &[MemberSpec] = &[

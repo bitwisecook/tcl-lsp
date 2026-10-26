@@ -13,7 +13,6 @@ fn native() -> Interp {
 
 #[test]
 fn original_no_tower_string_equality_uses_its_existing_independent_worker() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The shared body primitive's independent String branch remains reachable.
     let mut interpreter = native();
@@ -35,7 +34,6 @@ fn original_no_tower_string_equality_uses_its_existing_independent_worker() {
 
 #[test]
 fn original_no_tower_numeric_primitive_refuses_before_result_or_guest_numeric_error() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Original reached operands are cleaned up; no unavailable arithmetic worker or Guest parse runs.
     let mut interpreter = native();

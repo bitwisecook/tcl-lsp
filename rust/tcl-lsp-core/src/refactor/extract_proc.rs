@@ -2259,7 +2259,6 @@ mod original_extract_tests {
 
     #[test]
     fn original_extract_name_collision_uses_publications_without_reporting_maps() {
-        // Implementation contract: naming.refactor.original-extracted-procedure-publication
 
         let source =
             "proc extracted_proc {} {}; interp alias {} extracted_proc_2 {} list; puts VALUE";
@@ -2291,7 +2290,6 @@ mod original_extract_tests {
 
     #[test]
     fn original_extract_name_search_refuses_unknown_or_fully_occupied_slots() {
-        // Implementation contract: naming.refactor.original-extracted-procedure-publication
 
         assert!(first_fresh_proc_name(|_| None).is_err());
         assert!(first_fresh_proc_name(|_| Some(true)).is_err());
@@ -2307,7 +2305,6 @@ mod original_extraction_capture_tests {
     use super::*;
     #[test]
     fn original_extraction_requires_motion_contract_without_reporting_fallback() {
-        // Implementation contract: naming.refactor.original-extraction-motion-boundary
 
         for source in ["set value VALUE\nputs $value\n", "puts VALUE\n"] {
             let mut analyser = tcl_compiler::analyser::Analyser::new();
@@ -2336,7 +2333,6 @@ mod selected_source_variable_tests {
 
     #[test]
     fn original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers() {
-        // naming.refactor.original-frame-traversal
 
         let source = "interp alias {} write {} set held
 write 2
@@ -2352,7 +2348,6 @@ set hidden 1";
 
     #[test]
     fn original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input() {
-        // naming.refactor.original-frame-traversal
 
         let source = "set x 5
 puts $x
@@ -2433,7 +2428,6 @@ puts done";
 
     #[test]
     fn original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners() {
-        // naming.refactor.original-frame-traversal
 
         let source = "if {1} {puts ${a{b}c}}\nputs done\n";
         let needle = "if {1} {puts ${a{b}c}}";

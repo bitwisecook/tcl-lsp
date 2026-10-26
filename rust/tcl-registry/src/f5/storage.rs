@@ -109,7 +109,6 @@ mod tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.variable.hosted-storage-context
 
     fn hosted_domain_uses_exact_resolved_components() {
         use tcl_core_types::ByteNamespacePath;

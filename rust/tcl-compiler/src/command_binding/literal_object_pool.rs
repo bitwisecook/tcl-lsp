@@ -351,7 +351,6 @@ mod tests {
 
     #[test]
     fn original_jim_text_world_does_not_donate_c_literal_object_facts() {
-        // Implementation contract: naming.source.original-jim-text-evaluation
 
         let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
         let options = SourceAnalysisOptions {
@@ -627,7 +626,6 @@ mod tests {
 
     #[test]
     fn actual_empty_literal_pool_is_effect_only_and_expires_with_original_capture() {
-        // Implementation contract: naming.source.original-jim-text-evaluation
 
         let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
         let (mut vm, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);

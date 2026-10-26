@@ -199,7 +199,6 @@ const fn named_member_compilation(
     }
 }
 
-// Source proof: naming.info.original-named-member-source-hooks
 
 // These Basic* workers first exist in C9's original defaultInfoMap. Their
 // named compiler does not issue TclOO storage or callable-binding authority.
@@ -1453,7 +1452,6 @@ mod tests {
 
     #[test]
     fn original_c9_basic_info_members_keep_their_selected_source_hooks() {
-        // Source proof: naming.info.original-named-member-source-hooks
 
         // Source rows prove declarations; actual installed tokens remain separate.
         let sources = [

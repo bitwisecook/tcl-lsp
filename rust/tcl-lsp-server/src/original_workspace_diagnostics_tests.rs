@@ -90,7 +90,6 @@ fn original_diagnostic(analysis: &AnalysisResult) -> tcl_compiler::analyser::Dia
 
 #[test]
 fn original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity() {
-    // naming.consumer.original-workspace-diagnostic-refinement
 
     let index = report_index("proc donated {a b c} {return $a}");
     let registry = tcl_lsp_core::registry_for_dialect("tcl8.6");
@@ -152,7 +151,6 @@ fn original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity() 
 
 #[test]
 fn original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports() {
-    // naming.consumer.original-workspace-diagnostic-refinement
 
     let source = "proc retained {x} {return $x}\nmissing 1 2";
     let mut analysis = native_analysis(source, "tcl8.6");
@@ -210,7 +208,6 @@ fn original_workspace_diagnostics_keep_current_source_advice_after_foreign_repor
 
 #[test]
 fn explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour() {
-    // naming.consumer.original-workspace-diagnostic-refinement
 
     let source = "missing 1 2";
     let analysis = lexical_analysis(source);
@@ -262,7 +259,6 @@ fn reporting_analysis_with_input(
 
 #[test]
 fn original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store() {
-    // naming.consumer.original-workspace-diagnostic-refinement
 
     // Conditional nested source declarations are independent of entered Native
     // dispatch. Their exclusion depends on the actual builtin availability.
@@ -340,7 +336,6 @@ fn original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_st
 
 #[test]
 fn original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners() {
-    // naming.consumer.original-workspace-diagnostic-refinement
 
     let source = "donated VALUE";
     let analysis = lexical_analysis(source);
@@ -407,7 +402,6 @@ fn original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_ow
 
 #[test]
 fn original_workspace_reporting_currency_keeps_full_store_and_independent_context() {
-    // naming.consumer.original-workspace-diagnostic-refinement
 
     let source = "donated VALUE";
     let baseline = lexical_analysis(source);

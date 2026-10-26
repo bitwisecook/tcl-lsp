@@ -858,7 +858,6 @@ mod tests {
 
     #[test]
     fn original_jim_public_truth_preserves_exact_cached_value_and_intermediate_diagnostic() {
-        // naming.numeric.original-primitive-boolean-vs-expression-truth
 
         // Compare only the measured direct public API out/result and original
         // post-conversion cache/String fields; no whole script/opcode claim.
@@ -903,7 +902,6 @@ mod tests {
 
     #[test]
     fn original_c84_logical_sides_keep_distinct_boolean_and_integer_primary() {
-        // naming.numeric.original-logical-operand-truth-sites
 
         // Bounded selected original465 case4 worker6/7 operand cache windows.
         // This stage assertion does not claim a whole expression result.
@@ -1005,7 +1003,6 @@ mod tests {
 
     #[test]
     fn original_numeric_instruction_reaches_conversion_without_inline_boolean_or_api_copy() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software physical producer control, not an original opcode/whole-script observation.
         let mut interp = native("tcl8.6");
@@ -1076,7 +1073,6 @@ mod tests {
 
     #[test]
     fn original_numeric_instruction_getter_first_host_and_aba_stop_cache_and_owned_result() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Reached software extension getter effects remain; no native callback chronology claim.
         for mode in [0, 1] {

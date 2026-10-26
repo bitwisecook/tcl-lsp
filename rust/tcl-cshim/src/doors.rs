@@ -1146,7 +1146,6 @@ mod tests {
 
     #[test]
     fn original_typed_engine_failure_survives_the_actual_c_door() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let first = EngineError::execution_failure(
             tcl_engine_api::NativeExecutionError::ValueAccessRefusal(

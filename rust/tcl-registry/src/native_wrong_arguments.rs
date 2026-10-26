@@ -117,7 +117,6 @@ mod tests {
 
     #[test]
     fn measured_native_codes_have_independent_origin() {
-        // naming.diagnostics.original-error-code-metadata-not-message
 
         // Only the original public `catch {set}` error-code field supplies the
         // expectation. The separate origin/String assertions below exercise

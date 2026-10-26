@@ -1167,7 +1167,6 @@ mod constructed_projection_tests {
 
     #[test]
     fn constructed_recovery_inventory_preserves_literal_colon_tails() {
-        // Implementation contract: naming.analysis.constructed-key-consumer-projections
 
         // Constructed recovery inventory only, with no declaration/lookup authority.
         let mut analyser = Analyser::new();

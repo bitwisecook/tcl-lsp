@@ -12,7 +12,6 @@ pub(super) fn report(
     report: NativeJimInfoReport,
     original: &[*mut TclObj],
 ) -> Code {
-    // Source proof: naming.info.jim-original-selector-table
 
     let choices = match choices(interp, protocol, report) {
         Ok(bytes) => bytes,
@@ -215,7 +214,6 @@ mod tests {
 
     #[test]
     fn current_lsort_failure_is_reported_by_the_selected_jim_parser() {
-        // Source proof: naming.info.jim-original-selector-table
 
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),

@@ -34,7 +34,6 @@ fn context<'a>(
 
 #[test]
 fn original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purpose() {
-    // naming.source.original-configured-script-completeness
 
     // Actual hosted source descriptors and configured Document geometry only,
     // without a host execution, Native naming provider or logical F5 simulation.
@@ -95,7 +94,6 @@ fn original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purp
 
 #[test]
 fn original_hosted_standalone_source_cannot_replace_supplied_binding_purposes() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Genuine full hosted source input and held software Native entry stay
     // separate from the header-only symbolic metadata query.

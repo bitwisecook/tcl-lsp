@@ -1456,9 +1456,7 @@ mod tests {
 
     #[test]
     fn original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects() {
-        // naming.diagnostic.registry-source-ownership
 
-        // naming.source.authored-command-transition-advice
 
         // These assertions cover source selection and diagnostic coordinates;
         // they do not establish runtime alias installation or widget creation.
@@ -2140,7 +2138,6 @@ mod tests {
 
     #[test]
     fn original_format_gates_keep_alias_ordinals_and_written_template_anchors() {
-        // naming.core.original-inlay-retained-context
 
         // This checks readonly source metadata and diagnostic geometry, not
         // alias installation or successful execution in a native interpreter.
@@ -2173,7 +2170,6 @@ mod tests {
 
     #[test]
     fn original_format_gates_read_literal_values_without_promoting_dynamic_words() {
-        // naming.core.original-inlay-retained-context
 
         // These source-consumer controls do not claim native runtime results.
         for (source, template) in [
@@ -2205,7 +2201,6 @@ mod tests {
             );
             assert_eq!(dsl_diags(source, "tcl8.4").len(), 1, "{source}");
         }
-        // naming.source.original-static-escape-values
 
         // SourceEscapes173 records pre-8.6 greedy hex as '[' for this exact
         // spelling. It therefore contains no percent conversion to version-gate.

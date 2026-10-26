@@ -134,7 +134,6 @@ fn assert_updater_cause(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn original_child_usage_getter_keeps_first_host_and_restored_context() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2] {
         let mut interpreter = native();
@@ -158,7 +157,6 @@ fn original_child_usage_getter_keeps_first_host_and_restored_context() {
 }
 #[test]
 fn original_child_option_getter_refuses_recreated_allocation_before_query() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     let command = child(&mut interpreter);
@@ -190,7 +188,6 @@ fn original_child_option_getter_refuses_recreated_allocation_before_query() {
 }
 #[test]
 fn original_child_invokehidden_usage_refuses_before_later_hidden_name() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2] {
         let mut interpreter = native();
@@ -218,7 +215,6 @@ fn original_child_invokehidden_usage_refuses_before_later_hidden_name() {
 }
 #[test]
 fn original_result_append_keeps_actual_inplace_and_shared_header_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for shared in [false, true] {
         let mut interpreter = native();
@@ -240,7 +236,6 @@ fn original_result_append_keeps_actual_inplace_and_shared_header_roles() {
 }
 #[test]
 fn original_result_append_getter_refuses_before_suffix_or_replacement_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2, 3] {
         let mut interpreter = native();
@@ -287,7 +282,6 @@ fn original_result_append_getter_refuses_before_suffix_or_replacement_adoption()
 }
 #[test]
 fn original_c_api_result_append_retirement_observes_reached_publication_and_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     let original = obj::alloc_typed(&ORIGINAL, 2);
@@ -322,7 +316,6 @@ fn original_c_api_result_append_retirement_observes_reached_publication_and_firs
 #[cfg(have_tommath)]
 #[test]
 fn original_word_expression_result_consumes_true_owned_role_after_getter_and_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The actual evaluator produces the +1; the subsequent extension is software transport only.
     for mode in [0, 1, 2, 6] {
@@ -362,7 +355,6 @@ fn original_word_expression_result_consumes_true_owned_role_after_getter_and_ret
 #[cfg(not(have_tommath))]
 #[test]
 fn original_word_expression_missing_engine_refuses_before_result_worker() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     interpreter.set_result_bytes(b"PRIOR");

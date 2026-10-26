@@ -42,7 +42,6 @@ pub(super) fn original_forward_method(
     policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
 ) -> Option<OriginalForwardMethod> {
-    // naming.tcloo.original-forward-registration-prefix
 
     let values = super::source_effective_words(words.words(), Some(dialect), None);
     let member = grammar.member(values.first()?.as_registry_word().literal()?)?;
@@ -144,7 +143,6 @@ mod tests {
 
     #[test]
     fn original_forward_registration_retains_prefix_without_entering_target() {
-        // naming.tcloo.original-forward-registration-prefix
 
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let source = r"oo::class create C {forward a::b ::later FIXED; forward m\uD800 ::later; forward m\uD801 {}}";
@@ -190,7 +188,6 @@ mod tests {
 
     #[test]
     fn original_forward_masks_script_entries_and_future_dispatch_stays_unknown() {
-        // naming.tcloo.original-forward-registration-prefix
 
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             for (source, forwarded) in [
@@ -256,7 +253,6 @@ mod tests {
 
     #[test]
     fn original_forward_registration_refuses_incomplete_or_unowned_prefixes() {
-        // naming.tcloo.original-forward-registration-prefix
 
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             for source in [

@@ -75,7 +75,6 @@ fn row<'a>(captured: &'a str, label: &str) -> Vec<&'a str> {
 
 #[test]
 fn original_property_names_and_values_match_native_c9_counted_access() {
-    // naming.property.original-c9-counted-name-access
 
     for (engine, captured) in [
         (

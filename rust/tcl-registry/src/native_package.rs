@@ -604,7 +604,6 @@ mod tests {
 
     #[test]
     fn package_name_keys_keep_native_units_and_package_extent_separate() {
-        // Implementation contract: naming.package.selected-native-unit-key
 
         use tcl_dialect::TclVersion;
         use tcl_syntax::naming::NamePolicyProtocol;
@@ -753,7 +752,6 @@ mod manifest_key_tests {
 
     #[test]
     fn original_package_manifest_atom_roundtrips_the_selected_key_and_channel() {
-        // Implementation contract: naming.package.original-manifest-source-advice
 
         for version in TclVersion::ALL {
             let policy = NamePolicyProtocol::authored_tcl(version);

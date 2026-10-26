@@ -72,7 +72,6 @@ fn compare_completion(completion: &Completion<Value>, capture: &str, case: usize
 
 #[test]
 fn original_vm_array_set_matches_bounded_successful_public_rows() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // Only successful505b4/6 public completion fields; original C extension
     // updater events/reference counts are not VM Value observations.
@@ -106,7 +105,6 @@ fn original_vm_array_set_matches_bounded_successful_public_rows() {
 
 #[test]
 fn original_vm_jim_array_set_observes_original_root_before_cow() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // Software-only original header/sharing roles, separately selected from
     // the bounded public505b successful rows above.
@@ -149,7 +147,6 @@ fn original_vm_jim_array_set_observes_original_root_before_cow() {
 
 #[test]
 fn original_vm_array_for_keeps_the_actual_table_key_header() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // C9 successful505b7 code/bytes; exact key identity/counting is a separate
     // software storage assertion, not a public native pointer observation.
@@ -228,7 +225,6 @@ impl NativeCommand for ContextTrace {
 }
 #[test]
 fn original_vm_array_observer_refusal_stops_list_conversion_and_releases_receiver() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine VM NativeCommand variable observer; no custom C updater or
     // native reference-count equivalence is asserted.

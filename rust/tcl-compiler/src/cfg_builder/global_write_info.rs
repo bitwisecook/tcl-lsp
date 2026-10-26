@@ -1955,7 +1955,6 @@ mod tests {
 
     #[test]
     fn standalone_frame_write_advice_keeps_unprofiled_catalogue_separate_from_missing_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Explicit catalogue advice proves no actual source input, frame or write.
         let registry = CommandRegistry::build_default();
@@ -2002,7 +2001,6 @@ mod tests {
 
     #[test]
     fn supplied_global_write_metadata_keeps_alias_arguments_and_literal_names() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source summaries establish no Native frame/link/current cell.
         let registry = CommandRegistry::build_default();
@@ -2053,7 +2051,6 @@ mod tests {
 
     #[test]
     fn supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = CommandRegistry::build_default();
         let module = module_with_registry("proc p {} {uplevel #0 {set g VALUE}}", &registry);
@@ -2093,7 +2090,6 @@ mod tests {
 
     #[test]
     fn supplied_script_write_projection_uses_current_roles_instead_of_call_defs() {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut registry = CommandRegistry::build_default();
         registry.insert(CommandSpec {
@@ -2141,7 +2137,6 @@ mod tests {
 
     #[test]
     fn supplied_global_write_call_closure_includes_source_expression_targets() {
-        // naming.compiler.original-analysis-metadata-context
 
         let module = module(
             "proc mutate {} {global g; set g VALUE; return 0}; proc p {} {return [expr {[mutate]}]}",
@@ -2162,7 +2157,6 @@ mod tests {
     /// Equal leaf names retain independent body summaries.
     #[test]
     fn same_tailed_bodies_retain_independent_write_summaries() {
-        // naming.compiler.original-analysis-metadata-context
 
         let m = module(
             "namespace eval ::b {}; namespace eval ::a {}\n\
@@ -2181,7 +2175,6 @@ mod tests {
 
     #[test]
     fn proc_with_no_global_write_is_empty() {
-        // naming.compiler.original-analysis-metadata-context
 
         let m = module("proc ::p {} { set x 1 }");
         let info = detect_global_write_procs(&m);
@@ -2190,7 +2183,6 @@ mod tests {
 
     #[test]
     fn direct_global_write_recorded() {
-        // naming.compiler.original-analysis-metadata-context
 
         // The `mutate` repro: global x; set x 99.
         let m = module("proc ::mutate {} { global x; set x 99 }");
@@ -2823,7 +2815,6 @@ mod tests {
 
     #[test]
     fn logical_nested_write_projection_requires_original_children_not_literal_brackets() {
-        // naming.compiler.original-analysis-metadata-context
 
         let registry = CommandRegistry::build_default();
         for (source, expected) in [
@@ -2857,7 +2848,6 @@ mod tests {
 
     #[test]
     fn embedded_incr_in_command_substitution_recorded() {
-        // naming.compiler.original-analysis-metadata-context
 
         let m = module("proc ::p {} { global x\nset y [incr x] }");
         let info = detect_global_write_procs(&m);

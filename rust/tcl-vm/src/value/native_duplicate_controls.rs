@@ -23,7 +23,6 @@ fn dictionary_member_reference_counts(source: &Value) -> Vec<(usize, usize)> {
 
 #[test]
 fn checked_dictionary_duplicate_holds_members_after_their_key_and_rejects_same_backing_mutation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine software node-aware String callbacks inspect actual references
     // and mutate the same Dictionary backing. This is not native C/Jim callback

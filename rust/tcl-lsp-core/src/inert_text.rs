@@ -166,7 +166,6 @@ pub(crate) fn offset_in_physical_comment_in_analysis(
     analysis: &AnalysisResult,
     off: u32,
 ) -> Option<bool> {
-    // naming.core.original-comment-source-context
 
     source.get(..usize::try_from(off).ok()?)?;
     let facts =
@@ -187,7 +186,6 @@ pub(crate) fn offset_in_data_brace_in_analysis(
     analysis: &AnalysisResult,
     off: u32,
 ) -> Option<bool> {
-    // Implementation contract: naming.core.original-data-brace-classification
 
     let config = analysis.body_lexer_config?;
     let structure =
@@ -414,7 +412,6 @@ mod tests {
     /// Original data and nested script words use the same retained geometry.
     #[test]
     fn a_dollar_ref_inside_a_data_brace_is_inert() {
-        // Implementation contract: naming.core.original-data-brace-classification
 
         for src in [
             "set t {plain $level here}\n",
@@ -427,7 +424,6 @@ mod tests {
 
     #[test]
     fn a_dollar_ref_inside_a_script_brace_keeps_source_applicability() {
-        // Implementation contract: naming.core.original-data-brace-classification
 
         for src in [
             "proc p {} {\n    puts $level\n}\n",
@@ -445,7 +441,6 @@ mod tests {
 
     #[test]
     fn original_case_lambda_and_expression_literals_keep_data_separate() {
-        // Implementation contract: naming.core.original-data-brace-classification
 
         assert_eq!(classify("switch $v {{$level} {puts ok}}\n", "$level"), None);
         assert_eq!(
@@ -459,7 +454,6 @@ mod tests {
 
     #[test]
     fn original_expression_contributors_do_not_borrow_independent_data_roles() {
-        // Implementation contract: naming.core.original-data-brace-classification
 
         for src in [
             "expr {1 +} {$level}\n",
@@ -474,7 +468,6 @@ mod tests {
 
     #[test]
     fn original_data_classification_keeps_alias_prefix_and_shadow_boundaries() {
-        // Implementation contract: naming.core.original-data-brace-classification
 
         assert_eq!(
             classify(
@@ -497,7 +490,6 @@ mod tests {
 
     #[test]
     fn original_data_classification_declines_stale_or_unowned_inputs() {
-        // Implementation contract: naming.core.original-data-brace-classification
 
         let src = "set t {plain $level}\n";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(src, "tcl8.6");
@@ -529,7 +521,6 @@ mod tests {
     }
     #[test]
     fn original_comment_cursor_keeps_multiline_quoted_substitutions_live() {
-        // naming.core.original-comment-source-context
 
         // These are source-applicability controls, not entered/native frames.
         let source = "set v value\nset text \"é\n# $v\"\n# inert $v\n";
@@ -562,7 +553,6 @@ mod tests {
 
     #[test]
     fn original_comment_cursor_declines_stale_or_unowned_analysis() {
-        // naming.core.original-comment-source-context
 
         let source = "# inert $v\n";
         let offset = offset_of(source, "$v");

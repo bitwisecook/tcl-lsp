@@ -107,7 +107,6 @@ pub fn selection_range_for_dialect(
     analysis: Option<&AnalysisResult>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<SelectionRange> {
-    // Implementation contract: naming.source.original-editor-body-structure
 
     let mut ranges: Vec<LspRange> = Vec::new();
 
@@ -426,7 +425,6 @@ mod tests {
 
     #[test]
     fn original_selection_uses_retained_bodies_and_declines_stale_body_roles() {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         let source = "proc p {} {\n puts [list inner]\n}\n";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -623,7 +621,6 @@ mod tests {
 
     #[test]
     fn original_body_ranges_keep_opaque_and_repeated_declaration_owners() {
-        // Implementation contract: naming.editor.original-selection-body-ranges
 
         let source = "proc p\\uD800 {} {\n set first 1\n}\nproc p\\uD801 {} {\n set second 2\n}\nproc repeated {} {\n set earlier 3\n}\nproc repeated {} {\n set later 4\n}\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -666,7 +663,6 @@ mod tests {
 
     #[test]
     fn original_body_ranges_keep_named_and_nameless_class_workers() {
-        // Implementation contract: naming.editor.original-selection-body-ranges
 
         let source = "oo::class create C\\uD800 {\n method m\\uD800 {} {\n  set methodBody 1\n }\n constructor {} {\n  set constructorBody 2\n }\n destructor {\n  set destructorBody 3\n }\n}\n";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -702,7 +698,6 @@ mod tests {
 
     #[test]
     fn original_body_ranges_refuse_stale_configuration_and_foreign_headers() {
-        // Implementation contract: naming.editor.original-selection-body-ranges
 
         let source = "proc p {} {\n set value 1\n}\n";
         let analysis = analyse(source);

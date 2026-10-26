@@ -9489,7 +9489,6 @@ mod tests {
 
     #[test]
     fn original_abstract_definition_grammar_loads_without_changing_factory_visibility() {
-        // naming.tcloo.original-abstract-manufacturer-public-visibility
 
         let pack = evaluate_pack(
             "speclib probe 1.1 { command makeAbstract { definition_body tcloo-abstract; \
@@ -9652,7 +9651,6 @@ mod tests {
 
     #[test]
     fn incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics() {
-        // Implementation contract: naming.dsl.incomplete-effect-descriptors
 
         for (field, rows) in [
             (
@@ -9792,7 +9790,6 @@ mod tests {
         );
     }
 
-    // Implementation contract: naming.dsl.incomplete-effect-descriptors.
     // The original row-reading regression also covers malformed input. Invalid
     // rows now withdraw the complete descriptor instead of exposing a partial
     // EMPTY descriptor; the valid composition control remains independent.
@@ -12894,7 +12891,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.registry-receiver-authoring-parity
 
     fn combined_variable_receiver_positions_preserve_scope_and_explicit_withdrawal() {
         use tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined;
@@ -13050,7 +13046,6 @@ mod tests {
     }
     #[test]
     fn original_loader_notices_retain_their_typed_property_and_flag_subjects() {
-        // Implementation contract: naming.consumer.typed-spec-pack-notice-actions
 
         let source = "speclib demo 1 {\n command demo::x {\n arty 1; arg 0 -rle Body\n }\n}\n";
         let pack = evaluate_pack(source);
@@ -13073,7 +13068,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.trace-source-receiver-purpose
 
     fn trace_subject_receiver_metadata_preserves_form_and_rejects_ambiguous_fields() {
         use tcl_registry::resolved_invocation::VariableReceiverOperandForm::{
@@ -13141,7 +13135,6 @@ mod tests {
 
     #[test]
     fn original_pack_source_facade_separates_file_prologue_from_block_content() {
-        // naming.source.original-configured-script-completeness
 
         use tcl_lexer::SourceSegmentationPurpose::{NestedScript, WholeInput};
         let source = "\u{feff}speclib probe {1.1} {\ncommand visible {arity 0}\n\u{feff}command hidden {arity 0}\n}";

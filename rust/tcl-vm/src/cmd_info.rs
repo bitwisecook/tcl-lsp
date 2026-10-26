@@ -817,7 +817,6 @@ mod tests {
 
     #[test]
     fn original_info_complete_keeps_string_worker_and_document_source_configuration_separate() {
-        // naming.source.original-configured-script-completeness
 
         // Six original String observation fields under actual fixture ingress;
         // no native header encoding or entered-source equivalence is inferred.
@@ -955,7 +954,6 @@ mod tests {
 
     #[test]
     fn actual_jim_version_report_does_not_read_tcl_bootstrap_globals() {
-        // Source proof: naming.info.version-source-owner
 
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         assert!(vm.get_var("::tcl_patchLevel").is_none());
@@ -1102,7 +1100,6 @@ mod tests {
 
     #[test]
     fn original_info_loaded_empty_result_uses_actual_c_constructor_without_list_cache() {
-        // naming.info.loaded-original-interpreter-path
 
         // Software snapshots of actual selected core recipes; no external C header measurement.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1124,7 +1121,6 @@ mod tests {
 
     #[test]
     fn original_info_loaded_inventory_follows_selected_child_and_refuses_retired_id() {
-        // naming.info.loaded-original-interpreter-path
 
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
         vm.note_library_loaded("ROOT539", "Root539");
@@ -1160,7 +1156,6 @@ mod tests {
 
     #[test]
     fn original_info_loaded_keeps_physical_result_owner_separate_from_source_labels() {
-        // naming.info.loaded-original-interpreter-path
 
         let actual = crate::environment::profile_for_dialect("tcl9.0");
         let source = crate::environment::profile_for_dialect("tcl8.4");

@@ -102,7 +102,6 @@ fn unbound_body_tokens(fixture: &Fixture) -> CommandTokens {
 
 #[test]
 fn original_conditional_body_retains_written_geometry_without_lookup_or_native_entry() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Actual held VM issuer; abrupt completion keeps this child unentered.
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -205,7 +204,6 @@ fn assert_geometry_binding(original: &CommandTokens, config: tcl_lexer::LexerCon
 
 #[test]
 fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() {
-    // naming.compiler.original-analysis-metadata-context
 
     let fixture = fixture("tcl8.4");
     let config = fixture.input.lexer_config();
@@ -310,7 +308,6 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
 
 #[test]
 fn original_body_geometry_is_absent_without_namespace_descent_or_retained_owner() {
-    // naming.compiler.original-analysis-metadata-context
 
     let fixture = fixture("tcl8.4");
     let mut lowerer =
@@ -387,7 +384,6 @@ fn original_body_geometry_is_absent_without_namespace_descent_or_retained_owner(
 
 #[test]
 fn original_body_geometry_cannot_overwrite_an_actual_declaration_owner() {
-    // naming.compiler.original-analysis-metadata-context
 
     // The real declaration and its location remain intact after geometry refuses.
     let fixture = fixture("tcl8.4");
@@ -435,7 +431,6 @@ fn original_body_geometry_cannot_overwrite_an_actual_declaration_owner() {
 
 #[test]
 fn original_jim_body_source_point_remains_without_a_proved_execution_target() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Original held Jim source correspondence is distinct from executable proof.
     let fixture = fixture("jimtcl");
@@ -529,7 +524,6 @@ fn folded_fixture(environment: &str) -> (Fixture, CommandTokens) {
 
 #[test]
 fn original_derived_body_geometry_retains_the_exact_parent_word_and_namespace() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Authentic held provider and original source projection; syntax only.
     for environment in ["tcl8.4", "tcl9.0"] {
@@ -603,7 +597,6 @@ fn original_derived_body_geometry_retains_the_exact_parent_word_and_namespace() 
 
 #[test]
 fn original_derived_body_geometry_refuses_changed_parent_vector_span_and_input() {
-    // naming.compiler.original-analysis-metadata-context
 
     let (fixture, parent) = folded_fixture("tcl8.4");
     let config = fixture.input.lexer_config();
@@ -700,7 +693,6 @@ fn original_derived_body_geometry_refuses_changed_parent_vector_span_and_input()
 
 #[test]
 fn original_derived_body_geometry_refuses_counterfeit_source_ordinal_and_parent_site() {
-    // naming.compiler.original-analysis-metadata-context
 
     let (fixture, parent) = folded_fixture("tcl8.4");
     let site = parent

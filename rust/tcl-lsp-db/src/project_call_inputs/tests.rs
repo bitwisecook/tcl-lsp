@@ -42,7 +42,6 @@ fn body_pack(body: bool) -> tcl_spectcl::pack::PackSet {
 
 #[test]
 fn supplied_project_callers_keep_per_file_body_roles_and_withdraw_unavailable_contributors() {
-    // naming.compiler.original-analysis-metadata-context
 
     // This records conditional caller advice, without Native execution or entry.
     let mut db = TclDatabase::default();
@@ -111,7 +110,6 @@ fn supplied_project_callers_keep_per_file_body_roles_and_withdraw_unavailable_co
 
 #[test]
 fn supplied_source_components_keep_selected_paths_and_dynamic_dispatch_withdrawals() {
-    // naming.compiler.original-analysis-metadata-context
 
     let mut db = TclDatabase::default();
     let config = configuration(&db, 0);
@@ -175,7 +173,6 @@ fn supplied_source_components_keep_selected_paths_and_dynamic_dispatch_withdrawa
 
 #[test]
 fn supplied_project_evidence_keeps_header_cutoffs_and_avoids_document_deep_queries() {
-    // naming.compiler.original-analysis-metadata-context
 
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let sink = Arc::clone(&events);

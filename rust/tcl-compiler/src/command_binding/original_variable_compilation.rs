@@ -33,7 +33,6 @@ pub(super) fn logical_original_substitution_access(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<Place> {
-    // naming.source.logical-original-variable-substitution
 
     let input = super::logical_definition::logical_entry(state, context)?;
     let (spelling, site) = original?;
@@ -647,7 +646,6 @@ mod ordered_primary_tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.ordered-compiler-primary-cell
 
     fn ordered_compiler_primary_is_consumed_before_runtime_and_lifetime_projection() {
         let source = b"proc p {formal} {set k\0a 1; set k\0b 2}; p VALUE";
@@ -828,7 +826,6 @@ mod logical_substitution_tests {
 
     #[test]
     fn logical_original_substitution_reads_only_the_existing_symbolic_storage() {
-        // naming.source.logical-original-variable-substitution
 
         // Admission into chosen symbolic inputs, not a Native process/value proof.
         let input = logical_input();
@@ -881,7 +878,6 @@ mod logical_substitution_tests {
 
     #[test]
     fn logical_original_substitution_keeps_observers_and_dynamic_storage_open() {
-        // naming.source.logical-original-variable-substitution
 
         let input = logical_input();
         for traced in [false, true] {
@@ -952,7 +948,6 @@ mod logical_substitution_tests {
 
     #[test]
     fn logical_original_substitution_refuses_missing_native_and_stale_ownership() {
-        // naming.source.logical-original-variable-substitution
 
         let input = logical_input();
         inspect_original_read(

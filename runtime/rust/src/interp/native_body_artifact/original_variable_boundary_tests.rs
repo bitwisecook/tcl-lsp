@@ -188,7 +188,6 @@ fn assert_first(interp: &Interp, mode: u8) {
 }
 #[test]
 fn original_compiled_variable_name_checks_first_string_before_cell_and_cache_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual C worker and software callbacks, no Native timing equivalence.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -227,7 +226,6 @@ fn original_compiled_variable_name_checks_first_string_before_cell_and_cache_pub
 #[test]
 fn original_compiled_parsed_element_projects_last_native_owners_before_uaf_and_primary_aba_callbacks(
 ) {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // C9 object-element purpose; allocation leases never add Native references.
     for profile in ["tcl9.0", "tcl9.1"] {
@@ -285,7 +283,6 @@ fn original_compiled_parsed_element_projects_last_native_owners_before_uaf_and_p
 }
 #[test]
 fn original_compiled_namespace_cache_retirement_checks_same_body_before_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Existing namespace worker and real primary free, software source only.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -368,7 +365,6 @@ impl NativeVariableObserver<Interp> for WrittenRole {
 }
 #[test]
 fn original_compiled_variable_store_retains_successful_write_pending_role_and_legal_replacement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Pending role is software only, not a modern C setter schedule claim.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -482,7 +478,6 @@ impl NativeVariableObserver<Interp> for CountWrite {
 }
 #[test]
 fn original_compiled_store_checks_cell_retirement_before_write_trace_and_later_incoming_host() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real last cell owner and existing incoming role; software ordering only.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -532,7 +527,6 @@ fn original_compiled_store_checks_cell_retirement_before_write_trace_and_later_i
 }
 #[test]
 fn original_compiled_error_presenter_keeps_first_frame_during_mandatory_private_owner_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Direct genuine private +1 setup is distinct from a public native setter.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -607,7 +601,6 @@ impl NativeVariableObserver<Interp> for C84FrameWrite {
 }
 #[test]
 fn original_compiled_error_presenter_checks_c84_frame_after_reached_setter_flag_settlement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Selected C84 mandatory flag; callback/frame invariants are software only.
     let mut interp = fixture::native("tcl8.4");

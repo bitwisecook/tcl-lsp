@@ -119,7 +119,6 @@ mod bounded_comparison_controls {
     use super::*;
     #[test]
     fn source_selected_unordered_and_defined_subtraction_boundaries_are_explicit() {
-        // naming.list.original-numeric-pattern-key-getters-and-results
 
         // NaN is independently measured in645/647 finite public results; signed
         // extreme subtraction is a source/definedness boundary, not a measured

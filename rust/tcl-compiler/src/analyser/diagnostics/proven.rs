@@ -682,7 +682,6 @@ mod source_value_projection_tests {
 
     #[test]
     fn supplemental_values_preserve_original_alias_operands_and_source_subjects() {
-        // naming.diagnostic.registry-source-ownership
 
         // Source/API correspondence only: no native argv or completion follows.
         let source = "interp alias {} classify {} string is; classify $kind value";
@@ -740,7 +739,6 @@ mod source_value_projection_tests {
 
     #[test]
     fn supplemental_values_cannot_resurrect_a_source_replaced_command() {
-        // naming.diagnostic.registry-source-ownership
 
         let source = "proc string args {return CUSTOM}; string is $kind value";
         let mut analyser = Analyser::new();

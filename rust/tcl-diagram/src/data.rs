@@ -964,7 +964,6 @@ pub fn diagram_data_for_analysis(
     module: &Module,
     availability: &tcl_registry::model::ContextRegistry,
 ) -> Value {
-    // Implementation contract: naming.consumer.original-structural-diagrams
 
     let registry = availability.commands();
     let Some((image, config)) = tcl_compiler::source_graph::current_analysis(source, analysis)
@@ -1786,7 +1785,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear() {
-        // Implementation contract: naming.consumer.original-structural-diagrams
 
         let source = r"proc p\uD800 {} {return FIRST}; p\uD800; proc p\uD801 {} {return OTHER}; p\uD801; proc p\uD800 {} {return LAST}; p\uD800";
         let (mut analysis, mut unit, context) = analysed(source, "tcl8.6");
@@ -1858,7 +1856,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagram_calls_use_retained_allocations_and_decline_missing_lookup() {
-        // Implementation contract: naming.consumer.original-structural-diagrams
 
         let source = "proc target {} {return OK}; target; proc other {} {return OTHER}; other";
         let (mut analysis, unit, availability) = analysed(source, "tcl8.6");
@@ -1899,7 +1896,6 @@ mod original_source_tests {
 
     #[test]
     fn diagram_source_calls_keep_real_body_owners_and_refuse_foreign_ids() {
-        // naming.consumer.original-structural-diagrams
 
         let source = "proc p {} {return FIRST}; p; proc p {} {return LAST}; p";
         let (analysis, unit, availability) = analysed(source, "tcl8.6");
@@ -1992,7 +1988,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagram_metadata_keeps_actual_availability_and_source_currency() {
-        // naming.consumer.original-structural-diagrams
 
         // Conditional source metadata only; no native invocation or completion
         // is issued by the same-store availability controls.
@@ -2087,7 +2082,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagram_events_require_actual_event_descriptors_instead_of_when_labels() {
-        // Implementation contract: naming.consumer.original-structural-diagrams
 
         let source = "namespace eval when {proc HTTP_REQUEST {} {return ordinary}}";
         let (analysis, unit, context) = analysed(source, "tcl8.6");
@@ -2109,7 +2103,6 @@ mod original_source_tests {
     }
     #[test]
     fn original_diagram_actions_keep_source_schema_separate_from_display_labels() {
-        // Implementation contract: naming.consumer.original-irules-source-context
 
         for source in [
             "when HTTP_REQUEST {pool /Common/first; HTTP::respond 503}",

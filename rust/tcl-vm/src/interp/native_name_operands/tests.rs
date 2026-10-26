@@ -117,7 +117,6 @@ fn unchanged_result(vm: &Vm, original: &crate::NativeObjectLifetimeLease) {
 
 #[test]
 fn original_name_resident_string_keeps_bytes_header_and_reference_roles_without_formatter() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software currentness control; resident bytes do not issue a new name or Native purpose.
     let (mut vm, formatter, queries) = provided();
@@ -145,7 +144,6 @@ fn original_name_resident_string_keeps_bytes_header_and_reference_roles_without_
 
 #[test]
 fn original_name_selected_string_uses_actual_compound_formatter_without_reference_donation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied Host formatter stages are software observations, not external Tcl header conclusions.
     let (mut vm, formatter, queries) = provided();
@@ -236,7 +234,6 @@ fn original_name_caller_check_stops_a_compound_getter_after_reentrant_frame_chan
 
 #[test]
 fn original_name_formatter_withdrawal_retains_exact_first_cause_and_stops_later_children() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software formatter callbacks withdraw the original root; allocation leases add no Native hold.
     for stage in ["build", "format", "failed-format"] {
@@ -280,7 +277,6 @@ fn original_name_formatter_withdrawal_retains_exact_first_cause_and_stops_later_
 
 #[test]
 fn original_name_inherits_context_before_resident_read_after_actual_host_change_and_restore() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // This genuine Scope invalidation is independent of ordinary name/table mutations.
     let (mut vm, formatter, queries) = provided();
@@ -310,7 +306,6 @@ fn original_name_inherits_context_before_resident_read_after_actual_host_change_
 
 #[test]
 fn original_name_pending_host_refusal_precedes_resident_projection_and_preserves_result() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A genuine prior typed Host refusal cannot become a Guest diagnostic or an apparent name miss.
     let (mut vm, formatter, queries) = provided();

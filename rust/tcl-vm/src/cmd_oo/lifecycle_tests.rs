@@ -87,7 +87,6 @@ fn dead(lease: &NativeObjectLifetimeLease) {
 }
 #[test]
 fn original_oo_class_cleanup_retires_actual_names_properties_and_whole_records() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual VM owning roles and NsIds; no C free-callback or MethodType chronology claim.
     let (mut vm, class, object) = provided();
@@ -158,7 +157,6 @@ fn original_oo_class_cleanup_retires_actual_names_properties_and_whole_records()
 }
 #[test]
 fn original_oo_cleanup_after_entry_refusal_skips_destructor_and_completes_owned_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, class, object) = provided();
     let calls = install_destructor(&mut vm, class, 0);
@@ -183,7 +181,6 @@ fn original_oo_cleanup_after_entry_refusal_skips_destructor_and_completes_owned_
 }
 #[test]
 fn original_oo_destructor_guest_host_and_restored_context_preserve_cleanup_and_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real destructor dispatch supplies Guest/Host/context effects, rather than a fabricated payload Drop.
     for mode in 0..=3 {
@@ -236,7 +233,6 @@ fn original_oo_destructor_guest_host_and_restored_context_preserve_cleanup_and_f
 }
 #[test]
 fn original_oo_cleanup_uses_parked_original_interpreter_without_retiring_child_records() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, class, object) = provided();
     let namespace = vm.oo.objects[&object].namespace_token.unwrap();
@@ -262,7 +258,6 @@ fn original_oo_cleanup_uses_parked_original_interpreter_without_retiring_child_r
 }
 #[test]
 fn original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restored_context() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in 0..3 {
         let (mut vm, _, object) = provided();
@@ -321,7 +316,6 @@ fn original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restore
 }
 #[test]
 fn original_oo_cascade_keeps_original_records_and_stops_later_destructors_after_host_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, class, first_object) = provided();
     let result = vm.eval_source("C create later").unwrap();

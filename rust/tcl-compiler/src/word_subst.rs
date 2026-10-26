@@ -2405,7 +2405,6 @@ mod tests {
 
     #[test]
     fn original_nested_word_parser_keeps_body_bom_parent_metadata_and_child_geometry() {
-        // naming.source.original-configured-script-completeness
 
         // Conditional original geometry/inventory, never Native child dispatch or result.
         let mut prepared = crate::analyser::Analyser::new();
@@ -2493,7 +2492,6 @@ mod tests {
 
     #[test]
     fn original_extracted_surface_keeps_bom_before_comment_and_no_point_receipt() {
-        // naming.source.original-configured-script-completeness
 
         // Lexical extracted-surface utility; no original point/ExprBool/Normal receipt.
         let mut prepared = crate::analyser::Analyser::new();
@@ -2519,7 +2517,6 @@ mod tests {
 
     #[test]
     fn original_nested_call_inventory_keeps_actual_roles_and_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source geometry only: no handler, body entry or result is proved.
         let current =
@@ -2602,7 +2599,6 @@ mod tests {
 
     #[test]
     fn original_logical_inventory_uses_source_roles_without_native_role_completion() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional original geometry; no Native frame/handler or result.
         let mut prepared = crate::analyser::Analyser::new();
@@ -2673,7 +2669,6 @@ mod tests {
 
     #[test]
     fn original_logical_inventory_keeps_alias_ordinals_and_uncertain_geometry_refusals() {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl").unwrap();
@@ -2741,7 +2736,6 @@ mod tests {
 
     #[test]
     fn original_nested_call_inventory_withdraws_changed_geometry_and_missing_sidecars() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -3543,7 +3537,6 @@ mod tests {
 
     #[test]
     fn original_lexical_bracket_inventory_does_not_require_parent_handler_roles() {
-        // naming.source.original-configured-script-completeness
 
         // Authenticated written substitutions only; no child dispatch or body entry.
         let mut prepared = crate::analyser::Analyser::new();
@@ -3631,7 +3624,6 @@ mod tests {
 
     #[test]
     fn original_braced_expression_inventory_still_requires_actual_selected_roles() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Braced Expr descent remains separate from lexical bracket substitutions.
         let mut prepared = crate::analyser::Analyser::new();

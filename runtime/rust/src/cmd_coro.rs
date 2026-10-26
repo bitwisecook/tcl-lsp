@@ -1204,7 +1204,6 @@ mod tests {
 
     #[test]
     fn original_injection_public_completions_match_both_c9_releases() {
-        // naming.coroutine.original-injection-public-completions
 
         macro_rules! original_case {
             ($directory:literal, $case:literal) => {
@@ -1385,7 +1384,6 @@ mod original_operand_tests {
 
     #[test]
     fn coroutine_probe_and_injection_keep_opaque_names_and_original_objects() {
-        // Source proof: naming.coroutine.original-probe-and-injection-object-transport
 
         let mut interp = native();
         assert_eq!(

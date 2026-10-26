@@ -4014,7 +4014,6 @@ mod tests {
 
     #[test]
     fn lazy_semantic_projection_retains_original_callback_inventory_and_carrierless_refusal() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Callback names are conditional module exposure, never an executed callback or store.
         for (source, named, any) in [
@@ -4089,7 +4088,6 @@ mod tests {
 
     #[test]
     fn lazy_semantic_projection_preserves_independent_fold_owner_and_purity() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Cache replay retains conditional value inputs, never a native result/handler.
         let (context, unit) = logical_callback_unit("set result [string length abc]");

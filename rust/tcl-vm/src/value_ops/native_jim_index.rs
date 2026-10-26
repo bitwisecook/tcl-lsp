@@ -983,7 +983,6 @@ mod tests {
     }
     #[test]
     fn original_index_scope_refuses_another_header_before_getters_or_adoption() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software receiver/header control; equal spelling is no receipt.
         let mut vm = actual();
@@ -1004,7 +1003,6 @@ mod tests {
 
     #[test]
     fn original_jim_container_indices_reuse_the_original_safe_expression_primary() {
-        // naming.jim.original-index-conversion-and-result-object
 
         // Same original 17-case operands; this tests command integration, not a
         // new native command-order observation or an invented C Index protocol.
@@ -1037,7 +1035,6 @@ mod tests {
     }
     #[test]
     fn original_jim_integer_bypass_is_distinct_from_first_string_index_conversion() {
-        // naming.jim.original-index-conversion-and-result-object
 
         // Retained native case 8 establishes failed String conversion leaves Int;
         // subsequent Int clamp is a pinned-source/API control, not a second probe.
@@ -1065,7 +1062,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_cache_cannot_revive_a_retired_header_through_a_lifetime_lease() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software ownership control with an actual VM header and native roles.
         let mut vm = actual();
@@ -1088,7 +1084,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_cache_preserves_the_complete_earlier_host_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = actual();
         let original = Value::new_native_string_bytes(b"end".as_slice());
@@ -1106,7 +1101,6 @@ mod tests {
     }
     #[test]
     fn original_jim_list_and_string_consumers_publish_the_reached_safe_expression_result() {
-        // naming.jim.original-index-conversion-and-result-object
 
         // Integration control: the original GetWideExpr result publication is
         // independently observable before the command adapter publishes its result.
@@ -1145,7 +1139,6 @@ mod replacement_native_rows629 {
 
     #[test]
     fn original_replacement_matches_every_native_observed_projection() {
-        // naming.string.original-counted-replacement-and-index-stages
 
         // Direct software API controls compare only public cache/alias/string
         // projections. Allocation-only argv transports do not pretend to reproduce
@@ -1238,7 +1231,6 @@ mod direct_binary_native_rows634a {
     }
     #[test]
     fn original_direct_c9_binary_replacement_matches_deterministic_native_roles() {
-        // naming.string.original-binary-replacement-direct-helper-sharing
 
         // Direct checked parsed-range API compares public cache/alias/String
         // projections. VM Value result ownership is separate from C refCount0.
@@ -1337,7 +1329,6 @@ mod indexed_binary_native_projections633 {
     }
     #[test]
     fn original_indexed_binary_inputs_match_supported_native_public_projections() {
-        // naming.string.original-binary-replacement-sharing-and-result-roles
 
         // Every native633 input controls supported cache/type/String geometry.
         // This direct API supplies its own explicit caller references. It does
@@ -1398,7 +1389,6 @@ mod parsed_empty_duplicate_control {
     use super::*;
     #[test]
     fn omitted_zero_count_without_in_place_uses_original_duplicate_constructor() {
-        // naming.string.original-binary-replacement-direct-helper-sharing
 
         // The pinned helper source includes this early duplicate branch. This
         // direct software constructor control is not one of the16 native rows.
@@ -1421,7 +1411,6 @@ mod original_index_range_native_rows635 {
     );
     #[test]
     fn original_index_and_range_project_exact_measured_public_predicates() {
-        // naming.string.original-counted-index-range-storage-and-results
 
         // Direct API provides its own original owners. We compare public type,
         // residency, deterministic byte and alias predicates, not EvalObjv
@@ -1518,7 +1507,6 @@ mod original_c_string_cache_controls637 {
     use super::*;
     #[test]
     fn original_c_count_retains_source_backed_eager_and_lazy_unicode_caches() {
-        // naming.string.original-counted-index-range-storage-and-results
 
         // Private cache shape is a pinned-source/software control, not a public
         // field in the native635 streams. Getter/result bytes have separate rows.
@@ -1545,7 +1533,6 @@ mod original_c_string_cache_controls637 {
     }
     #[test]
     fn original_c_binary_backing_receipt_does_not_keep_a_replaced_backing_alive() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual Weak backing/header control. This grants no VM general primary
         // epoch or native C84 adversarial pointer-lifetime observation.

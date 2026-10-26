@@ -2880,7 +2880,6 @@ mod tests {
 
     #[test]
     fn transfer_formals_keep_selected_tcl_and_jim_binders_separate() {
-        // naming.interprocedural.original-transfer-summary-source-context
 
         // Selected software formal binding, not native local slots or activation.
         let source = "proc optional {{a A} b} {return 1}\nproc middle {a args b} {return 1}\nproc linked {&v} {return 1}";
@@ -2960,7 +2959,6 @@ mod tests {
 
     #[test]
     fn transfer_unused_formals_use_actual_variable_roots_and_metadata() {
-        // naming.interprocedural.original-transfer-summary-source-context
 
         // Conditional SSA use inventory, not native frame or replacement proof.
         let source = "proc p {{a b} {$tag} é unused} {return \"${a b}${$tag}${é}\"}";

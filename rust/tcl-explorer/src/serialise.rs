@@ -104,7 +104,6 @@ pub(crate) fn retained_explorer_source<'a>(
     result: &'a ExplorerResult,
     source: &str,
 ) -> Option<RetainedExplorerSource<'a>> {
-    // naming.source.retained-explorer-consumers
 
     let module = &result.unit.ir_module;
     if source != result.source
@@ -4070,7 +4069,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.registry-event-frame-identity
 
     fn original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant() {
         let source = "when HTTP_REQUEST {set local 1}";
@@ -5582,7 +5580,6 @@ mod original_configured_index_tests {
     use super::*;
     #[test]
     fn original_structural_completeness_keeps_module_input_and_unknown_null() {
-        // naming.source.original-configured-script-completeness
 
         // Explorer source display; fixed C9 structural indexes remain separate.
         let mut result = crate::run_pipeline("set x ${a{}", "tcl9.1");
@@ -5653,7 +5650,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn retained_explorer_source_keeps_actual_profiles_and_ignores_display_labels() {
-        // naming.source.retained-explorer-consumers
 
         // Producer/model controls, independently of C/Jim binary observations.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -5689,7 +5685,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn retained_event_order_uses_the_custom_full_config_and_actual_command_store() {
-        // naming.source.retained-explorer-consumers
 
         // Explicit source-parser axis, not a measured BIG-IP BOM acceptance claim.
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
@@ -5785,7 +5780,6 @@ mod retained_explorer_source_tests {
     #[test]
     fn retained_explorer_views_refuse_missing_changed_and_foreign_source_owners() {
         type Control = (&'static str, fn(&mut ExplorerResult));
-        // naming.source.retained-explorer-consumers
 
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let context = environment.default_context_registry();
@@ -5884,7 +5878,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn rewritten_explorer_image_retains_metadata_without_reusing_old_source_ownership() {
-        // naming.source.retained-explorer-consumers
 
         let environment = tcl_registry::model::resolve_known_environment("tcl8.4").unwrap();
         let context = environment.default_context_registry();
@@ -5913,7 +5906,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn remaining_actual_cu_views_retain_profiles_and_ignore_display_labels() {
-        // naming.source.retained-explorer-consumers
 
         // Source/model agreement, independently of provider execution results.
         for engine in [

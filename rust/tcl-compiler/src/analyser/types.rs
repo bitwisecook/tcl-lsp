@@ -5634,7 +5634,6 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
 
     #[test]
     fn substituted_heads_and_consumed_names_retain_original_lookup() {
-        // naming.source.original-command-lookup
         // tclsh 8.6.18 / 9.0.4: each `greet` below runs (or, for `info body`,
         // names) the procedure declared at offset 0.
         let declaration = "proc greet {} { return hi }\n";
@@ -5679,7 +5678,6 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
 
     #[test]
     fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
-        // naming.source.closed-leaf-handler-completion
         // The completed command world is the world after the document runs
         // to normal completion: a command that may raise (`puts`, `list`
         // arity) only adds a path that never reaches it. `exit` or an
@@ -6064,7 +6062,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_export_inventory_keeps_opaque_patterns_clear_and_prefix_abort() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"namespace export {p\uD800}; namespace export -clear p\uD801; namespace export -clear -clear; namespace export first ::invalid never";
@@ -6121,7 +6118,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_export_inventory_retains_unknown_operand_as_may_only() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = "namespace export $unavailable";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -6133,7 +6129,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_inventory_keeps_conditional_source_scopes_after_unknown_import() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = "unavailable_provider\nnamespace eval C {proc p {} {}; namespace export p}\nnamespace eval B {namespace import ::C::*; namespace export p}\nnamespace eval A {namespace import ::B::*}\n";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -6184,7 +6179,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_inventory_does_not_borrow_a_parent_for_unknown_source_scope() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = "namespace eval $unknown {namespace export p; namespace import ::C::*}";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -6196,7 +6190,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_inventory_does_not_extend_static_scope_through_an_unentered_callable() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source =
             "proc unused {} {namespace eval B {namespace export p; namespace import ::C::*}}";
@@ -6224,7 +6217,6 @@ mod original_source_context_tests;
 mod original_definition_suffix_purpose_tests {
     #[test]
     fn original_definition_suffix_keeps_bom_definer_and_authored_allocation() {
-        // naming.source.original-configured-script-completeness
 
         // Retained authored declaration navigation; no completed call or editable definition grant.
         let mut prepared = crate::analyser::Analyser::new();

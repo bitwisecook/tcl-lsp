@@ -4364,7 +4364,6 @@ pub(crate) fn nested_dispatch_regions(
     _dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
-    // naming.core.original-dispatch-region-context
 
     let Some(RetainedDispatchContext {
         config, context, ..
@@ -8385,7 +8384,6 @@ mod tests {
 
     #[test]
     fn method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers() {
-        // naming.core.original-dispatch-region-context
 
         // Conditional source reference geometry, not a live receiver or method entry.
         use std::sync::Arc;
@@ -8498,7 +8496,6 @@ mod tests {
 
     #[test]
     fn callback_source_roles_keep_actual_availability_and_original_builder_geometry() {
-        // naming.core.original-dispatch-region-context
 
         // Conditional source reference spans; no Native callback, receiver or edit grant.
         let store = callback_source_store("dict");
@@ -8546,7 +8543,6 @@ mod tests {
 
     #[test]
     fn callback_source_roles_keep_actual_package_availability_in_the_same_store() {
-        // naming.core.original-dispatch-region-context
 
         let source = "set cb [list source_dispatch selected]; source_callback $cb";
         let store = callback_source_store("bind");
@@ -8561,7 +8557,6 @@ mod tests {
 
     #[test]
     fn callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes() {
-        // naming.core.original-dispatch-region-context
 
         for source in [
             "proc source_callback args {}; source_callback [list source_dispatch selected]",
@@ -8585,7 +8580,6 @@ mod tests {
 
     #[test]
     fn caller_frame_reference_component_keeps_retained_registry_and_input() {
-        // naming.core.original-caller-frame-navigation
 
         // Readonly source template/reference geometry, not a completed native store.
         let source = "proc setdef {d} {upvar 1 $d dst; set dst SET}\nproc caller {} {setdef shared; puts $shared}\n";
@@ -8652,7 +8646,6 @@ mod tests {
 
     #[test]
     fn method_dispatch_scan_uses_retained_custom_schema_and_script_purpose() {
-        // naming.core.original-dispatch-region-context
 
         fn reference_only(
             _args: tcl_registry::InvocationArguments<'_>,
@@ -8703,7 +8696,6 @@ mod tests {
 
     #[test]
     fn shifted_dispatch_regions_follow_original_moves_and_known_source_barriers() {
-        // naming.core.original-dispatch-region-context
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         for (source, visible) in [
@@ -8999,7 +8991,6 @@ mod original_highlight_selection_tests {
 
     #[test]
     fn original_highlights_preserve_opaque_declarations_and_whole_source_currency() {
-        // Implementation contract: naming.editor.original-reference-highlight-selection
 
         let source = r"proc p\uD800 {} {}
 proc p\uD801 {} {}
@@ -9031,7 +9022,6 @@ p\uD800";
 
     #[test]
     fn original_method_reference_helpers_do_not_select_from_reporting_names() {
-        // Implementation contract: naming.editor.original-reference-highlight-selection
 
         let source = "oo::class create C {method m {} {}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -9119,7 +9109,6 @@ mod original_next_dispatch_context_tests {
 
     #[test]
     fn original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability() {
-        // naming.core.original-dispatch-region-context
 
         // Conditional source topology/values only, not a next-method invocation.
         let store = store();
@@ -9145,7 +9134,6 @@ mod original_next_dispatch_context_tests {
 
     #[test]
     fn original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source() {
-        // naming.core.original-dispatch-region-context
 
         let store = store();
         for source in [
@@ -9183,7 +9171,6 @@ mod original_dispatch_parser_purpose_tests {
 
     #[test]
     fn original_dispatch_body_scans_keep_bom_content_and_selected_full_config() {
-        // naming.core.original-dispatch-region-context
 
         // Source-only method reference geometry; no object or method execution.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -9267,7 +9254,6 @@ mod logical_class_selector_tests {
 
     #[test]
     fn logical_class_selector_keeps_actual_alias_and_rename_source_lineage() {
-        // naming.core.logical-call-target-owner
 
         for tail in [
             "C m",
@@ -9292,7 +9278,6 @@ mod logical_class_selector_tests {
 
     #[test]
     fn captured_selectors_and_replaced_class_commands_have_no_written_selector_grant() {
-        // naming.core.logical-call-target-owner
 
         for tail in [
             "interp alias {} invoke {} C m; invoke",
@@ -9315,7 +9300,6 @@ mod logical_class_selector_tests {
 
     #[test]
     fn logical_selector_preserves_full_source_and_unicode_and_refuses_native_donation() {
-        // naming.core.logical-call-target-owner
 
         let source = "oo::class create C {self method mβ::x {} {}}; C mβ::x";
         let mut analysis = Analyser::new().analyse(source, "tcl");
@@ -9378,7 +9362,6 @@ mod constructed_compatibility_tests {
 
     #[test]
     fn constructed_reference_projection_keeps_colon_components_and_known_refusal() {
-        // naming.analysis.constructed-key-consumer-projections
 
         // Explicit written metadata carries no positioned declaration receipt.
         use tcl_compiler::analyser::Analyser;
@@ -9482,7 +9465,6 @@ mod configured_callback_variable_tests {
 
     #[test]
     fn actual_stored_callback_reference_uses_its_retained_brace_configuration() {
-        // naming.core.original-dispatch-region-context
 
         let source = source("a{b}c", "${a{b}c}");
         let mut config = tcl_lexer::LexerConfig {
@@ -9506,7 +9488,6 @@ mod configured_callback_variable_tests {
 
     #[test]
     fn actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name() {
-        // naming.core.original-dispatch-region-context
 
         for operand in ["${cbé}", "\"${cbé}\""] {
             let source = source("cbé", operand);

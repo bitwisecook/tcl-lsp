@@ -3587,7 +3587,6 @@ fn scan_positioned_reachability(
             facts.direct_calls.insert(callee);
         }
     }
-    // naming.compiler.original-positioned-child-body-reachability
 
     // Each child retains its actual target, source offset and entered owner.
     // Re-segmenting an argument value cannot donate a nested command's roles.
@@ -5739,7 +5738,6 @@ mod tests {
 
     #[test]
     fn procedure_and_method_callback_advice_requires_the_module_source_producer() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Callback edges are conditional authored reachability. This source
         // control does not establish a native invocation or callback frame.
@@ -5833,7 +5831,6 @@ mod tests {
 
     #[test]
     fn original_positioned_child_bodies_preserve_replacements_and_aliases() {
-        // naming.compiler.original-positioned-child-body-reachability
 
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
@@ -5885,7 +5882,6 @@ mod tests {
     /// The `trace add variable … command cb` shape.
     #[test]
     fn original_callback_reachability_distinguishes_literal_values_and_selected_builders() {
-        // naming.source.original-callback-procedure-target
 
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();

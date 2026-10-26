@@ -441,7 +441,6 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
 /// there is no flag or terminator word to skip. The exact count is after
 /// the `delete` subcommand; namespace values need not be logical strings.
 fn namespace_delete_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
-    // naming.namespace.original-fresh-namespace-deletion
 
     (0..count)
         .filter_map(|i| u8::try_from(i).ok())
@@ -531,7 +530,6 @@ const NAMESPACE_LOOKUP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[Transiti
 // bridge as well as namespace lookup. NamespaceDeleteCmd/Tcl_DeleteNamespace
 // account for the exact tree, commands, cells and observers in this transition;
 // callbacks and independently declared policy/host accesses remain separate.
-// Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
 const NAMESPACE_DELETE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
     NAMESPACE_LOOKUP_EFFECT_COVERAGE[0],
@@ -897,7 +895,6 @@ fn namespace_unknown_state_transitions(arguments: InvocationArguments<'_>) -> St
 // from the public ensemble compiler and runtime body-selection contract.
 macro_rules! namespace_no_hook_compiler {
     ($member:literal, $operation:expr, $body:expr) => {
-        // naming.namespace.original-counted-namespace-allocation
 
         crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
@@ -1435,7 +1432,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // prefix invoked with the unknown command name + its args appended
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
         command_prefixes: &[(0, AppendedArity::AtLeast(1))],
-        // naming.callback.original-unknown-handler-lookup-scope
 
         // TEOV_NotFound resolves in the failing dispatch's frame/lookup
         // namespace, never by borrowing the earlier installer's frame.
@@ -1689,9 +1685,7 @@ mod tests {
 
     #[test]
     fn jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_binding() {
-        // naming.namespace.jim-original-scripted-ensemble-publication-with-rooted-result
 
-        // naming.namespace.jim-original-scripted-helper-availability-and-forwarding
 
         // The original returned helper body rejects unsupported operations.
         // These are source-schema assertions, not current helper/Normal proofs.
@@ -1853,7 +1847,6 @@ mod tests {
 
     #[test]
     fn original_namespace_delete_roles_require_cardinality_without_requiring_text_values() {
-        // naming.namespace.original-fresh-namespace-deletion
 
         use crate::{ArgRole, InvocationWord, InvocationWords};
         for version in tcl_dialect::TclVersion::ALL {
@@ -1891,7 +1884,6 @@ mod tests {
 
     #[test]
     fn original_namespace_delete_effects_hand_only_legacy_state_to_the_recursive_transition() {
-        // naming.namespace.original-fresh-namespace-deletion
 
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = crate::InvocationDialect::for_version(version);
@@ -1935,7 +1927,6 @@ mod tests {
 
     #[test]
     fn original_namespace_delete_keeps_independent_policy_writes_and_trace_callbacks() {
-        // naming.namespace.original-fresh-namespace-deletion
 
         use crate::world_effect::{
             EffectAccessMode, StaticEffectAccess, StaticInterpreterScope, StaticNamespaceScope,

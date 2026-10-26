@@ -223,7 +223,6 @@ pub fn original_exact_case_source_at_analysis(
     analysis: &AnalysisResult,
     head_offset: u32,
 ) -> Option<OriginalExactCaseSource> {
-    // naming.refactor.original-exact-case-source
 
     let input = analysis.resolved_input.as_ref()?;
     let words = source_registry_words_at(source, analysis, head_offset)?;
@@ -252,7 +251,6 @@ pub fn original_exact_switch_source_at_analysis(
     analysis: &AnalysisResult,
     head_offset: u32,
 ) -> Option<OriginalExactSwitchSource> {
-    // naming.refactor.original-datagroup-variable-subject
 
     original_exact_case_source_at_analysis(source, analysis, head_offset)?.into_scalar_switch()
 }
@@ -321,7 +319,6 @@ mod tests {
 
     #[test]
     fn scalar_fragment_syntax_preserves_selected_reference_boundaries() {
-        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
 
         for (dialect, spelling, expected) in [
             ("tcl8.4", "${a{b}", Some("a{b")),
@@ -361,7 +358,6 @@ mod tests {
 
     #[test]
     fn original_scalar_subject_uses_shared_selected_reference_boundaries() {
-        // Implementation contract: naming.refactor.original-datagroup-variable-subject
 
         for (dialect, source, expected) in [
             ("tcl8.6", "${a{b}", "a{b"),

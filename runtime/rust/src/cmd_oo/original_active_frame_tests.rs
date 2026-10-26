@@ -142,7 +142,6 @@ fn first(interpreter: &Interp, mode: u8) {
 }
 #[test]
 fn active_original_method_frames_retire_all_reached_records_outside_oo_borrow() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real authored record/name roles; the unused ancestor is held by the entered chain alone.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -184,7 +183,6 @@ fn active_original_method_frames_retire_all_reached_records_outside_oo_borrow() 
 }
 #[test]
 fn active_eval_name_retirement_preserves_mandatory_frame_and_namespace_restoration() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A private real cached-name role exercises the genuine eval frame's final owner.
     for mode in 0..3 {
@@ -211,7 +209,6 @@ fn active_eval_name_retirement_preserves_mandatory_frame_and_namespace_restorati
 }
 #[test]
 fn method_entry_failure_latches_original_cause_before_incoming_chain_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut interpreter, _reset) = native("tcl8.6");
     install_original_base(&mut interpreter);

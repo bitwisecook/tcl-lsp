@@ -127,7 +127,6 @@ fn table() -> [*const c_char; 3] {
 
 #[test]
 fn original_collection_rc0_views_keep_header_and_backing_copy_on_write_separate() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software header and backing ownership; no external callback timing claim.
     leak_free(|| {
@@ -192,7 +191,6 @@ fn error_code_keeps_unreached_original_updater(action: u8) {
 
 #[test]
 fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Each real updater mutates/restores the original context or raises the first Host cause.
     for action in [1, 2] {
@@ -265,7 +263,6 @@ fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_out
 
 #[test]
 fn original_collection_retirement_runs_once_before_later_cache_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A real old freeIntRep runs outside interpreter borrows. Reached retirement is retained.
     for action in [1, 2] {
@@ -308,7 +305,6 @@ fn original_collection_retirement_runs_once_before_later_cache_publication() {
 
 #[test]
 fn original_collection_empty_and_abstract_length_keep_their_actual_cache_purposes() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Selected software native protocol and genuine constructor, independent of execution admission.
     leak_free(|| {
@@ -389,7 +385,6 @@ fn original_collection_empty_and_abstract_length_keep_their_actual_cache_purpose
 
 #[test]
 fn original_collection_null_missing_and_foreign_issuers_cannot_supply_a_view() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Header/backing protocol alone does not supply an interpreter/current-operation issuer.
     leak_free(|| {
@@ -443,7 +438,6 @@ fn original_collection_null_missing_and_foreign_issuers_cannot_supply_a_view() {
 
 #[test]
 fn original_index_cache_keeps_table_stride_protocol_and_selected_output_width() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Original table contract and source spelling; no NativeStaticIndexTable capability fabricated.
     leak_free(|| {
@@ -548,7 +542,6 @@ fn original_index_cache_keeps_table_stride_protocol_and_selected_output_width() 
 
 #[test]
 fn original_collection_parse_failure_keeps_original_primary_and_owned_children() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The genuine selected List parser fails before original retirement; no native failure row is inferred.
     leak_free(|| {
@@ -590,7 +583,6 @@ fn original_collection_parse_failure_keeps_original_primary_and_owned_children()
 
 #[test]
 fn original_collection_dictionary_members_require_their_retained_protocol() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Pure original Dictionary member conversion validates its actual backing recipe without a String detour.
     for foreign in [false, true] {

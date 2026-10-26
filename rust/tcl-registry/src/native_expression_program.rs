@@ -455,7 +455,6 @@ impl NativeExpressionProgram {
         &self,
         dialect: InvocationDialect,
     ) -> NativeExpressionCompilerNameEffects {
-        // naming.expression.compiler-function-name-literals
 
         use NativeExpressionCompilerNameEffects as Effects;
         use tcl_syntax::expr::{ExprNode, parser::NativeExprSyntax};
@@ -1232,7 +1231,6 @@ mod tests {
 
     #[test]
     fn compiler_function_name_effects_are_selected_without_runtime_dispatch() {
-        // naming.expression.compiler-function-name-literals
 
         use NativeExpressionCompilerNameEffects as Effects;
         for version in tcl_dialect::TclVersion::ALL {

@@ -395,7 +395,6 @@ mod currency {
 
     #[test]
     fn modern_increment_retains_reached_updater_and_stops_before_numeric_cache_or_store() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software updater and entered currency, not native measurement.
         leak_free(|| {
@@ -440,7 +439,6 @@ mod currency {
 
     #[test]
     fn legacy_increment_amount_and_receiver_use_the_original_guarded_scalar_stages() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         leak_free(|| {
             for amount_stage in [false, true] {
@@ -481,7 +479,6 @@ mod currency {
 
     #[test]
     fn legacy_increment_keeps_supported_cache_without_borrowing_missing_fresh_environment() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         leak_free(|| {
             let mut interpreter = native(tcl_dialect::TclVersion::V8_4);
@@ -533,7 +530,6 @@ mod currency {
 
     #[test]
     fn original_increment_keeps_real_copy_on_write_and_pending_first_host() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         leak_free(|| {
             for shared in [false, true] {

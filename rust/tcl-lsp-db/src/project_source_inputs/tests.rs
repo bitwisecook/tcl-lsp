@@ -48,7 +48,6 @@ fn has_procedure(tree: &ItemTree, name: &str) -> bool {
 
 #[test]
 fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_metadata() {
-    // naming.compiler.original-analysis-metadata-context
 
     // A selected authored definer supplies source cards, not Native execution.
     let mut db = TclDatabase::default();
@@ -197,7 +196,6 @@ fn assert_no_supplied_callback_source_arity(
 
 #[test]
 fn supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signature() {
-    // naming.database.original-project-callback-projection
 
     // Header/count advice retains the original callback subject and no entry claim.
     let mut db = TclDatabase::default();
@@ -413,7 +411,6 @@ fn supplied_logical_arities_require_every_members_source_owner() {
 
 #[test]
 fn supplied_factory_oracles_require_current_file_inputs_without_a_derived_query_cycle() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Conditional class-manufacturer hints are independent of Native allocation.
     let mut db = TclDatabase::default();
@@ -523,7 +520,6 @@ fn project_factory_hints_preserve_duplicate_provider_ambiguity_in_every_order() 
 
 #[test]
 fn configured_project_headers_and_factories_preserve_the_structure_tier_firewall() {
-    // naming.compiler.original-analysis-metadata-context
 
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let sink = Arc::clone(&events);

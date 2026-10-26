@@ -26,7 +26,6 @@ impl OriginalInvocationBindingCache {
         offset: u32,
         prepare: impl FnOnce() -> SourceInvocationBinding,
     ) -> Arc<SourceInvocationBinding> {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         if let Some(retained) = self
             .entries
@@ -59,7 +58,6 @@ impl CommandBindingRealm {
     /// derived result is shared; compiler and current-purpose guards remain on
     /// the same receipt. A cache hit cannot select another interpretation.
     pub(super) fn retained_original_invocation(&self, offset: u32) -> Arc<SourceInvocationBinding> {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         self.original_bindings
             .get_or_prepare(offset, || self.bindings.invocation_at_source("", offset))
@@ -75,7 +73,6 @@ impl CommandBindingRealm {
         offset: u32,
         span: tcl_lexer::Span,
     ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
-        // Implementation contract: naming.source.original-point-operand-projection
 
         self.matches_original_source_image(image, config)
             .then_some(())?;
@@ -100,7 +97,6 @@ mod tests {
 
     #[test]
     fn original_point_memo_shares_complete_exact_results_and_keeps_points_distinct() {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         let source = "set x 1; set y 2";
         let realm = fixture(source);
@@ -125,7 +121,6 @@ mod tests {
 
     #[test]
     fn original_point_memo_shares_queries_across_genuine_enclosing_vectors() {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         let source = "set x [set y [set z 1]]";
         let realm = fixture(source);
@@ -165,7 +160,6 @@ mod tests {
 
     #[test]
     fn original_point_memo_does_not_reuse_foreign_source_config_or_unknown_entry() {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         let source = "set x 1";
         let realm = fixture(source);
@@ -242,7 +236,6 @@ mod tests {
 
     #[test]
     fn original_point_memo_has_bounded_retention_without_closing_absence() {
-        // Implementation contract: naming.source.original-invocation-projection-memo
 
         let realm = fixture("set x 1");
         for offset in 0..=u32::try_from(MAX_RETAINED_BINDINGS).unwrap() {
@@ -264,7 +257,6 @@ mod tests {
     }
     #[test]
     fn original_point_operand_projection_keeps_the_exact_invocation_owner() {
-        // naming.source.original-point-operand-projection
 
         let source = "namespace eval A {namespace eval B {set x 1}}";
         let realm = fixture(source);
@@ -324,7 +316,6 @@ mod tests {
 
     #[test]
     fn original_point_operand_projection_retains_frozen_values_and_full_currency() {
-        // naming.source.original-point-operand-projection
 
         let source = "set target A; namespace eval $target {}";
         let realm = fixture(source);

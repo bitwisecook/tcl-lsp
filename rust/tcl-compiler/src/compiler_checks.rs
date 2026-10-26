@@ -753,7 +753,6 @@ pub fn retain_diagnostic_source_context(
     registry: &CommandRegistry,
     diagnostics: &mut [Diagnostic],
 ) {
-    // Implementation contract: naming.editor.original-diagnostic-edit-currency
 
     let context = DiagnosticSourceContext::for_unit(cu, registry);
     for diagnostic in diagnostics {

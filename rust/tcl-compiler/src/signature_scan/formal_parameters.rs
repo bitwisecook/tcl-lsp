@@ -600,7 +600,6 @@ mod tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.variable.original-readonly-formal-topology
 
     fn original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields() {
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
@@ -648,7 +647,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.original-readonly-formal-topology
 
     fn original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents() {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -714,7 +712,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.original-readonly-formal-topology
 
     fn original_readonly_formals_keep_opaque_default_rest_and_source_currency() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {

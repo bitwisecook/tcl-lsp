@@ -457,7 +457,6 @@ mod tests {
 
     #[test]
     fn original_variable_component_cursor_keeps_index_children_and_literal_dollars() {
-        // Implementation contract: naming.core.selected-variable-cursor-syntax
 
         let source = "$arr($idx) ${cash$name}";
         let arena = ExecutablePartArena::decompose(
@@ -617,7 +616,6 @@ mod tests {
 
     #[test]
     fn template_masks_leave_array_index_substitutions_enabled() {
-        // Source proof: naming.substitution.template-token-and-index-source
 
         // C v6 template2/flags6 evaluates [set k k] in the index. Jim's
         // independent JimExpandDictSugar source selects JIM_NONE there.

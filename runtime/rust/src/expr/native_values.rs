@@ -216,7 +216,6 @@ mod tests {
     }
     #[test]
     fn original_list_membership_stops_after_reached_list_needle_or_member_first_host() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software updater/first-cause control, not native IN opcode behaviour.
         for stage in 0..3 {
@@ -271,7 +270,6 @@ mod tests {
     }
     #[test]
     fn original_list_membership_keeps_counted_bytes_and_native_member_reference_roles() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Original software List/String producers; no provider result comparison.
         let mut context = native();
@@ -305,7 +303,6 @@ mod tests {
     }
     #[test]
     fn original_list_membership_retains_allocation_safety_without_reviving_retired_members() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real backing retirement during original getter; native child count stays unchanged.
         let mut context = native();
@@ -332,7 +329,6 @@ mod tests {
     }
     #[test]
     fn authored_f5_predicates_require_policy_checked_unicode_and_owned_cleanup() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Authored expression policy only; no BIG-IP native predicate or character claim.
         let mut context = native();
@@ -367,7 +363,6 @@ mod tests {
     }
     #[test]
     fn authored_f5_getter_first_host_stops_before_later_operand_and_result() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software updater under an installed authored policy; no BIG-IP result claim.
         let mut context = native();

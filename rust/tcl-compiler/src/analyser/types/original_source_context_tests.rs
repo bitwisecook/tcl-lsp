@@ -10,7 +10,6 @@ use tcl_lexer::SourceImage;
 
 #[test]
 fn original_source_correspondence_keeps_its_retained_full_editing_input() {
-    // Implementation contract: naming.core.original-registry-source-hover
 
     // This checks retained Rust source metadata, not interpreter behaviour.
     for (dialect, source) in [
@@ -82,7 +81,6 @@ fn original_source_correspondence_keeps_its_retained_full_editing_input() {
 
 #[test]
 fn original_hosted_source_input_keeps_catalogue_naming_and_storage_separate() {
-    // Implementation contract: naming.vendor.original-source-context-input
 
     for environment in ["f5-irules", "f5-iapps", "f5-tmsh"] {
         let source = "if 1 { puts baseline }";

@@ -100,7 +100,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_keeps_available_aliases_prefixes_and_captured_values() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for (source, argument, written, value) in [
@@ -166,7 +165,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_refuses_replacements_and_unclosed_or_dynamic_values() {
-        // naming.diagnostic.registry-source-ownership
 
         let input = current_input();
         for source in [
@@ -194,7 +192,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_keeps_actual_availability_and_source_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline

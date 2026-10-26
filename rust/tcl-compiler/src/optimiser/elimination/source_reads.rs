@@ -34,7 +34,6 @@ pub(crate) fn original_hidden_reads(
     registry: &CommandRegistry,
     metadata: Option<InvocationMetadataContext<'_>>,
 ) -> OriginalReadFootprint {
-    // naming.compiler.original-analysis-metadata-context
 
     let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
         return OriginalReadFootprint {
@@ -194,7 +193,6 @@ mod tests {
 
     #[test]
     fn original_hidden_read_names_keep_alias_horizons_and_literal_roots() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source names only, never a current read/frame/removal grant.
         let context =
@@ -241,7 +239,6 @@ mod tests {
 
     #[test]
     fn original_hidden_reads_keep_actual_availability_and_variable_grammar() {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
@@ -287,7 +284,6 @@ mod tests {
 
     #[test]
     fn original_hidden_reads_refuse_missing_foreign_and_stale_inputs() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();

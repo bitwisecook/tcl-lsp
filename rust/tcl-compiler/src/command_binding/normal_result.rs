@@ -504,7 +504,6 @@ mod tests {
 
     #[test]
     fn original_closed_leaf_completion_keeps_definition_and_store_obligations_separate() {
-        // Implementation contract: naming.source.closed-leaf-handler-completion
 
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source = "proc deferred {} {error LATER}";
@@ -550,7 +549,6 @@ mod tests {
 
     #[test]
     fn original_jim_fresh_store_completion_uses_the_selected_write_kernel() {
-        // Implementation contract: naming.source.closed-leaf-handler-completion
 
         let dialect = tcl_registry::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),

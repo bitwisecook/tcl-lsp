@@ -100,7 +100,6 @@ mod tests {
 
     #[test]
     fn namespace_package_consensus_keeps_unknown_nested_case_and_literal_colons() {
-        // naming.analysis.constructed-key-consumer-projections
 
         let specs = vec![
             row("tools::fetch", Some("tools-runtime")),
@@ -179,7 +178,6 @@ mod tests {
 
     #[test]
     fn namespace_package_context_selects_real_rows_and_declines_foreign_release() {
-        // naming.analysis.constructed-key-consumer-projections
 
         let mut store = CommandRegistry::build_default();
         for (name, package, surface) in [

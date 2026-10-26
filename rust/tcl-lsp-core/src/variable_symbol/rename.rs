@@ -565,7 +565,6 @@ mod tests {
 
     #[test]
     fn original_variable_rename_keeps_opaque_siblings_and_array_indices() {
-        // Implementation contract: naming.editor.original-variable-rename-opaque-root
 
         let source = r"set ::N::v\uD800(k) 1; set ::N::v\uD801 2; info exists ::N::v\uD800(k)";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -582,7 +581,6 @@ mod tests {
 
     #[test]
     fn original_variable_rename_preserves_lexical_braces_and_separate_array_index() {
-        // Implementation contract: naming.editor.original-variable-rename-lexical-geometry
 
         let source = "set ::N::a(k) 1; list $::N::a(k) ${::N::a(k)}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -596,7 +594,6 @@ mod tests {
     #[test]
     fn original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources()
     {
-        // Implementation contract: naming.editor.original-variable-rename-frame-currency
 
         let source = "proc p {} {set local 1; list $local}; proc q {} {set local 2; list $local}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -614,7 +611,6 @@ mod tests {
 
     #[test]
     fn original_variable_rename_accounts_for_derived_and_independent_alias_reads() {
-        // Implementation contract: naming.editor.original-variable-rename-alias-coverage
 
         let source = "namespace eval ::N {variable v 1}; proc p {} {global ::N::v; list $v}; proc q {} {upvar #0 ::N::v alias; list $alias}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

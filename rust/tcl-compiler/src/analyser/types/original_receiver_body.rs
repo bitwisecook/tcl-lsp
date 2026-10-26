@@ -26,7 +26,6 @@ impl OriginalSourceReceiverBodyDeclaration {
         input: ResolvedAnalysisInput,
         image: &SourceImage,
     ) -> Option<Arc<Self>> {
-        // naming.tcloo.original-source-receiver-body-declaration
 
         let parameters = parameters?;
         let config = input.lexer_config();
@@ -151,7 +150,6 @@ mod tests {
 
     #[test]
     fn original_source_receiver_body_retains_child_declaration_without_native_entry() {
-        // naming.tcloo.original-source-receiver-body-declaration
 
         let source = "interp create -safe s; interp eval s {oo::class create C {method m {} {source a.tcl}}}";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -185,7 +183,6 @@ mod tests {
 
     #[test]
     fn original_source_receiver_body_refuses_computed_or_recooked_script_mapping() {
-        // naming.tcloo.original-source-receiver-body-declaration
 
         for source in [
             "oo::class create C {method m {} $script}",

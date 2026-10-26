@@ -707,7 +707,6 @@ mod original_frame_index_tests {
 
     #[test]
     fn indexed_original_argv_keeps_level_selection_and_retained_allocation_roles() {
-        // naming.tcloo.original-call-argv-ownership
 
         // Software indexing and allocation ownership; no native frame admission.
         let first = Owned::fresh(obj::new_string_bytes(b"first"));

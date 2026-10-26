@@ -766,7 +766,6 @@ mod tests {
 
     #[test]
     fn original_authored_static_fronts_preserve_domain_configuration_and_refused_header() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = vm();
         vm.declare_namespace("::static");
@@ -1330,7 +1329,6 @@ mod tests {
 
     #[test]
     fn authored_static_policy_matches_recorded_four_unit_seed_and_target_mutation_states() {
-        // naming.bigip.static-state-tmm-locality
 
         // Authored policy regression over retained observations, no appliance execution.
         let phases = [
@@ -1477,7 +1475,6 @@ mod tests {
 
     #[test]
     fn authored_static_policy_matches_mapped_unit_missing_read_before_recreation() {
-        // naming.bigip.variable-static-event-currency
 
         // Only recorded static-cell states; active scalar trace chronology is separate.
         let original_rule = include_str!(

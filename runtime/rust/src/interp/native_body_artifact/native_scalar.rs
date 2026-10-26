@@ -363,7 +363,6 @@ mod tests {
     }
     #[test]
     fn original_compiled_scalar_list_length_stops_at_real_primary_retirement() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         use crate::cmd_control::original_list_conversion_tests as fixture;
         use std::cell::Cell;

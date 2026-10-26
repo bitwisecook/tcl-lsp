@@ -91,7 +91,6 @@ fn add(
 
 #[test]
 fn original_callback_host_cause_stops_later_rows_and_restores_the_real_result() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual VM callback/owner control; this is not an external Tcl execution.
     for profile in RELEASES {
@@ -140,7 +139,6 @@ fn original_callback_host_cause_stops_later_rows_and_restores_the_real_result() 
 
 #[test]
 fn original_callback_host_aba_keeps_reached_effects_without_a_later_observer() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in RELEASES {
         let mut vm = native(profile);
@@ -187,7 +185,6 @@ fn original_callback_host_aba_keeps_reached_effects_without_a_later_observer() {
 
 #[test]
 fn original_quiet_scalar_element_and_c_exists_ignore_guest_errors_only() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in RELEASES {
         for element in [false, true] {
@@ -222,7 +219,6 @@ fn original_quiet_scalar_element_and_c_exists_ignore_guest_errors_only() {
 
 #[test]
 fn original_scalar_element_and_c_exists_refuse_before_boolean_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in RELEASES {
         for route in 0..3 {
@@ -260,7 +256,6 @@ fn original_scalar_element_and_c_exists_refuse_before_boolean_publication() {
 
 #[test]
 fn original_taken_unset_stops_host_callbacks_but_finishes_removed_cell_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in RELEASES {
         for host in [false, true] {
@@ -301,7 +296,6 @@ fn original_taken_unset_stops_host_callbacks_but_finishes_removed_cell_cleanup()
 
 #[test]
 fn original_parent_scope_keeps_the_exact_cause_across_current_and_parked_host_boundaries() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for parked in [false, true] {
         let mut vm = native("tcl8.6");
@@ -340,7 +334,6 @@ fn original_parent_scope_keeps_the_exact_cause_across_current_and_parked_host_bo
 
 #[test]
 fn original_saved_trace_currency_is_descriptive_until_same_target_mandatory_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in RELEASES {
         let mut vm = native(profile);
@@ -394,7 +387,6 @@ fn original_saved_trace_currency_is_descriptive_until_same_target_mandatory_clea
 
 #[test]
 fn original_saved_trace_cleanup_keeps_changed_currency_and_refuses_foreign_target() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for foreign in [false, true] {
         let mut vm = native("tcl8.6");
@@ -438,7 +430,6 @@ fn original_saved_trace_cleanup_keeps_changed_currency_and_refuses_foreign_targe
 
 #[test]
 fn original_native_observer_guest_initializes_error_info_before_its_trace_frame() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real observer/VM owner stages; no Native callback chronology/count equivalence.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -493,7 +484,6 @@ fn original_native_observer_guest_initializes_error_info_before_its_trace_frame(
 
 #[test]
 fn original_script_trace_guest_keeps_its_existing_error_episode_through_presentation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = native(profile);
@@ -519,7 +509,6 @@ fn original_script_trace_guest_keeps_its_existing_error_episode_through_presenta
 
 #[test]
 fn original_quiet_trace_guest_restores_the_selected_result_without_new_error_info() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in RELEASES {
         let mut vm = native(profile);

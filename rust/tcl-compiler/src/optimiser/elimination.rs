@@ -1239,7 +1239,6 @@ fn dead_store_name_observed(
     writes: &[crate::place::Place],
 ) -> bool {
     // The SSA name is decoded literal naming data, not a `$` reference.
-    // naming.compiler.original-analysis-metadata-context
 
     let base = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
     writes.iter().any(|written| {
@@ -1885,7 +1884,6 @@ mod tests {
 
     #[test]
     fn original_global_alias_scan_retains_literal_target_and_command_identity() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional source startup names are independent of Native cell identity.
         let registry = std::sync::Arc::new(CommandRegistry::build_default());
@@ -1924,7 +1922,6 @@ mod tests {
 
     #[test]
     fn original_alias_scans_refuse_unavailable_and_foreign_metadata() {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
@@ -2054,7 +2051,6 @@ mod tests {
 
     #[test]
     fn original_completion_deletion_consumer_uses_same_module_and_header() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // The call no-error consumer only. SCCP existence, observers, purity
         // and source edit permission are independently required for deletion.
@@ -2113,7 +2109,6 @@ mod tests {
 
     #[test]
     fn resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names() {
-        // naming.compiler.original-analysis-metadata-context
 
         // This is the store-observer suppression gate, not a current Native
         // trace, reaching cell, SSA use or deletion proof.
@@ -2525,7 +2520,6 @@ mod tests {
 
     #[test]
     fn original_adce_keeps_actual_remote_stores_after_local_consumers_disappear() {
-        // Implementation contract: naming.variable.transitive-store-observation
 
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
@@ -2988,7 +2982,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_raise_proof_cannot_use_raw_logical_assistance() {
-        // naming.optimisation.original-source-purpose
 
         let source = "set value VALUE; set copy $value";
         // Actual software Vm entry; no external Jim/provider execution.

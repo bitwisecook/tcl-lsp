@@ -32,7 +32,6 @@ fn row<'a>(capture: &'a str, case: usize, phase: &str) -> Vec<&'a str> {
 
 #[test]
 fn original_procedure_public_completions_match_all_eighteen_native_definition_windows() {
-    // naming.invocation.original-naming-argument-getter-and-effect-order
 
     // Public worker and invocation code/result only: these values already have
     // Strings and cannot assert the original extension's getter tape or counts.
@@ -133,7 +132,6 @@ fn original_procedure_public_completions_match_all_eighteen_native_definition_wi
 
 #[test]
 fn original_definition_guards_do_not_read_later_unselected_name_or_body_objects() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software ordering controls use actual original compound backings. They
     // do not establish extension updater timing or native sharing counts.

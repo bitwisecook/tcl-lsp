@@ -67,7 +67,6 @@ fn lazy(bytes: &[u8], mode: u8) -> obj::Owned {
 
 #[test]
 fn original_oo_lookup_keeps_stringless_command_and_import_token_roles() {
-    // naming.namespace.origin-original-cmdname-residency
 
     // Imported token traversal is inspected C source; OO identity assertions are software controls.
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -127,7 +126,6 @@ fn original_oo_lookup_keeps_stringless_command_and_import_token_roles() {
 
 #[test]
 fn original_oo_getter_keeps_full_cause_before_command_cache_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2] {
@@ -166,7 +164,6 @@ fn original_oo_getter_keeps_full_cause_before_command_cache_publication() {
 
 #[test]
 fn original_oo_getter_rebinding_selects_the_actual_post_getter_command() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Ordinary table mutation is independent of execution-context currency.
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -203,7 +200,6 @@ fn original_oo_getter_rebinding_selects_the_actual_post_getter_command() {
 
 #[test]
 fn original_import_projection_never_substitutes_a_recreated_source_spelling() {
-    // naming.namespace.origin-original-cmdname-residency
 
     // Retained Rust import metadata is a software negative, not a native dangling Command pointer.
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -246,7 +242,6 @@ fn original_import_projection_never_substitutes_a_recreated_source_spelling() {
 
 #[test]
 fn original_jim_alias_lookup_uses_the_stored_list_and_keeps_absent_context_terminal() {
-    // naming.alias.original-object-prefix-capture-query-invocation-lifetime
 
     // Jim alias storage is the actual selected owner; this authored OO carrier is not native Jim TclOO availability.
     for retire in [false, true] {

@@ -152,7 +152,6 @@ fn first(interpreter: &Interp, mode: u8) {
 }
 #[test]
 fn original_name_cache_retirement_keeps_reached_store_result_and_first_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..3 {
@@ -189,7 +188,6 @@ fn original_name_cache_retirement_keeps_reached_store_result_and_first_cause() {
 }
 #[test]
 fn original_c9_selected_root_rebirth_refuses_while_c8_selects_after_its_old_free() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // C8 lookup follows this retirement; C9 already selected its original cell.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -224,7 +222,6 @@ fn original_c9_selected_root_rebirth_refuses_while_c8_selects_after_its_old_free
 }
 #[test]
 fn original_c9_alias_handoff_refuses_retarget_before_cache_and_receiver_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(profile);
@@ -255,7 +252,6 @@ fn original_c9_alias_handoff_refuses_retarget_before_cache_and_receiver_adoption
 }
 #[test]
 fn original_indexed_selection_retirement_refuses_reborn_frame_at_the_same_slot() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual compiled ordinal observation; this supplies no fabricated Local cache or Proc issuer.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -331,7 +327,6 @@ static PART: obj::TclObjType = obj::TclObjType {
 };
 #[test]
 fn original_declined_cache_retirement_keeps_intrinsic_refusal_before_unused_part_free() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine prepared part +1 in this private cache seam; no external Native recipe claim.
     let mut interpreter = native("tcl9.1");

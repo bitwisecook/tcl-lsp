@@ -350,7 +350,6 @@ mod tests {
 
     #[test]
     fn declined_original_array_worker_keeps_completed_declarations_without_inline_admission() {
-        // naming.compiler.introspection-source-and-effect-frontiers
 
         // Native case17 observes left,right,a despite generic invocation.
         // This separately authored registration fixture checks the shared

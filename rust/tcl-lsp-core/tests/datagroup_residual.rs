@@ -757,7 +757,6 @@ fn if_chain_trailing_condition_without_body_declines() {
 
 #[test]
 fn original_switch_subject_keeps_complete_scalar_spelling() {
-    // Implementation contract: naming.refactor.original-datagroup-variable-subject
 
     for subject in [
         "${café}",
@@ -791,7 +790,6 @@ fn original_switch_subject_keeps_complete_scalar_spelling() {
 
 #[test]
 fn original_switch_subject_declines_data_compounds_and_arrays() {
-    // Implementation contract: naming.refactor.original-datagroup-variable-subject
 
     for subject in [
         "{$x}",
@@ -813,7 +811,6 @@ fn original_switch_subject_declines_data_compounds_and_arrays() {
 
 #[test]
 fn original_switch_subject_uses_supplied_brace_grammar_and_complete_generated_source() {
-    // Implementation contract: naming.refactor.original-datagroup-variable-subject
 
     // This is explicit source authoring with an iRules emission store and a
     // supplied lexical grammar; it does not describe an F5 runtime release.

@@ -2564,7 +2564,6 @@ fn a_value_that_is_not_one_whole_command_substitution_still_concatenates() {
 /// The actual Host command cause remains outside both facade Guest results.
 #[test]
 fn original_trace_facades_keep_the_full_pending_host_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual VM Host producer and transport; no native callback or parser observation.
     let mut vm = tcl_vm::test_support::native_vm();

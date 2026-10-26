@@ -1252,7 +1252,6 @@ mod tests {
 
     #[test]
     fn unchanged_namespace_selection_reuses_original_inventory_without_detachments() {
-        // Implementation contract: naming.source.namespace-inventory-selection-sharing
 
         // Count eight shared inventories over 32 identical whole-source context
         // selections. This proves no detachments in those collections, not
@@ -1316,7 +1315,6 @@ mod tests {
 
     #[test]
     fn namespace_selection_detaches_changed_points_and_preserves_original_views() {
-        // Implementation contract: naming.source.namespace-inventory-selection-sharing
 
         // Genuine mixed namespaces remain filtered. An unrelated namespace
         // obtains no dispatch or expression preparation from a shared view.
@@ -1533,7 +1531,6 @@ mod original_math_body_purpose_tests {
 
     #[test]
     fn original_math_body_inventory_keeps_extracted_bom_and_parent_origin() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original conditional expression topology only; no native function registration.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
@@ -1594,7 +1591,6 @@ mod original_math_body_purpose_tests {
     }
     #[test]
     fn retained_authored_simulation_requires_its_actual_policy_and_supplied_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();

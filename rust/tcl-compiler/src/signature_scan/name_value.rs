@@ -225,7 +225,6 @@ impl SignatureSourceNameValue {
         receipt: &crate::command_binding::named_manufacture::OriginalObjectCommandNameResult,
         context: &crate::var_resolve::ResolveContext,
     ) -> Option<Self> {
-        // Implementation contract: naming.tcloo.original-named-manufacture-cell-transfer
 
         if !receipt.requested_name_input().is_current(context)
             || context
@@ -1420,7 +1419,6 @@ mod variable_operand_root_tests {
 
     #[test]
     fn original_c_array_operand_root_keeps_unknown_index_and_complete_word_separate() {
-        // Implementation contract: naming.variable.original-array-operand-root
 
         // Original C variable-word geometry source evidence:
 

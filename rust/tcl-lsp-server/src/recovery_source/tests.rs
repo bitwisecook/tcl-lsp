@@ -154,7 +154,6 @@ command_table_effect DefinesProcedure
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status() {
-    // naming.compiler.original-analysis-metadata-context
 
     // These are parser recognition candidates, not installed command receipts.
     let backend = crate::tests::test_backend();
@@ -248,7 +247,6 @@ async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status()
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers() {
-    // naming.server.original-package-consumer-resolution
 
     // The real recovery entry retains each provider's independent source input.
     let store = Arc::new(vfs::MemoryStore::new());
@@ -305,7 +303,6 @@ async fn malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_sources() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Copied source facts cannot bypass the complete current-input guard.
     let store = Arc::new(vfs::MemoryStore::new());
@@ -392,7 +389,6 @@ async fn assert_unavailable_caller(backend: &Backend, uri: &Uri, source: &str) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn original_base_completeness_retains_indexed_and_untracked_input_owners() {
-    // naming.source.original-configured-script-completeness
 
     // Server source gate; no scalar String byte/header or execution equivalence.
     let backend = crate::tests::test_backend();
@@ -461,7 +457,6 @@ async fn original_base_completeness_retains_indexed_and_untracked_input_owners()
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_preserves_original_autoload_labels_and_root_marker() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Actual parser recognition candidates; neither Native lookup nor loader execution.
     let backend = crate::tests::test_backend();

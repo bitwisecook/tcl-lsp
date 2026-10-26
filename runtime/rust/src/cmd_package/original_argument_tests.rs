@@ -71,7 +71,6 @@ static ORIGINAL: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_package_selector_refusal_precedes_later_arguments_and_database_effects() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Original checked String stages and software database effects only.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -232,7 +231,6 @@ impl Drop for Directory {
 
 #[test]
 fn original_jim_package_filesystem_results_are_checked_before_continue_load_or_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real delegated filesystem reads and Jim loader effects; no native provider parity.
     for mode in [
@@ -344,7 +342,6 @@ fn loader(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 }
 #[test]
 fn original_package_loader_cleanup_precedes_first_cause_or_guest_settlement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual loader callback and database/file-scope cleanup, independent Native observations.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -414,7 +411,6 @@ fn original_package_loader_cleanup_precedes_first_cause_or_guest_settlement() {
 
 #[test]
 fn original_package_pending_first_host_precedes_argument_or_database_access() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native("tcl8.6");
     let selector = obj::Owned::fresh(obj::alloc_typed(&ORIGINAL, 0));

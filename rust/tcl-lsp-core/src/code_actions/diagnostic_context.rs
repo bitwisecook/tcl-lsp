@@ -516,7 +516,6 @@ mod tests {
 
     #[test]
     fn logical_source_action_commands_use_actual_body_availability_and_script_purpose() {
-        // naming.consumer.original-diagnostic-source-actions
 
         // Source-command geometry only; no sink, effect permission or Native edit grant.
         fn reference_only(
@@ -582,7 +581,6 @@ mod tests {
         }
     }
 
-    // Implementation contract: naming.consumer.original-diagnostic-source-actions
 
     #[test]
     fn original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes() {
@@ -597,7 +595,6 @@ mod tests {
         assert!(actions(source, &analysis, &diagnostic).is_empty());
     }
 
-    // Implementation contract: naming.consumer.original-diagnostic-source-actions
 
     #[test]
     fn original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range() {
@@ -633,7 +630,6 @@ mod tests {
 
     #[test]
     fn original_context_diagnostic_currency_keeps_the_complete_availability_owner() {
-        // naming.editor.original-diagnostic-edit-currency
 
         // A real source-only taint issuer supplies no Normal or Native effect grant.
         let source = "set x [gets stdin]\nsubst $x\n";
@@ -671,7 +667,6 @@ mod tests {
         assert!(actions(source, &older, &diagnostic).is_empty());
     }
 
-    // Implementation contract: naming.consumer.original-diagnostic-source-actions
 
     #[test]
     fn original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text() {
@@ -716,7 +711,6 @@ mod tests {
         assert!(actions(&occupied, &analysis, &diagnostic).is_empty());
     }
 
-    // Implementation contract: naming.consumer.original-diagnostic-source-actions
 
     #[test]
     fn original_native_taint_wrappers_do_not_infer_missing_evaluation_permission() {
@@ -726,7 +720,6 @@ mod tests {
         assert!(actions(source, &analysis, &diagnostic).is_empty());
     }
 
-    // Implementation contract: naming.consumer.original-diagnostic-source-actions
 
     #[test]
     fn original_bootstrap_actions_use_current_selected_handler_and_payload_metadata() {
@@ -763,7 +756,6 @@ mod tests {
         }
     }
 
-    // Implementation contract: naming.consumer.original-profile-source-advice
 
     #[test]
     fn original_profile_actions_use_selected_context_and_ignore_reporting_names() {
@@ -791,7 +783,6 @@ mod tests {
     }
     #[test]
     fn original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry() {
-        // Implementation contract: naming.consumer.original-profile-source-advice
 
         use super::current_commands;
         let source = "when HTTP_REQUEST {HTTP::respond 200 content ok}";
@@ -880,7 +871,6 @@ mod tests {
 
     #[test]
     fn original_logical_source_commands_use_actual_availability_over_catalogue_profile() {
-        // naming.consumer.original-diagnostic-source-actions
 
         // A source metadata discriminator, not a loaded/native command proof.
         let source = "dict create key value";
@@ -975,7 +965,6 @@ mod tests {
 
     #[test]
     fn original_logical_helper_collision_uses_the_emitted_root_publication() {
-        // Implementation contract: naming.consumer.original-diagnostic-source-actions
 
         let registry = crate::registry_for_dialect("tcl8.6");
         let point =

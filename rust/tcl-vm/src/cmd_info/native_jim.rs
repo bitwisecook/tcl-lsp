@@ -92,7 +92,6 @@ pub(super) fn report(
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
     let reached = (|| {
-        // Source proof: naming.info.jim-original-selector-table
 
         let choices = match choices(vm, protocol, report) {
             Ok(bytes) => bytes,
@@ -311,7 +310,6 @@ mod tests {
 
     #[test]
     fn current_lsort_failure_is_reported_by_the_selected_jim_parser() {
-        // Source proof: naming.info.jim-original-selector-table
 
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         vm.register("lsort", sort_failure);

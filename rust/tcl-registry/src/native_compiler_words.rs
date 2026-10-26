@@ -566,7 +566,6 @@ mod tests {
 
     #[test]
     fn original_literal_extents_preserve_grouping_escapes_and_channel_units() {
-        // Implementation contract: naming.source.native-string-original-extents
 
         use tcl_syntax::naming::{NativeNameProtocol, NativeVariableInputForm};
         for source in [

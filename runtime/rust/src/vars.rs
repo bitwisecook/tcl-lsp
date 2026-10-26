@@ -2275,7 +2275,6 @@ mod tests {
 
     #[test]
     fn selected_scalar_trace_home_retains_the_actual_undefined_root_binding() {
-        // naming.variable.original-array-read-destruction
 
         // Rust cell correspondence only; native public rows do not observe IDs.
         leak_free(|frames, ns| {
@@ -2377,7 +2376,6 @@ mod tests {
 
     #[test]
     fn stable_alias_preparation_follows_existing_namespace_alias_before_capture() {
-        // naming.tcloo.original-constant-link-introspection
 
         // Cell correspondence control for the shared preparation owner. Actual
         // TclOO public results are tested independently in cmd_info; this test
@@ -3063,7 +3061,6 @@ pub(crate) fn prepare_original_c_alias_local(
         .then_some(current);
     // MakeUpvar's local side selects TCL_AVOID_RESOLVERS: an unqualified
     // procedure local must not be redirected by the TclOO variable resolver.
-    // naming.tcloo.original-constant-link-introspection
 
     let place = if namespace.is_none() {
         Place {

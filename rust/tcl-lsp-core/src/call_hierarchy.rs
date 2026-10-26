@@ -1843,7 +1843,6 @@ mod tests {
 
     #[test]
     fn original_hierarchy_preparation_keeps_variable_cursors_and_method_declarations_separate() {
-        // Implementation contract: naming.consumer.original-call-hierarchy
 
         let source = "oo::class create C {method x {} {set x 1; puts $x}}";
         let mut analysis = analyse(source);
@@ -2218,7 +2217,6 @@ mod tests {
 
     #[test]
     fn cross_document_instance_hierarchy_includes_constructor_and_destructor_frames() {
-        // naming.core.logical-call-target-owner
 
         let src = "oo::class create Child {\n    constructor {} { my read }\n    destructor { my read }\n}\n";
         let analysis = Analyser::new().analyse(src, "tcl");
@@ -2850,7 +2848,6 @@ mod original_source_context_tests {
 
     #[test]
     fn original_method_hierarchy_uses_selected_helpers_and_same_source_frame() {
-        // naming.core.original-dispatch-region-context
 
         let source = "oo::class create C {method m {} {source_dispatch; if 1 {puts x}; proc later {} {hidden}; missing}}";
         let store = store();
@@ -2878,7 +2875,6 @@ mod original_source_context_tests {
 
     #[test]
     fn original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source() {
-        // naming.core.original-dispatch-region-context
 
         let source =
             "proc source_dispatch args {}; oo::class create C {method m {} {source_dispatch}}";
@@ -2937,7 +2933,6 @@ mod logical_call_target_tests {
 
     #[test]
     fn exact_declaration_owner_separates_procedure_member_and_member_side() {
-        // naming.core.logical-call-target-owner
 
         let source = "namespace eval C {}; proc ::C::m {} {}; oo::class create C {method m {} {}; self method m {} {}}";
         let analysis = analysed(source);
@@ -2987,7 +2982,6 @@ mod logical_call_target_tests {
 
     #[test]
     fn colon_bearing_members_and_equal_joined_titles_keep_actual_boundaries() {
-        // naming.core.logical-call-target-owner
 
         let source = "namespace eval A {}; oo::class create A {method b::c {} {}}; oo::class create ::A::b {method c {} {}}";
         let analysis = analysed(source);
@@ -3010,7 +3004,6 @@ mod logical_call_target_tests {
 
     #[test]
     fn all_local_call_consumers_ignore_copied_reporting_labels() {
-        // naming.core.logical-call-target-owner
 
         let source = "proc callee {} {}; proc p {} {callee; absent}; p; oo::class create C {method a::b {} {callee; absent}; method caller {} {my a::b}}";
         let analysis = analysed(source);
@@ -3047,7 +3040,6 @@ mod logical_call_target_tests {
 
     #[test]
     fn target_withdraws_missing_foreign_stale_ambiguous_and_non_declaration_owners() {
-        // naming.core.logical-call-target-owner
 
         let source = "proc p {} {}; p";
         let analysis = analysed(source);
@@ -3091,7 +3083,6 @@ mod logical_call_target_tests {
 
     #[test]
     fn native_and_hosted_inputs_cannot_receive_a_logical_target_from_ranges() {
-        // naming.core.logical-call-target-owner
 
         let source = "proc p {} {}; p";
         for dialect in ["tcl8.6", "f5-irules"] {
@@ -3113,7 +3104,6 @@ mod logical_call_target_tests {
 
     #[test]
     fn class_selector_geometry_and_external_member_visibility_remain_independent() {
-        // naming.core.logical-call-target-owner
 
         let source = "oo::class create C {self method visible {} {}; self method hidden {} {}; self unexport hidden}; proc caller {} {C visible; C hidden}";
         let analysis = analysed(source);
@@ -3202,7 +3192,6 @@ mod logical_call_target_tests {
 
     #[test]
     fn cross_document_member_advice_selects_only_the_actual_side_frames() {
-        // naming.core.logical-call-target-owner
 
         let provider = "oo::class create Base {method m {} {}; self method m {} {}}";
         let provider_analysis = analysed(provider);

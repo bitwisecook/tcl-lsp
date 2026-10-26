@@ -673,7 +673,6 @@ mod tests {
 
     #[test]
     fn original_vm_context_receipt_survives_guest_table_and_same_input_policy_changes() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
@@ -695,7 +694,6 @@ mod tests {
     }
     #[test]
     fn original_vm_context_receipt_refuses_host_profile_compiler_and_pack_change_restore() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for stage in 0..4 {
             let mut vm = native();
@@ -741,7 +739,6 @@ mod tests {
     }
     #[test]
     fn original_vm_nested_receipt_cannot_reissue_after_context_change_or_poison() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let outer = NativeOperationScope::enter(&mut vm).unwrap();
@@ -761,7 +758,6 @@ mod tests {
     }
     #[test]
     fn original_vm_parent_and_child_receipts_keep_independent_parked_owners() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let child_name = vm.create_child(Some("child".into()), false);
@@ -796,7 +792,6 @@ mod tests {
     }
     #[test]
     fn original_vm_operation_preserves_pending_first_host_before_receipt_or_getter() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let _ = vm.refuse_host_command("first original VM operation".into());
@@ -823,7 +818,6 @@ mod tests {
     }
     #[test]
     fn original_current_entry_distinguishes_live_saved_ended_and_parked_receipts() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         assert!(
@@ -860,7 +854,6 @@ mod tests {
 
     #[test]
     fn original_numeric_routing_checks_inherited_currency_before_authored_policy() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -892,7 +885,6 @@ mod tests {
     }
     #[test]
     fn original_coroutine_park_preserves_only_the_actual_active_parent_entry() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -927,7 +919,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_checks_same_target_currency_before_entry_and_keeps_cleanup() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -961,7 +952,6 @@ mod tests {
     }
     #[test]
     fn original_saved_execution_target_is_descriptive_until_same_currency_cleanup() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Readonly software target/currency state; no Native execution or reference grant.
         let mut vm = native();
@@ -1002,7 +992,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_target_cleans_parent_and_preserves_callback_child() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual arena switch and original cleanup receipt; no external callback chronology.
         let mut vm = native();
@@ -1040,7 +1029,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_target_retains_failed_issue_and_finishes_owned_cleanup() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Existing full software Host issue and mandatory same-target retirement only.
         let mut vm = native();
@@ -1068,7 +1056,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_target_rejects_foreign_owner_before_state_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual independent Vm nonce/context, not a fabricated foreign receipt.
         let mut original = native();
@@ -1096,7 +1083,6 @@ mod tests {
     }
     #[test]
     fn original_saved_execution_target_checks_real_jim_teardown_after_restoration() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual dying-slot in_interp/finalize/Jim teardown path, not Native callback chronology.
         let mut vm =
@@ -1137,7 +1123,6 @@ mod tests {
     }
     #[test]
     fn original_retirement_transports_owned_iterator_after_failed_issue_until_mandatory_cleanup() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Existing owned roles remain mandatory-continuation transport, not publication.
         let mut vm = native();
@@ -1174,7 +1159,6 @@ mod tests {
 
     #[test]
     fn original_retirement_policies_keep_direct_current_callback_selection_and_hold_schedule() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual current/parked arenas; no native callback or preservation chronology claim.
         for policy in [
@@ -1217,7 +1201,6 @@ mod tests {
 
     #[test]
     fn original_retirement_parked_target_preserves_latest_work_selection_or_entry_caller() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let parent = vm.cur_interp();
@@ -1258,7 +1241,6 @@ mod tests {
 
     #[test]
     fn original_retirement_ordinary_refused_owner_drops_inside_original_attachment() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         struct Observed {
             context: Weak<NativeOperationContext>,
@@ -1297,7 +1279,6 @@ mod tests {
 
     #[test]
     fn original_retirement_metadata_survives_real_jim_post_restoration_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Real dying-slot teardown and retained output role; no native callback chronology.
         let mut vm =
@@ -1335,7 +1316,6 @@ mod tests {
 
     #[test]
     fn original_retirement_foreign_physical_target_refuses_before_reached_metadata() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut original = native();
         let scope = NativeOperationScope::enter_native(&mut original).unwrap();
@@ -1360,7 +1340,6 @@ mod tests {
     #[test]
     fn original_retirement_finalizer_follows_later_callback_child_and_retires_only_original_world()
     {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Supplied software retirement callback at the shared finalization frontier;
         // this asserts physical return policy, not Native/Jim defer chronology.
@@ -1455,7 +1434,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_advances_same_entered_lineage_without_new_authority() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let names = measured_names(&mut vm);
@@ -1497,7 +1475,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_none_stays_readonly_and_keeps_missing_string_provider() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = Vm::new();
         let names = measured_names(&mut vm);
@@ -1541,7 +1518,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_never_authorises_foreign_aba_or_raw_policy_setters() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for stage in 0..3 {
             let mut vm = native();
@@ -1586,7 +1562,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_exhaustion_at_enter_or_restore_never_advances_lineage() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for exhaust_on_restore in [false, true] {
             let mut vm = native();
@@ -1625,7 +1600,6 @@ mod tests {
     }
     #[test]
     fn original_observed_readonly_transition_does_not_refresh_ended_native_currency() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let names = measured_names(&mut vm);
@@ -1655,7 +1629,6 @@ mod tests {
     }
     #[test]
     fn original_observed_mandatory_transition_refuses_foreign_physical_inputs() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut vm = native();
         let names = measured_names(&mut vm);
@@ -1690,7 +1663,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_checks_actual_cache_retirement_before_next_stage() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software stage check after the actual first cache clear; this does
         // not claim a Native child-Drop or external callback chronology.

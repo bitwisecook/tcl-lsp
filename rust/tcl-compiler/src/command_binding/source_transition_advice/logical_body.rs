@@ -247,7 +247,6 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<LogicalNamespaceScope> {
-        // naming.source.original-declared-command-word-contract
 
         if !matches!(self.policy, AdviceNamingPolicy::Logical(_))
             || schema.facts().arity_accepts_frozen_arguments() != Some(true)
@@ -304,7 +303,6 @@ impl AdviceInvocationContext<'_> {
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
-        // naming.minifier.complete-logical-metadata
 
         if !matches!(self.policy, AdviceNamingPolicy::Logical(_)) {
             return;
@@ -456,7 +454,6 @@ impl LogicalBodyWalk<'_, '_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         parent: Option<&Arc<OriginalDeclaredLogicalBodyContext>>,
     ) -> Option<Box<PreparedLogicalBodyBranch>> {
-        // naming.source.original-declared-command-word-contract
 
         let positions = schema.authored_source_procedure_arguments()?;
         let transitions = schema.state_transitions();
@@ -591,7 +588,6 @@ impl LogicalBodyWalk<'_, '_> {
         parent: Option<&Arc<OriginalDeclaredLogicalBodyContext>>,
         depth: usize,
     ) -> Option<()> {
-        // naming.source.original-declared-command-word-contract
 
         if depth > MAX_DEPTH {
             return None;
@@ -1497,7 +1493,6 @@ mod tests {
 
     #[test]
     fn logical_deferred_source_body_retains_nested_schema_and_parent_geometry() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "proc p {v} {foreach x $v {if {$x} {puts $x}}}\n";
         let analysis = analyse_source(source);
@@ -1544,7 +1539,6 @@ mod tests {
 
     #[test]
     fn logical_deferred_source_body_keeps_mutations_and_cooked_geometry_separate() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "proc p {} {proc puts {args} {}; puts inner}\nputs outer\n";
         let analysis = analyse_source(source);
@@ -1578,7 +1572,6 @@ mod tests {
     }
     #[test]
     fn logical_deferred_substitutions_keep_original_body_and_evaluation_order() {
-        // naming.source.original-editor-body-structure
 
         let source = "proc p {} {return [join [string index abc 99]]}\n";
         let analysis = analyse_source(source);
@@ -1612,7 +1605,6 @@ mod tests {
 
     #[test]
     fn logical_deferred_substitutions_withdraw_missing_and_changed_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let source = "proc p {} {return [string index abc 99]}\n";
         let baseline = analyse_source(source);
@@ -1643,7 +1635,6 @@ mod tests {
     }
     #[test]
     fn logical_unicode_body_children_keep_exact_original_source_geometry() {
-        // naming.source.original-editor-body-structure
 
         let source = "proc π {} {return [string index café 99]}\n";
         let baseline = analyse_source(source);
@@ -1689,7 +1680,6 @@ mod tests {
 
     #[test]
     fn logical_computed_heads_keep_children_and_refuse_parent_dispatch() {
-        // naming.source.original-editor-body-structure
 
         for source in ["[list puts] VALUE", "proc p {} {[list puts] VALUE}"] {
             let analysis = analyse_source(source);

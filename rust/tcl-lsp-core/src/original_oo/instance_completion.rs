@@ -141,7 +141,6 @@ pub(crate) fn instance_completion_source<'a>(
     source: &str,
     cursor: u32,
 ) -> Option<InstanceCompletionSource<'a>> {
-    // naming.core.original-source-instance-completion
 
     let config = analysis.body_lexer_config?;
     let structure =

@@ -207,7 +207,6 @@ impl Lowerer<'_> {
     /// Read an exact definition layout from the selected original invocation.
     /// These source units do not establish class presence or entered execution.
     fn classify_definer_call(&self, tokens: &CommandTokens) -> Option<DefinerCall> {
-        // naming.compiler.original-analysis-metadata-context
 
         let context = self.invocation_metadata_context()?;
         if let Some(binding) = tokens.source_binding.as_ref()
@@ -2040,7 +2039,6 @@ impl<'r> Lowerer<'r> {
         parent: &CommandTokens,
         argument: usize,
     ) -> Option<Script> {
-        // naming.source.original-collection-body-owner
 
         let metadata =
             crate::registry_invocation::InvocationMetadataContext::for_module(registry, module);
@@ -2900,7 +2898,6 @@ impl<'r> Lowerer<'r> {
         if let Some(owner) = &self.native_source_children {
             let _ = owner.stamp_tokens(&mut tokens);
         }
-        // Implementation contract: naming.consumer.hosted-source-taint-descriptor
 
         // The invocation owns the original whole image. A retained body's
         // positioned lowering buffer can contain padding before this command;
@@ -7613,7 +7610,6 @@ impl Lowerer<'_> {
 /// `traced_variables`; non-literal targets flip
 /// `has_dynamic_variable_trace`.
 fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry, standalone: bool) {
-    // naming.compiler.original-analysis-metadata-context
 
     let actual = crate::registry_invocation::retained_module_metadata_context(registry, module);
     let context = actual.as_deref().map(Into::into).or_else(|| {
@@ -9428,7 +9424,6 @@ mod tests {
 
     #[test]
     fn original_formal_name_headers_use_selected_grammar_and_keep_activation_separate() {
-        // naming.variable.original-readonly-formal-topology
 
         let tcl = Some(tcl_dialect::ParameterGrammar::Tcl);
         let jim = Some(tcl_dialect::ParameterGrammar::Jim);
@@ -10363,7 +10358,6 @@ mod tests {
 
     #[test]
     fn namespace_directive_metadata_keeps_actual_availability_and_source_config() {
-        // naming.compiler.original-analysis-metadata-context
 
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -11513,7 +11507,6 @@ mod tests {
 
     #[test]
     fn same_invocation_command_prefix_is_a_runtime_barrier() {
-        // naming.compiler.original-analysis-metadata-context
 
         let m = lower_to_ir("lsort -command compare {b a}", &reg());
         let stmt = m.top_level.statements.first().expect("lsort call");
@@ -11522,7 +11515,6 @@ mod tests {
 
     #[test]
     fn deferred_command_prefix_does_not_create_a_runtime_barrier() {
-        // naming.compiler.original-analysis-metadata-context
 
         for (source, expected_command) in [
             ("scrollbar .s -command moved", "scrollbar"),
@@ -11539,7 +11531,6 @@ mod tests {
 
     #[test]
     fn complete_logical_source_keeps_original_structure_and_native_absence() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -11622,7 +11613,6 @@ mod tests {
 
     #[test]
     fn logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads() {
-        // naming.compiler.original-analysis-metadata-context
 
         // These exact UTF-8 source spellings exercise conditional Logical
         // layout selection, independently of any Native slot or execution.
@@ -11677,7 +11667,6 @@ mod tests {
 
     #[test]
     fn complete_source_input_declines_changed_unit_profile_without_authoring_fallback() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -11705,7 +11694,6 @@ mod tests {
 
     #[test]
     fn lowered_generic_metadata_keeps_supplied_context_and_refuses_missing_driver_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context = tcl_registry::model::ingress::context_for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -11770,7 +11758,6 @@ mod tests {
 
     #[test]
     fn reference_only_command_prefix_does_not_create_a_runtime_barrier() {
-        // naming.compiler.original-analysis-metadata-context
 
         let m = lower_to_ir("trace remove variable v write changed", &reg());
         let stmt = m.top_level.statements.first().expect("trace remove call");
@@ -12276,7 +12263,6 @@ mod original_script_purpose_tests {
 
     #[test]
     fn original_whole_and_zero_base_body_parsers_keep_distinct_bom_purposes() {
-        // naming.source.original-configured-script-completeness
 
         // Parser purpose and retained source ancestry; no Native entry or Normal store.
         let mut prepared = crate::analyser::Analyser::new();
@@ -12356,7 +12342,6 @@ mod original_script_purpose_tests {
 
     #[test]
     fn original_selected_nested_body_keeps_parent_metadata_for_known_command_advice() {
-        // naming.source.original-registry-header-advice
 
         // Existing original body inventory and metadata; no entered/Normal handler donation.
         let mut prepared = crate::analyser::Analyser::new();
@@ -12435,7 +12420,6 @@ mod original_script_purpose_tests {
 
     #[test]
     fn original_materialised_zero_base_body_keeps_its_selected_point_owner() {
-        // naming.source.original-configured-script-completeness
 
         // Actual original escaped body and selected derived source; no compiler/frame grant.
         let mut prepared = crate::analyser::Analyser::new();

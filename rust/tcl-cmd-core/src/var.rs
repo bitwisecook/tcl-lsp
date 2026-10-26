@@ -89,7 +89,6 @@ pub fn native_jim_alias_error(
     failure: tcl_syntax::native_jim_lookup::NativeJimAliasFailure,
     original: &[u8],
 ) -> CmdError {
-    // naming.variable.original-upvar-error-publication
 
     CmdError::new_bytes(protocol.alias_failure_message(failure, original))
         .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084)

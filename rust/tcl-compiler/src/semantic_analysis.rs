@@ -997,7 +997,6 @@ mod tests {
 
     #[test]
     fn supplied_semantic_bundle_retains_owner_and_keeps_missing_context_unavailable() {
-        // naming.compiler.original-analysis-metadata-context
 
         use std::sync::Arc;
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -1057,7 +1056,6 @@ mod tests {
 
     #[test]
     fn absent_source_keeps_valid_supplied_metadata_without_invocation_facts() {
-        // naming.compiler.original-analysis-metadata-context
 
         let actual =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -1118,7 +1116,6 @@ mod tests {
 
     #[test]
     fn guarded_intrinsics_keep_explicit_standalone_and_supplied_protocols() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Metadata-selection control; no Native command or execution receipt is issued.
         use std::sync::Arc;

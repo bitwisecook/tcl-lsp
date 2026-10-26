@@ -26,7 +26,6 @@ fn native() -> Vm {
 
 #[test]
 fn checked_option_mutation_retains_original_opaque_members_and_carrier() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software object/option ownership control; no original-provider pass or
     // native physical-header observation follows from these assertions.
@@ -81,7 +80,6 @@ fn checked_option_mutation_retains_original_opaque_members_and_carrier() {
 
 #[test]
 fn invalid_carried_control_is_a_failure_and_absence_has_its_separate_default() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = native();
     assert_eq!(
@@ -116,7 +114,6 @@ fn invalid_carried_control_is_a_failure_and_absence_has_its_separate_default() {
 
 #[test]
 fn option_snapshot_preserves_first_host_cause_and_earlier_guest_effects() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = native();
     vm.set_var("before", Value::string("RETAINED")).unwrap();

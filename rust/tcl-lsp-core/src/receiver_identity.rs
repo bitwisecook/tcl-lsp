@@ -709,7 +709,6 @@ mod tests {
 
     #[test]
     fn original_own_object_navigation_joins_the_actual_configuration_allocation() {
-        // Implementation contract: naming.tcloo.original-own-object-method-transfer
 
         let source = r"oo::class create C {method shared {} {}}; C create object; oo::objdefine object {method shared {} {}; method p\uD800 {} {}; method p\uD801 {} {}}; object p\uD800; object p\uD801";
         let mut analysis = analyse(source);
@@ -1217,7 +1216,6 @@ mod tests {
     }
     #[test]
     fn captured_method_registration_keeps_actual_metadata_and_source_currency() {
-        // naming.core.original-dispatch-region-context
 
         let source = "oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; after 0 $cb}}; C create obj; obj setup";
         let baseline = analyse(source);

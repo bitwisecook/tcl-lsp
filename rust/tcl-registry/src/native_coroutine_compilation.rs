@@ -417,7 +417,6 @@ impl NativeCoroutineInjectionProtocol {
     /// Select the measured native callback protocol independently of CPP.
     #[must_use]
     pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
-        // naming.coroutine.original-injection-public-completions
 
         matches!(
             dialect.native_name_protocol(),
@@ -480,7 +479,6 @@ mod injection_tests {
             selected.kind(NativeCoroutineResumeArity::Arbitrary),
             b"yieldto"
         );
-        // naming.coroutine.original-injection-public-completions
 
         let c90 = NativeCoroutineInjectionProtocol::select(crate::InvocationDialect::of_profile(
             crate::native_test_provider::profile("tcl9.0"),
@@ -523,7 +521,6 @@ mod coroutine_name_tests {
 
     #[test]
     fn original_coroutine_name_compiler_keeps_zero_operand_recipe_and_native_decline() {
-        // Source proof: naming.info.original-coroutine-name-compiler
 
         // The original hook/zero-worker-operand/opcode source is independent
         // from Native250 public coroutine holder/resumption observations.

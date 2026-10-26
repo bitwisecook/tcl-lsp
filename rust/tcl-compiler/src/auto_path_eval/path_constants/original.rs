@@ -110,7 +110,6 @@ pub(crate) fn extend_path_constant_assignments_from_analysis_commands(
     namespace: Option<&str>,
     out: &mut PathConstantAssignments,
 ) -> bool {
-    // naming.navigation.retained-path-source-inventory
 
     let Some((selected, root)) = prepare_inventory(source, analysis, namespace, out) else {
         out.clear();
@@ -441,7 +440,6 @@ mod tests {
 
     #[test]
     fn original_path_inventory_keeps_full_input_scalar_names_and_absolute_namespace_scopes() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig {
@@ -487,7 +485,6 @@ mod tests {
 
     #[test]
     fn original_path_name_domains_keep_empty_scalar_and_parenthesised_namespace_literals() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_profile(Some(profile));
@@ -502,7 +499,6 @@ mod tests {
 
     #[test]
     fn original_path_folding_keeps_selected_first_close_variable_grammar() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let source = "set a\\{b /RIGHT; set a /WRONG; set result ${a{b}/x";
@@ -524,7 +520,6 @@ mod tests {
     }
     #[test]
     fn original_path_producer_full_chunked_and_restored_batches_keep_actual_input() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig {
@@ -583,7 +578,6 @@ mod tests {
 
     #[test]
     fn original_path_batches_reselect_current_realm_and_withdraw_stale_prefixes() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_profile(Some(profile));
@@ -676,7 +670,6 @@ mod tests {
 
     #[test]
     fn original_path_producer_keeps_explicit_source_seed_and_declines_replaced_setter() {
-        // naming.navigation.retained-path-source-inventory
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_profile(Some(profile));

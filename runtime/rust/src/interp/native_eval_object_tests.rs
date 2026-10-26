@@ -137,7 +137,6 @@ fn fixture() -> (Interp, Rc<EvalHost>) {
 
 #[test]
 fn original_eval_formatter_refuses_later_getter_and_restores_actual_frame() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual C84 eval-host String purpose; software Host stages, no native equivalence.
     for mode in 0..=2 {
@@ -179,7 +178,6 @@ fn original_eval_formatter_refuses_later_getter_and_restores_actual_frame() {
 
 #[test]
 fn original_eval_updater_keeps_reached_bytes_and_refuses_script_entry() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Reached updater effects remain; current entered context precedes every body command.
     for mode in 1..=2 {

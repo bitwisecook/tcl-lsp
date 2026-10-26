@@ -1346,7 +1346,6 @@ mod tests {
 
     #[test]
     fn actual_memory_metadata_keeps_availability_foreign_and_missing_owner_refusal() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = current.commands();

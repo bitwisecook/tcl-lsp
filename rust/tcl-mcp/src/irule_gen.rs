@@ -1332,7 +1332,6 @@ mod tests {
 
     #[test]
     fn original_generated_static_setup_preserves_literal_repeated_prefixes() {
-        // naming.consumer.original-irules-source-context
 
         // A source scaffold preserves labels; it proves no loaded variable,
         // event execution, storage identity or observed outcome.
@@ -1632,9 +1631,7 @@ mod tests {
     }
     #[test]
     fn original_irule_scaffolds_keep_source_candidates_without_predicted_outcomes() {
-        // Implementation contract: naming.mcp.original-irule-test-source-obligations
 
-        // Implementation contract: naming.consumer.original-irules-source-context
 
         let source = "when HTTP_REQUEST {pool /Common/candidate; HTTP::respond 503}";
         let generated = generate_irule_test(&json!({"source": source}));

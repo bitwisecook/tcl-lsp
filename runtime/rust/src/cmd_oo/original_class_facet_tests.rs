@@ -119,7 +119,6 @@ fn reset_observers() {
 
 #[test]
 fn actual_class_allocation_and_copy_issue_fresh_births_while_observations_share_identity() {
-    // naming.tcloo.original-introspection-target-continuation
 
     // Actual Runtime lifecycle roles; no Native Class pointer/refcount inference.
     let first_default = Class::default();
@@ -165,7 +164,6 @@ fn actual_class_allocation_and_copy_issue_fresh_births_while_observations_share_
 
 #[test]
 fn demotion_and_promotion_cannot_refresh_an_original_class_facet_continuation() {
-    // naming.tcloo.original-introspection-target-continuation
 
     let mut interpreter = native();
     let target = TARGET.with(Cell::get);
@@ -199,7 +197,6 @@ fn demotion_and_promotion_cannot_refresh_an_original_class_facet_continuation() 
 
 #[test]
 fn original_class_reports_check_reached_operands_before_current_facet_access() {
-    // naming.tcloo.original-introspection-target-continuation
 
     for (member, role) in [
         (b"definitionnamespace".as_slice(), 0),

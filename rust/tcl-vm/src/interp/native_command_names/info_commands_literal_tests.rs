@@ -41,7 +41,6 @@ fn assert_header(original: &Value, name: &str, present: &str, bytes: &str, conte
 
 #[test]
 fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows() {
-    // naming.compiler.original-info-commands-literal-resolution
 
     // windows.tsv projects exact independent original receipts; this comparison
     // grants neither native compiler admission nor command-table authority.
@@ -155,7 +154,6 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
 
 #[test]
 fn original_jim_import_retains_helper_publication_before_inventory_root_prefix() {
-    // naming.compiler.original-info-commands-literal-resolution
 
     // Original _nshelper.c publishes ${current}::tail; namespace info adds the
     // separately selected global report prefix. All 186 old headers remain.

@@ -31,7 +31,6 @@ fn has_source_metadata(unit: &CompilationUnit) -> bool {
 
 #[test]
 fn uncached_source_units_retain_actual_availability_and_source_currency() {
-    // naming.compiler.original-analysis-metadata-context
 
     // Conditional source metadata only; no runtime entry or erasure permission.
     let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -116,7 +115,6 @@ fn uncached_source_units_retain_actual_availability_and_source_currency() {
 
 #[test]
 fn uncached_compiler_advice_preserves_original_diagnostic_context() {
-    // naming.compiler.original-analysis-metadata-context
 
     let context = tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
     let input = source_input(Arc::clone(&context));

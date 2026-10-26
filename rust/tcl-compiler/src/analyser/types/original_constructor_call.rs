@@ -102,7 +102,6 @@ impl OriginalConstructorArityCall {
         analysis: &AnalysisResult,
         source: &str,
     ) -> Option<tcl_registry::Arity> {
-        // naming.source.original-class-constructor-call
 
         let input = analysis.resolved_input.as_ref()?;
         let context = input.context_registry();
@@ -156,7 +155,6 @@ impl OriginalConstructorArityCall {
             }
             let policy = provider.name().policy();
             let dialect = provider_declaration.factory().dialect();
-            // naming.tcloo.empty-lifecycle-definition
 
             // Static source body value, not a trimmed script or native argv.
             let values = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
@@ -199,7 +197,6 @@ mod tests {
     use crate::analyser::Analyser;
     #[test]
     fn original_constructor_signatures_keep_canonical_factory_and_effective_count() {
-        // naming.source.original-class-constructor-call
 
         for (prefix, invoke, count, unknown) in [
             ("", "C new 1", 1, false),
@@ -248,7 +245,6 @@ mod tests {
     }
     #[test]
     fn original_constructor_signature_respects_exact_lifecycle_body_values() {
-        // naming.tcloo.empty-lifecycle-definition
 
         // The pinned ASCII CLI probe measures declaration/call behaviour;
         // this test checks conditional source signature advice only.
@@ -284,7 +280,6 @@ mod tests {
 
     #[test]
     fn original_constructor_signatures_keep_mandatory_names_and_known_replacements() {
-        // naming.source.original-class-constructor-call
 
         for (invoke, arity, count) in [
             ("C create", tcl_registry::Arity::at_least(1), 0),

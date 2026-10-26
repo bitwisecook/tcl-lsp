@@ -75,7 +75,6 @@ unsafe fn consumed(route: usize, value: *mut TclObj) -> i32 {
 }
 #[test]
 fn consumed_receiver_inputs_retire_once_before_every_early_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real extension backing retirement and generated +1 ownership, not an external observation.
     for with_interpreter in [false, true] {
@@ -112,7 +111,6 @@ fn consumed_receiver_inputs_retire_once_before_every_early_refusal() {
 }
 #[test]
 fn receiver_write_trace_retains_reached_store_and_stops_guest_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Each route reaches the real trace through the original cell owner.
     for route in 0..4 {
@@ -160,7 +158,6 @@ fn receiver_write_trace_retains_reached_store_and_stops_guest_publication() {
 }
 #[test]
 fn receiver_read_trace_refuses_before_owned_result_or_missing_read_error() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for route in 0..3 {
         let mut interpreter = original();
@@ -197,7 +194,6 @@ fn receiver_read_trace_refuses_before_owned_result_or_missing_read_error() {
 }
 #[test]
 fn neutral_try_getter_retains_original_access_refusal_before_fast_path_output() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real updater/current issuer before cache adoption; no external primitive claim.
     for wide in [false, true] {
@@ -259,7 +255,6 @@ fn neutral_try_getter_retains_original_access_refusal_before_fast_path_output() 
 
 #[test]
 fn unavailable_trace_admission_and_current_invalid_slots_keep_ownership_separate() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // An unavailable operation cannot promise an untraced fast path. Actual
     // current invalid-slot refusal still consumes its transferred reference.

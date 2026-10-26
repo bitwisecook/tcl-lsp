@@ -30,7 +30,6 @@ pub(super) fn transfer(
     state: &mut ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<SourceOutcomes> {
-    // naming.source.logical-original-operation-transfer
 
     let original = LogicalOriginalInvocation::capture(words, target, offset, state, context)?;
     let input = super::logical_definition::logical_entry(state, context)?.clone();
@@ -102,7 +101,6 @@ impl super::SourceInvocationBinding {
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<crate::variable_bindings::ConditionalLogicalScalarStore> {
-        // naming.compiler.original-analysis-metadata-context
 
         let input = metadata.source_analysis_input()?;
         (self.original_invocation_source_purpose(tokens, metadata, registry)?
@@ -976,7 +974,6 @@ mod tests {
 
     #[test]
     fn logical_namespace_cell_continuation_keeps_the_independent_storage_facet() {
-        // naming.source.logical-original-operation-transfer
 
         let input = input();
         let registry = input.borrowed_context_registry().commands();
@@ -1048,7 +1045,6 @@ mod tests {
 
     #[test]
     fn logical_scalar_continuation_keeps_original_values_and_captured_set_operands() {
-        // naming.source.logical-original-operation-transfer
 
         let input = input();
         for source in [
@@ -1081,7 +1077,6 @@ mod tests {
 
     #[test]
     fn logical_original_transfers_preserve_unicode_registry_moves_and_aliases() {
-        // naming.source.logical-original-operation-transfer
 
         // These are conditional authored continuations, not Native rename or
         // alias execution, abrupt-edge exclusion or successful allocation.
@@ -1103,7 +1098,6 @@ mod tests {
 
     #[test]
     fn logical_original_transfers_preserve_moves_deletes_and_scalar_head_values() {
-        // naming.source.logical-original-operation-transfer
 
         let input = input();
         for (source, presence) in [
@@ -1393,7 +1387,6 @@ mod tests {
 
     #[test]
     fn logical_original_alias_capture_composes_registry_operations_at_the_call() {
-        // naming.source.logical-original-operation-transfer
 
         let input = input();
         for source in [
@@ -1420,7 +1413,6 @@ mod tests {
 
     #[test]
     fn logical_dispatch_projection_keeps_exact_targets_without_native_receipts() {
-        // naming.source.logical-original-operation-transfer
 
         let input = input();
         for (source, captured) in [
@@ -1465,7 +1457,6 @@ mod tests {
 
     #[test]
     fn logical_dispatch_projection_refuses_missing_changed_and_uninterpreted_owners() {
-        // naming.source.logical-original-operation-transfer
 
         use crate::command_binding::SourceCommandBindings;
         use crate::registry_invocation::OwnedInvocationMetadataContext;
@@ -1564,7 +1555,6 @@ mod tests {
 
     #[test]
     fn native_source_dispatch_requires_its_independent_original_head_receipt() {
-        // naming.source.logical-original-operation-transfer
 
         // This checks the selected source recipe's gate, without a Native
         // process, entered handler, frame, value or Normal-completion claim.
@@ -1609,7 +1599,6 @@ mod tests {
 
     #[test]
     fn logical_original_operation_refusals_do_not_recover_from_reporting_state() {
-        // naming.source.logical-original-operation-transfer
 
         let input = input();
         for source in [
@@ -1699,7 +1688,6 @@ mod tests {
 
     #[test]
     fn logical_original_store_transfer_retains_source_purpose_without_native_normal() {
-        // naming.source.logical-original-operation-transfer
 
         with_store_fixture(|tokens, target, state, context| {
             let outcomes =
@@ -1719,7 +1707,6 @@ mod tests {
 
     #[test]
     fn logical_original_store_transfer_refuses_observers_foreign_and_missing_owners() {
-        // naming.source.logical-original-operation-transfer
 
         with_store_fixture(|tokens, target, state, context| {
             for dynamic in [false, true] {

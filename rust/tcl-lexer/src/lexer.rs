@@ -890,7 +890,6 @@ impl<'src> Lexer<'src> {
         mut self,
         limit: tcl_core_types::RecursionLimit,
     ) -> Result<bool, LexError> {
-        // Implementation contract: naming.editor.original-source-formatting-budget
 
         if limit.exceeded(self.max_brace_word_nesting) {
             return Ok(false);
@@ -2242,7 +2241,6 @@ mod tests {
 
     #[test]
     fn brace_word_budget_uses_lexical_context_and_escape_boundaries() {
-        // Implementation contract: naming.editor.original-source-formatting-budget
 
         let one = tcl_core_types::RecursionLimit(1);
         assert_eq!(
@@ -2275,7 +2273,6 @@ mod tests {
 
     #[test]
     fn brace_word_budget_retains_full_config_and_strict_errors() {
-        // Implementation contract: naming.editor.original-source-formatting-budget
 
         let zero = tcl_core_types::RecursionLimit(0);
         let core = LexerConfig::for_file_grammar(

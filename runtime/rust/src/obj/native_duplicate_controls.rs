@@ -109,7 +109,6 @@ impl Drop for Current {
 }
 #[test]
 fn checked_original_duplicate_retains_first_cause_before_cleanup_and_refuses_incoming_admission() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual software extension dup/free callbacks exercise this checked kernel;
     // this grants no C/Jim adversarial-callback source or native process claim.
@@ -174,7 +173,6 @@ fn checked_original_duplicate_retains_first_cause_before_cleanup_and_refuses_inc
 }
 #[test]
 fn checked_original_duplicate_transfers_exact_incoming_primary_and_cleanup_once() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Independent direct shared-API ownership control, not a native process row.
     let mut interpreter = actual();
@@ -218,7 +216,6 @@ fn checked_original_duplicate_transfers_exact_incoming_primary_and_cleanup_once(
 
 #[test]
 fn checked_original_duplicate_detects_receiver_change_and_restore_during_source_dup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine software source-dup callback changes and restores the original
     // receiver before retirement. This is not a C/Jim callback observation.
@@ -274,7 +271,6 @@ fn checked_original_duplicate_detects_receiver_change_and_restore_during_source_
 }
 #[test]
 fn checked_original_duplicate_refuses_exhausted_source_or_receiver_epoch_before_callback() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Fixed software poison-state controls: an exhausted receipt must not
     // accept a later change-and-restore. No native C/Jim epoch is claimed.

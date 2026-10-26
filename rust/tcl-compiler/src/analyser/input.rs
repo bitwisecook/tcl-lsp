@@ -85,7 +85,6 @@ impl ResolvedAnalysisInput {
     /// not supply a Native naming policy; hosted source stays separate.
     #[must_use]
     pub fn has_logical_source_name_context(&self) -> bool {
-        // naming.minifier.complete-logical-metadata
 
         !self.has_hosted_source_name_context()
             && [self.profile, self.unit_profile]
@@ -190,7 +189,6 @@ mod tests {
 
     #[test]
     fn logical_source_domain_keeps_authored_simulation_and_actual_native_entry_separate() {
-        // naming.minifier.complete-logical-metadata
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = ResolvedAnalysisInput::new(
@@ -295,9 +293,7 @@ mod tests {
 
     #[test]
     fn logical_declaration_advice_uses_actual_input_at_each_analysis_entry() {
-        // naming.minifier.complete-logical-metadata
 
-        // naming.core.original-declaration-navigation
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = ResolvedAnalysisInput::new(
@@ -361,7 +357,6 @@ mod tests {
 
     #[test]
     fn logical_declaration_advice_requires_its_retained_input_after_copying_metadata() {
-        // naming.minifier.complete-logical-metadata
 
         let source = "proc lexical {} {}; set ordinary 1";
         let logical = Analyser::new().analyse(source, "tcl");
@@ -393,7 +388,6 @@ mod tests {
 
     #[test]
     fn logical_declaration_advice_keeps_native_entry_and_recipe_as_independent_barriers() {
-        // naming.minifier.complete-logical-metadata
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = ResolvedAnalysisInput::new(
@@ -498,7 +492,6 @@ mod tests {
 
     #[test]
     fn original_file_ingress_keeps_supplied_bom_configuration_and_default_source_policy() {
-        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
 
         // Source syntax correspondence only; no native source or event entry.
         for profile in [

@@ -1875,7 +1875,6 @@ mod return_decoder_tests {
 
     #[test]
     fn source_return_decoder_matches_measured_public_fields_with_explicit_refusals() {
-        // naming.completion.return-option-pair-grammar
 
         // Original source379/380 only: own code, accepted result, and available
         // catch options. No compiler instruction, object, frame or message claim.
@@ -1911,7 +1910,6 @@ mod return_decoder_tests {
 
     #[test]
     fn evaluated_return_decoder_matches_original_worker_public_fields() {
-        // naming.completion.return-evaluated-argument-worker-grammar
 
         // Alias-to-original-worker383 keeps every original operand. This compares
         // public fields only, independently of source379/380 compilation.
@@ -1934,7 +1932,6 @@ mod return_decoder_tests {
 
     #[test]
     fn return_decoder_preserves_unknown_values_count_and_original_ordinals() {
-        // naming.completion.return-option-pair-grammar
 
         // Software contract: constructed source carriers test uncertainty and
         // provenance. They are not independently observed Native entry/header facts.
@@ -2001,7 +1998,6 @@ mod return_decoder_tests {
 
     #[test]
     fn return_value_transfer_keeps_actual_numeric_context_and_merged_error_code() {
-        // naming.completion.return-option-pair-grammar
 
         // Software overlay/route contract. A retained mixed numeral grammar is
         // not a newly measured C90 engine or a Native object/handler receipt.
@@ -2045,7 +2041,6 @@ mod return_decoder_tests {
 
     #[test]
     fn return_decoder_release_and_invocation_facet_are_independent_premises() {
-        // naming.completion.return-option-pair-grammar
 
         // Software contract: a missing release/entry facet cannot be replaced by
         // numeral grammar or a source word. Public disagreement is in380/383.
@@ -2089,7 +2084,6 @@ mod return_decoder_tests {
 
     #[test]
     fn return_conversion_width_keeps_release_independent_of_numeral_overlay() {
-        // naming.completion.return-option-pair-grammar
 
         // Source379/380 measures the C8/C9 conversion-width distinction.
         // These mixed carriers separately test the software axis contract;
@@ -2144,7 +2138,6 @@ mod return_decoder_tests {
     fn registry_return_routes_keep_release_grammar_and_numerals_independent() {
         use crate::completion_route::{InvocationCompletionRoute as Route, ReturnCompletionRoute};
 
-        // naming.completion.return-option-pair-grammar
 
         // Actual Registry consumer contracts under explicit mixed carriers.
         // These source advice queries prove no Native entry or object state.
@@ -2210,7 +2203,6 @@ mod return_decoder_tests {
 
     #[test]
     fn return_decoder_keeps_unknown_grammar_and_numbers_as_separate_premises() {
-        // naming.completion.return-option-pair-grammar
 
         // Software consensus contract: provider grammar and numeral knowledge
         // are independent; agreement supplies no worker or compiler entry.

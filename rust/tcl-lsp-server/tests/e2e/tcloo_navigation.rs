@@ -1461,7 +1461,6 @@ fn tp_renamed_member_is_navigable_under_its_new_name() {
 /// Source member reports supply no current Native worker/table abort proof.
 #[test]
 fn native_retract_before_declare_withdraws_w315_and_keeps_the_outline() {
-    // naming.diagnostics.original-definition-abort-admission
 
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

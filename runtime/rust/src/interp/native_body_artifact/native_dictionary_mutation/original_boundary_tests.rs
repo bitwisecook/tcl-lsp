@@ -191,7 +191,6 @@ fn exercise(profile: &str, kind: Kind, mode: u8) {
 }
 #[test]
 fn original_compiled_append_and_lappend_check_member_cow_before_working_cleanup_and_getters() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Local extension/actual compiled worker controls only; no native callback chronology.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -204,7 +203,6 @@ fn original_compiled_append_and_lappend_check_member_cow_before_working_cleanup_
 }
 #[test]
 fn original_compiled_append_and_lappend_keep_current_reference_and_deferred_member_schedule() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for kind in [Kind::Append, Kind::Lappend] {
@@ -261,7 +259,6 @@ impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp> for 
 }
 #[test]
 fn original_compiled_mutation_refuses_pending_write_role_and_preserves_live_trace_replacement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Pending-role publication is a software callback transport control, not a
     // modern Native setter schedule or ordinary scalar authority grant.

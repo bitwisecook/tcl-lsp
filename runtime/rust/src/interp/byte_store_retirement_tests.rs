@@ -197,7 +197,6 @@ fn cause(interpreter: &Interp, mode: u8) {
 }
 #[test]
 fn original_byte_stores_retire_actual_old_owner_outside_all_storage_borrows() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Logical storage transport, distinct from original C/Jim pointer chronology.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -236,7 +235,6 @@ fn original_byte_stores_retire_actual_old_owner_outside_all_storage_borrows() {
 }
 #[test]
 fn original_scalar_store_stops_before_write_trace_after_retirement_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2] {
@@ -266,7 +264,6 @@ fn original_scalar_store_stops_before_write_trace_after_retirement_refusal() {
 }
 #[test]
 fn original_byte_store_cannot_adopt_a_recreated_binding_after_old_release() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
@@ -289,7 +286,6 @@ fn original_byte_store_cannot_adopt_a_recreated_binding_after_old_release() {
 }
 #[test]
 fn original_release_global_storage_retires_before_next_owned_bootstrap_slot() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for mode in [0, 1, 2] {
@@ -332,7 +328,6 @@ fn original_release_global_storage_retires_before_next_owned_bootstrap_slot() {
 
 #[test]
 fn original_pending_byte_store_refusal_keeps_old_owner_and_incoming_reference_unreached() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
@@ -358,7 +353,6 @@ fn original_pending_byte_store_refusal_keeps_old_owner_and_incoming_reference_un
 
 #[test]
 fn original_anonymous_store_keeps_its_frame_incarnation_through_actual_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual installed cell/frame transport, not a compiler instruction grant.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {

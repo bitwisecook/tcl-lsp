@@ -481,7 +481,6 @@ pub(super) mod tests {
     /// caller follows its callees' definitions.
     #[test]
     fn a_callee_counts_as_defined_only_where_its_definition_surely_ran() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Conditional Logical model only; no Native invocation is asserted.
         let main = "proc main {} {set a [label abc]; return 1}\n";
@@ -538,7 +537,6 @@ pub(super) mod tests {
     /// `{*}` under 8.4, which reads it as a braced word.
     #[test]
     fn a_word_the_release_rejects_never_completes() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Conditional Logical model only; no Native invocation is asserted.
         for (body, dialects) in [
@@ -571,7 +569,6 @@ pub(super) mod tests {
     /// scalar the body set, and a call with the word count the callee takes.
     #[test]
     fn a_body_of_commands_that_complete_completes() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Conditional Logical model only; no Native invocation is asserted.
         let completes = completes(
@@ -598,7 +595,6 @@ pub(super) mod tests {
     /// which the nesting limit ends.
     #[test]
     fn a_body_that_may_raise_does_not_complete() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Conditional Logical model only; no Native invocation is asserted.
         let completes = completes(
@@ -650,7 +646,6 @@ pub(super) mod tests {
     /// nothing, not that it completes.
     #[test]
     fn a_rebound_or_declared_head_states_no_completion() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Conditional Logical model only; no Native invocation is asserted.
         let shadowed = completes(
@@ -681,7 +676,6 @@ pub(super) mod tests {
     /// states no completion.
     #[test]
     fn the_ir_only_summary_states_no_completion() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Conditional Logical model only; no Native invocation is asserted.
         let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
@@ -700,7 +694,6 @@ pub(super) mod tests {
     }
     #[test]
     fn original_completion_keeps_alias_prefixes_defaults_and_child_horizons() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Source-model completion, independent of Native entry and edit licence.
         for source in [
@@ -725,7 +718,6 @@ pub(super) mod tests {
 
     #[test]
     fn original_completion_keeps_selected_scalar_reference_and_element_obligations() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         for source in [
             "proc p {café} {return ${café}}",
@@ -826,7 +818,6 @@ pub(super) mod tests {
 
     #[test]
     fn original_completion_declines_missing_foreign_native_and_mutated_headers() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         let source = "proc leaf {x} {return $x}; proc p {x} {return [leaf $x]}";
         let (context, unit) = logical_unit(source, DIALECT);
@@ -885,7 +876,6 @@ pub(super) mod tests {
 
     #[test]
     fn original_completion_retains_selected_jim_formal_binding_strategy() {
-        // naming.interprocedural.original-procedure-completion-source-context
 
         // Actual selected Jim syntax in an explicit Logical source model,
         // independently of native Jim activation and public normal completion.
@@ -964,7 +954,6 @@ mod original_source_purpose_tests {
 
     #[test]
     fn original_module_completion_uses_actual_native_or_logical_entry_purpose() {
-        // naming.compiler.original-analysis-metadata-context
 
         // A real source-only completion model cannot borrow a held Native Jim entry.
         let source = "if {1} {set value VALUE}";

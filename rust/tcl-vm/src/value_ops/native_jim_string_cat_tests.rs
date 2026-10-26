@@ -17,7 +17,6 @@ fn jim_vm() -> Vm {
 
 #[test]
 fn jim_cat_zero_and_single_operand_keep_their_distinct_original_source_contracts() {
-    // naming.source.jim-original-concatenation-ownership
 
     // Pinned Jim OPT_CAT source/API contract; no new public zero/unary observation.
     let mut vm = jim_vm();
@@ -40,7 +39,6 @@ fn jim_cat_zero_and_single_operand_keep_their_distinct_original_source_contracts
 
 #[test]
 fn jim_cat_multiple_original_operands_create_unknown_count_string_backing() {
-    // naming.source.jim-original-concatenation-ownership
 
     // Native Info186 independently observes the two-operand name result's String.
     let mut vm = jim_vm();
@@ -73,7 +71,6 @@ fn jim_cat_multiple_original_operands_create_unknown_count_string_backing() {
 
 #[test]
 fn jim_cat_refuses_retired_and_foreign_original_getters_without_rebuilding() {
-    // naming.source.jim-original-concatenation-ownership
 
     let mut vm = jim_vm();
     let original = Value::new_native_string_bytes(b"retired".as_slice());
@@ -102,7 +99,6 @@ fn jim_cat_refuses_retired_and_foreign_original_getters_without_rebuilding() {
 
 #[test]
 fn jim_cat_selected_unavailable_logical_purpose_does_not_reach_physical_engine() {
-    // naming.source.jim-original-concatenation-ownership
 
     let mut vm = jim_vm();
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());

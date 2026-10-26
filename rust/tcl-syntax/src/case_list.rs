@@ -240,7 +240,6 @@ pub fn split_case_list_with_syntax(
     shape: &CaseListShape<'_>,
     syntax: tcl_dialect::ListParse,
 ) -> Vec<Clause> {
-    // Implementation contract: naming.source.original-editor-body-structure
 
     let elements = elements_of(inner, syntax);
     let text = |e: &Element| inner.get(e.start..e.end).unwrap_or_default();
@@ -326,7 +325,6 @@ mod tests {
 
     #[test]
     fn selected_clause_geometry_keeps_strict_and_lenient_body_extents_separate() {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         let source = "x {puts x}tail";
         let strict = split_case_list(source, &CaseListShape::default());

@@ -301,7 +301,6 @@ where
         v.dedup();
         filter_command_names(v, pattern, matcher)?
     };
-    // naming.compiler.original-info-commands-literal-resolution
     // C InfoCommandsCmd uses Tcl_GetCommandFullName for qualified matches;
     // the same original windows distinguish its String children from plain
     // unqualified Tcl_NewStringObj table keys. No name bytes donate a cache.
@@ -1108,7 +1107,6 @@ mod tests {
 
     #[test]
     fn complete_matches_c_semantics() {
-        // naming.source.original-configured-script-completeness
 
         // Native452 row25: the trailing backslash is complete on all captured
         // C releases. Row26's backslash-LF is the pending continuation.

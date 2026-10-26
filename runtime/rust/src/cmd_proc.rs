@@ -358,7 +358,6 @@ fn prepare_static_variables(
     interp: &mut Interp,
     original: *mut TclObj,
 ) -> Result<crate::frame::StaticVariables, CmdError> {
-    // naming.procedure-static.original-member-object-boundaries
 
     use tcl_registry::native_procedure::{
         StaticVariableValueError as Error, StaticVariableValueInitialiser as Initialiser,
@@ -1105,7 +1104,6 @@ mod tests {
 
     #[test]
     fn jim_static_cells_match_native_definition_and_retirement() {
-        // naming.procedure-static.jim-primary-table-unset
 
         const CASES: &[(&[u8], Code, &[u8])] = &[
             (b"proc p {} {{x 0}} {incr x}; list [p] [p]", Code::Ok, b"1 2"),
@@ -1526,7 +1524,6 @@ mod original_apply_frame_tests {
 
     #[test]
     fn original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A real unused supplied value remains unread through lambda entry,
         // body and pop. This proves the software frame transport, not a new
@@ -1541,7 +1538,6 @@ mod original_apply_frame_tests {
 
     #[test]
     fn original_apply_level_query_keeps_members_and_reached_getter_first_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual info-level List creation is separate from its reached String
         // rendering; Host/ABA stops later body work and restores the real frame.
@@ -1556,7 +1552,6 @@ mod original_apply_frame_tests {
     }
     #[test]
     fn original_c84_apply_refuses_before_body_frame_or_argument_getter() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // C8.4 has no actual apply producer. This is a software refusal control,
         // independent of the later C providers' lazy argument/frame positives.

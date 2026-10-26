@@ -192,10 +192,8 @@ fn install_chain(actual: &mut Interp, p: &Probe, records: &mut [Record; 2]) {
 
 #[test]
 fn original_active_object_deletion_separates_callback_from_dispatch_role_and_recreation() {
-    // naming.embedding.original-active-object-command-deletion
 
     // Software callback timing and later fresh-script replacement only; no Native held-word/client-data lifetime grant.
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for mode in 0..=1 {
@@ -257,7 +255,6 @@ fn original_active_object_deletion_separates_callback_from_dispatch_role_and_rec
 
 #[test]
 fn original_import_retirement_uses_release_order_and_depth_first_original_generations() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
@@ -354,7 +351,6 @@ fn install_alias(
 
 #[test]
 fn original_alias_metadata_views_do_not_duplicate_stored_native_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
@@ -383,7 +379,6 @@ fn original_alias_metadata_views_do_not_duplicate_stored_native_roles() {
 
 #[test]
 fn original_active_alias_keeps_only_its_genuine_forwarded_argument_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
@@ -413,7 +408,6 @@ fn original_active_alias_keeps_only_its_genuine_forwarded_argument_roles() {
 
 #[test]
 fn original_deletion_retains_first_cause_and_finishes_actual_import_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 4..=6 {
@@ -456,7 +450,6 @@ fn original_deletion_retains_first_cause_and_finishes_actual_import_cleanup() {
 
 #[test]
 fn original_namespace_and_forget_routes_retire_captured_command_generations() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
@@ -525,7 +518,6 @@ unsafe extern "C" fn move_or_recursive_trace(
 }
 #[test]
 fn original_recursive_and_moved_deletion_preserves_same_name_replacement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [7, 8] {
@@ -578,7 +570,6 @@ fn original_recursive_and_moved_deletion_preserves_same_name_replacement() {
 }
 #[test]
 fn original_hidden_and_oo_automatic_cleanup_withdraw_real_implementation_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
@@ -638,7 +629,6 @@ fn original_hidden_and_oo_automatic_cleanup_withdraw_real_implementation_roles()
 
 #[test]
 fn original_creation_delete_reuses_active_driver_and_preserves_actual_import_roster() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // C creation's import preservation differs from true ordinary deletion.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {

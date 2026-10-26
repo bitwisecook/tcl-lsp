@@ -1074,7 +1074,6 @@ fn site_resolution_rules_out(
     cell: &str,
     _dialect: &'static tcl_dialect::DialectProfile,
 ) -> bool {
-    // naming.core.original-dynamic-name-value-purpose
 
     // Source role/value advice does not prove a Native or hosted current cell.
     // Logical compatibility may narrow its own source refusal independently.
@@ -1618,7 +1617,6 @@ mod tests {
 
     #[test]
     fn original_dynamic_name_value_narrowing_stays_in_its_logical_purpose() {
-        // naming.core.original-dynamic-name-value-purpose
 
         let source = "set n other\nset $n 2";
         for dialect in [
@@ -1964,7 +1962,6 @@ mod original_receiver_hazard_tests {
 
     #[test]
     fn original_receiver_hazards_cannot_be_narrowed_by_detached_source_class_reports() {
-        // naming.core.original-source-instance-completion
 
         let source = "oo::class create C {method method {} {}}; oo::class create Other {}; proc p {receiver} {$receiver method}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -2050,7 +2047,6 @@ mod original_hazard_context_tests {
 
     #[test]
     fn original_variable_hazards_keep_selected_alias_origins_and_unknown_roles() {
-        // naming.core.original-dynamic-name-value-purpose
 
         // Conditional source hazard advice; no current variable cell or rename grant.
         let store = store();
@@ -2092,7 +2088,6 @@ mod original_hazard_context_tests {
 
     #[test]
     fn supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible() {
-        // naming.core.original-dynamic-name-value-purpose
 
         let store = store();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -2133,7 +2128,6 @@ mod original_hazard_context_tests {
 
     #[test]
     fn supplied_variable_hazard_patterns_do_not_exclude_native_or_missing_targets() {
-        // naming.core.original-dynamic-name-value-purpose
 
         use tcl_compiler::analyser::Analyser;
         let source = "set ::other::$n 1";
@@ -2171,7 +2165,6 @@ mod original_hazard_context_tests {
 
     #[test]
     fn original_hazard_walk_preserves_grammar_and_missing_foreign_owner_refusal() {
-        // naming.core.original-dynamic-name-value-purpose
 
         let source = "if 1 {source_var ${a{b}c} 1}";
         let store = store();
@@ -2219,7 +2212,6 @@ mod original_hazard_context_tests {
 
     #[test]
     fn original_self_hazards_use_selected_helpers_and_captured_selector_positions() {
-        // naming.core.original-dispatch-region-context
 
         let store = store();
         let config =
@@ -2313,7 +2305,6 @@ mod configured_dispatch_receiver_tests {
 
     #[test]
     fn actual_rename_hazard_keeps_a_compound_variable_receiver_untracked() {
-        // naming.core.original-source-instance-completion
 
         for head in ["$v", "${v}", "\"${v}\""] {
             let source = format!("{CLASSES}set v [Other new]\n{head} m\n");
@@ -2339,7 +2330,6 @@ mod configured_dispatch_receiver_tests {
 
     #[test]
     fn actual_rename_receiver_names_keep_first_close_and_nested_source_currency() {
-        // naming.core.original-source-instance-completion
 
         let source = format!("{CLASSES}set {{a{{b}}c}} [Other new]\n${{a{{b}}c}} m\n");
         let mut config = tcl_lexer::LexerConfig {

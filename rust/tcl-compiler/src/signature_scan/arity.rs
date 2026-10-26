@@ -103,7 +103,6 @@ mod tests {
 
     #[test]
     fn finite_source_count_bounds_cannot_borrow_unlimited_sentinel() {
-        // naming.procedure.original-formal-count-shape
 
         // Registry metadata representability only; the native proof observes
         // argv counts 0..5 and does not establish these large-count boundaries.

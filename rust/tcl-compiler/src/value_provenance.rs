@@ -537,7 +537,6 @@ mod tests {
 
     #[test]
     fn list_provenance_retains_actual_input_config_and_selected_child() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Source ancestry of the independently selected construction receipt;
         // availability alone grants no Native execution or editable alias prefix.
@@ -714,7 +713,6 @@ mod tests {
 
     #[test]
     fn scalar_copy_roots_use_selected_grammar_and_closed_element_partition() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Lexical copy ancestry only; no physical variable receiver is inferred.
         let first = tcl_lexer::LexerConfig::for_dialect("tcl8.6");

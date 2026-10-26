@@ -926,7 +926,6 @@ mod tests {
 
     #[test]
     fn logical_inline_set_uses_selected_operation_and_preserves_capture_geometry() {
-        // naming.refactor.original-variable-inline-permission
 
         let mut registry = CommandRegistry::build_default();
         let mut setter = registry.get("set").unwrap().clone();
@@ -984,7 +983,6 @@ mod tests {
 
     #[test]
     fn logical_inline_edits_require_current_source_and_complete_metadata_owner() {
-        // naming.core.original-dispatch-region-context
 
         let source = "set held VALUE\nputs $held";
         let analysis = Analyser::new().analyse(source, "tcl");
@@ -1024,7 +1022,6 @@ mod tests {
     /// is that 80 levels return at all, not what they return.
     #[test]
     fn deeply_nested_namespaces_survive_scope_walk() {
-        // Implementation contract: naming.source.recursive-driver-state-transport
 
         const DEPTH: usize = 80;
         let mut source = String::new();
@@ -1049,7 +1046,6 @@ mod tests {
 
     #[test]
     fn original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps() {
-        // Implementation contract: naming.refactor.original-variable-inline-permission
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let source = "set café 7\nputs ${café}";
@@ -1068,7 +1064,6 @@ mod tests {
 
     #[test]
     fn original_inline_variable_rejects_reassigned_cells_observers_and_value_effect_movement() {
-        // Implementation contract: naming.refactor.original-variable-inline-permission
 
         for source in [
             "set x 1; set x 2; puts $x",

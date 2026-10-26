@@ -7,7 +7,6 @@ use tcl_syntax::value::ValueError;
 
 #[test]
 fn original_authored_operand_resident_none_has_no_entry_or_provider_donation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = Vm::new();
     let owner = OriginalAuthoredOperandScope::capture(&mut vm).unwrap();
@@ -47,7 +46,6 @@ fn original_authored_operand_resident_none_has_no_entry_or_provider_donation() {
 
 #[test]
 fn original_authored_operand_neutral_utf8_keeps_raw_units_and_legacy_scalar_worker() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, formatter, queries) = provided();
     let owner = OriginalAuthoredOperandScope::capture(&mut vm).unwrap();
@@ -71,7 +69,6 @@ fn original_authored_operand_neutral_utf8_keeps_raw_units_and_legacy_scalar_work
 
 #[test]
 fn original_authored_operand_detects_frame_birth_and_original_host_aba_without_entry() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for host_aba in [false, true] {
         let (mut vm, formatter, queries) = provided();
@@ -99,7 +96,6 @@ fn original_authored_operand_detects_frame_birth_and_original_host_aba_without_e
 
 #[test]
 fn original_authored_operand_first_formatter_failure_survives_world_withdrawal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied software formatter and readonly world; no Native callback observation.
     let (mut vm, formatter, _) = provided();
@@ -134,7 +130,6 @@ fn original_authored_operand_first_formatter_failure_survives_world_withdrawal()
 
 #[test]
 fn original_authored_operand_retainer_precedes_native_compound_backing_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual backing lifetime with a supplied software checker, not Native callback chronology.
     let (mut vm, formatter, queries) = provided();
@@ -174,7 +169,6 @@ fn original_authored_operand_retainer_precedes_native_compound_backing_retiremen
 
 #[test]
 fn original_authored_operand_successful_formatter_frame_change_stops_cache_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied checker changes the actual frame after observing a formatter stage.
     let (mut vm, formatter, _) = provided();
@@ -214,7 +208,6 @@ fn original_authored_operand_successful_formatter_frame_change_stops_cache_adopt
 
 #[test]
 fn original_string_intrinsic_root_header_failure_is_retained_before_child_backing_drop() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied software registration-style checker; the actual String worker owns the root check.
     let (mut vm, formatter, queries) = provided();

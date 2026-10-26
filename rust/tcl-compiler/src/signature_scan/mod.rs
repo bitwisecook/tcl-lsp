@@ -268,7 +268,6 @@ mod original_callback_scan_tests {
 
     #[test]
     fn original_callback_scan_respects_selected_installer_moves_and_terminal_barriers() {
-        // naming.callback.lookup-scope-owner
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::model::ingress::context_for_profile(profile);
@@ -794,7 +793,6 @@ mod original_document_purpose_tests {
 
     #[test]
     fn complete_document_signature_ingress_keeps_root_and_nested_bom_roles_dialect_aware() {
-        // naming.source.original-configured-script-completeness
 
         // Source declarations/geometry only, without procedure creation or execution.
         let source = "\u{feff}proc visible {} {}\nif 1 {\u{feff}proc hidden {} {}}\nif 1 {proc nested {} {}}";
@@ -834,7 +832,6 @@ mod original_document_purpose_tests {
 
     #[test]
     fn configured_signature_ingress_retains_explicit_content_and_custom_full_policy() {
-        // naming.source.original-configured-script-completeness
 
         let environment = tcl_registry::model::resolve_known_environment("tcl9.1").unwrap();
         let context = environment.default_context_registry();

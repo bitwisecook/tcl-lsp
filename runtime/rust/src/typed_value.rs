@@ -1765,7 +1765,6 @@ mod tests {
             native_scalar_getter(value.as_ptr(), dialect, Kind::Int),
             Err(ValueError::NativeScalarGetter(_))
         ));
-        // naming.numeric.original-capi-scalar-publication-width
 
         // C86 original case24/getter0 renders a constant overflow diagnostic.
         assert!(!obj::has_string_rep(value.as_ptr()));
@@ -1773,7 +1772,6 @@ mod tests {
 
     #[test]
     fn primitive_nan_constant_failure_preserves_original_absent_string() {
-        // naming.numeric.original-capi-scalar-publication-width
 
         // C85+ original case24/getter4 needs no original-string diagnostic.
         for version in VERSIONS.into_iter().skip(1) {

@@ -617,7 +617,6 @@ impl SourceSyntaxStructure {
         &self,
         head: u32,
     ) -> Result<Option<SourceSyntaxDefinitionMember<'_>>, SourceSyntaxMemberUnavailable> {
-        // naming.editor.original-source-formatting
 
         use tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberDisposition as D;
         let region = self
@@ -1115,7 +1114,6 @@ impl SourceStructure {
         config: LexerConfig,
         purpose: CapturePurpose,
     ) -> Option<Self> {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         let image = SourceImage::document(source);
         let end = u32::try_from(source.len()).ok()?;
@@ -2303,7 +2301,6 @@ mod tests {
 
     #[test]
     fn original_variable_cursor_keeps_selected_roots_and_complete_source_geometry() {
-        // Implementation contract: naming.core.selected-variable-cursor-syntax
 
         let source = concat!(
             "set seed café🙂\n",
@@ -2390,7 +2387,6 @@ mod tests {
 
     #[test]
     fn original_cursor_declines_malformed_data_and_native_resolution_promotion() {
-        // Implementation contract: naming.core.selected-variable-cursor-syntax
 
         let source = "set seed 1\nputs ${missing\n";
         let analysis = cursor_analysis(source, tcl_dialect::BracedVarStyle::Tcl9Nesting);
@@ -2413,7 +2409,6 @@ mod tests {
 
     #[test]
     fn original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles() {
-        // Implementation contract: naming.core.selected-variable-cursor-syntax
 
         fn reference_only(
             _: tcl_registry::InvocationArguments<'_>,
@@ -2469,7 +2464,6 @@ mod tests {
 
     #[test]
     fn original_syntax_tokens_join_absolute_region_and_command_geometry() {
-        // naming.cli.original-source-highlight-geometry
 
         let source =
             "set data {café🙂;\nnotACommand}\nif {1} {  puts [list café🙂]; puts $value  }";
@@ -2530,7 +2524,6 @@ mod tests {
 
     #[test]
     fn original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear() {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         let source = concat!(
             "proc p {} {puts [list inner]}\n",
@@ -2677,7 +2670,6 @@ mod tests {
 
     #[test]
     fn original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies() {
-        // naming.core.original-definition-grammar-cursor
 
         // This control stops at the genuine selected source-owner boundary;
         // it does not depend on quick-fix diagnostics or candidate spelling.
@@ -2891,7 +2883,6 @@ mod tests {
 
     #[test]
     fn original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies() {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         let source = "oo::class create C {self self {method café {} {puts wrapper}}; if 1 {method café {} {puts immediate}}; method m {} {method ordinary {} {puts data}}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -2932,7 +2923,6 @@ mod tests {
 
     #[test]
     fn original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject() {
-        // Implementation contract: naming.source.original-editor-body-structure
 
         let source = concat!(
             "switch -- $choice {\n x {\n  puts [list arm]\n }\n}\n",
@@ -2971,7 +2961,6 @@ mod syntax_compaction_tests {
 
     #[test]
     fn original_syntax_regions_keep_quiet_selected_bodies_and_source_currency() {
-        // Implementation contract: naming.source.closed-syntax-script-regions
 
         let source = "proc p {} {if {1} {  puts [list quiet]  }}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -3011,7 +3000,6 @@ mod syntax_compaction_tests {
 
     #[test]
     fn original_syntax_regions_do_not_promote_conditional_roles_or_declarations() {
-        // Implementation contract: naming.source.closed-syntax-script-regions
 
         let source = "unavailable\nif {1} {  puts advisory  }\nputs [list lexical]\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -3046,7 +3034,6 @@ mod syntax_compaction_tests {
 
     #[test]
     fn original_syntax_regions_reject_body_roles_when_arguments_replace_the_head() {
-        // Implementation contract: naming.source.closed-syntax-script-regions
 
         let source = concat!(
             "if [eval {rename if saved; proc if {condition body} ",

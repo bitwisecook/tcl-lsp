@@ -543,7 +543,6 @@ mod tests {
 
     #[test]
     fn original_dsl_highlight_keeps_loader_file_prologue_and_body_content_spans() {
-        // naming.source.original-configured-script-completeness
 
         let source = "\u{feff}speclib demo 1.0 {\ncommand visible {arity 0}\n\u{feff}command hidden {arity 0}\n}\n";
         let tokens = highlight_tokens(source);

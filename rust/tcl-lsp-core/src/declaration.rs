@@ -576,7 +576,6 @@ mod tests {
 
     #[test]
     fn original_declaration_navigation_declines_unowned_analysis_without_recapture() {
-        // Implementation contract: naming.core.original-declaration-navigation
 
         let source = "set x 1; proc p {} {global x; puts $x}";
         let analysis = analyse(source);
@@ -609,7 +608,6 @@ mod tests {
 
     #[test]
     fn logical_declaration_navigation_keeps_its_explicit_compatibility_scan() {
-        // Implementation contract: naming.core.original-declaration-navigation
 
         let source = "proc p {} {global x; puts $x}";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -669,7 +667,6 @@ mod tests {
 
     #[test]
     fn original_logical_declarations_join_global_aliases_without_local_root_stripping() {
-        // naming.core.original-declaration-navigation
 
         let source = "set foo 1; proc p {} {global foo; puts $::foo; puts $foo}";
         let analysis = logical_source_analysis(source);
@@ -703,7 +700,6 @@ mod tests {
 
     #[test]
     fn original_qualified_alias_declarations_keep_the_target_and_body_frame() {
-        // naming.core.original-declaration-navigation
 
         let source = "namespace eval ns {variable foo 1}; proc p {} {global ::ns::foo; puts $foo; puts $::ns::foo; puts $::other::foo}; proc sibling {} {puts $foo}";
         let expected =
@@ -745,7 +741,6 @@ mod tests {
 
     #[test]
     fn original_logical_declarations_keep_qualified_targets_and_current_source_owners() {
-        // naming.core.original-declaration-navigation
 
         let source = "namespace eval ns {variable foo 1; proc p {} {variable foo; puts $::ns::foo; puts $foo}}";
         let mut analysis = logical_source_analysis(source);
@@ -1240,7 +1235,6 @@ mod original_declaration_region_purpose_tests {
 
     #[test]
     fn original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry() {
-        // naming.source.original-configured-script-completeness
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);

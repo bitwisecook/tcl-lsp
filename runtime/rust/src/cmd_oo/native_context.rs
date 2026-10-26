@@ -1119,7 +1119,6 @@ mod original_forward_prefix_tests {
 
     #[test]
     fn original_forward_definition_and_raw_report_match_original_member_stages() {
-        // naming.tcloo.original-operand-string-and-prefix-stages
 
         // Fixed C86/C90/C91 ROW comparisons; presentation is an explicit later read.
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1175,7 +1174,6 @@ mod original_forward_prefix_tests {
 
     #[test]
     fn original_forward_invocation_passes_exact_member_before_its_worker_getter() {
-        // naming.tcloo.original-operand-string-and-prefix-stages
 
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut interpreter = native(version);
@@ -1207,7 +1205,6 @@ mod original_forward_prefix_tests {
 
     #[test]
     fn forward_declaration_clone_shares_the_retained_list_without_member_reference_donation() {
-        // naming.tcloo.original-operand-string-and-prefix-stages
 
         // Software sharing control for original CloneForwardMethod's source recipe;
         // original nine-case rows contain no independent native clone observation.
@@ -1243,7 +1240,6 @@ mod original_forward_prefix_tests {
 
     #[test]
     fn forward_worker_member_refusal_keeps_reached_bytes_and_stops_result_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for mode in [1, 2] {
             let mut interpreter = native("tcl8.6");
@@ -1364,7 +1360,6 @@ mod original_definition_frame_tests {
 
     #[test]
     fn original_definition_entry_waits_for_a_report_and_preserves_raw_list_members() {
-        // naming.tcloo.original-operand-string-and-prefix-stages
 
         // Match String/update phases and the report's native member +1 delta.
         // The direct software frame fixture has no public EvalObjv argv +1 role.
@@ -1451,7 +1446,6 @@ mod original_definition_frame_tests {
 
     #[test]
     fn original_frame_allocation_lease_cannot_revive_a_retired_member() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Allocation-only frame retention is independent of native header liveness.
         let interpreter = native("tcl8.6");
@@ -1489,7 +1483,6 @@ mod original_definition_frame_tests {
 
     #[test]
     fn shared_info_level_report_refusal_stops_before_bad_level_string_conversion() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // The genuine shared command receives the role's outer failure; only
         // an absent inner frame may reach bad-level String formatting.
@@ -1617,7 +1610,6 @@ mod residual_original_argument_tests {
 
     #[test]
     fn class_factory_original_name_refusal_stops_namespace_and_later_operand_effects() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Software original getter/currency control; no stock factory-order observation.
         for mode in [1, 2] {
@@ -1664,7 +1656,6 @@ mod residual_original_argument_tests {
 
     #[test]
     fn original_selector_refusal_stops_cache_dispatch_and_keeps_later_header_unread() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for mode in [0, 1, 2] {
             let mut interpreter = native("tcl8.6");
@@ -1706,7 +1697,6 @@ mod residual_original_argument_tests {
 
     #[test]
     fn slot_selected_list_preserves_parse_refusal_and_stops_before_cache_after_callback() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for mode in [0, 1, 2] {
             let mut interpreter = native("tcl8.6");
@@ -1771,7 +1761,6 @@ mod residual_original_argument_tests {
 
     #[test]
     fn property_script_refusal_stops_later_name_and_accessor_publication() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         for mode in [1, 2] {
             let mut interpreter = native("tcl9.1");
@@ -1812,7 +1801,6 @@ mod residual_original_argument_tests {
 
     #[test]
     fn deleted_definition_target_cannot_supply_constructor_continuation() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // A real nested destroy changes target lifecycle while operation context remains current.
         let mut interpreter = native("tcl8.6");

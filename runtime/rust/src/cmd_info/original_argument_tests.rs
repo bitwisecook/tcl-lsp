@@ -129,7 +129,6 @@ fn compare_public(interp: &mut Interp, code: Code, capture: &str, case: usize) {
 
 #[test]
 fn original_info_default_positive_rows_keep_selected_getter_order_and_borrowed_value() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // Only C505b successful cases2/3 public bytes/tape; native reference counts,
     // error-context getters, dispatch ownership and Jim default stay separate.
@@ -192,7 +191,6 @@ fn original_info_default_positive_rows_keep_selected_getter_order_and_borrowed_v
 
 #[test]
 fn original_info_default_failed_lookup_leaves_destination_getter_unreached() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // Selected InfoDefaultCmd source/API stage only. Actual505b EvalObjv error
     // context reads destinationC; this direct worker does not assert that tape.
@@ -245,7 +243,6 @@ fn original_info_default_failed_lookup_leaves_destination_getter_unreached() {
 
 #[test]
 fn original_info_getter_first_cause_stops_later_operands_and_result_publication() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real extension updater Host/context changes; software completion transport.
     for mode in [1, 2] {
@@ -303,7 +300,6 @@ fn original_info_getter_first_cause_stops_later_operands_and_result_publication(
 
 #[test]
 fn original_info_exists_public_row_preserves_original_name_on_all_six_providers() {
-    // naming.invocation.original-variable-and-introspection-getter-order
 
     // Exact505b case17 name getter and public result only; no internal cache/ref equality.
     for &(profile, capture) in ORIGINALS {
@@ -327,7 +323,6 @@ fn original_info_exists_public_row_preserves_original_name_on_all_six_providers(
 
 #[test]
 fn original_info_direct_name_workers_stop_before_result_after_getter_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Existing direct worker API and selected String producer. No native
     // availability, numeric frame parser or whole dispatcher equivalence.

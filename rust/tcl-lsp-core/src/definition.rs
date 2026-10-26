@@ -4908,7 +4908,6 @@ mod tests {
 
     #[test]
     fn original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch() {
-        // naming.core.original-dispatch-region-context
 
         for (construction, receiver) in [
             ("C create my", "my"),
@@ -4941,7 +4940,6 @@ mod tests {
 
     #[test]
     fn original_internal_visibility_uses_the_selected_receiver_local_head() {
-        // naming.core.original-dispatch-region-context
 
         let source = "proc my args {return DECOY}; oo::class create C {method Hidden {} {}; method run {} {my Hidden}}; C create obj; obj run";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -4964,7 +4962,6 @@ mod tests {
 
     #[test]
     fn original_external_self_visibility_requires_its_own_entry_after_internal_dispatch() {
-        // naming.core.original-dispatch-region-context
 
         // Measured EXTERNAL_SELF_UNEXPORTED in native_method_visibility/v2
         // rejects on C8.6/C9. UNEXPORT_FULL_INTERNAL uses actual my dispatch.
@@ -5033,7 +5030,6 @@ mod tests {
 
     #[test]
     fn original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose() {
-        // naming.core.original-dispatch-region-context
 
         let source = "\u{feff}oo::class create C {method m {} {}}; set my [C new]; oo::objdefine $my {unexport m}; $my m";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -5080,7 +5076,6 @@ mod tests {
 
     #[test]
     fn original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input() {
-        // naming.core.original-dispatch-region-context
 
         let source = "oo::class create C {}; C create obj; oo::objdefine obj {method visible {} {return VISIBLE}}; obj visible";
         let baseline = Analyser::new().analyse(source, "tcl8.6");
@@ -5162,7 +5157,6 @@ mod tests {
 
     #[test]
     fn original_declaration_advice_cannot_choose_between_redefinitions() {
-        // Implementation contract: naming.consumer.original-declaration-advice-ambiguity
 
         let source = "proc p {} {}\nproc p {} {}\np";
         let analysis = analyse(source);
@@ -5183,7 +5177,6 @@ mod tests {
 
     #[test]
     fn original_vendor_definition_uses_current_direct_source_headers() {
-        // Implementation contract: naming.vendor.original-source-declaration-consumers
 
         for (dialect, source, line, character) in [
             (
@@ -5278,7 +5271,6 @@ c\uD800";
 
     #[test]
     fn original_proc_and_class_selection_uses_current_typed_publications() {
-        // Implementation contract: naming.editor.original-declaration-wire-identity
 
         let source = r"proc p\uD800 {} {}
 proc p\uD801 {} {}
@@ -8228,7 +8220,6 @@ p\uD800";
 
     #[test]
     fn logical_receiver_candidates_keep_instance_and_class_buckets_together() {
-        // naming.core.original-source-instance-completion
 
         let source = "oo::class create Bar {method get {} {}}; Bar create rex; set b [Bar new]";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -8694,7 +8685,6 @@ p\uD800";
 
     #[test]
     fn constructed_itcl_member_projection_preserves_colon_tail_and_actual_family_guard() {
-        // naming.analysis.constructed-key-consumer-projections
 
         // Explicit descriptive rows; no native class or reached dispatch issuer.
         use tcl_compiler::analyser::types::{ClassDef, MethodDef};
@@ -8762,7 +8752,6 @@ mod original_namespace_export_advice_tests {
 
     #[test]
     fn original_document_export_query_uses_retained_slot_after_reporting_rows_are_removed() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -8793,7 +8782,6 @@ mod original_namespace_export_advice_tests {
 
     #[test]
     fn original_document_export_observability_keeps_opaque_namespace_and_policy() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = r"namespace eval n\uD800 {proc p {} {}; namespace export other}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -8831,7 +8819,6 @@ mod original_namespace_export_advice_tests {
 
     #[test]
     fn original_import_query_keeps_intermediate_source_geometry_without_a_local_declaration() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         let source = "namespace eval C {proc p {} {}; namespace export p}\nnamespace eval B {namespace import ::C::*; namespace export p}\nnamespace eval A {namespace import ::B::*}\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -8899,7 +8886,6 @@ mod original_next_source_context_tests {
 
     #[test]
     fn original_next_definition_uses_captured_target_and_selected_availability() {
-        // naming.core.original-dispatch-region-context
 
         let source = "oo::class create Base {method m {} {}}\ninterp alias {} jump {} source_next_named Base\noo::class create C {superclass Base; method m {} {jump}}";
         let current = analyse(source, "tcl9.0");
@@ -8932,7 +8918,6 @@ mod configured_receiver_head_tests {
 
     #[test]
     fn configured_method_heads_require_the_whole_variable_operand() {
-        // naming.core.original-source-instance-completion
 
         let method = |head: &str, config| {
             let source = format!("{head} longMethod\n");
@@ -8982,7 +8967,6 @@ mod configured_receiver_head_tests {
 
     #[test]
     fn actual_method_navigation_does_not_promote_compound_variable_syntax() {
-        // naming.core.original-source-instance-completion
 
         for dialect in ["tcl8.6", "tcl9.1"] {
             for (head, present) in [
@@ -9050,7 +9034,6 @@ mod itcl_family_context_tests {
 
     #[test]
     fn contextual_itcl_targets_use_the_actual_store_instead_of_a_display_profile() {
-        // naming.core.original-dispatch-region-context
 
         // Authored Logical definition grammar; no Native Itcl loader or class issuer.
         let source = "source_class C {proc make {} {return OK}}\nC::make\n";
@@ -9104,7 +9087,6 @@ mod itcl_family_context_tests {
 
     #[test]
     fn same_profile_family_metadata_keeps_known_non_itcl_and_missing_grammar_distinct() {
-        // naming.core.original-dispatch-region-context
 
         let source = "source_class C {proc make {} {return OK}}\nC::make\nC make\n";
         let itcl = analyse(source, Some(&ITCL_GRAMMAR));
@@ -9131,7 +9113,6 @@ mod itcl_family_context_tests {
 
     #[test]
     fn contextual_itcl_family_refuses_missing_or_foreign_retained_input() {
-        // naming.core.original-dispatch-region-context
 
         let source = "source_class C {proc make {} {return OK}}\nC::make\n";
         let original = analyse(source, Some(&ITCL_GRAMMAR));
@@ -9162,7 +9143,6 @@ mod itcl_family_context_tests {
 
     #[test]
     fn actual_itcl_reference_calls_keep_source_currency_and_the_selected_family() {
-        // naming.core.original-dispatch-region-context
 
         let source = "source_class C {proc make {} {return OK}}\nC::make\nC make\n";
         let itcl = analyse(source, Some(&ITCL_GRAMMAR));

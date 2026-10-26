@@ -1151,7 +1151,6 @@ mod tests {
 
     #[test]
     fn scalar_importer_preserves_first_host_cause_and_guest_state() {
-        // Software owner: naming.numeric.original-capi-scalar-publication-width
 
         let mut engine = engine("tcl8.6");
         engine.interp.set_result_bytes(b"SEEDED RESULT");
@@ -1474,7 +1473,6 @@ mod tests {
         // Software contract: naming.embedding.original-host-publication-and-fact-transport
 
         // Existing child host-failure source/API contract:
-        // naming.interpreter.original-child-host-refusal-transport
 
         // This callback control adds a host reason without claiming C supplied it.
         let mut engine = engine("tcl8.6");
@@ -1631,7 +1629,6 @@ mod tests {
 
     #[test]
     fn host_retirement_context_change_stops_later_definition_and_preserves_original_generation() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut engine = engine("tcl8.6");
         let calls = Rc::new(std::cell::Cell::new(0));
@@ -1667,7 +1664,6 @@ mod tests {
 
     #[test]
     fn package_and_host_publication_keep_pending_first_cause_without_mutation() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut engine = engine("tcl8.6");
         engine.define_command("kept", Rc::new(Constant)).unwrap();
@@ -1783,7 +1779,6 @@ mod tests {
     }
     #[test]
     fn original_engine_completion_entry_distinguishes_independent_retry_and_nested_first_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut engine = engine("tcl8.6");
         let calls = std::cell::Cell::new(0);
@@ -1886,7 +1881,6 @@ mod original_active_host_deletion_tests {
     }
     #[test]
     fn original_host_entry_self_deletion_releases_box_before_return_without_borrowing_it() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual Runtime HostEntry/registrar bridge; no Native client-data free parity claim.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1984,7 +1978,6 @@ mod original_active_host_deletion_tests {
     }
     #[test]
     fn original_import_trace_refuses_fresh_host_entry_after_actual_backing_retirement() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual private Runtime Box role, not Native client-data-free/token-null parity.
         for profile in ["tcl8.4", "tcl8.5"] {
@@ -2046,7 +2039,6 @@ mod original_active_host_deletion_tests {
 
     #[test]
     fn original_typed_host_failure_crosses_the_actual_runtime_engine_boundary() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         struct Typed(tcl_runtime_api::NativeExecutionError);
         impl HostCommand for Typed {

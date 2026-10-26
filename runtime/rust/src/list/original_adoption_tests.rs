@@ -71,7 +71,6 @@ fn refuse(interpreter: &Interp, error: tcl_syntax::value::ValueError) -> CmdErro
 }
 #[test]
 fn original_list_current_retirement_adopts_once_without_an_extra_header_role() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let interpreter = native();
     let value = original();
@@ -97,7 +96,6 @@ fn original_list_current_retirement_adopts_once_without_an_extra_header_role() {
 }
 #[test]
 fn original_list_reentrant_primary_and_restore_refuse_before_backing_adoption() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Real primary callbacks; these are software bounds, not C callback parity.
     for mode in [1, 2, 3, 4] {
@@ -183,7 +181,6 @@ static MEMBER: TclObjType = TclObjType {
 };
 #[test]
 fn original_list_failed_adoption_retires_the_actual_prepared_member_before_settlement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     let value = original();
@@ -227,7 +224,6 @@ fn original_list_failed_adoption_retires_the_actual_prepared_member_before_settl
 
 #[test]
 fn original_list_primary_guard_precedes_the_unused_member_host_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native();
     let value = original();
@@ -279,7 +275,6 @@ fn original_list_primary_guard_precedes_the_unused_member_host_retirement() {
 
 #[test]
 fn original_dictionary_current_and_reentrant_primary_keep_the_same_stage_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [0, 1, 2, 3, 4] {
         let mut interpreter = native();
@@ -366,7 +361,6 @@ impl Drop for ReentrantPrimary {
 
 #[test]
 fn original_operational_conversion_retains_slot_failure_before_unused_member_host() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual List/Dict converters and the return-instruction adapter retain the
     // earlier slot failure. Software cache/free callbacks confer no Native chronology.
@@ -476,7 +470,6 @@ fn original_copy_series(length: usize, protocol: NativeStringProtocol) -> obj::O
 
 #[test]
 fn original_ordinary_list_projection_keeps_fresh_series_members_and_captured_header_roles() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let interpreter = original_copy_native();
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
@@ -513,7 +506,6 @@ fn original_ordinary_list_projection_keeps_fresh_series_members_and_captured_hea
 
 #[test]
 fn original_ordinary_list_projection_retirement_refuses_before_new_backing() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = original_copy_native();
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
@@ -569,7 +561,6 @@ fn original_ordinary_list_projection_retirement_refuses_before_new_backing() {
 
 #[test]
 fn original_list_copy_projection_keeps_shared_members_and_lazy_abstract_length() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let interpreter = original_copy_native();
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
@@ -637,7 +628,6 @@ fn original_list_copy_projection_keeps_shared_members_and_lazy_abstract_length()
 
 #[test]
 fn original_list_copy_projection_refuses_reached_retirement_before_fresh_header() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in [1, 2, 3] {
         let mut interpreter = original_copy_native();

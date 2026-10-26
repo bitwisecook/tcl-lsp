@@ -384,7 +384,6 @@ fn drop_def_elims_resurrected_by_replacements(
     registry: &CommandRegistry,
     selected: &mut Vec<Optimisation>,
 ) {
-    // naming.optimiser.original-definition-resurrection-guard
 
     let elims: Vec<(usize, Option<Vec<String>>)> = selected
         .iter()
@@ -1248,7 +1247,6 @@ mod tests {
 
     #[test]
     fn supplied_multipass_refreshes_conditional_candidates_for_each_source_image() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -1862,7 +1860,6 @@ mod tests {
 
     #[test]
     fn original_definition_guard_keeps_quoted_qualified_and_alias_names() {
-        // naming.optimiser.original-definition-resurrection-guard
 
         for (source, command, replacement) in [
             ("set {b c} 0\n", "set {b c} 0", "puts ${b c}"),
@@ -1898,7 +1895,6 @@ mod tests {
 
     #[test]
     fn original_definition_guard_declines_foreign_source_registry_and_missing_carrier() {
-        // naming.optimiser.original-definition-resurrection-guard
 
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let source = "set {b c} 0\n";

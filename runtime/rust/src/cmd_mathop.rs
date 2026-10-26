@@ -121,7 +121,6 @@ mod tests {
 
     #[test]
     fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
-        // naming.mathop-binding-and-written-head-controls
 
         let rows =
             include_str!("../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt");
@@ -167,7 +166,6 @@ mod tests {
 
     #[test]
     fn original_mathop_compilation_matches_all_84_native_controls() {
-        // naming.mathop-procedure-source-controls
 
         let rows = include_str!(
             "../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt"

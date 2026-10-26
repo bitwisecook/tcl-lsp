@@ -252,7 +252,6 @@ mod tests {
 
     #[test]
     fn original_logical_name_units_keep_actual_grammar_without_native_word_admission() {
-        // naming.variable.original-alias-source-template
 
         let config =
             LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
@@ -628,7 +627,6 @@ impl SourceOriginalNamespaceOperand {
             conditional_declaration: None,
         }
     }
-    // Implementation contract: naming.namespace.original-export-source-advice
 
     pub(crate) fn from_conditional_declaration(
         original: &SourceOriginalNameOccurrence,

@@ -188,7 +188,6 @@ fn check_property_label(engine: &str, captured: &str, label: &str) {
 
 #[test]
 fn original_property_names_and_values_match_native_c9_counted_access() {
-    // naming.property.original-c9-counted-name-access
 
     for (engine, captured) in PROPERTY_COUNTED_ROWS {
         let interp = instance(engine);
@@ -287,7 +286,6 @@ fn original_property_names_and_values_match_native_c9_counted_access() {
 
 #[test]
 fn original_configurable_availability_matches_native_counted_argv_without_source_preflight() {
-    // naming.property.original-configurable-availability-counted-argv
 
     for (engine, captured) in [
         (

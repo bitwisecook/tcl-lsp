@@ -121,7 +121,6 @@ impl ResolvedInvocation<'_, '_> {
         role_purpose: SourceRolePurpose,
         purpose: SourceNameOwnershipPurpose,
     ) -> SourceVariableNameOwnership {
-        // naming.compiler.original-analysis-metadata-context
 
         let mut out = SourceVariableNameOwnership::default();
         if let Some(arity) = self.authored_source_arity() {

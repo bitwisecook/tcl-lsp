@@ -172,7 +172,6 @@ fn restored(
 
 #[test]
 fn original_definition_exit_restores_real_row_usage_and_frame_after_public_callback() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in 0..4 {
         let mut vm = provided();
@@ -219,7 +218,6 @@ fn original_definition_exit_restores_real_row_usage_and_frame_after_public_callb
 
 #[test]
 fn original_class_definition_failure_tears_down_only_its_allocated_original_record() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in 0..3 {
         let mut vm = provided();
@@ -255,7 +253,6 @@ fn original_class_definition_failure_tears_down_only_its_allocated_original_reco
 
 #[test]
 fn original_definition_worker_and_self_rewrite_restore_the_same_selected_row() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in 0..3 {
         let mut vm = provided();
@@ -299,7 +296,6 @@ fn original_definition_worker_and_self_rewrite_restore_the_same_selected_row() {
 
 #[test]
 fn original_definition_rewrite_keeps_full_first_cause_through_physical_restoration() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let target = class(&mut vm, "DefinitionExitC");
@@ -320,7 +316,6 @@ fn original_definition_rewrite_keeps_full_first_cause_through_physical_restorati
 
 #[test]
 fn original_definition_exit_preserves_genuine_replacement_row_and_usage_birth() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = provided();
     let target = class(&mut vm, "DefinitionExitC");
@@ -370,7 +365,6 @@ fn original_definition_exit_preserves_genuine_replacement_row_and_usage_birth() 
 
 #[test]
 fn original_failed_procedure_constructor_keeps_child_state_and_retires_original_object() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for mode in 0..3 {
         let mut vm = provided();
@@ -416,7 +410,6 @@ fn original_failed_procedure_constructor_keeps_child_state_and_retires_original_
 
 #[test]
 fn original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cleanup() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for withdrawn in [false, true] {
         let mut vm = provided();

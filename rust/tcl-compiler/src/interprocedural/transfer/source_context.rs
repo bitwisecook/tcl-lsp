@@ -568,7 +568,6 @@ mod tests {
 
     #[test]
     fn original_expression_fused_top_level_retains_its_existing_parent_record() {
-        // naming.expression.original-positioned-analysis-services
 
         // Retained top-level IR ownership, independently of any execution frame.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
@@ -611,7 +610,6 @@ mod tests {
 
     #[test]
     fn original_expression_receipts_join_actual_literal_operand_and_child_extent() {
-        // naming.expression.original-positioned-analysis-services
 
         // Software source ancestry and byte extents, not Native Normal completion.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
@@ -686,7 +684,6 @@ mod tests {
 
     #[test]
     fn original_expression_receipts_refuse_cooked_and_foreign_producers() {
-        // naming.expression.original-positioned-analysis-services
 
         // Whole source receipt refusal; no command-table or execution inference.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
@@ -750,7 +747,6 @@ mod tests {
 
     #[test]
     fn original_expression_receipts_refuse_captured_and_shadowed_producers() {
-        // naming.expression.original-positioned-analysis-services
 
         // No source producer can be invented from captured argv or a reported head.
         let assembled = crate::expr_parser::parse_expr("[leaf] + 1", None);
@@ -840,7 +836,6 @@ mod tests {
 
     #[test]
     fn original_transfer_call_keeps_selected_procedure_and_captured_operands_together() {
-        // naming.interprocedural.original-transfer-summary-source-context
 
         // Conditional source/argv correspondence, not Native activation or effects.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
@@ -881,7 +876,6 @@ mod tests {
 
     #[test]
     fn original_transfer_child_and_body_require_the_genuine_parent_word() {
-        // naming.interprocedural.original-transfer-summary-source-context
 
         // Existing original child carriers, independently of entered Body authority.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
@@ -953,7 +947,6 @@ mod tests {
 
     #[test]
     fn original_transfer_source_refuses_missing_foreign_config_and_changed_headers() {
-        // naming.interprocedural.original-transfer-summary-source-context
 
         // Software source-world correspondence; no Native dispatch permission.
         let (context, unit) =
@@ -1011,7 +1004,6 @@ mod tests {
 
     #[test]
     fn original_transfer_shadow_and_command_observers_do_not_borrow_catalogue_closure() {
-        // naming.interprocedural.original-transfer-summary-source-context
 
         let (context, unit) = crate::interprocedural::logical_completion_unit(
             "proc set {name value} {return changed}\nproc caller {} {set x 1}",

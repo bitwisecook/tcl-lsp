@@ -753,7 +753,6 @@ mod tests {
 
     #[test]
     fn imported_procedure_descriptor_keeps_colon_named_namespace_holder() {
-        // naming.grammar.shared-written-name-boundaries
 
         // Real analyser/import consumer; no native dispatch or compiler body authority.
         let import = import_package(

@@ -794,7 +794,6 @@ mod tests {
 
     #[test]
     fn namespace_retirement_discards_only_the_selected_actual_root() {
-        // naming.variable.original-owner-array-trace-retirement-horizon
 
         // Rust physical receipt/refill control, not a native cell observation.
         crate::counters::reset();

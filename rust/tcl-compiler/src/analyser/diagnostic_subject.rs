@@ -97,7 +97,6 @@ impl SourceUnresolvedMathFunctionSubject {
         registry: &tcl_registry::CommandRegistry,
         presence: SourceCommandSlotPresence,
     ) -> Option<Self> {
-        // naming.diagnostic.original-math-function-subject
 
         if !invocation.is_mathfunc_call
             || invocation.existence_probe
@@ -238,7 +237,6 @@ mod tests {
 
     #[test]
     fn original_math_subject_rejects_foreign_source_and_full_parser_context() {
-        // naming.diagnostic.original-math-function-subject
 
         let source = "expr {Pi()}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -289,7 +287,6 @@ mod tests {
 
     #[test]
     fn original_math_subject_rejects_command_words_and_missing_lookup_classification() {
-        // naming.diagnostic.original-math-function-subject
 
         let analysis = Analyser::new().analyse("expr {Pi()}", "tcl8.6");
         let (subject, invocation) = subject_and_invocation(&analysis);

@@ -356,7 +356,6 @@ mod tests {
 
     #[test]
     fn original_cfg_lookup_uses_per_point_native_namespace_not_reported_function_name() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (_owner, unit, context) = native_fixture("set result VALUE");
         let mut cfg = unit.top_level.cfg.clone();
@@ -438,7 +437,6 @@ mod tests {
 
     #[test]
     fn original_command_mutation_history_excludes_initial_cells_and_keeps_restored_slots() {
-        // naming.compiler.original-analysis-metadata-context
 
         // These table-owner operations test software mutation history. They
         // assert no Native invocation, publication or Normal completion.
@@ -476,7 +474,6 @@ mod tests {
 
     #[test]
     fn original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (_owner, unit, context) = native_fixture("set result VALUE");
         let cfg = &unit.top_level.cfg;
@@ -548,7 +545,6 @@ mod tests {
 
     #[test]
     fn original_cfg_logical_lookup_keeps_its_positive_owner_separate_from_native_names() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -625,7 +621,6 @@ mod tests {
 
     #[test]
     fn original_cfg_binding_replay_keeps_native_move_and_delete_horizons() {
-        // naming.compiler.original-analysis-metadata-context
 
         let (_owner, unit, context) = native_fixture(
             "rename set saved_set\nsaved_set result VALUE\nrename saved_set {}\nset other VALUE",

@@ -46,7 +46,6 @@ impl DeclaredSourceSelection {
         declaration: Arc<DeclaredCommand>,
         unknown: bool,
     ) -> Option<Self> {
-        // naming.source.original-declared-command-word-contract
 
         if original.is_empty() || original.iter().any(|word| word.group().expand) {
             return None;
@@ -75,7 +74,6 @@ impl DeclaredSourceSelection {
         mut self,
         body: Arc<OriginalDeclaredLogicalBodyContext>,
     ) -> Option<Self> {
-        // naming.source.original-declared-command-word-contract
 
         self.head.logical_input()?;
         if !body.owns_words(&self.original) {
@@ -106,7 +104,6 @@ impl OriginalDeclaredCommandWords {
         selected: DeclaredSourceSelection,
         input: &ResolvedAnalysisInput,
     ) -> Option<Self> {
-        // naming.source.original-declared-command-word-contract
 
         let first = selected.original.first()?;
         let image = first.image();
@@ -242,7 +239,6 @@ impl SourceInvocationBinding {
         input: &ResolvedAnalysisInput,
         original: &[NativeWord],
     ) -> Option<DeclaredSourceSelection> {
-        // naming.source.original-declared-command-word-contract
 
         let config = self.original_lexer_config_for_tokens(tokens)?;
         let site = self.invocation_site()?;
@@ -311,7 +307,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_keep_roles_provenance_and_direct_ordinals() {
-        // naming.source.original-declared-command-word-contract
 
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub select {?kind? expression:expr}\n# tcl-lsp: stubs-end\nselect {$value + 1}";
         for profile in ["tcl8.6", "tcl9.0", "tcl"] {
@@ -344,7 +339,6 @@ mod tests {
 
     #[test]
     fn original_declared_script_bodies_keep_source_roles_without_timing_authority() {
-        // naming.core.original-comment-source-context
 
         use crate::registry_invocation::OriginalSourceScriptPurpose;
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {?kind? script:body}\n# tcl-lsp: stubs-end\nhold {\n# café 😀 \\\nputs hidden\n}";
@@ -387,7 +381,6 @@ mod tests {
 
     #[test]
     fn original_declared_script_bodies_refuse_dynamic_cooked_and_shadowed_geometry() {
-        // naming.core.original-comment-source-context
 
         use crate::registry_invocation::OriginalSourceScriptPurpose;
         for suffix in [
@@ -419,7 +412,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_refuse_replacements_and_builtin_trait_donation() {
-        // naming.source.original-declared-command-word-contract
 
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr {value}\n# tcl-lsp: stubs-end\nexpr {$value + 1}";
         for profile in ["tcl8.6", "tcl9.0", "tcl"] {
@@ -462,7 +454,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_use_current_contracts_in_every_document_ingress() {
-        // naming.source.original-declared-command-word-contract
 
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub check {expression:expr}\n# tcl-lsp: stubs-end\ncheck {$value + 1}";
         let config = tcl_lexer::LexerConfig::for_file_grammar(
@@ -515,7 +506,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_retain_qualified_and_nested_procedure_scope() {
-        // naming.source.original-declared-command-word-contract
 
         use crate::command_binding::{
             OriginalDeclaredSourceBodyFrame, OriginalDeclaredSourceObligation,
@@ -566,7 +556,6 @@ mod tests {
 
     #[test]
     fn original_declared_body_scope_keeps_global_fallback_without_root_stamping() {
-        // naming.source.original-declared-command-word-contract
 
         for (definition, namespace) in [
             ("proc p {} {check {argument}}", None),
@@ -596,7 +585,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_retain_static_namespace_source_ancestry() {
-        // naming.source.original-declared-command-word-contract
 
         use crate::command_binding::OriginalDeclaredSourceBodyFrame;
         for (definition, expected) in [
@@ -646,7 +634,6 @@ mod tests {
 
     #[test]
     fn original_declared_body_scope_refuses_unowned_names_and_known_replacements() {
-        // naming.source.original-declared-command-word-contract
 
         let prefix = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub check {expression:expr}\n# tcl-lsp: stubs-end\n# tcl-lsp: stubs-begin\n# tcl-lsp: stub ::N::check {expression:expr}\n# tcl-lsp: stubs-end\n";
         for body in [
@@ -676,7 +663,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_require_the_authentic_stub_block() {
-        // naming.source.original-declared-command-word-contract
 
         for profile in ["tcl8.6", "tcl9.0", "tcl"] {
             let orphan = "# tcl-lsp: stub check {expression:expr}\ncheck {$value + 1}";

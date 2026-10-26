@@ -2719,7 +2719,6 @@ mod evaluated_region_tests {
 #[cfg(test)]
 mod original_entry_storage_tests {
     #[test]
-    // Implementation contract: naming.variable.aot-original-slot-purpose
 
     fn original_native_entry_keeps_cells_and_runtime_trace_guards_despite_escape_labels() {
         use super::*;

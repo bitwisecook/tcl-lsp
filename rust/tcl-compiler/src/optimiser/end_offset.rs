@@ -684,7 +684,6 @@ mod tests {
 
     #[test]
     fn original_statement_projection_preserves_nested_marks_and_module_tokens() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Parser geometry only; this does not establish an executable rewrite.
         let reg = registry();
@@ -833,7 +832,6 @@ mod tests {
 
     #[test]
     fn original_end_offset_hints_use_typed_targets_and_written_operand_origins() {
-        // naming.compiler.original-analysis-metadata-context
 
         for source in [
             "lindex $L [expr {[llength $L] - 1}]",
@@ -870,7 +868,6 @@ mod tests {
 
     #[test]
     fn end_offset_applicability_requires_actual_module_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual original registrations are retained independently of metadata
         // availability. The owner stays alive through every refusal control.

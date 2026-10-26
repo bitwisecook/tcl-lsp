@@ -86,7 +86,6 @@ static ORIGINAL_TYPE: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn actual_valueops_primitives_keep_selected_cache_and_native_reference_roles() {
-    // Software owner: naming.numeric.original-capi-scalar-publication-width
 
     leak_free(|| {
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -148,7 +147,6 @@ fn actual_valueops_primitives_keep_selected_cache_and_native_reference_roles() {
 
 #[test]
 fn actual_valueops_updaters_stop_before_numeric_cache_and_later_guest_publication() {
-    // Software owner: naming.embedding.original-host-publication-and-fact-transport
 
     leak_free(|| {
         for adapter in adapters() {
@@ -315,7 +313,6 @@ impl NumericEnvironment for NumericHost {
 
 #[test]
 fn actual_valueops_numeric_host_change_and_restore_preserves_first_cause() {
-    // Software owner: naming.embedding.original-host-publication-and-fact-transport
 
     leak_free(|| {
         for environment in ["tcl8.4", "jim"] {
@@ -358,7 +355,6 @@ fn actual_valueops_numeric_host_change_and_restore_preserves_first_cause() {
 
 #[test]
 fn actual_valueops_number_classification_and_guest_errors_keep_their_separate_owners() {
-    // Software owner: naming.embedding.original-host-publication-and-fact-transport
 
     leak_free(|| {
         let mut interpreter = original("tcl8.6");
@@ -394,7 +390,6 @@ fn actual_valueops_number_classification_and_guest_errors_keep_their_separate_ow
 #[test]
 #[cfg(have_tommath)]
 fn actual_valueops_magnitude_cannot_reparse_rejected_original_with_caller_grammar() {
-    // Software owner: naming.embedding.original-host-publication-and-fact-transport
 
     leak_free(|| {
         let mut interpreter = original("tcl8.4");

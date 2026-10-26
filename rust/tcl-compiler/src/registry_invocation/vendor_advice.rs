@@ -220,7 +220,6 @@ fn with_vendor_source_schema<T>(
     original: &[NativeWord],
     apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
 ) -> Option<T> {
-    // Implementation contract: naming.vendor.original-registry-metadata
 
     if tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
         &context.environment.id,
@@ -350,7 +349,6 @@ mod tests {
 
     #[test]
     fn vendor_registry_metadata_retains_context_and_unknown_operand_ordinals() {
-        // Implementation contract: naming.vendor.original-registry-metadata
 
         for (profile, hosted) in [
             ("f5-irules", BigIpExecutionContext::TmmIRule),
@@ -397,7 +395,6 @@ mod tests {
 
     #[test]
     fn vendor_authored_head_coordinates_keep_written_roots_and_source_purpose() {
-        // naming.vendor.original-registry-metadata
 
         // Source descriptor selection only, not a measured TMM dispatch claim.
         let owner = tcl_registry::model::ingress::static_context_for("f5-irules");
@@ -430,7 +427,6 @@ mod tests {
 
     #[test]
     fn vendor_authored_receivers_retain_opaque_source_operands_and_reject_expansion() {
-        // Implementation contract: naming.vendor.original-registry-metadata
 
         use tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined;
         let owner = tcl_registry::model::ingress::static_context_for("f5-irules");
@@ -479,7 +475,6 @@ mod tests {
 
     #[test]
     fn vendor_registry_metadata_requires_matching_hosted_context_and_retains_keyed_axes() {
-        // Implementation contract: naming.vendor.original-registry-metadata
 
         let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
         let keyed = tcl_registry::model::KeyedVersions {
@@ -523,7 +518,6 @@ mod tests {
 
     #[test]
     fn vendor_registry_metadata_declines_dynamic_heads_and_foreign_words() {
-        // Implementation contract: naming.vendor.original-registry-metadata
 
         let owner = tcl_registry::model::ingress::static_context_for("f5-irules");
         let registry = owner.commands();

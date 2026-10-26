@@ -103,7 +103,6 @@ fn integer(vm: &Vm) -> Value {
 
 #[test]
 fn original_body_capture_observes_actual_reference_role_before_working_copy() {
-    // naming.procedure.counted-body-header-selection
 
     // Real VM owners exercise the selected algorithm; no external extension reference measurement.
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -137,9 +136,7 @@ fn original_body_capture_observes_actual_reference_role_before_working_copy() {
 
 #[test]
 fn original_shared_body_string_worker_keeps_exact_native_reference_count() {
-    // naming.procedure.counted-body-header-selection
 
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied formatter observes software method stages and the actual borrowed header role.
     let (mut vm, formatter) = supplied_formatter();
@@ -168,7 +165,6 @@ fn original_shared_body_string_worker_keeps_exact_native_reference_count() {
 
 #[test]
 fn original_body_formatter_retirement_precedes_copy_and_public_error_boundary() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The callback retires both genuine owners; allocation-only observations add no Native reference.
     let (mut vm, formatter) = supplied_formatter();
@@ -204,7 +200,6 @@ fn original_body_formatter_retirement_precedes_copy_and_public_error_boundary() 
 
 #[test]
 fn original_formal_list_capture_order_is_selected_before_body_reference_acquisition() {
-    // naming.procedure.counted-body-header-selection
 
     // Actual C capture skips formal parsing here; actual Jim reaches its original formal List first.
     for engine in ["tcl8.4", "tcl8.6", "tcl9.1", "jim"] {
@@ -231,7 +226,6 @@ fn original_formal_list_capture_order_is_selected_before_body_reference_acquisit
 
 #[test]
 fn original_c_alias_query_keeps_target_global_late_binding_and_loop_cleanup() {
-    // naming.alias.original-command-key-replacement-child-capture-and-rename
 
     // Physical TclPreventAliasLoop target-global query; no command execution or prefix receipt is issued.
     let mut vm = native("tcl8.6");
@@ -280,7 +274,6 @@ fn original_c_alias_query_keeps_target_global_late_binding_and_loop_cleanup() {
 
 #[test]
 fn original_jim_alias_creation_reaches_no_c_loop_string_worker() {
-    // naming.alias.original-command-key-replacement-child-capture-and-rename
 
     // Selected physical Jim creation contains no TclPreventAliasLoop call; this control invokes no cycle.
     let mut vm = native("jim");
@@ -304,7 +297,6 @@ fn original_jim_alias_creation_reaches_no_c_loop_string_worker() {
 
 #[test]
 fn original_jim_static_duplicate_cleanup_retires_only_fresh_unbound_cells() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Same original List children and copied member references; failed install discards both fresh cells.
     let mut vm = native("jim");
@@ -344,7 +336,6 @@ fn original_jim_static_duplicate_cleanup_retires_only_fresh_unbound_cells() {
 
 #[test]
 fn original_legacy_string_role_retains_exact_header_refusal_at_real_boundary() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     use tcl_syntax::value::ValueOps;
     let (mut vm, formatter) = supplied_formatter();
@@ -368,7 +359,6 @@ fn original_legacy_string_role_retains_exact_header_refusal_at_real_boundary() {
 
 #[test]
 fn original_alias_source_header_refusal_precedes_publication_and_keeps_prior_cause() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut vm = native("tcl8.6");
     let outer = native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
@@ -405,9 +395,7 @@ fn original_alias_source_header_refusal_precedes_publication_and_keeps_prior_cau
 
 #[test]
 fn original_alias_retained_payload_cannot_revive_a_deleted_target_interpreter() {
-    // naming.alias.original-command-key-replacement-child-capture-and-rename
 
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual publication/deletion supplies the payload and dead target; no command lookup or execution is admitted.
     let mut vm = native("tcl8.6");

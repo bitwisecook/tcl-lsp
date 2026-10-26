@@ -147,7 +147,6 @@ fn finish(interpreter: &Interp) {
 
 #[test]
 fn selected_classvariable_validates_all_names_before_any_lookup_or_link() {
-    // naming.tcloo.original-classvariable-preflight-and-link-owner
 
     // Actual selected worker in a genuine method frame; software stage control.
     for version in ["tcl9.0", "tcl9.1"] {
@@ -189,7 +188,6 @@ fn selected_classvariable_validates_all_names_before_any_lookup_or_link() {
 
 #[test]
 fn selected_classvariable_name_callbacks_keep_original_frame_facet_and_first_cause() {
-    // naming.tcloo.original-classvariable-preflight-and-link-owner
 
     for version in ["tcl9.0", "tcl9.1"] {
         for mode in 1..4 {
@@ -229,7 +227,6 @@ fn selected_classvariable_name_callbacks_keep_original_frame_facet_and_first_cau
 
 #[test]
 fn selected_classvariable_links_original_names_after_legal_method_metadata_changes() {
-    // naming.tcloo.original-classvariable-preflight-and-link-owner
 
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version, false);
@@ -272,7 +269,6 @@ fn selected_classvariable_links_original_names_after_legal_method_metadata_chang
 
 #[test]
 fn selected_classvariable_missing_context_reads_only_its_original_head() {
-    // naming.tcloo.original-classvariable-preflight-and-link-owner
 
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version, true);

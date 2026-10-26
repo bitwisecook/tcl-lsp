@@ -5691,7 +5691,6 @@ mod tests {
 
     #[test]
     fn prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let context = Arc::new(generation.with_command_store(Arc::clone(generation.commands())));
@@ -5787,7 +5786,6 @@ mod tests {
 
     #[test]
     fn cfg_condition_possible_writes_keep_original_aliases_and_replacements() {
-        // naming.diagnostic.original-materialized-write-footprint
 
         // These are analysis-only <cond> footprints, not native stores/entry.
         let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
@@ -5845,7 +5843,6 @@ mod tests {
 
     #[test]
     fn prepared_cfg_refuses_changed_module_profile_and_body_configuration() {
-        // naming.compiler.original-analysis-metadata-context
 
         let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
@@ -5961,7 +5958,6 @@ mod tests {
 
     #[test]
     fn prepared_cfg_source_metadata_is_shared_by_module_and_body_builders() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context = tcl_registry::model::ingress::context_for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -8273,7 +8269,6 @@ mod tests {
 
     #[test]
     fn distinct_body_summaries_preserve_conflicting_alias_targets() {
-        // naming.analysis.procedure-summary-candidate-keys
 
         // Actual whole-module source and existing frame-summary producer.
         let module = lower_module(
@@ -8308,7 +8303,6 @@ mod tests {
 
     #[test]
     fn summary_parameters_retain_each_original_signature() {
-        // naming.analysis.procedure-summary-candidate-keys
 
         // Defaults, order and variadic position belong to the original header.
         let module = lower_module(
@@ -8435,7 +8429,6 @@ mod tests {
 
     #[test]
     fn summary_keys_decline_one_changed_member_and_foreign_module_source() {
-        // naming.analysis.procedure-summary-candidate-keys
 
         // Removing original correspondence cannot leave a false unique winner.
         let module = lower_module(

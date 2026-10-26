@@ -298,7 +298,6 @@ impl NativePropertyLookupProtocol {
     /// declaration-name formatting is a separate pure name purpose.
     #[must_use]
     pub fn member_accessor_names(self, original: &[u8]) -> (Vec<u8>, Vec<u8>) {
-        // naming.property.original-c9-counted-name-access
 
         property_accessor_names(original, false)
     }
@@ -367,7 +366,6 @@ mod tests {
     use super::*;
     #[test]
     fn original_c9_property_validity_does_not_issue_a_physical_lookup_recipe() {
-        // Implementation contract: naming.property.original-c9-declaration-validity
 
         for version in TclVersion::ALL {
             let dialect = crate::InvocationDialect::for_version(version);
@@ -395,7 +393,6 @@ mod tests {
     }
     #[test]
     fn original_c9_name_recipe_matches_native_declaration_boundaries_without_cache_authority() {
-        // naming.property.original-c9-counted-name-access
 
         for (engine, captured) in [
             (
@@ -486,7 +483,6 @@ mod tests {
     }
     #[test]
     fn original_c91_property_member_accessors_preserve_the_native_dash_once() {
-        // naming.property.original-c9-counted-name-access
 
         let dialect = crate::InvocationDialect::for_version(TclVersion::V9_1);
         let names = dialect.native_property_name_protocol().unwrap();

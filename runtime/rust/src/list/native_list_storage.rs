@@ -684,7 +684,6 @@ mod tests {
 
     #[test]
     fn command_range_empty_result_has_actual_list_store_only_in_c90() {
-        // naming.list.original-range-objects-and-instructions
 
         // R3's physical header is observed before any string/list result getter.
         for version in [
@@ -816,7 +815,6 @@ mod original_range_retirement_controls {
     }
     #[test]
     fn original_range_retirement_checks_first_cause_without_working_header_reference() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Actual software member-free callbacks exercise the shared storage
         // retirement owner. This is no C/Jim native callback chronology claim.

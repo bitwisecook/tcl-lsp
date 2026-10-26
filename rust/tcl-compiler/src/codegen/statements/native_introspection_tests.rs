@@ -28,7 +28,6 @@ fn emit<'a>(
 
 #[test]
 fn original_info_commands_compiler_keeps_conditional_list_geometry() {
-    // naming.compiler.original-info-commands-literal-resolution
 
     // Software instruction-consumer control; native measurements are recorded
     // independently in the proof with this question identifier.
@@ -75,7 +74,6 @@ fn original_info_commands_compiler_keeps_conditional_list_geometry() {
 
 #[test]
 fn original_info_commands_compiler_requires_literal_pattern_and_actual_worker() {
-    // naming.compiler.original-info-commands-literal-resolution
 
     // This tests producer refusal, not runtime command absence or Tcl semantics.
     use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;

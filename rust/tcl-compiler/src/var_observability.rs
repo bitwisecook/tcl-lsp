@@ -540,7 +540,6 @@ mod tests {
 
     #[test]
     fn retained_availability_survives_observability_point_replay() {
-        // naming.compiler.original-analysis-metadata-context
 
         // One original Logical body and command store, two availability inputs.
         // These source hazards certify no Native link, frame or trace table.
@@ -918,7 +917,6 @@ mod tests {
     }
     #[test]
     fn module_global_advice_withholds_stale_profile_and_lexer_input() {
-        // naming.compiler.original-analysis-metadata-context
 
         // This is MAY source exposure, not a completed global link or a closed inventory.
         let current =

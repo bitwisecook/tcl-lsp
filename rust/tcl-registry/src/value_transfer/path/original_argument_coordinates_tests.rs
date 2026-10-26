@@ -7,7 +7,6 @@ use crate::value_transfer::{LiteralInputs, OperandId, evaluate_literal};
 
 #[test]
 fn original_path_values_keep_the_first_operand_in_both_selected_layouts() {
-    // naming.navigation.retained-path-source-inventory
 
     // Pure value coordinates, without source lookup or filesystem execution.
     for (route, selector, values, expected) in [
@@ -48,7 +47,6 @@ fn original_path_values_keep_the_first_operand_in_both_selected_layouts() {
 
 #[test]
 fn original_path_coordinates_keep_unknown_first_values_and_platform_declines_terminal() {
-    // naming.navigation.retained-path-source-inventory
 
     // An unknown original first value cannot be skipped to obtain a result.
     let values = ["/ROOT", "child"];

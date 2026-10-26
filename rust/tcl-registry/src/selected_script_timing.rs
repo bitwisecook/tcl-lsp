@@ -354,7 +354,6 @@ mod tests {
 
     #[test]
     fn authored_timing_keeps_unknown_payloads_and_refuses_unknown_layouts() {
-        // naming.source.original-structured-script-timing
 
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::static_context_for(name);
@@ -449,7 +448,6 @@ mod tests {
 
     #[test]
     fn authored_plain_scripts_keep_lambda_lists_separate_from_bodies_and_prefixes() {
-        // naming.source.original-structured-script-timing
 
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::static_context_for(name);
@@ -481,7 +479,6 @@ mod tests {
 
     #[test]
     fn authored_ascii_list_result_retains_element_boundaries_and_unknown_values() {
-        // naming.source.original-structured-script-timing
 
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::static_context_for(name);
@@ -679,7 +676,6 @@ mod tests {
 
     #[test]
     fn original_unknown_handler_scopes_require_selected_supported_callback_operands() {
-        // naming.callback.original-unknown-handler-lookup-scope
 
         // This asserts Registry projection. The linked public native controls
         // independently record the reached handler; no frame or lookup is issued.

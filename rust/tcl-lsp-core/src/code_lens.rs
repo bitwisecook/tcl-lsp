@@ -244,7 +244,6 @@ mod readonly_source_count_tests {
 
     #[test]
     fn partial_source_lens_titles_do_not_report_unknown_absence() {
-        // naming.editor.original-method-candidates
 
         assert_eq!(
             readonly_reference_count_title(2, ReadonlyReferenceCoverage::Partial),
@@ -319,7 +318,6 @@ mod tests {
 
     #[test]
     fn original_logical_lenses_keep_complete_source_currency_and_actual_profile() {
-        // naming.consumer.original-code-lens
 
         let source = "proc p {} {p}; p";
         let registry = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
@@ -369,7 +367,6 @@ mod tests {
 
     #[test]
     fn original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps() {
-        // Implementation contract: naming.consumer.original-code-lens
 
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; proc repeated {} {}; proc repeated {value} {}";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");

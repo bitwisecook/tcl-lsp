@@ -715,7 +715,6 @@ mod tests {
 
     #[test]
     fn namespace_runtime_root_requires_current_or_global_table_membership() {
-        // naming.variable.namespace-store-frame-and-fallback
 
         let registry = CommandRegistry::build_default();
         for version in TclVersion::ALL {
@@ -857,7 +856,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.byte-cell-correspondence
 
     fn compiler_primary_retains_authored_unknown_links_and_exact_namespace_targets() {
         use tcl_syntax::naming::{NativeCompiledVariableLookup, NativeCompiledVariableProtocol};
@@ -910,7 +908,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.byte-cell-correspondence
 
     fn counted_runtime_roots_indices_aliases_and_observers_share_one_cell_owner() {
         let registry = CommandRegistry::build_default();
@@ -990,7 +987,6 @@ mod tests {
         }
     }
 
-    // Implementation contract: naming.variable.byte-cell-correspondence
 
     #[test]
     fn counted_runtime_input_rejects_missing_or_conflicting_recipe_and_preserves_extent() {

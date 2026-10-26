@@ -129,7 +129,6 @@ fn reset() {
 }
 #[test]
 fn original_command_append_captures_frame_before_name_and_blocks_later_sources() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Software original frame/header checks; no Native private callback chronology.
     for profile in ["tcl8.6", "tcl9.1"] {
@@ -175,7 +174,6 @@ fn original_command_append_captures_frame_before_name_and_blocks_later_sources()
 }
 #[test]
 fn original_command_append_checks_selected_cell_inside_source_getter_before_later_operand() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.6", "tcl9.1"] {
         for mode in [0, 1, 2, 3, 4] {
@@ -231,7 +229,6 @@ fn original_command_append_checks_selected_cell_inside_source_getter_before_late
 }
 #[test]
 fn original_command_append_keeps_explicit_logical_simulation_and_read_only_purpose() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut actual = Interp::new();
     let command = fixture::string(b"append");
@@ -266,7 +263,6 @@ fn original_command_append_keeps_explicit_logical_simulation_and_read_only_purpo
 
 #[test]
 fn original_command_append_native_issuer_cannot_use_the_explicit_logical_byte_port() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut actual = fixture::native("tcl9.1");
     let issued = actual

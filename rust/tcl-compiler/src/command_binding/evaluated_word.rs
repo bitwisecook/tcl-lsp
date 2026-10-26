@@ -26,7 +26,6 @@ impl SourceCommandBindings {
         // This closes evaluation of source text only. The independent literal
         // world excludes custom object methods; value bytes do not close a
         // substituted object's rendering or any command handler.
-        // Implementation contract: naming.source.original-jim-text-evaluation
 
         let static_text_complete = native.is_some()
             && parts
@@ -305,7 +304,6 @@ mod tests {
 
     #[test]
     fn original_static_template_completion_requires_its_literal_world() {
-        // Implementation contract: naming.source.original-jim-text-evaluation
 
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let owner = tcl_registry::model::ingress::static_context_for(engine);

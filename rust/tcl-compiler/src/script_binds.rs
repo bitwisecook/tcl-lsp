@@ -72,7 +72,6 @@ pub(crate) fn original_literal_body_ownership(
     written_argument: usize,
     purpose: Ownership,
 ) -> Option<crate::ir_helpers::VariableWriteEffects> {
-    // naming.compiler.original-analysis-metadata-context
 
     let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
     let binding = parent_tokens.source_binding.as_ref()?;
@@ -465,7 +464,6 @@ mod tests {
 
     #[test]
     fn decoded_binding_names_do_not_strip_reference_sigils() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Software literal-name classification only; no current read or erasure proof.
         let registry = tcl_registry::default_registry();
@@ -620,7 +618,6 @@ mod tests {
     }
     #[test]
     fn declaration_read_advice_requires_original_unchanged_body_and_formals() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Authored read applicability, no installed procedure or entered frame.
         let source = "proc p {arg} {puts $missing}";
@@ -794,7 +791,6 @@ mod tests {
 
     #[test]
     fn selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Original header topology only; no Native body entry or call outcome.
         for (dialect, formals) in [
@@ -931,7 +927,6 @@ mod tests {
 
     #[test]
     fn selected_formal_read_scope_follows_original_factory_aliases_and_replacements() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Read applicability from original declaration operands, no installation.
         for (source, declaration, expected) in [

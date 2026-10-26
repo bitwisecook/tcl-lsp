@@ -453,7 +453,6 @@ mod original_highlight_source_purpose_tests {
 
     #[test]
     fn original_highlight_keeps_document_and_nested_bom_ranges_separate() {
-        // naming.source.original-configured-script-completeness
 
         // Document presentation and original nested source geometry only, without selected command authority.
         let config = LexerConfig {

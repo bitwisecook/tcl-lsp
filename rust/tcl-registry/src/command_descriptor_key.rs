@@ -79,7 +79,6 @@ mod tests {
     use super::*;
     #[test]
     fn selected_descriptor_key_preserves_colons_and_grants_no_written_name_recipe() {
-        // naming.core.original-command-source-schema
 
         // Pure descriptor data only; no Native binding or written-name lookup.
         for label in ["expr", "::expr", ":::::member", ":::", "A:::member"] {

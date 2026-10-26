@@ -2665,7 +2665,6 @@ mod tests {
 
     #[test]
     fn original_namespace_export_control_uses_the_selected_cstring_extent() {
-        // Implementation contract: naming.namespace.original-byte-pattern-transfers
 
         for version in tcl_dialect::TclVersion::ALL {
             let policy = tcl_syntax::naming::NamePolicyProtocol::authored_tcl(version);
@@ -2692,7 +2691,6 @@ mod tests {
 
     #[test]
     fn original_namespace_patterns_close_only_their_represented_byte_ordinals() {
-        // Implementation contract: naming.namespace.original-byte-pattern-transfers
 
         for version in tcl_dialect::TclVersion::ALL {
             let registry =
@@ -2754,7 +2752,6 @@ mod tests {
 
     #[test]
     fn native_byte_subjects_preserve_values_and_project_each_ordinal() {
-        // Implementation contract: naming.invocation.known-native-byte-values
 
         let payload = [b'n', 0, 0xff];
         let words = [
@@ -2797,7 +2794,6 @@ mod tests {
 
     #[test]
     fn original_byte_rename_transitions_select_destination_extent_and_keep_ordinals() {
-        // Implementation contract: naming.command.original-byte-rename-transition
 
         use crate::InvocationWord;
         let from = b"P\xed\xa0\x80";
@@ -2892,7 +2888,6 @@ mod tests {
 
     #[test]
     fn native_identity_values_do_not_close_unknown_control_operands() {
-        // Implementation contract: naming.invocation.known-native-byte-values
 
         let subject = TransitionSubject::LocatedNativeBytes {
             value: vec![0xff],
@@ -2941,7 +2936,6 @@ mod tests {
 
     #[test]
     fn native_byte_alias_names_use_the_selected_name_purpose() {
-        // Implementation contract: naming.invocation.known-native-byte-values
 
         let input = TransitionSubject::LocatedNativeBytes {
             value: b"::scope::n\xed\xa0\x80".to_vec(),
@@ -2983,7 +2977,6 @@ mod tests {
 
     #[test]
     fn known_equal_operands_retain_distinct_effective_ordinals() {
-        // Implementation contract: naming.invocation.effective-transition-operands
 
         let arguments = InvocationArguments::literals(&["same", "same"]);
         let first = TransitionSubject::from_argument(arguments, 0).unwrap();
@@ -3007,7 +3000,6 @@ mod tests {
 
     #[test]
     fn argv_projection_retains_nested_operands_order_and_completion_commits() {
-        // Implementation contract: naming.invocation.effective-transition-operands
 
         let subject = |index| TransitionSubject::LocatedLiteral {
             value: "same".to_owned(),
@@ -3504,7 +3496,6 @@ mod tests {
     /// their declared domain; a consumer never binds a name it cannot read.
     #[test]
     fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
-        // Implementation contract: naming.invocation.effective-transition-operands
 
         use crate::InvocationWord::{Dynamic, Literal};
         use StateTransitionDomain::VariableCells;
@@ -3863,7 +3854,6 @@ mod original_namespace_option_advice_tests {
 
     #[test]
     fn original_namespace_option_advice_selects_only_first_native_control_extent() {
-        // Implementation contract: naming.namespace.original-export-source-advice
 
         for version in tcl_dialect::TclVersion::ALL {
             let policy = NamePolicyProtocol::authored_tcl(version);
@@ -3894,7 +3884,6 @@ mod created_handle_source_tests {
 
     #[test]
     fn created_handle_eval_body_owns_only_the_canonical_single_script_ordinal() {
-        // naming.interpreter.original-created-handle-source-body
 
         let create = InterpreterTransition::Create {
             interpreter: Some(TransitionSubject::LocatedLiteral {

@@ -109,7 +109,6 @@ impl NativeJimLookupProtocol {
     /// This projection supplies no namespace lookup, object or frame owner.
     #[must_use]
     pub fn namespace_current_result(self, original_namespace: &[u8]) -> Vec<u8> {
-        // naming.lambda.original-namespace-constructor-and-getter
 
         let mut bytes = b"::".to_vec();
         bytes.extend_from_slice(original_namespace);

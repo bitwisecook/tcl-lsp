@@ -119,7 +119,6 @@ fn unchanged_result(vm: &Vm, prior: &NativeObjectLifetimeLease) {
 
 #[test]
 fn original_lookup_checks_reached_string_failure_before_cache_or_miss() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied formatter and header withdrawal are actual software hooks, not Native callback equivalence.
     for mode in 0..3 {
@@ -174,7 +173,6 @@ fn original_lookup_checks_reached_string_failure_before_cache_or_miss() {
 
 #[test]
 fn original_lookup_cache_hit_preserves_first_cause_after_context_change_and_restore() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // All six genuine profile owners retain the same Scope; no fresh receipt repairs an ABA.
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -206,7 +204,6 @@ fn original_lookup_cache_hit_preserves_first_cause_after_context_change_and_rest
 
 #[test]
 fn original_selected_command_refuses_recreated_slot_after_actual_primary_retirement() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // A software stage checker observes genuine List-member retirement and performs actual table replacement.
     let mut vm = actual("tcl9.0");
@@ -266,7 +263,6 @@ fn original_selected_command_refuses_recreated_slot_after_actual_primary_retirem
 
 #[test]
 fn original_jim_cache_adoption_acquires_namespace_role_after_old_primary_release() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual VM namespace references are software stage observations, not Native Jim pointer-count equivalence.
     let mut vm = actual("jim");
@@ -316,7 +312,6 @@ fn original_jim_cache_adoption_acquires_namespace_role_after_old_primary_release
 
 #[test]
 fn shared_original_alias_consumer_preserves_prior_host_before_missing_name_presentation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The shared typed alias boundary retains a genuine prior cause rather than publishing a missing-name Guest error.
     let mut vm = actual("jim");
@@ -335,7 +330,6 @@ fn shared_original_alias_consumer_preserves_prior_host_before_missing_name_prese
 
 #[test]
 fn original_lookup_checks_namespace_world_after_the_reached_formatter_query() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The supplied provider query withdraws the actual software world before String publication.
     for withdraw in [false, true] {
@@ -403,7 +397,6 @@ fn enter_original_jim_namespace(vm: &mut Vm, original: &Value) -> NamespaceExecu
 
 #[test]
 fn original_jim_lookup_holder_getter_checks_the_lookup_world_at_the_provider_query() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The entered original Jim frame supplies its real holder without materialising a token.
     for withdraw in [false, true] {
@@ -461,7 +454,6 @@ fn original_jim_lookup_holder_getter_checks_the_lookup_world_at_the_provider_que
 
 #[test]
 fn original_jim_materialisation_checks_the_independent_lookup_operand_before_string_or_token() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Retiring the separate operand leaves the original Jim context owner live.
     for retire in [false, true] {

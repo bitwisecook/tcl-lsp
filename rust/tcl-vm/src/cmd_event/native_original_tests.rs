@@ -176,7 +176,6 @@ fn original_list_event_scripts_retain_counted_name_objects() {
 
 #[test]
 fn original_vwait_extended_forms_decline_before_global_observers_or_callbacks() {
-    // Implementation contract: naming.event.original-vwait-operand-boundaries
 
     use crate::Value;
     for (engine, forms) in [

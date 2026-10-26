@@ -1456,7 +1456,6 @@ fn retained_substitution_calls(
     module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<Vec<crate::word_subst::LiftedCall>> {
-    // naming.compiler.original-analysis-metadata-context
 
     if module.source_metadata_input.is_none()
         && module.source_entry.metadata_context.is_standalone()
@@ -3897,7 +3896,6 @@ mod tests {
 
     #[test]
     fn interpolation_uses_retained_close_policy_over_catalogue_profile() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Lexical rewrite software control, not variable/frame or Native evidence.
         let source = "\"v=${a{b}c}\"";
@@ -3959,7 +3957,6 @@ mod tests {
 
     #[test]
     fn interpolation_element_indices_keep_literal_braced_names_and_dynamic_refusal() {
-        // naming.compiler.original-analysis-metadata-context
 
         let constants = std::collections::HashMap::from([
             ("a($idx)".into(), "ELEMENT".into()),
@@ -3982,7 +3979,6 @@ mod tests {
 
     #[test]
     fn retained_substitution_inventory_keeps_module_input_config_and_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Conditional original child geometry, without handler or erasure permission.
         let context =
@@ -5997,7 +5993,6 @@ mod tests {
     }
     #[test]
     fn retained_expression_argument_folding_requires_actual_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         // Actual original registrations are retained independently of metadata
         // availability. The owner stays alive through every refusal control.
@@ -6076,7 +6071,6 @@ mod tests {
 
     #[test]
     fn retained_recursive_folding_preserves_actual_availability() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = current.commands();

@@ -1171,7 +1171,6 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.optimiser-source-environment
 
     fn original_sccp_environment_withdraws_rebound_source_names_despite_display_collisions() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();

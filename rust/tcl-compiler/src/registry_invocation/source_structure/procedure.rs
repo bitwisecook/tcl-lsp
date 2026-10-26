@@ -85,7 +85,6 @@ pub fn original_procedure_source_descriptor<'a>(
     analysis: &'a AnalysisResult,
     segment: &crate::segmenter::SegmentedCommand,
 ) -> Option<OriginalProcedureSourceDescriptor<'a>> {
-    // naming.source.original-procedure-argument-topology
 
     let config = analysis.body_lexer_config?;
     let input = analysis.resolved_input.as_ref()?;
@@ -490,7 +489,6 @@ mod tests {
 
     #[test]
     fn original_procedure_descriptor_precedes_selected_dialect_argument_binding() {
-        // naming.source.original-procedure-argument-topology
 
         let source = "proc target {{optional DEFAULT} required} {}; target ONLY";
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -525,7 +523,6 @@ mod tests {
 
     #[test]
     fn original_procedure_descriptor_keeps_invalid_count_and_unknown_lookup_separate() {
-        // naming.source.original-procedure-argument-topology
 
         let source = "proc target {value} {}; target ONE TWO";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");

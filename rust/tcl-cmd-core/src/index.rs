@@ -1815,7 +1815,6 @@ pub fn bad_index_for_ops<O: ValueOps>(
     } else {
         // C Tcl's native bad-index diagnostic consumes Tcl_GetString through
         // its original %s field; counted parser extent remains independent.
-        // naming.string.original-counted-replacement-and-index-stages
 
         tcl_core_types::c_string_extent(spec.as_ref())
     };

@@ -293,7 +293,6 @@ impl Interp {
         name: &[u8],
         index: Option<&[u8]>,
     ) -> Result<Option<*mut TclObj>, VarError> {
-        // naming.variable.observed-original-substitution-receiver
 
         if index.is_some() {
             return self.observed_refusal();
@@ -559,7 +558,6 @@ mod tests {
 
     #[test]
     fn original_object_assignments_use_the_current_observed_receiver() {
-        // naming.variable.observed-original-object-assignment
 
         for (prefix, spelling) in [
             (b"A".as_slice(), b"A\0B".as_slice()),
@@ -628,7 +626,6 @@ mod tests {
 
     #[test]
     fn original_observed_substitutions_keep_counted_cells_and_input_forms_separate() {
-        // naming.variable.observed-original-substitution-receiver
 
         let mut interp = Interp::new();
         let context = select(&mut interp);

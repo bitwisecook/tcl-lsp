@@ -591,7 +591,6 @@ fn original_fixed_function_lookup(
     rows: &[&DeclarationLayoutObservation],
     dialect: tcl_registry::InvocationDialect,
 ) -> Option<OriginalFixedMathFunctionLookup> {
-    // naming.expression.original-fixed-function-source-presence
 
     if tcl_registry::mathfunc::native_function_dispatch(dialect)
         != Some(NativeMathFunctionDispatch::FixedTable)
@@ -870,7 +869,6 @@ mod tests {
 
     #[test]
     fn original_fixed_function_absence_retains_source_snapshot_without_command_name() {
-        // naming.expression.original-fixed-function-source-presence
 
         // Related observed engine purpose: naming.expression.original-implicit-function-slot-presence
 
@@ -935,7 +933,6 @@ mod tests {
 
     #[test]
     fn original_function_lookup_keeps_absence_and_unknown_separate() {
-        // naming.expression.original-function-navigation
 
         // Native dispatch control: naming.expression.original-implicit-function-slot-presence
 
@@ -992,7 +989,6 @@ mod tests {
 
     #[test]
     fn original_math_policy_requires_the_selected_execution_name_recipe() {
-        // naming.diagnostic.original-math-function-subject
 
         let (bindings, _, _, _, calls) = functions("expr {abs(1)}", "tcl8.6");
         let rows: Vec<_> = bindings
@@ -1020,7 +1016,6 @@ mod tests {
 
     #[test]
     fn original_math_function_purposes_separate_fixed_tables_and_command_slots() {
-        // Implementation contract: naming.expression.original-function-navigation
 
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let (_, registry, image, config, calls) = functions("expr {abs(-3)}", name);
@@ -1047,7 +1042,6 @@ mod tests {
 
     #[test]
     fn original_math_navigation_retains_installed_allocation_and_operand_barriers() {
-        // Implementation contract: naming.expression.original-function-navigation
 
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source = "proc ::tcl::mathfunc::custom {x} {return $x}; expr {custom(3)}";
@@ -1076,7 +1070,6 @@ mod tests {
 
     #[test]
     fn original_math_topology_is_exact_without_fabricating_head_words() {
-        // Implementation contract: naming.expression.original-function-navigation
 
         let (bindings, registry, image, config, calls) =
             functions("expr {max(abs(1), abs(2))}", "tcl8.6");
@@ -1137,7 +1130,6 @@ mod tests {
 
     #[test]
     fn original_math_occurrences_cover_expressions_in_command_substitutions() {
-        // Implementation contract: naming.expression.original-function-navigation
 
         // tclsh 8.5-9.1 call `tcl::mathfunc::custom` once for each nested
         // `expr` below (`hit=4`).

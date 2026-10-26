@@ -439,7 +439,6 @@ fn emitted_completion_codes_propagate() {
 /// They prove completion dispatch/cleanup, not Native expression equivalence.
 #[test]
 fn original_general_conditions_dispatch_guest_codes_before_truth() {
-    // naming.numeric.original-primitive-boolean-vs-expression-truth
 
     if !have_wasmtime() {
         eprintln!("wasmtime CLI unavailable; condition completion controls unexecuted");
@@ -479,7 +478,6 @@ fn original_general_conditions_dispatch_guest_codes_before_truth() {
 
 #[test]
 fn original_general_nested_condition_completions_reach_the_owning_loop() {
-    // naming.numeric.original-primitive-boolean-vs-expression-truth
 
     if !have_wasmtime() {
         eprintln!("wasmtime CLI unavailable; nested condition controls unexecuted");
@@ -520,7 +518,6 @@ fn original_general_nested_condition_completions_reach_the_owning_loop() {
 
 #[test]
 fn original_general_condition_host_refusal_cleans_before_any_guest_branch() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     if !have_wasmtime() {
         eprintln!("wasmtime CLI unavailable; condition first-Host control unexecuted");

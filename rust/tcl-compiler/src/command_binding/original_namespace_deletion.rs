@@ -35,7 +35,6 @@ pub(super) struct OriginalNamespaceDeletionTransfer {
 pub(crate) struct AppliedOriginalNamespaceDeletions(OriginalNamespaceDeletionTransfer);
 
 impl OriginalNamespaceDeletionTransfer {
-    // Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
     pub(super) fn capture(
         native: SourceNativeInvocation<'_>,
@@ -73,7 +72,6 @@ impl OriginalNamespaceDeletionTransfer {
         })
     }
 
-    // Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
     pub(super) fn after_command_transfer(
         self,
@@ -97,7 +95,6 @@ impl OriginalNamespaceDeletionTransfer {
 }
 
 impl AppliedOriginalNamespaceDeletions {
-    // Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
     pub(crate) fn matches(
         &self,
@@ -202,7 +199,6 @@ fn fresh_namespace_tree(
     transfer: &OriginalNamespaceDeletionTransfer,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Option<BTreeSet<SourceNamespaceKey>> {
-    // naming.namespace.original-fresh-namespace-deletion
 
     let root = state.source_root_namespace_key()?;
     let namespaces = state
@@ -250,7 +246,6 @@ fn intrinsic_namespace_commands(
     namespaces: &BTreeSet<SourceNamespaceKey>,
     site: &CommandAllocationSite,
 ) -> Option<Vec<DeletedCommand>> {
-    // naming.namespace.original-fresh-namespace-deletion
 
     let mut commands = Vec::new();
     for (key, alternatives) in state.bindings.iter() {
@@ -294,7 +289,6 @@ fn intrinsic_namespace_commands(
 }
 
 impl OriginalNamespaceDeletion {
-    // Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
     pub(super) fn capture(
         native: SourceNativeInvocation<'_>,
@@ -387,7 +381,6 @@ impl OriginalNamespaceDeletion {
         })
     }
 
-    // Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
     pub(super) fn completed(
         &self,
@@ -442,10 +435,8 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
     fn original_fresh_namespace_delete_closes_only_empty_cells_and_intrinsic_procedures() {
-        // naming.namespace.original-fresh-namespace-deletion
 
         for version in tcl_dialect::TclVersion::ALL {
             for source in [
@@ -468,10 +459,8 @@ mod tests {
     }
 
     #[test]
-    // Implementation contract: naming.namespace.original-fresh-namespace-deletion
 
     fn original_namespace_delete_refuses_missing_unknown_and_overlapping_targets() {
-        // naming.namespace.original-fresh-namespace-deletion
 
         for version in tcl_dialect::TclVersion::ALL {
             for source in [

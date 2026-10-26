@@ -637,7 +637,6 @@ impl SourceInvocationBinding {
                 registry, tokens,
             ),
         )?;
-        // Implementation contract: naming.refactor.original-literal-expression-bracing
 
         // Handler shape and unchanged argv precede the independent checked
         // native-byte evaluation below; source IR expression shape is not it.
@@ -1305,7 +1304,6 @@ mod tests {
 
     #[test]
     fn original_literal_expression_bracing_preserves_native_argv_and_current_owners() {
-        // Implementation contract: naming.refactor.original-literal-expression-bracing
 
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let source = "expr \"1 + 2\"";
@@ -1329,7 +1327,6 @@ mod tests {
 
     #[test]
     fn original_literal_expression_bracing_declines_substitution_functions_and_handler_changes() {
-        // Implementation contract: naming.refactor.original-literal-expression-bracing
 
         for source in [
             "expr {$value}",
@@ -1338,11 +1335,9 @@ mod tests {
             "expr \"\\[callback\\]\"",
             "expr \"abs(1)\"",
             // Native captured errorInfo/options differ after changing spelling:
-            // naming.expression.braced-error-context-publication.
             r#"expr "1 / 0""#,
             r#"expr """#,
             // Native info-body observer distinguishes these spellings:
-            // naming.expression.braced-handler-and-observer-boundaries.
             r#"proc p {} {expr "1 + 2"}; p"#,
             r#"expr "1 + 2"; info frame 0"#,
             "expr 1 + 2",
@@ -1358,7 +1353,6 @@ mod tests {
 
     #[test]
     fn original_literal_bracing_normality_and_source_reflection_are_independent() {
-        // Implementation contract: naming.refactor.original-literal-expression-bracing
 
         // Captured natives: naming.expression.braced-error-context-publication
         // and naming.expression.braced-handler-and-observer-boundaries.

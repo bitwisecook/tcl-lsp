@@ -198,7 +198,6 @@ fn exercise(profile: &str, stage: u8, mutation: u8) {
 }
 #[test]
 fn original_compiled_increment_checks_cow_number_string_and_retirement_before_later_stages() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual local compiled callbacks and reference roles; no external Native chronology.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -212,7 +211,6 @@ fn original_compiled_increment_checks_cow_number_string_and_retirement_before_la
 }
 #[test]
 fn original_compiled_increment_keeps_actual_number_recipe_and_working_reference_schedule() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         exercise(profile, 0, 0);

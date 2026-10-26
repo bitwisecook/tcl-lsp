@@ -555,7 +555,6 @@ mod tests {
 
     #[test]
     fn original_regex_roles_keep_alias_origins_and_do_not_supply_native_reads() {
-        // naming.core.original-pattern-retained-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -610,7 +609,6 @@ mod tests {
 
     #[test]
     fn original_regex_inventory_keeps_full_configuration_and_withdraws_owners() {
-        // naming.compiler.original-analysis-metadata-context
 
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();

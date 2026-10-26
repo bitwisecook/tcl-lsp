@@ -984,7 +984,6 @@ mod tests {
 
     #[test]
     fn regexp_layout_effects_are_reported_as_shifts() {
-        // Implementation contract: naming.compiler.original-analysis-metadata-context
 
         for (provider, supports_about) in [
             ("tcl8.4", true),

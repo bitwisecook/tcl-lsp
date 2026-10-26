@@ -2270,7 +2270,6 @@ impl NativeCompilationSpec {
         self,
         dialect: InvocationDialect,
     ) -> Option<Vec<NativeCompilerImplementationLookup>> {
-        // naming.namespace.original-counted-namespace-allocation
 
         if let NativeCompilationGrammar::WithImplementationPath {
             compiler,
@@ -6345,7 +6344,6 @@ mod tests {
 
     #[test]
     fn original_namespace_no_hook_members_select_monolithic_and_private_registration_epochs() {
-        // naming.namespace.original-counted-namespace-allocation
 
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
@@ -6425,7 +6423,6 @@ mod tests {
 
     #[test]
     fn no_hook_implementation_paths_keep_direct_body_and_reject_inconsistent_descriptors() {
-        // naming.namespace.original-counted-namespace-allocation
 
         const LOOKUPS: &[NativeCompilerImplementationLookup] =
             &[NativeCompilerImplementationLookup {
@@ -8408,7 +8405,6 @@ mod tests {
 
     #[test]
     fn installed_info_commands_worker_keeps_original_selector_arity() {
-        // naming.info.original-command-inventory-option-and-scope
 
         // Original public rows retain error usage; these independently authored
         // source-policy controls assert no observed opcode or private binding.
@@ -9074,7 +9070,6 @@ mod native_command_currency_tests {
     use super::*;
     #[test]
     fn original_command_currency_uses_actual_engine_and_independent_epochs() {
-        // naming.command.native-command-entry-currency
 
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let dialect = crate::InvocationDialect::of_profile(

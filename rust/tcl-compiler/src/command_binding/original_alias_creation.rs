@@ -343,7 +343,6 @@ mod tests {
 
     #[test]
     fn original_alias_creation_closes_only_fresh_quiet_actual_transfers() {
-        // Implementation contract: naming.alias.original-fresh-creation-transfer
 
         for version in tcl_dialect::TclVersion::ALL {
             for source in [

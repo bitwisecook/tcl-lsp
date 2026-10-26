@@ -20,9 +20,7 @@
 
 #[test]
 fn selected_utf8_units_match_all_55_original_c_conversion_windows() {
-    // naming.encoding.original-utf8-convertto-object-storage
 
-    // naming.encoding.original-utf8-convertto-error-offset
 
     // This pure comparison owns converted bytes/structured error presentation;
     // backend tests independently exercise actual original getters/result storage.

@@ -118,7 +118,6 @@ fn refinement_provider_store() -> Arc<vfs::MemoryStore> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn indexed_package_providers_keep_their_own_pack_and_unavailable_status() {
-    // naming.compiler.original-analysis-metadata-context
 
     // The package scan consumes source structure, without a Native body entry.
     let backend = crate::tests::test_backend();
@@ -224,7 +223,6 @@ async fn indexed_package_providers_keep_their_own_pack_and_unavailable_status() 
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn disk_package_providers_keep_source_dialect_and_refuse_uncaptured_paths() {
-    // naming.compiler.original-analysis-metadata-context
 
     let store = Arc::new(vfs::MemoryStore::new());
     store.upsert(
@@ -286,7 +284,6 @@ async fn disk_package_providers_keep_source_dialect_and_refuse_uncaptured_paths(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn configured_package_refinement_keeps_version_preference_and_unknown_providers() {
-    // naming.server.original-package-consumer-resolution
 
     // Source publications refine advice; this does not execute any loader.
     let store = refinement_provider_store();

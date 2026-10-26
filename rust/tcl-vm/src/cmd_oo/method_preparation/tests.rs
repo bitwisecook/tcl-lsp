@@ -120,7 +120,6 @@ impl tcl_platform::Host for Host {
 #[test]
 fn original_method_preparation_string_callback_allows_same_record_flags_and_keeps_host_before_cache_or_body()
  {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual numeric formatter/VM body callback; no Native procedure callback equivalence.
     for fail in [false, true] {
@@ -185,7 +184,6 @@ fn original_method_preparation_string_callback_allows_same_record_flags_and_keep
 }
 #[test]
 fn original_method_preparation_requires_original_receiver_and_declaring_facet_after_reached_work() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Actual withdrawal/fresh Class birth between the same owner's entered stages.
     for facet in [false, true] {
@@ -227,7 +225,6 @@ fn original_method_preparation_requires_original_receiver_and_declaring_facet_af
 }
 #[test]
 fn original_method_preparation_keeps_entered_record_after_table_withdrawal_and_fresh_same_name() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // The real entered chain owns its record; no mutable table relookup is permitted.
     let (mut vm, target, provider, chain) = provided();
@@ -272,7 +269,6 @@ impl NativeCommand for ChangeCaller {
 }
 #[test]
 fn original_method_preparation_checks_genuine_caller_frame_before_new_activation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, target, _, _) = provided();
     let calls = Rc::new(Cell::new(0));
@@ -309,7 +305,6 @@ fn original_method_preparation_checks_genuine_caller_frame_before_new_activation
 }
 #[test]
 fn original_method_preparation_retains_reached_host_before_later_facet_or_context_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, target, provider, chain) = provided();
     let preparation = OriginalMethodPreparation::enter(&mut vm, target, &chain, 0).unwrap();

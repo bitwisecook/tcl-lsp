@@ -572,7 +572,6 @@ mod source_event_tests {
     use super::source_event_summary;
 
     #[test]
-    // naming.consumer.original-irules-source-context
 
     fn source_event_report_separates_owned_empty_and_unavailable() {
         assert_eq!(

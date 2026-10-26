@@ -2459,7 +2459,6 @@ mod tests {
 
     #[test]
     fn logical_frame_aliases_keep_real_formals_and_literal_dollar_names() {
-        // naming.compiler.original-analysis-metadata-context
 
         let formal = module_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
         assert_eq!(
@@ -3195,7 +3194,6 @@ mod tests {
     }
     #[test]
     fn caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards() {
-        // naming.compiler.original-analysis-metadata-context
 
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

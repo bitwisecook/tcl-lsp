@@ -102,7 +102,6 @@ mod original_lookup_boundary_tests {
 
     #[test]
     fn original_compiled_dictionary_lookup_refusal_precedes_missing_and_default_results() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         // Same portable Get/Exists/GetDefault path, genuine compiled frame and
         // original primary callback. Native public command observations stay separate.
@@ -156,7 +155,6 @@ mod original_lookup_boundary_tests {
 
     #[test]
     fn original_compiled_dictionary_lookup_keeps_current_leaf_and_guest_default_schedule() {
-        // naming.embedding.original-host-publication-and-fact-transport
 
         let mut interpreter = fixture::native("tcl9.0");
         let _current = fixture::install(&mut interpreter, 0);

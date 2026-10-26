@@ -635,7 +635,6 @@ mod returned_owner_controls {
     }
     #[test]
     fn c_returned_member_transport_preserves_original_member_reference_and_actual_result_hold() {
-        // naming.list.original-range-objects-and-instructions
 
         // Existing native owner API's software reference control. No measured
         // C process reference or callback schedule is inferred from this test.
@@ -670,7 +669,6 @@ mod returned_owner_controls {
     }
     #[test]
     fn c_fresh_empty_returned_transport_has_zero_count_and_exact_fresh_cleanup() {
-        // naming.list.original-range-objects-and-instructions
 
         // Genuine software constructor/owner API control, not native evidence.
         let mut interpreter = actual();

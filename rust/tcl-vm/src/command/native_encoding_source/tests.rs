@@ -20,7 +20,6 @@ fn supplied(engine: &str, script: &[u8]) -> (Vm, Rc<EncodingStages>) {
 
 #[test]
 fn original_system_names_keep_resident_bytes_zero_queries_and_captured_default() {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
     let (mut vm, stages) = supplied("tcl8.6", b"return YES");
     for (name, expected) in [
@@ -45,7 +44,6 @@ fn original_system_names_keep_resident_bytes_zero_queries_and_captured_default()
 
 #[test]
 fn original_source_opens_before_lookup_and_consumes_selected_encoding() {
-    // naming.encoding.original-byte-name-lookup-and-source-order
 
     let (mut vm, stages) = supplied("tcl8.6", b"set ::encoded \xe9; return YES");
     let args = [
@@ -82,7 +80,6 @@ fn original_source_opens_before_lookup_and_consumes_selected_encoding() {
 
 #[test]
 fn original_catalogue_callback_header_withdrawal_preserves_first_host_before_guest() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied software catalogue callback, not an external Native callback chronology.
     let (mut vm, stages) = supplied("tcl8.6", b"return YES");
@@ -117,7 +114,6 @@ fn original_catalogue_callback_header_withdrawal_preserves_first_host_before_gue
 
 #[test]
 fn original_absent_catalogue_refuses_without_unknown_guest_or_system_mutation() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let (mut vm, stages) = supplied("tcl8.6", b"return YES");
     stages.catalogue_available.set(false);
@@ -146,7 +142,6 @@ fn original_absent_catalogue_refuses_without_unknown_guest_or_system_mutation() 
 
 #[test]
 fn original_opened_file_configures_before_read_and_closes_on_failure() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Supplied open/read/close stages, independent of external native read-error chronology.
     let (mut vm, stages) = supplied("tcl8.6", b"return YES");
@@ -194,7 +189,6 @@ fn original_opened_file_configures_before_read_and_closes_on_failure() {
 
 #[test]
 fn original_filename_utf8_conversion_preserves_counted_header_and_lookup_effects() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     for engine in ["tcl8.4", "tcl8.6", "tcl9.1", "jim"] {
         for suffix in [
@@ -264,7 +258,6 @@ fn original_filename_utf8_conversion_preserves_counted_header_and_lookup_effects
 
 #[test]
 fn original_filename_converter_retains_header_refusal_before_open() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     // Genuine supplied converter callback; no external Native callback chronology.
     let (mut vm, stages) = supplied("tcl8.6", b"set ::SHOULD_NOT_RUN YES");
@@ -302,7 +295,6 @@ fn original_filename_converter_retains_header_refusal_before_open() {
 
 #[test]
 fn original_filename_actual_converter_and_unavailable_capability_stay_distinct() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for available in [true, false] {
         let (mut vm, stages) = supplied("tcl8.6", b"set ::filename_effect YES; return DONE");
@@ -361,7 +353,6 @@ fn original_filename_actual_converter_and_unavailable_capability_stay_distinct()
 
 #[test]
 fn original_filename_iso88591_host_default_keeps_plain_source_working() {
-    // naming.source.original-counted-filename-filesystem-extent
 
     let mut vm =
         crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));

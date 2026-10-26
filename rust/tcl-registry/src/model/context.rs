@@ -2008,7 +2008,6 @@ mod tests {
     }
 
     #[test]
-    // naming.core.original-math-function-selection
 
     fn source_math_catalogue_retains_core_release_build_and_unknown() {
         assert_eq!(

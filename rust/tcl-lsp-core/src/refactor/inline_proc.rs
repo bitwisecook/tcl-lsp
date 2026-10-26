@@ -1701,7 +1701,6 @@ mod original_inline_tests {
 
     #[test]
     fn original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared() {
-        // Implementation contract: naming.refactor.original-procedure-inline-binding
 
         let source = r"proc p\uD800 {x} {puts $x}
  p\uD800 VALUE
@@ -1713,7 +1712,6 @@ mod original_inline_tests {
 
     #[test]
     fn original_inline_keeps_inert_braced_data_and_refuses_erased_reads_or_free_cells() {
-        // Implementation contract: naming.refactor.original-procedure-inline-binding
 
         let literal = "proc p {x} {puts {$x}}\np VALUE\n";
         let result = action(literal, "p VALUE", false).unwrap();
@@ -1736,7 +1734,6 @@ mod original_inline_tests {
 
     #[test]
     fn original_inline_bindings_keep_alias_prefix_expansion_defaults_and_arity() {
-        // Implementation contract: naming.refactor.original-procedure-inline-binding
 
         for (source, call, expected) in [
             (
@@ -1766,7 +1763,6 @@ mod original_inline_destination_tests {
     use super::*;
     #[test]
     fn original_inline_refuses_a_body_builtin_shadowed_at_the_call_destination() {
-        // Implementation contract: naming.refactor.original-inline-destination-command
 
         let source = "proc p {x} {puts $x}\nnamespace eval Other {\nproc puts {x} {return SHADOW}\np VALUE\n}\n";
         let mut analyser = tcl_compiler::analyser::Analyser::new();
@@ -1790,7 +1786,6 @@ mod selected_source_body_tests {
 
     #[test]
     fn logical_inline_call_selection_uses_current_original_body_regions() {
-        // naming.source.original-refactor-command-selection
 
         let source = "interp alias {} run {} eval\nproc p {x} {expr {$x + 1}}\nrun {p 2}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
@@ -1812,7 +1807,6 @@ mod selected_source_body_tests {
 
     #[test]
     fn original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias() {
-        // naming.refactor.original-frame-traversal
 
         let source = "proc p {x} {expr {$x + 1}}
 p 2";
@@ -1858,7 +1852,6 @@ mod original_inline_body_purpose_tests {
 
     #[test]
     fn original_inline_body_keeps_bom_head_and_retained_parent_correspondence() {
-        // naming.refactor.original-procedure-inline-binding
 
         // Original body syntax/geometry only; no complete inline edit permission.
         let source = "\u{feff}proc p {x} {\u{feff}#prefix $x}\np VALUE";

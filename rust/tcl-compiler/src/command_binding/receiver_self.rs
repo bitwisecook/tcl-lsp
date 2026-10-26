@@ -199,7 +199,6 @@ impl ModuleCommandBindings {
         bytes: &[u8],
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<&super::SourceReceiverMethodEntry> {
-        // naming.tcloo.original-forward-registration-prefix
 
         if !self.receiver_allocation_is_current(receiver) {
             return None;
@@ -240,7 +239,6 @@ impl ModuleCommandBindings {
         bytes: &[u8],
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<bool> {
-        // naming.tcloo.original-forward-registration-prefix
 
         if !self.receiver_allocation_is_current(receiver)
             || self.baseline.execution_name_policy?.native_recipe()? != policy
@@ -1084,7 +1082,6 @@ mod tests {
 
     #[test]
     fn original_forward_override_cannot_select_the_stock_receiver_linker() {
-        // naming.tcloo.original-forward-registration-prefix
 
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for tail in ["", "; C create receiver; receiver probe"] {

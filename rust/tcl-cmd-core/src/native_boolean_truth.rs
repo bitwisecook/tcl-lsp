@@ -728,7 +728,6 @@ mod tests {
     #[test]
     fn intermediate_failure_is_published_before_success_and_remains_observable() {
         // Source/API control only: supplied stage outcomes are not original Jim objects.
-        // naming.numeric.original-primitive-boolean-vs-expression-truth
 
         let mut owner = owner();
         assert!(original_boolean_truth(&(), protocol(), &mut owner).unwrap());
@@ -740,7 +739,6 @@ mod tests {
     #[test]
     fn first_host_from_publication_stops_every_later_probe() {
         // Source/API control; this tests the shared settlement owner, not native conversion.
-        // naming.numeric.original-primitive-boolean-vs-expression-truth
 
         let mut owner = owner();
         owner.refuse_publication = true;
@@ -754,7 +752,6 @@ mod tests {
     #[test]
     fn first_host_from_rendering_wins_over_a_returned_guest_record() {
         // Source/API control; no original external provider outcome is inferred.
-        // naming.numeric.original-primitive-boolean-vs-expression-truth
 
         let mut owner = owner();
         owner.refuse_rendering = true;

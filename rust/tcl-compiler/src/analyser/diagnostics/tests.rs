@@ -1496,7 +1496,6 @@ fn w216_upvar_local_name_is_indirect_array_idiom() {
 
 #[test]
 fn variable_name_positions_are_registry_driven() {
-    // naming.diagnostic.registry-source-ownership
 
     let pos = |cmd: &str, args: &[&str]| {
         let source = format!("{cmd} {}", args.join(" "));
@@ -9288,7 +9287,6 @@ $o make 1
 
 // -- TclOO constructor call-site arity (`ClassName new` / `ClassName create`)
 
-// naming.source.original-class-constructor-call
 
 // Conditional constructor-source controls select the C9 formal grammar used
 // by their cited CLI examples. No constructor entry or actual argv is proved.
@@ -9298,7 +9296,6 @@ fn tcloo_constructor_codes_for(src: &str) -> Vec<String> {
 
 #[test]
 fn tcloo_constructor_signature_advice_keeps_unknown_formal_grammar_separate_from_authored_names() {
-    // naming.source.original-class-constructor-call
 
     let plain =
         tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
@@ -9763,7 +9760,6 @@ oo::class create Derived {
 
 #[test]
 fn apply_lambda_arity_fires_and_stays_silent() {
-    // naming.diagnostic.registry-source-ownership
 
     assert_eq!(
         e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1\n"),
@@ -9801,7 +9797,6 @@ fn apply_dynamic_lambda_abstains() {
 
 #[test]
 fn apply_expand_args_abstains_too_few() {
-    // naming.diagnostic.registry-source-ownership
 
     let src = "set rest {1}\napply {{a b} {return $a}} {*}$rest\n";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
@@ -9811,7 +9806,6 @@ fn apply_expand_args_abstains_too_few() {
 
 #[test]
 fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
-    // naming.diagnostics.retained-logical-class-family
 
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `set o [Dog new]; $o` — tclsh 9.0.4: `wrong # args: should be "o
@@ -9840,7 +9834,6 @@ fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
 
 #[test]
 fn tp_e001_bare_tcloo_object_dispatch_named_constructor() {
-    // naming.diagnostics.retained-logical-class-family
 
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `Dog create rex` names the instance directly; `$rex` bare still
@@ -9855,7 +9848,6 @@ fn tp_e001_bare_tcloo_object_dispatch_named_constructor() {
 
 #[test]
 fn tp_e001_bare_dispatch_fires_even_when_class_is_ambiguous() {
-    // naming.diagnostics.retained-logical-class-family
 
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // Unlike per-method arity (which abstains under ambiguity — see
@@ -9913,7 +9905,6 @@ fn tn_e001_bare_dispatch_silent_for_unclassified_variable() {
 
 #[test]
 fn tp_e001_bare_command_substitution_head() {
-    // naming.diagnostics.retained-logical-class-family
 
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `[Dog new]` used directly
@@ -9929,7 +9920,6 @@ fn tp_e001_bare_command_substitution_head() {
 
 #[test]
 fn tp_e001_bare_cmd_head_named_constructor_and_alias() {
-    // naming.diagnostics.retained-logical-class-family
 
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `[Dog create rex]` returns the object command too, and an
@@ -9950,7 +9940,6 @@ fn tp_e001_bare_cmd_head_named_constructor_and_alias() {
 
 #[test]
 fn tp_e001_bare_cmd_head_factory_proc_return() {
-    // naming.diagnostics.retained-logical-class-family
 
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // The proc-return flow: the lattice proves `make` object-returning
@@ -10130,7 +10119,6 @@ fn w308_fires_for_bogus_method_on_method_return_captured_handle() {
 
 #[test]
 fn tp_e001_bare_dispatch_on_method_return_captured_handle() {
-    // naming.diagnostics.retained-logical-class-family
 
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // The same lattice typing makes a bare `$b` the unconditional TclOO
@@ -10393,7 +10381,6 @@ foo$suffix
     );
 }
 
-// Implementation contract: naming.compiler.original-slot-presence
 
 // An interpolated head folding to a deleted procedure retains the positioned
 // absence diagnosis. A reporting name cannot supply a live command candidate.
@@ -11577,7 +11564,6 @@ fn w214_quoted_keyword_marker_silent() {
 
 #[test]
 fn w214_dispatch_protocol_suppresses_peer_family() {
-    // naming.diagnostic.registry-source-ownership
 
     // ≥3 peers sharing `{ctx token}` + an arity-compatible dispatcher
     // (`$cmd $ctx $token`, 2 args) — `token` is a protocol contract.
@@ -11600,7 +11586,6 @@ fn w214_dispatch_protocol_suppresses_peer_family() {
 
 #[test]
 fn w214_repeated_publication_does_not_count_as_three_protocol_peers() {
-    // naming.diagnostic.registry-source-ownership
 
     let source = "namespace eval n {
 \
@@ -11625,7 +11610,6 @@ fn w214_repeated_publication_does_not_count_as_three_protocol_peers() {
 
 #[test]
 fn w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers() {
-    // naming.diagnostic.registry-source-ownership
 
     let source = "namespace eval n {
 \
@@ -11659,7 +11643,6 @@ fn w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers() 
 
 #[test]
 fn w214_no_dispatcher_still_fires_on_peer_family() {
-    // naming.diagnostic.registry-source-ownership
 
     // TP control: 3 peers sharing `{ctx token}` but NO dispatcher — the
     // shared shape is coincidence, so `token` still fires.
@@ -13120,7 +13103,6 @@ fn w310_subcommand_sensitive_header() {
 
 #[test]
 fn w306_literal_expected_in_regexp_pattern() {
-    // naming.diagnostic.registry-source-ownership
 
     // The explicit terminator establishes the pattern role independently of its unknown value.
     fn has_w306(src: &str) -> bool {
@@ -13513,7 +13495,6 @@ fn tcltest_aliased_fixture(source: &str, profile: &str, captured: bool) -> (Stri
 
 #[test]
 fn tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads() {
-    // naming.diagnostic.original-package-source-advice
 
     // Original #2286 programs, source-only alias/ordinal and W210 regression.
     // Selecting a package fixture grants no new Native handler/frame permission.
@@ -13579,7 +13560,6 @@ fn tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads() {
 
 #[test]
 fn tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque() {
-    // naming.diagnostic.original-package-source-advice
 
     // Captured effective ordinals do not move the source read to result data.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -16818,7 +16798,6 @@ fn analyse_w308_1330_quick_fix_span_matches_the_diagnostic() {
 
 #[test]
 fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
-    // naming.diagnostic.registry-source-ownership
 
     let src = "interp slaves\n";
     for dialect in ["tcl8.6", "tcl9.0"] {
@@ -16939,7 +16918,6 @@ fn diagnostic_without_owned_subject_does_not_parse_identity_from_message() {
 
 #[test]
 fn w123_retains_original_math_function_context_without_command_head_authority() {
-    // naming.diagnostic.original-math-function-subject
 
     use crate::command_binding::SourceCommandSlotPresence;
     use tcl_registry::mathfunc::NativeMathFunctionDispatch;
@@ -16996,7 +16974,6 @@ fn w123_retains_original_math_function_context_without_command_head_authority() 
 
 #[test]
 fn original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout() {
-    // naming.diagnostic.registry-source-ownership
 
     for source in [
         "interp alias {} replace {} regsub\nreplace -command x y z\n",
@@ -17085,7 +17062,6 @@ fn w100_marks_every_unbraced_expression() {
 
 #[test]
 fn original_terminator_advice_retains_source_words_without_current_value_claims() {
-    // naming.diagnostic.registry-source-ownership
 
     let source = concat!(
         "interp alias {} remove {} file delete -force\n",
@@ -17127,7 +17103,6 @@ fn original_terminator_advice_retains_source_words_without_current_value_claims(
 
 #[test]
 fn original_registry_diagnostics_follow_written_alias_operands() {
-    // naming.diagnostic.registry-source-ownership
 
     // Source metadata and reporting geometry; no native alias-installation claim.
     let source = "interp alias {} observe {} trace add variable value\nobserve {read bad} callback";
@@ -17157,7 +17132,6 @@ fn original_registry_diagnostics_follow_written_alias_operands() {
 
 #[test]
 fn original_registry_variable_role_diagnostics_keep_shadow_and_capture_boundaries() {
-    // naming.diagnostic.registry-source-ownership
 
     for source in [
         "rename set write\nwrite $name 1",
@@ -17204,7 +17178,6 @@ fn original_registry_variable_role_diagnostics_keep_shadow_and_capture_boundarie
 
 #[test]
 fn original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms() {
-    // naming.diagnostic.registry-source-ownership
 
     // This checks source-schema selection and written coordinates, not native execution.
     for source in [
@@ -17253,7 +17226,6 @@ fn original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms
 
 #[test]
 fn original_deprecation_advice_preserves_whole_source_words_and_declines_captures() {
-    // naming.diagnostic.registry-source-ownership
 
     // This proves source proposal geometry, not BIG-IP command equivalence.
     let source = "when HTTP_REQUEST {\n    ::::matchclass [HTTP::uri] starts_with {paths\nmore}\n}";
@@ -17293,7 +17265,6 @@ fn original_deprecation_advice_preserves_whole_source_words_and_declines_capture
 
 #[test]
 fn original_expression_diagnostics_keep_effective_roles_and_whole_written_words() {
-    // naming.diagnostic.registry-source-ownership
 
     // This proves source grammar/coordinates, not native evaluation or rewrite equivalence.
     for source in [
@@ -17346,7 +17317,6 @@ fn original_expression_diagnostics_keep_effective_roles_and_whole_written_words(
 
 #[test]
 fn original_source_arity_and_relationships_keep_effective_counts_and_written_suffixes() {
-    // naming.diagnostic.registry-source-ownership
 
     use crate::analyser::RegistrySourceDiagnosticKind;
     for source in [
@@ -17423,7 +17393,6 @@ fn original_source_arity_and_relationships_keep_effective_counts_and_written_suf
 
 #[test]
 fn declared_source_diagnostics_use_only_the_declared_roles_and_signature() {
-    // naming.source.original-declared-command-word-contract
 
     use crate::analyser::DeclaredSourceDiagnosticKind;
     for profile in ["tcl8.6", "tcl9.0", "tcl"] {
@@ -17484,7 +17453,6 @@ fn declared_source_diagnostics_use_only_the_declared_roles_and_signature() {
 
 #[test]
 fn original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners() {
-    // naming.diagnostic.registry-source-ownership
 
     for source in [
         "::::apply {{a b} {return ok}} 1",
@@ -17545,7 +17513,6 @@ fn original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners() {
 
 #[test]
 fn declared_variable_name_positions_keep_only_supplied_contract_roles() {
-    // naming.source.original-declared-command-word-contract
 
     use crate::analyser::DeclaredSourceDiagnosticKind;
     for profile in ["tcl8.6", "tcl9.0", "tcl"] {
@@ -17615,7 +17582,6 @@ fn original_shape_advice_case(
 
 #[test]
 fn original_append_advice_keeps_effective_roles_and_whole_written_operands() {
-    // naming.diagnostic.registry-source-ownership
 
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for (source, code, kind, written, fixes) in [
@@ -17647,7 +17613,6 @@ fn original_append_advice_keeps_effective_roles_and_whole_written_operands() {
 
 #[test]
 fn original_case_advice_keeps_effective_roles_and_whole_written_operands() {
-    // naming.diagnostic.registry-source-ownership
 
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for (source, code, kind, written, fixes) in [
@@ -17679,7 +17644,6 @@ fn original_case_advice_keeps_effective_roles_and_whole_written_operands() {
 
 #[test]
 fn original_option_only_advice_keeps_effective_roles_and_whole_written_operands() {
-    // naming.diagnostic.registry-source-ownership
 
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for (source, code, kind, written, fixes) in [
@@ -17711,7 +17675,6 @@ fn original_option_only_advice_keeps_effective_roles_and_whole_written_operands(
 
 #[test]
 fn original_shape_advice_withdraws_unknown_geometry_and_known_shadows() {
-    // naming.diagnostic.registry-source-ownership
 
     for (source, code) in [
         (
@@ -17754,7 +17717,6 @@ fn original_shape_advice_withdraws_unknown_geometry_and_known_shadows() {
 }
 #[test]
 fn original_pattern_advice_keeps_selected_roles_and_complete_written_spans() {
-    // naming.diagnostic.registry-source-ownership
 
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for source in [
@@ -17798,7 +17760,6 @@ fn original_pattern_advice_keeps_selected_roles_and_complete_written_spans() {
 
 #[test]
 fn w216_literal_root_replacement_preserves_bytes_and_index_source() {
-    // naming.diagnostics.original-w216-literal-source-replacement
 
     // Actual diagnostic/fix source projection only. No Native name/cell,
     // completed read, inserted ::set identity or index evaluation is granted.
@@ -17874,7 +17835,6 @@ fn w216_literal_root_replacement_preserves_bytes_and_index_source() {
 
 #[test]
 fn w216_fixed_proposals_match_captured_public_value_examples() {
-    // naming.variable.original-w216-literal-replacement-public-values
 
     // Archive association and genuine proposal spelling controls. The native
     // rows measure these eight stock-set value contexts, not editor safety,
@@ -17910,7 +17870,6 @@ fn w216_fixed_proposals_match_captured_public_value_examples() {
 
 #[test]
 fn w216_public_value_capture_keeps_whole_provider_rows() {
-    // naming.variable.original-w216-literal-replacement-public-values
 
     // Stored provider observations are checked without rerunning native Tcl
     // or treating their value equality as private identity/editor permission.

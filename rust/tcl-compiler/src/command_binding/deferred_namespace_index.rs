@@ -208,7 +208,6 @@ mod tests {
     }
     #[test]
     fn deferred_namespace_index_preserves_exact_implementation_and_all_holder_alternatives() {
-        // naming.source.original-point-operand-projection
 
         let analysis = analyse("proc p {} {return VALUE}");
         let mut state = (*analysis.final_state).clone();
@@ -291,7 +290,6 @@ mod tests {
     }
     #[test]
     fn deferred_namespace_index_reuses_only_the_retained_table_and_detaches_on_mutation() {
-        // naming.source.original-point-operand-projection
 
         let analysis = analyse("proc p {} {return VALUE}");
         let original = &analysis.final_state;
@@ -341,7 +339,6 @@ mod tests {
     }
     #[test]
     fn deferred_namespace_index_keeps_real_renamed_source_entries_and_cache_independent_equality() {
-        // naming.compiler.original-analysis-metadata-context
 
         let analysis = analyse(
             "namespace eval original {proc p {} {return VALUE}}; namespace eval moved {}; rename ::original::p ::moved::p",
@@ -368,7 +365,6 @@ mod tests {
     }
     #[test]
     fn deferred_namespace_index_keeps_special_roots_and_original_outcome_states_separate() {
-        // naming.compiler.original-analysis-metadata-context
 
         let analysis = analyse("proc p {} {return VALUE}");
         let original = analysis.deferred.values().next().unwrap().clone();

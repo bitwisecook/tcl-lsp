@@ -157,7 +157,6 @@ fn assert_first(interpreter: &Interp, mode: u8) {
 #[test]
 fn original_trace_member_key_removal_retires_outside_storage_and_checks_the_same_frame_and_member()
 {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=4 {
@@ -209,7 +208,6 @@ fn original_trace_member_key_removal_retires_outside_storage_and_checks_the_same
 
 #[test]
 fn original_trace_root_key_withdrawal_preserves_a_callback_reborn_cell_and_first_refusal() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=3 {
@@ -301,7 +299,6 @@ impl Drop for Observer {
 
 #[test]
 fn original_native_observer_removal_keeps_saved_cleanup_entered_through_actual_callback_drop() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=3 {
@@ -345,7 +342,6 @@ fn original_native_observer_removal_keeps_saved_cleanup_entered_through_actual_c
 
 #[test]
 fn original_trace_home_metadata_cannot_withdraw_a_reborn_binding_under_the_same_spelling() {
-    // naming.embedding.original-host-publication-and-fact-transport
 
     let mut interpreter = native("tcl9.1");
     assert_eq!(
