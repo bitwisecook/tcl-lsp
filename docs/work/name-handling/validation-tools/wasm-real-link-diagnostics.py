@@ -36,7 +36,7 @@ CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
 BASE = Path(__file__).resolve().parent
-ROSTER_SHA = "4b789948cc07e68476b6d814eeaa4bddaa76db518d3bc1da9bcb1a6097dae302"
+ROSTER_SHA = "e68cf010b7221c8c5839e6ffaf3ca7a3071c7af119df79b83d96c5d52e37ec59"
 
 
 def require(value, message):
@@ -154,6 +154,9 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             available >= seconds,
             "insufficient overall time for original full test/list budget",
         )
+    if prefix == "list-wasm_tiers" or prefix.startswith("wasm_tiers-"):
+        require(available >= seconds + 25,
+                "insufficient original absolute time for broad8 full budget and cleanup")
     seconds = min(seconds, available)
     return owner.run(
         argv,
@@ -168,6 +171,115 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
         disk_floor_bytes=FLOOR,
         disk_paths=(root, out, target, Path(os.environ["RUNNER_TEMP"])),
     )
+
+
+def run_broad_wasm8(messages, environment, budget):
+    global remaining
+    require(len(original_rows) == 25
+            and all(row["state"] in ["PASS", "FAIL"] for row in original_rows),
+            "original25 must close before separate broad8")
+    require(budget > 512 * 1024, "insufficient shared log cap before broad8")
+    selected = [message for message in messages
+                if message.get("reason") == "compiler-artifact"
+                and message.get("target", {}).get("name") == "wasm_tiers"
+                and message.get("target", {}).get("kind") == ["test"]
+                and message.get("manifest_path") == str(root / "rust/tcl-compiler/Cargo.toml")
+                and message.get("profile", {}).get("test") is True
+                and message.get("executable")]
+    require(len(selected) == 1 and selected[0].get("fresh") is False
+            and selected[0].get("profile", {}).get("debug_assertions") is True,
+            "fresh unique actual wasm_tiers artifact required")
+    executable = Path(selected[0]["executable"]).resolve()
+    require(executable.is_file() and executable.is_relative_to(target)
+            and all(str(executable) != artifact["path"] for artifact in artifacts),
+            "broad8 must own a distinct ELF inside the same fresh target")
+    with executable.open("rb") as stream:
+        require(stream.read(4) == b"\x7fELF", "broad8 selected artifact is not ELF")
+    artifact = {"target": "wasm_tiers", "path": str(executable),
+                "sha256": sha(executable), "cargo_event": selected[0],
+                "strict_Rust_0w": True, "admission": "separate broad8 compilation only"}
+    artifacts.append(artifact)
+    save(out / "selected-artifacts.json", artifacts)
+    require(files(dependency_roots) == dependencies_before and source() == before
+            and providers() == providers_before and files(list(tools.values())) == tool_pins,
+            "broad8 pre-runtime source/provider/tool/dependency drift")
+    require(deadline - time.time() >= 205,
+            "broad8 listing full180 plus25 cleanup reserve unavailable")
+    listed = execute([str(executable), "--list", "--format", "terse"],
+                     "list-wasm_tiers", executable, 180, environment, budget)
+    processes.append(listed)
+    budget -= listed["retained_bytes"]
+    remaining = budget
+    require(lifecycle(listed) and listed["exit_code"] == 0,
+            "broad8 listing lifecycle failed")
+    names = []
+    for line in (out / "list-wasm_tiers.stdout").read_text().splitlines():
+        if line.endswith(": test"):
+            names.append(line.removesuffix(": test"))
+        else:
+            require(not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
+                    "unexpected broad8 listing data")
+    require(len(names) == len(set(names)) == 8 and set(names) == set(broad_order),
+            "actual broad8 listing differs from approved exact8")
+    save(out / "roster-wasm_tiers.json", {"target": "wasm_tiers", "selected": names,
+         "listing_sha256": sha(out / "list-wasm_tiers.stdout"),
+         "executable_sha256": artifact["sha256"]})
+    require(deadline - time.time() >= 1225,
+            "full broad8 1200-second child plus25 cleanup reserve unavailable")
+    require(budget > 512 * 1024 and sha(executable) == artifact["sha256"],
+            "broad8 remaining shared cap or ELF guard failed")
+    require(runtime_identity is not None and runtime.is_file()
+            and sha(runtime) == runtime_identity["sha256"],
+            "original25 reserved runtime changed before broad8")
+    broad_summary.update(state="RUNNING", artifact=artifact,
+                         reserved_runtime_before=runtime_identity)
+    for row in broad_rows:
+        row["state"] = "RUNNING"
+    save(out / "broad-wasm8-outcomes.json", broad_rows)
+    receipt = execute([str(executable), "--nocapture", "--test-threads=1"],
+                      "wasm_tiers-all8", executable, 1200, environment, budget)
+    processes.append(receipt)
+    budget -= receipt["retained_bytes"]
+    remaining = budget
+    for row in broad_rows:
+        row.update(state="INCOMPLETE", receipt="wasm_tiers-all8.process.json",
+                   stdout="wasm_tiers-all8.stdout", stderr="wasm_tiers-all8.stderr",
+                   exit_code=receipt["exit_code"])
+    require(lifecycle(receipt), "broad8 owned lifecycle/capture stop")
+    aggregate = broad8_terminal((out / "wasm_tiers-all8.stdout").read_text(errors="replace"),
+                                receipt["exit_code"])
+    require(sha(executable) == artifact["sha256"] and runtime.is_file()
+            and sha(runtime) == runtime_identity["sha256"],
+            "broad8 ELF or original reserved runtime changed")
+    for row in broad_rows:
+        row["state"] = ("PASS" if aggregate["passed"] == 8 else "FAIL"
+                        if aggregate["failed"] == 8 else "UNRESOLVED_PASS_OR_FAIL")
+    broad_summary.update(state="PASS" if aggregate["failed"] == 0 else "FAIL",
+                         aggregate=aggregate, process=receipt,
+                         reserved_runtime_after=runtime_identity,
+                         individual_results=("ALL8_SAME" if aggregate["passed"] in [0, 8]
+                                             else "MIXED_IDENTITIES_UNOBSERVED"))
+    save(out / "broad-wasm8-outcomes.json", broad_rows)
+    save(out / "broad-wasm8-summary.json", broad_summary)
+    return budget
+
+
+def broad8_terminal(text, exit_code):
+    require(len(re.findall(r"^running 8 tests$", text, re.MULTILINE)) == 1,
+            "broad8 must run the full exact8 target")
+    found = re.findall(
+        r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; "
+        r"(\d+) measured; (\d+) filtered out;", text, re.MULTILINE)
+    require(len(found) == 1, "broad8 unique structured aggregate terminal required")
+    label, passed, failed, ignored, measured, filtered = found[0]
+    passed, failed = int(passed), int(failed)
+    require(passed + failed == 8 and ignored == measured == filtered == "0",
+            "broad8 ignored/filtered/incomplete target is not acceptance")
+    require((label == "ok" and passed == 8 and exit_code == 0)
+            or (label == "FAILED" and failed > 0 and exit_code == 101),
+            "broad8 terminal/code disagree")
+    return {"passed": passed, "failed": failed, "ignored": 0,
+            "measured": 0, "filtered": 0, "attempted": 8}
 
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -204,6 +316,12 @@ rows = [
     {"target": "wasm_real_link", "selector": name, "state": "UNRUN"} for name in order
 ]
 original_rows = rows
+broad_order = roster["wasm_tiers"]
+require(len(broad_order) == len(set(broad_order)) == 8, "approved broad WASM8 roster")
+broad_rows = [{"target": "wasm_tiers", "selector": name, "state": "UNRUN"}
+              for name in broad_order]
+broad_summary = {"state": "UNRUN", "required": 8, "child_budget_seconds": 1200,
+                 "cleanup_reserve_seconds": 25, "same_compile_invocation_required": True}
 reserved_target = root / "target/tcl_reserved_runtime"
 runtime = reserved_target / "wasm32-wasip1/debug/tcl_runtime.wasm"
 runtime_identity = None
@@ -217,6 +335,8 @@ error = None
 final_errors = []
 status = 2
 save(out / "outcomes.json", rows)
+save(out / "broad-wasm8-outcomes.json", broad_rows)
+save(out / "broad-wasm8-summary.json", broad_summary)
 try:
     executor = BASE / "runtime-diagnostics-exec.py"
     require(sha(executor) == EXECUTOR_SHA, "reviewed process owner changed")
@@ -433,6 +553,8 @@ try:
             package,
             "--test",
             target_name,
+            "--test",
+            "wasm_tiers",
             "--no-run",
             "--message-format=json",
             "-j",
@@ -637,7 +759,9 @@ try:
         "original25 test inventory incomplete",
     )
     require(runtime_identity is not None, "required real runtime was never produced")
-    status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    remaining = run_broad_wasm8(messages, env, remaining)
+    status = (0 if all(row["state"] == "PASS" for row in rows)
+              and broad_summary["state"] == "PASS" else 1)
 except (
     RuntimeError,
     OSError,
@@ -650,6 +774,15 @@ except (
     KeyboardInterrupt,
 ) as failure:
     error = repr(failure)
+    if broad_summary["state"] == "RUNNING":
+        broad_summary["state"] = "INCOMPLETE"
+        for row in broad_rows:
+            if row["state"] == "RUNNING":
+                row["state"] = "INCOMPLETE"
+    broad_summary["error"] = error
+    for row in broad_rows:
+        if row["state"] == "UNRUN":
+            row["unrun_reasons"] = [error]
     print("WASM25 DIAGNOSTIC STOP " + error, file=sys.stderr, flush=True)
 finally:
     seals = {}
@@ -690,6 +823,8 @@ finally:
     if not all(seals.values()):
         status = 2
     save(out / "outcomes.json", rows)
+    save(out / "broad-wasm8-outcomes.json", broad_rows)
+    save(out / "broad-wasm8-summary.json", broad_summary)
     save(
         out / "final.json",
         {
@@ -703,6 +838,9 @@ finally:
             "remaining_log_bytes": remaining,
             "outcomes": rows,
             "required_original_tests": 25,
+            "required_separate_broad_tests": 8,
+            "separate_broad_outcomes": broad_rows,
+            "separate_broad_summary": broad_summary,
             "original_tests_closed": sum(
                 row["state"] in ["PASS", "FAIL"] for row in original_rows
             ),

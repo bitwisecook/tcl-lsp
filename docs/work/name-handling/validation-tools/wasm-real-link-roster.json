@@ -72,7 +72,8 @@
     "rust/tcl-registry/src/native_scripted_distribution.rs": "c133b365882176043c4407e1f8ad6184afd983d6ef4fde89585c663648417fe0",
     "rust/tcl-registry/src/special_vars.rs": "fa947073fd7be9a58edd48eb8242253150669a1ac423469531a6c15efc696c41",
     "runtime/rust/src/expr_error.rs": "86c1eeff660d490e560bf6cefa827a19fd62a558ff47ff8e2a0493128f76e535",
-    "runtime/rust/src/expr_error/cold_state.rs": "f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1"
+    "runtime/rust/src/expr_error/cold_state.rs": "f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1",
+    "rust/tcl-compiler/tests/wasm_tiers.rs": "dbd5a840bab15ceb81c97eca12a398c393509d8219c0f3d33b66be65d5c47ee1"
   },
   "wasm_real_link": [
     "a_compiled_proc_body_runs_through_the_runtimes_function_table",
@@ -100,5 +101,23 @@
     "root_colon_publication_runs_its_own_compiled_table_entry",
     "sealed_native_i64_add_runs_and_trace_registration_falls_back",
     "the_runtime_exports_a_growable_indirect_function_table"
-  ]
+  ],
+  "wasm_tiers": [
+    "default_plan_samples_reproduce_the_tclsh_oracles",
+    "analysis_plan_samples_reproduce_the_tclsh_oracles",
+    "native_plan_samples_reproduce_the_tclsh_oracles",
+    "framing_budgets_match_the_committed_golden",
+    "the_expected_divergence_ledger_is_well_formed",
+    "a_failed_native_add_names_every_rejected_premise",
+    "the_real_link_gate_is_the_shared_one",
+    "native_integer_division_keeps_the_quotient_and_tcl_remainder"
+  ],
+  "broad_wasm_tiers_scope": {
+    "target": "wasm_tiers",
+    "count": 8,
+    "child_budget_seconds": 1200,
+    "cleanup_reserve_seconds": 25,
+    "transport": "Separate actualfreshintegrationELF from SAMEownedCargo compile as oldwasm_real_link25; whole8execute inoneprocess withtestthreads1. Existingoverall3600/shared20MiB/floor andoldbuild2400/old25each180 unchanged.",
+    "outcome_rule": "Exact8listing+closed8terminal/0ignored/0filtered. All8PASS only when aggregate8PASS0FAIL; mixedaggregate identifies noindividualPASS, preservesFAIL. No oracle/golden/assertion change."
+  }
 }
