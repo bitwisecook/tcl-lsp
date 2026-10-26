@@ -784,6 +784,94 @@ mod logical_may_dependency_tests {
         )
     }
 
+    fn assert_logical_dependencies_cannot_supply_native(
+        module: &Module,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) {
+        assert!(
+            crate::registry_invocation::admitted_native_compiler_invocation(registry, None, tokens)
+                .is_none()
+        );
+        assert!(
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                registry,
+                Some(
+                    super::super::InvocationMetadataContext::for_module(registry, module).unwrap()
+                ),
+                tokens
+            )
+            .is_none()
+        );
+    }
+
+    fn assert_logical_dependencies_refuse_source_facets(
+        module: &Module,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) {
+        for facet in 0..4 {
+            let mut changed = module.clone();
+            match facet {
+                0 => changed.retained_source_bindings = None,
+                1 => {
+                    changed.source = tcl_lexer::SourceImage::document("different complete source");
+                }
+                2 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
+                3 => {
+                    let input = module.source_metadata_input.as_ref().unwrap();
+                    let foreign = std::sync::Arc::new(
+                        input
+                            .borrowed_context_registry()
+                            .with_command_store(registry.snapshot().shared_registry()),
+                    );
+                    changed.source_metadata_input =
+                        Some(crate::analyser::ResolvedAnalysisInput::new(
+                            input.analyser_profile(),
+                            input.unit_profile(),
+                            foreign,
+                            input.lexer_config(),
+                        ));
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                original_logical_procedure_may_dependencies_for_module(tokens, &changed, registry)
+                    .is_none(),
+                "facet {facet}"
+            );
+        }
+    }
+
+    fn assert_logical_dependencies_refuse_target_facets(
+        module: &Module,
+        tokens: &CommandTokens,
+        target_id: crate::ir::ProcedureId,
+    ) {
+        for facet in 0..3 {
+            let mut changed = module.clone();
+            let target = changed
+                .procedures
+                .get_mut(&target_id)
+                .or_else(|| changed.body_units.get_mut(&target_id))
+                .unwrap();
+            match facet {
+                0 => target.body_kind = crate::ir::ProcedureBodyKind::Event,
+                1 => target.declaration_site = None,
+                2 => target.params_raw = "different".to_owned(),
+                _ => unreachable!(),
+            }
+            let dependencies = original_logical_procedure_may_dependencies_for_module(
+                tokens,
+                &changed,
+                changed.resolved_registry(),
+            )
+            .unwrap();
+            assert!(!dependencies.bodies.contains(&target_id), "facet {facet}");
+            assert!(dependencies.unknown_alternatives);
+        }
+    }
+
     #[test]
     fn logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership() {
         for head in ["target", "{target}", "\"target\""] {
@@ -810,23 +898,7 @@ mod logical_may_dependency_tests {
                     .unwrap();
             assert_eq!(dependencies.bodies, vec![target_id]);
             assert!(dependencies.unknown_alternatives);
-            assert!(
-                crate::registry_invocation::admitted_native_compiler_invocation(
-                    registry, None, &tokens
-                )
-                .is_none()
-            );
-            assert!(
-                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
-                    registry,
-                    Some(
-                        super::super::InvocationMetadataContext::for_module(registry, &module)
-                            .unwrap()
-                    ),
-                    &tokens
-                )
-                .is_none()
-            );
+            assert_logical_dependencies_cannot_supply_native(&module, &tokens, registry);
             let mut changed = tokens.clone();
             changed.argv_texts[0] = "other".to_owned();
             assert!(
@@ -846,40 +918,7 @@ mod logical_may_dependency_tests {
                 original_logical_procedure_may_dependencies_for_module(&tokens, &missing, registry)
                     .is_none()
             );
-            for facet in 0..4 {
-                let mut changed = module.clone();
-                match facet {
-                    0 => changed.retained_source_bindings = None,
-                    1 => {
-                        changed.source =
-                            tcl_lexer::SourceImage::document("different complete source");
-                    }
-                    2 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
-                    3 => {
-                        let input = module.source_metadata_input.as_ref().unwrap();
-                        let foreign = std::sync::Arc::new(
-                            input
-                                .borrowed_context_registry()
-                                .with_command_store(registry.snapshot().shared_registry()),
-                        );
-                        changed.source_metadata_input =
-                            Some(crate::analyser::ResolvedAnalysisInput::new(
-                                input.analyser_profile(),
-                                input.unit_profile(),
-                                foreign,
-                                input.lexer_config(),
-                            ));
-                    }
-                    _ => unreachable!(),
-                }
-                assert!(
-                    original_logical_procedure_may_dependencies_for_module(
-                        &tokens, &changed, registry
-                    )
-                    .is_none(),
-                    "facet {facet}"
-                );
-            }
+            assert_logical_dependencies_refuse_source_facets(&module, &tokens, registry);
             let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
             let (_owner, native) =
                 crate::environment_ingress::captured_native_entry_with_owner(profile);
@@ -923,28 +962,7 @@ mod logical_may_dependency_tests {
             .unwrap();
             assert_eq!(dependencies.bodies, vec![target_id]);
             assert!(dependencies.unknown_alternatives);
-            for facet in 0..3 {
-                let mut changed = module.clone();
-                let target = changed
-                    .procedures
-                    .get_mut(&target_id)
-                    .or_else(|| changed.body_units.get_mut(&target_id))
-                    .unwrap();
-                match facet {
-                    0 => target.body_kind = crate::ir::ProcedureBodyKind::Event,
-                    1 => target.declaration_site = None,
-                    2 => target.params_raw = "different".to_owned(),
-                    _ => unreachable!(),
-                }
-                let dependencies = original_logical_procedure_may_dependencies_for_module(
-                    &tokens,
-                    &changed,
-                    changed.resolved_registry(),
-                )
-                .unwrap();
-                assert!(!dependencies.bodies.contains(&target_id), "facet {facet}");
-                assert!(dependencies.unknown_alternatives);
-            }
+            assert_logical_dependencies_refuse_target_facets(&module, &tokens, target_id);
         }
     }
 

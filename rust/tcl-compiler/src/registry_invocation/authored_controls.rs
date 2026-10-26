@@ -613,6 +613,94 @@ mod tests {
         assert_eq!(read.version(), Some(definitions[1].version()));
     }
 
+    fn assert_selected_authored_projection_is_not_native(
+        bindings: &crate::command_binding::SourceCommandBindings,
+        selected: &crate::ir::CommandTokens,
+        scope: &crate::registry_invocation::OriginalAuthoredSourceBodyScope,
+        registry: &CommandRegistry,
+    ) {
+        let selected_binding = selected.source_binding.as_ref().unwrap();
+        assert!(selected_binding.has_original_source_layout_owner());
+        assert!(
+            selected_binding
+                .original_authored_declaration_scalar_layout(selected, registry)
+                .is_some()
+        );
+        assert!(selected_binding.proved_execution_target().is_none());
+        assert!(selected_binding.execution_is_unknown());
+        assert!(
+            super::super::normal_representation_invocation_with_metadata_context(
+                registry, None, selected
+            )
+            .is_none()
+        );
+        assert!(
+            super::super::admitted_native_compiler_invocation(registry, None, selected).is_none()
+        );
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(selected, scope, registry)
+                .is_none()
+        );
+    }
+
+    fn assert_authored_scalar_projection_refuses_restamped_and_foreign_rows(
+        bindings: &crate::command_binding::SourceCommandBindings,
+        raw: &crate::ir::CommandTokens,
+        scope: &crate::registry_invocation::OriginalAuthoredSourceBodyScope,
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+    ) {
+        let mut ordinary = (*raw).clone();
+        bindings.stamp_original_tokens(&mut ordinary);
+        assert!(
+            ordinary
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .has_original_source_layout_owner()
+        );
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&ordinary, scope, registry)
+                .is_none()
+        );
+        let mut changed = (*raw).clone();
+        changed.argv_texts[0].push('_');
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&changed, scope, registry)
+                .is_none()
+        );
+        let (&other, _) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == "b")
+            .unwrap();
+        let other = &module.body_units[&other];
+        let other_tokens = other
+            .body
+            .retained_source_tokens_for_statement(&other.body.statements[0])
+            .unwrap();
+        let other_scope = other_tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_authored_scalar_body_scope(other_tokens, registry)
+            .unwrap();
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(raw, other_scope, registry)
+                .is_none()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(raw, scope, foreign.commands())
+                .is_none()
+        );
+    }
+
     #[test]
     fn authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points() {
         let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
@@ -695,76 +783,9 @@ mod tests {
         let selected = bindings
             .original_authored_declaration_source_tokens(&raw, scope, registry)
             .expect("genuine source-only declaration row");
-        let selected_binding = selected.source_binding.as_ref().unwrap();
-        assert!(selected_binding.has_original_source_layout_owner());
-        assert!(
-            selected_binding
-                .original_authored_declaration_scalar_layout(&selected, registry)
-                .is_some()
-        );
-        assert!(selected_binding.proved_execution_target().is_none());
-        assert!(selected_binding.execution_is_unknown());
-        assert!(
-            super::super::normal_representation_invocation_with_metadata_context(
-                registry, None, &selected
-            )
-            .is_none()
-        );
-        assert!(
-            super::super::admitted_native_compiler_invocation(registry, None, &selected).is_none()
-        );
-        assert!(
-            bindings
-                .original_authored_declaration_source_tokens(&selected, scope, registry)
-                .is_none()
-        );
-        let mut ordinary = raw.clone();
-        bindings.stamp_original_tokens(&mut ordinary);
-        assert!(
-            ordinary
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .has_original_source_layout_owner()
-        );
-        assert!(
-            bindings
-                .original_authored_declaration_source_tokens(&ordinary, scope, registry)
-                .is_none()
-        );
-        let mut changed = raw.clone();
-        changed.argv_texts[0].push('_');
-        assert!(
-            bindings
-                .original_authored_declaration_source_tokens(&changed, scope, registry)
-                .is_none()
-        );
-        let (&other, _) = module
-            .original_authored_declaration_body_units
-            .iter()
-            .find(|(_, card)| card.name() == "b")
-            .unwrap();
-        let other = &module.body_units[&other];
-        let other_tokens = other
-            .body
-            .retained_source_tokens_for_statement(&other.body.statements[0])
-            .unwrap();
-        let other_scope = other_tokens
-            .source_binding
-            .as_ref()
-            .unwrap()
-            .original_authored_scalar_body_scope(other_tokens, registry)
-            .unwrap();
-        assert!(
-            bindings
-                .original_authored_declaration_source_tokens(&raw, other_scope, registry)
-                .is_none()
-        );
-        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
-        assert!(
-            bindings
-                .original_authored_declaration_source_tokens(&raw, scope, foreign.commands())
-                .is_none()
+        assert_selected_authored_projection_is_not_native(bindings, &selected, scope, registry);
+        assert_authored_scalar_projection_refuses_restamped_and_foreign_rows(
+            bindings, &raw, scope, module, registry,
         );
     }
 
