@@ -2266,6 +2266,12 @@ jobs:
               tool_bin = Path(os.environ["RUNNER_TEMP"]) / "prep-pr-tool-bin"
               child_env["UV_INSTALL_DIR"] = str(tool_bin)
               child_env["UV_NO_MODIFY_PATH"] = "1"
+              tool_state = Path(os.environ["RUNNER_TEMP"]) / "prep-pr-tool-state"
+              child_env["UV_TOOL_DIR"] = str(tool_state / "tools")
+              child_env["UV_TOOL_BIN_DIR"] = str(tool_bin)
+              child_env["UV_CACHE_DIR"] = str(tool_state / "cache")
+              child_env["UV_PYTHON_INSTALL_DIR"] = str(tool_state / "python")
+              child_env["UV_PYTHON_BIN_DIR"] = str(tool_bin)
               child_env["PATH"] = str(tool_bin) + ":" + str(Path.home() / ".cargo/bin") + ":" + str(Path.home() / ".local/bin") + ":" + child_env.get("PATH", "")
 
               metadata_counter = 0
@@ -2349,6 +2355,12 @@ jobs:
                   if tool_bin.is_symlink() or tool_bin.stat().st_uid != os.getuid():
                       raise RuntimeError("tool_bindir_not_owned")
                   result["tool_bindir"] = str(tool_bin)
+                  tool_state.mkdir(mode=0o700)
+                  if tool_state.is_symlink() or tool_state.stat().st_uid != os.getuid():
+                      raise RuntimeError("tool_state_not_owned")
+                  for name in ("tools", "cache", "python"):
+                      (tool_state / name).mkdir(mode=0o700)
+                  result["tool_state"] = str(tool_state)
                   initial = snapshot("initial")
                   if initial["head"] != expected or initial["status"]:
                       raise RuntimeError("candidate_identity_or_dirty_initial_tree")
