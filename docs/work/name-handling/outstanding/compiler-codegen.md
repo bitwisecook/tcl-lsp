@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T01:45:03.146720+00:00
+Last updated: 2026-10-26T02:19:19.914027+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
@@ -723,3 +723,6 @@ Final5bc7 union independently STATIC DEEP CLEAR cfb4eb3af4b9e94e517ff03dfd2e4bab
 
 
 2026-10-26T01:45:03.146720+00:00 — Current coherent source3cb48b24802fff1892dbceba4216a5008ae8d69b is pushed after final2225 union323ebdf7 and canonicalV13 PASS13/30/20. Sole current captures: strict40255124007/job121355217645 and WASM40255123549/job121355212218, both active at lastAPI; no new outcomes claimed. They include backendsemicolon, VM6 eligibility/counter witness, exactexistingflag guestforwarding and AOT5 prior-CFI admission correction. Last closed strictb804 FULLAUTHf8bf439e:1Clippy backendsemicolon/0RustE; corrected current source, retrypending. Last closed WASMb868 FULLAUTH93103e5a:22P3F, retainedADDselected/prints6/counter!=1, originalallocation/depth failures unchanged. Allocation and NativeAPI userchoices remain pending. Historicalff56 exactbaseline24624 partialjoin:6899PASS/1467FAIL/14492unobservedterminal/1766notinavailablecurrentselection; actualcause text1284/1467 and183boundedprefix-only. These historicalcounts are not latestcurrentPTF/acceptance. No healthy historicalCI cancelled.
+
+
+2026-10-26T02:19:19.914027+00:00 — Latest closed3cb48 actualcaptures FULLAUTH: stricta9dbee0a (24checks:1LSP102-lineClippy+1compiler-libtest E0433), WASMa66617bf (348checks:22P3F). ADDactualcandidate-request/publication-attached/entered-candidate then expression-operandsNone, so no inferred recompile loss. Runtime paired actualnameSpan-mapkey correction97a271 independently clearbffab942; originalcounter1/5controls unchanged. Root pathfixe433 independently clear9ae2e1ea; scaninit5144 clear0bd867df. Finalbcbf sourcepinunion78286a51 independently clear42333f1a: all23/17maps258records195sources,15files16topupdates+nestedChild10, prospectiveV13PASS13/30/20; root owns actualapply/push/nextdispatch. New full-CLEAN CI40255885424 e42 has actual compiler_inventory.rs183 undefinedoffset +195unusedoffset in server/shard/Python/nativebuild logs, beforetests; corrected CLEANcarry is reviewed currentcohort, not retroactiveCI success. No hugeCIartifacts downloaded; oldff56 evidence and currentcapturedZIPs retained. Pending allocation/NativeAPI userchoices remain unassumed.

@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-26T02:45:59.648232+00:00",
+  "scheduled_report_utc": "2026-10-26T02:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-26T03:15:00+00:00",
+  "change_since_previous_report": [
+    "Currentreviewedfreeze P6bcd4e3abac391c36e0d4cb93b96d742273e7299/Cf9c949e719449dcbdf65ae78530a2c861c538bdc contains2publicSourceReturnRustdoccomments(db4b), narrowlyC-oraclecorrectedNEWduplicateformalnegativefixture+5thselector(7fd9), andWORK-onlypassiveminifyfirstguard/BODYonlynewtestenv(9e00/de33). Final6bcdsourcepinunion b768/Compilerpeeraa7c applying; canonicalV13/pushfollowafterapply. No NativeStringintegration.",
+    "03strictFULLAUTHfa071843 2missing_docs errors atregistry_invocation.rs1067/1072; no behavioraltestPASSinferred. 03WASMFULLAUTH77e906ba all25UNRUN becausesame2missing_docs, exactCargo+source/provider/deps/tools/processclosed; noELF/runtimeartifactseals fabricated. 03compiler119FULLAUTHc6475411/native45502fbe all119UNRUN aftersamecompilerbuilddenial; latestactualsemanticresultsremainb80498/4+Child8/2+MinifyFAIL.",
+    "LSP03startupsoleZIPconfirmsselectedserverfreshbuildfails2missing_docs; Core2 freshlibtestbuildfailobserved andrawcargocause pendingartifactauth. No Return3/scan3/hostruntimeoutcomesfrombuildfailure. B868Core2retryactualold2/StringExpr/Quiet1PASS,factorialstillFAILexactn-space-minus1 vsoldexpectedn-minus1; fullauthunderway. CheckedrestorationfactoryV4hasnotcloseddebt; nextpassivefirstguardtracewillmeasureleaf, notchangeassertions.",
+    "NativeStringV1 semantic/typeHOLD:3privateCopy-to-Clone sites missed, DirectfixtureGenericdoesnotexerciseInline-onlyissuer. RuntimefixingV2withdistinctauditednormalstring-appendproducerdescriptor, no NativeResult/Normalmanufacture/profilewhitelist/Stringretag. StrongSourceProcowner/effectsreviewrequired, sourceandnewcontrolsUNRUN.",
+    "CompilerNativeformal/localdraft held pendingactualrequest/entry/fullbody/scopedissuer/effectproof. SourceProc caughtliveness-dependentEq/Hash viaordinary_formals; fixedtodraftimmutabletargetparameters, use-timelivenesskeptseparate. SourceAnalysis metadata/SourceExecutionContext notfabricated; admissiondoesnotclearunknownNormal/effects. Futureprivatereceiptnotcanonical.",
+    "Namesissued-useforeign/stalecoverage70088155 clearedbdbcwithmatchedcurrent/equalforeign/newlinepositive-seedsandactualSSANameUseunknown-source negative, originalfixtures/asserts+productionguardsunchanged; NEXTnotintegrated. Furthermaterialized/region/controltail/alias/sourcejoinlongtestcohortsunderpeer; no sourcepincompetition/actualwarningclosureclaims.",
+    "Diskdeclinedto~2.156GBwithboundedartifactcopies. Rootreclaimed391,583,025Bfrom492>24h nonexecsinglelinkrmeta files inFROZENoldActive target ONLY; pgrep-xcargo/rustcactualstatesZbeforeEACHunlink, allsource/evidence/ZIP/testexe preserved, oldcachewouldneedrebuildifreused. Receipt19e47c0a, free2.548GBafterrecovery (~2.47now). RootalsoONEgzip-archived12.7MBclosedCompilerJSONinode555204with24hardlinks afterownerapproval; SHA/roundtrip/all24restoremanifest/helper preserved, physicalrecovered11,223,040B\u2014not24times.",
+    "All03focusedjobsandnewfullCLEANe42buildfailuresretainUNRUN labels; no latestbaselinezeroPASS-to-FAIL/perfacceptanceinferred. FullCLEANnativegroup run40255885424 separatefromoldordinary preserveshealthyjobs. Newsourcebehavior/strict/currentCLEANtypingstillneedsactualexecution. NativecharacterAPI/allocationuserchoicesunanswered/held. ExternalBIGIP/perfstale notified/no takeover,triagecomplete; sectionF/auditboxes unchanged."
+  ],
+  "committed": [
+    "e8db3e11439cf447598a02988af0fe81ba74e75d"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "FinishcanonicalV13/normalpushboth/newactualbuild+behaviorretriesafter2docfix; publish02:45reportwithoutretroactivePASSclaims.",
+    "CompleteNativeactualrequestformal/local/effectandnormalStringproducerproofs, minifyfactoryfirstguardandReturnhostcontrols; preservealloldguards/positiveassertions.",
+    "ClosecurrentcompletebaselinezeroPASS-to-FAIL/shippingTclperformance/sectionF/zerowarnings/generated/docs/fixtures/package/prep-prbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "NoPR/auditadmissions. BuilddenialsmeanUNRUN. Oracle-backedNEWfixturecorrectionretainsallruntimeassertionsandrequiresfreshbuild; semanticNativeStringdraftheld. Six-hourtargetmissed.",
+  "disk_free_bytes": 2472869888,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
