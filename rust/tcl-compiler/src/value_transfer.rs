@@ -8874,6 +8874,33 @@ mod tests {
 
     use super::*;
 
+    fn original_cfg_throw_arguments() -> [InvocationWord<'static>; 2] {
+        [
+            InvocationWord::Literal("CODE"),
+            InvocationWord::Literal("MESSAGE"),
+        ]
+    }
+
+    fn original_cfg_string_arguments() -> [InvocationWord<'static>; 2] {
+        [
+            InvocationWord::Literal("length"),
+            InvocationWord::Literal("abc"),
+        ]
+    }
+
+    fn original_alias_dictionary_binders() -> Option<Vec<DictBinder>> {
+        Some(vec![
+            DictBinder::Key {
+                name: "$output".to_owned(),
+                value: "ONE".to_owned(),
+            },
+            DictBinder::Key {
+                name: "é(".to_owned(),
+                value: "TWO".to_owned(),
+            },
+        ])
+    }
+
     #[test]
     fn lattice_driver_retains_actual_cfg_availability_and_source_grammar() {
         // naming.compiler.original-analysis-metadata-context
@@ -8917,14 +8944,8 @@ mod tests {
                 &HashSet::new(),
             )
         };
-        let throw_arguments = [
-            InvocationWord::Literal("CODE"),
-            InvocationWord::Literal("MESSAGE"),
-        ];
-        let string_arguments = [
-            InvocationWord::Literal("length"),
-            InvocationWord::Literal("abc"),
-        ];
+        let throw_arguments = original_cfg_throw_arguments();
+        let string_arguments = original_cfg_string_arguments();
         let owner = Owner::for_source_input(Some(&input));
         let entry_driver = driver(Some(&input));
         assert!(!entry_driver.context.grammar.expand_syntax);
@@ -9314,16 +9335,7 @@ mod tests {
         );
         assert_eq!(
             dict_body_with_metadata_context(registry, metadata, tokens, "$output ONE é( TWO"),
-            Some(vec![
-                DictBinder::Key {
-                    name: "$output".to_owned(),
-                    value: "ONE".to_owned()
-                },
-                DictBinder::Key {
-                    name: "é(".to_owned(),
-                    value: "TWO".to_owned()
-                },
-            ])
+            original_alias_dictionary_binders()
         );
         let older_context = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
