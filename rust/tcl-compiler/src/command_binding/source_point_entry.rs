@@ -984,6 +984,18 @@ mod tests {
         );
     }
 
+    fn assert_bypass_has_no_source_input(bypass: &crate::analyser::AnalysisResult) {
+        assert!(
+            bypass
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref()
+                .source_metadata_owner()
+                .source_analysis_input()
+                .is_none()
+        );
+    }
+
     #[test]
     fn inherited_ingress_reapplies_and_revalidates_actual_parent_source_settings() {
         let source = "source child.tcl";
@@ -1080,15 +1092,7 @@ mod tests {
             .with_source_analysis_entry(Arc::new(entry))
             .analyse("", "tcl8.6");
         assert!(!point.matches_child_analysis(&bypass));
-        assert!(
-            bypass
-                .retained_command_realm()
-                .unwrap()
-                .source_bindings_ref()
-                .source_metadata_owner()
-                .source_analysis_input()
-                .is_none()
-        );
+        assert_bypass_has_no_source_input(&bypass);
         let foreign = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         assert!(!point.configure_analyser(&foreign, &mut configured));
     }

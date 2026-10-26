@@ -815,6 +815,26 @@ mod controls {
         }
     }
 
+    fn assert_region_has_no_native_completion(
+        actual: &crate::command_binding::SourceCommandBindings,
+    ) {
+        assert!(
+            actual
+                .conditional_source
+                .root_outcomes
+                .as_ref()
+                .unwrap()
+                .native_normal_completion
+                .is_none()
+        );
+        assert!(actual.final_state.baseline.native_entry.is_none());
+        assert_eq!(
+            actual.final_state.baseline.native_compilation,
+            tcl_registry::native_compilation::NativeCompilationContext::default()
+        );
+        assert!(actual.original_completed_command_world().is_none());
+    }
+
     #[test]
     fn suffix_view_reuses_the_same_kernel_and_refuses_whole_document_or_foreign_parent() {
         let source = "source first.tcl; set after ONE; source second.tcl";
@@ -884,21 +904,7 @@ mod controls {
                 )
                 .is_none()
         );
-        assert!(
-            actual
-                .conditional_source
-                .root_outcomes
-                .as_ref()
-                .unwrap()
-                .native_normal_completion
-                .is_none()
-        );
-        assert!(actual.final_state.baseline.native_entry.is_none());
-        assert_eq!(
-            actual.final_state.baseline.native_compilation,
-            tcl_registry::native_compilation::NativeCompilationContext::default()
-        );
-        assert!(actual.original_completed_command_world().is_none());
+        assert_region_has_no_native_completion(actual);
         assert!(actual.projection_at_source("set", 0).unknown);
         assert!(!region.owns_original_command_at(&view, 0));
         assert!(region.owns_original_command_at(
