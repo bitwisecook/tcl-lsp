@@ -35,7 +35,7 @@
   ],
   "source_pins": {
     "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "c2c865b13092f54623843bc08984458eb4825e52f350a327bda508ed11dd3f03",
-    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "9ba965233c04a1eb696deadbcda1e772ef6b8e70bcf4db4775cd9c99cac0cc50",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "b405dbbad11aae0679cc9b106010341cf795243f182c3c0e87294a0f725ab7d0",
     "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "0e269cc58bfcd2c26696ff4eac8b116f8165b432e398dd1d38289ab69040395f",
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",

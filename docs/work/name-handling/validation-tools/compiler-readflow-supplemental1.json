@@ -16,7 +16,7 @@
     "command_binding::generated_procedures::original_native_body_tests::original_read_card_requires_its_actual_vector_origin_and_snapshot"
   ],
   "source_pins": {
-    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "1ea560e6c287771e7cb9f8a314da00d2a1c42a48f9930e21cc9fcc5d18c276fc"
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "6b5ab199812fa09fc4642ab014fb538b057e075cfb9230defc4371f9c437b7b2"
   },
   "target": "tcl_compiler"
 }
