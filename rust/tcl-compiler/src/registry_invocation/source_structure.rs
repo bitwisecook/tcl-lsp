@@ -132,6 +132,20 @@ pub fn original_single_source_command_substitution_in_plan(
     )
 }
 
+/// Reuse only immutable document geometry; every caller still performs its
+/// original complete input/owner/currentness checks at the original position.
+/// A missing or mismatched retained image takes the original construction path.
+fn original_query_document_image(
+    source: &str,
+    analysis: &AnalysisResult,
+    config: tcl_lexer::LexerConfig,
+) -> tcl_lexer::SourceImage {
+    analysis
+        .retained_command_realm()
+        .and_then(|realm| retained_document_image(source, realm, config))
+        .unwrap_or_else(|| tcl_lexer::SourceImage::document(source))
+}
+
 fn retained_document_image(
     source: &str,
     realm: &crate::realm::CommandBindingRealm,
@@ -2503,7 +2517,7 @@ pub fn source_registry_words_at(
         return None;
     }
     let config = trace_remote_source_option("at.config", Some(offset), analysis.body_lexer_config)?;
-    let image = tcl_lexer::SourceImage::document(source);
+    let image = original_query_document_image(source, analysis, config);
     trace_remote_source_flag(
         "at.image_config",
         Some(offset),
@@ -3109,7 +3123,7 @@ fn registered_original_words_at<'a>(
         return None;
     }
     let config = analysis.body_lexer_config?;
-    let image = tcl_lexer::SourceImage::document(source);
+    let image = original_query_document_image(source, analysis, config);
     analysis
         .matches_original_source_image(&image, config)
         .then_some(())?;
@@ -7580,4 +7594,116 @@ pub(crate) fn source_authored_jim_procedure_members_at(
 ) -> Option<Vec<crate::command_binding::OriginalAuthoredJimProcedureMember>> {
     let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
     realm.original_authored_jim_procedure_members(input, &native)
+}
+
+#[cfg(test)]
+mod original_query_document_image_tests {
+    use super::{
+        original_query_document_image, registered_original_words_at, source_registry_words_at,
+    };
+    use crate::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+    use std::sync::Arc;
+    use tcl_lexer::{SourceChannel, SourceImage};
+
+    fn analysed(source: &str) -> AnalysisResult {
+        Analyser::new().analyse(source, "tcl8.6")
+    }
+
+    #[test]
+    fn original_queries_reborrow_same_retained_document_geometry() {
+        let source = "list literal\n";
+        let analysis = analysed(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let retained = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        let image = original_query_document_image(source, &analysis, config);
+        assert!(Arc::ptr_eq(&image.shared_bytes(), &retained.shared_bytes()));
+        assert_eq!(image, SourceImage::document(source));
+        assert_eq!(
+            source_registry_words_at(source, &analysis, 0)
+                .unwrap()
+                .command(),
+            "list"
+        );
+        let (_, _, words) = registered_original_words_at(source, &analysis, 0).unwrap();
+        assert_eq!(words.len(), 2);
+        assert!(words.iter().all(|word| word.image() == retained));
+        let other = analysed(source);
+        let other_image = original_query_document_image(source, &other, config);
+        let own = other
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        assert!(Arc::ptr_eq(
+            &other_image.shared_bytes(),
+            &own.shared_bytes()
+        ));
+        assert!(source_registry_words_at(source, &other, 0).is_some());
+    }
+
+    #[test]
+    fn original_query_geometry_fallback_preserves_stale_and_missing_refusal() {
+        let source = "list literal\n";
+        let analysis = analysed(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let retained = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        let changed = "list another\n";
+        let fallback = original_query_document_image(changed, &analysis, config);
+        assert_eq!(fallback, SourceImage::document(changed));
+        assert!(!Arc::ptr_eq(
+            &fallback.shared_bytes(),
+            &retained.shared_bytes()
+        ));
+        assert!(source_registry_words_at(changed, &analysis, 0).is_none());
+        assert!(registered_original_words_at(changed, &analysis, 0).is_none());
+        let missing = AnalysisResult::default();
+        assert_eq!(
+            original_query_document_image(source, &missing, config),
+            SourceImage::document(source)
+        );
+        assert!(source_registry_words_at(source, &missing, 0).is_none());
+        assert!(registered_original_words_at(source, &missing, 0).is_none());
+        assert!(
+            super::matching_document_image(source, &SourceImage::native(source.as_bytes()))
+                .is_none()
+        );
+        assert_eq!(fallback.channel(), SourceChannel::Document);
+    }
+
+    #[test]
+    fn original_query_geometry_keeps_full_configuration_and_registry_guards() {
+        let source = "list literal\n";
+        let analysis = analysed(source);
+        assert!(source_registry_words_at(source, &analysis, 0).is_some());
+        assert!(registered_original_words_at(source, &analysis, 0).is_some());
+        let original = analysis.resolved_input.as_ref().unwrap();
+        let mut config = original.lexer_config();
+        config.leading_bom = match config.leading_bom {
+            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+        };
+        let mut changed = analysis.clone();
+        changed.body_lexer_config = Some(config);
+        assert!(source_registry_words_at(source, &changed, 0).is_none());
+        assert!(registered_original_words_at(source, &changed, 0).is_none());
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").default_context_registry();
+        changed = analysis.clone();
+        changed.resolved_input = Some(ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            foreign,
+            original.lexer_config(),
+        ));
+        assert!(source_registry_words_at(source, &changed, 0).is_none());
+        assert!(registered_original_words_at(source, &changed, 0).is_none());
+    }
 }
