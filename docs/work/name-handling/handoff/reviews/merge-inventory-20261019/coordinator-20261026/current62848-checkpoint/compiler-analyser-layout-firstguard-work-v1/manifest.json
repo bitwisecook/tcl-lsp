@@ -1,0 +1,12 @@
+{
+  "base": "5cbd8be4b3e47a8a4c710a63c3052c740aea4ef9",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "cf9d686307b909e2408b344b3ea1204788bdbe80f4dbf598a693d96cb30f80c4",
+      "after_sha256": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103"
+    }
+  ],
+  "patch_sha256": "2ed8abf594eb62ae32b28ae7dccd44a71f5f9c25373a76da04dd26c33ebc094e",
+  "scope": "WORK-only existing Jim owner flag/quota firstguard scalar observations, same queries/shortcircuit/order exactlyonce. Borrowed argument-loop extraction only for bodylength. No source/Native/Normal/metadata equality admission. Old tests byteexact; actual new labels UNRUN."
+}

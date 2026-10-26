@@ -1,0 +1,1489 @@
+{
+  "source": "62848aa76f07cf91372e1f75340160d2f66e593f",
+  "raw_primary_count": 165,
+  "unique_primary_count": 161,
+  "lint_counts": {
+    "empty_line_after_doc_comments": 4,
+    "double_parens": 1,
+    "unusual_byte_groupings": 1,
+    "collapsible_if": 2,
+    "type_complexity": 28,
+    "too_many_arguments": 14,
+    "question_mark": 3,
+    "unnecessary_lazy_evaluations": 1,
+    "useless_conversion": 38,
+    "needless_borrows_for_generic_args": 8,
+    "clone_on_copy": 8,
+    "needless_range_loop": 2,
+    "incompatible_msrv": 7,
+    "result_large_err": 1,
+    "redundant_closure": 2,
+    "redundant_closure_call": 3,
+    "needless_return": 2,
+    "manual_inspect": 7,
+    "needless_borrow": 1,
+    "collapsible_match": 1,
+    "unnecessary_unwrap": 1,
+    "filter_map_bool_then": 1,
+    "field_reassign_with_default": 3,
+    "if_same_then_else": 1,
+    "err_expect": 16,
+    "needless_option_as_deref": 1,
+    "cloned_ref_to_slice_refs": 1,
+    "vec_box": 1,
+    "manual_range_patterns": 1,
+    "missing_const_for_thread_local": 1
+  },
+  "Rust_errors": [],
+  "rows": [
+    {
+      "severity": "error",
+      "message": "empty line after doc comment",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 7894,
+      "column": 5,
+      "lint": "empty_line_after_doc_comments"
+    },
+    {
+      "severity": "error",
+      "message": "empty lines after doc comment",
+      "raw_path": "src/cmd_string.rs",
+      "path": "runtime/rust/src/cmd_string.rs",
+      "line": 893,
+      "column": 1,
+      "lint": "empty_line_after_doc_comments"
+    },
+    {
+      "severity": "error",
+      "message": "unnecessary parentheses",
+      "raw_path": "src/interp/native_body_artifact/native_control.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "line": 413,
+      "column": 29,
+      "lint": "double_parens"
+    },
+    {
+      "severity": "error",
+      "message": "empty line after doc comment",
+      "raw_path": "src/interp/native_variable_names.rs",
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "line": 949,
+      "column": 5,
+      "lint": "empty_line_after_doc_comments"
+    },
+    {
+      "severity": "error",
+      "message": "digits of hex, binary or octal literal not in groups of equal size",
+      "raw_path": "src/capi/scalar/tests.rs",
+      "path": "runtime/rust/src/capi/scalar/tests.rs",
+      "line": 141,
+      "column": 26,
+      "lint": "unusual_byte_groupings"
+    },
+    {
+      "severity": "error",
+      "message": "empty lines after doc comment",
+      "raw_path": "src/interp/native_error_headers.rs",
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "line": 471,
+      "column": 5,
+      "lint": "empty_line_after_doc_comments"
+    },
+    {
+      "severity": "error",
+      "message": "this `if` statement can be collapsed",
+      "raw_path": "src/cmd_alias.rs",
+      "path": "runtime/rust/src/cmd_alias.rs",
+      "line": 1338,
+      "column": 5,
+      "lint": "collapsible_if"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_control.rs",
+      "path": "runtime/rust/src/cmd_control.rs",
+      "line": 806,
+      "column": 6,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (9/7)",
+      "raw_path": "src/cmd_control.rs",
+      "path": "runtime/rust/src/cmd_control.rs",
+      "line": 836,
+      "column": 1,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (10/7)",
+      "raw_path": "src/cmd_control.rs",
+      "path": "runtime/rust/src/cmd_control.rs",
+      "line": 929,
+      "column": 1,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "this `match` expression can be replaced with `?`",
+      "raw_path": "src/cmd_error.rs",
+      "path": "runtime/rust/src/cmd_error.rs",
+      "line": 513,
+      "column": 28,
+      "lint": "question_mark"
+    },
+    {
+      "severity": "error",
+      "message": "unnecessary closure used to substitute value for `Option::None`",
+      "raw_path": "src/native_source.rs",
+      "path": "runtime/rust/src/native_source.rs",
+      "line": 389,
+      "column": 5,
+      "lint": "unnecessary_lazy_evaluations"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/return_options.rs",
+      "path": "runtime/rust/src/return_options.rs",
+      "line": 188,
+      "column": 31,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/return_options.rs",
+      "path": "runtime/rust/src/return_options.rs",
+      "line": 358,
+      "column": 56,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_namespace.rs",
+      "path": "runtime/rust/src/cmd_namespace.rs",
+      "line": 994,
+      "column": 58,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_namespace.rs",
+      "path": "runtime/rust/src/cmd_namespace.rs",
+      "line": 1247,
+      "column": 60,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_namespace.rs",
+      "path": "runtime/rust/src/cmd_namespace.rs",
+      "line": 1464,
+      "column": 54,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_oo/native_context.rs",
+      "path": "runtime/rust/src/cmd_oo/native_context.rs",
+      "line": 168,
+      "column": 12,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_oo/native_context.rs",
+      "path": "runtime/rust/src/cmd_oo/native_context.rs",
+      "line": 652,
+      "column": 20,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_oo/native_context.rs",
+      "path": "runtime/rust/src/cmd_oo/native_context.rs",
+      "line": 1852,
+      "column": 16,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/cmd_oo/native_method_cache.rs",
+      "path": "runtime/rust/src/cmd_oo/native_method_cache.rs",
+      "line": 643,
+      "column": 91,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 490,
+      "column": 46,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 1277,
+      "column": 48,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 4173,
+      "column": 12,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 4184,
+      "column": 12,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 4840,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 4856,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 5590,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 5606,
+      "column": 63,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 6773,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 7072,
+      "column": 72,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo.rs",
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "line": 7096,
+      "column": 64,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo/native_properties.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "line": 1309,
+      "column": 54,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/cmd_oo/native_properties.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "line": 1326,
+      "column": 58,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "the loop variable `index` is used to index `argv`",
+      "raw_path": "src/cmd_var.rs",
+      "path": "runtime/rust/src/cmd_var.rs",
+      "line": 161,
+      "column": 22,
+      "lint": "needless_range_loop"
+    },
+    {
+      "severity": "error",
+      "message": "current MSRV (Minimum Supported Rust Version) is `1.85.0` but this item is stable since `1.88.0`",
+      "raw_path": "src/engine_abi/value_carriers.rs",
+      "path": "runtime/rust/src/engine_abi/value_carriers.rs",
+      "line": 271,
+      "column": 18,
+      "lint": "incompatible_msrv"
+    },
+    {
+      "severity": "error",
+      "message": "the `Err`-variant returned from this function is very large",
+      "raw_path": "src/frame/jim_alias_publication.rs",
+      "path": "runtime/rust/src/frame/jim_alias_publication.rs",
+      "line": 244,
+      "column": 10,
+      "lint": "result_large_err"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/frame/container.rs",
+      "path": "runtime/rust/src/frame/container.rs",
+      "line": 282,
+      "column": 36,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/frame/destruction.rs",
+      "path": "runtime/rust/src/frame/destruction.rs",
+      "line": 161,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "redundant closure",
+      "raw_path": "src/frame/materialisation.rs",
+      "path": "runtime/rust/src/frame/materialisation.rs",
+      "line": 782,
+      "column": 47,
+      "lint": "redundant_closure"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/frame/retired_variable.rs",
+      "path": "runtime/rust/src/frame/retired_variable.rs",
+      "line": 127,
+      "column": 68,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "current MSRV (Minimum Supported Rust Version) is `1.85.0` but this item is stable since `1.95.0`",
+      "raw_path": "src/interp/codegen_depth_diagnostic.rs",
+      "path": "runtime/rust/src/interp/codegen_depth_diagnostic.rs",
+      "line": 27,
+      "column": 35,
+      "lint": "incompatible_msrv"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_append.rs",
+      "path": "runtime/rust/src/interp/native_append.rs",
+      "line": 43,
+      "column": 24,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (9/7)",
+      "raw_path": "src/interp/native_append.rs",
+      "path": "runtime/rust/src/interp/native_append.rs",
+      "line": 791,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "try not to call a closure in the expression where it is declared",
+      "raw_path": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "line": 133,
+      "column": 23,
+      "lint": "redundant_closure_call"
+    },
+    {
+      "severity": "error",
+      "message": "try not to call a closure in the expression where it is declared",
+      "raw_path": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "line": 153,
+      "column": 23,
+      "lint": "redundant_closure_call"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "line": 233,
+      "column": 60,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "line": 336,
+      "column": 66,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "line": 421,
+      "column": 60,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "line": 868,
+      "column": 64,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_error.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_error.rs",
+      "line": 98,
+      "column": 60,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_error.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_error.rs",
+      "line": 107,
+      "column": 68,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_try.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+      "line": 284,
+      "column": 56,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_try.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+      "line": 333,
+      "column": 52,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_try.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+      "line": 355,
+      "column": 56,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `Option<NativeValueAccessRefusal>` which implements the `Copy` trait",
+      "raw_path": "src/interp/native_body_artifact/native_control.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "line": 380,
+      "column": 37,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `(usize, usize)`",
+      "raw_path": "src/interp/native_body_artifact/native_control.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "line": 413,
+      "column": 29,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_control.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "line": 968,
+      "column": 56,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "unneeded `return` statement",
+      "raw_path": "src/interp/native_body_artifact/native_control.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "line": 1397,
+      "column": 21,
+      "lint": "needless_return"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/interp/native_body_artifact/native_array.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_array.rs",
+      "line": 242,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact/native_scalar.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
+      "line": 132,
+      "column": 60,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "line": 375,
+      "column": 38,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "line": 2102,
+      "column": 64,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "line": 2284,
+      "column": 60,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "line": 2590,
+      "column": 56,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "line": 2801,
+      "column": 62,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "line": 3580,
+      "column": 61,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_body_artifact.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "line": 3600,
+      "column": 81,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_command_names.rs",
+      "path": "runtime/rust/src/interp/native_command_names.rs",
+      "line": 174,
+      "column": 10,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_command_names.rs",
+      "path": "runtime/rust/src/interp/native_command_names.rs",
+      "line": 687,
+      "column": 16,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_command_names.rs",
+      "path": "runtime/rust/src/interp/native_command_names.rs",
+      "line": 705,
+      "column": 16,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_compilation.rs",
+      "path": "runtime/rust/src/interp/native_compilation.rs",
+      "line": 1218,
+      "column": 46,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_host_publication.rs",
+      "path": "runtime/rust/src/interp/native_host_publication.rs",
+      "line": 277,
+      "column": 6,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_error_variables.rs",
+      "path": "runtime/rust/src/interp/native_error_variables.rs",
+      "line": 792,
+      "column": 17,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "current MSRV (Minimum Supported Rust Version) is `1.85.0` but this item is stable since `1.95.0`",
+      "raw_path": "src/interp/native_i64_body.rs",
+      "path": "runtime/rust/src/interp/native_i64_body.rs",
+      "line": 41,
+      "column": 10,
+      "lint": "incompatible_msrv"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_jim_lookup.rs",
+      "path": "runtime/rust/src/interp/native_jim_lookup.rs",
+      "line": 895,
+      "column": 16,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/interp/native_jim_lookup.rs",
+      "path": "runtime/rust/src/interp/native_jim_lookup.rs",
+      "line": 1196,
+      "column": 31,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_syntax::value::ValueError`",
+      "raw_path": "src/interp/native_literal_pool.rs",
+      "path": "runtime/rust/src/interp/native_literal_pool.rs",
+      "line": 436,
+      "column": 48,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp/native_literal_pool.rs",
+      "path": "runtime/rust/src/interp/native_literal_pool.rs",
+      "line": 619,
+      "column": 39,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "this expression creates a reference which is immediately dereferenced by the compiler",
+      "raw_path": "src/interp/native_namespace_names.rs",
+      "path": "runtime/rust/src/interp/native_namespace_names.rs",
+      "line": 289,
+      "column": 76,
+      "lint": "needless_borrow"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_argument_usage.rs",
+      "path": "runtime/rust/src/interp/native_argument_usage.rs",
+      "line": 252,
+      "column": 10,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_command_rename.rs",
+      "path": "runtime/rust/src/interp/native_command_rename.rs",
+      "line": 70,
+      "column": 10,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp/native_variable_names/native_unset.rs",
+      "path": "runtime/rust/src/interp/native_variable_names/native_unset.rs",
+      "line": 286,
+      "column": 21,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/interp/native_variable_names.rs",
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "line": 305,
+      "column": 21,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/interp/native_variable_names.rs",
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "line": 3045,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/interp/native_variable_teardown.rs",
+      "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "line": 88,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "this `if let` can be collapsed into the outer `if let`",
+      "raw_path": "src/interp/native_variable_teardown.rs",
+      "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "line": 158,
+      "column": 13,
+      "lint": "collapsible_match"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp/native_variable_teardown.rs",
+      "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "line": 263,
+      "column": 86,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "try not to call a closure in the expression where it is declared",
+      "raw_path": "src/interp/stock_ensembles.rs",
+      "path": "runtime/rust/src/interp/stock_ensembles.rs",
+      "line": 1387,
+      "column": 20,
+      "lint": "redundant_closure_call"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 5016,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 5057,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "called `expect` on `recreated_generation` after checking its variant with `is_some`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 5743,
+      "column": 21,
+      "lint": "unnecessary_unwrap"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 8305,
+      "column": 21,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 8310,
+      "column": 39,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "the borrowed expression implements the required traits",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 8310,
+      "column": 73,
+      "lint": "needless_borrows_for_generic_args"
+    },
+    {
+      "severity": "error",
+      "message": "usage of `bool::then` in `filter_map`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 11433,
+      "column": 14,
+      "lint": "filter_map_bool_then"
+    },
+    {
+      "severity": "error",
+      "message": "this `if` statement can be collapsed",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 12573,
+      "column": 9,
+      "lint": "collapsible_if"
+    },
+    {
+      "severity": "error",
+      "message": "unneeded `return` statement",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 13017,
+      "column": 13,
+      "lint": "needless_return"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 13392,
+      "column": 10,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "this `match` expression can be replaced with `?`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18799,
+      "column": 17,
+      "lint": "question_mark"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18852,
+      "column": 57,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "this `match` expression can be replaced with `?`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18865,
+      "column": 38,
+      "lint": "question_mark"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 18977,
+      "column": 81,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_error_headers.rs",
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "line": 254,
+      "column": 17,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "field assignment outside of initializer for an instance created with Default::default()",
+      "raw_path": "src/interp/native_error_headers.rs",
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "line": 579,
+      "column": 9,
+      "lint": "field_reassign_with_default"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_return_instruction.rs",
+      "path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "line": 388,
+      "column": 17,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (9/7)",
+      "raw_path": "src/interp/native_return_instruction.rs",
+      "path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "line": 381,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/list/native_list_storage.rs",
+      "path": "runtime/rust/src/list/native_list_storage.rs",
+      "line": 624,
+      "column": 1,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/state_traits.rs",
+      "path": "runtime/rust/src/state_traits.rs",
+      "line": 248,
+      "column": 43,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/state_traits.rs",
+      "path": "runtime/rust/src/state_traits.rs",
+      "line": 1587,
+      "column": 69,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/state_traits.rs",
+      "path": "runtime/rust/src/state_traits.rs",
+      "line": 1595,
+      "column": 30,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/state_traits.rs",
+      "path": "runtime/rust/src/state_traits.rs",
+      "line": 2364,
+      "column": 77,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/value_ops.rs",
+      "path": "runtime/rust/src/value_ops.rs",
+      "line": 168,
+      "column": 17,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/value_ops.rs",
+      "path": "runtime/rust/src/value_ops.rs",
+      "line": 682,
+      "column": 13,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "using `map_err` over `inspect_err`",
+      "raw_path": "src/value_ops.rs",
+      "path": "runtime/rust/src/value_ops.rs",
+      "line": 3214,
+      "column": 10,
+      "lint": "manual_inspect"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/vars/entered_container.rs",
+      "path": "runtime/rust/src/vars/entered_container.rs",
+      "line": 205,
+      "column": 5,
+      "lint": "too_many_arguments"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/capi/scalar/tests.rs",
+      "path": "runtime/rust/src/capi/scalar/tests.rs",
+      "line": 272,
+      "column": 38,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "the loop variable `role` is used to index `refs`",
+      "raw_path": "src/cmd_alias.rs",
+      "path": "runtime/rust/src/cmd_alias.rs",
+      "line": 4274,
+      "column": 33,
+      "lint": "needless_range_loop"
+    },
+    {
+      "severity": "error",
+      "message": "this `if` has identical blocks",
+      "raw_path": "src/cmd_array/original_argument_tests.rs",
+      "path": "runtime/rust/src/cmd_array/original_argument_tests.rs",
+      "line": 196,
+      "column": 57,
+      "lint": "if_same_then_else"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/cmd_eval/native_frame_reference_tests.rs",
+      "path": "runtime/rust/src/cmd_eval/native_frame_reference_tests.rs",
+      "line": 506,
+      "column": 10,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "current MSRV (Minimum Supported Rust Version) is `1.85.0` but this item is stable since `1.88.0`",
+      "raw_path": "src/cmd_list/../../tests/data/native_original_option_index636/software_controls.rs",
+      "path": "runtime/rust/tests/data/native_original_option_index636/software_controls.rs",
+      "line": 2903,
+      "column": 10,
+      "lint": "incompatible_msrv"
+    },
+    {
+      "severity": "error",
+      "message": "current MSRV (Minimum Supported Rust Version) is `1.85.0` but this item is stable since `1.88.0`",
+      "raw_path": "src/cmd_list/../../tests/data/native_original_list_stride644/software_controls.rs",
+      "path": "runtime/rust/tests/data/native_original_list_stride644/software_controls.rs",
+      "line": 15,
+      "column": 10,
+      "lint": "incompatible_msrv"
+    },
+    {
+      "severity": "error",
+      "message": "derefed type is same as origin",
+      "raw_path": "src/cmd_oo/original_property_retirement_tests.rs",
+      "path": "runtime/rust/src/cmd_oo/original_property_retirement_tests.rs",
+      "line": 198,
+      "column": 17,
+      "lint": "needless_option_as_deref"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_oo/original_record_retirement_tests.rs",
+      "path": "runtime/rust/src/cmd_oo/original_record_retirement_tests.rs",
+      "line": 12,
+      "column": 20,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/cmd_oo/native_properties.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "line": 1781,
+      "column": 22,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/cmd_oo/native_properties.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "line": 1829,
+      "column": 22,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/cmd_oo/native_properties.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "line": 1896,
+      "column": 38,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/cmd_oo/native_properties.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "line": 1904,
+      "column": 38,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/cmd_oo/native_properties/original_order_tests.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties/original_order_tests.rs",
+      "line": 413,
+      "column": 14,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/cmd_oo/native_properties/original_order_tests.rs",
+      "path": "runtime/rust/src/cmd_oo/native_properties/original_order_tests.rs",
+      "line": 470,
+      "column": 14,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/cmd_oo/original_namespace_copy_tests.rs",
+      "path": "runtime/rust/src/cmd_oo/original_namespace_copy_tests.rs",
+      "line": 13,
+      "column": 24,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/codegen_abi.rs",
+      "path": "runtime/rust/src/codegen_abi.rs",
+      "line": 4776,
+      "column": 41,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/codegen_abi.rs",
+      "path": "runtime/rust/src/codegen_abi.rs",
+      "line": 4806,
+      "column": 25,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "using `clone` on type `NativeValueAccessRefusal` which implements the `Copy` trait",
+      "raw_path": "src/codegen_abi/original_ingress_tests.rs",
+      "path": "runtime/rust/src/codegen_abi/original_ingress_tests.rs",
+      "line": 294,
+      "column": 32,
+      "lint": "clone_on_copy"
+    },
+    {
+      "severity": "error",
+      "message": "unnecessary use of `clone` to create a slice from a reference",
+      "raw_path": "src/expr/native_math.rs",
+      "path": "runtime/rust/src/expr/native_math.rs",
+      "line": 315,
+      "column": 49,
+      "lint": "cloned_ref_to_slice_refs"
+    },
+    {
+      "severity": "error",
+      "message": "redundant closure",
+      "raw_path": "src/frame/materialisation_tests.rs",
+      "path": "runtime/rust/src/frame/materialisation_tests.rs",
+      "line": 71,
+      "column": 34,
+      "lint": "redundant_closure"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/c_api_error_tests.rs",
+      "path": "runtime/rust/src/interp/c_api_error_tests.rs",
+      "line": 55,
+      "column": 6,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/c_api_error_tests.rs",
+      "path": "runtime/rust/src/interp/c_api_error_tests.rs",
+      "line": 341,
+      "column": 13,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/c_api_error_tests.rs",
+      "path": "runtime/rust/src/interp/c_api_error_tests.rs",
+      "line": 588,
+      "column": 6,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_append.rs",
+      "path": "runtime/rust/src/interp/native_append.rs",
+      "line": 1424,
+      "column": 17,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "line": 262,
+      "column": 18,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "line": 322,
+      "column": 22,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "line": 362,
+      "column": 18,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "line": 408,
+      "column": 14,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_body_artifact/original_return_parent_tests.rs",
+      "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+      "line": 282,
+      "column": 22,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/original_error_code_setter_tests.rs",
+      "path": "runtime/rust/src/interp/original_error_code_setter_tests.rs",
+      "line": 310,
+      "column": 6,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_jim_increment/selected_dictionary_root_tests.rs",
+      "path": "runtime/rust/src/interp/native_jim_increment/selected_dictionary_root_tests.rs",
+      "line": 550,
+      "column": 10,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "`Vec<T>` is already on the heap, the boxing is unnecessary",
+      "raw_path": "src/interp/native_jim_lookup/active_retirement_tests.rs",
+      "path": "runtime/rust/src/interp/native_jim_lookup/active_retirement_tests.rs",
+      "line": 35,
+      "column": 14,
+      "lint": "vec_box"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_precision/original_stage_tests.rs",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "line": 21,
+      "column": 17,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_arguments.rs",
+      "path": "runtime/rust/src/interp/native_arguments.rs",
+      "line": 287,
+      "column": 46,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_arguments.rs",
+      "path": "runtime/rust/src/interp/native_arguments.rs",
+      "line": 316,
+      "column": 14,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "called `.err().expect()` on a `Result` value",
+      "raw_path": "src/interp/native_operation_currency.rs",
+      "path": "runtime/rust/src/interp/native_operation_currency.rs",
+      "line": 591,
+      "column": 39,
+      "lint": "err_expect"
+    },
+    {
+      "severity": "error",
+      "message": "useless conversion to the same type: `tcl_cmd_core::CmdError`",
+      "raw_path": "src/interp/native_variable_names.rs",
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "line": 3533,
+      "column": 51,
+      "lint": "useless_conversion"
+    },
+    {
+      "severity": "error",
+      "message": "field assignment outside of initializer for an instance created with Default::default()",
+      "raw_path": "src/interp/stock_ensembles/retirement_tests.rs",
+      "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+      "line": 102,
+      "column": 9,
+      "lint": "field_reassign_with_default"
+    },
+    {
+      "severity": "error",
+      "message": "field assignment outside of initializer for an instance created with Default::default()",
+      "raw_path": "src/interp.rs",
+      "path": "runtime/rust/src/interp.rs",
+      "line": 21356,
+      "column": 13,
+      "lint": "field_reassign_with_default"
+    },
+    {
+      "severity": "error",
+      "message": "this OR pattern can be rewritten using a range",
+      "raw_path": "src/interp/native_return_instruction.rs",
+      "path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "line": 883,
+      "column": 17,
+      "lint": "manual_range_patterns"
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "raw_path": "src/interp/native_return_instruction.rs",
+      "path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "line": 988,
+      "column": 10,
+      "lint": "type_complexity"
+    },
+    {
+      "severity": "error",
+      "message": "initializer for `thread_local` value can be made `const`",
+      "raw_path": "src/obj/tls_retirement_tests.rs",
+      "path": "runtime/rust/src/obj/tls_retirement_tests.rs",
+      "line": 23,
+      "column": 46,
+      "lint": "missing_const_for_thread_local"
+    },
+    {
+      "severity": "error",
+      "message": "current MSRV (Minimum Supported Rust Version) is `1.85.0` but this item is stable since `1.88.0`",
+      "raw_path": "/home/runner/work/tcl-lsp/tcl-lsp/runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs",
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs",
+      "line": 24,
+      "column": 10,
+      "lint": "incompatible_msrv"
+    },
+    {
+      "severity": "error",
+      "message": "current MSRV (Minimum Supported Rust Version) is `1.85.0` but this item is stable since `1.88.0`",
+      "raw_path": "src/value_ops/../../tests/data/native_original_index_range635/software_controls.rs",
+      "path": "runtime/rust/tests/data/native_original_index_range635/software_controls.rs",
+      "line": 26,
+      "column": 10,
+      "lint": "incompatible_msrv"
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many arguments (8/7)",
+      "raw_path": "src/vars.rs",
+      "path": "runtime/rust/src/vars.rs",
+      "line": 3427,
+      "column": 1,
+      "lint": "too_many_arguments"
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "recorded_utc": "2026-10-26T18:18:04.920543+00:00",
+  "scope": "Durable WORK-only source and transport checkpoint; excluded from release branch",
+  "validation_source": "62848aa76f07cf91372e1f75340160d2f66e593f",
+  "candidate_source": "eee02dfeee374f3bdd868cf82a49252dd0dcf3f0",
+  "copies": [
+    {
+      "path": "root-bf8c-coherent-validation-cohort.json",
+      "bytes": 1301,
+      "sha256": "22fdfc0a86707423588d4cbb2ca51f91c9c04edb5824b8ffdf43934f20c95e99"
+    },
+    {
+      "path": "root-finalbf8c-union-json-ast-audit.json",
+      "bytes": 1393,
+      "sha256": "5b912e0446e5a0bd7281c66e975bd77efd6cabd596741302c2b32955f67fdeca"
+    },
+    {
+      "path": "root-current62848-dispatched-runs.json",
+      "bytes": 3358,
+      "sha256": "7b335730eb489af0e655291239cded5a94ed4bb0cf5d960da62270e6eff3c688"
+    },
+    {
+      "path": "root-current62848-mode-jobs.json",
+      "bytes": 4069,
+      "sha256": "585c87e03fd8986fafb7dd133b68e8943d9e76f4b26f1f5ab777b9101cb51f33"
+    },
+    {
+      "path": "root-clean-eee02-whole-format.json",
+      "bytes": 560,
+      "sha256": "a31cdee244df7d8f93799c5bc0c4ee1331b7104ca19ec8478b04551b9a77a456"
+    },
+    {
+      "path": "compiler-peer-finalbf8c-pin-union-v1/receipt.json",
+      "bytes": 19045,
+      "sha256": "40e87ed2b84e25b4e8fe782bbf875cbbb0e44eb35599bd07a2c196dd0f8324ef"
+    },
+    {
+      "path": "ccg-finalbf8c-lease-current-pin-union-work-v1/manifest.json",
+      "bytes": 22437,
+      "sha256": "2e07ceedc068ec9981fcc588761280a268b7ed493163963bacce38bc00250fa0"
+    },
+    {
+      "path": "ccg-finalbf8c-lease-current-pin-union-work-v1/proposal.patch",
+      "bytes": 19314,
+      "sha256": "0ca3a17dd952fe257f597d35e9fee707eefdccc5ed95eb530b7bfc2251c8ea36"
+    },
+    {
+      "path": "ccg-finalbf8c-lease-current-pin-union-work-v1/current-runtime-function-guard-audit.json",
+      "bytes": 14193,
+      "sha256": "731bcf6fa8f89781e87219380abeabd67bae752ec8f5577db44d91e9f8ebf53f"
+    },
+    {
+      "path": "ccg-finalbf8c-lease-current-pin-union-work-v1/prospective-v14.json",
+      "bytes": 21753,
+      "sha256": "29ee5c98b324713b20ee8cc90236cd8c4ce0eb39a96a1a3e39bbc97d92289245"
+    },
+    {
+      "path": "compiler-alias-memo8-layout-diagnostics-protocol-work-v1/manifest.json",
+      "bytes": 1050,
+      "sha256": "77c3bfca22b44ba41d8e03b95148ea3ad327de73866fc943b16ecd7ef86d8110"
+    },
+    {
+      "path": "compiler-alias-memo8-layout-diagnostics-protocol-work-v1/proposal.patch",
+      "bytes": 52391,
+      "sha256": "cdf792b4bd39ab2b9e770f94495a13e674a76be46085d4e664f2549949381a33"
+    },
+    {
+      "path": "names-jim-alias-firstguard-work-v3/manifest.json",
+      "bytes": 976,
+      "sha256": "db094e13dc78e5696cf32f303c4e5960db97f14c55561b6c5e8b8d8bd1e2bd5b"
+    },
+    {
+      "path": "names-jim-alias-firstguard-work-v3/proposal.patch",
+      "bytes": 9896,
+      "sha256": "b5b734b6790ec4de422f3b96fa5d7680d7d1ad8e0b669751fa5e85fdc001b8ee"
+    },
+    {
+      "path": "compiler-analyser-layout-firstguard-work-v1/manifest.json",
+      "bytes": 698,
+      "sha256": "038364b88c404712ca222a6e4f9073d483ad1e173b63a0eeb841febe667c828f"
+    },
+    {
+      "path": "compiler-analyser-layout-firstguard-work-v1/proposal.patch",
+      "bytes": 6670,
+      "sha256": "2ed8abf594eb62ae32b28ae7dccd44a71f5f9c25373a76da04dd26c33ebc094e"
+    },
+    {
+      "path": "lsp-source-cut-factory-stages-work-v2/manifest.json",
+      "bytes": 535,
+      "sha256": "f8d28bbd44688ed6502b2213392a3c650fb5c6605b13cd71a847955a631ecc46"
+    },
+    {
+      "path": "lsp-source-cut-factory-stages-work-v2/change.patch",
+      "bytes": 6692,
+      "sha256": "eecaf00efcd1ca11b854042f81552f0c94f4ff44375febc816df4792f1c8d53c"
+    },
+    {
+      "path": "root-memo-diagnostic-ba30-terminal-121712703294.json",
+      "bytes": 297,
+      "sha256": "9f9a6ee9f102dc9cfd63d2b022580813c03e47a20a390b9ae80e298bb0a3a316"
+    },
+    {
+      "path": "root-memo-diagnostic-ba30-terminal-121712703533.json",
+      "bytes": 297,
+      "sha256": "6d253998de472d0afe22fe20213fbb1831cc8c1e178f7b5ee3495017507ab0e0"
+    }
+  ],
+  "total_bytes": 186925,
+  "gate_admissions": [],
+  "actual_current_tests": "Running or queued; no pass inferred from dispatch, metadata preflight or editorial audit"
+}

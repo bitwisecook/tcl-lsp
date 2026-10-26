@@ -1,0 +1,8 @@
+{
+  "base": "8254a3590a08688e2d85be1c0590fcf8d34cd0ab",
+  "path": "rust/tcl-compiler/src/registry_invocation.rs",
+  "before": "34fae9a853f8ee69bc4097ac04a56dfd5751724aaffce992ca2b097ee746845d",
+  "after": "5d2bd232d7883692dc8f91c48cecbfdd6daccbfe1a46f844f464873e0c5fe484",
+  "patch": "eecaf00efcd1ca11b854042f81552f0c94f4ff44375febc816df4792f1c8d53c",
+  "scope": "WORK-only existing COARSE compile-time flag, max64 process scalar refusal rows; no cfg(test) assumption on compiler dependency, no runtime env/query/permission changes"
+}

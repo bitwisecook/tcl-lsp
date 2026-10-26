@@ -1,0 +1,16 @@
+{
+  "base": "d216673fad387f5c11ccc1ae9ef65e309c398bb5",
+  "scope": "WORK-only passive alias already-reached firstguards; existing owner flag/shared1024quota; no source/Native/Normal grant",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "b269a6f20b47d53e7798fa63f9486b71e6ae204c06b30c6f51220b9eefe3206d",
+      "after_sha256": "136cfa39c8df5ac07026e31dd397d20dba9593260f136302e7caffd01031d46f"
+    }
+  ],
+  "old_tests": "entire suffix unchanged",
+  "known_actual_case": "class Point {x 0}; alias Point puts; proc {Point move} {dx} {return $dx}",
+  "runtime": "UNRUN; no old selector/env/count/budget change; separate protocol not included",
+  "lint_length_preservation": "private borrowed alias operands+prefix helper preserve same operations and caller resource/drop order; no allows",
+  "borrowed_carrier": "private Copy references plus existing Copy AliasTargetLookup; no owners/NativeValues"
+}

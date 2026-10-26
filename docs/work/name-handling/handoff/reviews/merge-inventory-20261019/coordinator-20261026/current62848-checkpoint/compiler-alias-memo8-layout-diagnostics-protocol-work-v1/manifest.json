@@ -1,0 +1,17 @@
+{
+  "base": "104476d093be801d030085bb7e82afd5bf8d2c04",
+  "files": [
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "before_sha256": "8aab726482f7736d7350dc7a00c28dd876b27b6b24c06d80d29c08f52a614c54",
+      "after_sha256": "3f153ef1e86c64e97b7281d091b0beff36f21d33d6c38122394498ba7f2046cb"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "before_sha256": "52942e479e309996210d983d9ccdb5f7accc503031e72d5884b579873dfc53e1",
+      "after_sha256": "b9b37bb66fa3f620d4d6cb8316f0f3ee1b23935aada27ccffc13a1753078c4af"
+    }
+  ],
+  "patch_sha256": "cdf792b4bd39ab2b9e770f94495a13e674a76be46085d4e664f2549949381a33",
+  "scope": "ONE coherent NEXT append after unchanged135: cleared alias1, genuine memo8 with bypass ABSENT, passive layout3 repeat. Same existing fresh compilerlib/shared remaining budgets/cap/deadline/no extraCargo. Old selectors/environments/outcomes unchanged. Source-first/final union required; actual12 UNRUN."
+}

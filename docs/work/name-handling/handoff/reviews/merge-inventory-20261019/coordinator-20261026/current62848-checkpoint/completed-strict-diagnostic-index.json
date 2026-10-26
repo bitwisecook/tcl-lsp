@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-26T18:28:43.117919+00:00",
+  "copies": [
+    {
+      "path": "ccg-strict62848-40375134550-actual-v1/assessment.json",
+      "bytes": 9852,
+      "sha256": "1c1248121f8cab581da881d2a01e0cf3606dd6c6d195d5096d9628cf948e3039"
+    },
+    {
+      "path": "ccg-strict62848-40375134550-actual-v1/unique-runtime-frontier-inventory.json",
+      "bytes": 51192,
+      "sha256": "ecb807f0554a73a3f7b7a345e9144c3a2caa07fc59a45b0317cb3431310fbd42"
+    },
+    {
+      "path": "ccg-strict62848-40375134550-actual-v1/runtime-primary-owner-routing.json",
+      "bytes": 72001,
+      "sha256": "56d41fd046d4afbcce8c10e5ed2790f9cd0adfb205bb4ab00fdcc0019b223369"
+    },
+    {
+      "path": "ccg-strict62848-40375134550-actual-v1/diagnostic-path-normalization-audit.json",
+      "bytes": 59067,
+      "sha256": "f3a70f7a6c82ae1ae0177c0c043708ac2908ce7fe4c3ff799a866868ff6dcdfa"
+    },
+    {
+      "path": "root-memo-ba30-macos-small-medium-actual-v1/qualification.json",
+      "bytes": 5266,
+      "sha256": "3199a1bf94bc420f3ec96e63961d09e46bafc8d56147b59b5320c8e0d63a5608"
+    },
+    {
+      "path": "root-memo-ba30-macos-small-medium-actual-v1/transport.json",
+      "bytes": 5873,
+      "sha256": "54c673ddcaf3e6ebff139caf171b831488e4143eddb5f97663a614f1123ee10d"
+    }
+  ],
+  "gate_admissions": []
+}

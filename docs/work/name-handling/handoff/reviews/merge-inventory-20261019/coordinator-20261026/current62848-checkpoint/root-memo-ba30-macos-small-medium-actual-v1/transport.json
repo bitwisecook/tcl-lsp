@@ -1,0 +1,165 @@
+{
+  "utc": "2026-10-26T18:25:06.134226+00:00",
+  "run": 40362871182,
+  "source": "ba30c14084c1b703c3b76635f31ea26105d2ef1a",
+  "artifacts": [
+    {
+      "artifact": 12675490476,
+      "name": "DIAGNOSTIC-ONLY-memo-macos-small-ba30c14084c1b703c3b76635f31ea26105d2ef1a",
+      "bytes": 17328,
+      "sha256": "a01638df78b3cecdc40b3503c0b4bdfdc1303bb529e00d1fcea3b49022b62450",
+      "members": [
+        {
+          "name": "builds/baseline.process.json",
+          "bytes": 1291,
+          "sha256": "c0ccc9ee9ee636bac241c5502e4ca052307fcde5dc41e4bd05669b18b99d21eb"
+        },
+        {
+          "name": "builds/baseline.stderr",
+          "bytes": 17409,
+          "sha256": "6f9336896362519116690e8947d35e86f55f248b23253659fa4dc1a7886242cf"
+        },
+        {
+          "name": "builds/baseline.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "builds/candidate.process.json",
+          "bytes": 1296,
+          "sha256": "16fd3ea17d34a73cbdbf8e1787138bb996b8e5dabbc1e600778f2e257bca7cb8"
+        },
+        {
+          "name": "builds/candidate.stderr",
+          "bytes": 10610,
+          "sha256": "5cdc2957e994e792c45b9344a3a454223b9d80a3b6fc1f8078adb915e987704a"
+        },
+        {
+          "name": "builds/candidate.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "logs/baseline-small-pair1.process.json",
+          "bytes": 1816,
+          "sha256": "b0a5f1342f79867519deed4dd3a9c490c65bd1cc9cc62cef7cae96fa72163ed9"
+        },
+        {
+          "name": "logs/baseline-small-pair1.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "logs/baseline-small-pair1.stdout",
+          "bytes": 1727,
+          "sha256": "dd294a2d0a4083f465a33ae49abd662dc4dca6b17e86925a33aeabc85be842dd"
+        },
+        {
+          "name": "logs/candidate-small-pair1.process.json",
+          "bytes": 2295,
+          "sha256": "6d584d8dc3a60125d7fe12932adda27dd9a154c3d4783362234ee7a4727a9628"
+        },
+        {
+          "name": "logs/candidate-small-pair1.stderr",
+          "bytes": 480,
+          "sha256": "46aafaf8f0062ad02b74a42c99316e93133b65eeb5643f29b3fa635aaa72bb3d"
+        },
+        {
+          "name": "logs/candidate-small-pair1.stdout",
+          "bytes": 700,
+          "sha256": "c43996f33a71b3e8b63159f7e23d9460d126dd7d9863f114f890f6c615e83073"
+        },
+        {
+          "name": "paired-summary.json",
+          "bytes": 13365,
+          "sha256": "60a1b0c5d3cb7eee075e280c5b1c41ae4ad9d49322e2d03c738f59a171c3d3f9"
+        },
+        {
+          "name": "results/baseline-small-pair1.json",
+          "bytes": 21119,
+          "sha256": "53867d0521db09310d591070546885f500faef69ab19c333b91b2433d733d12d"
+        }
+      ]
+    },
+    {
+      "artifact": 12674308452,
+      "name": "DIAGNOSTIC-ONLY-memo-macos-medium-ba30c14084c1b703c3b76635f31ea26105d2ef1a",
+      "bytes": 19559,
+      "sha256": "0c4c29e8e31cc8d43e5e007cc6df022a3dc20a6f144854916831c16c62b17d43",
+      "members": [
+        {
+          "name": "builds/baseline.process.json",
+          "bytes": 1294,
+          "sha256": "6b065b1fa320fba2026dc932a7230aabdc28ccb95f6d162e77e0038e93cf36d3"
+        },
+        {
+          "name": "builds/baseline.stderr",
+          "bytes": 17409,
+          "sha256": "e4e76bf6ada2bf94fc7495bdd847a1de2286f4e6f40be3ae18cedb4fb11609f4"
+        },
+        {
+          "name": "builds/baseline.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "builds/candidate.process.json",
+          "bytes": 1299,
+          "sha256": "737cbbd072481799f8c1aa866ada2dd53e054435e041bf5787821410d9bec0d5"
+        },
+        {
+          "name": "builds/candidate.stderr",
+          "bytes": 10610,
+          "sha256": "46c5698d5e45f34d19fd7b1033c0652680fdb35a81aa9e2123a97fcf35ef4951"
+        },
+        {
+          "name": "builds/candidate.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "logs/baseline-medium-pair1.process.json",
+          "bytes": 1827,
+          "sha256": "9b8f2eebe981acb0bd65424989072027f20b933fd874b5a7d400b3aef9ce0e8f"
+        },
+        {
+          "name": "logs/baseline-medium-pair1.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "logs/baseline-medium-pair1.stdout",
+          "bytes": 1704,
+          "sha256": "b09dac3189f7dad8d976c02bdbd21f9eb19c7e272ab672847cbddf278b376166"
+        },
+        {
+          "name": "logs/candidate-medium-pair1.process.json",
+          "bytes": 2305,
+          "sha256": "fd2a5edb9ebb432713a168aa87980c728fe9795e8d8e4c6c481b09ad2dd095fa"
+        },
+        {
+          "name": "logs/candidate-medium-pair1.stderr",
+          "bytes": 482,
+          "sha256": "da306eb207bfa517012c32803de96b92e51738148ba20c76e11f63d4cfc8b081"
+        },
+        {
+          "name": "logs/candidate-medium-pair1.stdout",
+          "bytes": 675,
+          "sha256": "9b15592ff286c0e12d4a0ecb92711ad38357bea46fb3d861e7eba4dc511f74f3"
+        },
+        {
+          "name": "paired-summary.json",
+          "bytes": 14299,
+          "sha256": "093e7340ee588793b9b45c071c2928572a15e716f0e9b54e4923df85db1c0e79"
+        },
+        {
+          "name": "results/baseline-medium-pair1.json",
+          "bytes": 35109,
+          "sha256": "aed62994ef170d937786ae0fe23f7664fdedffef129c1350616b36ca2b75a9af"
+        }
+      ]
+    }
+  ],
+  "acceptance": false,
+  "accepted_pairs": 0
+}

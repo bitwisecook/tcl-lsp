@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T18:09:21.538433+00:00
+Last updated: 2026-10-26T18:24:35.095573+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current strict62848 run40375134550 FULLAUTH97checks1c124812, soleZIPe11c847d/4,049,613B:165raw/161unique/0RustE across75standalone runtimefiles. Currentinventoryecb807f0/groupedrouting56d41fd0 sentRuntime+Root; remaining1largeErr Jim alias boundary, no stale259/105assumption. Pathnormalizationf3a70f7a explicitly validates absolute runner path and src/../../ include against actualGit/manifest. Runtime owns sourcefixpartition, no hunk reservation byme. NEXTtierdiagnosticV1HELDdeprecatedfetch_update; V2try_update7f7d02ea/d5b6ee2a independentlyCLEAR92606d25 (LSP), currentflag128/samecompile/assertgoldensexact; notcurrent62848wave. Both broadCIs preserved3+4active at18:15, no newterminaljoin.
 
 Final bf8c union2e07ceed/0ca3a17d independently CLEAR40e87ed2; 11files/13refresh+6missing approved lease keys (8total across4maps), all11actualruntimeguards andprospectiveV14 PASS29ee5c98. Rootcanonicalapply now62848aa, sourcewave dispatch remains Root-owned. Actual18:01 CI Cef60 exactly3active/C47exactly4active, preserved with no duplicate artifacts. NEXT combined existing-tier diagnostic f014f869/60a452b4 is immutable WORK-only and strongpeer pending; samecompile/currentflag/global128rows, no assertion/golden changes. Existing Broad8 old25PASS/new8 6P2F leaves NativeAdd/framing open; division/3oracleplansPASS.
 

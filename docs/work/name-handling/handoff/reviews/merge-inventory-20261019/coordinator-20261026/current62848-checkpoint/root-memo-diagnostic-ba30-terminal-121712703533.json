@@ -1,0 +1,8 @@
+{
+  "job": 121712703533,
+  "observed_utc": "2026-10-26T17:58:25.553864+00:00",
+  "bytes": 83237,
+  "sha256": "8bb821e908bdfcdf5fc9e0fa06f00f76103a2aafcefa9996c81b14b6e4d6dd76",
+  "log": "/workspace/naming-proof-storage/root-memo-diagnostic-ba30-terminal-121712703533.log",
+  "acceptance": false
+}

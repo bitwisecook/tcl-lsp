@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-26T18:03:46.550404+00:00",
+  "source": "bf8c860dd834d1f56db831bd49a4cd8ed882ac80",
+  "result": "PASS",
+  "manifest_sha256": "2e07ceedc068ec9981fcc588761280a268b7ed493163963bacce38bc00250fa0",
+  "patch_sha256": "0ca3a17dd952fe257f597d35e9fee707eefdccc5ed95eb530b7bfc2251c8ea36",
+  "files": [
+    "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+    "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+    "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+    "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+    "docs/work/name-handling/validation-tools/jim-source-roster.json",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+    "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+    "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+    "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py"
+  ],
+  "source_refreshes": 13,
+  "actual_approved_missing_dependencies": 6,
+  "all23_preimages_verified": true,
+  "inverse_restores_all_rows_env_budgets_and_historical_records": true,
+  "runtime_acceptance": false
+}

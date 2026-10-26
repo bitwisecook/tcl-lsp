@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-26T18:08:05.771746+00:00",
+  "source": "eee02dfeee374f3bdd868cf82a49252dd0dcf3f0",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--all",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "all_pass": true,
+  "source_unchanged": true
+}

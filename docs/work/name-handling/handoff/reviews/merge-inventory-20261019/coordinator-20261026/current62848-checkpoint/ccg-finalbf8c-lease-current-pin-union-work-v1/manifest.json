@@ -1,0 +1,440 @@
+{
+  "base": "bf8c860dd834d1f56db831bd49a4cd8ed882ac80",
+  "approved_lease_additions": [
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs",
+      "after": "8dc58d0f6b009ec72dd482cf46d91b957e98fcc724262d8d7b281968dcba24fc"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "after": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs",
+      "after": "8dc58d0f6b009ec72dd482cf46d91b957e98fcc724262d8d7b281968dcba24fc"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "after": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs",
+      "after": "8dc58d0f6b009ec72dd482cf46d91b957e98fcc724262d8d7b281968dcba24fc"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "after": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be"
+    }
+  ],
+  "actual_lease_parent_consumer_route": [
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "parent": "rust/tcl-compiler/src/command_binding.rs",
+      "producer_route": "command_binding declares source_analysis_cache/source_point_entry, stores source lease and calls cache at_entry/lookup/retain; approved exact two dependencies in four maps"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "parent": "rust/tcl-compiler/src/command_binding.rs",
+      "producer_route": "command_binding declares source_analysis_cache/source_point_entry, stores source lease and calls cache at_entry/lookup/retain; approved exact two dependencies in four maps"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "parent": "rust/tcl-compiler/src/command_binding.rs",
+      "producer_route": "command_binding declares source_analysis_cache/source_point_entry, stores source lease and calls cache at_entry/lookup/retain; approved exact two dependencies in four maps"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "parent": "rust/tcl-compiler/src/command_binding.rs",
+      "producer_route": "command_binding declares source_analysis_cache/source_point_entry, stores source lease and calls cache at_entry/lookup/retain; approved exact two dependencies in four maps"
+    }
+  ],
+  "status": "FROZEN current live sourcepin union; independent peer pending",
+  "files": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "before_sha256": "38c446aab581ef3a3bcfaeba771f4c74f4233e958136749389b87cc0d2f90d11",
+      "after_sha256": "b0c53c5f641c54401d94c969b481f173c11bf7a77140f0eca745ab0a8dadd927"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "before_sha256": "3f153ef1e86c64e97b7281d091b0beff36f21d33d6c38122394498ba7f2046cb",
+      "after_sha256": "008f4cb2b4d5df6584949c4926b6e813a55365a97b00066cb7e32297213a985c"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "before_sha256": "de64f9f29b62504ee075ed4fca62b8afc00b84bf854f8c4a7e69789b4521f10e",
+      "after_sha256": "70d1dd2bcd054963f6889dcc6b4efbe8ce03172fe7b8b8ad3e9b34f4b56234ec"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "before_sha256": "dd92e0d33d93aa7b0a7d119fdec0f07d7341018c4e854041092cd6346ed2033c",
+      "after_sha256": "ba68774d75478e9bb385aa6b1a1c423b8c1ca89f851798f83bc3194fb31e56dd"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "before_sha256": "f53e1a2e9671df228d72cdd861fde75cce72a1a715d80137676991f9e4a5c9dc",
+      "after_sha256": "d488b77b214b477a3cfdb892eb100072a51a2c0c7d46b4aac0b251f69772fc53"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "before_sha256": "6bbcc82287096118edb4b869145fbf76d5547b57d2710be095e4f659a136a116",
+      "after_sha256": "160770882cdad8a2de4e8c067d65c114e2723d178fc00f7463c52c3362fe2f53"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "before_sha256": "6abbdcccce2b463108d115fb1c19fec9ae237e90d8f72a68dd57e5c19925da6b",
+      "after_sha256": "1a88d2baac00298cb9e99f4a5007a76b07a2bf6562569cb277562c2cfdcf9be9"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "before_sha256": "7b6c3c149fd97c5edf68cfc617470b519b56d88f3ec934960a965d44c58c76fe",
+      "after_sha256": "a543af8d7e5ce4a99a7feb1e1a253931296be876d60a926fd5f3dda29793247d"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "before_sha256": "b9b37bb66fa3f620d4d6cb8316f0f3ee1b23935aada27ccffc13a1753078c4af",
+      "after_sha256": "2774b0466d802d3349aef147e837a6f4b7a2766b77158e8836475fe3fc3a2562"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "before_sha256": "8cab1ee4f85d69471dc810f5e43882cf4a04bbb0346d2d875ffe91077591e392",
+      "after_sha256": "efda110898a65e36436aa9462470b277af59f86cc9d6ac2a4348528928d6aba0"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "before_sha256": "8b8598573f3fa467f0ca84540154f98e2eb3583c9b7becd0cb9cc38f69a3b278",
+      "after_sha256": "107bb5cfe7f71861d49308fc2a481d0e83fb5e797437cb979bbec016b651246e"
+    }
+  ],
+  "patch_sha256": "0ca3a17dd952fe257f597d35e9fee707eefdccc5ed95eb530b7bfc2251c8ea36",
+  "whole23GitJSONcensus": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "before_sha256": "38c446aab581ef3a3bcfaeba771f4c74f4233e958136749389b87cc0d2f90d11",
+      "live_source_pin_count": 16,
+      "changed": [
+        "rust/tcl-compiler/src/registry_invocation.rs",
+        "rust/tcl-compiler/src/command_binding.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-catch-diagnostic1.json",
+      "before_sha256": "b354a76d54d0510b4bb27e2802c66ffa3d56d2270062a908ba2ae937d3a6edeb",
+      "live_source_pin_count": 1,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-closed-consumer-controls.json",
+      "before_sha256": "604f45e34d9ad26129fc058ddb306aa9cabaa99b16d09f537d938ff2410c40fb",
+      "live_source_pin_count": 6,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-inlining-readonly13.json",
+      "before_sha256": "b6b8dcd00169076cbe2a00c64750cfaf084fa988bde008e08f66d99fc07620d4",
+      "live_source_pin_count": 21,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "before_sha256": "3f153ef1e86c64e97b7281d091b0beff36f21d33d6c38122394498ba7f2046cb",
+      "live_source_pin_count": 37,
+      "changed": [
+        "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "before_sha256": "de64f9f29b62504ee075ed4fca62b8afc00b84bf854f8c4a7e69789b4521f10e",
+      "live_source_pin_count": 3,
+      "changed": [
+        "rust/tcl-compiler/src/analyser/authenticated_report.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-inputs.json",
+      "before_sha256": "682576528999248485edd1e75f925316c5006a751736aeb60c0082c12518e9c0",
+      "live_source_pin_count": 16,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-selectors.json",
+      "before_sha256": "d4a45ac4eb52a5743b0cb8a5a8256a7f73214f45627c05e25055f2f58bef95d2",
+      "live_source_pin_count": 0,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-readflow-supplemental1.json",
+      "before_sha256": "58273fd8585042a099da73aa67b9e83c91d790607225d88c05da6c324746a9a3",
+      "live_source_pin_count": 1,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-sh21-supplemental2.json",
+      "before_sha256": "8d4eb5f02a0324659b689e0678d0ff6a83c4ff443be54c920255da6b2b7c6ccb",
+      "live_source_pin_count": 4,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-source-read-ancestry3.json",
+      "before_sha256": "ed061f196bbab53c2e9994bb74370325fec6df87099f2f83d6cc18107b4d8d08",
+      "live_source_pin_count": 4,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "before_sha256": "dd92e0d33d93aa7b0a7d119fdec0f07d7341018c4e854041092cd6346ed2033c",
+      "live_source_pin_count": 22,
+      "changed": [
+        "rust/tcl-compiler/src/command_binding.rs",
+        "rust/tcl-compiler/src/registry_invocation.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "before_sha256": "a10b80c6dbc924bbdf9b8203f8aa7163263c1adc59865ea11f7ae81c2fd1199e",
+      "live_source_pin_count": 74,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "before_sha256": "f53e1a2e9671df228d72cdd861fde75cce72a1a715d80137676991f9e4a5c9dc",
+      "live_source_pin_count": 10,
+      "changed": [
+        "rust/tcl-compiler/src/analyser/handlers.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "before_sha256": "6bbcc82287096118edb4b869145fbf76d5547b57d2710be095e4f659a136a116",
+      "live_source_pin_count": 29,
+      "changed": [
+        "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+        "rust/tcl-compiler/src/registry_invocation.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+      "before_sha256": "3456e9c01a3b231eca382e0503d1c7473e0b0ddaf64cacd8f8041212248a0224",
+      "live_source_pin_count": 13,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-inputs.json",
+      "before_sha256": "f827e35658f69998f195f38125dfd48af60254a587bfcb02d213b86c459edca5",
+      "live_source_pin_count": 0,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-protocol-provenance.json",
+      "before_sha256": "1675f6f2816aed92ad8751b1ba07b1e159d91a33b78fca255f2167cb1e2b7ed1",
+      "live_source_pin_count": 0,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-a26-failed-originals.log.json",
+      "before_sha256": "88dd41eae670e31bd0f08d857f3fc35f2ccf53164d0127096f5a30c08e675ab5",
+      "live_source_pin_count": 0,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-baseline-supplement-roster.json",
+      "before_sha256": "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f",
+      "live_source_pin_count": 0,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-other-failures-roster.json",
+      "before_sha256": "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821",
+      "live_source_pin_count": 0,
+      "changed": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "before_sha256": "6abbdcccce2b463108d115fb1c19fec9ae237e90d8f72a68dd57e5c19925da6b",
+      "live_source_pin_count": 85,
+      "changed": [
+        "rust/tcl-compiler/src/registry_invocation.rs",
+        "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+        "rust/tcl-compiler/src/command_binding.rs",
+        "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "before_sha256": "e68cf010b7221c8c5839e6ffaf3ca7a3071c7af119df79b83d96c5d52e37ec59",
+      "live_source_pin_count": 61,
+      "changed": []
+    }
+  ],
+  "live_source_pin_changes": [
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before": "9903a847a9d74903d76b23ab8e438cffae4f48c4123cd8a8b9649c0913f8a428",
+      "after": "5d2bd232d7883692dc8f91c48cecbfdd6daccbfe1a46f844f464873e0c5fe484",
+      "latest_source_commit": "9377c09d87bdf1cc0ba3b10c97da57721643dd6a"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "before": "956f5718f5cc447c1efa0b6a8c18e471000987cb55a900e4e8401264eb06f25a",
+      "after": "20395bcdf1d27fdb6adb918ba020eac1a6eb9975de98eb04e5ca8e7ed8775c5e",
+      "latest_source_commit": "5cbd8be4b3e47a8a4c710a63c3052c740aea4ef9"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "source": "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs",
+      "before": "09ac3e8442fb89dd105593c7b64a62f3ad18e9f7893b68a26fd947b2e8912205",
+      "after": "bc2547d57b23050b5a8ef68545680349544a606b7229095e7cf04c33ed9f2168",
+      "latest_source_commit": "2c1bcedeeb0576f2e04f65782170dfef73628a51"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "source": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "before": "096769d7c71855baf2b108cba4766be9a1421114555cecf001b78ed891aafd96",
+      "after": "4b21a4f58f3f079ee9ccdabe85663ee37cc4c1bd9644cc7416e8090d99abf4cd",
+      "latest_source_commit": "5cbd8be4b3e47a8a4c710a63c3052c740aea4ef9"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "before": "956f5718f5cc447c1efa0b6a8c18e471000987cb55a900e4e8401264eb06f25a",
+      "after": "20395bcdf1d27fdb6adb918ba020eac1a6eb9975de98eb04e5ca8e7ed8775c5e",
+      "latest_source_commit": "5cbd8be4b3e47a8a4c710a63c3052c740aea4ef9"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before": "9903a847a9d74903d76b23ab8e438cffae4f48c4123cd8a8b9649c0913f8a428",
+      "after": "5d2bd232d7883692dc8f91c48cecbfdd6daccbfe1a46f844f464873e0c5fe484",
+      "latest_source_commit": "9377c09d87bdf1cc0ba3b10c97da57721643dd6a"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "source": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before": "cf9d686307b909e2408b344b3ea1204788bdbe80f4dbf598a693d96cb30f80c4",
+      "after": "824978fcd5105d73d2c8dc695ce1eba501562ea69f4ecc6ced779dc4a9ede103",
+      "latest_source_commit": "63a7c16b8b27c9bbb361b7568cee666c36d475ec"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before": "237b866157640aa8aceec41dfa287d692cce777082b611c718617eb920aa2942",
+      "after": "f19fcd73127acecacc3f493e83d9f4022b2142f414e7d4b08d45cdffe5ead2bc",
+      "latest_source_commit": "49feb7c4d8873c3ec6917c28a7503231c3d7792a"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before": "9903a847a9d74903d76b23ab8e438cffae4f48c4123cd8a8b9649c0913f8a428",
+      "after": "5d2bd232d7883692dc8f91c48cecbfdd6daccbfe1a46f844f464873e0c5fe484",
+      "latest_source_commit": "9377c09d87bdf1cc0ba3b10c97da57721643dd6a"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before": "9903a847a9d74903d76b23ab8e438cffae4f48c4123cd8a8b9649c0913f8a428",
+      "after": "5d2bd232d7883692dc8f91c48cecbfdd6daccbfe1a46f844f464873e0c5fe484",
+      "latest_source_commit": "9377c09d87bdf1cc0ba3b10c97da57721643dd6a"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "source": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+      "before": "7790d8f932ece5a93e00f70c340384ed6557910be9a8b8e36202c8ae7d8068f1",
+      "after": "0d446c2faf08467641b6f607b52754abb1e48134e541dd8053d800d35a404d96",
+      "latest_source_commit": "26e6e76eefecff567fdf0d403276a002828047ee"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "before": "956f5718f5cc447c1efa0b6a8c18e471000987cb55a900e4e8401264eb06f25a",
+      "after": "20395bcdf1d27fdb6adb918ba020eac1a6eb9975de98eb04e5ca8e7ed8775c5e",
+      "latest_source_commit": "5cbd8be4b3e47a8a4c710a63c3052c740aea4ef9"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs",
+      "before": "09ac3e8442fb89dd105593c7b64a62f3ad18e9f7893b68a26fd947b2e8912205",
+      "after": "bc2547d57b23050b5a8ef68545680349544a606b7229095e7cf04c33ed9f2168",
+      "latest_source_commit": "2c1bcedeeb0576f2e04f65782170dfef73628a51"
+    }
+  ],
+  "approved_nested_child10_pin_changes": [],
+  "current_descriptor_scalar_changes": [],
+  "recursive_descriptor_actualGit_audit": [
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "trail": [
+        "separate_restored_child_owner_control"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "actualGit_sha256": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
+      "before_descriptor": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b"
+    }
+  ],
+  "independent_source_hash_consumers": [],
+  "derived_whole_JSON_guards": [
+    {
+      "driver": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "before": "38c446aab581ef3a3bcfaeba771f4c74f4233e958136749389b87cc0d2f90d11",
+      "after": "b0c53c5f641c54401d94c969b481f173c11bf7a77140f0eca745ab0a8dadd927",
+      "occurrences": 1
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "json": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "before": "3f153ef1e86c64e97b7281d091b0beff36f21d33d6c38122394498ba7f2046cb",
+      "after": "008f4cb2b4d5df6584949c4926b6e813a55365a97b00066cb7e32297213a985c",
+      "occurrences": 1
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "json": "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "before": "de64f9f29b62504ee075ed4fca62b8afc00b84bf854f8c4a7e69789b4521f10e",
+      "after": "70d1dd2bcd054963f6889dcc6b4efbe8ce03172fe7b8b8ad3e9b34f4b56234ec",
+      "occurrences": 1
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "before": "dd92e0d33d93aa7b0a7d119fdec0f07d7341018c4e854041092cd6346ed2033c",
+      "after": "ba68774d75478e9bb385aa6b1a1c423b8c1ca89f851798f83bc3194fb31e56dd",
+      "occurrences": 1
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "json": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "before": "f53e1a2e9671df228d72cdd861fde75cce72a1a715d80137676991f9e4a5c9dc",
+      "after": "d488b77b214b477a3cfdb892eb100072a51a2c0c7d46b4aac0b251f69772fc53",
+      "occurrences": 1
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "json": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "before": "6bbcc82287096118edb4b869145fbf76d5547b57d2710be095e4f659a136a116",
+      "after": "160770882cdad8a2de4e8c067d65c114e2723d178fc00f7463c52c3362fe2f53",
+      "occurrences": 1
+    }
+  ],
+  "exact_preapproved_env_consumer_delta_composed": false,
+  "env_consumer_source_peer": "d93982ac29785fd045bead2fc491072012415753b4bf22b9538cb2d87bfc5e76",
+  "scope": "Approved exact lease producer additions plus current top-level and sole nested Child10 live source_pins scalar changes+derived actual wholeJSON literal guards. Independent Python duplicated-source-hash consumers are checked and any unmatched stale literal blocks sealing. Historical previous_source_pins and all rows/env/counts/commands/budgets/policies untouched. If stillmissing, compose exact alreadyapproved readonly13 four-env consumer predicate correction (no new envflags).",
+  "checks": [
+    "CapturedHEAD start/end stable; all23JSON/current17live maps checked against exact currentGit",
+    "All wholeJSON byte inverses preserve historical maps/arrays/keys/order",
+    "Whole driver byte inverse restores sourcehash scalars and optional exactapproved envconsumer delta only",
+    "Python AST PASS",
+    "CopiedF-R-F0 allfiles exact"
+  ],
+  "unrun": [
+    "Rust/Clippy/semantic suites"
+  ]
+}

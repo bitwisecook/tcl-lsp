@@ -1,0 +1,77 @@
+{
+  "utc": "2026-10-26T18:26:59.942985+00:00",
+  "run": 40362871182,
+  "source": "ba30c14084c1b703c3b76635f31ea26105d2ef1a",
+  "result": "DIAGNOSTIC_ONLY_NO_ACCEPTANCE_NO_CAUSAL_BYPASS_PROOF",
+  "rows": [
+    {
+      "scope": "small",
+      "artifact_id": 12675490476,
+      "zip_sha256": "a01638df78b3cecdc40b3503c0b4bdfdc1303bb529e00d1fcea3b49022b62450",
+      "build_exits": [
+        0,
+        0
+      ],
+      "baseline_seconds": 69.883,
+      "baseline_failed_checks": [
+        "refactor.rename"
+      ],
+      "candidate_seconds": 1800.433,
+      "candidate_result_valid": false,
+      "otherwise_eligible_bypass_observed": false,
+      "group_empty": false,
+      "stop_reason": "cleanup_permission_error",
+      "cleanup_errors": [
+        {
+          "errno": 1,
+          "error": "PermissionError",
+          "message": "[Errno 1] Operation not permitted",
+          "operation": "killpg",
+          "signal": "SIGINT",
+          "traceback": "Traceback (most recent call last):\n  File \"/Users/runner/work/tcl-lsp/tcl-lsp/harness/scripts/perf/paired_bench.py\", line 218, in stop_group\n    os.killpg(pgid, sig)\n    ~~~~~~~~~^^^^^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n"
+        }
+      ],
+      "candidate_stdout": "   doc georgtree/tcl_tools/mathutil.tcl  (8198B, 6 positions)\n   doc georgtree/ruff/src/formatter.tcl  (59467B, 20 positions)\n   doc georgtree/SpiceGenTcl/src/ngspice/specAnalysesClassesNgspice.tcl  (6030B, 0 positions)\n   doc georgtree/SpiceGenTcl/examples/ngspice/advanced/verilog_a_magnetic.tcl  (7109B, 0 positions)\n== candidate-small-pair1 | scope=small | 113 .tcl files ==\n   server /Users/runner/work/_temp/paired-perf/work/small/bin/candidate/tcl-lsp-server\n   1. Workspace scan (cold index)                   120.126s    3128.4 MiB   FAILED\n   2. Open 4 documents + analyse                     33.365s    2653.5 MiB\n   3. Typing storm (400 edits, no requests)           0.489s    2644.0 MiB\n",
+      "candidate_stderr": "\n!!! bench.py: --deadline 1800s exceeded !!!\n    server binary: /Users/runner/work/_temp/paired-perf/work/small/bin/candidate/tcl-lsp-server\n    version:       candidate-small-pair1\n    phase:         check 4: edit.tokens (Typing + semantic tokens (100 edits))\n    server pid:    58683\n    last request:  method=textDocument/semanticTokens/full id=62\n    This is either a slow host/scope (raise --deadline or set\n    BENCH_DEADLINE_S) or issue #1399's intermittent harness hang.\n\n",
+      "all_streams_complete_authenticated": true
+    },
+    {
+      "scope": "medium",
+      "artifact_id": 12674308452,
+      "zip_sha256": "0c4c29e8e31cc8d43e5e007cc6df022a3dc20a6f144854916831c16c62b17d43",
+      "build_exits": [
+        0,
+        0
+      ],
+      "baseline_seconds": 130.204,
+      "baseline_failed_checks": [],
+      "candidate_seconds": 1801.141,
+      "candidate_result_valid": false,
+      "otherwise_eligible_bypass_observed": false,
+      "group_empty": false,
+      "stop_reason": "cleanup_permission_error",
+      "cleanup_errors": [
+        {
+          "errno": 1,
+          "error": "PermissionError",
+          "message": "[Errno 1] Operation not permitted",
+          "operation": "killpg",
+          "signal": "SIGINT",
+          "traceback": "Traceback (most recent call last):\n  File \"/Users/runner/work/tcl-lsp/tcl-lsp/harness/scripts/perf/paired_bench.py\", line 218, in stop_group\n    os.killpg(pgid, sig)\n    ~~~~~~~~~^^^^^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n"
+        }
+      ],
+      "candidate_stdout": "   doc georgtree/tcl_tools/mathutil.tcl  (8198B, 6 positions)\n   doc georgtree/SpiceGenTcl/src/specAnalysesClassesCommon.tcl  (6798B, 0 positions)\n   doc nico-robert/ticklecharts/examples/line/line_shadow.tcl  (4610B, 0 positions)\n   doc aplsimple/alited/src/tool.tcl  (32710B, 20 positions)\n== candidate-medium-pair1 | scope=medium | 569 .tcl files ==\n   server /Users/runner/work/_temp/paired-perf/work/medium/bin/candidate/tcl-lsp-server\n   1. Workspace scan (cold index)                   120.033s    2549.4 MiB   FAILED\n   2. Open 4 documents + analyse                     33.652s    3583.2 MiB\n   3. Typing storm (400 edits, no requests)           0.492s    3583.4 MiB\n",
+      "candidate_stderr": "\n!!! bench.py: --deadline 1800s exceeded !!!\n    server binary: /Users/runner/work/_temp/paired-perf/work/medium/bin/candidate/tcl-lsp-server\n    version:       candidate-medium-pair1\n    phase:         check 4: edit.tokens (Typing + semantic tokens (100 edits))\n    server pid:    60343\n    last request:  method=textDocument/semanticTokens/full id=60\n    This is either a slow host/scope (raise --deadline or set\n    BENCH_DEADLINE_S) or issue #1399's intermittent harness hang.\n\n",
+      "all_streams_complete_authenticated": true
+    }
+  ],
+  "accepted_pairs": 0,
+  "comparable": false,
+  "production_lease_source_not_executed": true,
+  "limitations": [
+    "eligible bypass marker not observed, so cache bypass hypothesis remains untested",
+    "candidate result absent; no complete peakRSS or ratio",
+    "cleanup permission refusal leaves process group unproven",
+    "not production5cbd weak lease cache and no full source/provider/dependency inventory in artifact"
+  ]
+}

@@ -1,0 +1,995 @@
+{
+  "rules": "No invented source alias: exact checkout prefix or standalone runtime cwd; normalized project path independently checked against actual source Git and tracked manifest by fullauth. Previous generic auditor halted on absolute path; successor handles declared mappings.",
+  "rows": [
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_string.rs",
+      "actual_project_path": "runtime/rust/src/cmd_string.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "4b5e274d7f1d6bf6146019a36551fe769e967f3d6483a1d6d8294fdcbcb718df"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_control.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608"
+    },
+    {
+      "raw": "src/interp/native_variable_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6176637bd16da8fb20ed524950c61069b0f29c3758f2437deecccc020ff6a1c9"
+    },
+    {
+      "raw": "src/capi/scalar/tests.rs",
+      "actual_project_path": "runtime/rust/src/capi/scalar/tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "d463c67d5029c3cb09c4af23e8464304a24f3e20f0cbaa3eb7506789c796f85b"
+    },
+    {
+      "raw": "src/interp/native_error_headers.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_error_headers.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "706cecb2d78aafff4a06d7bbfb76b89f5d0aa57f2981faf7e74aa4df4efa0f81"
+    },
+    {
+      "raw": "src/cmd_alias.rs",
+      "actual_project_path": "runtime/rust/src/cmd_alias.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "ef1fdc41542bd92d51df9f0e31e3f829f0e32f610c4b5e7e4975e1529ceddca3"
+    },
+    {
+      "raw": "src/cmd_control.rs",
+      "actual_project_path": "runtime/rust/src/cmd_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "d1e94eb02156340e691b89b9f87a164bbf274cf58f54ab436a8ef8b073abff77"
+    },
+    {
+      "raw": "src/cmd_control.rs",
+      "actual_project_path": "runtime/rust/src/cmd_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "d1e94eb02156340e691b89b9f87a164bbf274cf58f54ab436a8ef8b073abff77"
+    },
+    {
+      "raw": "src/cmd_control.rs",
+      "actual_project_path": "runtime/rust/src/cmd_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "d1e94eb02156340e691b89b9f87a164bbf274cf58f54ab436a8ef8b073abff77"
+    },
+    {
+      "raw": "src/cmd_error.rs",
+      "actual_project_path": "runtime/rust/src/cmd_error.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "ac849810947a15d1ad789459151bab2b034c60bcdf4f4f52f9fcbca9d7e58c0e"
+    },
+    {
+      "raw": "src/native_source.rs",
+      "actual_project_path": "runtime/rust/src/native_source.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "93f7df13fd631fdd07a0a4249cde4c14db88e5038adfc80176f24c6956aecea5"
+    },
+    {
+      "raw": "src/return_options.rs",
+      "actual_project_path": "runtime/rust/src/return_options.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "4a91cc38ace4505cba51d573aba546c00b383ecb86425a6664bfc2a96ca0098b"
+    },
+    {
+      "raw": "src/return_options.rs",
+      "actual_project_path": "runtime/rust/src/return_options.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "4a91cc38ace4505cba51d573aba546c00b383ecb86425a6664bfc2a96ca0098b"
+    },
+    {
+      "raw": "src/cmd_namespace.rs",
+      "actual_project_path": "runtime/rust/src/cmd_namespace.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "75e054ab052d138c69d2d78c3c2b624570a0e7e522ac713b3db565f259224099"
+    },
+    {
+      "raw": "src/cmd_namespace.rs",
+      "actual_project_path": "runtime/rust/src/cmd_namespace.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "75e054ab052d138c69d2d78c3c2b624570a0e7e522ac713b3db565f259224099"
+    },
+    {
+      "raw": "src/cmd_namespace.rs",
+      "actual_project_path": "runtime/rust/src/cmd_namespace.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "75e054ab052d138c69d2d78c3c2b624570a0e7e522ac713b3db565f259224099"
+    },
+    {
+      "raw": "src/cmd_oo/native_context.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_context.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "582f8ba9980c58f5ad490f9fa6ebf7bc6d55755211b027a28c36747843f29673"
+    },
+    {
+      "raw": "src/cmd_oo/native_context.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_context.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "582f8ba9980c58f5ad490f9fa6ebf7bc6d55755211b027a28c36747843f29673"
+    },
+    {
+      "raw": "src/cmd_oo/native_context.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_context.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "582f8ba9980c58f5ad490f9fa6ebf7bc6d55755211b027a28c36747843f29673"
+    },
+    {
+      "raw": "src/cmd_oo/native_method_cache.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_method_cache.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e4162f0e9520c1125411929bcb6ea1911c1f6ffcc332e5e310dd783fe75f0390"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5ca6975e30a7cafb1108939b66f19ed405ddcdc8b5318875e71d0bb6174294f7"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5ca6975e30a7cafb1108939b66f19ed405ddcdc8b5318875e71d0bb6174294f7"
+    },
+    {
+      "raw": "src/cmd_var.rs",
+      "actual_project_path": "runtime/rust/src/cmd_var.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "80b3d6bf782d7813c2d5bdc89ea3d35825ec1515b46e61e1c19277a4861de0b1"
+    },
+    {
+      "raw": "src/engine_abi/value_carriers.rs",
+      "actual_project_path": "runtime/rust/src/engine_abi/value_carriers.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "da4b4ba0864316c53c0ec306c16a0ac7823b3eeb7d525c9f22e250a5ff274e0a"
+    },
+    {
+      "raw": "src/frame/jim_alias_publication.rs",
+      "actual_project_path": "runtime/rust/src/frame/jim_alias_publication.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6a856b6ba3b2c404d5b6956934a1288c8afd3b407ff6c4c5531701f982b8776a"
+    },
+    {
+      "raw": "src/frame/container.rs",
+      "actual_project_path": "runtime/rust/src/frame/container.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "597a123470b523eb2ef1852debb295f79068eec8d6280cef1ecdfe667e9de176"
+    },
+    {
+      "raw": "src/frame/destruction.rs",
+      "actual_project_path": "runtime/rust/src/frame/destruction.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "4e3d8dd4e4306eff905178599840c738017dea518d3f8121eb58289c2613ea3f"
+    },
+    {
+      "raw": "src/frame/materialisation.rs",
+      "actual_project_path": "runtime/rust/src/frame/materialisation.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5e3a505b202c2b72e9c0e2f489aed93064ea21cc1d83ebfdecdf09c3f32476a1"
+    },
+    {
+      "raw": "src/frame/retired_variable.rs",
+      "actual_project_path": "runtime/rust/src/frame/retired_variable.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "605b4c3d2370054d5f5741592bc9921d606f0852f617f2e316202b21d996e223"
+    },
+    {
+      "raw": "src/interp/codegen_depth_diagnostic.rs",
+      "actual_project_path": "runtime/rust/src/interp/codegen_depth_diagnostic.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "286f8297c4978aaab0d56802e2c493f9a592a3057743a1a48bfa1884d0768350"
+    },
+    {
+      "raw": "src/interp/native_append.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_append.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "25119852c5bf57c7f078fad530989967f29fb8a33e5c0686568e7cd497dea3e6"
+    },
+    {
+      "raw": "src/interp/native_append.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_append.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "25119852c5bf57c7f078fad530989967f29fb8a33e5c0686568e7cd497dea3e6"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "7dc0256d2073532994e5ba74b4f6372fbac584dbc359b22fdda348560cd97386"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "7dc0256d2073532994e5ba74b4f6372fbac584dbc359b22fdda348560cd97386"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "7dc0256d2073532994e5ba74b4f6372fbac584dbc359b22fdda348560cd97386"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "7dc0256d2073532994e5ba74b4f6372fbac584dbc359b22fdda348560cd97386"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "7dc0256d2073532994e5ba74b4f6372fbac584dbc359b22fdda348560cd97386"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "7dc0256d2073532994e5ba74b4f6372fbac584dbc359b22fdda348560cd97386"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_error.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_error.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5fbb0b835e1c2359949edbc77aef60a56ac4429ffb766cb57350148f5413cfe9"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_error.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_error.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5fbb0b835e1c2359949edbc77aef60a56ac4429ffb766cb57350148f5413cfe9"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_try.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6c5af66c31b589d1fa79e49eab8419219fcd0a646ab838c78192dd1421774eeb"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_try.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6c5af66c31b589d1fa79e49eab8419219fcd0a646ab838c78192dd1421774eeb"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_try.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6c5af66c31b589d1fa79e49eab8419219fcd0a646ab838c78192dd1421774eeb"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_control.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_control.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_control.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_control.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "bdc5a31dad009bd4df59f73e96ebd286f71f029e672ece53da98222f1fe8a608"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_array.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_array.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e150ca9c47a75fc132cd086b0b98e5d826623b27d01d42b2655f70c1f851b3e6"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_scalar.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e000176cac93c8e19afabdaa3d3de11329bad1ab429fec980b5c745b2d50892a"
+    },
+    {
+      "raw": "src/interp/native_body_artifact.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec"
+    },
+    {
+      "raw": "src/interp/native_body_artifact.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec"
+    },
+    {
+      "raw": "src/interp/native_body_artifact.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec"
+    },
+    {
+      "raw": "src/interp/native_body_artifact.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec"
+    },
+    {
+      "raw": "src/interp/native_body_artifact.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec"
+    },
+    {
+      "raw": "src/interp/native_body_artifact.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec"
+    },
+    {
+      "raw": "src/interp/native_body_artifact.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "33723735e67c9d4d7dee64daff63919a214619691fd4dc416d8cb8c479f888ec"
+    },
+    {
+      "raw": "src/interp/native_command_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_command_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "0670cb88556adc0ce097ea543a4dd4818ff6118eead58089fe6539bf6e588e99"
+    },
+    {
+      "raw": "src/interp/native_command_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_command_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "0670cb88556adc0ce097ea543a4dd4818ff6118eead58089fe6539bf6e588e99"
+    },
+    {
+      "raw": "src/interp/native_command_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_command_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "0670cb88556adc0ce097ea543a4dd4818ff6118eead58089fe6539bf6e588e99"
+    },
+    {
+      "raw": "src/interp/native_compilation.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_compilation.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "04a537529ae59775f0891c3948191184e8f067361612983e98ccdfda4eb2463a"
+    },
+    {
+      "raw": "src/interp/native_host_publication.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_host_publication.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "ab0c25b6b01a2749f66be358c519b63d188bb0c249f6a2095dd2acac751d77f5"
+    },
+    {
+      "raw": "src/interp/native_error_variables.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_error_variables.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "91d70ce66ffa1d0016851cf0209f80c14df294492e6d6ca2abbb96b572c67605"
+    },
+    {
+      "raw": "src/interp/native_i64_body.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_i64_body.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "af692628f8ab54252fd09d5507a17c0c1bdd5723201e6949149f8c72d831e749"
+    },
+    {
+      "raw": "src/interp/native_jim_lookup.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_jim_lookup.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1613961cd3838528371209c15674f7127c4c5e0331968092d941dd962b696c14"
+    },
+    {
+      "raw": "src/interp/native_jim_lookup.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_jim_lookup.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1613961cd3838528371209c15674f7127c4c5e0331968092d941dd962b696c14"
+    },
+    {
+      "raw": "src/interp/native_literal_pool.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_literal_pool.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "3aeddea17b51e4e0bf89827c163821cd0c376d79ded36f8e49ad5779c9c66eb8"
+    },
+    {
+      "raw": "src/interp/native_literal_pool.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_literal_pool.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "3aeddea17b51e4e0bf89827c163821cd0c376d79ded36f8e49ad5779c9c66eb8"
+    },
+    {
+      "raw": "src/interp/native_namespace_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_namespace_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "17fe7d908b73b3091eab11dc72f48a59c727c4b11a3c438953c80da094f9248f"
+    },
+    {
+      "raw": "src/interp/native_argument_usage.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_argument_usage.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "a962a9827c4d7f7757d4a0f93582af74bf6daacb60c9412f0fdb1a0355334ab3"
+    },
+    {
+      "raw": "src/interp/native_command_rename.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_command_rename.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "412bf351fa8aaf9ff8086324756423787176e4cfd2b95538a4f558bd5a8aa864"
+    },
+    {
+      "raw": "src/interp/native_variable_names/native_unset.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_names/native_unset.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "f314a24de1cda5c91ba260c632a2f101fcb06e8feb9c474a7955525fed35f59c"
+    },
+    {
+      "raw": "src/interp/native_variable_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6176637bd16da8fb20ed524950c61069b0f29c3758f2437deecccc020ff6a1c9"
+    },
+    {
+      "raw": "src/interp/native_variable_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6176637bd16da8fb20ed524950c61069b0f29c3758f2437deecccc020ff6a1c9"
+    },
+    {
+      "raw": "src/interp/native_variable_teardown.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "a6f5c771a74914dce3b716b6154e57f7e3bac1ccc9e333292dbe2b1328999c05"
+    },
+    {
+      "raw": "src/interp/native_variable_teardown.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "a6f5c771a74914dce3b716b6154e57f7e3bac1ccc9e333292dbe2b1328999c05"
+    },
+    {
+      "raw": "src/interp/native_variable_teardown.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "a6f5c771a74914dce3b716b6154e57f7e3bac1ccc9e333292dbe2b1328999c05"
+    },
+    {
+      "raw": "src/interp/stock_ensembles.rs",
+      "actual_project_path": "runtime/rust/src/interp/stock_ensembles.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6a7ca25de663cae8185fa0cb1f0d22de2041f24fec8d61877c4e051a3d502204"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp/native_error_headers.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_error_headers.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "706cecb2d78aafff4a06d7bbfb76b89f5d0aa57f2981faf7e74aa4df4efa0f81"
+    },
+    {
+      "raw": "src/interp/native_error_headers.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_error_headers.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "706cecb2d78aafff4a06d7bbfb76b89f5d0aa57f2981faf7e74aa4df4efa0f81"
+    },
+    {
+      "raw": "src/interp/native_return_instruction.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "223ad24586e4584e0a77ea656e33b3a8ea6311d64e492b1fdcbc137fa0086d8d"
+    },
+    {
+      "raw": "src/interp/native_return_instruction.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "223ad24586e4584e0a77ea656e33b3a8ea6311d64e492b1fdcbc137fa0086d8d"
+    },
+    {
+      "raw": "src/list/native_list_storage.rs",
+      "actual_project_path": "runtime/rust/src/list/native_list_storage.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "c6b46972c33c94766a31e201d3c001ae9670dd9adb813fbac460edaed1b61bbe"
+    },
+    {
+      "raw": "src/state_traits.rs",
+      "actual_project_path": "runtime/rust/src/state_traits.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e5148ef882a890f3a1786d352913c8b8394bb1b46e3ef8ed5bf616f1d85efe35"
+    },
+    {
+      "raw": "src/state_traits.rs",
+      "actual_project_path": "runtime/rust/src/state_traits.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e5148ef882a890f3a1786d352913c8b8394bb1b46e3ef8ed5bf616f1d85efe35"
+    },
+    {
+      "raw": "src/state_traits.rs",
+      "actual_project_path": "runtime/rust/src/state_traits.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e5148ef882a890f3a1786d352913c8b8394bb1b46e3ef8ed5bf616f1d85efe35"
+    },
+    {
+      "raw": "src/state_traits.rs",
+      "actual_project_path": "runtime/rust/src/state_traits.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e5148ef882a890f3a1786d352913c8b8394bb1b46e3ef8ed5bf616f1d85efe35"
+    },
+    {
+      "raw": "src/value_ops.rs",
+      "actual_project_path": "runtime/rust/src/value_ops.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "29cb37eb33f73a3f146e7f5bf2a95db9fc8c7a88784e11764aad37aedb353d6c"
+    },
+    {
+      "raw": "src/value_ops.rs",
+      "actual_project_path": "runtime/rust/src/value_ops.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "29cb37eb33f73a3f146e7f5bf2a95db9fc8c7a88784e11764aad37aedb353d6c"
+    },
+    {
+      "raw": "src/value_ops.rs",
+      "actual_project_path": "runtime/rust/src/value_ops.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "29cb37eb33f73a3f146e7f5bf2a95db9fc8c7a88784e11764aad37aedb353d6c"
+    },
+    {
+      "raw": "src/vars/entered_container.rs",
+      "actual_project_path": "runtime/rust/src/vars/entered_container.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "4482f4cad881861e6358d153a4100df4f7c60386d274efafd0bb8f5aa5e49f68"
+    },
+    {
+      "raw": "src/capi/scalar/tests.rs",
+      "actual_project_path": "runtime/rust/src/capi/scalar/tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "d463c67d5029c3cb09c4af23e8464304a24f3e20f0cbaa3eb7506789c796f85b"
+    },
+    {
+      "raw": "src/cmd_alias.rs",
+      "actual_project_path": "runtime/rust/src/cmd_alias.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "ef1fdc41542bd92d51df9f0e31e3f829f0e32f610c4b5e7e4975e1529ceddca3"
+    },
+    {
+      "raw": "src/cmd_array/original_argument_tests.rs",
+      "actual_project_path": "runtime/rust/src/cmd_array/original_argument_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2eb1b0b3e8d7cff1202b0e38d1cb93e116e40c022a1a93eff5f47228fb654f56"
+    },
+    {
+      "raw": "src/cmd_eval/native_frame_reference_tests.rs",
+      "actual_project_path": "runtime/rust/src/cmd_eval/native_frame_reference_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "7293c00068a0efdbd172a1621140eeaa65763bbab0e1b83c2bc3ac79c5406da8"
+    },
+    {
+      "raw": "src/cmd_list/../../tests/data/native_original_option_index636/software_controls.rs",
+      "actual_project_path": "runtime/rust/tests/data/native_original_option_index636/software_controls.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1fa41d1391494cf73d2971b18bac808341f77e369d5494c2f1fee6fceccdf031"
+    },
+    {
+      "raw": "src/cmd_list/../../tests/data/native_original_list_stride644/software_controls.rs",
+      "actual_project_path": "runtime/rust/tests/data/native_original_list_stride644/software_controls.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "36654ab950356d4a811d06a41a51caae73d2f01757a928fd9270dd64775be5f3"
+    },
+    {
+      "raw": "src/cmd_oo/original_property_retirement_tests.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/original_property_retirement_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "f8514d85c830cb8cb4c6b448cb30113d9e15b90f840d8a3a6284436c807e072e"
+    },
+    {
+      "raw": "src/cmd_oo/original_record_retirement_tests.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/original_record_retirement_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e5ea63723eb4c9e12f5a2addb0edc956f5ce77725510430aa3c5f3afeb60fde7"
+    },
+    {
+      "raw": "src/cmd_oo.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "1d5192de0b9ad61acedd39e9997ca6304e47160a7da8538b1e908fe6c2dc91c1"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5ca6975e30a7cafb1108939b66f19ed405ddcdc8b5318875e71d0bb6174294f7"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5ca6975e30a7cafb1108939b66f19ed405ddcdc8b5318875e71d0bb6174294f7"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5ca6975e30a7cafb1108939b66f19ed405ddcdc8b5318875e71d0bb6174294f7"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "5ca6975e30a7cafb1108939b66f19ed405ddcdc8b5318875e71d0bb6174294f7"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties/original_order_tests.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties/original_order_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "b0af6d78554b041a0026b3712f22e88e029a091004c5865cc9f4c0d06e0273b8"
+    },
+    {
+      "raw": "src/cmd_oo/native_properties/original_order_tests.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/native_properties/original_order_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "b0af6d78554b041a0026b3712f22e88e029a091004c5865cc9f4c0d06e0273b8"
+    },
+    {
+      "raw": "src/cmd_oo/original_namespace_copy_tests.rs",
+      "actual_project_path": "runtime/rust/src/cmd_oo/original_namespace_copy_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "f3590ef509a0456a5cc2d04c04d412a3b1fe429df72ed0c54593807f928734ac"
+    },
+    {
+      "raw": "src/cmd_var.rs",
+      "actual_project_path": "runtime/rust/src/cmd_var.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "80b3d6bf782d7813c2d5bdc89ea3d35825ec1515b46e61e1c19277a4861de0b1"
+    },
+    {
+      "raw": "src/codegen_abi.rs",
+      "actual_project_path": "runtime/rust/src/codegen_abi.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "041d0a6162a880b45eae81606400eaee634e702517abf97a297206e2bef174df"
+    },
+    {
+      "raw": "src/codegen_abi.rs",
+      "actual_project_path": "runtime/rust/src/codegen_abi.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "041d0a6162a880b45eae81606400eaee634e702517abf97a297206e2bef174df"
+    },
+    {
+      "raw": "src/codegen_abi/original_ingress_tests.rs",
+      "actual_project_path": "runtime/rust/src/codegen_abi/original_ingress_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "4a726b631651dcd18716f07c464f33fcc4994add2bd70275b91b062cf72ead4b"
+    },
+    {
+      "raw": "src/engine_abi/value_carriers.rs",
+      "actual_project_path": "runtime/rust/src/engine_abi/value_carriers.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "da4b4ba0864316c53c0ec306c16a0ac7823b3eeb7d525c9f22e250a5ff274e0a"
+    },
+    {
+      "raw": "src/expr/native_math.rs",
+      "actual_project_path": "runtime/rust/src/expr/native_math.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "3c0bd1630c287c22915490ab1ed45615e5a883a9c68b75ce7e69fc8d3700a3c6"
+    },
+    {
+      "raw": "src/frame/materialisation_tests.rs",
+      "actual_project_path": "runtime/rust/src/frame/materialisation_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "d1283e1431868b7f6e1a8b5f749aec160e9379687eca9a45c5d4c56c07d73428"
+    },
+    {
+      "raw": "src/interp/c_api_error_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/c_api_error_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "725e48f222c14f7665167af57f1eef70ccd47b779b01417238ac9ae0c321264e"
+    },
+    {
+      "raw": "src/interp/c_api_error_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/c_api_error_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "725e48f222c14f7665167af57f1eef70ccd47b779b01417238ac9ae0c321264e"
+    },
+    {
+      "raw": "src/interp/c_api_error_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/c_api_error_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "725e48f222c14f7665167af57f1eef70ccd47b779b01417238ac9ae0c321264e"
+    },
+    {
+      "raw": "src/interp/native_append.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_append.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "25119852c5bf57c7f078fad530989967f29fb8a33e5c0686568e7cd497dea3e6"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "8e55ac65059186e418bfd9d7530109fbbae3cf2ebb64c915ac48201216203bb0"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "8e55ac65059186e418bfd9d7530109fbbae3cf2ebb64c915ac48201216203bb0"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "8e55ac65059186e418bfd9d7530109fbbae3cf2ebb64c915ac48201216203bb0"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "8e55ac65059186e418bfd9d7530109fbbae3cf2ebb64c915ac48201216203bb0"
+    },
+    {
+      "raw": "src/interp/native_body_artifact/original_return_parent_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "f6dcb7838a199b0e47145c8d22e5ba6074effc9c0972bb85c392e0bd721dd0aa"
+    },
+    {
+      "raw": "src/interp/original_error_code_setter_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/original_error_code_setter_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "8c6170ff997a7b7fbfc3bdd5346a9ee778d0cca9425dd841a7bd20b1fb6065bc"
+    },
+    {
+      "raw": "src/interp/native_jim_increment/selected_dictionary_root_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_jim_increment/selected_dictionary_root_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "238cf19cd5369647a7be2ac377b2113355a6c679798d7d3c9bd5196f499daad2"
+    },
+    {
+      "raw": "src/interp/native_jim_lookup/active_retirement_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_jim_lookup/active_retirement_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "258d490580bcf8c10fcb5e0e9b0d1e79b0151200ed0ddb1bc036fe771112c714"
+    },
+    {
+      "raw": "src/interp/native_precision/original_stage_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64"
+    },
+    {
+      "raw": "src/interp/native_arguments.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_arguments.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "16f2068e6f53ddba8ddb28ea12d20e17c9c1352b2c699b1d989653db02669bb6"
+    },
+    {
+      "raw": "src/interp/native_arguments.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_arguments.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "16f2068e6f53ddba8ddb28ea12d20e17c9c1352b2c699b1d989653db02669bb6"
+    },
+    {
+      "raw": "src/interp/native_operation_currency.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_operation_currency.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "34e3ec3901eefaaeb6d3c2063beaa1f36a107890dd61fd5dcb1cde35ad09f759"
+    },
+    {
+      "raw": "src/interp/native_variable_names.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_variable_names.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "6176637bd16da8fb20ed524950c61069b0f29c3758f2437deecccc020ff6a1c9"
+    },
+    {
+      "raw": "src/interp/stock_ensembles/retirement_tests.rs",
+      "actual_project_path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "ab161e06d17e40373048a8cf94d34fbe62933a506a744ac6f400f0bd8891cecd"
+    },
+    {
+      "raw": "src/interp.rs",
+      "actual_project_path": "runtime/rust/src/interp.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "2433ca3240c88faa49bc12e817cfa234039d56d1594c9e2b79cb09734fe059e0"
+    },
+    {
+      "raw": "src/interp/native_error_headers.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_error_headers.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "706cecb2d78aafff4a06d7bbfb76b89f5d0aa57f2981faf7e74aa4df4efa0f81"
+    },
+    {
+      "raw": "src/interp/native_return_instruction.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "223ad24586e4584e0a77ea656e33b3a8ea6311d64e492b1fdcbc137fa0086d8d"
+    },
+    {
+      "raw": "src/interp/native_return_instruction.rs",
+      "actual_project_path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "223ad24586e4584e0a77ea656e33b3a8ea6311d64e492b1fdcbc137fa0086d8d"
+    },
+    {
+      "raw": "src/obj/tls_retirement_tests.rs",
+      "actual_project_path": "runtime/rust/src/obj/tls_retirement_tests.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "927749a0d0553ed0692630cd3b36ff8b30f93a4e5bdfbd096f5ddcde0a44f86a"
+    },
+    {
+      "raw": "/home/runner/work/tcl-lsp/tcl-lsp/runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs",
+      "actual_project_path": "runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e28757e8b0f878d18e1f6993327ed50d38dba24d167fd05b6e7f80235acc8496"
+    },
+    {
+      "raw": "src/value_ops/../../tests/data/native_original_index_range635/software_controls.rs",
+      "actual_project_path": "runtime/rust/tests/data/native_original_index_range635/software_controls.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "e2872fa3d68d6570b720590495a0a2f1ef9ba935a98ad9669c91de0ceb09c396"
+    },
+    {
+      "raw": "src/vars.rs",
+      "actual_project_path": "runtime/rust/src/vars.rs",
+      "rule": "strip exact hosted checkout prefix then POSIX normalize; standalone src relative to runtime/rust",
+      "actual_git_source_sha256": "a67ff08bc67e905170fcff372ae5ef86c7522fe63ffbab1df6477ddb143cbd84"
+    }
+  ]
+}

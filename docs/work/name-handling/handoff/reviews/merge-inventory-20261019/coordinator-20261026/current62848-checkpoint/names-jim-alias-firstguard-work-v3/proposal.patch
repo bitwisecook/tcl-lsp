@@ -1,0 +1,267 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -2197,49 +2197,93 @@
+                 arguments,
+                 target_lookup,
+             } => {
+-                if !receipt.is_current_interpreter(source_interpreter)? {
+-                    return None;
+-                }
+-                let alias = input(alias)?;
+-                let key = self.publication_key(alias.bytes(), AdvicePublicationPurpose::Alias)?;
+-                self.remove_namespace_import_origin(&key);
+-                self.namespace_imports.remove(&key);
+-                if !self.namespaces.contains(&key.namespace)
+-                    || !receipt.is_current_interpreter(target_interpreter)?
+-                {
+-                    // A current alias with foreign target semantics withdraws
+-                    // any earlier current procedure/class meaning at its name.
+-                    self.cells.insert(key, AdviceCell::Shadowed);
+-                    return Some(());
+-                }
+-                let prefix = arguments
+-                    .iter()
+-                    .enumerate()
+-                    .map(|(ordinal, subject)| {
+-                        let input = input(subject)?.clone();
+-                        let original = input.original_word()?.clone();
+-                        Some(SourceAdviceWord {
+-                            original,
+-                            value: Some(Arc::from(input.bytes())),
+-                            input: Some(input),
+-                            origin: crate::registry_invocation::InvocationWordOrigin::BindingPrefix(
+-                                ordinal,
+-                            ),
+-                        })
+-                    })
+-                    .collect::<Option<Vec<_>>>()?;
+-                self.cells.insert(
+-                    key,
+-                    AdviceCell::Alias {
+-                        target: Box::new(input(target)?.clone()),
+-                        prefix,
+-                        lookup: *target_lookup,
+-                        lineage: vec![Arc::clone(receipt)],
++                return self.apply_original_alias(
++                    receipt,
++                    JimAliasSourceOperands {
++                        source_interpreter,
++                        alias,
++                        target_interpreter,
++                        target,
++                        arguments,
++                        target_lookup: *target_lookup,
+                     },
+                 );
+             }
+             CommandBindingTransition::Unknown { .. } => return None,
+         }
++        Some(())
++    }
++    fn apply_original_alias(
++        &mut self,
++        receipt: &Arc<OriginalSourceCommandTransition>,
++        operands: JimAliasSourceOperands<'_>,
++    ) -> Option<()> {
++        let JimAliasSourceOperands {
++            source_interpreter,
++            alias,
++            target_interpreter,
++            target,
++            arguments,
++            target_lookup,
++        } = operands;
++        let input = |subject| receipt.input(subject);
++
++        let current_interpreter = trace_jim_alias_option(
++            &receipt.descriptor,
++            "jim.alias.source_interpreter",
++            receipt.is_current_interpreter(source_interpreter),
++        )?;
++        if !trace_jim_alias_guard(
++            &receipt.descriptor,
++            "jim.alias.source_current",
++            current_interpreter,
++        ) {
++            return None;
++        }
++        let alias =
++            trace_jim_alias_option(&receipt.descriptor, "jim.alias.alias_input", input(alias))?;
++        let key = trace_jim_alias_option(
++            &receipt.descriptor,
++            "jim.alias.publication",
++            self.publication_key(alias.bytes(), AdvicePublicationPurpose::Alias),
++        )?;
++        self.remove_namespace_import_origin(&key);
++        self.namespace_imports.remove(&key);
++        if !trace_jim_alias_guard(
++            &receipt.descriptor,
++            "jim.alias.namespace",
++            self.namespaces.contains(&key.namespace),
++        ) || !trace_jim_alias_guard(
++            &receipt.descriptor,
++            "jim.alias.target_current",
++            trace_jim_alias_option(
++                &receipt.descriptor,
++                "jim.alias.target_interpreter",
++                receipt.is_current_interpreter(target_interpreter),
++            )?,
++        ) {
++            // A current alias with foreign target semantics withdraws
++            // any earlier current procedure/class meaning at its name.
++            self.cells.insert(key, AdviceCell::Shadowed);
++            return Some(());
++        }
++        let prefix = capture_jim_alias_prefix(receipt, arguments)?;
++        self.cells.insert(
++            key,
++            AdviceCell::Alias {
++                target: Box::new(
++                    trace_jim_alias_option(
++                        &receipt.descriptor,
++                        "jim.alias.target_input",
++                        input(target),
++                    )?
++                    .clone(),
++                ),
++                prefix,
++                lookup: target_lookup,
++                lineage: vec![Arc::clone(receipt)],
++            },
++        );
+         Some(())
+     }
+ }
+@@ -2457,6 +2501,71 @@
+         })
+     })
+ }
++#[derive(Clone, Copy)]
++struct JimAliasSourceOperands<'a> {
++    source_interpreter: &'a TransitionSubject,
++    alias: &'a TransitionSubject,
++    target_interpreter: &'a TransitionSubject,
++    target: &'a TransitionSubject,
++    arguments: &'a [TransitionSubject],
++    target_lookup: AliasTargetLookup,
++}
++
++fn capture_jim_alias_prefix(
++    receipt: &Arc<OriginalSourceCommandTransition>,
++    arguments: &[TransitionSubject],
++) -> Option<Vec<SourceAdviceWord>> {
++    trace_jim_alias_option(
++        &receipt.descriptor,
++        "jim.alias.prefix",
++        arguments
++            .iter()
++            .enumerate()
++            .map(|(ordinal, subject)| {
++                let input = trace_jim_alias_option(
++                    &receipt.descriptor,
++                    "jim.alias.prefix_input",
++                    receipt.input(subject),
++                )?
++                .clone();
++                let original = trace_jim_alias_option(
++                    &receipt.descriptor,
++                    "jim.alias.prefix_word",
++                    input.original_word(),
++                )?
++                .clone();
++                Some(SourceAdviceWord {
++                    original,
++                    value: Some(Arc::from(input.bytes())),
++                    input: Some(input),
++                    origin: crate::registry_invocation::InvocationWordOrigin::BindingPrefix(
++                        ordinal,
++                    ),
++                })
++            })
++            .collect::<Option<Vec<_>>>(),
++    )
++}
++
++// WORK-only, same admission and nonwrapping process quota as the Jim owner trace.
++fn trace_jim_alias_option<T>(command: &str, stage: &'static str, value: Option<T>) -> Option<T> {
++    if command == "alias" {
++        crate::registry_invocation::source_structure::trace_jim_source_option(stage, value)
++    } else {
++        value
++    }
++}
++
++fn trace_jim_alias_guard(command: &str, stage: &'static str, value: bool) -> bool {
++    if command == "alias" {
++        let _ = crate::registry_invocation::source_structure::trace_jim_source_option(
++            stage,
++            value.then_some(()),
++        );
++    }
++    value
++}
++
+ fn capture_transition(
+     origin: &Arc<super::SourceOriginId>,
+     native: &[NativeWord],
+@@ -2475,9 +2584,23 @@
+                 return matches!(&subject, TransitionSubject::Literal(value) if value.is_empty())
+                     .then_some(None);
+             };
+-            let input = arguments.get(ordinal)?.input.as_ref()?.clone();
+-            original_transition_subject_matches(&subject, &input, &transitions)
+-                .then_some(Some((subject, input)))
++            let argument = trace_jim_alias_option(
++                command,
++                "jim.alias.capture.argument",
++                arguments.get(ordinal),
++            )?;
++            let input = trace_jim_alias_option(
++                command,
++                "jim.alias.capture.input",
++                argument.input.as_ref(),
++            )?
++            .clone();
++            trace_jim_alias_option(
++                command,
++                "jim.alias.capture.subject",
++                original_transition_subject_matches(&subject, &input, &transitions)
++                    .then_some(Some((subject, input))),
++            )
+         })
+         .collect::<Option<Vec<_>>>()?
+         .into_iter()
+@@ -2562,13 +2685,17 @@
+                 .logical_ensemble_transition_receipts
+                 .insert(native.first()?.span().start(), None);
+         }
+-        let receipt = capture_transition(
+-            self.origin,
+-            native,
++        let receipt = trace_jim_alias_option(
+             command,
+-            arguments,
+-            transitions.clone(),
+-            lineage,
++            "jim.alias.receipt",
++            capture_transition(
++                self.origin,
++                native,
++                command,
++                arguments,
++                transitions.clone(),
++                lineage,
++            ),
+         );
+         if let Some(receipt) = &receipt {
+             if ensemble_transition {
+@@ -2577,7 +2704,8 @@
+                     Some(Arc::clone(receipt)),
+                 );
+             }
+-            let applied = graph.apply(receipt).is_some();
++            let applied =
++                trace_jim_alias_guard(command, "jim.alias.applied", graph.apply(receipt).is_some());
+             if !applied {
+                 graph.widen(native);
+             }
