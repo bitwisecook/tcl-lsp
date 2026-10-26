@@ -508,8 +508,6 @@ mod tests {
 
     #[test]
     fn original_trace_subject_requires_its_actual_non_head_operand_and_context() {
-
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let registry = context.commands();
@@ -554,7 +552,6 @@ mod tests {
 
     #[test]
     fn original_opaque_trace_target_keeps_the_hazard_dynamic() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let registry = context.commands();
@@ -609,7 +606,6 @@ mod tests {
 
     #[test]
     fn original_native_token_observers_follow_add_remove_and_rename() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let registry = context.commands();
@@ -676,7 +672,6 @@ mod tests {
 
     #[test]
     fn captured_native_trace_flag_is_reached_before_empty_module_inventory() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let registry = context.commands();
@@ -762,7 +757,6 @@ mod tests {
 
     #[test]
     fn original_native_trace_owner_survives_alias_and_root_fallback_without_label_substitution() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let registry = context.commands();
@@ -812,7 +806,6 @@ mod tests {
 
     #[test]
     fn original_native_trace_absence_requires_full_vector_target_and_actual_receiver() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let registry = context.commands();
@@ -950,7 +943,6 @@ mod tests {
 
     #[test]
     fn genuine_jim_entry_cannot_borrow_raw_logical_metadata_for_trace_absence() {
-
         use crate::command_binding::OriginalInvocationSourcePurpose;
         let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
         let context =
@@ -1050,7 +1042,6 @@ mod tests {
 
     #[test]
     fn authored_simulation_source_advice_keeps_trace_absence_unavailable() {
-
         use crate::command_binding::OriginalInvocationSourcePurpose;
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();

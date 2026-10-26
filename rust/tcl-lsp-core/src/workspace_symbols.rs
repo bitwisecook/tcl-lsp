@@ -366,7 +366,6 @@ mod tests {
 
     #[test]
     fn original_workspace_symbols_preserve_opaque_owners_and_ignore_reporting_maps() {
-
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}";
         let mut analysis = analyse(source);
         analysis.all_procs.clear();
@@ -397,7 +396,6 @@ mod tests {
 
     #[test]
     fn original_vendor_workspace_headers_retain_unknown_units_and_source_currency() {
-
         let source = "proc helper {} {}\nproc p\\uD800 {} {}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-iapps");
         analysis.all_procs.clear();
@@ -433,7 +431,6 @@ mod tests {
 
     #[test]
     fn original_registry_workspace_symbols_use_selected_source_cards_after_ui_clear() {
-
         let source = "tcltest::test sample-case {detail} {return pass} pass";
         let mut analysis = analyse(source);
         assert_eq!(analysis.original_symbol_declarations().count(), 1);

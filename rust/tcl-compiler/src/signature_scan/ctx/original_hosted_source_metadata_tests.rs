@@ -34,7 +34,6 @@ fn context<'a>(
 
 #[test]
 fn original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purpose() {
-
     // Actual hosted source descriptors and configured Document geometry only,
     // without a host execution, Native naming provider or logical F5 simulation.
     let source = r"namespace eval n\u03bb {proc visible {} {}; if 1 {proc nested {} {}}}";
@@ -94,7 +93,6 @@ fn original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purp
 
 #[test]
 fn original_hosted_standalone_source_cannot_replace_supplied_binding_purposes() {
-
     // Genuine full hosted source input and held software Native entry stay
     // separate from the header-only symbolic metadata query.
     let environment = tcl_registry::model::ingress::resolve_known_environment("f5-irules").unwrap();

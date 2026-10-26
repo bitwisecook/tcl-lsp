@@ -107,7 +107,6 @@ fn finish(interpreter: &Interp, original: &obj::Owned, mode: u8) {
 
 #[test]
 fn original_cache_retirement_checks_actual_currency_and_binding_before_adoption() {
-
     // Source-only owner control; no native header/refcount equivalence claim.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for mode in 0..4 {
@@ -136,7 +135,6 @@ fn original_cache_retirement_checks_actual_currency_and_binding_before_adoption(
 
 #[test]
 fn original_unresolved_c8_cache_stops_after_reached_retirement_and_c9_keeps_primary() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..3 {
             let mut interpreter = native(profile);
@@ -174,7 +172,6 @@ fn original_unresolved_c8_cache_stops_after_reached_retirement_and_c9_keeps_prim
 
 #[test]
 fn original_jim_cache_namespace_reference_starts_after_actual_primary_retirement() {
-
     for mode in 0..3 {
         let mut interpreter = native("jim");
         MODE.with(|current| current.set(mode));
@@ -223,7 +220,6 @@ unsafe extern "C" fn owned_delete(data: *mut std::ffi::c_void) {
 }
 #[test]
 fn original_cache_preparation_does_not_keep_idle_owned_worker_alive_during_free() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
         let deleted = std::rc::Rc::new(Cell::new(0));

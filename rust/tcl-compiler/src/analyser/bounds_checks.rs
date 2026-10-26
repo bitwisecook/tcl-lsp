@@ -2806,7 +2806,6 @@ mod tests {
     }
     #[test]
     fn shallow_bounds_metadata_retains_availability_without_default_catalogue_fallback() {
-
         let current = tcl_registry::model::context_for_profile(
             tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
         );
@@ -3095,7 +3094,6 @@ mod original_body_parser_purpose_tests {
 
     #[test]
     fn original_loop_body_and_step_parsers_keep_bom_as_command_content() {
-
         // Retained conditional schema/body syntax; no executed loop/cell effect proof.
         let mut analyser = crate::analyser::Analyser::new();
         let input = analyser.prepare_analysis_input("tcl9.1").unwrap();
@@ -3130,7 +3128,6 @@ mod original_body_parser_purpose_tests {
 
     #[test]
     fn original_body_walk_keeps_leading_bom_as_command_content_at_each_depth() {
-
         // Retained available schema plus lexical body topology, no entered loop/exit.
         let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
         let config = tcl_lexer::LexerConfig::for_file_grammar(
@@ -3150,7 +3147,6 @@ mod original_list_descent_purpose_tests {
 
     #[test]
     fn original_list_descent_keeps_file_bom_and_extracted_body_marks_distinct() {
-
         // This lexical list-length projection grants no getter, store or frame.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);

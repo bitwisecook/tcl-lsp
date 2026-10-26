@@ -167,7 +167,6 @@ impl AdviceInvocationContext<'_> {
         class: Option<&Arc<OriginalSourceClassDeclaration>>,
         procedure: Option<&Arc<OriginalSourceProcedureBody>>,
     ) {
-
         if let Some(class) = class {
             self.retain_source_base_class_references(tape, graph, class);
         }
@@ -228,7 +227,6 @@ impl AdviceInvocationContext<'_> {
         graph: &mut AdviceGraph,
         class: Option<&Arc<OriginalSourceClassDeclaration>>,
     ) {
-
         let Some(class) = class else {
             return;
         };
@@ -411,7 +409,6 @@ mod tests {
 
     #[test]
     fn original_class_reference_keeps_genuine_base_list_children_and_current_moves() {
-
         let source = "class Base {}; rename Base Held; unavailable; class Child {Held} {}";
         let analysis = Analyser::new().analyse(source, "jim");
         let offset = at(source, "class Child");
@@ -451,7 +448,6 @@ mod tests {
     }
     #[test]
     fn original_class_reference_keeps_earlier_procedure_producer_separate_from_factory() {
-
         let source = "proc {C before} {} {}; class C {}; proc {C after} {} {}";
         let analysis = Analyser::new().analyse(source, "jim");
         let factory_at = at(source, "class C");
@@ -478,7 +474,6 @@ mod tests {
     #[test]
     fn original_class_reference_refuses_alias_objects_known_shadow_delete_and_moved_proc_adoption()
     {
-
         for source in [
             "class Base {}; interp alias {} Alias {} Base; class Child {Alias} {}",
             "class Base {}; rename Base {}; class Child {Base} {}",
@@ -506,7 +501,6 @@ mod tests {
     }
     #[test]
     fn original_class_factory_initialisers_withdraw_earlier_members_and_callback_headers() {
-
         // Native observation: naming.class.jim-source-factory-initialiser-replacement.
 
         // These assertions check conditional source carriers, not successful execution.
@@ -604,8 +598,6 @@ mod tests {
 
     #[test]
     fn original_class_factory_baseclass_replacement_keeps_exact_source_operand_condition() {
-
-
         for (factory, retained) in [
             ("class C {}", true),
             ("class C {} {}", true),
@@ -626,7 +618,6 @@ mod tests {
 
     #[test]
     fn original_class_factory_initialiser_descriptor_keeps_provider_release_and_family() {
-
         // Release-window assertions are Registry contracts, not native old-Jim observations.
         use tcl_dialect::model::{DialectPoint, Release};
         let source = "class C {}";
@@ -697,8 +688,6 @@ mod tests {
     }
     #[test]
     fn original_class_factory_initialisers_keep_alias_and_procedure_publication_distinct() {
-
-
         // This tests conditional source barriers, not successful factory execution.
         let source = "proc {::C constructor} {} {return ORIGINAL}; class ::C {}";
         let analysis = Analyser::new().analyse(source, "jim");
@@ -725,7 +714,6 @@ mod tests {
     }
     #[test]
     fn original_class_factory_initialiser_alias_namespace_scope_stays_separate_from_table_key() {
-
         // Pure naming-owner scope coverage; no native namespace execution claim.
         let jim = tcl_syntax::naming::NativeNameProtocol::Jim084;
         let namespace = ByteNamespacePath::from_segments(["n"]);

@@ -1873,7 +1873,6 @@ mod tests {
 
     #[test]
     fn original_lexical_cache_keys_allocation_channel_and_full_configuration() {
-
         let registry = CommandRegistry::build_default();
         let config = tcl_lexer::LexerConfig::default();
         let image = tcl_lexer::SourceImage::native(b"opaque A".as_slice());
@@ -1916,7 +1915,6 @@ mod tests {
 
     #[test]
     fn original_lexical_cache_rechecks_protocol_and_current_entry_issuer() {
-
         use tcl_syntax::native_string::NativeStringProtocol;
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
@@ -1951,7 +1949,6 @@ mod tests {
 
     #[test]
     fn original_lexical_cache_keeps_the_retained_invocation_source_owner() {
-
         let registry = CommandRegistry::build_default();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));

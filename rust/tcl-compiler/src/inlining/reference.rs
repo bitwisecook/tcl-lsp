@@ -241,7 +241,6 @@ mod tests {
 
     #[test]
     fn original_reference_candidates_use_selected_labels_instead_of_source_tails() {
-
         // Conditional original source import candidates; no pack or Native admission.
         let registry = CommandRegistry::build_default();
         let selected = logical_module(
@@ -273,7 +272,6 @@ mod tests {
 
     #[test]
     fn reference_definition_uses_its_produced_key_and_exact_registry_row() {
-
         // Actual authored definition/source only; no body import or execution is granted.
         let registry = CommandRegistry::build_default();
         let selected = registry.get("string").unwrap();

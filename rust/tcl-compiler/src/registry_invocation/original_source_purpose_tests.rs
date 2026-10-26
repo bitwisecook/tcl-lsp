@@ -80,7 +80,6 @@ fn logical(source: &str) -> Fixture {
 
 #[test]
 fn original_native_jim_source_advice_cannot_borrow_raw_logical_input_eligibility() {
-
     // Actual held source purpose only, independently of execution permission.
     let fixture = native("if {1} {set value VALUE}", "jimtcl");
     let registry = fixture.input.borrowed_context_registry().commands();
@@ -112,7 +111,6 @@ fn original_native_jim_source_advice_cannot_borrow_raw_logical_input_eligibility
 
 #[test]
 fn original_logical_source_body_roles_keep_their_real_entry_purpose() {
-
     // Conditional source roles issue no Native handler or compiler owner.
     let fixture = logical("if {1} {set value VALUE}");
     let registry = fixture.input.borrowed_context_registry().commands();
@@ -149,7 +147,6 @@ fn original_logical_source_body_roles_keep_their_real_entry_purpose() {
 
 #[test]
 fn original_native_unentered_declaration_keeps_geometry_without_invocation_permission() {
-
     // A Native request's lexical layout remains distinct from actual entry.
     let fixture = native("return DONE; if {1} {set value VALUE}", "tcl8.4");
     let registry = fixture.input.borrowed_context_registry().commands();
@@ -188,7 +185,6 @@ fn original_native_unentered_declaration_keeps_geometry_without_invocation_permi
 
 #[test]
 fn original_source_advice_purpose_refuses_changed_input_vector_and_missing_owner() {
-
     // Eligibility flags cannot recover a foreign or absent original owner.
     for fixture in [
         native("if {1} {set value VALUE}", "jimtcl"),
@@ -258,7 +254,6 @@ fn original_source_advice_purpose_refuses_changed_input_vector_and_missing_owner
 
 #[test]
 fn original_source_advice_retains_explicit_authored_simulation_separately() {
-
     // An explicit authored recipe is source policy, never a Native entry.
     let environment = tcl_registry::model::ingress::resolve_known_environment("tcl8.4").unwrap();
     let profile = environment.unit_profile();

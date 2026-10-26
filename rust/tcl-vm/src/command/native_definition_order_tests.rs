@@ -32,7 +32,6 @@ fn row<'a>(capture: &'a str, case: usize, phase: &str) -> Vec<&'a str> {
 
 #[test]
 fn original_procedure_public_completions_match_all_eighteen_native_definition_windows() {
-
     // Public worker and invocation code/result only: these values already have
     // Strings and cannot assert the original extension's getter tape or counts.
     let providers = [
@@ -132,7 +131,6 @@ fn original_procedure_public_completions_match_all_eighteen_native_definition_wi
 
 #[test]
 fn original_definition_guards_do_not_read_later_unselected_name_or_body_objects() {
-
     // Software ordering controls use actual original compound backings. They
     // do not establish extension updater timing or native sharing counts.
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

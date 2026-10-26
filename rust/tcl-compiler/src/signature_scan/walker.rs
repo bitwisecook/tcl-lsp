@@ -740,7 +740,6 @@ fn dispatch_definer(
 /// No-op when the context carries no registry (focused unit tests) or the call
 /// has no arguments.
 fn record_command_prefix_invocations(cmd: &SegmentedCommand, ctx: &mut ScanCtx<'_>) {
-
     for written in 1..cmd.argv.len() {
         let Some(original) = ctx.original_callback_prefix(cmd, written) else {
             continue;
@@ -976,7 +975,6 @@ mod tests {
 
     #[test]
     fn original_signature_root_and_bodies_keep_file_bom_and_parent_word_geometry() {
-
         // Readonly signature/header geometry, not successful creation or body execution.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
@@ -1019,7 +1017,6 @@ mod tests {
 
     #[test]
     fn selected_scan_clauses_use_availability_and_original_keyword_values() {
-
         // Source/API contract: naming.source.original-registry-header-advice
 
         // These are readonly signature projections, not executed Tcl results.
@@ -1042,7 +1039,6 @@ mod tests {
 
     #[test]
     fn selected_scan_variable_elements_use_member_effect_and_written_offsets() {
-
         const SUBCOMMANDS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "grow",
             arity: tcl_registry::Arity::exact(2),
@@ -1101,7 +1097,6 @@ mod tests {
 
     #[test]
     fn selected_scan_inventory_keeps_replacements_and_direct_renamed_operands() {
-
         // Source/API contract: naming.source.original-registry-header-advice
 
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -1167,7 +1162,6 @@ mod tests {
 
     #[test]
     fn selected_scan_captured_prefixes_cannot_borrow_written_body_tokens() {
-
         // Source/API contract: naming.source.original-registry-header-advice
 
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -1193,7 +1187,6 @@ mod tests {
 
     #[test]
     fn factory_scan_shares_selected_clause_values_and_dynamic_withdrawal() {
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for (source, count) in [
             ("proc wrapper {} {if 1 th\\en {DEFC made args {body}}}", 1),

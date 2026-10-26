@@ -433,7 +433,6 @@ mod tests {
     }
     #[test]
     fn command_empty_range_keeps_c90_list_birth_separate_from_c91_and_opcode_empty() {
-
         // Actual R3 has no listRangeImm in either C9 captured instruction stream.
         for (version, fixture) in [
             (

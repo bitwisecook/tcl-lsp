@@ -457,7 +457,6 @@ mod tests {
 
     #[test]
     fn original_variable_component_cursor_keeps_index_children_and_literal_dollars() {
-
         let source = "$arr($idx) ${cash$name}";
         let arena = ExecutablePartArena::decompose(
             SourceImage::document(source),
@@ -616,7 +615,6 @@ mod tests {
 
     #[test]
     fn template_masks_leave_array_index_substitutions_enabled() {
-
         // C v6 template2/flags6 evaluates [set k k] in the index. Jim's
         // independent JimExpandDictSugar source selects JIM_NONE there.
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "jim"] {

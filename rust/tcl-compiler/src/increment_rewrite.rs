@@ -427,7 +427,6 @@ mod tests {
 
     #[test]
     fn original_increment_metadata_keeps_actual_configuration_and_available_generation() {
-
         let current = ingress::resolve_environment("tcl9.1").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig {
@@ -516,7 +515,6 @@ mod tests {
 
     #[test]
     fn original_increment_metadata_withdraws_supplied_owners_without_standalone_fallback() {
-
         let current = ingress::resolve_environment("tcl9.1").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);

@@ -389,7 +389,6 @@ mod tests {
 
     #[test]
     fn original_source_warnings_keep_alias_operands_and_full_variable_grammar() {
-
         let owner =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         let mut config = tcl_lexer::LexerConfig::for_file_grammar(
@@ -436,7 +435,6 @@ mod tests {
 
     #[test]
     fn original_source_warnings_require_current_module_function_and_point_owners() {
-
         let baseline =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         let mut catalogue = CommandRegistry::build_default();
@@ -490,7 +488,6 @@ mod tests {
 
     #[test]
     fn original_cu_warning_compatibility_requires_explicit_standalone_tags() {
-
         // This public compatibility producer has no supplied source authority.
         // Its source warnings remain conditional, without Native execution.
         let registry = CommandRegistry::build_default();
@@ -542,7 +539,6 @@ mod tests {
 
     #[test]
     fn original_setter_warnings_use_the_independent_hosted_source_schema() {
-
         let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
         let owner = environment.default_context_registry();
         let profile = environment.unit_profile();

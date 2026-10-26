@@ -552,7 +552,6 @@ mod tests {
 
     #[test]
     fn pack_registration_keeps_constructed_colon_name_after_real_lookup() {
-
         // Actual pack interpreter/vocabulary path, not a native name experiment.
         let (seen, mut vocabulary, unknown) = capture_all();
         vocabulary[0].0 = ":clock";

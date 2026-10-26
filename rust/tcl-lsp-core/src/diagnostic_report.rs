@@ -555,7 +555,6 @@ mod tests {
 
     #[test]
     fn supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives() {
-
         // Conditional Logical source rewrites receive no Native command entry.
         let context = tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
         let registry = Arc::clone(context.commands());
@@ -604,7 +603,6 @@ mod tests {
 
     #[test]
     fn supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input() {
-
         let context = tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
         let registry = Arc::clone(context.commands());
         let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
@@ -693,7 +691,6 @@ mod tests {
 
     #[test]
     fn original_standalone_candidates_keep_the_shared_unit_and_source_currency() {
-
         // Conditional source candidates preserve their separate edit obligations.
         let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
         let profile = DialectProfile::plain_tcl();
@@ -763,7 +760,6 @@ mod tests {
 
     #[test]
     fn original_standalone_candidates_refuse_current_foreign_availability_config_and_store() {
-
         let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
         let profile = DialectProfile::plain_tcl();
         let registry = CommandRegistry::build_default();
@@ -848,7 +844,6 @@ mod tests {
 
     #[test]
     fn an_unavailable_overlay_is_not_a_successfully_empty_report() {
-
         // A missing generation is reported as typed input refusal before any source walk.
         let source = "proc should_not_be_walked {} {}\n";
         let registry = crate::registry_for_dialect("tcl9.0");

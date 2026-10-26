@@ -418,7 +418,6 @@ mod after_source_tests {
     use super::*;
     #[test]
     fn original_after_callback_keeps_counted_c84_entry_separate_from_object_dispatch() {
-
         let object = NativeObjectSnapshot {
             resident: None,
             storage: None,

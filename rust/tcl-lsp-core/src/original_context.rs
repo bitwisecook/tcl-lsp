@@ -107,7 +107,6 @@ mod tests {
 
     #[test]
     fn current_source_currency_is_independent_of_advice_and_execution_purpose() {
-
         let source = "proc p {} {}; p";
         for dialect in ["tcl", "tcl8.6"] {
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -130,7 +129,6 @@ mod tests {
 
     #[test]
     fn current_source_currency_withdraws_changed_grammar_foreign_input_and_missing_owner() {
-
         let source = "proc p {} {}; p";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert!(analysis.allows_lexical_declaration_advice());
@@ -165,7 +163,6 @@ mod tests {
 
     #[test]
     fn supplied_editor_entries_do_not_use_logical_purpose_as_source_currency() {
-
         let source = "proc p {} {}; p";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert!(CurrentSourceContext::capture(source, &analysis).is_some());
@@ -194,7 +191,6 @@ mod tests {
     }
     #[test]
     fn original_logical_type_advice_keeps_current_class_source_and_withdraws_stale_owner() {
-
         let source = "oo::class create C {method m {} {}; method again {} {my m}}";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         let cursor = u32::try_from(source.rfind('m').unwrap()).unwrap();

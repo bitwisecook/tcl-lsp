@@ -10,7 +10,6 @@ use tcl_syntax::scalar_getter::{
 
 #[test]
 fn original_switch_exact_lower_keeps_actual_shared_and_unshared_roles() {
-
     for shared in [false, true] {
         let mut interpreter = fixture::native("tcl9.1");
         let _current = fixture::install(&mut interpreter, 0);
@@ -51,7 +50,6 @@ fn original_switch_exact_lower_keeps_actual_shared_and_unshared_roles() {
 
 #[test]
 fn original_switch_scalar_retirement_checks_frame_and_first_host_before_cache() {
-
     for (kind, bytes) in [
         (Kind::Wide, b"42".as_slice()),
         (Kind::Boolean, b"1".as_slice()),
@@ -110,7 +108,6 @@ fn original_switch_scalar_retirement_checks_frame_and_first_host_before_cache() 
 
 #[test]
 fn original_switch_lower_refusal_precedes_string_mutation_and_later_stage() {
-
     for mode in [1, 2, 3] {
         let mut interpreter = fixture::native("tcl9.1");
         let _current = fixture::install(&mut interpreter, mode);
@@ -155,7 +152,6 @@ fn original_switch_lower_refusal_precedes_string_mutation_and_later_stage() {
 
 #[test]
 fn original_switch_guest_scalar_failure_preserves_existing_public_getter_fields() {
-
     let interpreter = fixture::native("tcl9.1");
     let operation = BodyObjectOperation::capture(&interpreter).unwrap();
     let original = fixture::string(b"not-a-number");
@@ -182,7 +178,6 @@ fn original_switch_guest_scalar_failure_preserves_existing_public_getter_fields(
 
 #[test]
 fn original_switch_selected_bodies_keep_exact_integer_and_empty_regexp_results() {
-
     let mut interpreter = fixture::native("tcl9.1");
     for script in [
         b"proc p x {switch -exact -nocase $x {abc {return YES} default {return NO}}}; p ABC"

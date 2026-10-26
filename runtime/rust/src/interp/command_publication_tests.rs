@@ -131,7 +131,6 @@ fn check_result(interpreter: &Interp) {
 
 #[test]
 fn original_proc_binding_retires_resources_outside_table_borrow_while_query_views_survive() {
-
     // Query metadata is not a native Proc reference. C resource-role software control only.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..3 {
@@ -168,7 +167,6 @@ fn original_proc_binding_retires_resources_outside_table_borrow_while_query_view
 
 #[test]
 fn original_proc_replacement_checks_retirement_and_holder_before_incoming_adoption() {
-
     // Callback recreation has no non-Obj payload disposal purpose; no second delete or Native grant.
     for profile in ["tcl8.4", "tcl8.6", "tcl9.1"] {
         for mode in 0..5 {
@@ -220,7 +218,6 @@ fn original_proc_replacement_checks_retirement_and_holder_before_incoming_adopti
 
 #[test]
 fn original_jim_registration_temporary_retires_before_outer_publication_settlement() {
-
     // Occupied Jim key remains independent; the real incoming temporary has one native hold.
     for mode in 0..3 {
         crate::counters::reset();
@@ -269,7 +266,6 @@ fn original_jim_registration_temporary_retires_before_outer_publication_settleme
 
 #[test]
 fn original_ensemble_replacement_uses_shared_retirement_before_token_activation() {
-
     // Real Proc release from the ordinary shared replacement worker, not Native ensemble chronology.
     for mode in 0..3 {
         crate::counters::reset();
@@ -310,7 +306,6 @@ fn original_ensemble_replacement_uses_shared_retirement_before_token_activation(
 
 #[test]
 fn original_namespace_drain_finishes_each_existing_proc_role_after_first_refusal() {
-
     // Already extracted owners require mandatory release after Host; no later dispatch is admitted.
     for profile in ["tcl8.4", "tcl8.6", "tcl9.1"] {
         crate::counters::reset();
@@ -461,7 +456,6 @@ static HEADER_BODY: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_compiler_header_keeps_the_published_proc_binding_between_actual_getters() {
-
     // Fixed-slot continuation is software safety; no Native pointer rename chronology claim.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for stage in 0..2 {
@@ -568,7 +562,6 @@ fn original_compiler_header_keeps_the_published_proc_binding_between_actual_gett
 
 #[test]
 fn original_publication_receipt_refuses_a_replacement_from_registration_temporary_cleanup() {
-
     // Actual unused Jim registration temporary reaches free after insertion, before receipt settlement.
     crate::counters::reset();
     {

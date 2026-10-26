@@ -764,7 +764,6 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) -> FactoryObjectAdvice {
-
         // Possible result advice uses the same source and actual availability
         // generation as the supplied unit, without a completed result grant.
         let Some(input) = self.result.resolved_input.as_ref() else {
@@ -2269,7 +2268,6 @@ fn dispatch_table_values(
     context: &tcl_registry::model::ContextRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<crate::table_value_provenance::TableValueContributor>> {
-
     // Availability and lexer overrides remain separate from reached cell contents.
     let registry = context.commands();
     if config.nested().normalized() != unit.source_lexer_config().nested().normalized() {
@@ -3058,7 +3056,6 @@ mod retained_constant_context_tests {
 
     #[test]
     fn array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile() {
-
         // Original source-value advice; no executed store or Native argv claim.
         let source = r#"array set state "callback \U0001F600""#;
         let catalogue = tcl_registry::model::ingress::static_context_for("tcl9.0");
@@ -3124,7 +3121,6 @@ mod original_callback_slot_name_tests {
 
     #[test]
     fn callback_slot_hints_use_shared_resolved_element_name_boundaries() {
-
         // Callback-shaped names are suppression hints only; these controls
         // assert neither current callback occupancy nor native variable reads.
         for name in [
@@ -3221,7 +3217,6 @@ mod factory_metadata_context_tests {
 
     #[test]
     fn factory_may_advice_uses_actual_availability_and_exact_supplied_source() {
-
         // These Registry declarations supply possible source result shapes,
         // never an actual factory implementation, allocation or return value.
         let source = "gated-store handle [possible-object]";
@@ -3376,7 +3371,6 @@ mod original_abstract_factory_context_tests {
 
     #[test]
     fn original_abstract_factory_advice_keeps_actual_context_alias_and_nested_source() {
-
         // Actual registration entry remains separate from conditional factory advice.
         let catalogue =
             tcl_registry::model::resolve_environment("tcl9.0").default_context_registry();
@@ -3402,7 +3396,6 @@ mod original_abstract_factory_context_tests {
 
     #[test]
     fn original_abstract_factory_advice_refuses_changed_availability_and_source_owners() {
-
         // Metadata never replaces the independently retained original class/factory owner.
         let source = "oo::abstract create Base {}; Base new";
         let catalogue =
@@ -3445,7 +3438,6 @@ mod original_abstract_factory_context_tests {
 
     #[test]
     fn original_abstract_factory_advice_preserves_known_class_lifecycle_barriers() {
-
         // Current source incarnation and factory dependencies remain independent.
         let catalogue =
             tcl_registry::model::resolve_environment("tcl9.0").default_context_registry();

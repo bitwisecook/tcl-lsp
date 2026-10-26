@@ -2240,7 +2240,6 @@ mod original_inline_control_source_tests {
 
     #[test]
     fn original_inline_control_accepts_the_same_cached_complete_input_owner() {
-
         // Captured software compiler/source ownership only; no Native execution observation.
         for environment in ["tcl8.4", "tcl9.1"] {
             let fixture = fixture(

@@ -372,7 +372,6 @@ impl OriginalSourceCommandWorld {
         &'a self,
         state: &ModuleCommandBindings,
     ) -> OriginalSourceCommandQuery<'a> {
-
         if let Some(policy) = self.current_policy(state)
             && self.policy == Some(policy)
             && state
@@ -2539,7 +2538,6 @@ mod tests {
 
     #[test]
     fn original_opaque_procedure_completion_and_body_keep_distinct_allocations() {
-
         let source = r"proc P\uD800 {} {}; proc P\uD801 {} {}; P\uD800";
         for version in tcl_dialect::TclVersion::ALL {
             let bindings = analyse(source, version);
@@ -2575,7 +2573,6 @@ mod tests {
 
     #[test]
     fn original_class_instance_roster_includes_builtin_and_distinct_source_names() {
-
         for version in [
             tcl_dialect::TclVersion::V8_6,
             tcl_dialect::TclVersion::V9_0,
@@ -2637,7 +2634,6 @@ mod tests {
 
     #[test]
     fn original_completed_occupancy_keeps_baseline_source_and_unknown_holders_separate() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let policy = NamePolicyProtocol::authored_tcl(version);
             let world = analyse("", version)
@@ -2688,7 +2684,6 @@ mod tests {
 
     #[test]
     fn original_opaque_jim_callable_name_does_not_gate_ascii_static_capture() {
-
         let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
         let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap();
         let dialect = tcl_registry::InvocationDialect::of_point(point);
@@ -2729,7 +2724,6 @@ mod tests {
 
     #[test]
     fn publication_snapshots_share_original_rows_and_detach_actual_moves_and_replacements() {
-
         // Actual source ledger snapshots only, with no external evaluation,
         // Native freshness, selected handler or source-edit claim.
         let source = "proc alpha {} {}; proc beta {} {}; rename alpha gamma; rename gamma beta";
@@ -2805,7 +2799,6 @@ mod tests {
 
     #[test]
     fn publication_row_sharing_preserves_complete_semantic_equality_hash_and_order() {
-
         use std::hash::{Hash, Hasher};
         let hash = |world: &OriginalSourceCommandWorld| {
             let mut state = std::collections::hash_map::DefaultHasher::new();
@@ -2846,7 +2839,6 @@ mod tests {
 
     #[test]
     fn readonly_original_world_queries_borrow_exact_selected_baselines_and_publications() {
-
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
             let state = ModuleCommandBindings::initial(registry);
@@ -2898,7 +2890,6 @@ mod tests {
 
     #[test]
     fn readonly_original_world_queries_prepare_only_owned_missing_policy_or_root() {
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
         let state = ModuleCommandBindings::initial(registry);
         let original = state.original_command_world.as_ref();
@@ -2931,7 +2922,6 @@ mod tests {
 
     #[test]
     fn readonly_original_world_queries_keep_policy_refusal_and_cow_withdrawal_current() {
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
         let state = ModuleCommandBindings::initial(registry);
         let original = state.original_command_world.as_ref();
@@ -2970,7 +2960,6 @@ mod tests {
 
     #[test]
     fn original_world_baseline_is_selected_before_branching() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let registry =
                 tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
@@ -3014,7 +3003,6 @@ mod tests {
 
     #[test]
     fn original_alias_prefix_inputs_follow_actual_allocations_and_held_values() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = "set name first; interp alias {} inner {} set $name; interp alias {} outer {} inner; set name second; outer VALUE; set checkpoint $first";
             let bindings = analyse(source, version);
@@ -3127,7 +3115,6 @@ mod tests {
 
     #[test]
     fn original_qualified_forget_joins_current_origin_after_source_and_alias_moves() {
-
         let source = r"rename auto_import savedPrelude; namespace eval A {proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p*}; namespace eval B {namespace import ::A::*; rename p\uD800 alias\uD800}; rename ::A::p\uD800 ::A::q\uD800; namespace eval B {namespace forget ::A::p*}";
         for version in tcl_dialect::TclVersion::ALL {
             let bindings = analyse(source, version);
@@ -3159,7 +3146,6 @@ mod tests {
 
     #[test]
     fn original_namespace_world_requires_the_explicit_source_compilation_mode() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let bindings = analyse_with_compilation(
                 "namespace eval N {proc p {} {}}",

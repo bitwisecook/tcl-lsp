@@ -858,7 +858,6 @@ mod tests {
 
     #[test]
     fn original_jim_public_truth_preserves_exact_cached_value_and_intermediate_diagnostic() {
-
         // Compare only the measured direct public API out/result and original
         // post-conversion cache/String fields; no whole script/opcode claim.
         for (case, number, string) in [
@@ -902,7 +901,6 @@ mod tests {
 
     #[test]
     fn original_c84_logical_sides_keep_distinct_boolean_and_integer_primary() {
-
         // Bounded selected original465 case4 worker6/7 operand cache windows.
         // This stage assertion does not claim a whole expression result.
         let mut interp = native("tcl8.4");
@@ -1003,7 +1001,6 @@ mod tests {
 
     #[test]
     fn original_numeric_instruction_reaches_conversion_without_inline_boolean_or_api_copy() {
-
         // Software physical producer control, not an original opcode/whole-script observation.
         let mut interp = native("tcl8.6");
         let original = Owned::fresh(obj::new_string_bytes(b"17"));
@@ -1073,7 +1070,6 @@ mod tests {
 
     #[test]
     fn original_numeric_instruction_getter_first_host_and_aba_stop_cache_and_owned_result() {
-
         // Reached software extension getter effects remain; no native callback chronology claim.
         for mode in [0, 1] {
             let mut interp = native("tcl8.6");

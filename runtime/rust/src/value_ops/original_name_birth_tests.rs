@@ -9,7 +9,6 @@ use tcl_syntax::{native_object::NativeObjectCacheSnapshot, value::ValueOps};
 
 #[test]
 fn original_full_command_name_birth_is_unowned_until_its_actual_list_or_result_receiver() {
-
     // Runtime software role control, without a Native getter/count observation.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = Interp::with_native_core(

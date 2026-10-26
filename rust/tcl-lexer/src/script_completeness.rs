@@ -102,7 +102,6 @@ mod tests {
 
     #[test]
     fn original_parse_issue_kinds_keep_nested_order_and_diagnostic_presentations() {
-
         // Typed producer/retention software control; this does not add an
         // external provider row or an execution/error publication contract.
         let config = LexerConfig::default();
@@ -191,7 +190,6 @@ mod tests {
 
     #[test]
     fn original_string_completeness_rows_keep_selected_c_and_jim_parser_purposes() {
-
         // Original public String-value observations only. The Rust bytes below
         // carry the fixed request's scalar text; no native header, raw C source
         // encoding, execution or compilation equivalence is inferred.
@@ -287,7 +285,6 @@ mod tests {
 
     #[test]
     fn original_document_completeness_keeps_channel_and_complete_configuration() {
-
         // Source-channel software contract; these are not public value rows.
         let source = "# c\\\r\n";
         let native = SourceImage::native(source.as_bytes());
@@ -326,7 +323,6 @@ mod tests {
 
     #[test]
     fn original_completeness_refuses_foreign_jim_grammar_and_opaque_document_input() {
-
         // Missing grammar/Document correspondence cannot fall back to C9.
         let config = LexerConfig::from_grammar(grammar(Family::Jim, Release::JIM_0_84));
         let source = SourceImage::native(b"set x ${a".as_slice());

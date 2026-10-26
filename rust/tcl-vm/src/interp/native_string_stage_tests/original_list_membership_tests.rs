@@ -9,7 +9,6 @@ fn membership(vm: &mut Vm, needle: &Value, list: &Value) -> Result<bool, TclErro
 
 #[test]
 fn original_membership_cached_list_keeps_members_and_adds_no_host_query() {
-
     let (mut vm, formatter, acquisitions) = provided();
     let list = Value::native_list_constructor(
         vec![
@@ -53,7 +52,6 @@ fn original_membership_cached_list_keeps_members_and_adds_no_host_query() {
 
 #[test]
 fn original_membership_formats_reached_numeric_member_once_and_keeps_its_native_role() {
-
     let (mut vm, formatter, acquisitions) = provided();
     let list = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
     let backing = list.native_list_backing_in(protocol()).unwrap().unwrap();
@@ -91,7 +89,6 @@ fn original_membership_formats_reached_numeric_member_once_and_keeps_its_native_
 
 #[test]
 fn original_membership_live_root_child_withdrawal_preserves_typed_cause_before_later_member() {
-
     // Actual software formatter shimmers the live original List and retires its child owners.
     let (mut vm, formatter, acquisitions) = provided();
     let list = Value::native_list_constructor(
@@ -142,7 +139,6 @@ fn original_membership_live_root_child_withdrawal_preserves_typed_cause_before_l
 
 #[test]
 fn original_membership_list_string_refusal_stops_before_parse_cache_or_guest_error() {
-
     for failed in [false, true] {
         let (mut vm, formatter, acquisitions) = provided();
         let root = value(&vm, i64::MIN);
@@ -180,7 +176,6 @@ fn original_membership_list_string_refusal_stops_before_parse_cache_or_guest_err
 
 #[test]
 fn original_membership_parse_failure_uses_retained_source_without_another_string_stage() {
-
     let (mut vm, formatter, acquisitions) = provided();
     let list = Value::new_native_string_bytes(b"{bad".as_slice());
     let source = list.resident_string_bytes().unwrap();
@@ -206,7 +201,6 @@ fn original_membership_parse_failure_uses_retained_source_without_another_string
 
 #[test]
 fn original_membership_authored_configured_parser_stays_independent_from_native_list_recipe() {
-
     let (mut vm, formatter, acquisitions) = provided();
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
     assert!(vm.set_logical_numeric_provider(
@@ -241,7 +235,6 @@ fn original_membership_authored_configured_parser_stays_independent_from_native_
 
 #[test]
 fn original_membership_foreign_selected_protocol_refuses_before_formatter_or_list_cache() {
-
     let (mut vm, formatter, acquisitions) = provided();
     let list = value(&vm, i64::MIN);
     let before = list.native_scalar_cache();

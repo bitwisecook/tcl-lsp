@@ -601,7 +601,6 @@ mod tests {
 
     #[test]
     fn original_body_word_extent_keeps_inner_and_whole_geometry_separate() {
-
         // Lexical projection alone: the full native extent and the compiler's
         // original inner-end span describe the same written word, without any
         // body entry, completion, namespace or native compiler admission.
@@ -670,7 +669,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix() {
-
         // Namespace syntax is independent of a reached body, compiler child,
         // successful condition, variable frame or executable IR admission.
         let source = "if {$condition} {set result A}; if {[set condition]} {set result B}";
@@ -745,7 +743,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_refuses_changed_and_missing_original_owners() {
-
         let fixture = original_fixture("if {$condition} {set result A}", "tcl8.6");
         let parent = &fixture.tokens[0];
         let binding = parent.source_binding.as_ref().unwrap();
@@ -822,7 +819,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_refuses_noncurrent_and_structural_descriptors() {
-
         // Genuine selected body metadata cannot be inferred from a body-like
         // string or from a command's printed namespace.
         for (source, written) in [
@@ -855,7 +851,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_keeps_logical_source_and_native_entry_separate() {
-
         let source = "if {$condition} {set result VALUE}";
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -914,7 +909,6 @@ mod tests {
 
     #[test]
     fn original_immediate_body_namespace_keeps_the_retained_nonroot_incarnation() {
-
         // The original namespace row supplies identity; its presentation is
         // used only to author the software fixture's namespace-eval operand.
         let fixture = original_fixture("if {$condition} {set result VALUE}", "tcl8.6");
@@ -968,7 +962,6 @@ mod tests {
     }
     #[test]
     fn original_conditional_entry_retains_selected_native_source_without_entered_frames() {
-
         // Actual captured software entry/input; source selection is independent
         // of an entered handler frame or a physical Native callback measurement.
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -1039,7 +1032,6 @@ mod tests {
 
     #[test]
     fn original_conditional_calls_lambda_and_materialized_sources_preserve_the_entry_purpose() {
-
         // These are retained source continuations under an actual selected C
         // software entry. The control observes no external Native execution.
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1111,7 +1103,6 @@ mod tests {
 
     #[test]
     fn original_known_compiler_branch_and_finally_keep_the_selected_frame() {
-
         // The genuine held compiler entry selects BytecodeObject independently
         // of namespace syntax. No Direct handler or absent Jim compiler is inferred.
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

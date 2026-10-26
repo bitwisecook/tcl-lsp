@@ -525,7 +525,6 @@ mod tests {
 
     #[test]
     fn selected_alias_metadata_keeps_registry_root_fallback_and_source_read_filters() {
-
         // Exact authored Registry descriptor query; no native qualified-name test.
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         assert_eq!(

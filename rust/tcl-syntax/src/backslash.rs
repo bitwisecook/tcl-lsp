@@ -1163,7 +1163,6 @@ mod tests {
 
     #[test]
     fn quoted_fragments_preserve_literal_characters_and_original_substitutions() {
-
         for escapes in EscapeSyntax::ALL {
             let config = tcl_lexer::LexerConfig {
                 escapes: *escapes,
@@ -1188,7 +1187,6 @@ mod tests {
 
     #[test]
     fn literal_source_renderer_preserves_selected_native_bytes_and_channel() {
-
         use tcl_lexer::SourceChannel::{Document, NativeValue};
         for version in tcl_dialect::TclVersion::ALL {
             let protocol = crate::native_string::NativeStringProtocol::C(version);
@@ -1339,7 +1337,6 @@ mod tests {
 
     #[test]
     fn literal_text_inverse_roundtrips_actual_document_ingress_units() {
-
         // The retained guest observations provide the units. This separately
         // asserts source-renderer inversion, without an execution/name grant.
         use tcl_lexer::SourceChannel::{Document, NativeValue};
@@ -1663,7 +1660,6 @@ mod executable_text_tests {
 
     #[test]
     fn escaped_text_extents_keep_complete_escapes_and_channel_unit_boundaries() {
-
         use tcl_lexer::SourceChannel::{Document, NativeValue};
         for protocol in tcl_dialect::TclVersion::ALL
             .into_iter()

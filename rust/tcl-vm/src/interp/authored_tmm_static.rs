@@ -766,7 +766,6 @@ mod tests {
 
     #[test]
     fn original_authored_static_fronts_preserve_domain_configuration_and_refused_header() {
-
         let mut vm = vm();
         vm.declare_namespace("::static");
         assert_eq!(cmd_domain(&mut vm, &[Value::string("root")]).code, Code::Ok);
@@ -1329,7 +1328,6 @@ mod tests {
 
     #[test]
     fn authored_static_policy_matches_recorded_four_unit_seed_and_target_mutation_states() {
-
         // Authored policy regression over retained observations, no appliance execution.
         let phases = [
             include_str!("../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-initial.jsonl"),
@@ -1475,7 +1473,6 @@ mod tests {
 
     #[test]
     fn authored_static_policy_matches_mapped_unit_missing_read_before_recreation() {
-
         // Only recorded static-cell states; active scalar trace chronology is separate.
         let original_rule = include_str!(
             "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/sources/static.conf"

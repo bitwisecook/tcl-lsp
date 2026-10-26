@@ -1584,7 +1584,6 @@ mod tests {
 
     #[test]
     fn typed_host_decline_preserves_original_cause_and_first_fault_without_guest_raise() {
-
         // Software constant-analysis adapter; no original-provider observation.
         let profile = DialectProfile::find("tcl8.6").unwrap();
         let cause = NativeExecutionError::HostCommandRefusal(Box::new(

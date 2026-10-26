@@ -4862,7 +4862,6 @@ fn objdefine_per_object_variable_read_publishes_no_w210() {
 /// A source construction report cannot prove Native per-object member absence.
 #[test]
 fn native_objdefine_retraction_of_undeclared_member_withdraws_w315() {
-
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(

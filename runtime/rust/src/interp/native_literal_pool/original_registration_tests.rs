@@ -84,7 +84,6 @@ static ORIGINAL: obj::TclObjType = obj::TclObjType {
 };
 #[test]
 fn original_literal_registration_reentry_preserves_header_lifetime_and_native_roles() {
-
     // Real updater/free callbacks are software controls, not external C chronology.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=4 {
@@ -215,7 +214,6 @@ static LOCAL: obj::TclObjType = obj::TclObjType {
 };
 #[test]
 fn original_local_name_factory_getter_runs_outside_procedure_and_world_borrows() {
-
     // Authentic compiled layout; callback/reference checks remain software-only.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 3] {

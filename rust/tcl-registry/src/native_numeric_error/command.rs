@@ -335,7 +335,6 @@ mod tests {
 
     #[test]
     fn original_numeric_command_recipes_keep_actual_width_order_and_unavailable_workers() {
-
         // Source/API recipe checks only; provider observations are separate.
         use NativeNumericCommandPurpose as Purpose;
         use NativeScalarGetterKind as Kind;
@@ -437,7 +436,6 @@ mod tests {
 
     #[test]
     fn original_numeric_command_recipes_refuse_absent_and_foreign_scalar_axes() {
-
         use NativeNumericCommandPurpose as Purpose;
         let original = InvocationDialect::for_version(TclVersion::V8_6);
         assert!(
@@ -473,7 +471,6 @@ mod tests {
     }
     #[test]
     fn original_stride_recipes_keep_actual_command_tables_primitive_widths_and_minima() {
-
         // Source/API purpose controls; actual108 command outcomes are independent.
         use NativeNumericCommandPurpose as Purpose;
         use NativeScalarGetterKind as Kind;
@@ -560,7 +557,6 @@ mod original_list_numeric_purpose_controls {
     use super::*;
     #[test]
     fn list_numeric_recipes_select_original_search_sort_widths_and_jim_option_support() {
-
         // Source-selected primitive recipes; native645 Glob and647 Exact rows
         // bound separate original public effects, not general callback scheduling.
         use NativeNumericCommandPurpose as P;

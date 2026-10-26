@@ -35,7 +35,6 @@ impl OriginalCommandTokenCache {
         key: OriginalCommandTokenKey,
         prepare: impl FnOnce() -> Option<Arc<CommandTokens>>,
     ) -> Option<Arc<CommandTokens>> {
-
         if let Some(retained) = self
             .entries
             .lock()
@@ -106,7 +105,6 @@ impl CommandBindingRealm {
         offset: u32,
         representatives: &[Token],
     ) -> Option<Arc<CommandTokens>> {
-
         let key = OriginalCommandTokenKey {
             image: image.clone(),
             config,
@@ -185,7 +183,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_keeps_zero_written_arguments_and_captured_prefix_separate() {
-
         let source = "interp alias {} clean {} unset -nocomplain\nclean";
         let (realm, image, config, _) = fixture(source);
         let offset = u32::try_from(source.rfind("clean").unwrap()).unwrap();
@@ -217,7 +214,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_shares_only_the_same_immutable_query() {
-
         let (realm, image, config, representatives) = fixture("namespace eval A {set x 1}");
         let clone = realm.clone();
         let first = realm
@@ -237,7 +233,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_retains_full_source_config_and_representatives() {
-
         let (realm, image, config, representatives) = fixture("set x 1");
         let first = realm
             .retained_original_tokens(&image, config, 0, &representatives)
@@ -274,7 +269,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_does_not_reuse_a_foreign_or_unknown_realm() {
-
         let source = "set x 1";
         let (realm, image, config, representatives) = fixture(source);
         let first = realm
@@ -311,7 +305,6 @@ mod tests {
 
     #[test]
     fn original_token_memo_has_bounded_retention() {
-
         let (realm, _, config, _) = fixture("set x 1");
         for value in 0..=MAX_RETAINED_COMMANDS {
             let source = format!("set x {value}");
@@ -339,7 +332,6 @@ mod original_command_slice_purpose_tests {
 
     #[test]
     fn original_token_memo_preserves_bom_heads_after_the_actual_file_prologue() {
-
         // Original command geometry/cache sharing only; an unknown head stays unknown.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.0").unwrap();

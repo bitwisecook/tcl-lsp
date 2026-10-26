@@ -673,7 +673,6 @@ mod tests {
 
     #[test]
     fn original_vm_context_receipt_survives_guest_table_and_same_input_policy_changes() {
-
         let mut vm = native();
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
         let context = vm.runtime_context().clone();
@@ -694,7 +693,6 @@ mod tests {
     }
     #[test]
     fn original_vm_context_receipt_refuses_host_profile_compiler_and_pack_change_restore() {
-
         for stage in 0..4 {
             let mut vm = native();
             let scope = NativeOperationScope::enter(&mut vm).unwrap();
@@ -739,7 +737,6 @@ mod tests {
     }
     #[test]
     fn original_vm_nested_receipt_cannot_reissue_after_context_change_or_poison() {
-
         let mut vm = native();
         let outer = NativeOperationScope::enter(&mut vm).unwrap();
         let inner = NativeOperationScope::enter(&mut vm).unwrap();
@@ -758,7 +755,6 @@ mod tests {
     }
     #[test]
     fn original_vm_parent_and_child_receipts_keep_independent_parked_owners() {
-
         let mut vm = native();
         let child_name = vm.create_child(Some("child".into()), false);
         let child = vm.child_id(&child_name).unwrap();
@@ -792,7 +788,6 @@ mod tests {
     }
     #[test]
     fn original_vm_operation_preserves_pending_first_host_before_receipt_or_getter() {
-
         let mut vm = native();
         let _ = vm.refuse_host_command("first original VM operation".into());
         let first = vm.execution_refusal.clone().unwrap();
@@ -818,7 +813,6 @@ mod tests {
     }
     #[test]
     fn original_current_entry_distinguishes_live_saved_ended_and_parked_receipts() {
-
         let mut vm = native();
         assert!(
             NativeOperationScope::current_entered(&mut vm)
@@ -854,7 +848,6 @@ mod tests {
 
     #[test]
     fn original_numeric_routing_checks_inherited_currency_before_authored_policy() {
-
         let mut vm = native();
         let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
@@ -885,7 +878,6 @@ mod tests {
     }
     #[test]
     fn original_coroutine_park_preserves_only_the_actual_active_parent_entry() {
-
         let mut vm = native();
         let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
         let parked = vm
@@ -919,7 +911,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_checks_same_target_currency_before_entry_and_keeps_cleanup() {
-
         let mut vm = native();
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
         let saved = scope.currency().clone();
@@ -952,7 +943,6 @@ mod tests {
     }
     #[test]
     fn original_saved_execution_target_is_descriptive_until_same_currency_cleanup() {
-
         // Readonly software target/currency state; no Native execution or reference grant.
         let mut vm = native();
         let independent = SavedExecutionTarget::capture(&mut vm);
@@ -992,7 +982,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_target_cleans_parent_and_preserves_callback_child() {
-
         // Actual arena switch and original cleanup receipt; no external callback chronology.
         let mut vm = native();
         let parent = vm.cur_interp();
@@ -1029,7 +1018,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_target_retains_failed_issue_and_finishes_owned_cleanup() {
-
         // Existing full software Host issue and mandatory same-target retirement only.
         let mut vm = native();
         let _ = vm.refuse_host_command("saved cleanup original first Host".into());
@@ -1056,7 +1044,6 @@ mod tests {
 
     #[test]
     fn original_saved_execution_target_rejects_foreign_owner_before_state_publication() {
-
         // Actual independent Vm nonce/context, not a fabricated foreign receipt.
         let mut original = native();
         let scope = NativeOperationScope::enter_native(&mut original).unwrap();
@@ -1083,7 +1070,6 @@ mod tests {
     }
     #[test]
     fn original_saved_execution_target_checks_real_jim_teardown_after_restoration() {
-
         // Actual dying-slot in_interp/finalize/Jim teardown path, not Native callback chronology.
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
@@ -1123,7 +1109,6 @@ mod tests {
     }
     #[test]
     fn original_retirement_transports_owned_iterator_after_failed_issue_until_mandatory_cleanup() {
-
         // Existing owned roles remain mandatory-continuation transport, not publication.
         let mut vm = native();
         drop(vm.refuse_host_command("mandatory iterator first Host".into()));
@@ -1159,7 +1144,6 @@ mod tests {
 
     #[test]
     fn original_retirement_policies_keep_direct_current_callback_selection_and_hold_schedule() {
-
         // Actual current/parked arenas; no native callback or preservation chronology claim.
         for policy in [
             CleanupRestoration::RestoreCaller,
@@ -1201,7 +1185,6 @@ mod tests {
 
     #[test]
     fn original_retirement_parked_target_preserves_latest_work_selection_or_entry_caller() {
-
         let mut vm = native();
         let parent = vm.cur_interp();
         let caller_name = vm.create_child(Some("retirement_entry_caller".into()), false);
@@ -1241,7 +1224,6 @@ mod tests {
 
     #[test]
     fn original_retirement_ordinary_refused_owner_drops_inside_original_attachment() {
-
         struct Observed {
             context: Weak<NativeOperationContext>,
             attached: Rc<Cell<bool>>,
@@ -1279,7 +1261,6 @@ mod tests {
 
     #[test]
     fn original_retirement_metadata_survives_real_jim_post_restoration_refusal() {
-
         // Real dying-slot teardown and retained output role; no native callback chronology.
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
@@ -1316,7 +1297,6 @@ mod tests {
 
     #[test]
     fn original_retirement_foreign_physical_target_refuses_before_reached_metadata() {
-
         let mut original = native();
         let scope = NativeOperationScope::enter_native(&mut original).unwrap();
         let target = SavedExecutionTarget::capture(&mut original);
@@ -1340,7 +1320,6 @@ mod tests {
     #[test]
     fn original_retirement_finalizer_follows_later_callback_child_and_retires_only_original_world()
     {
-
         // Supplied software retirement callback at the shared finalization frontier;
         // this asserts physical return policy, not Native/Jim defer chronology.
         for policy in [
@@ -1434,7 +1413,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_advances_same_entered_lineage_without_new_authority() {
-
         let mut vm = native();
         let names = measured_names(&mut vm);
         let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -1475,7 +1453,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_none_stays_readonly_and_keeps_missing_string_provider() {
-
         let mut vm = Vm::new();
         let names = measured_names(&mut vm);
         let original =
@@ -1518,7 +1495,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_never_authorises_foreign_aba_or_raw_policy_setters() {
-
         for stage in 0..3 {
             let mut vm = native();
             let names = measured_names(&mut vm);
@@ -1562,7 +1538,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_exhaustion_at_enter_or_restore_never_advances_lineage() {
-
         for exhaust_on_restore in [false, true] {
             let mut vm = native();
             let names = measured_names(&mut vm);
@@ -1600,7 +1575,6 @@ mod tests {
     }
     #[test]
     fn original_observed_readonly_transition_does_not_refresh_ended_native_currency() {
-
         let mut vm = native();
         let names = measured_names(&mut vm);
         let entered = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -1629,7 +1603,6 @@ mod tests {
     }
     #[test]
     fn original_observed_mandatory_transition_refuses_foreign_physical_inputs() {
-
         let mut vm = native();
         let names = measured_names(&mut vm);
         let parent = vm.cur_interp();
@@ -1663,7 +1636,6 @@ mod tests {
 
     #[test]
     fn original_observed_transition_checks_actual_cache_retirement_before_next_stage() {
-
         // Software stage check after the actual first cache clear; this does
         // not claim a Native child-Drop or external callback chronology.
         let mut vm = native();

@@ -189,7 +189,6 @@ fn build_for_profile_folds_a_word_operator_branch() {
 /// canonicalising the input to the plain fallback profile's `tcl` name.
 #[test]
 fn build_for_dialect_retains_the_tk_set_only_bit() {
-
     let registry = static_context_for("tk").commands();
     let unit = CompilationUnit::build_for_dialect("button .b\n", registry, false, "tk");
 
@@ -218,7 +217,6 @@ fn build_for_dialect_retains_the_tk_set_only_bit() {
 /// profile through untouched.
 #[test]
 fn build_for_profile_retains_the_tk_set_only_bit() {
-
     let registry = static_context_for("tk").commands();
     let profile = tcl_registry::model::ingress::resolve_known_environment("tk")
         .expect("`tk` is a recognised additive dialect ingress")

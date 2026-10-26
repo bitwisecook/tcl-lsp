@@ -3583,7 +3583,6 @@ fn record_unknown_invocation_facts(
     source_metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     info: &mut UnknownProcInfo,
 ) {
-
     // Logical advice selects the exact operation; Native still needs its
     // independent proved target.
     let invocation = source_metadata.and_then(|metadata| {
@@ -4781,7 +4780,6 @@ mod tests {
 
     #[test]
     fn original_receiver_declaration_keeps_its_whole_parent_bom_configuration() {
-
         // Source declaration body only; no allocated class or entered method.
         fn bodies(
             scope: &Scope,
@@ -5175,7 +5173,6 @@ mod tests {
 
     #[test]
     fn original_member_script_projection_keeps_body_bom_as_keyword_content() {
-
         // Exact member grammar syntax; no installed method or Native worker.
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
@@ -5213,7 +5210,6 @@ mod tests {
 
     #[test]
     fn original_vendor_class_declarations_keep_selected_source_role_and_unavailable_units() {
-
         let source = r"snit::type {Plain} {}
 snit::type {C\uD800} {}";
         for profile in ["f5-irules", "f5-iapps", "f5-tmsh"] {
@@ -6215,7 +6211,6 @@ snit::type {C\uD800} {}";
 
     #[test]
     fn original_unknown_source_context_requires_retained_logical_input_and_current_registry() {
-
         let body = "switch -exact $cmd {foo {return 1}}";
         let mut missing = Analyser::new();
         assert!(
@@ -6316,7 +6311,6 @@ snit::type {C\uD800} {}";
 
     #[test]
     fn original_unknown_case_advice_retains_residuals_in_final_info() {
-
         // Possible source dispatch keeps its selection/error and no-match
         // paths; it supplies no Native occupancy, chosen effect or body entry.
         let mut analyser = logical_unknown_analyser();
@@ -6359,7 +6353,6 @@ snit::type {C\uD800} {}";
 
     #[test]
     fn original_unknown_case_advice_keeps_captured_ordinals_and_literal_parameter_names() {
-
         let source = "interp alias {} ::choisiré {} switch -exact; ::choisiré $cmd {é {return 1} default {return 0}}";
         let mut analyser = logical_unknown_analyser();
         let info = analyser.extract_unknown_proc_info(source, &[param("cmd")]);
@@ -6413,7 +6406,6 @@ snit::type {C\uD800} {}";
 
     #[test]
     fn original_unknown_case_advice_refuses_missing_foreign_changed_and_shadowed_owners() {
-
         use crate::registry_invocation::{
             InvocationMetadataContext, source_structure::original_logical_source_case_for_tokens,
         };
@@ -6515,7 +6507,6 @@ snit::type {C\uD800} {}";
 
     #[test]
     fn original_unknown_case_advice_selects_the_original_case_fold_child() {
-
         let mut analyser = logical_unknown_analyser();
         let source =
             "interp alias {} foldé {} string tolower; switch -exact [foldé $cmd] {foo {return 1}}";
@@ -6561,7 +6552,6 @@ snit::type {C\uD800} {}";
 
     #[test]
     fn original_unknown_native_case_advice_requires_typed_switch_and_original_input() {
-
         // This fixture retains actual registration and compiler entry. The
         // readonly case query grants no successful variable read or body entry.
         use crate::registry_invocation::{
@@ -6738,7 +6728,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_unknown_operation_advice_keeps_actual_availability_and_captured_sources() {
-
         // Operation descriptions are conditional source advice, without an
         // executed load, Native handler, cell, frame or Normal certificate.
         use std::sync::Arc;
@@ -6856,7 +6845,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_unknown_operation_advice_refuses_missing_foreign_changed_and_dynamic_source() {
-
         use crate::registry_invocation::InvocationMetadataContext;
         let input = logical_unknown_analyser().resolved_input.unwrap();
         let context = input.context_registry();
@@ -6932,7 +6920,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_unknown_operation_purpose_requires_the_complete_original_source_input() {
-
         let input = logical_unknown_analyser().resolved_input.unwrap();
         let context = input.context_registry();
         let source = "interp alias {} ensure {} package require; ensure Tcl";
@@ -7823,7 +7810,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn w315_fires_for_every_definition_aborting_retraction() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         for (body, want) in [
             (
@@ -7859,7 +7845,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn w315_fires_on_the_class_side_too() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         for body in [
             "method im {} { return i }\nself { deletemethod im }",
@@ -7921,7 +7906,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_class_abort_refuses_native_and_hosted_reporting_tables() {
-
         // Positive injected candidates check admission, not runtime retractions.
         let source = "oo::class create C {deletemethod ghost; method ghost {} {}}";
         for dialect in [
@@ -7957,7 +7941,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_class_abort_refuses_missing_retained_input() {
-
         let mut analyser = Analyser::new();
         analyser.result.lexical_declaration_advice = true;
         analyser.result.dialect = "explicit-object-abort-advice".to_owned();
@@ -7971,7 +7954,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_class_abort_keeps_retained_logical_advice_despite_report_mutations() {
-
         let mut analyser = logical_object_abort_analyser();
         analyser.result = analyser.analyse("", "explicit-object-abort-advice");
         assert!(analyser.result.allows_retained_logical_declaration_advice());
@@ -8024,7 +8006,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_object_abort_refuses_native_and_hosted_reporting_tables() {
-
         // Injected report candidates test admission, without asserting execution.
         let source = "oo::class create C {}\nset o [C new]\noo::objdefine $o {method a {} {}; renamemethod a a}";
         for dialect in [
@@ -8056,7 +8037,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_object_abort_refuses_missing_retained_input() {
-
         let mut analyser = Analyser::new();
         analyser.result.lexical_declaration_advice = true;
         assert!(analyser.result.resolved_input.is_none());
@@ -8068,7 +8048,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn original_object_abort_keeps_explicit_logical_advice_despite_report_label() {
-
         let mut analyser = logical_object_abort_analyser();
         analyser.result = analyser.analyse("", "explicit-object-abort-advice");
         assert!(analyser.result.allows_lexical_declaration_advice());
@@ -8186,7 +8165,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn w315_stays_silent_for_every_legal_order() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         for body in [
             "method a {} {}\nmethod b {} {}\ndeletemethod a",
@@ -8208,7 +8186,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_cross_side_visibility_word_is_not_a_w315() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         for body in [
             "method onlyinst {} {}\nself unexport onlyinst",
@@ -8229,7 +8206,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn w315_abstains_on_a_dynamic_source_name() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         for body in [
             "method m {} {}\ndeletemethod $gone",
@@ -8281,7 +8257,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_cross_file_stub_retraction_is_a_tombstone_not_a_w315() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         let mut a = logical_object_abort_analyser();
         let r = a.analyse(
@@ -8303,7 +8278,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_same_file_define_extending_a_local_class_is_not_a_stub() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         let mut a = logical_object_abort_analyser();
         let r = a.analyse(
@@ -8441,7 +8415,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_rejected_rename_records_no_move() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         for body in [
             "method a {} {}\nrenamemethod a a",
@@ -8484,7 +8457,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn w315_is_reported_once_per_offending_word() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         let mut a = logical_object_abort_analyser();
         let r = a.analyse(
@@ -8505,7 +8477,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn w315_points_at_the_offending_word() {
-
         // Explicit Logical source-table compatibility; no Native worker/table claim.
         let src = "oo::class create ::C { deletemethod ghost }";
         let mut a = logical_object_abort_analyser();
@@ -8523,7 +8494,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_stub_retraction_of_an_undeclared_member_leaves_a_tombstone() {
-
         // Explicit Logical cross-document advisory channel; no Native class or retraction.
         // TP for the cross-document channel. This document
         // is the `oo::define ::C { deletemethod m }` half of a two-file program:
@@ -8555,7 +8525,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_stub_renamemethod_tombstones_only_the_source_name() {
-
         // Explicit Logical cross-document advisory channel; no Native move.
         // TN for the tombstone's shape: `renamemethod old new` removes `old` and
         // *creates* `new` (oracle: `info class methods ::I3` -> new, and
@@ -8588,7 +8557,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn missing_class_source_cannot_publish_native_definition_stubs() {
-
         let source = "oo::define ::C {deletemethod m}; oo::define ::D {renamemethod old new}";
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1", "f5-irules"] {
             let result = Analyser::new().analyse(source, profile);
@@ -8724,7 +8692,6 @@ _original_unknown $cmd $args";
 
     #[test]
     fn source_configuration_accumulates_redeclared_members_under_original_class_owner() {
-
         // Conditional source chronology and canonical metadata, without an
         // executed configuration worker or a live Native method table.
         for source in [
@@ -9214,7 +9181,6 @@ mod lifecycle_formal_tests {
 
     #[test]
     fn original_tcloo_formals_follow_counted_lifecycle_body_applicability() {
-
         // Original ASCII source-script contract; no entered frame is asserted.
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for (source, expected) in [
@@ -9254,7 +9220,6 @@ mod lifecycle_formal_tests {
 
     #[test]
     fn original_tcloo_formal_applicability_preserves_dynamic_body_uncertainty() {
-
         // Dynamic source bodies are not evaluated or promoted to empty values.
         for source in [
             "oo::class create C {constructor {{a b c}} $body}",

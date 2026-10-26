@@ -16,7 +16,6 @@ use tcl_registry::model::ResolvedContext;
 use tcl_registry::{CommandSpec, ResolvedInvocation, SubCommand};
 
 pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
-
     if let Some(text) = declaration_hover(source, analysis, cursor) {
         return Some(Hover::markdown(text));
     }
@@ -278,7 +277,6 @@ fn option_text(
     spec: &CommandSpec,
     argument: usize,
 ) -> Option<String> {
-
     let scan = schema.authored_source_diagnostic_options()?;
     let selected = scan
         .options
@@ -391,7 +389,6 @@ mod tests {
 
     #[test]
     fn original_registry_hover_uses_actual_heads_subcommands_options_and_origins() {
-
         for (source, needle, expected) in [
             ("puts hello", "puts", "command documentation"),
             ("string length value", "length", "`string length`"),
@@ -446,7 +443,6 @@ mod tests {
 
     #[test]
     fn original_registry_hover_keeps_current_context_and_conditional_shadow_barriers() {
-
         let source = "string length value";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(at(source, &analysis, "length").is_some());
@@ -501,7 +497,6 @@ mod tests {
 
     #[test]
     fn original_registry_head_hover_lists_only_retained_version_subcommands() {
-
         let source = "info patchlevel";
         for (dialect, frame, coroutine, object, cmdtype) in [
             ("tcl8.4", false, false, false, false),
@@ -537,7 +532,6 @@ mod tests {
 
     #[test]
     fn original_registry_operand_hover_keeps_parent_nested_and_option_availability() {
-
         for (dialect, tcloo, later_info) in [
             ("tcl8.4", false, false),
             ("tcl8.5", false, false),
@@ -599,7 +593,6 @@ mod tests {
 
     #[test]
     fn original_scoped_hover_keeps_body_receipts_and_ignores_copied_reporting_regions() {
-
         let source = "::report::defstyle st {} {\n top set header\n}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.scoped_command_regions.clear();
@@ -623,7 +616,6 @@ mod tests {
 
     #[test]
     fn original_registry_profile_hover_uses_selected_descriptor_and_complete_input() {
-
         for (source, needle, expected) in [
             (
                 "ACCESS::log TEXT\n",

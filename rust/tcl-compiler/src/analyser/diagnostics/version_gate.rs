@@ -1456,8 +1456,6 @@ mod tests {
 
     #[test]
     fn original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects() {
-
-
         // These assertions cover source selection and diagnostic coordinates;
         // they do not establish runtime alias installation or widget creation.
         for source in [
@@ -2138,7 +2136,6 @@ mod tests {
 
     #[test]
     fn original_format_gates_keep_alias_ordinals_and_written_template_anchors() {
-
         // This checks readonly source metadata and diagnostic geometry, not
         // alias installation or successful execution in a native interpreter.
         for source in [
@@ -2170,7 +2167,6 @@ mod tests {
 
     #[test]
     fn original_format_gates_read_literal_values_without_promoting_dynamic_words() {
-
         // These source-consumer controls do not claim native runtime results.
         for (source, template) in [
             (r"format \x25\u0062 5", b"%b".as_slice()),

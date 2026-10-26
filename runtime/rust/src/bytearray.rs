@@ -609,7 +609,6 @@ mod native_append_route_controls {
     };
     #[test]
     fn neutral_binary_append_preserves_its_independent_retirement_route() {
-
         // Genuine software free callback distinguishes neutral and checked
         // adoption. This grants no native C/Jim callback chronology.
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);

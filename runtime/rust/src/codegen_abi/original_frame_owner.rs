@@ -421,7 +421,6 @@ mod tests {
 
     #[test]
     fn paired_entries_keep_two_original_interpreters_and_nested_lifo_through_tls_retarget() {
-
         // Genuine entered frames and independent interpreter scopes; no external Tcl chronology claim.
         let mut first = original();
         let mut second = original();
@@ -490,7 +489,6 @@ mod tests {
     };
     #[test]
     fn refused_void_frame_attempt_consumes_only_its_matching_marker_and_owned_input() {
-
         // An actual first Host cause prevents nested entry; no frame is fabricated on that owner.
         let mut first = original();
         let mut second = original();
@@ -527,7 +525,6 @@ mod tests {
     }
     #[test]
     fn real_frame_retirement_runs_on_original_owner_and_keeps_first_cause_during_reentrant_exit() {
-
         // A genuine frame-owned extension object reaches freeIntRep; subsequent operations refuse.
         let mut first = original();
         let mut second = original();
@@ -563,7 +560,6 @@ mod tests {
     }
     #[test]
     fn mismatched_entry_kind_refuses_without_removing_an_actual_frame_or_activation() {
-
         // The malformed caller order is a software API control, not a native Tcl test.
         let mut first = original();
         let mut second = original();
@@ -593,7 +589,6 @@ mod tests {
     }
     #[test]
     fn callback_left_nested_entry_retires_completed_original_scope_once_after_its_matched_exit() {
-
         // An actual freeIntRep leaves a second owner's genuine entry open; no external Tcl chronology claim.
         let mut first = original();
         let mut second = original();
@@ -645,7 +640,6 @@ mod tests {
     }
     #[test]
     fn callback_left_same_interpreter_entry_retires_actual_scopes_in_lifo_order() {
-
         // The real callback inherits one interpreter's original scope stack; no native provider equivalence is asserted.
         let mut interpreter = original();
         let mut healthy = original();

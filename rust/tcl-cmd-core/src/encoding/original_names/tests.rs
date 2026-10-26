@@ -4,7 +4,6 @@ use std::cell::Cell;
 
 #[test]
 fn original_byte_names_keep_c_extent_raw_diagnostics_and_actual_reset_default() {
-
     for version in TclVersion::ALL {
         let queries = Cell::new(0);
         let protocol = NativeEncodingNameProtocol::for_c(version);
@@ -58,7 +57,6 @@ fn original_byte_names_keep_c_extent_raw_diagnostics_and_actual_reset_default() 
 
 #[test]
 fn original_channel_pseudo_encodings_stay_distinct_from_system_reset_and_catalogue_absence() {
-
     for version in TclVersion::ALL {
         for name in [b"".as_slice(), b"binary".as_slice()] {
             let result = resolve_original_encoding_name(
@@ -150,7 +148,6 @@ impl OriginalSourceFileOps for Stages {
 
 #[test]
 fn original_source_stage_failure_stops_before_later_lookup_or_backend() {
-
     let mut stages = Stages {
         events: Vec::new(),
         read: Err(HostError::NotFound),
@@ -200,7 +197,6 @@ fn original_source_stage_failure_stops_before_later_lookup_or_backend() {
 
 #[test]
 fn original_filename_external_zero_has_separate_backend_and_report_extents() {
-
     let mut stages = Stages {
         events: Vec::new(),
         read: Err(HostError::NotFound),
@@ -274,7 +270,6 @@ fn original_filename_external_zero_has_separate_backend_and_report_extents() {
 
 #[test]
 fn original_filename_other_codec_requires_actual_filesystem_conversion() {
-
     let mut stages = Stages {
         events: Vec::new(),
         read: Ok(b"return YES".to_vec()),
@@ -329,7 +324,6 @@ impl OriginalSourceFileOps for ChangingEncoding {
 
 #[test]
 fn original_filename_uses_system_encoding_reached_after_string_callbacks() {
-
     let mut ops = ChangingEncoding {
         stages: Stages {
             events: Vec::new(),
@@ -354,7 +348,6 @@ fn original_filename_uses_system_encoding_reached_after_string_callbacks() {
 
 #[test]
 fn original_filename_iso88591_and_identity_select_actual_external_bytes() {
-
     let mut stages = Stages {
         events: Vec::new(),
         read: Ok(Vec::new()),
@@ -411,7 +404,6 @@ fn original_filename_iso88591_and_identity_select_actual_external_bytes() {
 
 #[test]
 fn original_c9_identity_name_uses_actual_catalogue_instead_of_builtin_codec() {
-
     let queries = Cell::new(0);
     let error = resolve_original_encoding_name(
         NativeEncodingNameProtocol::for_c(TclVersion::V9_0),
@@ -440,7 +432,6 @@ fn original_c9_identity_name_uses_actual_catalogue_instead_of_builtin_codec() {
 
 #[test]
 fn original_filename_utf8_surrogates_keep_selected_conversion_and_error_owner() {
-
     let mut stages = Stages {
         events: Vec::new(),
         read: Ok(Vec::new()),

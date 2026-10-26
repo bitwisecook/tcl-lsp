@@ -52,7 +52,6 @@ impl NativeVwaitProtocol {
         count: usize,
         mut original_bytes: impl FnMut(usize) -> Result<B, E>,
     ) -> Result<NativeVwaitForm, E> {
-
         Ok(match self {
             Self::CLegacy => {
                 if count == 1 {
@@ -96,7 +95,6 @@ impl NativeVwaitProtocol {
     /// observer, entered script, normal completion or notifier authority.
     #[must_use]
     pub fn source_roles(self, arguments: InvocationArguments<'_>) -> Option<Vec<(u8, ArgRole)>> {
-
         let count = arguments.exact_argv_len()?;
         if count > usize::from(u8::MAX) + 1 {
             return None;
@@ -186,7 +184,6 @@ mod tests {
 
     #[test]
     fn original_vwait_forms_keep_legacy_names_and_extended_refusal_separate() {
-
         for version in TclVersion::ALL {
             let protocol = InvocationDialect::for_version(version)
                 .native_vwait_protocol()
@@ -255,7 +252,6 @@ mod tests {
 
     #[test]
     fn original_vwait_roles_select_only_actual_variable_and_script_ordinals() {
-
         for version in [TclVersion::V9_0, TclVersion::V9_1] {
             let dialect = InvocationDialect::for_version(version);
             let p = dialect.native_vwait_protocol().unwrap();
@@ -334,7 +330,6 @@ mod tests {
     }
     #[test]
     fn original_vwait_owned_registry_roles_do_not_retag_option_values() {
-
         for profile in ["tcl9.0", "tcl9.1"] {
             let owner = crate::model::ingress::static_context_for(profile);
             let selected = owner

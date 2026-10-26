@@ -1521,7 +1521,6 @@ mod shared_boundary_tests {
 
     #[test]
     fn neutral_namespace_boundaries_share_counted_written_spans() {
-
         // Neutral counted geometry; selected Native C/Jim input is independent.
         for (written, expected_qualifier, expected_tail) in [
             (b"::a:::b".as_slice(), b"::a".as_slice(), b"b".as_slice()),

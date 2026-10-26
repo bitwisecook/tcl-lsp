@@ -1629,7 +1629,6 @@ mod constant_owner_tests {
 
     #[test]
     fn original_constant_ternary_runs_numeric_instruction_under_retained_actual_entry() {
-
         // Software admitted constant/result owner, not original compiled code or pool identity.
         let interpreter = native();
         let tree = tree();
@@ -1662,7 +1661,6 @@ mod constant_owner_tests {
 
     #[test]
     fn original_constant_entry_cannot_revive_after_context_restore_or_first_host() {
-
         // Actual prepare owner and inherited currency, not external compiler equivalence.
         for restored in [false, true] {
             let mut interpreter = native();

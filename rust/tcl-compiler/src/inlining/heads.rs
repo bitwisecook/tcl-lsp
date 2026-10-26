@@ -360,7 +360,6 @@ mod tests {
 
     #[test]
     fn original_head_namespace_scan_keeps_selected_word_and_index_grammar() {
-
         // Source head-rewrite boundary, independent of native dispatch/frame.
         let old = LexerConfig::for_dialect("tcl8.6");
         let new = LexerConfig::for_dialect("tcl9.0");

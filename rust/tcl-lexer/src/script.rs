@@ -575,7 +575,6 @@ mod tests {
 
     #[test]
     fn original_command_source_extent_keeps_terminator_trivia_separate() {
-
         for (source, expected) in [
             (" error marker   ", "error marker   "),
             (" error marker   ; next", "error marker   "),

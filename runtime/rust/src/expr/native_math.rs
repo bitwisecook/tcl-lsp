@@ -234,7 +234,6 @@ mod tests {
     }
     #[test]
     fn original_math_operand_first_host_stops_before_later_conversion_and_result() {
-
         // Reached software getter effects, not a native math function/errno observation.
         let mut interpreter = native("tcl8.6");
         interpreter.set_result_bytes(b"PRIOR\0\xff");
@@ -267,7 +266,6 @@ mod tests {
     }
     #[test]
     fn original_math_rejection_never_reparses_selected_spelling_or_reaches_later_operand() {
-
         // A selected C84 software rejection and unreached right updater; no full-release comparator.
         let mut interpreter = native("tcl8.4");
         let rejected = Owned::fresh(obj::new_string_bytes(b"0b10"));
@@ -293,7 +291,6 @@ mod tests {
     }
     #[test]
     fn original_math_forwarding_keeps_original_header_and_boolean_uses_primitive_purpose() {
-
         // Current software function/result producers, no external math-function equivalence claim.
         let mut interpreter = native("tcl8.6");
         let head = Owned::fresh(obj::new_string_bytes(b"::tcl::mathfunc::entier"));
@@ -323,7 +320,6 @@ mod tests {
     }
     #[test]
     fn original_stateful_math_seed_first_host_preserves_prior_result_and_generator_state() {
-
         // Original software seed getter stops before the real PRNG mutation.
         let mut interpreter = native("tcl8.6");
         let control = native("tcl8.6");

@@ -20,7 +20,6 @@ use super::*;
 use std::cell::Cell;
 #[test]
 fn original_literal_registration_checks_episode_inside_same_value_string_worker() {
-
     // Software node-aware callbacks and Value roles, no external Native chronology.
     for mutate in [false, true] {
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);

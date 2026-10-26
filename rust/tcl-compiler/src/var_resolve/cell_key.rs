@@ -136,7 +136,6 @@ impl VariableCellKey {
     /// Namespace tables and authored reporting labels never supply an activation.
     #[must_use]
     pub fn activation_identity(&self) -> Option<&str> {
-
         fn in_owner(owner: &crate::place::CellOwner) -> Option<&str> {
             match owner {
                 crate::place::CellOwner::Activation(identity) => Some(identity),
@@ -688,7 +687,6 @@ mod tests {
 
     #[test]
     fn activation_identity_uses_retained_structures_instead_of_display_labels() {
-
         let cell = crate::place::CellIdentity {
             owner: crate::place::CellOwner::Activation("caller".to_owned()),
             name: "member".into(),

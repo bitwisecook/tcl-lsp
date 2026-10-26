@@ -343,7 +343,6 @@ mod tests {
 
     #[test]
     fn original_alias_creation_closes_only_fresh_quiet_actual_transfers() {
-
         for version in tcl_dialect::TclVersion::ALL {
             for source in [
                 "interp alias {} forward {} future",

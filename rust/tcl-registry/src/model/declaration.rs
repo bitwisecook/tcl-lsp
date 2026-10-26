@@ -369,7 +369,6 @@ impl DeclaredCommand {
     /// This metadata supplies no successful execution or builtin behaviour.
     #[must_use]
     pub fn source_arity(&self) -> Option<crate::Arity> {
-
         let required = self
             .arguments
             .iter()
@@ -386,7 +385,6 @@ impl DeclaredCommand {
     /// `arg_indices_for_role`. Invalid counts have no complete source layout.
     #[must_use]
     pub fn supplied_argument_roles(&self, supplied: usize) -> Option<Vec<(usize, ArgRole)>> {
-
         let arity = self.source_arity()?;
         if !arity.accepts(u16::try_from(supplied).ok()?) {
             return None;

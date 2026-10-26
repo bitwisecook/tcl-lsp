@@ -15,7 +15,6 @@ pub(crate) fn document_realm_with_declared_contracts(
     entry: Option<&SourceAnalysisEntry>,
     declarations: &SourceDeclaredCommandContracts,
 ) -> super::CommandBindingRealm {
-
     let context = input.context_registry();
     let realm = if let Some(entry) = entry {
         let options = declarations.with_options(entry.options());

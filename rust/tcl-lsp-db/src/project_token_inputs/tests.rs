@@ -318,7 +318,6 @@ fn project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labe
 
 #[test]
 fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
-
     let mut db = TclDatabase::default();
     let current = configuration(&db, 0);
     let unavailable = configuration(&db, u64::MAX - 1354);
@@ -398,7 +397,6 @@ fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
 
 #[test]
 fn supplied_project_indexes_keep_the_structure_only_firewall_across_source_edits() {
-
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let sink = Arc::clone(&events);
     let mut db = TclDatabase::with_event_logger(move |event| sink.lock().unwrap().push(event));

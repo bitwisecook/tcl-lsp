@@ -792,7 +792,6 @@ mod tests {
 
     #[test]
     fn original_package_refinement_keeps_pack_input_availability_and_full_lexer() {
-
         let source = "source_package require json {1.2}";
         let registry = package_source_registry();
         for environment in ["tcl8.6", "tcl9.0"] {
@@ -824,7 +823,6 @@ mod tests {
 
     #[test]
     fn original_package_refinement_refuses_missing_foreign_stale_and_unavailable_owners() {
-
         let source = "source_package require json {1.2}";
         let registry = package_source_registry();
         let analysis = package_source_analysis(source, "tcl8.6", registry.clone());
@@ -951,7 +949,6 @@ mod tests {
     #[test]
     fn original_package_discovery_ignores_reporting_values_and_refuses_stale_or_opaque_manifest_names()
      {
-
         let source = r"package require {json::write} {1.2}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let raw = analysis.package_requires.first_mut().unwrap();
@@ -985,7 +982,6 @@ mod tests {
 
     #[test]
     fn original_package_requirement_values_keep_actual_option_ordinals_and_unknowns() {
-
         let source = r"package require -exact json {1.2} {2.0} $unknown";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let raw = analysis.package_requires.first().unwrap();

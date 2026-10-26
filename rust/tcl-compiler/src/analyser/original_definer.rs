@@ -18,7 +18,6 @@ pub(super) struct OriginalClassDefinerSource {
 
 impl OriginalClassDefinerSource {
     pub(super) fn capture(source: &str, analysis: &AnalysisResult, offset: u32) -> Option<Self> {
-
         let declaration =
             crate::registry_invocation::source_structure::source_class_declaration_at(
                 source, analysis, offset,
@@ -146,7 +145,6 @@ pub(super) struct OriginalClassConfigurationSource {
 }
 impl OriginalClassConfigurationSource {
     fn capture(source: &str, analysis: &AnalysisResult, offset: u32) -> Option<Self> {
-
         let target = crate::registry_invocation::source_structure::source_configured_class_at(
             source, analysis, offset,
         )?;
@@ -332,7 +330,6 @@ mod tests {
 
     #[test]
     fn original_class_definers_preserve_moves_captured_prefixes_and_declaration_sites() {
-
         for source in [
             "rename oo::class Maker; Maker create C {method value {} {return ok}}",
             "interp alias {} Maker {} oo::class create; Maker C {method value {} {return ok}}",
@@ -364,7 +361,6 @@ mod tests {
 
     #[test]
     fn original_class_definers_refuse_known_shadow_delete_and_non_class_grammars() {
-
         for source in [
             "rename oo::class Maker; proc Maker args {}; Maker create C {}",
             "rename oo::class Maker; rename Maker {}; Maker create C {}",
@@ -386,8 +382,6 @@ mod tests {
 
     #[test]
     fn original_jim_members_accumulate_in_canonical_source_metadata_without_reporting_maps() {
-
-
         // This checks conditional source metadata and source ordering, not a
         // successful class allocation, invocation or method activation.
         use crate::analyser::types::MemberSide;
@@ -466,8 +460,6 @@ mod tests {
 
     #[test]
     fn original_jim_two_word_members_keep_earlier_and_later_procedure_producers() {
-
-
         use crate::analyser::types::MemberSide;
         let source = "proc {C before} {} {}; class C {x 1}; proc {C after} {} {}";
         let analysis = Analyser::new().analyse(source, "jim");
@@ -497,7 +489,6 @@ mod tests {
 
     #[test]
     fn original_jim_inherited_variables_use_genuine_base_list_children() {
-
         // Non-ASCII labels are source characters; this checks retained source
         // naming inputs, without a claim about an inherited runtime invocation.
         let source = "class {Base α} {{value β} 1}; class Derived {{Base α}} {own 2}";
@@ -539,7 +530,6 @@ mod tests {
 
     #[test]
     fn original_class_member_metadata_refuses_known_source_command_barriers() {
-
         for source in [
             "class C {}; rename C {}; proc {C absent} {} {}",
             "class C {}; proc C args {}; C method absent {} {}",
@@ -563,7 +553,6 @@ mod tests {
 
     #[test]
     fn original_oo_configuration_updates_the_canonical_member_ledger() {
-
         use crate::analyser::types::MemberSide;
         let source = "oo::class create C {}; oo::define C method first {} {}; oo::define C method second {} {}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -596,7 +585,6 @@ mod original_argument_source_purpose_tests {
 
     #[test]
     fn original_definer_argument_keeps_bom_and_complete_parent_word_geometry() {
-
         // Original word projection only; selection and argument value ownership remain independent.
         let config = tcl_lexer::LexerConfig {
             leading_bom: tcl_lexer::LeadingBom::Skip,

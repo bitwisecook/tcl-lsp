@@ -100,7 +100,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_keeps_available_aliases_prefixes_and_captured_values() {
-
         let input = current_input();
         for (source, argument, written, value) in [
             (
@@ -165,7 +164,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_refuses_replacements_and_unclosed_or_dynamic_values() {
-
         let input = current_input();
         for source in [
             "proc fconfigure args {}; fconfigure stdout -encoding binary -translation crlf",
@@ -192,7 +190,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_keeps_actual_availability_and_source_grammar() {
-
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
             .commands()

@@ -168,7 +168,6 @@ mod tests {
 
     #[test]
     fn original_logical_linked_edits_require_the_current_whole_source_owner() {
-
         let source = "proc p {} {p}";
         let registry = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
         let edit =
@@ -370,7 +369,6 @@ mod original_linked_tests {
 
     #[test]
     fn original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words() {
-
         for source in [
             "proc p\\u0061 {} {pa}\n",
             "proc pa {} {p\\u0061}\n",

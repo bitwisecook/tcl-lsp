@@ -7,7 +7,6 @@ use tcl_dialect::TclVersion;
 
 #[test]
 fn original_next_concat_retains_first_cause_through_reached_operand_cleanup() {
-
     for mode in [0, 1, 3] {
         let mut interpreter = fixture::native("tcl9.1");
         let _current = fixture::install(&mut interpreter, mode);
@@ -78,7 +77,6 @@ fn original_next_concat_retains_first_cause_through_reached_operand_cleanup() {
 }
 #[test]
 fn original_next_operand_error_finishes_earliest_body_cleanup_without_later_getter() {
-
     let mut interpreter = fixture::native("tcl9.1");
     let _current = fixture::install(&mut interpreter, 1);
     let operation = BodyObjectOperation::capture(&interpreter).unwrap();
@@ -104,7 +102,6 @@ fn original_next_operand_error_finishes_earliest_body_cleanup_without_later_gett
 }
 #[test]
 fn original_compiled_next_and_nextto_keep_selected_list_and_public_results() {
-
     for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = fixture::native(dialect);
         let scope =

@@ -3743,7 +3743,6 @@ mod tests {
 
     #[test]
     fn original_boolean_value_advice_cannot_attest_a_retained_native_truth_stage() {
-
         use tcl_syntax::expr::ExprOps;
         use tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
         let env = Env::new();

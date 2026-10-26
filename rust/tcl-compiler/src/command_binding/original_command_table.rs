@@ -455,7 +455,6 @@ mod tests {
 
     #[test]
     fn original_conditional_catalogue_keeps_unknowns_but_blocks_known_cells() {
-
         use super::super::OriginalCatalogueSourceObligation as Obligation;
         for version in tcl_dialect::TclVersion::ALL {
             let (state, config, policy) = catalogue_state(version);
@@ -975,7 +974,6 @@ mod tests {
     }
     #[test]
     fn original_mutation_selector_stops_at_the_first_occupied_cell() {
-
         for version in [
             tcl_dialect::TclVersion::V8_6,
             tcl_dialect::TclVersion::V9_0,
@@ -2999,7 +2997,6 @@ impl ModuleCommandBindings {
 mod conditional_catalogue_source_tests {
     #[test]
     fn original_conditional_source_catalogue_requires_current_custom_cell_barriers() {
-
         for (dialect, source, target) in [
             (
                 "f5-irules",

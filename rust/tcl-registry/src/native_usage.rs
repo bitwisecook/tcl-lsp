@@ -217,7 +217,6 @@ mod tests {
 
     #[test]
     fn procedure_usage_preserves_the_selected_name_and_final_formatter_boundary() {
-
         // Source/API control: JimCmdUsage and JimSetProcWrongArgs in the pinned
         // Jim source. The public helper arity windows are independently measured
         // by naming.info.original-command-inventory-option-and-scope.

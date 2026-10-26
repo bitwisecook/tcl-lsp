@@ -2398,7 +2398,6 @@ mod tests {
 
     #[test]
     fn selected_command_namespace_profiles_keep_surface_case_and_holder_purpose() {
-
         let profiles = ProfileRegistry::build();
         let context =
             crate::model::ingress::resolve_environment("f5-irules").default_context_registry();

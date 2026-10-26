@@ -54,7 +54,6 @@ fn vm(profile: &str) -> Vm {
 }
 #[test]
 fn original_foundation_value_headers_follow_constructor_destructor_next_roles() {
-
     // VM identity/value semantics only; this does not assert physical C refcounts.
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = vm(profile);
@@ -91,7 +90,6 @@ fn original_foundation_value_headers_follow_constructor_destructor_next_roles() 
 }
 #[test]
 fn original_foundation_value_report_refuses_missing_and_unsupported_owners() {
-
     for profile in ["tcl8.4", "tcl8.5", "jim"] {
         let vm = vm(profile);
         assert!(vm.oo.method_reports.is_none(), "{profile}");

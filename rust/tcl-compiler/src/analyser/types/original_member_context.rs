@@ -110,7 +110,6 @@ impl OriginalLexicalMemberContext {
         config: LexerConfig,
         side: MemberSide,
     ) -> Option<Self> {
-
         let publication = class.source_name.as_ref()?;
         if publication.publication() != SourceCommandPublication::TclOoObject
             || !matches!(publication.policy().recipe(), NativeNameProtocol::C(_))
@@ -417,7 +416,6 @@ impl OriginalLexicalNextCall {
         analysis: &AnalysisResult,
         source: &str,
     ) -> Option<tcl_registry::Arity> {
-
         if self.context.side() != MemberSide::Instance {
             return None;
         }
@@ -583,7 +581,6 @@ mod tests {
 
     #[test]
     fn original_lexical_member_keeps_colons_lifecycle_and_source_ownership_separate() {
-
         let source = "oo::class create C {method a::b {} {my a::b}; constructor {} {}; destructor {}; self method a::b {} {}}";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -650,7 +647,6 @@ mod tests {
 
     #[test]
     fn original_lexical_next_uses_counted_member_and_complete_source_mro() {
-
         let source = "oo::class create Base {method a::b {first {second value}} {}}\n\
                       oo::class create Middle {superclass Base}\n\
                       oo::class create C {superclass Middle; method a::b {} {next 1 2 3}}";
@@ -704,7 +700,6 @@ mod tests {
 
     #[test]
     fn original_lexical_next_count_uses_effective_words_and_whole_call_geometry() {
-
         for (invoke, minimum, indeterminate) in [
             ("next 1 2", 2, false),
             ("::::next 1 2 3", 3, false),
@@ -742,7 +737,6 @@ mod tests {
 
     #[test]
     fn original_lexical_next_declines_relative_targets_and_occupied_forward_routes() {
-
         for (invocation, expected) in [("nextto ::Base 1 2", true), ("nextto Base 1 2", false)] {
             let source = format!(
                 "oo::class create Base {{method a::b {{arg}} {{}}}}\n\
@@ -790,7 +784,6 @@ mod original_member_body_purpose_tests {
 
     #[test]
     fn original_next_body_keeps_bom_alias_and_complete_member_input() {
-
         // Lexical helper schema/count only; the class body supplies no entered receiver frame.
         let mut prepared = Analyser::new();
         let base = prepared.prepare_analysis_input("tcl9.1").unwrap();

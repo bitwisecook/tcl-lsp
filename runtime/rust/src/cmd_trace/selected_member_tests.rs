@@ -10,7 +10,6 @@ use crate::{
 
 #[test]
 fn trace_registration_distinguishes_recreated_members_of_a_retained_root() {
-
     // This Rust owner test checks actual member correspondence; the native
     // programs independently establish public callback-selection outcomes.
     let mut table = VarTable::default();

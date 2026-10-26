@@ -324,7 +324,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_keeps_captured_ordinals_and_list_field_spans() {
-
         let input = current_input();
         for (source, argument, written, path, span) in [
             (
@@ -399,7 +398,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_uses_selected_modes_targets_and_availability() {
-
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
             .commands()
@@ -455,7 +453,6 @@ mod tests {
 
     #[test]
     fn original_pattern_list_geometry_keeps_the_full_selected_grammar() {
-
         let input = current_input();
         let source =
             r"switch -regexp $s {\(é+\)+ {BODY} # {COMMENT_PATTERN} ; {SEPARATOR_PATTERN}}";
@@ -490,7 +487,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_values_require_the_complete_original_cu() {
-
         let input = current_input();
         for source in [
             "proc f {} {set p {(a+)+}; regexp $p literal}",
@@ -573,7 +569,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_keeps_a_proven_mode_and_original_literal_clause() {
-
         let input = current_input();
         let source = "proc f {s} {set mode -regexp; switch $mode $s {(é+)+ {BODY}}}";
         let unit = cu(source, &input);
@@ -603,7 +598,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_refuses_changed_or_missing_source_owners() {
-
         let input = current_input();
         let source = "regexp {(a+)+} literal";
         let original = original_at(&analyse(source, &input), source, source);
@@ -636,7 +630,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_keeps_whole_source_and_per_item_parity() {
-
         let input = current_input();
         for source in [
             "# Unicode prefix é\nproc f {} {set p {(a+)+}; regexp $p literal}",

@@ -336,7 +336,6 @@ mod tests {
 
     #[test]
     fn class_creation_keeps_opaque_native_target_and_conditional_commit() {
-
         for value in [
             b"C\xed\xa0\x80".as_slice(),
             b"C\0tail".as_slice(),
@@ -423,7 +422,6 @@ mod tests {
 
     #[test]
     fn class_creation_owns_installation_write_but_keeps_body_and_trace_callbacks() {
-
         use crate::{
             EffectAccessMode, InvocationDialect, InvocationWord, InvocationWords,
             StateTransitionDomain, WorldEffectWriteSource,
@@ -520,7 +518,6 @@ mod tests {
 
     #[test]
     fn original_stock_metaclass_compilation_has_no_hook_without_factory_authority() {
-
         use crate::native_compilation::{
             NativeCompilationContext, NativeCompilationGrammar, NativeCompilationSelection,
             NativeCompilationWordShape,

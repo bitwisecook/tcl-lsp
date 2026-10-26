@@ -102,7 +102,6 @@ impl OriginalConstructorArityCall {
         analysis: &AnalysisResult,
         source: &str,
     ) -> Option<tcl_registry::Arity> {
-
         let input = analysis.resolved_input.as_ref()?;
         let context = input.context_registry();
         self.original
@@ -197,7 +196,6 @@ mod tests {
     use crate::analyser::Analyser;
     #[test]
     fn original_constructor_signatures_keep_canonical_factory_and_effective_count() {
-
         for (prefix, invoke, count, unknown) in [
             ("", "C new 1", 1, false),
             ("rename C moved; ", "moved new 1", 1, false),
@@ -245,7 +243,6 @@ mod tests {
     }
     #[test]
     fn original_constructor_signature_respects_exact_lifecycle_body_values() {
-
         // The pinned ASCII CLI probe measures declaration/call behaviour;
         // this test checks conditional source signature advice only.
         for (parameters, body, expected) in [
@@ -280,7 +277,6 @@ mod tests {
 
     #[test]
     fn original_constructor_signatures_keep_mandatory_names_and_known_replacements() {
-
         for (invoke, arity, count) in [
             ("C create", tcl_registry::Arity::at_least(1), 0),
             ("C new a b", tcl_registry::Arity::at_least(0), 2),

@@ -59,7 +59,6 @@ fn info_report(
 }
 #[test]
 fn original_call_report_uses_payload_descriptors_before_literal_names_and_stock_fallbacks() {
-
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);
         source(&mut interpreter, b"oo::class create TypeClass {forward <constructor> list C; forward <destructor> list D; forward {} list EMPTY; export <constructor> <destructor> {}}; TypeClass create TypeObject; oo::define ::oo::object forward destroy list OVERRIDE");
@@ -149,7 +148,6 @@ fn original_call_report_uses_payload_descriptors_before_literal_names_and_stock_
 }
 #[test]
 fn original_call_report_keeps_filter_unknown_and_declaring_facet_flags_independent() {
-
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);
         source(&mut interpreter, b"oo::class create FlagsClass {method m {} {if {[lindex [self call] 1] == 0} {return [next]}; return [self call]}; filter m}; FlagsClass create FlagsObject; FlagsObject m");
@@ -217,7 +215,6 @@ fn original_call_report_keeps_filter_unknown_and_declaring_facet_flags_independe
 #[test]
 fn original_call_report_keeps_exact_entered_record_through_deletion_rename_and_payload_replacement()
 {
-
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);
         source(&mut interpreter, b"oo::class create RecordClass {method m {} {oo::define RecordClass deletemethod m; oo::define RecordClass forward m list REBORN; return [self call]}}; RecordClass create RecordObject");
@@ -323,7 +320,6 @@ impl Drop for Cleanup {
 }
 #[test]
 fn original_call_report_retains_original_name_until_checked_presentation_and_first_cause() {
-
     for version in ["tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2] {
             let mut interpreter = native(version);

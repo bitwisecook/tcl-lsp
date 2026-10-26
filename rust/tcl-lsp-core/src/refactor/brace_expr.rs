@@ -172,7 +172,6 @@ mod original_tests {
 
     #[test]
     fn original_brace_expr_keeps_exact_operands_and_declines_missing_equivalence() {
-
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let source = "expr \"1 + 2\"";
             let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, profile);

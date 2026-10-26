@@ -28,7 +28,6 @@ fn emit<'a>(
 
 #[test]
 fn original_info_commands_compiler_keeps_conditional_list_geometry() {
-
     // Software instruction-consumer control; native measurements are recorded
     // independently in the proof with this question identifier.
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -74,7 +73,6 @@ fn original_info_commands_compiler_keeps_conditional_list_geometry() {
 
 #[test]
 fn original_info_commands_compiler_requires_literal_pattern_and_actual_worker() {
-
     // This tests producer refusal, not runtime command absence or Tcl semantics.
     use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();

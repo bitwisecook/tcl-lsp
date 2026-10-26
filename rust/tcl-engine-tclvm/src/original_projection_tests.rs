@@ -31,7 +31,6 @@ impl HostCommand for Counted {
 
 #[test]
 fn original_engine_argument_worker_refuses_real_retired_first_header_before_later_getter() {
-
     // Actual production adapter worker under its genuine engine ingress; no
     // external Native execution/refcount chronology is claimed.
     let mut engine = TclVmEngine::new();
@@ -80,7 +79,6 @@ impl HostCommand for Typed {
 
 #[test]
 fn original_engine_typed_callback_failure_stops_guest_continuation_and_allows_next_entry() {
-
     let mut engine = TclVmEngine::new();
     let first = NativeExecutionError::ValueAccessRefusal(
         NativeValueAccessRefusal::CommandProtocolUnavailable("actual Engine callback cause"),
@@ -113,7 +111,6 @@ fn original_engine_typed_callback_failure_stops_guest_continuation_and_allows_ne
 
 #[test]
 fn original_engine_returned_option_header_refusal_precedes_original_result_getter() {
-
     let mut engine = TclVmEngine::new();
     let options = tcl_vm::Value::list(vec![
         tcl_vm::Value::string("-errorcode"),
@@ -165,7 +162,6 @@ impl HostCommand for Nested {
 
 #[test]
 fn original_engine_registrar_retains_earlier_nested_failure_before_later_callback_cause() {
-
     let mut engine = TclVmEngine::new();
     let first = NativeExecutionError::ValueAccessRefusal(
         NativeValueAccessRefusal::CommandProtocolUnavailable("actual nested original cause"),
@@ -204,7 +200,6 @@ fn original_engine_registrar_retains_earlier_nested_failure_before_later_callbac
 
 #[test]
 fn original_engine_retirement_errors_remain_host_failures_before_guest_continuation() {
-
     // Actual NativeCommand retirement adapter policy, separate from invocation
     // Guest conversion. Software-only source control; no Native delete chronology.
     struct Retiring(EngineError);

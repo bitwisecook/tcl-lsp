@@ -591,7 +591,6 @@ fn original_fixed_function_lookup(
     rows: &[&DeclarationLayoutObservation],
     dialect: tcl_registry::InvocationDialect,
 ) -> Option<OriginalFixedMathFunctionLookup> {
-
     if tcl_registry::mathfunc::native_function_dispatch(dialect)
         != Some(NativeMathFunctionDispatch::FixedTable)
         || ordinal != 0
@@ -869,7 +868,6 @@ mod tests {
 
     #[test]
     fn original_fixed_function_absence_retains_source_snapshot_without_command_name() {
-
         // Related observed engine purpose: naming.expression.original-implicit-function-slot-presence
 
         // Jim Pi() is a native syntax error, not a command-table call. This
@@ -933,7 +931,6 @@ mod tests {
 
     #[test]
     fn original_function_lookup_keeps_absence_and_unknown_separate() {
-
         // Native dispatch control: naming.expression.original-implicit-function-slot-presence
 
         use super::super::SourceCommandSlotPresence as Presence;
@@ -989,7 +986,6 @@ mod tests {
 
     #[test]
     fn original_math_policy_requires_the_selected_execution_name_recipe() {
-
         let (bindings, _, _, _, calls) = functions("expr {abs(1)}", "tcl8.6");
         let rows: Vec<_> = bindings
             .declaration_layouts
@@ -1016,7 +1012,6 @@ mod tests {
 
     #[test]
     fn original_math_function_purposes_separate_fixed_tables_and_command_slots() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let (_, registry, image, config, calls) = functions("expr {abs(-3)}", name);
             let [call] = calls.as_slice() else {
@@ -1042,7 +1037,6 @@ mod tests {
 
     #[test]
     fn original_math_navigation_retains_installed_allocation_and_operand_barriers() {
-
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source = "proc ::tcl::mathfunc::custom {x} {return $x}; expr {custom(3)}";
             let (_, _, _, _, calls) = functions(source, name);
@@ -1070,7 +1064,6 @@ mod tests {
 
     #[test]
     fn original_math_topology_is_exact_without_fabricating_head_words() {
-
         let (bindings, registry, image, config, calls) =
             functions("expr {max(abs(1), abs(2))}", "tcl8.6");
         assert_eq!(
@@ -1130,7 +1123,6 @@ mod tests {
 
     #[test]
     fn original_math_occurrences_cover_expressions_in_command_substitutions() {
-
         // tclsh 8.5-9.1 call `tcl::mathfunc::custom` once for each nested
         // `expr` below (`hit=4`).
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

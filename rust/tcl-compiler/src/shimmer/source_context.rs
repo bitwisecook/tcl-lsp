@@ -151,7 +151,6 @@ mod tests {
 
     #[test]
     fn original_representation_context_keeps_complete_availability_and_selected_grammar() {
-
         let base =
             tcl_registry::model::ingress::resolve_environment("tcl").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -215,7 +214,6 @@ mod tests {
 
     #[test]
     fn original_representation_consumers_keep_positive_reads_and_refuse_missing_foreign_input() {
-
         let registry = tcl_registry::CommandRegistry::build_default();
         let source = "proc f {lst} {set x [llength $lst]; puts [lindex $x 0]}";
         let mut unit = CompilationUnit::build_for(source, &registry, false);
@@ -277,7 +275,6 @@ mod tests {
 
     #[test]
     fn original_representation_known_replacement_cannot_borrow_stock_conversion_hints() {
-
         let registry = tcl_registry::CommandRegistry::build_default();
         let stock = CompilationUnit::build_for(
             "proc f {lst} {set x [llength $lst]; puts [::lindex $x 0]}",

@@ -2530,7 +2530,6 @@ mod tests {
 
     #[test]
     fn original_incremental_callbacks_retain_full_source_targets_and_barriers() {
-
         // Incremental and full consumers share the genuine registration-horizon
         // issuer. Empty bodies keep this control on the incremental fast path;
         // no isolated fragment can donate a target or suppress a known barrier.
@@ -2917,7 +2916,6 @@ mod tests {
 
     #[test]
     fn original_lexical_member_body_keeps_the_whole_source_owner() {
-
         let source = "oo::class create C {method a::b {} {return body}}";
         let (gate, result) = gate_and_result(source, "tcl8.6");
         assert_eq!(gate, Some(PerItemFallback::OriginalSourceOwnership));
@@ -2944,7 +2942,6 @@ mod tests {
 
     #[test]
     fn original_next_advice_reconstructs_whole_source_after_preceding_edits() {
-
         for prefix in ["", "# preceding line\nset unrelated value\n"] {
             let source = format!(
                 "{prefix}oo::class create Base {{method f {{a b}} {{}}}}\noo::class create Child {{superclass Base; method f {{}} {{next 1 2 3}}}}"
@@ -3503,7 +3500,6 @@ mod original_configured_entry_tests {
     use super::*;
     #[test]
     fn original_isolated_body_projects_its_genuine_parent_input_to_nested_source() {
-
         // An actual deferred source body; no entered procedure or frame claim.
         let environment = crate::environment_ingress::resolve_environment("tcl");
         let config = tcl_lexer::LexerConfig {
@@ -3555,7 +3551,6 @@ mod original_configured_entry_tests {
 
     #[test]
     fn original_per_item_entry_uses_retained_configuration_and_unknown_is_distinct() {
-
         // Source-only fast-path control; no native entry or completion grant.
         let environment = crate::environment_ingress::resolve_environment("tcl9.1");
         let source = "set x ${a{}";
@@ -3612,7 +3607,6 @@ mod original_parent_purpose_tests {
 
     #[test]
     fn original_per_item_recovery_retains_the_whole_file_bom_boundary() {
-
         // The shell's original command stream, without execution admission.
         let source = "\u{feff}set x 1\nputs after\n";
         let mut prepared = Analyser::new();

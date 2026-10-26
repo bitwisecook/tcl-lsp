@@ -46,7 +46,6 @@ impl DeclaredSourceSelection {
         declaration: Arc<DeclaredCommand>,
         unknown: bool,
     ) -> Option<Self> {
-
         if original.is_empty() || original.iter().any(|word| word.group().expand) {
             return None;
         }
@@ -74,7 +73,6 @@ impl DeclaredSourceSelection {
         mut self,
         body: Arc<OriginalDeclaredLogicalBodyContext>,
     ) -> Option<Self> {
-
         self.head.logical_input()?;
         if !body.owns_words(&self.original) {
             return None;
@@ -104,7 +102,6 @@ impl OriginalDeclaredCommandWords {
         selected: DeclaredSourceSelection,
         input: &ResolvedAnalysisInput,
     ) -> Option<Self> {
-
         let first = selected.original.first()?;
         let image = first.image();
         let config = input.lexer_config();
@@ -239,7 +236,6 @@ impl SourceInvocationBinding {
         input: &ResolvedAnalysisInput,
         original: &[NativeWord],
     ) -> Option<DeclaredSourceSelection> {
-
         let config = self.original_lexer_config_for_tokens(tokens)?;
         let site = self.invocation_site()?;
         let first = original.first()?;
@@ -307,7 +303,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_keep_roles_provenance_and_direct_ordinals() {
-
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub select {?kind? expression:expr}\n# tcl-lsp: stubs-end\nselect {$value + 1}";
         for profile in ["tcl8.6", "tcl9.0", "tcl"] {
             let analysis = Analyser::new().analyse(source, profile);
@@ -339,7 +334,6 @@ mod tests {
 
     #[test]
     fn original_declared_script_bodies_keep_source_roles_without_timing_authority() {
-
         use crate::registry_invocation::OriginalSourceScriptPurpose;
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {?kind? script:body}\n# tcl-lsp: stubs-end\nhold {\n# café 😀 \\\nputs hidden\n}";
         for profile in ["tcl8.6", "tcl9.0", "tcl"] {
@@ -381,7 +375,6 @@ mod tests {
 
     #[test]
     fn original_declared_script_bodies_refuse_dynamic_cooked_and_shadowed_geometry() {
-
         use crate::registry_invocation::OriginalSourceScriptPurpose;
         for suffix in [
             "hold $script",
@@ -412,7 +405,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_refuse_replacements_and_builtin_trait_donation() {
-
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr {value}\n# tcl-lsp: stubs-end\nexpr {$value + 1}";
         for profile in ["tcl8.6", "tcl9.0", "tcl"] {
             let analysis = Analyser::new().analyse(source, profile);
@@ -454,7 +446,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_use_current_contracts_in_every_document_ingress() {
-
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub check {expression:expr}\n# tcl-lsp: stubs-end\ncheck {$value + 1}";
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             tcl_dialect::DialectProfile::plain_tcl().grammar,
@@ -506,7 +497,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_retain_qualified_and_nested_procedure_scope() {
-
         use crate::command_binding::{
             OriginalDeclaredSourceBodyFrame, OriginalDeclaredSourceObligation,
         };
@@ -556,7 +546,6 @@ mod tests {
 
     #[test]
     fn original_declared_body_scope_keeps_global_fallback_without_root_stamping() {
-
         for (definition, namespace) in [
             ("proc p {} {check {argument}}", None),
             ("proc ::N::p {} {check {argument}}", Some("N")),
@@ -585,7 +574,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_retain_static_namespace_source_ancestry() {
-
         use crate::command_binding::OriginalDeclaredSourceBodyFrame;
         for (definition, expected) in [
             ("namespace eval ::N {check {$value + 1}}", vec!["N"]),
@@ -634,7 +622,6 @@ mod tests {
 
     #[test]
     fn original_declared_body_scope_refuses_unowned_names_and_known_replacements() {
-
         let prefix = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub check {expression:expr}\n# tcl-lsp: stubs-end\n# tcl-lsp: stubs-begin\n# tcl-lsp: stub ::N::check {expression:expr}\n# tcl-lsp: stubs-end\n";
         for body in [
             "proc ::N::p {} {proc check {args} {}; check {$value + 1}}",
@@ -663,7 +650,6 @@ mod tests {
 
     #[test]
     fn original_declared_words_require_the_authentic_stub_block() {
-
         for profile in ["tcl8.6", "tcl9.0", "tcl"] {
             let orphan = "# tcl-lsp: stub check {expression:expr}\ncheck {$value + 1}";
             let analysis = Analyser::new().analyse(orphan, profile);

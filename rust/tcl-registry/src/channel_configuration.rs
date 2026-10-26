@@ -127,7 +127,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_requires_its_descriptor_and_admitted_option_topology() {
-
         let current =
             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let older = crate::model::ingress::static_context_for("tcl8.4")

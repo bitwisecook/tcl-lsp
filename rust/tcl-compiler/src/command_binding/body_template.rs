@@ -999,7 +999,6 @@ mod tests {
 
     #[test]
     fn original_native_body_template_keeps_tagged_owner_and_original_rebased_vectors() {
-
         // Existing native closure/alpha proof remains independently required.
         let source = "proc p {} {set x VALUE; set x}; p";
         let context =
@@ -1104,7 +1103,6 @@ mod tests {
 
     #[test]
     fn original_native_template_keeps_standalone_explicit_and_refuses_unowned_nested_commands() {
-
         let source = "proc p {} {list [list VALUE]}; p";
         let registry = CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());

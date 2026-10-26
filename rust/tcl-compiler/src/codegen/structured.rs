@@ -976,7 +976,6 @@ mod original_configured_span_tests {
     use super::*;
     #[test]
     fn original_command_quote_widening_requires_current_image_config_and_channel() {
-
         // Original geometry only, separate from executable admission.
         let source = "puts \"x\"";
         let span = Span::new(0, 7);

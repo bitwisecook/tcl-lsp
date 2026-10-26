@@ -40,7 +40,6 @@ mod tests {
     use super::*;
     #[test]
     fn selected_version_report_keeps_jim_independent_of_tcl_globals() {
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = crate::model::ingress::resolve_environment(engine).unit_profile();
             let dialect = crate::InvocationDialect::of_profile(profile);

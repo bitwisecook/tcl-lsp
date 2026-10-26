@@ -161,7 +161,6 @@ mod tests {
 
     #[test]
     fn original_argument_inventory_keeps_full_config_and_excludes_enclosing_roles() {
-
         // Source argv inventory only; no Expr/body entry, handler or Native read grant.
         for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
             let config = tcl_lexer::LexerConfig {
@@ -290,7 +289,6 @@ mod tests {
 
     #[test]
     fn original_argument_inventory_refuses_changed_missing_and_foreign_owners() {
-
         let input = source_input(tcl_lexer::LexerConfig::default());
         let registry = input.borrowed_context_registry().commands();
         let tokens = original_tokens("list [dict size DATA]", &input);
@@ -381,7 +379,6 @@ mod tests {
 
     #[test]
     fn original_argument_inventory_separates_incomplete_from_cached_phases_and_standalone() {
-
         let input = source_input(tcl_lexer::LexerConfig::default());
         let registry = input.borrowed_context_registry().commands();
         let owner = OwnedInvocationMetadataContext::for_source_input(Some(&input));
@@ -431,7 +428,6 @@ mod tests {
 
     #[test]
     fn original_cfg_argument_phase_retains_owner_and_missing_input_clobbers_all_consumers() {
-
         // Genuine CFG argv producer; unknown liveness is Quoted, never a definite read.
         let config = tcl_lexer::LexerConfig::from_grammar(
             tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,
@@ -532,7 +528,6 @@ mod tests {
     }
     #[test]
     fn original_return_argument_source_is_retained_while_unpositioned_payload_stays_unknown() {
-
         let config = tcl_lexer::LexerConfig::from_grammar(
             tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,
         );

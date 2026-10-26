@@ -880,7 +880,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_joins_nested_member_parents_and_drops_method_script_context() {
-
         let source = "oo::class create C {\n if {1} {\n  self {\n   method m {} {set ordinary 1}\n  }\n }\n}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let selected = at(source, &analysis, "method m");
@@ -900,7 +899,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary() {
-
         let source = "speclib demo 1 {\n command demo::x {\n  arty 1\n }\n}";
         let analysis = Analyser::new().analyse(source, "spectcl");
         let selected = at(source, &analysis, "arty");
@@ -927,7 +925,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_withdraws_shadowed_dynamic_and_equal_spelled_data_bodies() {
-
         for source in [
             "proc oo::class args {}; oo::class create C {method fake {} {}}",
             "$maker create C {method fake {} {}}",
@@ -949,7 +946,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_root_authoring_retains_unavailable_child_without_donating_edit_grammar() {
-
         let source = "\u{feff}endpoint www {\n hsts {\n max\n }\n}";
         let profile =
             tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
@@ -983,7 +979,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_reborrows_full_input_image_and_configuration() {
-
         let source = "oo::class create C {method m {} {}}";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         let selection = at(source, &analysis, "method m");
@@ -1014,7 +1009,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_depth_limit_and_malformed_regions_never_reuse_prior_grammar() {
-
         let source = format!(
             "oo::class create C {{{}method deep {{}} {{}}{}}}",
             "if {1} {".repeat(33),
@@ -1037,7 +1031,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_uses_the_actual_overlay_body_grammar_and_rejects_foreign_reborrow() {
-
         let source = "endpoint www {\n max\n}";
         let profile =
             tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
@@ -1064,7 +1057,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_completion_preserves_unicode_utf16_and_selected_store() {
-
         let source = "# 😀\nendpoint www {\n hsts {\n  max\n }\n}";
         let analysis = Analyser::new().analyse(source, "sslictcl");
         let profile = analysis.resolved_profile().unwrap();
@@ -1087,7 +1079,6 @@ mod original_definition_grammar_cursor_tests {
 
     #[test]
     fn original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject() {
-
         use crate::code_actions::{
             ContextDiagnostic, ContextDiagnosticData, SPEC_PACK_DIAGNOSTIC_CODE,
             SpecPackNoticeKind, SpecPackNoticeSubject,

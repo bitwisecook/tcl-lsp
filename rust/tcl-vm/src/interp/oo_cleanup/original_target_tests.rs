@@ -58,7 +58,6 @@ fn original_oo_cleanup_selects_physical_namespace_teardown_order() {
 
 #[test]
 fn original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration() {
-
     for entered in [false, true] {
         let mut vm = native();
         let parent = vm.cur_interp();
@@ -99,7 +98,6 @@ fn original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration() {
 
 #[test]
 fn original_oo_saved_cleanup_transports_same_target_after_scope_expiry_and_first_cause() {
-
     let mut vm = native();
     let entered = NativeOperationScope::enter(&mut vm).unwrap();
     let observed = OriginalOoCleanup::observe(&mut vm);

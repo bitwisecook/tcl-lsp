@@ -148,7 +148,6 @@ mod tests {
 
     #[test]
     fn original_public_registration_selects_c_namespace_and_jim_root_cstring_purposes() {
-
         // Pure source-selected registration units; no live table/header or
         // counted Jim API equivalence is inferred from the retirement rows.
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -210,7 +209,6 @@ mod tests {
 
     #[test]
     fn original_idle_recreation_recipe_requires_a_supported_native_point() {
-
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let dialect = crate::InvocationDialect::of_profile(
                 crate::model::ingress::resolve_environment(environment).analyser_profile(),
@@ -253,7 +251,6 @@ mod tests {
 mod original_deletion_order_tests {
     #[test]
     fn original_c_deletion_order_preserves_release_split_and_independent_jim_owner() {
-
         // Pure source recipe; no live command/Namespace, callback or Native role.
         use tcl_cmd_core::native_command_retirement::NativeCommandRetirementOrder::*;
         for (environment, expected) in [

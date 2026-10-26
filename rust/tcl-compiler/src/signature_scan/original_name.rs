@@ -252,7 +252,6 @@ mod tests {
 
     #[test]
     fn original_logical_name_units_keep_actual_grammar_without_native_word_admission() {
-
         let config =
             LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
         let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);

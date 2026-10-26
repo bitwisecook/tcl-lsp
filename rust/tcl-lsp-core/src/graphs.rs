@@ -1531,7 +1531,6 @@ mod tests {
 
     #[test]
     fn original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals() {
-
         let mut catalogue = CommandRegistry::build_default();
         let mut descriptor = catalogue.get("file").unwrap().clone();
         descriptor.name = "purge";

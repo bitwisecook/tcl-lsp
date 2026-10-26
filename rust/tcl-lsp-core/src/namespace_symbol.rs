@@ -1571,7 +1571,6 @@ mod original_namespace_surface_tests {
 
     #[test]
     fn original_namespace_selection_is_shared_and_terminal_for_stale_or_unknown_inputs() {
-
         let source = r"namespace eval n\uD800 {}
 namespace eval n\uD801 {}
 namespace exists n\uD800";
@@ -1645,7 +1644,6 @@ namespace exists n\uD800";
 
     #[test]
     fn original_namespace_definition_uses_written_implicit_parent_geometry() {
-
         let source = r"namespace eval n\uD800::child {}
 namespace exists n\uD800";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");

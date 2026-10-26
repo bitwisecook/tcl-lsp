@@ -227,7 +227,6 @@ mod tests {
 
     #[test]
     fn original_missing_mutated_slot_requires_current_complete_source() {
-
         let unit = unit("proc old {} {}; rename old {}; old");
         let registry = unit.ir_module.resolved_registry();
         let context = OriginalMissingCommandContext::for_module(&unit.ir_module, registry)
@@ -248,7 +247,6 @@ mod tests {
 
     #[test]
     fn source_absence_does_not_turn_external_or_dynamic_heads_into_rebound_slots() {
-
         for source in [
             "proc old {} {}; rename old {}; external",
             "proc old {} {}; rename old {}; $head",

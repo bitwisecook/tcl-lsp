@@ -132,7 +132,6 @@ pub fn original_logical_procedure_bindings(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Option<Vec<OriginalLogicalProcedureBindings>> {
-
     let input = analysis.resolved_input.as_ref()?;
     let image = SourceImage::document(source);
     if !input.has_logical_source_name_context()
@@ -458,7 +457,6 @@ mod tests {
 
     #[test]
     fn logical_formal_bindings_retain_general_fields_and_original_reads() {
-
         let source = "proc p {longleft {longright fixed}} {list $longleft ${longright} $longleft; return \"$longright/$longleft\"}\n";
         let analysis = analyse(source);
         let records = original_logical_procedure_bindings(source, &analysis).unwrap();
@@ -515,7 +513,6 @@ mod tests {
 
     #[test]
     fn logical_unicode_formals_retain_literal_fields_and_original_scalar_reads() {
-
         let source = "proc identité {naïve {東京 défaut} {é😀 fixed}} {list ${naïve} ${東京} \"${é😀}/${naïve}\"; return ${東京}}\n";
         let analysis = analyse(source);
         let records = original_logical_procedure_bindings(source, &analysis).unwrap();
@@ -568,7 +565,6 @@ mod tests {
 
     #[test]
     fn logical_unicode_formals_refuse_cooked_units_and_withdrawn_source_owners() {
-
         for source in [
             r#"proc p "\u00e9" {return ${é}}"#,
             r#"proc p "\uD800" {return ${�}}"#,
@@ -619,7 +615,6 @@ mod tests {
 
     #[test]
     fn logical_formal_alpha_closure_keeps_observers_aliases_and_unknowns_outside() {
-
         for body in [
             "mystery $longleft",
             "info locals; return $longleft",
@@ -672,7 +667,6 @@ mod tests {
 
     #[test]
     fn logical_formal_inventory_keeps_variadic_and_native_domains_separate() {
-
         let source = "proc p {longleft args} {return $longleft}";
         let records = original_logical_procedure_bindings(source, &analyse(source)).unwrap();
         assert_eq!(

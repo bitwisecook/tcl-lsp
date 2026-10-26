@@ -52,7 +52,6 @@ mod tests {
 
     #[test]
     fn original_command_cursor_uses_actual_body_geometry_after_reports_are_erased() {
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let source = "proc p {} {\n    set timeout 30\n    puts $timeout\n}\np";
             let mut analysis = Analyser::new().analyse(source, engine);
@@ -86,7 +85,6 @@ mod tests {
 
     #[test]
     fn original_command_cursor_keeps_lambda_and_substitution_extents_separate() {
-
         let source = "apply {{arg} {set local [list $arg]; return $local}} VALUE";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_procs.clear();

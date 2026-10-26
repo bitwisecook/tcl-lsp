@@ -209,7 +209,6 @@ mod original_type_tests {
     use tcl_compiler::analyser::Analyser;
     #[test]
     fn original_method_type_navigation_uses_opaque_declaring_class_without_reporting_maps() {
-
         let source = "oo::class create C\\uD800 {method m\\uD800 {} {}; method m\\uD801 {} {}}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_classes.clear();

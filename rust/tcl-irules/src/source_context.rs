@@ -475,7 +475,6 @@ fn source_procedure_declarations(
     config: LexerConfig,
     context: &ContextRegistry,
 ) -> Option<Vec<(Vec<u8>, Span)>> {
-
     use tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource;
     let mut declarations = Vec::new();
     for declaration in analysis.original_vendor_procedure_declarations() {
@@ -578,7 +577,6 @@ impl OriginalIrulesSourceContext {
         module: &Module,
         context: &ContextRegistry,
     ) -> Option<Self> {
-
         let (image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
         let retained = analysis.resolved_input.as_ref()?;
         if !retained.unit_profile().is_irules()
@@ -637,7 +635,6 @@ impl OriginalIrulesSourceContext {
     /// by that analysis. No module is rebuilt and no event/body entry is issued.
     #[must_use]
     pub fn from_source_analysis(source: &str, analysis: &AnalysisResult) -> Option<Self> {
-
         let (image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
         let retained = analysis.resolved_input.as_ref()?;
         let context = retained.context_registry();
@@ -831,7 +828,6 @@ impl OriginalIrulesSourceContext {
     /// source vectors. No Native target or Cow head label can donate this join.
     #[must_use]
     pub fn when_source_inventory(&self, source: &str) -> IrulesWhenSourceInventory {
-
         if !self.matches_source(source)
             || tcl_lexer::Lexer::with_config(source, self.config)
                 .tokenise_all()
@@ -909,7 +905,6 @@ mod tests {
 
     #[test]
     fn original_irules_source_context_keeps_event_receipts_and_handler_barriers() {
-
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "proc helper {} {pool from_helper}\nproc dormant {} {pool dormant}\nwhen HTTP_REQUEST {call helper; pool direct; snatpool source_snat}";
         let inventory = OriginalIrulesSourceContext::capture(source, registry).unwrap();
@@ -954,7 +949,6 @@ mod tests {
     }
     #[test]
     fn original_irules_unavailable_rename_retains_only_conditional_source_advice() {
-
         // BIG-IP's separate literal-head loader observation rejects rename:
 
         // No selected TMM move descriptor means no known source tombstone.
@@ -988,8 +982,6 @@ mod tests {
 
     #[test]
     fn original_irules_source_paths_keep_reference_only_bodies_as_syntax() {
-
-
         // Same whole source and Registry role; only selected timing changes.
         // Neither branch supplies event execution or native body entry.
         let profile = tcl_dialect::DialectProfile::irules();
@@ -1236,7 +1228,6 @@ mod tests {
 
     #[test]
     fn original_irules_called_body_uses_complete_source_geometry_and_not_proc_reports() {
-
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let profile = tcl_dialect::DialectProfile::irules();
         let context = Arc::new(

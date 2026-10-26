@@ -592,7 +592,6 @@ pub fn source_candidates(
     ctx: IlxContext<'_>,
     call: &IlxMethodCall,
 ) -> Vec<IlxSourceLocation> {
-
     if !current_source_call(doc, ctx, call) {
         return Vec::new();
     }
@@ -943,7 +942,6 @@ pub fn source_candidates_from_registration(
     ctx: IlxContext<'_>,
     registration: &IlxMethodRegistration,
 ) -> Vec<IlxSourceLocation> {
-
     if !extension_registrations(doc.text).contains(registration)
         || !is_extension_entry(doc.path, ctx.files)
     {
@@ -1859,7 +1857,6 @@ mod tests {
     }
     #[test]
     fn original_ilx_navigation_does_not_join_unresolved_handles_by_method_labels() {
-
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "when HTTP_REQUEST {ILX::call $left m; ILX::call $right m}";
         let store = MemoryStore::new();
@@ -1954,7 +1951,6 @@ mod tests {
 
     #[test]
     fn original_ilx_source_navigation_keeps_candidate_paths_and_handle_identity_separate() {
-
         let registry = registry();
         let store = workspace_store();
         let context = IlxContext::new(&registry, &store);
@@ -2009,7 +2005,6 @@ mod tests {
 
     #[test]
     fn original_ilx_analysis_ingress_keeps_configuration_and_never_recaptures_stale_source() {
-
         let source = "\u{feff}when HTTP_REQUEST {ILX::call [ILX::init my_plugin my_extension] my_js_function}";
         let profile = tcl_dialect::DialectProfile::irules();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -2101,7 +2096,6 @@ mod tests {
 
     #[test]
     fn original_ilx_hover_keeps_constructor_source_labels_separate_from_handles() {
-
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "when HTTP_REQUEST {ILX::call [ILX::init p e] m}";
         let calls = tcl_irules::ilx_method_calls(source, registry);

@@ -394,7 +394,6 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<Arc<OriginalSourceProcedureBody>> {
-
         if !matches!(self.policy, AdviceNamingPolicy::Native(_))
             || !schema.semantics.traits.contains(Traits::DEFERS_BODY)
             || schema.facts().arity_accepts_frozen_arguments() != Some(true)
@@ -780,7 +779,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_joins_later_current_factory_with_authentic_parent_body() {
-
         for source in [
             "proc touch {} {.t bogus}; ttk::treeview .t; touch",
             "ttk::treeview .t; proc touch {} {.t bogus}; touch",
@@ -806,7 +804,6 @@ mod tests {
 
     #[test]
     fn original_uncalled_procedure_uses_authentic_final_source_graph_without_call_or_frame() {
-
         for source in [
             "proc p {} {C new one}; oo::class create C {constructor {x y} { }}",
             "oo::class create C {constructor {x y} { }}; proc p {} {C new one}",
@@ -854,7 +851,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_source_roles_retain_independently_selected_c_and_jim_grammar() {
-
         let source = "proc p {} {if {1} {puts value}}; p";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let analysis = Analyser::new().analyse(source, dialect);
@@ -881,7 +877,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_refuses_known_replacement_deletion_and_malformed_formals() {
-
         for source in [
             "proc touch {} {.t bogus}; ttk::treeview .t; proc touch {} {}; touch",
             "proc touch {} {.t bogus}; ttk::treeview .t; rename touch {}; touch",
@@ -898,7 +893,6 @@ mod tests {
 
     #[test]
     fn original_future_procedure_local_handle_does_not_borrow_parent_value_or_escape_branch() {
-
         let source = "set lb [listbox .l]; proc p {} {$lb bogus}; p";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("$lb bogus").unwrap()).unwrap();

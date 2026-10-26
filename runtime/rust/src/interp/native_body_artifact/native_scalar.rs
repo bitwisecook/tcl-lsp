@@ -363,7 +363,6 @@ mod tests {
     }
     #[test]
     fn original_compiled_scalar_list_length_stops_at_real_primary_retirement() {
-
         use crate::cmd_control::original_list_conversion_tests as fixture;
         use std::cell::Cell;
         let mut interpreter = fixture::native("tcl9.0");

@@ -214,13 +214,11 @@ mod tests {
 
     #[test]
     fn compiled_introspection_preserves_thirty_three_native_original_header_windows() {
-
         original_windows(WindowKind::Introspection);
     }
 
     #[test]
     fn compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows() {
-
         original_windows(WindowKind::Arrays);
     }
 
@@ -247,7 +245,6 @@ mod tests {
 
     #[test]
     fn generic_array_existence_preserves_six_legacy_native_original_header_windows() {
-
         // Original C8.4/8.5 case15/16/17 observe fresh versus retained results.
         original_windows(WindowKind::LegacyArrayExistence);
     }

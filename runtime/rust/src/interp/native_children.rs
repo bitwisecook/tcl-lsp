@@ -243,7 +243,6 @@ impl Interp {
         child: &mut Interp,
         initialisation: tcl_registry::special_vars::NativeChildInitialisation,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-
         if !initialisation.initialises_jim_static_extensions() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "Jim original child distribution initialisation",
@@ -279,7 +278,6 @@ impl Interp {
     /// interp_cmd_eval performs Concat even for one argument, then string
     /// copies in both directions. Jim returns the raw code without C options.
     fn eval_original_jim_child(&mut self, name: &[u8], arguments: &[*mut TclObj]) -> Code {
-
         let script = match self.concat_original_arguments(arguments) {
             Ok(script) => obj::Owned::retain(script),
             Err(error) => return self.report_cmd_error(error),
@@ -408,7 +406,6 @@ mod tests {
 
     #[test]
     fn jim_child_crossing_copies_counted_strings_and_preserves_original_context_refusal() {
-
         // This Rust ownership control complements public native rows; it is no
         // claim about private pointer identities observed from jimsh.
         let producer_interp = parent("jim");
@@ -613,7 +610,6 @@ mod tests {
 
     #[test]
     fn jim_child_bootstrap_copies_global_variable_extents_without_parent_object_sharing() {
-
         // Public native startup-value controls and source anchors govern this
         // purpose; no exhaustive extension roster or native header identity claim.
         let mut parent = parent("jim");
@@ -779,7 +775,6 @@ mod tests {
 
     #[test]
     fn child_host_failure_keeps_its_typed_cause_and_parent_result() {
-
         // A host-worker control in the authored model, not native Tcl evidence.
         use tcl_syntax::raw_string::NativeValueAccessRefusal;
         fn worker(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
@@ -1115,14 +1110,12 @@ mod completion_capture_tests {
 
     #[test]
     fn original_child_completion_capture_keeps_guest_handles_and_custom_code() {
-
         // Software actual-object/+1 control; no external native completion claim.
         run_original_capture(0);
     }
 
     #[test]
     fn original_child_completion_capture_transports_reached_metadata_host_and_aba() {
-
         // Real extension getter during capture, under the actual child scope;
         // original provider observations remain independent.
         run_original_capture(1);

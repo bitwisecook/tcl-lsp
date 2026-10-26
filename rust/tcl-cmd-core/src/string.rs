@@ -861,7 +861,6 @@ fn replace_c<O: NativeIndexOps>(
     args: &[O::Value],
     version: tcl_dialect::TclVersion,
 ) -> Result<index::IndexResult<O::Value>, CmdError> {
-
     // C84–86 reach original Unicode first. C9 reaches CharLength first
     // and defers Unicode until a range is actually replaced.
     let initial_units = if version < tcl_dialect::TclVersion::V9_0 {
@@ -1054,7 +1053,6 @@ fn replace_c_parsed_range_result<O: NativeIndexOps>(
                 "original C binary suffix extent",
             ))?;
         if let Some(replacement) = replacement {
-
             // Whole replacement returns the exact insertPtr before its getter.
             if first == 0 && after == bytes.len() {
                 return Ok(index::IndexResult::Borrowed(replacement.clone()));
@@ -1081,7 +1079,6 @@ fn replace_c_parsed_range_result<O: NativeIndexOps>(
             }
         } else {
             if !prefix.is_empty() || !suffix.is_empty() {
-
                 // Nonzero NULL-source constructor storage is not initialised.
                 // No recorded allocator bytes authenticate a deterministic producer.
                 return Err(ValueError::CommandProtocolUnavailable(

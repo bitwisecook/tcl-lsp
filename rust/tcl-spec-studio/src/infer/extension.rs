@@ -692,7 +692,6 @@ mod tests {
     /// where each came from.
     #[test]
     fn probe_descriptor_projection_keeps_colon_components_separate() {
-
         // Supplied reporting descriptors, not new C registration/lookup evidence.
         let mut import = ExtensionImport::default();
         import.merge_probe(&ProbeReport {

@@ -75,7 +75,6 @@ fn row<'a>(captured: &'a str, label: &str) -> Vec<&'a str> {
 
 #[test]
 fn original_property_names_and_values_match_native_c9_counted_access() {
-
     for (engine, captured) in [
         (
             "tcl8.4",

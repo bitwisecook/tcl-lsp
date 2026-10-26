@@ -322,7 +322,6 @@ fn namespace_call(interpreter: &mut Interp, sub: &[u8], inputs: &[&obj::Owned]) 
 
 #[test]
 fn original_namespace_patterns_match_all_c_getter_and_public_effect_windows() {
-
     // Exact C499c selected windows only. C84's callback export axis stays unasserted;
     // no binding-generation, header-count, Jim or whole-dispatch equivalence is claimed.
     let compared: usize = ORIGINALS
@@ -334,7 +333,6 @@ fn original_namespace_patterns_match_all_c_getter_and_public_effect_windows() {
 
 #[test]
 fn original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows() {
-
     // The independent Jim499d worker uses global original operands. Jim499c's
     // missing-variable setup does not establish getter order. Export's ignored
     // inputs and unsupported forget remain distinct from the measured imports.
@@ -441,7 +439,6 @@ fn compare_namespace_patterns(engine: &str, capture: &str) -> usize {
 
 #[test]
 fn original_namespace_getter_refusal_keeps_prefix_effects_and_later_argument_unread() {
-
     // Software Host/ABA transport control, independently of original C chronology.
     for failure in [1, 2] {
         reset();

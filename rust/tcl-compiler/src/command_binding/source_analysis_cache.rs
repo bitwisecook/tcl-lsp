@@ -340,7 +340,6 @@ mod tests {
 
     #[test]
     fn authored_source_memo_matches_complete_input_and_independent_builder_clones() {
-
         let (source, config, registry, options) = inputs();
         let frame = VariableExecutionFrame::Global;
         let key = SourceAnalysisCacheKey::at_entry(
@@ -379,7 +378,6 @@ mod tests {
 
     #[test]
     fn authored_source_memo_keeps_supplied_metadata_generation_and_missing_tag() {
-
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -446,7 +444,6 @@ mod tests {
 
     #[test]
     fn authored_source_memo_bounds_history_and_refuses_oversized_sources() {
-
         let (_, config, registry, options) = inputs();
         let frame = VariableExecutionFrame::Global;
         CACHE.with(|cache| cache.borrow_mut().clear());
@@ -506,7 +503,6 @@ mod tests {
 
     #[test]
     fn authored_source_memo_distinguishes_channel_config_entry_frame_and_registry() {
-
         let (source, config, registry, options) = inputs();
         let frame = VariableExecutionFrame::Global;
         let key = SourceAnalysisCacheKey::at_entry(

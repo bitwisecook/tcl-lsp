@@ -1027,7 +1027,6 @@ mod original_channel_position_tests {
 
     #[test]
     fn original_channel_negative_target_refuses_before_position_and_retains_opened_path() {
-
         // Read backend state only; no external worker or platform error chronology.
         let version = tcl_dialect::TclVersion::V8_6;
         let access = resolve_open_access_mode(version, "r").unwrap();

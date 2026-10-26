@@ -543,7 +543,6 @@ impl AdviceInvocationContext<'_> {
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
-
         if self.policy.native().is_none() {
             return;
         }
@@ -824,7 +823,6 @@ mod tests {
 
     #[test]
     fn original_callback_builder_keeps_whole_producers_without_execution_or_lookup() {
-
         for setup in ["", "rename list make", "interp alias {} make {} list cb"] {
             let operand = if setup.is_empty() {
                 "[list cb $x]"
@@ -869,7 +867,6 @@ mod tests {
 
     #[test]
     fn original_callback_source_target_keeps_alias_capture_order_and_canonical_local_declaration() {
-
         let source = "proc target {a b c d e} {}; interp alias {} inner {} target INNER; interp alias {} cb {} inner OUTER; lsort -command {cb BAKED} {3 1 2}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let prefix = callback_prefix(&analysis, b"cb");
@@ -927,7 +924,6 @@ mod tests {
 
     #[test]
     fn original_callback_source_target_keeps_alias_move_and_direct_target_canonical_name() {
-
         for (source, head) in [
             (
                 "proc target {a b c} {}; interp alias {} cb {} target FIXED; rename cb held; lsort -command held {3 1 2}",
@@ -978,7 +974,6 @@ mod tests {
 
     #[test]
     fn original_callback_source_target_keeps_held_target_name_and_known_refusal_boundary() {
-
         for source in [
             "proc target {a b c} {}; interp alias {} cb {} target FIXED; rename target held; lsort -command cb {3 1 2}",
             "proc target {a b c} {}; interp alias {} cb {} target FIXED; rename target {}; lsort -command cb {3 1 2}",
@@ -1055,7 +1050,6 @@ mod tests {
     #[test]
     fn original_callback_source_target_distinguishes_alias_external_name_from_missing_direct_target()
      {
-
         let source = "interp alias {} cb {} unseen FIXED; lsort -command cb {3 1 2}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let prefix = callback_prefix(&analysis, b"cb");
@@ -1088,7 +1082,6 @@ mod tests {
     #[test]
     fn original_callback_source_target_refuses_relative_trigger_frame_and_keeps_absolute_scope_recipe()
      {
-
         for (head, refusal) in [("cb", true), ("::cb", false)] {
             let source =
                 format!("proc cb {{a b c}} {{}}; trace add variable value read {{{head}}}");
@@ -1120,7 +1113,6 @@ mod tests {
     }
     #[test]
     fn original_callback_registration_retains_actual_installer_and_captured_operand_producer() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let installer = if dialect == "jimtcl" {
                 "alias sortWith lsort -command {cb BAKED}"
@@ -1195,7 +1187,6 @@ mod tests {
 
     #[test]
     fn original_callback_registration_retains_factory_method_and_known_target_barrier() {
-
         for (factory, receiver) in [
             ("struct::graph graph", "graph walk root -command ::cb"),
             (
@@ -1261,7 +1252,6 @@ mod tests {
     }
     #[test]
     fn original_callback_unknown_scope_retains_prefix_without_relative_frame_donation() {
-
         for head in ["cb", "::cb"] {
             let source = format!(
                 "# tcl-lsp: requires smtp\npackage require smtp; proc cb {{a}} {{}}; smtp::sendmessage $t -tlspolicy {head}"
@@ -1305,7 +1295,6 @@ mod tests {
     }
     #[test]
     fn original_package_callback_receipts_require_selected_package_availability() {
-
         for source in [
             "proc cb {a b} {}; struct::graph graph; graph walk root -command ::cb",
             "proc cb {a} {}; smtp::sendmessage message -tlspolicy ::cb",

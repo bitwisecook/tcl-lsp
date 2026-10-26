@@ -540,7 +540,6 @@ mod tests {
 
     #[test]
     fn retained_availability_survives_observability_point_replay() {
-
         // One original Logical body and command store, two availability inputs.
         // These source hazards certify no Native link, frame or trace table.
         let mut registry = CommandRegistry::build_default();
@@ -917,7 +916,6 @@ mod tests {
     }
     #[test]
     fn module_global_advice_withholds_stale_profile_and_lexer_input() {
-
         // This is MAY source exposure, not a completed global link or a closed inventory.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

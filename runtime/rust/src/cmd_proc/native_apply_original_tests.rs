@@ -209,7 +209,6 @@ const LAMBDA_NAMESPACE_ROWS: [(&str, &str); 5] = [
 
 #[test]
 fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
-
     // Compare actual original object-vector completion/result and the retained
     // namespace object's subsequent getter. BEFORE/AFTER header rows are not
     // compared; Jim has no tested native ByteArray constructor.

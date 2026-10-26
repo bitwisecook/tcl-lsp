@@ -6062,7 +6062,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_export_inventory_keeps_opaque_patterns_clear_and_prefix_abort() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"namespace export {p\uD800}; namespace export -clear p\uD801; namespace export -clear -clear; namespace export first ::invalid never";
             let mut result = Analyser::new().analyse(source, version.dialect_name());
@@ -6118,7 +6117,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_export_inventory_retains_unknown_operand_as_may_only() {
-
         let source = "namespace export $unavailable";
         let result = Analyser::new().analyse(source, "tcl8.6");
         assert!(result.original_namespace_exports().next().is_none());
@@ -6129,7 +6127,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_inventory_keeps_conditional_source_scopes_after_unknown_import() {
-
         let source = "unavailable_provider\nnamespace eval C {proc p {} {}; namespace export p}\nnamespace eval B {namespace import ::C::*; namespace export p}\nnamespace eval A {namespace import ::B::*}\n";
         let result = Analyser::new().analyse(source, "tcl8.6");
         let exports = result.original_namespace_exports().collect::<Vec<_>>();
@@ -6179,7 +6176,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_inventory_does_not_borrow_a_parent_for_unknown_source_scope() {
-
         let source = "namespace eval $unknown {namespace export p; namespace import ::C::*}";
         let result = Analyser::new().analyse(source, "tcl8.6");
         assert!(result.original_namespace_exports().next().is_none());
@@ -6190,7 +6186,6 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_inventory_does_not_extend_static_scope_through_an_unentered_callable() {
-
         let source =
             "proc unused {} {namespace eval B {namespace export p; namespace import ::C::*}}";
         let result = Analyser::new().analyse(source, "tcl8.6");
@@ -6217,7 +6212,6 @@ mod original_source_context_tests;
 mod original_definition_suffix_purpose_tests {
     #[test]
     fn original_definition_suffix_keeps_bom_definer_and_authored_allocation() {
-
         // Retained authored declaration navigation; no completed call or editable definition grant.
         let mut prepared = crate::analyser::Analyser::new();
         let base = prepared.prepare_analysis_input("tcl9.1").unwrap();

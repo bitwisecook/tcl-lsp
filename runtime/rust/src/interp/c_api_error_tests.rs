@@ -98,7 +98,6 @@ fn assert_refusal(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn original_result_retirement_stops_later_exception_and_counter_publication() {
-
     // Actual software free hooks and ownership, independently of native callback timing.
     for mode in 0..3 {
         leak_free(|interpreter| {
@@ -128,7 +127,6 @@ fn original_result_retirement_stops_later_exception_and_counter_publication() {
 
 #[test]
 fn original_exception_retirement_observes_reached_state_without_a_live_borrow() {
-
     // Reentrant snapshot and genuine original native-option ownership; no provider assertion.
     for with_result in [false, true] {
         for mode in 0..3 {
@@ -163,7 +161,6 @@ fn original_exception_retirement_observes_reached_state_without_a_live_borrow() 
 
 #[test]
 fn original_pending_host_keeps_result_exception_and_retirement_unreached() {
-
     leak_free(|interpreter| {
         interpreter.set_c_error_code(b"STAMP BEFORE");
         let count = interpreter.c_api_errors.get();
@@ -186,7 +183,6 @@ fn original_pending_host_keeps_result_exception_and_retirement_unreached() {
 
 #[test]
 fn original_error_snapshot_restoration_retires_native_options_after_full_state_publication() {
-
     // Software snapshot ownership and callback transport; no Native cleanup chronology claim.
     for info in [false, true] {
         for mode in 0..3 {
@@ -249,7 +245,6 @@ fn write_byte_error(interpreter: &mut Interp, writer: u8) {
 
 #[test]
 fn original_byte_error_authors_retire_displaced_options_outside_the_exception_borrow() {
-
     // Actual software role retirement; no selected native cleanup schedule claim.
     for writer in 0..5 {
         for info in [false, true] {
@@ -301,7 +296,6 @@ fn original_byte_error_authors_retire_displaced_options_outside_the_exception_bo
 
 #[test]
 fn original_byte_error_authors_leave_all_effects_unreached_after_a_pending_host() {
-
     for writer in 0..5 {
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -378,7 +372,6 @@ static CAPTURE_RETIREMENT: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_error_capture_checks_each_retired_role_before_the_next_projection() {
-
     for fail_role in 0..2 {
         for mode in 0..3 {
             leak_free(|interpreter| {
@@ -446,7 +439,6 @@ fn original_error_capture_checks_each_retired_role_before_the_next_projection() 
 
 #[test]
 fn original_return_error_retirement_refuses_before_prepared_result_and_options_publication() {
-
     for mode in 1..3 {
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -481,7 +473,6 @@ fn original_return_error_retirement_refuses_before_prepared_result_and_options_p
 
 #[test]
 fn original_private_error_field_retirement_keeps_the_published_operand_and_stops_its_getter() {
-
     // Genuine private +1 roles and software callbacks, not Native cleanup chronology.
     for info in [false, true] {
         for mode in 0..3 {
@@ -599,7 +590,6 @@ fn lazy_error_info(interpreter: &Interp, mode: u8) -> OriginalLazyErrorInfo {
 
 #[test]
 fn original_private_error_info_getter_keeps_its_real_role_without_an_exception_borrow() {
-
     for mode in 0..3 {
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -645,7 +635,6 @@ fn original_private_error_info_getter_keeps_its_real_role_without_an_exception_b
 
 #[test]
 fn original_error_info_append_checks_the_reached_getter_before_later_cache_publication() {
-
     // Actual original storage and shared physical kernel; no external opcode equivalence.
     for mode in 0..3 {
         leak_free(|interpreter| {
@@ -706,7 +695,6 @@ fn original_error_info_append_checks_the_reached_getter_before_later_cache_publi
 
 #[test]
 fn original_portable_error_reporting_stops_after_private_info_retirement() {
-
     for mode in 0..3 {
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -754,7 +742,6 @@ fn original_portable_error_reporting_stops_after_private_info_retirement() {
 
 #[test]
 fn original_error_info_fallback_keeps_the_exact_result_across_its_getter() {
-
     // The actual callback changes the result without changing context or Host.
     leak_free(|interpreter| {
         interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -933,7 +920,6 @@ impl SavedErrorBoundary {
 
 #[test]
 fn original_saved_error_cleanup_attaches_the_expired_entry_before_real_retirement() {
-
     // Real software saved-state/retirement transport, not a native callback schedule.
     for boundary in 0..4 {
         for mode in 0..3 {
@@ -985,7 +971,6 @@ fn original_saved_error_cleanup_attaches_the_expired_entry_before_real_retiremen
 
 #[test]
 fn original_saved_error_cleanup_preserves_withdrawn_same_target_and_failed_capture() {
-
     for failed_capture in [false, true] {
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -1036,7 +1021,6 @@ fn original_saved_error_cleanup_preserves_withdrawn_same_target_and_failed_captu
 
 #[test]
 fn original_saved_error_cleanup_refuses_foreign_target_before_any_state_install() {
-
     crate::counters::reset();
     {
         let mut source = Interp::new();
@@ -1082,7 +1066,6 @@ fn original_saved_error_cleanup_refuses_foreign_target_before_any_state_install(
 
 #[test]
 fn original_jim_trace_replacement_retires_outside_borrow_before_checked_readers() {
-
     // Actual software callbacks/roles, without a Jim callback chronology claim.
     for mode in 0..3 {
         leak_free(|interpreter| {
@@ -1185,7 +1168,6 @@ static JIM_CAPTURE_MUTATION: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_jim_capture_episode_refuses_reentrant_reset_adopt_and_capture() {
-
     // A reached original destructor changes this real cache during preparation.
     for mode in 0..3 {
         leak_free(|interpreter| {
@@ -1263,7 +1245,6 @@ fn original_jim_capture_episode_refuses_reentrant_reset_adopt_and_capture() {
 
 #[test]
 fn original_jim_consumed_trace_cleanup_keeps_the_failed_entry_during_destructor_reentry() {
-
     // Actual software consumed-owner cleanup, without a Jim callback-order claim.
     leak_free(|interpreter| {
         interpreter.set_dialect_profile(
@@ -1323,7 +1304,6 @@ fn original_jim_consumed_trace_cleanup_keeps_the_failed_entry_during_destructor_
 
 #[test]
 fn original_result_reset_retires_complete_exception_before_later_return_state() {
-
     // Real software reset/destructor stages, without provider chronology inference.
     for mode in 0..3 {
         leak_free(|interpreter| {
@@ -1357,7 +1337,6 @@ fn original_result_reset_retires_complete_exception_before_later_return_state() 
 
 #[test]
 fn original_private_reset_checks_each_real_retirement_before_the_next_field() {
-
     // Private roles are released in the selected reset order even without a setter copy.
     for fail_role in 0..2 {
         for mode in 0..3 {
@@ -1461,7 +1440,6 @@ static ORIGINAL_RESET_HEADER: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_private_reset_decrement_keeps_each_raw_role_without_a_native_reference() {
-
     // Reset order is source-derived here:614c executed only the distinct setter.
     // These real software callbacks check raw roles and first-cause cleanup.
     use tcl_registry::special_vars::NativeErrorStorageVariable::{ErrorCode, ErrorInfo};

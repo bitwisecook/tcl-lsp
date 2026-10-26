@@ -1132,7 +1132,6 @@ mod tests {
 
     #[test]
     fn original_namespace_coverage_reuses_analysis_body_sources_and_rejects_foreign_images() {
-
         let source = "namespace eval ::old {}; proc p {} {if {1} {list [namespace exists ::old]}}";
         let analysis = analyse(source);
         let image = SourceImage::document(source);
@@ -1297,7 +1296,6 @@ mod tests {
 mod namespace_tail_purpose_tests {
     #[test]
     fn original_namespace_rename_keeps_equal_global_command_and_variable_tails() {
-
         let source = "namespace eval ::old {}; proc ::old {} {}; set ::old 1; list $::old";
         let mut analyser = tcl_compiler::analyser::Analyser::new();
         let analysis = analyser.analyse(source, "tcl8.6");

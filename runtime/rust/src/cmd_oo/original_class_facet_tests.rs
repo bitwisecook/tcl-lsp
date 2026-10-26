@@ -119,7 +119,6 @@ fn reset_observers() {
 
 #[test]
 fn actual_class_allocation_and_copy_issue_fresh_births_while_observations_share_identity() {
-
     // Actual Runtime lifecycle roles; no Native Class pointer/refcount inference.
     let first_default = Class::default();
     let second_default = Class::default();
@@ -164,7 +163,6 @@ fn actual_class_allocation_and_copy_issue_fresh_births_while_observations_share_
 
 #[test]
 fn demotion_and_promotion_cannot_refresh_an_original_class_facet_continuation() {
-
     let mut interpreter = native();
     let target = TARGET.with(Cell::get);
     let observed = interpreter.oo.borrow().classes[&target].clone();
@@ -197,7 +195,6 @@ fn demotion_and_promotion_cannot_refresh_an_original_class_facet_continuation() 
 
 #[test]
 fn original_class_reports_check_reached_operands_before_current_facet_access() {
-
     for (member, role) in [
         (b"definitionnamespace".as_slice(), 0),
         (b"methods", 1),

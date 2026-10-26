@@ -243,7 +243,6 @@ mod tests {
 
     #[test]
     fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows() {
-
         let mut windows = 0;
         for (engine, table) in [
             (

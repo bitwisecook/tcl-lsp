@@ -159,7 +159,6 @@ impl AdviceInvocationContext<'_> {
         call: tcl_registry::AuthoredSourceLambdaCall,
         scope: Option<&Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
     ) -> Option<OriginalConditionalLambdaFormattingBody> {
-
         let AdviceNamingPolicy::Logical(input) = self.policy else {
             return None;
         };

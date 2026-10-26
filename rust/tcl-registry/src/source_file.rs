@@ -283,7 +283,6 @@ mod tests {
 
     #[test]
     fn source_load_transitions_retain_only_selected_original_path_ordinals() {
-
         for version in TclVersion::ALL {
             let words = [InvocationWord::Dynamic];
             let transitions = SOURCE_TRANSITIONS.resolve(

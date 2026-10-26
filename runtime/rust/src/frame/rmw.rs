@@ -850,7 +850,6 @@ mod tests {
 
     #[test]
     fn selected_undefined_root_becomes_array_without_changing_its_binding() {
-
         // Rust receiver correspondence only; native public values are independent.
         crate::counters::reset();
         {

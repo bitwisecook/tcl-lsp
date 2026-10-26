@@ -24,7 +24,6 @@ impl<'a> OriginalLinkedSourceSpelling<'a> {
         line: u32,
         character: u32,
     ) -> Option<Self> {
-
         let position = crate::original_context::CurrentSourcePosition::capture(
             source, analysis, line, character,
         )?;

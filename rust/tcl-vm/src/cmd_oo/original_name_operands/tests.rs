@@ -109,7 +109,6 @@ fn expect_target_refusal(vm: &Vm) {
 }
 #[test]
 fn original_oo_name_target_keeps_rename_and_ordinary_method_mutation_without_reference_roles() {
-
     let (mut vm, target, formatter) = provided();
     let name_owner = Rc::clone(&vm.oo.objects[&target].cached_name);
     let facet = Rc::clone(&vm.oo.classes[&target].birth);
@@ -153,7 +152,6 @@ fn original_oo_name_target_keeps_rename_and_ordinary_method_mutation_without_ref
 }
 #[test]
 fn original_oo_name_withdrawal_refuses_recreated_written_object_before_later_getter() {
-
     let (mut vm, target, formatter) = provided();
     let original = numeric(&vm);
     let root = vm.oo.class_root.unwrap();
@@ -181,7 +179,6 @@ fn original_oo_name_withdrawal_refuses_recreated_written_object_before_later_get
 }
 #[test]
 fn original_oo_name_facet_replacement_keeps_object_and_namespace_guards_independent() {
-
     // Real Default/map metadata replacement; no Native Class pointer or demotion API claim.
     let (mut vm, target, formatter) = provided();
     let object = Rc::clone(&vm.oo.objects[&target].cached_name);
@@ -212,7 +209,6 @@ impl NativeCommand for Body {
 }
 #[test]
 fn original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_body() {
-
     // Supplied formatter callback behavior is software evidence only.
     let (mut vm, target, formatter) = provided();
     let calls = Rc::new(Cell::new(0));
@@ -289,7 +285,6 @@ fn original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_b
 }
 #[test]
 fn original_oo_definition_name_refusal_restores_real_definition_activation_before_return() {
-
     let (mut vm, target, formatter) = provided();
     let original = numeric(&vm);
     let level = vm.current_level();
@@ -345,7 +340,6 @@ impl NativeCommand for ReplaceDeclaringFacet {
 }
 #[test]
 fn original_oo_name_declaring_facet_comes_from_the_genuine_entered_method_chain() {
-
     // Selected live chain plus real metadata replacement; no Native Class lifetime claim.
     let (mut vm, target, formatter) = provided();
     let hits = Rc::new(Cell::new(0));
@@ -428,7 +422,6 @@ impl NativeCommand for WithdrawDeclaringStep {
 
 #[test]
 fn original_oo_name_present_method_requires_its_actual_declaring_step() {
-
     // Actual entered method, then software index withdrawal; no Native Class lifetime claim.
     let (mut vm, _target, formatter) = provided();
     let hits = Rc::new(Cell::new(0));

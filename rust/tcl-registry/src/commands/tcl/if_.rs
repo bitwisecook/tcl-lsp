@@ -149,7 +149,6 @@ pub(crate) fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
 /// Dynamic conditions and bodies retain cardinality; unknown control words
 /// cannot select a branch of the grammar.
 fn check_if_shape_words(args: crate::InvocationArguments<'_>) -> Option<ClauseShapeIssue> {
-
     let walk = walk_if_arguments(args)?;
     Some(ClauseShapeIssue::with_repair(walk.error?, walk.repair))
 }
@@ -537,7 +536,6 @@ mod original_clause_repair_tests {
 
     #[test]
     fn original_if_roles_keep_opaque_payloads_and_decline_unknown_controls() {
-
         for body in [&b"puts \xff"[..], &b"puts \xed\xa0\xbd\xed\xb9\x82"[..]] {
             let words = [
                 crate::InvocationWord::KnownBytes(b"1"),
@@ -584,7 +582,6 @@ mod original_clause_repair_tests {
 
     #[test]
     fn original_clause_repairs_distinguish_conditions_from_opening_keywords() {
-
         let issue = check_if_shape_words(crate::InvocationArguments::literals(&[
             "1", "puts ok", "elseif", "elseif",
         ]))

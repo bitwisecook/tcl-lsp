@@ -650,7 +650,6 @@ impl CommandRegistry {
 mod tests {
     #[test]
     fn selected_fixed_math_metadata_survives_command_surface_projection() {
-
         for name in ["tcl8.4", "jim"] {
             let profile = crate::model::ingress::resolve_environment(name).analyser_profile();
             let registry = crate::CommandRegistry::build_default().project_for_profile(profile);
@@ -862,7 +861,6 @@ mod tests {
 
     #[test]
     fn original_function_command_names_keep_checked_expression_lineage() {
-
         for version in [
             TclVersion::V8_5,
             TclVersion::V8_6,

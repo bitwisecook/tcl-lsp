@@ -6434,7 +6434,6 @@ mod worker_execution_ingress_tests {
 
     #[test]
     fn execution_context_join_cannot_retain_equal_values_from_different_cells() {
-
         use tcl_registry::f5::WorkerExecution;
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let execution = WorkerExecution {
@@ -6901,7 +6900,6 @@ mod namespace_simple_projection_tests {
 
     #[test]
     fn namespace_simple_key_projection_keeps_resolved_bytes_separate_from_display_and_frames() {
-
         // Actual authored resolver places only; no Native namespace/getter or TMM grant.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let context = ResolveContext::for_namespace("::static");

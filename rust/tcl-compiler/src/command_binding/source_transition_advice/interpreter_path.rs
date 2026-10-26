@@ -117,7 +117,6 @@ impl AdviceInvocationContext<'_> {
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
-
         // The CLI path/parent distinction is observed independently. These
         // bindings are conditional source projections, not native identities.
         if !graph.uncertain_operations.is_empty() {

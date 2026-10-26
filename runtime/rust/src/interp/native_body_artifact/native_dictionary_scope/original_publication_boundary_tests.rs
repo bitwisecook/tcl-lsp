@@ -136,7 +136,6 @@ fn frame_first(first: &NativeExecutionError) {
 #[test]
 fn original_compiled_dictionary_publication_retains_frame_before_working_cleanup_and_keeps_replacement(
 ) {
-
     // Actual original cell/result and working reference roles are exercised.
     // Callback ordering here is software transport, not external Native parity.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

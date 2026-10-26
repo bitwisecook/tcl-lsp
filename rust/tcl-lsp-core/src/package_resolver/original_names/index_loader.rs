@@ -273,7 +273,6 @@ impl<'a> IndexLoader<'a> {
         origin: WordOrigin,
         directory: &Path,
     ) -> Option<PathBuf> {
-
         // These words are data for a possible future invocation. Their schema
         // is conditional catalogue advice, never a reached Source command.
         let argument = self.with_schema(words, WordOrigin::LoaderValue, |selected| {
@@ -587,7 +586,6 @@ mod selected_source_form_tests {
 
     #[test]
     fn index_filename_uses_selected_source_form_before_computed_path_value() {
-
         let directory = Path::new("/library");
         let source = "source -encoding utf-8 [file join $dir {-literal path.tcl}]";
         let config = tcl_lexer::LexerConfig::default();

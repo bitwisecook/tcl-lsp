@@ -1107,7 +1107,6 @@ mod tests {
 
     #[test]
     fn complete_matches_c_semantics() {
-
         // Native452 row25: the trailing backslash is complete on all captured
         // C releases. Row26's backslash-LF is the pending continuation.
         let config = tcl_syntax::script_completeness::LexerConfig::from_grammar(

@@ -132,7 +132,6 @@ fn store(interpreter: &mut Interp, artifact: &NativeBodyArtifact, name: &[u8], v
 }
 #[test]
 fn original_compiled_range_and_assign_check_converter_retirement_before_result_and_target_stores() {
-
     // Native source/result comparators remain in the unchanged older controls;
     // these actual software callbacks do not claim external C callback timing.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -196,7 +195,6 @@ fn original_compiled_range_and_assign_check_converter_retirement_before_result_a
 }
 #[test]
 fn original_list_index_using_checks_scalar_and_list_cache_before_later_original_getters() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2] {
             let mut interpreter = fixture::native(profile);
@@ -244,7 +242,6 @@ fn original_list_index_using_checks_scalar_and_list_cache_before_later_original_
 #[test]
 fn original_compiled_list_index_keeps_reached_result_and_input_roles_through_prior_result_retirement(
 ) {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2] {
             let mut interpreter = fixture::native(profile);
@@ -297,7 +294,6 @@ fn original_compiled_list_index_keeps_reached_result_and_input_roles_through_pri
 }
 #[test]
 fn neutral_immediate_none_preserves_frame_callback_conversion_while_original_using_refuses_it() {
-
     // Explicit None keeps the existing operation-only worker and reference schedule.
     for checked in [false, true] {
         let mut interpreter = fixture::native("tcl9.1");

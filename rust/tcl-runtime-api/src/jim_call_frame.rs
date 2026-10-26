@@ -46,13 +46,11 @@ impl JimCallFrameStoragePool {
     /// Select the last released concrete storage, or allocate a fresh slot.
     /// This does not reuse any activation identity or original variable table.
     pub fn acquire(&mut self) -> JimCallFrameStorageSlot {
-
         self.free.pop().unwrap_or_default()
     }
     /// Publish a slot only after its actual local-command, argument, script,
     /// namespace and variable owners have been released by the selected backend.
     pub fn recycle(&mut self, slot: JimCallFrameStorageSlot) {
-
         self.free.push(slot);
     }
 }
@@ -62,7 +60,6 @@ mod tests {
     use super::*;
     #[test]
     fn original_jim_storage_reuse_keeps_live_and_foreign_slots_separate() {
-
         let mut pool = JimCallFrameStoragePool::default();
         let first = pool.acquire();
         let reference = first.reference();

@@ -1190,7 +1190,6 @@ mod tests {
 
     #[test]
     fn incoming_native_operands_use_declared_arguments_without_inventing_ssa() {
-
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();

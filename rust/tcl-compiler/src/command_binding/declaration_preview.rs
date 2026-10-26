@@ -1793,7 +1793,6 @@ impl SourceCommandBindings {
         registry: &tcl_registry::CommandRegistry,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<LogicalProcedureDeclaration> {
-
         if !input.has_logical_source_name_context()
             || input
                 .context_registry()
@@ -1847,7 +1846,6 @@ impl SourceCommandBindings {
         registry: &tcl_registry::CommandRegistry,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<OriginalProcedureReadDeclaration> {
-
         let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
             registry, input,
         )?;
@@ -2904,7 +2902,6 @@ fn logical_procedure_body_recipe(
     input: &crate::analyser::ResolvedAnalysisInput,
     advice: &super::OriginalCompilationLookupAdvice,
 ) -> Option<DeclaredProcedureBody> {
-
     if !advice.closed_logical_source_lookup()
         || input.lexer_config() != observation.config
         || input
@@ -3786,7 +3783,6 @@ mod tests {
 
     #[test]
     fn original_declaration_metadata_keeps_unentered_logical_successor_source() {
-
         // Original declaration metadata supplies conditional source structure;
         // no reached lookup, Native frame, handler or compiled store is donated.
         let context =
@@ -3874,7 +3870,6 @@ mod tests {
 
     #[test]
     fn original_declaration_metadata_refuses_missing_foreign_and_changed_source_owners() {
-
         // Same command store does not identify the availability owner; exact
         // source vectors and every original declaration remain prerequisites.
         let mut registry = tcl_registry::CommandRegistry::build_default();
@@ -3978,7 +3973,6 @@ mod tests {
 
     #[test]
     fn original_declaration_metadata_cannot_repair_invalid_reached_or_native_owners() {
-
         // Retained source advice cannot replace a present invalid reached
         // owner, nor issue Native lookup or preparation for an unentered body.
         let context =
@@ -4085,7 +4079,6 @@ mod tests {
 
     #[test]
     fn original_registry_advice_uses_uncalled_body_layout_without_normal_receipt() {
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for (source, command, expected) in [
             (
@@ -4143,7 +4136,6 @@ mod tests {
 
     #[test]
     fn original_registry_advice_retains_body_shadowing_and_original_word_currency() {
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let (_, tokens) = inventory(
             "proc set args {return CUSTOM}; proc p {} {set value}",
@@ -4306,7 +4298,6 @@ mod tests {
 
     #[test]
     fn conditional_declaration_geometry_survives_unknown_table_without_installation() {
-
         let source = "rename $old decl\nproc wrap {arg} {upvar 1 other local; return $local}";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let (bindings, tokens) = inventory_in_world(
@@ -4363,7 +4354,6 @@ mod tests {
 
     #[test]
     fn nested_layout_visits_process_each_exact_source_world_once() {
-
         // Derive conditional source layouts from one genuine outer observation.
         // All descendants keep that unchanged lookup world; reached condition
         // coercions and their independent snapshots are not substituted here.
@@ -4406,7 +4396,6 @@ mod tests {
 
     #[test]
     fn nested_layout_visits_keep_reached_representation_worlds_distinct() {
-
         // The same written command table does not make reached variable and
         // literal representation worlds interchangeable. This software source
         // control supplies no Native object, body-entry or elapsed-time claim.
@@ -4461,7 +4450,6 @@ mod tests {
 
     #[test]
     fn exact_parent_layout_reuse_keeps_guarded_children_and_successor_decisions() {
-
         // Genuine original observations compare one shared projection with
         // independently rederived children and continuation. No elapsed-time,
         // execution, installed implementation or Native frame claim follows.
@@ -4537,7 +4525,6 @@ mod tests {
 
     #[test]
     fn exact_parent_layout_reuse_refuses_lost_original_source_or_frame() {
-
         // These changed-premise API controls cannot manufacture a provider
         // execution result from an original layout's reporting fields.
         let source = "if {1} {puts done}";
@@ -4592,7 +4579,6 @@ mod tests {
 
     #[test]
     fn nested_layout_syntax_shares_only_exact_original_geometry() {
-
         // Pure lexical sharing, independently of any Native lookup/frame/header claim.
         let (source, parents) = nested_layout_key_fixture();
         let config = parents[0].config;
@@ -4635,7 +4621,6 @@ mod tests {
 
     #[test]
     fn nested_layout_syntax_reuse_keeps_original_owner_refusal() {
-
         // A retained pure tape cannot fill a missing source or frame owner.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let (source, parents) = nested_layout_key_fixture();
@@ -4664,7 +4649,6 @@ mod tests {
 
     #[test]
     fn nested_layout_syntax_memo_matches_original_parser_world_inventory() {
-
         // Compare complete retained layouts; neither path claims entered execution.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for source in [
@@ -4688,7 +4672,6 @@ mod tests {
 
     #[test]
     fn nested_layout_visit_key_keeps_complete_lookup_and_owner_facets() {
-
         // Changing a semantic facet is a distinct source-contract question;
         // these key controls do not manufacture an entered Native frame.
         let (source, parents) = nested_layout_key_fixture();
@@ -4755,7 +4738,6 @@ mod tests {
 
     #[test]
     fn nested_declared_layout_keeps_original_scope_without_entered_authority() {
-
         // Alias exclusion requires complete original body ownership, not an
         // installed alias, entered variable frame or successful read.
         // Implementation binding: naming.source.original-registry-header-advice
@@ -5040,7 +5022,6 @@ mod tests {
     }
     #[test]
     fn original_declared_body_parse_cut_keeps_only_the_complete_original_prefix() {
-
         // These are source lexical cuts, with no entered frame or Native admission.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = tcl_lexer::LexerConfig {
@@ -5085,7 +5066,6 @@ mod tests {
 
     #[test]
     fn original_declared_body_parse_cut_uses_geometry_after_f5_segment_merging() {
-
         // The merged source projection supplies no selected command or execution.
         let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig {
@@ -5130,7 +5110,6 @@ mod tests {
 
     #[test]
     fn original_declared_body_parse_cut_keeps_unavailable_distinct_from_empty() {
-
         // Hard lexical/Unicode refusal is not a complete empty source tape.
         let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
         let parent = CommandAllocationSite {
@@ -5178,7 +5157,6 @@ mod tests {
 
     #[test]
     fn original_declared_body_parser_keeps_bom_value_and_complete_parent_cache_key() {
-
         // A decoded original script value owns its derived origin. Lexical
         // layout sharing provides no frame, entry, Native head or body execution.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
@@ -5376,7 +5354,6 @@ mod original_argument_declaration_tests {
 
     #[test]
     fn original_argv_declaration_retains_real_child_world_without_dispatch_or_frame() {
-
         let source = "proc subject {} {puts [list FIRST] [package require Tcl]}";
         let bindings = logical(source);
         let (site, mut tokens, _) = puts_parent(&bindings);
@@ -5416,7 +5393,6 @@ mod original_argument_declaration_tests {
 
     #[test]
     fn original_argv_declaration_stops_after_unknown_callback_or_variable_prefix() {
-
         for source in [
             "proc subject {value} {puts $value [package require Tcl]}",
             "proc subject {} {puts [unknown] [package require Tcl]}",
@@ -5446,7 +5422,6 @@ mod original_argument_declaration_tests {
 
     #[test]
     fn original_argv_declaration_requires_original_parent_input_source_config_and_vector() {
-
         let bindings = logical("proc subject {} {puts [package require Tcl]}");
         let (site, tokens, rows) = puts_parent(&bindings);
         let calls = crate::word_subst::checked_argument_lifted_calls(

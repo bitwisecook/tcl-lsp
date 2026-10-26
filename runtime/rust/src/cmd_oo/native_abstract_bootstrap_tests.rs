@@ -21,7 +21,6 @@ use super::*;
 
 #[test]
 fn original_abstract_bootstrap_realizes_class_side_visibility_and_release_absence() {
-
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = Interp::with_native_core(
             crate::interp::default_host(),

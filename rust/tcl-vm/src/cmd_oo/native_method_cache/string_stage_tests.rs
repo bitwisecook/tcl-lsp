@@ -132,7 +132,6 @@ fn selected(vm: &Vm, target: OoId) -> Rc<Vec<Step>> {
 }
 #[test]
 fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrade() {
-
     // The direct existing cache worker isolates its real String stage; no C callback/count equivalence.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let (mut vm, target, formatter) = provided(version, 0);
@@ -170,7 +169,6 @@ fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrad
 }
 #[test]
 fn original_method_cache_string_refusal_or_header_withdrawal_precedes_cache_adoption() {
-
     // Actual formatter failure/last header release, not a Native MethodType delete simulation.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2] {

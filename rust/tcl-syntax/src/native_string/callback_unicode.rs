@@ -46,7 +46,6 @@ mod tests {
 
     #[test]
     fn callback_unicode_keeps_counted_zero_and_actual_selected_units() {
-
         // Pure returned-byte projection, not a native getter or Unicode cache receipt.
         for version in [
             TclVersion::V8_4,
@@ -80,7 +79,6 @@ mod tests {
 
     #[test]
     fn callback_unicode_pairs_c8_units_without_forgiving_c9_surrogates() {
-
         // Fixed selected-unit inputs; no runtime or platform conversion grant.
         let cesu = b"\xed\xa0\xbd\xed\xb9\x82";
         for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {

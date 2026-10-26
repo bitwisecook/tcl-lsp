@@ -1184,7 +1184,6 @@ impl CaseListSpec {
         dialect: Option<SurfaceQuery<'_>>,
         rules: tcl_syntax::word_rules::WordValueRules,
     ) -> Option<usize> {
-
         if !self.clause_flags.is_empty() || !self.clause_value_flags.is_empty() {
             return None;
         }
@@ -2687,7 +2686,6 @@ pub(crate) fn keyword_table_for_available_options<'a>(
     options: impl Iterator<Item = &'a OptionSpec>,
     prefix_matching: PrefixMatching,
 ) -> KeywordTable<'static> {
-
     let mut keywords: Vec<Keyword<'static>> = Vec::new();
     for opt in options {
         for name in std::iter::once(opt.name).chain(opt.aliases.iter().copied()) {

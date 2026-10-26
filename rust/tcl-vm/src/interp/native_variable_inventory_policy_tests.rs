@@ -20,7 +20,6 @@ use super::*;
 
 #[test]
 fn variable_inventory_uses_the_actual_selected_name_purpose() {
-
     // Software admission and result control, not an original-provider receipt.
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut vm = crate::native_fixture::interpreter(
@@ -52,7 +51,6 @@ fn variable_inventory_uses_the_actual_selected_name_purpose() {
 
 #[test]
 fn unsupported_inventory_policy_refuses_before_a_pattern_getter() {
-
     // Standalone ingress supplies no independently retained actual native core.
     let mut vm = Vm::without_native_engine();
     let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
@@ -84,7 +82,6 @@ fn unsupported_inventory_policy_refuses_before_a_pattern_getter() {
 
 #[test]
 fn genuine_native_inventory_policy_survives_unknown_source_profile() {
-
     // Source compatibility cannot revoke the independently retained native issuer.
     let mut vm = crate::native_fixture::interpreter(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),

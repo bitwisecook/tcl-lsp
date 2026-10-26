@@ -2332,7 +2332,6 @@ mod original_configured_completeness_tests {
     use super::*;
     #[test]
     fn original_structural_view_keeps_unknown_completeness_distinct_from_false() {
-
         // Display of the actual source query; no parser or execution authority.
         let mut result = crate::run_pipeline("set x 1", "tcl8.6");
         let view = build_structural_index(&crate::serialise::serialise_result(&result));
@@ -2358,7 +2357,6 @@ mod retained_source_view_tests {
     // controls; they do not prove Native execution or provider behaviour.
     #[test]
     fn unavailable_source_fields_are_distinct_from_completed_empty_views() {
-
         // Wire/render observation only; no Native execution or provider claim.
         let empty = json!({
             "optimisations": [], "optimiserPasses": [],
@@ -2392,7 +2390,6 @@ mod retained_source_view_tests {
 
     #[test]
     fn unavailable_event_section_preserves_independent_irules_warnings() {
-
         // Wire/render observation only; no Native execution or provider claim.
         let data = json!({
             "eventOrder": null,
@@ -2414,7 +2411,6 @@ mod actual_cu_unavailable_view_tests {
 
     #[test]
     fn actual_cu_null_fields_do_not_render_as_empty_analysis() {
-
         for (view, field) in [
             ("ssa", "cfgPostSsa"),
             ("shimmer", "shimmer"),

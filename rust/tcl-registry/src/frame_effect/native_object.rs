@@ -128,7 +128,6 @@ impl NativeFrameLevelProtocol {
         current: usize,
         original: &mut O,
     ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
-
         self.resolve_object_with_requirement(current, original, true)
     }
 

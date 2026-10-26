@@ -30,7 +30,6 @@ fn analyse(source: &str, input: &ResolvedAnalysisInput) -> Analyser {
 
 #[test]
 fn original_static_result_uses_retained_context_after_transient_store_retirement() {
-
     let mut store = tcl_registry::CommandRegistry::build_default();
     store.insert(tcl_registry::CommandSpec {
         name: "original_return",
@@ -63,7 +62,6 @@ fn original_static_result_uses_retained_context_after_transient_store_retirement
 
 #[test]
 fn original_static_fold_keeps_availability_and_selected_control_context() {
-
     let mut store = tcl_registry::CommandRegistry::build_default();
     store.insert(tcl_registry::CommandSpec {
         name: "original_length",
@@ -99,7 +97,6 @@ fn original_static_fold_keeps_availability_and_selected_control_context() {
 
 #[test]
 fn original_static_context_refuses_missing_foreign_and_changed_source_axes() {
-
     let context =
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
     let actual = input("tcl8.6", Arc::clone(context.commands()));
@@ -156,7 +153,6 @@ fn original_static_context_refuses_missing_foreign_and_changed_source_axes() {
 
 #[test]
 fn original_static_result_retains_native_and_hosted_advice_barriers() {
-
     let source = "proc p {} {return VALUE}";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.1", "jim", "f5-irules"] {
         let mut analyser = Analyser::new();

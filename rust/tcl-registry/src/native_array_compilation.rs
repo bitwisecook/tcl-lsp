@@ -243,7 +243,6 @@ pub fn compile_native_array(
 mod tests {
     #[test]
     fn array_existence_result_recipes_keep_provider_and_purpose_boundaries() {
-
         for (engine, expected) in [
             ("tcl8.4", NativeArrayExistenceResult::FreshInteger),
             (

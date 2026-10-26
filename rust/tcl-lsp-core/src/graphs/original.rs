@@ -398,7 +398,6 @@ mod tests {
 
     #[test]
     fn original_graph_alias_edges_select_terminal_allocation_without_reporting_names() {
-
         let source = "proc target {} {return ok}; proc alias {} {return displaced}; interp alias {} alias {} target; alias";
         let mut analysis = Analyser::new().analyse(source, "tcl9.0").clone();
         analysis.all_procs.clear();
@@ -412,7 +411,6 @@ mod tests {
     }
     #[test]
     fn original_graph_summary_requires_body_allocation_even_when_ir_labels_agree() {
-
         let source = "proc p {} {return SAFE}; p";
         let profile = crate::profile_for_dialect("tcl8.6");
         let registry = crate::registry_for_dialect("tcl8.6");

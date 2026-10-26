@@ -7,7 +7,6 @@ use tcl_syntax::value::ValueError;
 
 #[test]
 fn original_authored_operand_resident_none_has_no_entry_or_provider_donation() {
-
     let mut vm = Vm::new();
     let owner = OriginalAuthoredOperandScope::capture(&mut vm).unwrap();
     assert!(
@@ -46,7 +45,6 @@ fn original_authored_operand_resident_none_has_no_entry_or_provider_donation() {
 
 #[test]
 fn original_authored_operand_neutral_utf8_keeps_raw_units_and_legacy_scalar_worker() {
-
     let (mut vm, formatter, queries) = provided();
     let owner = OriginalAuthoredOperandScope::capture(&mut vm).unwrap();
     let original = value(&vm, i64::MIN);
@@ -69,7 +67,6 @@ fn original_authored_operand_neutral_utf8_keeps_raw_units_and_legacy_scalar_work
 
 #[test]
 fn original_authored_operand_detects_frame_birth_and_original_host_aba_without_entry() {
-
     for host_aba in [false, true] {
         let (mut vm, formatter, queries) = provided();
         let owner = OriginalAuthoredOperandScope::capture(&mut vm).unwrap();
@@ -96,7 +93,6 @@ fn original_authored_operand_detects_frame_birth_and_original_host_aba_without_e
 
 #[test]
 fn original_authored_operand_first_formatter_failure_survives_world_withdrawal() {
-
     // Supplied software formatter and readonly world; no Native callback observation.
     let (mut vm, formatter, _) = provided();
     formatter.fail.set(true);
@@ -130,7 +126,6 @@ fn original_authored_operand_first_formatter_failure_survives_world_withdrawal()
 
 #[test]
 fn original_authored_operand_retainer_precedes_native_compound_backing_retirement() {
-
     // Actual backing lifetime with a supplied software checker, not Native callback chronology.
     let (mut vm, formatter, queries) = provided();
     let first = value(&vm, i64::MIN);
@@ -169,7 +164,6 @@ fn original_authored_operand_retainer_precedes_native_compound_backing_retiremen
 
 #[test]
 fn original_authored_operand_successful_formatter_frame_change_stops_cache_adoption() {
-
     // The supplied checker changes the actual frame after observing a formatter stage.
     let (mut vm, formatter, _) = provided();
     let owner = OriginalAuthoredOperandScope::capture(&mut vm).unwrap();
@@ -208,7 +202,6 @@ fn original_authored_operand_successful_formatter_frame_change_stops_cache_adopt
 
 #[test]
 fn original_string_intrinsic_root_header_failure_is_retained_before_child_backing_drop() {
-
     // Supplied software registration-style checker; the actual String worker owns the root check.
     let (mut vm, formatter, queries) = provided();
     let child = Value::string("RESIDENT_CHILD");

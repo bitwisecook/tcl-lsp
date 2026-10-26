@@ -1275,7 +1275,6 @@ mod tests {
 
     #[test]
     fn original_array_set_name_and_values_keep_their_genuine_headers() {
-
         // Native case23 observes the source operand's parsedVarName cache.
         // This API control separately checks empty/nonempty stores and original
         // value identity; it does not claim a native instruction or header birth.
@@ -1296,7 +1295,6 @@ mod tests {
 
     #[test]
     fn original_array_set_selects_root_before_parity_and_keeps_callback_results() {
-
         // Source/API controls supplement the unchanged native case21/23/27
         // completion/cache windows; no callback timing inference comes from them.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1331,7 +1329,6 @@ mod tests {
 
     #[test]
     fn original_array_set_declines_without_a_genuine_c_variable_issuer() {
-
         // Actual Jim naming supplies no C variable issuer. Refusal precedes
         // either original header's conversion; this is a source/API control.
         leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
@@ -1350,7 +1347,6 @@ mod tests {
 
     #[test]
     fn original_array_set_default_engine_keeps_its_actual_variable_recipe() {
-
         // The default interpreter owns a known C execution release even with
         // an unpinned assistance profile. No compiler or bootstrap grant is
         // inferred from this independent variable-handler API control.
@@ -1416,7 +1412,6 @@ mod tests {
 
     #[test]
     fn jim_dictionary_array_reads_keep_static_copies_and_selected_frames() {
-
         leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
             assert_eq!(run(interp, b"set a(k) VALUE; proc p {} {a} {array get a}; set a(k) NEW; list [p] [array get a]"), b"{k VALUE} {k NEW}");
             assert_eq!(run(interp, b"proc q {} {set a(k) LOCAL; upvar #0 a outer; list [array get a] [array get outer]}; q"), b"{k LOCAL} {k NEW}");
@@ -1426,7 +1421,6 @@ mod tests {
 
     #[test]
     fn jim_array_byte_keys_count_and_unset_without_unicode_projection() {
-
         leak_free_native(crate::environment::profile_for_dialect("jim"), |interp| {
             let dictionary = crate::list::new_list_obj(&[
                 crate::obj::new_string_bytes(b"\xff"),

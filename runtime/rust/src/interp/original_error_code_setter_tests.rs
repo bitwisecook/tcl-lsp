@@ -97,7 +97,6 @@ fn selected_header(interpreter: &Interp) -> Option<*mut TclObj> {
 
 #[test]
 fn original_capi_error_code_setter_retains_lazy_header_without_a_string_getter() {
-
     // These software headers/getter counts test the supplied setter; provider observations remain separate.
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         crate::counters::reset();
@@ -129,7 +128,6 @@ fn original_capi_error_code_setter_retains_lazy_header_without_a_string_getter()
 
 #[test]
 fn original_capi_error_code_setter_retirement_keeps_first_cause_and_reached_storage() {
-
     // Actual free hooks and selected storage, with no inferred C callback timing.
     for name in ["tcl8.4", "tcl8.6", "tcl9.1"] {
         for action in [1, 2] {
@@ -169,7 +167,6 @@ fn original_capi_error_code_setter_retirement_keeps_first_cause_and_reached_stor
 
 #[test]
 fn original_capi_error_code_setter_pending_host_keeps_all_later_stages_unreached() {
-
     for name in ["tcl8.4", "tcl8.6", "tcl9.1"] {
         let mut interpreter = native(name);
         interpreter.set_c_error_code(b"BEFORE CODE");
@@ -204,7 +201,6 @@ unsafe extern "C" fn explicit_callback(
 
 #[test]
 fn original_c84_explicit_callback_code_survives_actual_command_logging() {
-
     // Software error projection is not a C8.4 Tcl_GetReturnOptions availability claim.
     let mut interpreter = native("tcl8.4");
     assert!(interpreter
@@ -353,7 +349,6 @@ fn original_header_observer(name: &str) -> &'static str {
 
 #[test]
 fn original_error_code_decrement_keeps_the_selected_raw_header_role_without_a_native_hold() {
-
     // The five-provider614c observer establishes only raw header/ref/flag stages;
     // this actual software callback checks those roles, without a getter grant.
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -473,7 +468,6 @@ fn original_error_code_decrement_keeps_the_selected_raw_header_role_without_a_na
 
 #[test]
 fn original_error_retirement_descriptor_refuses_semantic_reentry_and_callback_replacement() {
-
     // Pure software reentry and first-cause controls;614c grants only the raw observer above.
     for mode in [3, 4] {
         crate::counters::reset();

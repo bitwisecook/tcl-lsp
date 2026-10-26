@@ -1431,7 +1431,6 @@ mod tests {
 
     #[test]
     fn host_dictionary_surface_without_actual_object_owner_refuses_construction() {
-
         // Software ingress purpose only; a surface profile supplies no object owner.
         let mut vm = Vm::new();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
@@ -1726,9 +1725,6 @@ mod native_rmw_fixture_tests {
     fn dictionary_body_writeback_compares_original_native_observation_windows() {
         // Native proofs: naming.dictionary.update-with-body-and-observer-frontiers;
 
-
-
-
         // All 329 captured outer completions remain compared; 326 retain whole
         // public observations. Independent update and with lifetime observations
         // bound three diagnostic/status comparisons. Those later captured fields are
@@ -1885,7 +1881,6 @@ mod native_rmw_fixture_tests {
 
     #[test]
     fn c86_dictionary_write_error_retains_its_own_defined_host_storage() {
-
         // The native counter window is independent of the VM's safe policy.
         // Neither native freed contents nor original compiled frame ownership
         // are reconstructed from this software header/member control.
@@ -1945,7 +1940,6 @@ mod native_rmw_fixture_tests {
 
     #[test]
     fn c86_dictionary_with_write_error_retains_independent_defined_host_storage() {
-
         // The native witness samples WithFinish before final free. Subsequent
         // public fields are process observations; the VM's retained live storage
         // is an independent software policy, never native freed-content identity.
@@ -2106,7 +2100,6 @@ mod native_path_publication_tests {
 
     #[test]
     fn original_path_missing_variable_publication_matches_all_15_available_native_windows() {
-
         // Each complete original caller result keeps the error, existence,
         // caller read and alias/member publication together. No private object
         // header or C lookup receipt follows from these public observations.

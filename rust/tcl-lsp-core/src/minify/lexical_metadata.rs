@@ -28,7 +28,6 @@ pub(super) fn with_command_schema<T>(
     command: &NativeScriptCommandWords,
     project: impl FnOnce(&ResolvedInvocation<'_, '_>) -> T,
 ) -> Option<T> {
-
     let words = tcl_compiler::registry_invocation::source_structure::original_logical_registry_words_for_command(
         env.identities, env.input, command,
     )?;
@@ -49,7 +48,6 @@ pub(super) fn with_editable_command_schema<T>(
     command: &NativeScriptCommandWords,
     project: impl FnOnce(&ResolvedInvocation<'_, '_>) -> T,
 ) -> Option<T> {
-
     let words = tcl_compiler::registry_invocation::source_structure::original_logical_registry_words_for_command(
         env.identities, env.input, command,
     )?;
@@ -160,7 +158,6 @@ impl CommandCensus<'_> {
 /// vector. Missing schema/body/vector ownership remains explicit incomplete
 /// coverage; no local body/case/Expr/lambda walker infers missing regions.
 pub(super) fn command_census<'a>(source: &str, env: MinifyEnv<'a>) -> Option<CommandCensus<'a>> {
-
     let analysis = env.analysis;
     let image = SourceImage::document(source);
     if !analysis.allows_lexical_declaration_advice()
@@ -262,7 +259,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_owns_selected_full_vectors_and_complete_regions() {
-
         for (source, count) in [
             ("list {string equal -nocase A a}", 1),
             ("if {1} {string equal -nocase A a}", 2),
@@ -296,7 +292,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_retains_partial_candidates_without_barrier_absence() {
-
         let source = "string equal -nocase A a; if {1} $body";
         with_analysis(source, |env| {
             let census = command_census(source, env).unwrap();
@@ -321,7 +316,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete() {
-
         for source in [
             "mystery",
             "if {1} $body",
@@ -337,7 +331,6 @@ mod source_census_tests {
 
     #[test]
     fn minifier_source_census_refuses_foreign_analysis_realm_and_full_config() {
-
         let source = "string equal -nocase A a";
         with_analysis(source, |env| {
             assert!(

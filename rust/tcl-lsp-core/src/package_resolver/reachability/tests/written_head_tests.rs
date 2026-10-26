@@ -22,7 +22,6 @@ use super::{Availability, V86, V90, availabilities, only};
 
 #[test]
 fn authored_index_written_heads_keep_complete_colon_runs_and_literal_boundaries() {
-
     for head in ["package", "::package", ":::package", ":::::package"] {
         let source = format!("{head} ifneeded café 1.0 {{source café.tcl}}\n");
         assert_eq!(
@@ -50,7 +49,6 @@ fn authored_index_written_heads_keep_complete_colon_runs_and_literal_boundaries(
 
 #[test]
 fn authored_index_written_heads_keep_version_and_termination_conditions() {
-
     let source = ":::if {[:::package vsatisfies [:::::package provide Tcl] 9-]} {:::return}\n:::package ifneeded café 1.0 {source café.tcl}\n";
     assert_eq!(only(source, V86), Availability::Available);
     assert_eq!(only(source, V90), Availability::Unavailable);

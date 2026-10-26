@@ -203,7 +203,6 @@ impl Analyser {
         &mut self,
         registry: &CommandRegistry,
     ) {
-
         let sites = std::mem::take(&mut self.widget_dispatch_sites);
         let Some(input) = &self.result.resolved_input else {
             return;
@@ -248,14 +247,12 @@ mod tests {
 
     #[test]
     fn w001_fires_for_unknown_widget_subcommand_bareword() {
-
         let src = "ttk::treeview .t\n.t bogus\n";
         assert!(has(src, "W001"), "{:?}", codes(src));
     }
 
     #[test]
     fn w001_fires_for_unknown_widget_subcommand_var() {
-
         let src = "set lb [listbox .l]\n$lb bogus\n";
         assert!(has(src, "W001"), "{:?}", codes(src));
     }
@@ -275,7 +272,6 @@ mod tests {
 
     #[test]
     fn e002_fires_for_widget_subcommand_arity() {
-
         // `curselection` takes no further arguments.
         let src = "set lb [listbox .l]\n$lb curselection extra\n";
         assert!(has(src, "E003"), "{:?}", codes(src));
@@ -283,7 +279,6 @@ mod tests {
 
     #[test]
     fn e002_fires_for_too_few_widget_subcommand_args() {
-
         // `move` requires exactly 3 args (item parent index).
         let src = "ttk::treeview .t\n.t move onlyone\n";
         assert!(has(src, "E002"), "{:?}", codes(src));

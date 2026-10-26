@@ -479,7 +479,6 @@ mod export_order_tests {
     use super::*;
     #[test]
     fn selected_export_operand_order_does_not_grant_uninspected_releases() {
-
         for version in TclVersion::ALL {
             let selected = NativeTclooMethodDefinitionProtocol::select(
                 InvocationDialect::for_version(version),
@@ -505,7 +504,6 @@ mod tests {
 
     #[test]
     fn original_method_rename_verdict_keeps_entry_identity_and_diagnostic_extent_separate() {
-
         // Pure verdict over supplied actual entry facts; no table or invocation admission.
         use NativeTclooMethodRenameFailure as Failure;
         for version in TclVersion::ALL {
@@ -602,7 +600,6 @@ mod classvariable_tests {
 
     #[test]
     fn selected_classvariable_schedule_keeps_availability_and_cstring_shapes_distinct() {
-
         for version in TclVersion::ALL {
             let selected =
                 NativeTclooClassVariableProtocol::select(InvocationDialect::for_version(version));
@@ -651,7 +648,6 @@ mod call_report_tests {
     use super::{NativeTclooCallReportKind as Kind, NativeTclooMethodPayloadType as Type};
     #[test]
     fn original_call_report_flags_and_payload_types_do_not_classify_selector_spellings() {
-
         assert_eq!(Kind::from_flags(true, true, true), Kind::Filter);
         assert_eq!(Kind::from_flags(false, true, true), Kind::Unknown);
         assert_eq!(Kind::from_flags(false, false, true), Kind::Private);

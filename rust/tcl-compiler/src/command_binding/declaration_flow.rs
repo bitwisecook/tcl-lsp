@@ -438,7 +438,6 @@ impl DeclarationFlowReport {
         &self,
         site: &CommandAllocationSite,
     ) -> bool {
-
         self.source == site.source
             && self
                 .conditional_caller_alias_prefixes

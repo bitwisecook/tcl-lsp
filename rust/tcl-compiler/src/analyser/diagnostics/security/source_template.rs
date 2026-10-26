@@ -373,7 +373,6 @@ mod tests {
 
     #[test]
     fn original_template_diagnostics_follow_aliases_and_refuse_known_replacements() {
-
         // Selected source advice only; no actual template value or evaluation.
         let input = current_input("tcl8.6");
         for source in [
@@ -421,7 +420,6 @@ mod tests {
 
     #[test]
     fn original_template_subject_keeps_captured_switches_and_whole_unicode_word() {
-
         let input = current_input("tcl8.6");
         let source = "interp alias {} render {} subst -nocommands; render \"pré $tmpl\"";
         let analyser = analyse(source, &input);
@@ -454,7 +452,6 @@ mod tests {
 
     #[test]
     fn original_template_advice_keeps_actual_option_availability() {
-
         let current = current_input("tcl9.1");
         let source = "subst -backslashes $tmpl";
         let current_analyser = analyse(source, &current);
@@ -488,7 +485,6 @@ mod tests {
 
     #[test]
     fn original_template_advice_refuses_missing_foreign_and_stale_source_owners() {
-
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
             .commands()
@@ -541,7 +537,6 @@ mod tests {
 
     #[test]
     fn original_template_refinement_requires_matching_cu_and_selected_switch_values() {
-
         // Real source CU records supplement original written values only.
         let input = current_input("tcl8.6");
         let source = "proc f {x} {set opt -novariables; subst $opt $x}";

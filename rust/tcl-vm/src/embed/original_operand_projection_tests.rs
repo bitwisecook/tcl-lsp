@@ -22,7 +22,6 @@ use tcl_syntax::raw_string::{NativeValueAccessRefusal, UnicodeAccessError};
 
 #[test]
 fn original_raw_operand_projection_observes_none_without_native_or_unicode_grants() {
-
     let mut vm = Vm::new();
     let value = Value::new_native_string_bytes(b"A\xc0\x80B".as_slice());
     let count = value.native_object_reference_count();
@@ -81,7 +80,6 @@ fn original_raw_operand_projection_observes_none_without_native_or_unicode_grant
 
 #[test]
 fn original_operand_projection_refuses_real_header_retirement_before_legacy_cache() {
-
     let mut vm = Vm::new();
     let owner = Value::int(i64::MIN);
     let borrowed = owner.native_lifetime_lease();

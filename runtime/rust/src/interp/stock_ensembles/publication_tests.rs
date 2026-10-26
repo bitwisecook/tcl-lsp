@@ -91,7 +91,6 @@ fn delete_observer(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
 
 #[test]
 fn original_procedure_publication_receipt_survives_actual_caller_cleanup_without_rebinding() {
-
     // Shared input copies are the selected C body recipe. Fixed-slot rename refusal
     // is a software continuation bound, not a Native pointer-lifetime observation.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -168,7 +167,6 @@ fn original_procedure_publication_receipt_survives_actual_caller_cleanup_without
 
 #[test]
 fn scripted_stock_root_consumes_actual_publication_before_metadata_after_delete_callback() {
-
     // A genuine C command trace exercises the software installer seam. This
     // supplied scripted body does not issue a Jim distribution or Native trace grant.
     for mode in 0..4 {
@@ -239,7 +237,6 @@ fn scripted_stock_root_consumes_actual_publication_before_metadata_after_delete_
 
 #[test]
 fn stock_helper_publication_preserves_real_existing_slot_and_stops_prior_refusal() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         crate::counters::reset();
         {
@@ -323,7 +320,6 @@ fn stock_helper_publication_preserves_real_existing_slot_and_stops_prior_refusal
 
 #[test]
 fn selected_jim_scripted_root_keeps_actual_helper_generations_on_reinstallation() {
-
     crate::counters::reset();
     {
         let mut interpreter = native("jim");

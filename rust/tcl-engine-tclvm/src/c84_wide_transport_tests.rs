@@ -18,7 +18,6 @@ fn native() -> Vm {
 }
 #[test]
 fn original_c84_wide_recursive_bridge_retains_actual_ingress_for_plain_and_resident_members() {
-
     let mut vm = native();
     let dialect = vm.native_scalar_carrier_dialect();
     let carrier = Value::List(
@@ -106,7 +105,6 @@ impl HostCommand for WideReply {
 #[test]
 fn original_c84_wide_host_reply_uses_pre_callback_receipt_and_finishes_only_the_real_outer_boundary()
  {
-
     for mode in [0, 1, 2] {
         let mut vm = native();
         vm.try_register_native_command("originalScalarWithdraw", Rc::new(Withdraw(mode)))

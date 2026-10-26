@@ -74,7 +74,6 @@ fn row<'a>(captured: &'a str, label: &str) -> Vec<&'a str> {
 
 #[test]
 fn original_static_member_objects_match_native_counted_names_and_value_capture() {
-
     for (engine, captured) in [
         (
             "tcl8.4",
@@ -236,8 +235,6 @@ fn original_static_member_objects_match_native_counted_names_and_value_capture()
 
 #[test]
 fn original_jim_static_links_match_native_frame_storage_reuse_boundaries() {
-
-
     for (engine, captured) in [
         (
             "tcl8.4",

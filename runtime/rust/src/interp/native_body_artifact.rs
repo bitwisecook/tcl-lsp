@@ -3205,7 +3205,6 @@ impl Interp {
         artifact: &NativeBodyArtifact,
         command: &CommandInstruction,
     ) -> Result<bool, Code> {
-
         // C's START_CMD checks compiler/resolver currency before arguments.
         // The selected operation remains captured during those arguments.
         let Some(guard) = command.guard else {
@@ -4541,7 +4540,6 @@ mod tests {
     }
     #[test]
     fn original_compiled_generic_expansion_stops_before_real_target_dispatch() {
-
         use crate::cmd_control::original_list_conversion_tests as fixture;
         use std::cell::Cell;
         let mut interpreter = fixture::native("tcl9.0");

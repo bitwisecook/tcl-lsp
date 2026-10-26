@@ -421,7 +421,6 @@ fn compwasm_dash_o_writes_stdout() {
 
 #[test]
 fn dis_document_bom_policy_keeps_the_actual_non_root_command_literal() {
-
     // The actual verb's literal transport is separate from runtime execution.
     let source = "\u{feff}probe root\n\u{feff}probe later";
     for (dialect, root_literal) in [("tcl9.1", "probe"), ("tcl8.4", "\u{feff}probe")] {

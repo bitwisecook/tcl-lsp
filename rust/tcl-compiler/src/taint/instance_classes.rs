@@ -699,7 +699,6 @@ mod tests {
 
     #[test]
     fn original_receiver_factories_keep_alias_origins_and_literal_names() {
-
         // Authored conditional receiver candidates only. The source model
         // does not execute the factory or install an object command.
         let context = receiver_context();
@@ -794,7 +793,6 @@ mod tests {
 
     #[test]
     fn original_receiver_lifecycle_obeys_moves_deletes_and_factory_shadows() {
-
         // The exact original source schema chooses lifecycle operands. These
         // are source-map invalidations, not successful Native table changes.
         let context = receiver_context();
@@ -830,7 +828,6 @@ mod tests {
 
     #[test]
     fn original_receiver_maps_require_actual_availability_and_matching_owners() {
-
         // Availability and input correspondence are separate from the
         // positive Logical naming owner. No physical receiver is observed.
         let current = receiver_context();
@@ -919,7 +916,6 @@ mod tests {
 
     #[test]
     fn original_global_receiver_maps_keep_module_input_and_source_order() {
-
         // Callback-only procedures receive conditional source setup facts,
         // without a callback frame, entered constructor or current object.
         let context = receiver_context();

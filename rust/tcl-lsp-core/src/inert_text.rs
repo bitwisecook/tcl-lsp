@@ -166,7 +166,6 @@ pub(crate) fn offset_in_physical_comment_in_analysis(
     analysis: &AnalysisResult,
     off: u32,
 ) -> Option<bool> {
-
     source.get(..usize::try_from(off).ok()?)?;
     let facts =
         tcl_compiler::analyser::utils::script_comment_facts_from_analysis(source, analysis)?;
@@ -186,7 +185,6 @@ pub(crate) fn offset_in_data_brace_in_analysis(
     analysis: &AnalysisResult,
     off: u32,
 ) -> Option<bool> {
-
     let config = analysis.body_lexer_config?;
     let structure =
         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
@@ -412,7 +410,6 @@ mod tests {
     /// Original data and nested script words use the same retained geometry.
     #[test]
     fn a_dollar_ref_inside_a_data_brace_is_inert() {
-
         for src in [
             "set t {plain $level here}\n",
             "proc p {} {\n    set t {plain $level here}\n}\n",
@@ -424,7 +421,6 @@ mod tests {
 
     #[test]
     fn a_dollar_ref_inside_a_script_brace_keeps_source_applicability() {
-
         for src in [
             "proc p {} {\n    puts $level\n}\n",
             "if {$level > 1} { puts hi }\n",
@@ -441,7 +437,6 @@ mod tests {
 
     #[test]
     fn original_case_lambda_and_expression_literals_keep_data_separate() {
-
         assert_eq!(classify("switch $v {{$level} {puts ok}}\n", "$level"), None);
         assert_eq!(
             classify("apply {{$level} {puts ok}} 1\n", "$level"),
@@ -454,7 +449,6 @@ mod tests {
 
     #[test]
     fn original_expression_contributors_do_not_borrow_independent_data_roles() {
-
         for src in [
             "expr {1 +} {$level}\n",
             "expr {$level} {+ 1}\n",
@@ -468,7 +462,6 @@ mod tests {
 
     #[test]
     fn original_data_classification_keeps_alias_prefix_and_shadow_boundaries() {
-
         assert_eq!(
             classify(
                 "interp alias {} write {} set\nwrite t {plain $level}\n",
@@ -490,7 +483,6 @@ mod tests {
 
     #[test]
     fn original_data_classification_declines_stale_or_unowned_inputs() {
-
         let src = "set t {plain $level}\n";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(src, "tcl8.6");
         let off = offset_of(src, "$level");
@@ -521,7 +513,6 @@ mod tests {
     }
     #[test]
     fn original_comment_cursor_keeps_multiline_quoted_substitutions_live() {
-
         // These are source-applicability controls, not entered/native frames.
         let source = "set v value\nset text \"é\n# $v\"\n# inert $v\n";
         let live = offset_of(source, "$v");
@@ -553,7 +544,6 @@ mod tests {
 
     #[test]
     fn original_comment_cursor_declines_stale_or_unowned_analysis() {
-
         let source = "# inert $v\n";
         let offset = offset_of(source, "$v");
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");

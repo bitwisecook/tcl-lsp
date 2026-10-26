@@ -33,7 +33,6 @@ const FIXTURES: &[Fixture] = &[
 
 #[test]
 fn real_jobs_lower_and_keep_semantics_around_boundary_regions() {
-
     let registry = static_context_for("tcl8.6").commands();
 
     for fixture in FIXTURES {

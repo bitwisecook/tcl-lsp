@@ -736,7 +736,6 @@ mod original_document_signature_tests {
 
     #[test]
     fn cli_cross_file_procedure_discovery_keeps_the_document_bom_and_body_purpose() {
-
         // Actual CLI discovery adapter; no interprocedural fold or interpreter execution claim.
         let document = InputDocument {
             label: "<original-document>".to_owned(),

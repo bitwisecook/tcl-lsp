@@ -2321,7 +2321,6 @@ mod tests {
 
     #[test]
     fn scalar_parentheses_share_the_closed_element_partition() {
-
         // Native341 public values establish the distinct scalar/element cases;
         // these assertions bind only the source-name projection, not a cell.
         for style in [
@@ -2414,7 +2413,6 @@ mod tests {
 
     #[test]
     fn selected_reference_roots_keep_whole_scalar_and_combined_element_bytes() {
-
         for style in [
             tcl_dialect::BracedVarStyle::FirstClose,
             tcl_dialect::BracedVarStyle::Tcl9Nesting,
@@ -3003,7 +3001,6 @@ mod tests {
 
     #[test]
     fn written_component_extents_share_segmentation_and_preserve_original_byte_geometry() {
-
         // Written segmentation only; no native input/namespace or edit admission.
         for (written, wanted) in [
             (&b"::a::b"[..], vec![2..3, 5..6]),
@@ -3074,7 +3071,6 @@ mod shared_boundary_tests {
 
     #[test]
     fn written_separator_spans_retain_complete_runs_and_counted_units() {
-
         // Counted source geometry only; no native extent or name identity.
         for (written, separator, tail) in [
             (b"".as_slice(), None, b"".as_slice()),
@@ -3094,7 +3090,6 @@ mod shared_boundary_tests {
 
     #[test]
     fn key_suffixes_preserve_constructed_colon_segments_without_lookup_authority() {
-
         // Pure constructed labels only, never Native namespace interpretation.
         assert_eq!(
             key_suffixes("::a::b::p"),

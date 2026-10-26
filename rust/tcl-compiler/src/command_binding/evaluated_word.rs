@@ -304,7 +304,6 @@ mod tests {
 
     #[test]
     fn original_static_template_completion_requires_its_literal_world() {
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let owner = tcl_registry::model::ingress::static_context_for(engine);
             let registry = owner.commands();

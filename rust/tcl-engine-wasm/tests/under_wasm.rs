@@ -1319,7 +1319,6 @@ fn completion_metadata_getter_failure_preserves_host_channel_and_prior_guest_eff
 
 #[test]
 fn original_typed_host_failure_survives_wasm_callback_settlement_and_next_entry() {
-
     struct Refusing(tcl_engine_api::NativeExecutionError);
     impl HostCommand for Refusing {
         fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
@@ -1347,7 +1346,6 @@ fn original_typed_host_failure_survives_wasm_callback_settlement_and_next_entry(
 
 #[test]
 fn original_typed_wasm_host_failure_isolated_across_instances_and_real_destruction() {
-
     struct Typed(tcl_engine_api::NativeExecutionError);
     impl HostCommand for Typed {
         fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {

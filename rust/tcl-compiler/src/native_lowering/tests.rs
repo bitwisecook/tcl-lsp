@@ -903,7 +903,6 @@ fn native_lowering_cannot_bypass_an_unresolved_chunk_entry() {
 
 #[test]
 fn original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity() {
-
     // Software source/IR observation only. The independently measured original
     // opcode rows own actual truth values and getter effects.
     use tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
@@ -1000,7 +999,6 @@ fn original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identit
 
 #[test]
 fn original_boolean_lowering_separates_inline_and_public_expression_result_producers() {
-
     use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
     let (_owner, context, unit) = original_boolean_unit(
         "if {$condition} {set result A}; if {[set condition]} {set result B}",
@@ -1041,7 +1039,6 @@ fn original_boolean_lowering_separates_inline_and_public_expression_result_produ
 
 #[test]
 fn original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner() {
-
     let (_owner, context, unit) =
         original_boolean_unit("if {$condition} {set result yes}", "tcl8.6");
     assert!(lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module).is_ok());
@@ -1096,7 +1093,6 @@ fn original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owne
 
 #[test]
 fn original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_caches() {
-
     use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
     let source = "set original 4294967296; if {$original} {set result cell}; if {4294967296} {set result literal}; if {1 + 2} {set result arithmetic}";
     let (_owner, context, unit) = original_boolean_unit(source, "tcl8.4");

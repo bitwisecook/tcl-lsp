@@ -141,10 +141,8 @@ pub fn convert_to_utf8<O: ValueOps>(
         return Err(ValueError::CommandProtocolUnavailable("native external UTF-8 issuer").into());
     }
     let source = ops.native_string_bytes(original)?;
-    let external = external_utf8_octets(version, &source).map_err(|failure| {
-
-        failure.command_error(version)
-    })?;
+    let external =
+        external_utf8_octets(version, &source).map_err(|failure| failure.command_error(version))?;
     ops.native_external_utf8_result(&external, version)
         .map_err(Into::into)
 }

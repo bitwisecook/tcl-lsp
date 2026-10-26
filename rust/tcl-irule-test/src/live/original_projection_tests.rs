@@ -37,7 +37,6 @@ impl NativeCommand for EarlierHost {
 
 #[test]
 fn original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry() {
-
     let mut session =
         LiveSession::new(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tcl"))
             .unwrap();
@@ -68,7 +67,6 @@ fn original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_nex
 
 #[test]
 fn original_event_enrolment_refuses_utf8_before_domain_or_later_operand() {
-
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
     for first in [true, false] {
         let mut vm = Vm::with_native_core(

@@ -184,7 +184,6 @@ impl SourceDeclarationSignature {
     /// It carries no source image, activation or argument-binding capability.
     #[must_use]
     pub const fn formal_count_projection(&self) -> SourceFormalCountProjection {
-
         self.formal_count
     }
 }
@@ -316,7 +315,6 @@ impl ItemTree {
     /// the result). See the module docs for why the tree anchors to `analyse`.
     #[must_use]
     pub fn from_analysis(result: &AnalysisResult, ensembles: &HashSet<String>) -> Self {
-
         let mut items: Vec<Item> = Vec::new();
 
         let original_procs = result.original_procedure_declarations().map(|record| {
@@ -723,7 +721,6 @@ mod tests {
 
     #[test]
     fn formal_count_headers_retain_c_and_jim_grammar_without_body_bytes() {
-
         use crate::signature_scan::formal_count::SourceFormalCountOrigin;
         for (dialect, minimum, grammar) in [
             ("tcl8.4", 3, tcl_dialect::ParameterGrammar::Tcl),
@@ -837,7 +834,6 @@ mod tests {
 
     #[test]
     fn original_formal_count_header_ignores_reported_parameter_labels() {
-
         let mut analyser = Analyser::new();
         let mut result = analyser.analyse("proc p {a args} {}", "tcl8.6");
         let original = result.all_procs["::p"].formal_count_projection();

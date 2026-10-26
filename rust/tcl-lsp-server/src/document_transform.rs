@@ -4,7 +4,6 @@
 
 //! Source-bound whole-document results; transformation safety stays with each worker.
 
-
 #[cfg(test)]
 use super::Analyser;
 use super::current_diagnostics::CurrentDiagnosticInput;

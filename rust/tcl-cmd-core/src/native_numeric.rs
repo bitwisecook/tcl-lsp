@@ -386,7 +386,6 @@ mod tests {
 
     #[test]
     fn original_jim_long_uses_actual_unsigned_stage_and_retained_target_layout() {
-
         // These selected fresh public Long rows exercise the actual errno stage;
         // they are independent of a NativeWide API result or expression truth.
         let fixture = include_str!(

@@ -729,7 +729,6 @@ mod tests {
     }
     #[test]
     fn formal_count_shapes_preserve_c_and_jim_default_and_rest_grammars() {
-
         use tcl_dialect::ParameterGrammar::{Jim, Tcl};
         for (fields, c, jim) in [
             (
@@ -764,7 +763,6 @@ mod tests {
     }
     #[test]
     fn native_formal_acceptance_matrix_keeps_provider_count_answers() {
-
         // These are the caught definition/call answers for the original ASCII
         // probe. Counts above five, values and runtime frames are not observed.
         use tcl_dialect::ParameterGrammar::{Jim, Tcl};

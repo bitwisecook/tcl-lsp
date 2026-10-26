@@ -1638,7 +1638,6 @@ mod tests {
     fn element_observers_follow_original_renamed_and_aliased_array_reads() {
         // Native dispatch controls: naming.variable.original-array-observer-renamed-alias-controls
 
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);

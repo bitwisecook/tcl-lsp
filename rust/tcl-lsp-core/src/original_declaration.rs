@@ -2195,7 +2195,6 @@ mod readonly_source_reference_tests {
 
     #[test]
     fn readonly_member_reports_keep_source_spans_out_of_edit_inventories() {
-
         let source = "oo::class create C {method ping {} {}; method body {} {my ping; my ping}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let class = analysis.original_class_declarations().next().unwrap();
@@ -2307,7 +2306,6 @@ mod readonly_source_reference_tests {
 
     #[test]
     fn readonly_method_census_completes_only_proven_self_dispatch_shapes() {
-
         for (source, spans) in [
             ("oo::class create C {method ping {} {}}", 0),
             (
@@ -2331,7 +2329,6 @@ mod readonly_source_reference_tests {
 
     #[test]
     fn readonly_member_census_fails_closed_for_deferred_and_unproven_dispatch() {
-
         let body = |tail: &str| {
             format!(
                 "oo::class create C {{method ping {{}} {{}}; method body {{script cmd}} {{my ping; {tail}}}}}"
@@ -2430,7 +2427,6 @@ mod readonly_source_reference_tests {
 
     #[test]
     fn readonly_member_census_stays_partial_for_other_class_families() {
-
         // A snit method dispatches through `$self`, which has no typed
         // self-dispatch tape. itcl is not covered: nothing establishes that
         // `itcl::class` publishes original method declarations, and a
@@ -2555,7 +2551,6 @@ mod tests {
 
     #[test]
     fn original_class_inventory_keeps_equal_source_owners_and_current_occupied_headers() {
-
         let source = "oo::class create C {}\nproc occupied {} {}";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let analysis = Analyser::new().analyse(source, dialect);
@@ -2603,7 +2598,6 @@ mod tests {
 
     #[test]
     fn original_declaration_reference_matching_keeps_opaque_slots_and_actual_lookup_owners() {
-
         let source = r"proc p\uD800 {} {}; p\uD800; proc p\uD801 {} {}; p\uD801";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let declarations = analysis
@@ -2663,7 +2657,6 @@ mod tests {
 
     #[test]
     fn original_declaration_handles_reselect_complete_source_uri_and_scanner() {
-
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; proc p\uD800 {a} {}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_procs.clear();
@@ -2716,7 +2709,6 @@ mod own_object_identity_tests {
 
     #[test]
     fn original_own_object_identity_keeps_uri_currency_and_wire_reselection() {
-
         let source = r"oo::class create C {}; C create object; oo::objdefine object method p\uD800 {} {}; object p\uD800";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_classes.clear();

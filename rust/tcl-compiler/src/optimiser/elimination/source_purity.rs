@@ -151,7 +151,6 @@ mod tests {
 
     #[test]
     fn original_substitution_purity_keeps_alias_prefixes_and_target_barriers() {
-
         // Source-model purity only. Other erasure/evaluation premises remain open.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -189,7 +188,6 @@ mod tests {
 
     #[test]
     fn original_substitution_purity_requires_actual_availability_and_input() {
-
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             name: "metadata_pure",
@@ -224,7 +222,6 @@ mod tests {
 
     #[test]
     fn native_substitution_metadata_does_not_borrow_logical_purity() {
-
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context = tcl_registry::model::ingress::resolve_environment(environment)
                 .default_context_registry();
@@ -258,7 +255,6 @@ mod tests {
 
     #[test]
     fn literal_assignment_purity_keeps_no_evaluation_without_metadata() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let mut selected = unit(
@@ -274,7 +270,6 @@ mod tests {
 
     #[test]
     fn logical_procedure_purity_joins_the_original_declaration_not_its_label() {
-
         // A supplied source summary still needs the exact original allocation.
         // This checks that join, not the summary's independent effect analysis.
         let context =
@@ -316,7 +311,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_procedure_purity_does_not_borrow_logical_summary() {
-
         let source = "proc pure {x} {return $x}; pure VALUE";
         // Actual software Vm entry; no external Jim/provider execution.
         let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();

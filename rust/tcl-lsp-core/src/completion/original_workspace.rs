@@ -288,11 +288,8 @@ mod tests {
 
     use tcl_compiler::analyser::Analyser;
 
-
     #[test]
     fn original_workspace_completion_uses_shared_conditional_procedure_slots() {
-
-
         let source = "m\n";
         let consumer = Analyser::new().analyse(source, "tcl8.6");
         let producer_source = "proc original {value} {}; proc removed {} {}; rename original moved; rename removed {}";
@@ -317,7 +314,6 @@ mod tests {
 
     #[test]
     fn original_workspace_completion_keeps_opaque_slots_and_source_spelling_after_ui_clear() {
-
         let source = "p\n";
         let mut consumer = Analyser::new().analyse(source, "tcl8.6");
         let producer_source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; proc {p $[literal]} {} {}";
@@ -367,10 +363,8 @@ mod tests {
         assert!(items(source, 1, &consumer, &index, "p").is_empty());
     }
 
-
     #[test]
     fn original_workspace_completion_requires_the_consumers_own_protocol() {
-
         let producer = Analyser::new().analyse("proc public {} {}", "tcl8.6");
         let index = WorkspaceIndex::from_documents([("file:///producer.tcl", &producer)]);
         for dialect in ["jimtcl", "tcl9.0", "f5-irules"] {
@@ -395,7 +389,6 @@ mod tests {
 
     #[test]
     fn original_workspace_hosted_completion_preserves_its_own_source_policy_and_unknown_inputs() {
-
         let source = "p\n";
         let mut consumer = Analyser::new().analyse(source, "f5-irules");
         let mut producer = Analyser::new().analyse(

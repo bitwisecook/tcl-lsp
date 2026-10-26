@@ -739,7 +739,6 @@ mod empty_world_tests {
     }
     #[test]
     fn detached_final_owner_can_release_nested_registration_without_pool_borrow() {
-
         // Software allocation control: native public values do not prove
         // Rust destructor or registration-table identity.
         use std::cell::RefCell;

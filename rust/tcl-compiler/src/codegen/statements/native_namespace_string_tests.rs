@@ -35,7 +35,6 @@ fn emit_source<'a>(
 
 #[test]
 fn original_namespace_tail_emits_the_observed_counted_compiler_program() {
-
     // Proof: naming.namespace.original-counted-tail-compiler-and-runtime. The three
     // C8.6+ disassemblies share this program; C8.4/8.5 invoke the worker.
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -79,7 +78,6 @@ fn original_namespace_tail_emits_the_observed_counted_compiler_program() {
 
 #[test]
 fn original_namespace_tail_unknown_worker_withdraws_the_compiler_program() {
-
     use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
@@ -108,7 +106,6 @@ fn original_namespace_tail_unknown_worker_withdraws_the_compiler_program() {
 
 #[test]
 fn original_namespace_qualifiers_emits_the_observed_counted_compiler_loop() {
-
     // Proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime.
     // The C8.6+ disassemblies retain the back edge that strips a colon run.
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

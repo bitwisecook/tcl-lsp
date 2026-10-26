@@ -611,7 +611,6 @@ mod tests {
 
     #[test]
     fn original_jim_public_truth_matches_two_original_api_cache_and_result_windows() {
-
         // Only direct public API out/result and pre-observer original cache/String
         // windows are compared; this does not assert a whole script or opcode.
         for (case, number, resident) in [
@@ -667,7 +666,6 @@ mod tests {
 
     #[test]
     fn original_c84_logical_sides_preserve_distinct_selected_primary() {
-
         // Original465 case4 worker6/7 supplies bounded operand-stage expectations.
         // There is no whole expression result or all-provider assertion here.
         let mut vm = native("tcl8.4");

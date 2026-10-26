@@ -104,7 +104,6 @@ impl RuleProcedureTarget {
     /// fabricated. Local, malformed and unknown targets supply no candidate.
     #[must_use]
     pub fn referenced_rule_spelling(target: &str) -> Option<&str> {
-
         let (rule, procedure) = target.rsplit_once("::")?;
         if rule.is_empty() || procedure.is_empty() || procedure.contains('/') {
             return None;
@@ -175,7 +174,6 @@ mod tests {
     }
     #[test]
     fn original_rule_spelling_candidates_do_not_fabricate_ownership() {
-
         for (target, spelling) in [
             ("Lib::one", "Lib"),
             ("/Common/folder/Lib::one", "/Common/folder/Lib"),

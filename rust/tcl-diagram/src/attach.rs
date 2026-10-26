@@ -269,7 +269,6 @@ pub fn attach_reach_for_source_context(
     source: &str,
     context: &tcl_irules::OriginalIrulesSourceContext,
 ) -> AttachReach {
-
     let mut reach = AttachReach::default();
     if !context.matches_source(source) {
         return reach;
@@ -365,7 +364,6 @@ pub fn proc_call_refs_for_analysis(
     analysis: &tcl_compiler::analyser::AnalysisResult,
     context: &tcl_registry::model::ContextRegistry,
 ) -> Vec<String> {
-
     let Some((image, config)) = tcl_compiler::source_graph::current_analysis(source, analysis)
     else {
         return Vec::new();
@@ -467,7 +465,6 @@ mod tests {
 
     #[test]
     fn original_attachment_reports_keep_dynamic_values_unconstrained() {
-
         for source in [
             "when HTTP_REQUEST {pool \"web_[HTTP::host]\"}",
             "when HTTP_REQUEST {set p web_pool; pool $p}",
@@ -488,7 +485,6 @@ mod tests {
 
     #[test]
     fn original_attachment_reports_require_actual_kind_ordinal_and_current_source() {
-
         let source = "when CLIENT_ACCEPTED {pool $p; node $n; snatpool $s; snat pool $chosen; snat $address}";
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry).unwrap();
@@ -571,7 +567,6 @@ mod tests {
     }
     #[test]
     fn original_rule_references_require_guarded_metadata_and_current_owners() {
-
         let profile = DialectProfile::irules();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
         let source =

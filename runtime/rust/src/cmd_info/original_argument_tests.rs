@@ -129,7 +129,6 @@ fn compare_public(interp: &mut Interp, code: Code, capture: &str, case: usize) {
 
 #[test]
 fn original_info_default_positive_rows_keep_selected_getter_order_and_borrowed_value() {
-
     // Only C505b successful cases2/3 public bytes/tape; native reference counts,
     // error-context getters, dispatch ownership and Jim default stay separate.
     for &(profile, capture) in &ORIGINALS[..5] {
@@ -191,7 +190,6 @@ fn original_info_default_positive_rows_keep_selected_getter_order_and_borrowed_v
 
 #[test]
 fn original_info_default_failed_lookup_leaves_destination_getter_unreached() {
-
     // Selected InfoDefaultCmd source/API stage only. Actual505b EvalObjv error
     // context reads destinationC; this direct worker does not assert that tape.
     for &(profile, _) in &ORIGINALS[..5] {
@@ -243,7 +241,6 @@ fn original_info_default_failed_lookup_leaves_destination_getter_unreached() {
 
 #[test]
 fn original_info_getter_first_cause_stops_later_operands_and_result_publication() {
-
     // Real extension updater Host/context changes; software completion transport.
     for mode in [1, 2] {
         let mut interp = native("tcl8.6");
@@ -300,7 +297,6 @@ fn original_info_getter_first_cause_stops_later_operands_and_result_publication(
 
 #[test]
 fn original_info_exists_public_row_preserves_original_name_on_all_six_providers() {
-
     // Exact505b case17 name getter and public result only; no internal cache/ref equality.
     for &(profile, capture) in ORIGINALS {
         let mut interp = native(profile);
@@ -323,7 +319,6 @@ fn original_info_exists_public_row_preserves_original_name_on_all_six_providers(
 
 #[test]
 fn original_info_direct_name_workers_stop_before_result_after_getter_refusal() {
-
     // Existing direct worker API and selected String producer. No native
     // availability, numeric frame parser or whole dispatcher equivalence.
     for mode in [1, 2] {

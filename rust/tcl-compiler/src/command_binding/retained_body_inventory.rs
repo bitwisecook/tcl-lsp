@@ -51,7 +51,6 @@ impl InvocationProjectionMemo {
         offset: u32,
         prepare: impl FnOnce() -> super::SourceInvocationBinding,
     ) -> Arc<super::SourceInvocationBinding> {
-
         if let Some(retained) = self
             .entries
             .lock()
@@ -185,7 +184,6 @@ mod tests {
             .unwrap()
     }
 
-
     #[test]
     fn original_body_projection_shares_exact_namespace_inventory_and_keeps_body_ranges() {
         let source = "namespace eval a {set x VALUE; set y $x; expr {1 + 2}; expr {3 + 4}}; namespace eval b {expr {5 + 6}}";
@@ -261,7 +259,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn original_body_projection_children_cannot_restore_filtered_or_foreign_origins() {
         let source = "namespace eval a {expr {1 + 2}}; namespace eval b {expr {3 + 4}}";
@@ -308,7 +305,6 @@ mod tests {
             vec![preparations[0].clone()]
         );
     }
-
 
     #[test]
     fn original_body_projection_keeps_full_logical_input_and_withdrawn_owner_separate() {
@@ -385,7 +381,6 @@ mod tests {
         changed.points.clear();
         assert!(!retained.points.is_empty());
     }
-
 
     #[test]
     fn original_body_projection_uses_actual_native_namespace_incarnation() {

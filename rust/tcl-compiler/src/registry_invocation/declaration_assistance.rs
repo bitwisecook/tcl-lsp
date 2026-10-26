@@ -1563,7 +1563,6 @@ mod original_alias_source_schema_tests {
 
     #[test]
     fn original_alias_source_schema_keeps_counted_controls_and_written_operands() {
-
         let source = "set shared 1\nproc first {argument} {global shared; upvar #0 shared link; puts $link}\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let image = tcl_lexer::SourceImage::document(source);

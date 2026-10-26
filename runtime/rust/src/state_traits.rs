@@ -618,7 +618,6 @@ fn native_dictionary_array_pairs(
     interp: &Interp,
     target: &ArrayTarget,
 ) -> Result<Option<Vec<(*mut TclObj, *mut TclObj)>>, tcl_syntax::value::ValueError> {
-
     let Some(root) = VarStore::get_bytes(interp, target.frame(), target.name_bytes())? else {
         return Ok(None);
     };
@@ -1660,7 +1659,6 @@ mod tests {
 
     #[test]
     fn unsupported_variable_inventory_policy_preserves_original_guest_state() {
-
         // Software purpose/refusal control; no original C/Jim observation.
         leak_free(|interp| {
             interp.set_result_bytes(b"RESULT BEFORE");
@@ -2022,7 +2020,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_completion_capture_keeps_options_getter_host_cause_and_owned_handles() {
-
         for route in 0..3 {
             let mut interpreter = original();
             let original = Owned::fresh(obj::alloc_typed(&ORIGINAL_METADATA, 0));
@@ -2099,7 +2096,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_completion_capture_refuses_restored_context_before_abi_publication() {
-
         for route in 0..3 {
             let mut interpreter = original();
             let original_context = interpreter.runtime_context();
@@ -2160,7 +2156,6 @@ mod original_completion_capture_tests {
     }
     #[test]
     fn original_completion_capture_preserves_counted_guest_codes_options_and_references() {
-
         for code in 0..=7 {
             let mut interpreter = original();
             let original = Owned::fresh(crate::interp::new_string(b"GUEST\0\xff"));
@@ -2245,7 +2240,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_command_roles_keep_typed_capture_refusal_and_borrowed_argv() {
-
         for route in 0..3 {
             let mut interpreter = original();
             interpreter.register_builtin(b"original_completion_probe", return_original);
@@ -2307,7 +2301,6 @@ mod original_completion_capture_tests {
 
     #[test]
     fn original_public_completion_keeps_before_body_currency_and_reached_script_effects() {
-
         for (sourced, guest_code) in [
             (false, 0),
             (false, 1),

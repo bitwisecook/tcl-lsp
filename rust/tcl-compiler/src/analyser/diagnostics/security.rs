@@ -901,7 +901,6 @@ mod original_capture_edit_tests {
 
     #[test]
     fn original_captured_advice_keeps_readonly_subjects_without_call_operand_edits() {
-
         let input = input();
         for (written, captured, code, captured_word) in [
             (
@@ -962,7 +961,6 @@ mod original_capture_edit_tests {
 
     #[test]
     fn original_captured_case_action_is_not_a_written_quoting_operand() {
-
         let input = input();
         let written = Analyser::new()
             .with_resolved_input(input.clone())
@@ -993,7 +991,6 @@ mod original_quoting_child_purpose_tests {
 
     #[test]
     fn original_quoting_child_keeps_bom_alias_and_complete_pattern_word() {
-
         // Authored quoting idiom metadata only; no native helper implementation or sanitised value is proved.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context =
@@ -1042,7 +1039,6 @@ mod original_catch_child_purpose_tests {
 
     #[test]
     fn original_catch_child_keeps_bom_teardown_alias_and_complete_parent_guards() {
-
         // Authored teardown syntax only; no executed cleanup or successful completion is proved.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig {

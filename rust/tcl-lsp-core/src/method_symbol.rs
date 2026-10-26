@@ -1461,7 +1461,6 @@ mod tests {
 
     #[test]
     fn logical_class_calls_keep_their_separate_source_consumer_domain() {
-
         let source = "oo::class create C {self method ping {} {}}; C ping";
         let result = Analyser::new().analyse(source, "tcl");
         assert!(result.allows_retained_logical_declaration_advice());
@@ -1497,7 +1496,6 @@ mod tests {
 
     #[test]
     fn original_class_call_method_candidates_keep_call_horizons_and_captured_selectors() {
-
         let source = "oo::class create C {self method ping {} {}}; C ping; rename C M; C ping; M ping; interp alias {} A {} M ping; A; rename M {}; M ping";
         let result = analysis(source);
         assert!(result.original_completed_command_world().is_none());
@@ -1539,7 +1537,6 @@ mod tests {
 
     #[test]
     fn original_workspace_class_method_candidates_use_current_slots_and_canonical_targets() {
-
         let library_source = "oo::class create C {self method ping {} {}}; rename C M";
         let library = analysis(library_source);
         let caller_source = "M ping; C ping";
@@ -1907,7 +1904,6 @@ mod own_object_tests {
 
     #[test]
     fn original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables() {
-
         let source = r"oo::class create C {method shared {} {return CLASS}}; C create object; C create sibling; oo::objdefine object {method shared {} {}; method p\uD800 {} {}; method p\uD801 {} {}}; object shared; object p\uD800; object p\uD801; sibling shared";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -1954,7 +1950,6 @@ mod own_object_tests {
 
     #[test]
     fn original_own_object_generation_and_private_entries_block_class_advice() {
-
         let source = "oo::class create C {method shared {} {return CLASS}; method Hidden {} {}; export Hidden}; C create object; oo::objdefine object {method shared {} {return FIRST}; method Hidden {} {}}; object shared; oo::objdefine object method shared {} {return SECOND}; object shared; object Hidden";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let first = u32::try_from(source.find("object shared;").unwrap()).unwrap() + 7;

@@ -578,7 +578,6 @@ mod tests {
 
     #[test]
     fn logical_complete_value_words_keep_explicit_compatibility_behaviour() {
-
         let source = "puts {salt and pepper}";
         let action = run(source, 5, u32::try_from(source.len()).unwrap(), "seasoning").unwrap();
         assert!(action.disabled.is_none());
@@ -638,7 +637,6 @@ mod tests {
     /// pepper"` is already valid, wrapping it in `expr {…}` breaks it.
     #[test]
     fn logical_invalid_multiword_value_never_becomes_a_four_argument_set() {
-
         let source = "puts helper {a and b} $x";
         assert!(run(source, 5, u32::try_from(source.len()).unwrap(), "result").is_none());
         assert!(
@@ -653,7 +651,6 @@ mod tests {
 
     #[test]
     fn logical_one_line_body_insertion_remains_inside_the_original_body() {
-
         let source = "proc p {} {puts literal}";
         let start = u32::try_from(source.find("literal").unwrap()).unwrap();
         let action = run(source, start, start + 7, "result").unwrap();
@@ -665,7 +662,6 @@ mod tests {
 
     #[test]
     fn logical_extraction_keeps_supplied_availability_and_source_configuration() {
-
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             surface: registry.get("dict").unwrap().surface,
@@ -728,7 +724,6 @@ mod tests {
 
     #[test]
     fn original_variable_extraction_never_promotes_naming_proposals_to_motion_permission() {
-
         for source in [
             "proc p {} {puts literal}; p",
             "proc p {} {puts literal; puts $result}; p",
@@ -784,7 +779,6 @@ mod tests {
     }
     #[test]
     fn original_extraction_validates_complete_word_before_unlicensed_advice() {
-
         // Geometry is read-only; this genuine Native input supplies no motion or store licence.
         let source = "proc p {} {puts literal}; p";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

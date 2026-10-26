@@ -91,7 +91,6 @@ const CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_child_alias_publication_matches_all_36_native_public_windows() {
-
     // Replay each complete original source without altering counted input.
     // Literal U+00E9 is UTF-8 source; NUL and FF are produced by binary format.
     // NAME_BEFORE, definition, invocation, command inventory, actual alias API,

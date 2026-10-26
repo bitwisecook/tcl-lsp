@@ -3373,7 +3373,6 @@ command add_parameter {\narity 1..\n}\n}\n";
 
     #[test]
     fn original_pack_store_keeps_file_bom_and_nested_splice_geometry() {
-
         let source = "\u{feff}speclib demo 1.0 {\ncommand visible {arity 0}\n\u{feff}command hidden {arity 0}\n}\n";
         let store = PackStore::from_source(source);
         assert_eq!(store.source(), source);

@@ -715,7 +715,6 @@ mod tests {
 
     #[test]
     fn namespace_runtime_root_requires_current_or_global_table_membership() {
-
         let registry = CommandRegistry::build_default();
         for version in TclVersion::ALL {
             let protocol = NativeNameProtocol::C(version);
@@ -986,7 +985,6 @@ mod tests {
             assert_eq!(cell_key(&alias), cell_key(&target));
         }
     }
-
 
     #[test]
     fn counted_runtime_input_rejects_missing_or_conflicting_recipe_and_preserves_extent() {

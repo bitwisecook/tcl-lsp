@@ -28,7 +28,6 @@ fn prepare(interpreter: &Interp) {
 
 #[test]
 fn original_compiled_counter_retirement_checks_same_header_temporary_and_frame_before_adoption() {
-
     // Direct layout setup observes the software storage API, not Native admission.
     for mode in [0, 1, 3] {
         let mut interpreter = fixture::native("tcl9.0");
@@ -102,7 +101,6 @@ fn original_compiled_counter_retirement_checks_same_header_temporary_and_frame_b
 
 #[test]
 fn original_compiled_fresh_counter_keeps_its_single_temporary_native_role() {
-
     let mut interpreter = fixture::native("tcl9.0");
     let _current = fixture::install(&mut interpreter, 0);
     prepare(&interpreter);

@@ -1204,7 +1204,6 @@ mod tests {
 
     #[test]
     fn original_injection_public_completions_match_both_c9_releases() {
-
         macro_rules! original_case {
             ($directory:literal, $case:literal) => {
                 (include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/", $case, ".tcl")), [
@@ -1384,7 +1383,6 @@ mod original_operand_tests {
 
     #[test]
     fn coroutine_probe_and_injection_keep_opaque_names_and_original_objects() {
-
         let mut interp = native();
         assert_eq!(
             interp.eval_str(b"coroutine c apply {{} {return [yield READY]}}"),

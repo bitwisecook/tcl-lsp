@@ -3356,7 +3356,6 @@ mod tests {
 
     #[test]
     fn inline_source_recovery_keeps_ingress_expansion_and_quote_grammar() {
-
         // Opaque compatibility syntax owns lexical shape, never Native admission.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
@@ -3399,7 +3398,6 @@ mod tests {
 
     #[test]
     fn retained_source_lexing_does_not_supply_native_invocation_admission() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -3442,7 +3440,6 @@ mod tests {
 
     #[test]
     fn original_inline_argument_emitters_keep_lexical_nul_and_escape_values() {
-
         // Lexical emission and opcode wiring only; no native process or handler claim.
         let registry = CommandRegistry::build_default();
         for version in tcl_dialect::TclVersion::ALL {
@@ -3526,7 +3523,6 @@ mod tests {
 
     #[test]
     fn original_regexp_argument_indices_survive_consumed_options() {
-
         let registry = CommandRegistry::build_default();
         let version = tcl_dialect::TclVersion::V8_6;
         let config = tcl_lexer::LexerConfig::from_grammar(
@@ -3609,7 +3605,6 @@ mod tests {
 
     #[test]
     fn original_argument_ordinals_keep_worker_prefixes_and_derived_heads_separate() {
-
         let registry = CommandRegistry::build_default();
         let version = tcl_dialect::TclVersion::V8_6;
         let config = tcl_lexer::LexerConfig::from_grammar(
@@ -3678,7 +3673,6 @@ mod tests {
 
     #[test]
     fn original_argument_emission_refuses_missing_stale_and_unavailable_lexical_receipts() {
-
         let registry = CommandRegistry::build_default();
         let version = tcl_dialect::TclVersion::V8_6;
         let config = tcl_lexer::LexerConfig::from_grammar(

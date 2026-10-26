@@ -368,7 +368,6 @@ mod tests {
 
     #[test]
     fn original_namespace_body_keeps_completed_child_and_restores_parent() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = "namespace eval A {proc p {} {}}; set checkpoint READY";
             let bindings = analyse(source, version);
@@ -398,7 +397,6 @@ mod tests {
 
     #[test]
     fn original_namespace_activation_retains_selected_source_identity_before_child_words() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = "namespace eval A {proc p {} {}}; set checkpoint READY";
             let bindings = analyse(source, version);
@@ -426,7 +424,6 @@ mod tests {
 
     #[test]
     fn original_namespace_body_refuses_unrepresented_and_abrupt_children() {
-
         for version in tcl_dialect::TclVersion::ALL {
             for source in [
                 "namespace eval A {unknownChild}",

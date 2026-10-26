@@ -762,7 +762,6 @@ mod tests {
 
     #[test]
     fn original_lambda_namespace_uses_native_list_children_and_proved_omission() {
-
         // This tests a genuine source-list projection and retained namespace
         // inventory, independently of the SDK's actual Apply worker.
         for version in tcl_dialect::TclVersion::ALL
@@ -801,7 +800,6 @@ mod tests {
 
     #[test]
     fn original_lambda_namespace_refuses_foreign_source_and_configuration() {
-
         let version = tcl_dialect::TclVersion::V8_6;
         let source = "namespace eval ns {}; apply {{} {} ns}";
         let (state, input, config) = original_lambda_operand(source, version);
@@ -838,7 +836,6 @@ mod tests {
 
     #[test]
     fn original_counted_namespace_allocation_retains_components_and_lifetimes() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let (mut state, input) =
                 original_namespace_operand(r"namespace eval N\uD800::child {}", version);
@@ -889,7 +886,6 @@ mod tests {
 
     #[test]
     fn original_counted_namespace_frame_uses_relative_original_children() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"namespace eval N\uD800 {namespace eval child {proc p {} {}; namespace export p}; set insideCheckpoint READY}; set checkpoint READY";
             let registry =
@@ -947,7 +943,6 @@ mod tests {
 
     #[test]
     fn original_counted_namespace_allocation_refuses_foreign_unknown_and_duplicate_geometry() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let (mut state, input) =
                 original_namespace_operand(r"namespace eval N\uD800 {}", version);

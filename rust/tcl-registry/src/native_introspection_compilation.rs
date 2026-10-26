@@ -250,7 +250,6 @@ mod tests {
 
     #[test]
     fn info_commands_selection_matches_one_hundred_fifty_five_original_compiler_windows() {
-
         // Rows project original native opcode observations; no registration or runtime
         // authority is supplied by the pure source recipe comparison.
         let rows = include_str!("../tests/data/native_info_commands_literal_original/windows.tsv");

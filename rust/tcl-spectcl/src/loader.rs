@@ -9489,7 +9489,6 @@ mod tests {
 
     #[test]
     fn original_abstract_definition_grammar_loads_without_changing_factory_visibility() {
-
         let pack = evaluate_pack(
             "speclib probe 1.1 { command makeAbstract { definition_body tcloo-abstract; \
              manufacturer create -names-instance-at 1 -definition-body-at 2 -constructor-args-from 2 } }",
@@ -9651,7 +9650,6 @@ mod tests {
 
     #[test]
     fn incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics() {
-
         for (field, rows) in [
             (
                 "state_transitions",
@@ -13046,7 +13044,6 @@ mod tests {
     }
     #[test]
     fn original_loader_notices_retain_their_typed_property_and_flag_subjects() {
-
         let source = "speclib demo 1 {\n command demo::x {\n arty 1; arg 0 -rle Body\n }\n}\n";
         let pack = evaluate_pack(source);
         let subjects: Vec<_> = pack
@@ -13135,7 +13132,6 @@ mod tests {
 
     #[test]
     fn original_pack_source_facade_separates_file_prologue_from_block_content() {
-
         use tcl_lexer::SourceSegmentationPurpose::{NestedScript, WholeInput};
         let source = "\u{feff}speclib probe {1.1} {\ncommand visible {arity 0}\n\u{feff}command hidden {arity 0}\n}";
         let pack = evaluate_pack(source);

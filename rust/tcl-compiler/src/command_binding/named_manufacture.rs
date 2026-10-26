@@ -224,7 +224,6 @@ mod tests {
 
     #[test]
     fn original_named_manufacture_keeps_the_canonical_cell_and_complete_receiver_call() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             for (name, method, expected) in [
                 ("object", "pick", b"object".as_slice()),
@@ -328,7 +327,6 @@ mod tests {
 
     #[test]
     fn original_named_manufacture_result_retains_opaque_units_without_a_written_word() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let source = r"oo::class create C {method pick {} {return body}}; set held [C create object\uD800]; $held pick";
             let bindings = analyse(source, version);
@@ -352,7 +350,6 @@ mod tests {
 
     #[test]
     fn original_named_manufacture_result_does_not_close_an_unknown_setter_mode() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let source = r"oo::class create C {method pick {} {return body}}; set held [C create object\uD800]; $held pick";
             let mut compilation = crate::environment_ingress::authoring_native_compilation();
@@ -377,7 +374,6 @@ mod tests {
 
     #[test]
     fn original_named_manufacture_result_survives_a_genuine_called_scalar_frame() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let source = r"oo::class create C {method pick {} {return body}}; proc make {} {set held [C create object\uD800]; $held pick}; make";
             let bindings = analyse(source, version);
@@ -401,7 +397,6 @@ mod tests {
 
     #[test]
     fn original_named_manufacture_declines_occupied_unknown_and_failed_construction() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             for source in [
                 "proc object {} {}; oo::class create C {}; C create object; object pick",

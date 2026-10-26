@@ -787,7 +787,6 @@ on_both_engines! {
 
 #[test]
 fn script_timing_resolver_retains_structured_payload_kinds() {
-
     let slot = one_hook(tcl_spec_hooks::tclvm_host, HookProgram::new(
         "mylib::timed", HookFamily::ScriptTimingResolver,
         "if {[dict get $ctx nwords] == 2 && [lindex [dict get $ctx kinds] 1] eq \"dynamic\"} { timing 1 Deferred }",

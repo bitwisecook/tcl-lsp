@@ -241,7 +241,6 @@ mod tests {
 
     #[test]
     fn lookup_layout_keeps_literal_group_after_dynamic_key() {
-
         use InvocationWord::{Dynamic, Literal};
         assert_eq!(
             project(&[Literal("lookup"), Dynamic, Literal("uri_redirect_map")]),

@@ -217,7 +217,6 @@ pub(crate) fn select_navigation<'a>(
     character: u32,
     resolution: crate::definition::CallResolution<'_>,
 ) -> ControlFlow<Option<NavigationVariable<'a>>> {
-
     // The sealed factory positively selects the full Logical source owner;
     // inherited authored simulation in the compatibility flag is separate.
     if let Some(formal) = logical_formal_navigation(source, analysis, line, character) {
@@ -660,7 +659,6 @@ mod tests {
 
     #[test]
     fn original_alias_navigation_joins_name_templates_without_original_cell_selection() {
-
         let source = "proc p {i} {upvar ::n::a($i) data; lappend data value; puts $data}; proc sibling {} {puts $data}";
         for version in tcl_dialect::TclVersion::ALL {
             let mut analysis = Analyser::new().analyse(source, version.dialect_name());
@@ -757,7 +755,6 @@ mod tests {
 
     #[test]
     fn original_navigation_keeps_caller_templates_separate_from_unbound_symbols() {
-
         let source = "proc make {n} {upvar 1 $n target; set target 1}\nproc caller {} {make shared; puts $shared}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl9.0");
         analysis.all_procs.clear();
@@ -813,7 +810,6 @@ mod tests {
 
     #[test]
     fn original_variable_editor_selection_uses_bytes_and_complete_source_currency() {
-
         let source = r"set ::N::v\uD800 1
 set ::N::v\uD801 2
 info exists ::N::v\uD800";
@@ -846,7 +842,6 @@ info exists ::N::v\uD800";
 mod logical_formal_tests {
     #[test]
     fn logical_navigation_reuses_declared_formal_scope_and_exact_reads() {
-
         let source = "proc general {longleft longright} {list $longleft $longright $longleft}";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(

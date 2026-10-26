@@ -1260,7 +1260,6 @@ mod tests {
 
     #[test]
     fn captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal() {
-
         // Held original source binding and explicit stock loader; no physical
         // package load, execution or future lifecycle is observed by this test.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();

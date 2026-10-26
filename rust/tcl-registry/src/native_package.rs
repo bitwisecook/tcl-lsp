@@ -604,7 +604,6 @@ mod tests {
 
     #[test]
     fn package_name_keys_keep_native_units_and_package_extent_separate() {
-
         use tcl_dialect::TclVersion;
         use tcl_syntax::naming::NamePolicyProtocol;
 
@@ -752,7 +751,6 @@ mod manifest_key_tests {
 
     #[test]
     fn original_package_manifest_atom_roundtrips_the_selected_key_and_channel() {
-
         for version in TclVersion::ALL {
             let policy = NamePolicyProtocol::authored_tcl(version);
             let config = tcl_lexer::LexerConfig::from_grammar(

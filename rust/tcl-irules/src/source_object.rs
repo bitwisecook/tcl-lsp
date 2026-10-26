@@ -101,7 +101,6 @@ pub fn original_source_object_operands(
     selected: &ResolvedInvocation<'_, '_>,
     rule_module: Option<&str>,
 ) -> Vec<IrulesSourceObjectOperand> {
-
     let arguments = selected.words.arguments();
     let Some(count) = arguments.exact_argv_len() else {
         return Vec::new();
@@ -294,7 +293,6 @@ mod tests {
 
     #[test]
     fn original_attachment_operands_keep_snat_pool_purpose_and_original_cardinality() {
-
         let context = tcl_registry::model::ingress::static_context_for("f5-irules");
         let select = |head, args: &[InvocationWord<'_>]| {
             tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(

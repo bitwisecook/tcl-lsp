@@ -5,7 +5,6 @@ use crate::{counters, interp::Interp};
 
 #[test]
 fn original_array_member_trace_horizons_match_six_native_source_results() {
-
     // Compare all original completions and complete public log values. Jim's
     // original unavailable trace API is retained as its own guest error.
     macro_rules! provider {

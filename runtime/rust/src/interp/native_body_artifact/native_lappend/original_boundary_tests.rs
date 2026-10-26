@@ -178,7 +178,6 @@ fn exercise(profile: &str, mode: u8) {
 }
 #[test]
 fn original_compiled_lappend_checks_same_receiver_and_frame_before_list_adoption() {
-
     // Software extension callbacks; no external Native refcount chronology grant.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2, 3, 4] {
@@ -188,14 +187,12 @@ fn original_compiled_lappend_checks_same_receiver_and_frame_before_list_adoption
 }
 #[test]
 fn original_compiled_lappend_keeps_current_conversion_and_real_native_roles() {
-
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         exercise(profile, 0);
     }
 }
 #[test]
 fn original_argument_list_concat_checks_source_free_before_target_mutation_and_full_range() {
-
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2, 3] {
             let mut actual = fixture::native(profile);
@@ -238,7 +235,6 @@ fn original_argument_list_concat_checks_source_free_before_target_mutation_and_f
 
 #[test]
 fn original_neutral_list_helpers_keep_actual_alias_copy_and_reference_roles() {
-
     // Neutral alias/copy roles are software controls, without Native authority.
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
     let empty = fixture::string(b"");

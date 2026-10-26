@@ -696,7 +696,6 @@ mod configuration_surface_tests {
 
     #[test]
     fn actual_ensemble_missing_selector_usage_is_selected_independently_of_info() {
-
         // The separate public originals exercise stock info; this pure API control
         // independently checks the generic dispatcher recipe. Pinned source:
         // C8.5 tclNamesp.c:6050; C8.6 tclEnsemble.c:1717; C9.0:1787; C9.1:1788.

@@ -338,8 +338,6 @@ mod tests {
 
     #[test]
     fn original_scalar_coordinates_retain_the_selected_public_member() {
-
-
         // Those native windows prove compiler shapes. This test checks the
         // shared coordinate projection from selected metadata onto original words.
         let registry = crate::CommandRegistry::build_default();

@@ -3793,7 +3793,6 @@ impl Analyser {
         invocation_offset: u32,
         span: Span,
     ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
-
         let policy = self.declaration_name_policy()?;
         self.head_identities
             .original_written_name_input_at_invocation_span(
@@ -5296,7 +5295,6 @@ mod tests {
     #[test]
     fn original_conditional_variable_receivers_keep_absolute_source_geometry_and_unknown_coverage()
     {
-
         let source = r"namespace eval n\uD800 {}
 namespace exists n\uD800
 namespace eval N {}
@@ -5357,7 +5355,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_conditional_variable_receivers_do_not_invent_bare_namespace_targets() {
-
         let source = "unknown_command; namespace eval N {set bare 1; info exists bare}";
         for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
             let analysis = Analyser::new().analyse(source, profile);
@@ -5379,7 +5376,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_write_name_advice_keeps_source_cards_and_authentic_local_frames() {
-
         let source = r"set v\uD800 1; set v\uD801 2; proc p {} {set local 3; set local; unset local; global shared}";
         for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
             let analysis = Analyser::new().analyse(source, profile);
@@ -6660,7 +6656,6 @@ mod original_parent_purpose_tests {
 
     #[test]
     fn original_variable_frames_and_aliases_keep_the_whole_parent_config() {
-
         // Original lexical frames and source alias advice supply no entered link or edit.
         let body = "set ::g VALUE; proc p {} {global g; set local 1; set local; set g}";
         let mut prepared = Analyser::new();

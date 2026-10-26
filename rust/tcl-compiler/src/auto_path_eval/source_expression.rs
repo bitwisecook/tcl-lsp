@@ -329,7 +329,6 @@ pub fn capture_source_path_expression(
     analysis: &AnalysisResult,
     word: &NativeWord,
 ) -> Option<OriginalSourcePathExpression> {
-
     let input = analysis.resolved_input.as_ref()?;
     super::path_constants::authored_policy(input.analyser_profile())?;
     let image = SourceImage::document(source);
@@ -394,7 +393,6 @@ pub fn capture_source_target_path_expression(
     analysis: &AnalysisResult,
     target: &crate::signature_scan::types::SignatureSource,
 ) -> Option<OriginalSourcePathExpression> {
-
     if let Some(original) = &target.original_interpreter_source_load {
         original.matches_analysis(analysis).then_some(())?;
         return capture_source_path_expression(
@@ -496,7 +494,6 @@ pub fn capture_source_auto_path_expression(
     analysis: &AnalysisResult,
     entry: &crate::analyser::types::AutoPathEntry,
 ) -> Option<OriginalSourceAutoPathExpression> {
-
     use crate::analyser::types::AutoPathForm;
     let (source, word, head) = original_path_word(analysis, entry.range)?;
     let words = source_registry_words_at(source, analysis, head)?;
@@ -584,7 +581,6 @@ mod tests {
 
     #[test]
     fn original_source_target_plans_keep_selected_words_and_inventory_currency() {
-
         let source =
             "interp alias {} build {} file join {/ROOT with space}; source [build {literal$é.tcl}]";
         let analysis = analysed(source);
@@ -637,7 +633,6 @@ mod tests {
 
     #[test]
     fn original_auto_path_plans_split_completed_assignment_values_only() {
-
         use super::super::PathConstantLookup;
         for (source, expected) in [
             (
@@ -731,7 +726,6 @@ mod tests {
 
     #[test]
     fn original_source_path_operations_keep_alias_targets_and_bound_values_separate() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         for (source, expected) in [
@@ -786,7 +780,6 @@ mod tests {
 
     #[test]
     fn original_source_path_parts_keep_selected_variable_roots_and_missing_premises() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig {
             braced_var: tcl_dialect::BracedVarStyle::FirstClose,
@@ -850,7 +843,6 @@ mod tests {
 
     #[test]
     fn original_source_path_jim_script_advice_requires_current_known_input_and_explicit_filename() {
-
         let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         let source = "set path [info script]";
@@ -889,7 +881,6 @@ mod original_path_child_purpose_tests {
 
     #[test]
     fn original_path_bracket_keeps_body_bom_and_complete_parent_input() {
-
         // Conditional authored path expression only; no source worker or filesystem grant.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {

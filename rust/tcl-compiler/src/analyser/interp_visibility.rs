@@ -1549,7 +1549,6 @@ impl SourceInterpreterVisibilitySnapshot {
         word: &NativeWord,
         namespace: &SignatureNamespaceScope,
     ) -> Option<OriginalSourceAsciiListValue> {
-
         if word.group().expand
             || word.image() != self.image()
             || word.config() != self.input.lexer_config()
@@ -2408,7 +2407,6 @@ mod tests {
 
     #[test]
     fn original_child_visibility_keeps_default_and_supplied_whole_parent_config() {
-
         // Conditional source visibility; no child interpreter/worker admission.
         let body = "interp create -safe s; interp eval s {source a.tcl}";
         let mut prepared = Analyser::new();
@@ -2466,7 +2464,6 @@ mod tests {
 
     #[test]
     fn original_child_script_positions_retain_list_values_and_reference_timing() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for body in [
                 "uplevel [list source b.tcl]",
@@ -2514,8 +2511,6 @@ mod tests {
 
     #[test]
     fn original_child_receiver_visibility_keeps_unknown_namespace_and_body_owner_explicit() {
-
-
         let source = "interp create -safe s; interp eval s {oo::class create C {method m {} {source a.tcl}}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let observed = subjects(&analysis);
@@ -2553,7 +2548,6 @@ mod tests {
 
     #[test]
     fn original_created_handle_visibility_uses_the_same_child_source_snapshot() {
-
         let handle = "interp create -safe s; s eval {source a.tcl}";
         let path = "interp create -safe s; interp eval s {source a.tcl}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -2605,7 +2599,6 @@ mod tests {
 
     #[test]
     fn original_moved_handle_visibility_uses_the_original_child_path() {
-
         // Independent CLI observations: naming.interpreter.original-created-parent-command-move
 
         for source in [
@@ -2629,8 +2622,6 @@ mod tests {
 
     #[test]
     fn original_child_path_visibility_survives_parent_command_moves() {
-
-
         // Native paths are measured independently; diagnostics and source edges
         // below remain conditional on successful original source operations.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -2662,7 +2653,6 @@ mod tests {
 
     #[test]
     fn original_child_visibility_is_scoped_conditional_and_retains_possible_source_edges() {
-
         // Empirical C source controls: naming.interpreter.safe-visibility-source-controls
 
         // These assertions test source projections. CLI observations do not
@@ -2704,7 +2694,6 @@ mod tests {
 
     #[test]
     fn original_child_visibility_preserves_literal_colon_and_independent_allocations() {
-
         // This source ledger remains conditional and never replaces an actual
         // hidden-slot gate.
         let source = "interp create -safe s\ninterp eval s {proc :source {} {return literal}; namespace eval :ns {proc source {} {return scoped}}; :source; :ns::source; source a.tcl}\ninterp expose s source :visible\ninterp eval s {:visible a.tcl; source b.tcl}";
@@ -2730,7 +2719,6 @@ mod tests {
 
     #[test]
     fn original_child_lambda_visibility_uses_its_own_literal_namespace() {
-
         // Independent original source controls: naming.procedure.original-root-and-colon-holder-publication
 
         // This checks a retained original literal lambda and source lookup
@@ -2774,7 +2762,6 @@ mod tests {
 
     #[test]
     fn original_child_visibility_rejects_foreign_source_configuration_and_generation() {
-
         let source = "interp create -safe s\ninterp eval s {source a.tcl}";
         let result = Analyser::new().analyse(source, "tcl8.6");
         let original = subjects(&result)[0];

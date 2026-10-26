@@ -1115,7 +1115,6 @@ mod tests {
 
     #[test]
     fn original_connection_destruction_keeps_current_availability_and_source_owners() {
-
         // The actual entry retains native source lookup. This query describes
         // selected destruction; it does not execute an unset or supply a cell.
         use crate::analyser::ResolvedAnalysisInput;
@@ -1217,7 +1216,6 @@ mod tests {
 
     #[test]
     fn original_connection_destruction_keeps_captured_aliases_and_unknown_members_separate() {
-
         // Genuine Logical selected source operations grant no Native handler,
         // successful mutation, event worker, storage identity or definite exit.
         use std::sync::Arc;
@@ -1323,7 +1321,6 @@ mod tests {
 
     #[test]
     fn original_connection_summary_requires_the_hosted_module_and_function_owner() {
-
         // Retained appliance authoring policy identifies a source handler; it
         // supplies no executing TMM worker or current connection-frame slots.
         let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
@@ -1545,7 +1542,6 @@ mod tests {
 
     #[test]
     fn cross_event_cells_keep_native_bytes_and_supplied_execution_context() {
-
         use crate::place::{CellGeneration, CellIdentity, CellOwner};
         use tcl_registry::f5::WorkerExecution;
         let local = |bytes: &[u8], execution| {

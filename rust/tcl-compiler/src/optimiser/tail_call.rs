@@ -779,7 +779,6 @@ mod tests {
 
     #[test]
     fn original_allocation_and_grouped_names_control_tail_rewrites() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(dialect)
                 .commands()
@@ -820,7 +819,6 @@ mod tests {
 
     #[test]
     fn produced_expression_commands_retain_readonly_self_identity() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(dialect)
                 .commands()
@@ -1208,7 +1206,6 @@ mod tests {
 
     #[test]
     fn unchanged_original_formal_objects_continue_without_releasing_or_rendering_them() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(name)
                 .commands()
@@ -1381,7 +1378,6 @@ mod original_tail_parser_purpose_tests {
 
     #[test]
     fn original_tail_command_slices_keep_bom_and_retained_return_geometry() {
-
         // Original parser geometry only; the inventory retains independent rewrite obligations.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
@@ -1457,7 +1453,6 @@ mod original_tail_parser_purpose_tests {
 
     #[test]
     fn original_tail_command_extent_keeps_each_written_closer_and_selected_trivia() {
-
         // Actual retained lexical extents only, independently of tail-call rewrites or native entry.
         let profile = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
             .unwrap()
@@ -1506,7 +1501,6 @@ mod original_tail_parser_purpose_tests {
 
     #[test]
     fn original_tail_command_extent_refuses_changed_source_config_vector_and_multiple_commands() {
-
         let profile = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
             .unwrap()
             .unit_profile();

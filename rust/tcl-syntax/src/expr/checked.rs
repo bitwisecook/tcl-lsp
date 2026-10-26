@@ -902,7 +902,6 @@ fn legacy_function_failure_requires_lookup<Text: super::ExprText>(
 mod native_byte_tests {
     #[test]
     fn checked_reference_roots_keep_selected_grammar_and_opaque_source() {
-
         let jim = tcl_dialect::DialectProfile::projected_from_point(
             "jim",
             &[],

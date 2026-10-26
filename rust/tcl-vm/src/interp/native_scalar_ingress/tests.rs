@@ -76,7 +76,6 @@ fn supplied() -> (Vm, Rc<Numeric>) {
 }
 #[test]
 fn original_c84_wide_ingress_preserves_descriptor_without_changing_semantic_getter_equations() {
-
     // The supplied ABI is a software provider; it supplies no recorded Native observation.
     let (mut vm, numeric) = supplied();
     let original = vm.capture_original_scalar_ingress().unwrap();
@@ -126,7 +125,6 @@ fn original_c84_wide_ingress_preserves_descriptor_without_changing_semantic_gett
 }
 #[test]
 fn original_c84_wide_ingress_requires_actual_receipt_and_unchanged_queried_abi() {
-
     let (mut vm, numeric) = supplied();
     let dialect = vm.native_scalar_carrier_dialect();
     let (cache, origin) = carrier::import_scalar(&Carrier::Tcl84Wide(17));
@@ -153,7 +151,6 @@ fn original_c84_wide_ingress_requires_actual_receipt_and_unchanged_queried_abi()
 }
 #[test]
 fn original_c84_wide_ingress_stops_before_abi_after_actual_host_context_or_descriptor_withdrawal() {
-
     for mode in [0, 1, 2, 3] {
         let (mut vm, numeric) = supplied();
         let original = vm.capture_original_scalar_ingress().unwrap();

@@ -105,7 +105,6 @@ impl OoFrame {
     /// This preserves availability selection without making a second name query.
     #[must_use]
     pub(crate) fn admits_selected_spec(self, spec: &tcl_registry::CommandSpec) -> bool {
-
         self.admits_requirements(
             spec.traits
                 .contains(tcl_registry::Traits::TCLOO_METHOD_CONTEXT),

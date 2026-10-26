@@ -2709,7 +2709,6 @@ mod tests {
 
     #[test]
     fn source_substitution_roles_and_footprints_use_retained_availability() {
-
         // Conditional source roles/footprints do not prove dispatch or a Native cell.
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
@@ -2786,7 +2785,6 @@ mod tests {
 
     #[test]
     fn source_substitution_descent_retains_config_and_target_refusal() {
-
         let registry = std::sync::Arc::new(CommandRegistry::build_default());
         let context = tcl_registry::model::ingress::static_context_for("tcl9.0")
             .with_command_store(std::sync::Arc::clone(&registry));
@@ -3619,7 +3617,6 @@ mod original_recovered_source_purpose_tests {
 
     #[test]
     fn original_recovered_word_keeps_bom_and_supplied_input_through_nested_inventory() {
-
         // Conditional lexical inventory; no original child execution or Normal handler grant.
         let mut prepared = crate::analyser::Analyser::new();
         let base = prepared.prepare_analysis_input("tcl9.1").unwrap();
@@ -3701,7 +3698,6 @@ mod original_written_source_tests {
 
     #[test]
     fn original_recovered_written_words_keep_full_source_and_component_extents_separate() {
-
         let config = LexerConfig {
             braced_var: tcl_lexer::BracedVarStyle::FirstClose,
             ..LexerConfig::default()
@@ -3737,7 +3733,6 @@ mod original_written_source_tests {
 
     #[test]
     fn original_written_word_inventory_refuses_changed_cst_vectors_and_source_geometry() {
-
         let config = LexerConfig::default();
         let source = "prefix; list {é $x}";
         let map = SourceMap::new(source);

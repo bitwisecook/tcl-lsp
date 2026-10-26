@@ -38,7 +38,6 @@ fn jim_top_namespace_owns_the_original_context_empty_object() {
 
 #[test]
 fn jim_root_command_context_requires_its_live_original_top_object() {
-
     use tcl_runtime_api::Namespaces;
     let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
     let vm = crate::native_fixture::core(profile);

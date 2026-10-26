@@ -207,7 +207,6 @@ fn source_signature_help(
     command: &SignatureCommandContext,
     options: SignatureHelpOptions<'_>,
 ) -> Option<SignatureHelp> {
-
     let generation = analysis.resolved_input.as_ref()?.context_registry();
     let mut help = words
         .with_source_schema(&generation, |schema| {
@@ -691,7 +690,6 @@ mod tests {
 
     #[test]
     fn original_signature_argument_mapping_keeps_captured_prefixes_without_source_anchors() {
-
         // Rust consumer contract; runtime alias behavior is recorded separately.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let builtin = "interp alias {} strlen {} string length\nstrlen value";
@@ -711,7 +709,6 @@ mod tests {
 
     #[test]
     fn original_signature_expansion_cursor_selects_its_own_list_child() {
-
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let builtin = "string equal {*}{first second}";
             let analysis = Analyser::new().analyse(builtin, dialect);
@@ -734,7 +731,6 @@ mod tests {
 
     #[test]
     fn original_signature_currency_and_registry_survive_reporting_counterfactuals() {
-
         let source = "string length value";
         let mut analysis = analyse(source);
         analysis.dialect = "f5-irules".to_owned();
@@ -1092,7 +1088,6 @@ mod tests {
 
     #[test]
     fn substitution_free_quoted_proc_body_is_a_nested_script_region() {
-
         let src = "proc p {} \"puts hi\"";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
@@ -1304,7 +1299,6 @@ mod original_schema_tests {
 
     #[test]
     fn original_signature_keeps_conditional_source_schema_and_alias_prefixes() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let deferred = "package ifneeded P 1.0 {string length value}";
             let analysis = Analyser::new().analyse(deferred, dialect);
@@ -1367,7 +1361,6 @@ mod original_schema_tests {
 
     #[test]
     fn original_signature_schema_rejects_foreign_context_source_and_known_shadow() {
-
         let source = "package ifneeded P 1.0 {string length value}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let cursor = source.find("value").unwrap() + 3;
@@ -1406,7 +1399,6 @@ mod original_schema_tests {
 
     #[test]
     fn original_signature_jim_selector_uses_its_own_source_schema() {
-
         let source = "proc p {} {info complete value}";
         let analysis = Analyser::new().analyse(source, "jim");
         let cursor = source.find("value").unwrap() + 3;
@@ -1438,7 +1430,6 @@ mod original_schema_tests {
 
     #[test]
     fn original_signature_keeps_explicit_logical_advice_separate() {
-
         let profile = tcl_dialect::DialectProfile::projected_from_point(
             "signature-explicit-logical-source",
             &[],

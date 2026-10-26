@@ -477,7 +477,6 @@ mod tests {
 
     #[test]
     fn original_native_class_factory_roles_require_actual_same_entry_allocations() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
@@ -512,7 +511,6 @@ mod tests {
 
     #[test]
     fn original_native_class_factory_roles_decline_changed_dispatch_and_unknown_topology() {
-
         let version = TclVersion::V9_0;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let (owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);

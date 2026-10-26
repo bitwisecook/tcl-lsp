@@ -98,7 +98,6 @@ impl AnalysisResult {
         command: &crate::segmenter::SegmentedCommand,
         read: u32,
     ) -> Option<OriginalDeclaredSelfMethodTemplate> {
-
         let (context, caller) = caller_context(self, source, command, read)?;
         let image = SourceImage::document(source);
         let config = context.resolved_input().lexer_config();
@@ -349,7 +348,6 @@ mod tests {
     }
     #[test]
     fn original_declared_self_template_uses_source_mixin_without_entering_a_receiver() {
-
         let source = "oo::class create M {method pick {name} {upvar name local; set local VALUE}}
 oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -385,7 +383,6 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
     }
     #[test]
     fn original_declared_self_template_declines_unknown_relations_shadow_and_foreign_source() {
-
         for source in [
             "oo::class create C {mixin Missing; constructor {} {my pick name; puts $name}}",
             "oo::class create M {method pick {name} {}}; oo::class create C {mixin M; constructor {} {proc nested {} {my pick name; puts $name}}}",
@@ -401,7 +398,6 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
     }
     #[test]
     fn original_declared_receiver_traits_keep_caller_names_without_runtime_entry() {
-
         let source = "oo::class create M {method pick {input} {upvar name local; set local VALUE; upvar $input alias; set alias VALUE}}
 oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -450,7 +446,6 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
 
     #[test]
     fn original_declared_receiver_traits_refuse_shadowed_and_foreign_layouts() {
-
         for prelude in [
             "proc upvar {args} {}\n",
             "trace add execution upvar enter {apply {{args} {}}}\n",

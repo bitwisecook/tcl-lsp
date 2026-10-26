@@ -421,7 +421,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_keeps_current_source_and_typed_unavailability() {
-
         use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
         let source = "if 1 {\nset value 1\n}\n";
         let config = FormatterConfig::default();
@@ -473,7 +472,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency() {
-
         use tcl_compiler::analyser::Analyser;
         for ending in ["\n", "\r\n", "\r"] {
             let source = format!("if 1 {{{ending}set value 1{ending}}}{ending}");
@@ -489,7 +487,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode() {
-
         // Source layout/edit coordinates only; captured prefixes gain no written word.
         use tcl_compiler::analyser::Analyser;
         let source =
@@ -533,7 +530,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate() {
-
         // The coverage field neither closes unknown dispatch nor cancels authentic syntax advice.
         use tcl_compiler::analyser::Analyser;
         let config = FormatterConfig::default();
@@ -561,7 +557,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_retains_selected_definition_parent_body_geometry() {
-
         // Member script applicability comes from the genuine retained parent vocabulary.
         use tcl_compiler::analyser::Analyser;
         for ending in ["\n", "\r\n", "\r"] {
@@ -581,7 +576,6 @@ mod tests {
 
     #[test]
     fn analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias() {
-
         // Genuine parent syntax; a global alias grants no member role or trait.
         use tcl_compiler::analyser::Analyser;
         let source =
@@ -617,7 +611,6 @@ mod tests {
 
     #[test]
     fn range_formatting_withdraws_before_analysis_above_lexical_budget() {
-
         let source = format!(
             "set value {{{}}}\r\n",
             "{".repeat(128) + "unformatted  " + &"}".repeat(128)
@@ -682,7 +675,6 @@ mod tests {
 
     #[test]
     fn range_depth_uses_selected_bodies_and_ignores_quoted_braces() {
-
         let source = "set literal \"{\n}\"\nproc p {} {\nif {1} {\nset x 1\n}\n}\n";
         let edits = range_fmt(
             source,
@@ -699,7 +691,6 @@ mod tests {
 
     #[test]
     fn partial_data_word_ranges_preserve_exact_crlf_and_opaque_spelling() {
-
         for source in [
             "set x \"literal   \r\n{ \\uD800   \r\n}\"\r\n",
             "set x \"[set y \"inner   \r\ntext\"] outer\"\r\n",

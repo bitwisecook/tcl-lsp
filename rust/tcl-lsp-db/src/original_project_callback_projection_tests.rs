@@ -31,7 +31,6 @@ fn callback_codes(diagnostics: &[tcl_compiler::analyser::Diagnostic]) -> Vec<Dia
 
 #[test]
 fn supplied_project_callback_projection_matches_tracked_headers_and_source_barriers() {
-
     // This compares conditional source diagnostics, not callback entry.
     for (source, expected) in [
         ("lsort -command cb {2 1}", Some(DiagCode::E003)),
@@ -86,7 +85,6 @@ fn supplied_project_callback_projection_matches_tracked_headers_and_source_barri
 
 #[test]
 fn supplied_project_callback_projection_reads_current_exact_project_headers() {
-
     let mut db = TclDatabase::default();
     let config = configuration(&db);
     let library = SourceFile::new(
@@ -127,7 +125,6 @@ fn supplied_project_callback_projection_reads_current_exact_project_headers() {
 
 #[test]
 fn supplied_project_callback_projection_refuses_foreign_images_inputs_and_horizons() {
-
     let db = TclDatabase::default();
     let source = "proc cb {a} {}\nlsort -command cb {2 1}";
     let file = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
@@ -226,7 +223,6 @@ fn source_owned_advice(analysis: &AnalysisResult) -> (Vec<DiagCode>, Vec<DiagCod
 
 #[test]
 fn legacy_project_advice_requires_positive_retained_logical_input() {
-
     let logical = Analyser::new().analyse(LOGICAL_PROJECT_ADVICE_SOURCE, "tcl");
     assert!(logical.allows_retained_logical_declaration_advice());
     assert_eq!(
@@ -277,8 +273,6 @@ fn legacy_project_advice_requires_positive_retained_logical_input() {
 
 #[test]
 fn supplied_project_callbacks_refuse_unavailable_generation_with_original_receipts() {
-
-
     // Original source signature advice never establishes callback execution.
     let db = TclDatabase::default();
     let source = "lsort -command cb {2 1}";

@@ -666,7 +666,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn original_formals_bind_duplicate_default_rest_and_jim_setter_roles() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -698,7 +697,6 @@ mod tests {
         assert!(fixture("tcl8.6", b"$parameters").is_none());
         assert!(fixture("tcl8.6", b"{*}{a}").is_none());
     }
-
 
     #[test]
     fn decoded_formal_installation_uses_storage_keys_and_fresh_frame_only() {

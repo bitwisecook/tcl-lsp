@@ -1559,7 +1559,6 @@ mod tests {
 
     #[test]
     fn assignment_kind_metadata_keeps_effective_alias_words_and_supplied_availability() {
-
         // Source candidate classification only; no receiver allocation or current class.
         let baseline = crate::environment_ingress::context_for_profile(
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),

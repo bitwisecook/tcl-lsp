@@ -224,7 +224,6 @@ mod tests {
 
     #[test]
     fn scalar_source_proposals_preserve_native_operand_and_complete_reference() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(dialect)).unwrap();
             let profile = if dialect == "jim" {

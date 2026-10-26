@@ -103,7 +103,6 @@ mod tests {
 
     #[test]
     fn finite_source_count_bounds_cannot_borrow_unlimited_sentinel() {
-
         // Registry metadata representability only; the native proof observes
         // argv counts 0..5 and does not establish these large-count boundaries.
         use tcl_syntax::formal_params::FormalArgumentCountShape as Shape;

@@ -156,7 +156,6 @@ fn formatter(
 }
 #[test]
 fn original_property_setter_retires_cache_and_members_before_sequential_hash() {
-
     // Software formatter/count observation at the inspected C91 stage; no Native callback chronology.
     for fail in [false, true] {
         let (mut vm, _, target) = provided();
@@ -227,7 +226,6 @@ fn original_property_setter_retires_cache_and_members_before_sequential_hash() {
 }
 #[test]
 fn original_property_setter_acquires_all_incoming_roles_and_keeps_first_duplicate_header() {
-
     let (mut vm, _, target) = provided();
     let incoming = numeric(&vm, 42);
     let callback = formatter(&mut vm, &incoming, false, None);
@@ -267,7 +265,6 @@ fn original_property_setter_acquires_all_incoming_roles_and_keeps_first_duplicat
 }
 #[test]
 fn original_property_registration_compares_before_acquiring_working_list_member() {
-
     let (mut vm, _, target) = provided();
     let original = numeric(&vm, 42);
     let callback = formatter(&mut vm, &original, false, None);
@@ -309,7 +306,6 @@ fn original_property_registration_compares_before_acquiring_working_list_member(
 }
 #[test]
 fn original_property_slot_composition_keeps_original_headers_and_empty_append_is_noop() {
-
     let (mut vm, _, target) = provided();
     let first = Value::new_native_string_bytes(b"-first".as_slice());
     let second = Value::new_native_string_bytes(b"-second".as_slice());
@@ -373,7 +369,6 @@ fn original_property_slot_composition_keeps_original_headers_and_empty_append_is
 }
 #[test]
 fn original_property_facet_and_restored_context_refuse_before_setter_effects() {
-
     for restored_context in [false, true] {
         let (mut vm, class, _) = provided();
         let original = Value::new_native_string_bytes(b"-later".as_slice());
@@ -418,7 +413,6 @@ fn original_property_facet_and_restored_context_refuse_before_setter_effects() {
 }
 #[test]
 fn original_property_epoch_refusal_stops_later_publishers_with_full_first_cause() {
-
     let (mut vm, class, _) = provided();
     let cache = vm.native_all_property_header(class, true, false).unwrap();
     let scope = NativeOperationScope::enter(&mut vm).unwrap();

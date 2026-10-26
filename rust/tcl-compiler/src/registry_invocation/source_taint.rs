@@ -1149,7 +1149,6 @@ mod tests {
 
     #[test]
     fn hosted_taint_lowering_keeps_the_invocations_whole_original_image() {
-
         let source = "when HTTP_REQUEST {set x [HTTP::query]; HTTP::respond 200 content $x}";
         let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
             .default_context_registry();
@@ -1206,7 +1205,6 @@ mod tests {
 
     #[test]
     fn hosted_source_taint_metadata_requires_actual_words_context_and_registry() {
-
         let source = "HTTP::respond 200 content $x";
         let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
             .default_context_registry();

@@ -259,7 +259,6 @@ impl Fixture {
 }
 #[test]
 fn original_jim_active_worker_retirement_reenters_without_borrows_and_keeps_guest_codes() {
-
     for code in [0, 1, 2, 3, 4, 7] {
         let mut fixture = Fixture::new(false, code, 0, 0);
         assert_eq!(fixture.run(), Code::from_int(code));
@@ -275,7 +274,6 @@ fn original_jim_active_worker_retirement_reenters_without_borrows_and_keeps_gues
 }
 #[test]
 fn original_jim_previous_workers_retire_after_current_outside_namespace_borrows() {
-
     let mut fixture = Fixture::new(true, 0, 0, 0);
     assert_eq!(fixture.run(), Code::Ok);
     fixture.assert_cleanup(true);
@@ -289,7 +287,6 @@ fn original_jim_previous_workers_retire_after_current_outside_namespace_borrows(
 }
 #[test]
 fn original_jim_final_retirement_preserves_first_host_and_restored_context_refusals() {
-
     for fail_role in [0, 1] {
         for mode in [1, 2] {
             for guest in [0, 1, 2, 7] {

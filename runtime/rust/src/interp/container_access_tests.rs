@@ -157,7 +157,6 @@ fn query(interpreter: &Interp, route: u8) -> bool {
 }
 #[test]
 fn original_container_queries_check_the_reached_getter_before_dictionary_adoption() {
-
     // Byte-container compatibility is independent of original Jim command COW.
     for route in 0..4 {
         for mode in 0..3 {
@@ -198,7 +197,6 @@ fn original_container_queries_check_the_reached_getter_before_dictionary_adoptio
 }
 #[test]
 fn original_container_conversion_retires_the_primary_outside_all_storage_borrows() {
-
     for mode in 0..3 {
         let mut interpreter = native("jim");
         let value = Owned::fresh(obj::alloc_typed(&PRIMARY, 0));
@@ -232,7 +230,6 @@ fn original_container_conversion_retires_the_primary_outside_all_storage_borrows
 }
 #[test]
 fn original_container_frame_observation_cannot_adopt_a_new_frame_at_the_same_level() {
-
     let mut interpreter = native("jim");
     interpreter.frames.borrow_mut().push(GLOBAL);
     let value = Owned::fresh(obj::alloc_typed(&LAZY, 0));
@@ -265,7 +262,6 @@ fn original_container_frame_observation_cannot_adopt_a_new_frame_at_the_same_lev
 }
 #[test]
 fn original_container_queries_keep_existing_reference_roles_across_all_native_profiles() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
         let value = text(b"V\0TAIL");
@@ -301,7 +297,6 @@ fn original_container_queries_keep_existing_reference_roles_across_all_native_pr
 }
 #[test]
 fn original_container_transition_retires_real_member_keys_before_root_publication() {
-
     // An explicit physical model transition is software state, not a Native C/Jim observation.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..3 {
@@ -362,7 +357,6 @@ fn original_container_transition_retires_real_member_keys_before_root_publicatio
 }
 #[test]
 fn original_container_member_getters_refuse_changed_and_restored_dictionary_backings() {
-
     for mode in [0, 5, 6] {
         let mut interpreter = native("jim");
         let key = Owned::fresh(obj::alloc_typed(&KEY, 0));

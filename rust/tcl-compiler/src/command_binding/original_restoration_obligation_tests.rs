@@ -60,7 +60,6 @@ fn positioned<'a>(module: &'a Module, input: &ResolvedAnalysisInput) -> &'a Sour
 
 #[test]
 fn original_native_restoration_retains_required_script_and_procedure_provider_plans() {
-
     // Original held source/metadata only; no compiler or successful execution grant.
     let (_held, input, module) =
         native_module("tcl8.6", "puts [list VALUE]; foreach item [list VALUE] {}");
@@ -96,7 +95,6 @@ fn original_native_restoration_retains_required_script_and_procedure_provider_pl
 
 #[test]
 fn original_native_restoration_refuses_missing_changed_and_foreign_obligations_without_repair() {
-
     let (_held, input, module) =
         native_module("tcl8.6", "puts [list VALUE]; foreach item [list VALUE] {}");
     let owner = positioned(&module, &input);
@@ -137,7 +135,6 @@ fn original_native_restoration_refuses_missing_changed_and_foreign_obligations_w
 
 #[test]
 fn original_native_restoration_requires_full_failure_contexts_and_dependency_generations() {
-
     // A native compiler failure stays an entry obligation after metadata restoration.
     let (_held, input, module) =
         native_module("tcl8.4", "set flag 0; set before 1; if {$flag} {set}");

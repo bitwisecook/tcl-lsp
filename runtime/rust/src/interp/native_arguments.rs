@@ -247,7 +247,6 @@ mod tests {
 
     #[test]
     fn original_argument_entry_keeps_counts_and_does_not_read_later_strings() {
-
         // Software API control; counted transport grants no external naming equivalence.
         let interpreter = native();
         let first = obj::Owned::fresh(obj::new_string_bytes(b"A\0\xff"));
@@ -268,7 +267,6 @@ mod tests {
 
     #[test]
     fn original_argument_getter_first_host_or_context_restore_stops_later_read_and_effect() {
-
         // Genuine extension updater effects remain reached; no native C/Jim order claim.
         for change in [false, true] {
             let mut interpreter = native();
@@ -304,7 +302,6 @@ mod tests {
 
     #[test]
     fn original_argument_lifetime_does_not_revive_a_retired_native_header() {
-
         let interpreter = native();
         let original = obj::Owned::fresh(obj::new_string_bytes(b"retired"));
         let pointer = original.as_ptr();
@@ -332,7 +329,6 @@ mod tests {
     }
     #[test]
     fn original_dispatch_owns_currency_before_worker_and_preserves_reached_guest_state() {
-
         let mut interpreter = native();
         interpreter.register_builtin(b"originalChangingWorker", changing_worker);
         let name = obj::Owned::fresh(obj::new_string_bytes(b"originalChangingWorker"));
@@ -371,7 +367,6 @@ mod original_receiver_tests {
 
     #[test]
     fn captured_arguments_accept_only_the_same_physical_receiver_and_original_header() {
-
         // Actual software ownership controls; equal native context is no issuer.
         let interpreter = actual();
         let clone = interpreter.clone();
@@ -411,7 +406,6 @@ mod original_receiver_tests {
 
     #[test]
     fn foreign_receiver_mismatch_keeps_its_existing_complete_first_cause() {
-
         let interpreter = actual();
         let mut receiver = actual();
         let captured = OriginalArguments::enter(&interpreter, &[]).unwrap();

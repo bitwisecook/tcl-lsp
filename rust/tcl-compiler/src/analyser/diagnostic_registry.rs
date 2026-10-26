@@ -270,7 +270,6 @@ impl OriginalDiagnosticInvocation {
         words: OriginalRegistryWords,
         context: Arc<tcl_registry::model::ContextRegistry>,
     ) -> Option<Self> {
-
         words.with_source_schema(&context, |_| ())?;
         words.head_source()?.word()?;
         Some(Self {
@@ -471,7 +470,6 @@ impl OriginalDiagnosticInvocation {
         Some(super::DiagnosticSubject::RegistrySource(subject))
     }
     fn required_package_key(&self) -> Option<tcl_registry::native_package::NativePackageNameKey> {
-
         let package = self
             .with_schema(source_descriptors)?
             .command

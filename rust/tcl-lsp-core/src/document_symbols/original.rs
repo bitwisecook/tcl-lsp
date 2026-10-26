@@ -667,7 +667,6 @@ mod tests {
 
     #[test]
     fn original_vendor_outline_keeps_source_cards_after_reporting_maps_are_erased() {
-
         let source = "proc helper {argument} {return $argument}\nproc p\\uD800 {} {}\nwhen HTTP_REQUEST {}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-irules");
         assert_eq!(analysis.original_vendor_procedure_declarations().count(), 2);
@@ -858,7 +857,6 @@ mod registry_ledger_tests {
 
     #[test]
     fn original_registry_outline_uses_sealed_roles_and_names_after_reporting_maps_clear() {
-
         let source = r"package require tcltest; tcltest::test case\uD800 first -body {} -result {}; tcltest::test case\uD801 second -body {} -result {}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         assert_eq!(analysis.original_symbol_declarations().count(), 2);

@@ -203,7 +203,6 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
         facts: &InvocationFacts,
     ) -> bool {
-
         let Some(BoundedMethodDefinition {
             grammar,
             original_factory,
@@ -1687,7 +1686,6 @@ pub(super) fn closed_definition_member(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-
     let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
     let values = source_effective_words(words.words(), state.baseline.dialect, None);
     let Some(head) = values
@@ -2238,7 +2236,6 @@ mod tests {
 
     #[test]
     fn original_overlapping_mixin_keeps_declared_body_without_a_dispatch_chain() {
-
         let source = "oo::class create M {method a::b {arg} {}}\n\
                       oo::class create C {mixin M; method a::b {} {next 1 2}}";
         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {

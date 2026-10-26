@@ -17,7 +17,6 @@ impl DeclarationLayoutObservation {
         registry: &tcl_registry::CommandRegistry,
         purpose: crate::script_binds::Ownership,
     ) -> Option<crate::ir_helpers::VariableWriteEffects> {
-
         let source = self.entry.source();
         let state = &self.snapshot.state;
         if state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())
@@ -65,7 +64,6 @@ mod tests {
 
     #[test]
     fn original_body_ownership_keeps_explicit_standalone_and_missing_supplied_separate() {
-
         // A conditional source alias name is not an installed alias/frame.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -108,7 +106,6 @@ mod tests {
 
     #[test]
     fn original_body_ownership_rejects_foreign_input_and_changed_body_grammar() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();

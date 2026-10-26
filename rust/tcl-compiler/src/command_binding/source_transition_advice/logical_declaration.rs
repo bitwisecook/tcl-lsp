@@ -17,7 +17,6 @@ impl crate::command_binding::SourceCommandBindings {
         context: &ContextRegistry,
         original: &[NativeWord],
     ) -> Option<OriginalSourceCommandTransitionAdvice> {
-
         let input = self.original_logical_source_name_advice_input()?;
         if !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context) {
             return None;
@@ -102,7 +101,6 @@ impl crate::command_binding::SourceCommandBindings {
 mod tests {
     #[test]
     fn original_logical_nested_header_retains_declared_body_and_full_input() {
-
         let source = "proc p {longname} {return $longname}\n";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);

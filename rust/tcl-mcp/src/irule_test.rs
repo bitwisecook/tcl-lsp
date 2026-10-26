@@ -764,7 +764,6 @@ mod tests {
 
     #[test]
     fn original_irule_path_annotations_join_emitting_extents_instead_of_labels() {
-
         let warning = Taint {
             code: "IRULE3001".to_owned(),
             source_span: Some([21, 25]),

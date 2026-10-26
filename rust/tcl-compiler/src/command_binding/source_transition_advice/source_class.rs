@@ -764,7 +764,6 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         owner: Option<SourceClassDeclarationOwner<'_>>,
     ) -> Option<SourceClassDeclarationFacet> {
-
         let selected = schema.authored_source_descriptors().command;
         let grammar = selected.definition_body?;
         if schema.facts().arity_accepts_frozen_arguments() != Some(true)
@@ -1259,7 +1258,6 @@ mod tests {
 
     #[test]
     fn c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutation() {
-
         // An unentered non-empty `TclOO` definition body leaves the
         // unresolved-command uncertainty: the later relative factory head in
         // the same namespace is still a source class, with that obligation.
@@ -1300,7 +1298,6 @@ mod tests {
 
     #[test]
     fn c_source_namespace_class_declarations_retain_original_body_and_conditional_scope() {
-
         use super::super::SourceCommandTransitionObligation;
         use crate::registry_invocation::source_structure::source_class_declaration_at;
         let source = "namespace eval outer {namespace eval inner {oo::class create Widget {method m {} {}}}}";
@@ -1494,7 +1491,6 @@ mod tests {
 
     #[test]
     fn original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar() {
-
         // A Native source-name model is not a entered Native constructor receipt.
         for dialect in ["tcl9.0", "tcl9.1"] {
             let environment =
@@ -1584,7 +1580,6 @@ mod tests {
 
     #[test]
     fn original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -1634,7 +1629,6 @@ mod tests {
 
     #[test]
     fn original_logical_constructor_shape_keeps_canonical_factory_without_native_authority() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -1688,7 +1682,6 @@ mod tests {
 
     #[test]
     fn original_class_constructor_call_keeps_alias_prefix_move_and_canonical_declaration() {
-
         let source = "oo::class create C {constructor {x} {}}; rename C Held; interp alias {} make {} Held create; make c value";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("make c value").unwrap()).unwrap();
@@ -1728,7 +1721,6 @@ mod tests {
 
     #[test]
     fn original_constructor_substitution_keeps_whole_child_words_and_selected_body() {
-
         for source in [
             "oo::class create C {constructor {x} {}}; set o [C new value]",
             "oo::class create C {constructor {x} {}}; interp alias {} make {} C new; set o [make value]",
@@ -1778,7 +1770,6 @@ mod tests {
 
     #[test]
     fn original_constructor_substitution_refuses_compound_words_and_multiple_commands() {
-
         for source in [
             "oo::class create C {}; set o prefix[C new value]",
             "oo::class create C {}; set o [C new value; puts other]",
@@ -1795,7 +1786,6 @@ mod tests {
 
     #[test]
     fn original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         for (source, obligation) in [
             (
@@ -1845,7 +1835,6 @@ mod tests {
     #[test]
     fn original_source_class_keeps_conditional_factory_after_unknown_call_but_known_replacement_blocks()
      {
-
         let source = "oo::class create C {constructor {x} { }}; C new one; C new two";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         for (ordinal, marker) in ["C new one", "C new two"].into_iter().enumerate() {
@@ -1880,7 +1869,6 @@ mod tests {
 
     #[test]
     fn original_constructor_manufacturer_visibility_keeps_call_source_horizon() {
-
         for (source, selector, visible) in [
             (
                 "oo::class create C {}; C createWithNamespace obj ::ns value; oo::objdefine C export createWithNamespace",
@@ -1926,7 +1914,6 @@ mod tests {
 
     #[test]
     fn original_class_constructor_call_refuses_known_factory_or_class_replacement_and_cycles() {
-
         for source in [
             "proc oo::class args {}; oo::class create C {}; C new value",
             "oo::class create C {}; proc C args {}; C new value",
@@ -1945,7 +1932,6 @@ mod tests {
     #[test]
     fn original_class_constructor_call_preserves_expansion_and_refuses_private_or_overridden_makers()
      {
-
         let source = "oo::class create C {constructor args {}}; C new {*}$values";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("C new").unwrap()).unwrap();
@@ -1973,7 +1959,6 @@ mod tests {
 
     #[test]
     fn original_source_class_family_uses_selected_definer_not_metaclass_reporting_label() {
-
         let source = "rename oo::class Maker; Maker create C {}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let record = analysis.original_class_declarations().next().unwrap();
@@ -1990,7 +1975,6 @@ mod tests {
 
     #[test]
     fn original_snit_constructor_call_retains_explicit_and_bare_provider_layouts() {
-
         for (invocation, from) in [("T create t value", 2), ("T t value", 1)] {
             let source = format!(
                 "package require snit; snit::type T {{constructor {{x}} {{}}}}; {invocation}"
@@ -2013,7 +1997,6 @@ mod tests {
     }
     #[test]
     fn original_native_class_names_keep_distinct_source_units_without_ascii_report_gate() {
-
         // Native Unicode name observation is separate: naming.corner.command-distinct-unicode.
         // These assertions check source producer/publication geometry, not execution.
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -2063,7 +2046,6 @@ mod tests {
     }
     #[test]
     fn original_factory_attempt_keeps_source_incarnation_without_constructor_visibility() {
-
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,

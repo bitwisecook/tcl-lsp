@@ -411,7 +411,6 @@ mod tests {
 
     #[test]
     fn original_class_head_selection_keeps_earlier_call_horizons_and_known_terminals() {
-
         let source = "oo::class create C {}; C; rename C M; C; M; interp alias {} A {} M method; A; rename M {}; M; A";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(analysis.original_completed_command_world().is_none());
@@ -445,7 +444,6 @@ mod tests {
 
     #[test]
     fn original_class_completion_declines_a_captured_selector_position() {
-
         for (source, expected) in [
             ("oo::class create C {}; interp alias {} A {} C; A ", true),
             (

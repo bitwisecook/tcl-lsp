@@ -2359,7 +2359,6 @@ mod tests {
 
     #[test]
     fn original_inline_body_tokens_keep_nested_bom_and_parent_point_correspondence() {
-
         // Original source geometry only; this control supplies no Native compilation admission.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
@@ -2439,7 +2438,6 @@ mod tests {
 
     #[test]
     fn original_try_handler_argument_emission_keeps_the_child_source_scope() {
-
         let registry = CommandRegistry::build_default();
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);

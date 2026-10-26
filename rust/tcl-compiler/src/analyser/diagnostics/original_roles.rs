@@ -175,7 +175,6 @@ mod tests {
 
     #[test]
     fn original_channel_diagnostics_preserve_typed_anchor_and_shadow_controls() {
-
         for source in [
             "puts bogus hello",
             "puts {bogus} hello",

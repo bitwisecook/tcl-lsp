@@ -395,7 +395,6 @@ impl super::CommandBindingRealm {
         tokens: &crate::ir::CommandTokens,
         original: &[tcl_lexer::NativeWord],
     ) -> Option<crate::command_binding::DeclaredSourceSelection> {
-
         let config = input.lexer_config();
         let image = self.original_source_image()?;
         if tokens.synthetic.is_some()
@@ -1071,7 +1070,6 @@ impl super::CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         original: &[tcl_lexer::NativeWord],
     ) -> Option<OriginalSourceCommandTransitionAdvice> {
-
         let image = self.original_source_image()?;
         let config = input.lexer_config();
         if !self.matches_resolved_analysis_input(input)

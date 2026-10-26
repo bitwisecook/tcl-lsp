@@ -1955,7 +1955,6 @@ mod tests {
 
     #[test]
     fn standalone_frame_write_advice_keeps_unprofiled_catalogue_separate_from_missing_input() {
-
         // Explicit catalogue advice proves no actual source input, frame or write.
         let registry = CommandRegistry::build_default();
         assert!(registry.profile().is_none());
@@ -2001,7 +2000,6 @@ mod tests {
 
     #[test]
     fn supplied_global_write_metadata_keeps_alias_arguments_and_literal_names() {
-
         // Conditional source summaries establish no Native frame/link/current cell.
         let registry = CommandRegistry::build_default();
         for (source, expected) in [
@@ -2051,7 +2049,6 @@ mod tests {
 
     #[test]
     fn supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar() {
-
         let registry = CommandRegistry::build_default();
         let module = module_with_registry("proc p {} {uplevel #0 {set g VALUE}}", &registry);
         assert!(
@@ -2090,7 +2087,6 @@ mod tests {
 
     #[test]
     fn supplied_script_write_projection_uses_current_roles_instead_of_call_defs() {
-
         let mut registry = CommandRegistry::build_default();
         registry.insert(CommandSpec {
             name: "gated-write",
@@ -2137,7 +2133,6 @@ mod tests {
 
     #[test]
     fn supplied_global_write_call_closure_includes_source_expression_targets() {
-
         let module = module(
             "proc mutate {} {global g; set g VALUE; return 0}; proc p {} {return [expr {[mutate]}]}",
         );
@@ -2157,7 +2152,6 @@ mod tests {
     /// Equal leaf names retain independent body summaries.
     #[test]
     fn same_tailed_bodies_retain_independent_write_summaries() {
-
         let m = module(
             "namespace eval ::b {}; namespace eval ::a {}\n\
              proc ::b::run {} { global bbb; set bbb 1 }\n\
@@ -2175,7 +2169,6 @@ mod tests {
 
     #[test]
     fn proc_with_no_global_write_is_empty() {
-
         let m = module("proc ::p {} { set x 1 }");
         let info = detect_global_write_procs(&m);
         assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
@@ -2183,7 +2176,6 @@ mod tests {
 
     #[test]
     fn direct_global_write_recorded() {
-
         // The `mutate` repro: global x; set x 99.
         let m = module("proc ::mutate {} { global x; set x 99 }");
         let info = detect_global_write_procs(&m);
@@ -2815,7 +2807,6 @@ mod tests {
 
     #[test]
     fn logical_nested_write_projection_requires_original_children_not_literal_brackets() {
-
         let registry = CommandRegistry::build_default();
         for (source, expected) in [
             ("proc p {} {set y [incr x]}", true),
@@ -2848,7 +2839,6 @@ mod tests {
 
     #[test]
     fn embedded_incr_in_command_substitution_recorded() {
-
         let m = module("proc ::p {} { global x\nset y [incr x] }");
         let info = detect_global_write_procs(&m);
         assert!(

@@ -978,7 +978,6 @@ mod tests {
 
     #[test]
     fn retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots() {
-
         // Original SSA/representation projection; no C process/cache identity claim.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();

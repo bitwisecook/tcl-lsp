@@ -258,7 +258,6 @@ mod tests {
 
     #[test]
     fn original_logical_roots_keep_exact_document_geometry_and_native_refusal() {
-
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             tcl_dialect::DialectProfile::plain_tcl().grammar,
         );

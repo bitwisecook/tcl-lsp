@@ -65,7 +65,6 @@ const MAX_FORMAT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::Recursi
 /// structure. Excessively nested data is conservatively preserved as a whole;
 /// lexical containment alone never identifies a command or script operand.
 pub(crate) fn source_within_formatting_budget(source: &str, config: &FormatterConfig) -> bool {
-
     matches!(
         Lexer::with_config(source, config.lexer_config())
             .braced_word_nesting_within(MAX_FORMAT_DEPTH),
@@ -346,7 +345,6 @@ fn normalise_param_list(text: &str, rules: WordValueRules) -> String {
 fn native_param_list_source(
     input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
 ) -> Option<String> {
-
     let elements = input.original_list_elements()?;
     let values = elements
         .iter()
@@ -363,7 +361,6 @@ fn original_static_spelling_value(
     input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
     config: &FormatterConfig,
 ) -> Option<Vec<u8>> {
-
     let key = input.original_word_key()?;
     if key.original_word() != word
         || word.config() != config.lexer_config()
@@ -416,7 +413,6 @@ fn original_list_values_match(
     input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
     proposed_value: &[u8],
 ) -> Option<()> {
-
     let original = input.original_list_elements()?;
     let proposed =
         tcl_syntax::list::split_native_list_bytes(proposed_value, input.policy().string_protocol())
@@ -434,7 +430,6 @@ fn normalise_original_param_list(
     input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
     config: &FormatterConfig,
 ) -> Option<String> {
-
     let spelling = native_param_list_source(input)?;
     let proposed_value = original_static_spelling_value(&spelling, word, input, config)?;
     original_list_values_match(input, &proposed_value)?;
@@ -447,7 +442,6 @@ fn render_param_list_arg(
     config: &FormatterConfig,
     logical: bool,
 ) -> String {
-
     match (&arg.original_word, &arg.original_input) {
         (Some(word), Some(input)) => normalise_original_param_list(word, input, config)
             .unwrap_or_else(|| reconstruct_arg(sm, arg, false)),
@@ -466,7 +460,6 @@ fn original_lambda_parameters_match(
     input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
     config: &FormatterConfig,
 ) -> Option<()> {
-
     let original = input.original_list_elements()?;
     let proposed_value = original_static_spelling_value(spelling, word, input, config)?;
     let proposed = tcl_syntax::list::split_native_list_bytes(
@@ -1026,7 +1019,6 @@ fn format_case_list_body(
 /// Operator geometry from the shared expression lexer under the complete
 /// selected source grammar. Literal terms and comments are never scanned again.
 fn find_expr_break_points(text: &str, config: &FormatterConfig) -> Option<Vec<usize>> {
-
     use tcl_lexer::ExprTokenType as E;
     let (tokens, unknown) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
         text,
@@ -1251,7 +1243,6 @@ fn split_commented_code(
 /// Count complete commands through the shared lexer under the full body grammar.
 /// Unavailable source remains outside the inline presentation threshold.
 fn count_body_commands(body_text: &str, config: tcl_lexer::LexerConfig) -> Option<usize> {
-
     let image = tcl_lexer::SourceImage::document(body_text);
     let end = u32::try_from(body_text.len()).ok()?;
     super::source_layout::words_in(&image, tcl_lexer::Span::new(0, end), config)
@@ -1362,7 +1353,6 @@ fn render_lambda_literal_arg(
     never_inline: bool,
     logical: bool,
 ) -> String {
-
     let fallback = || reconstruct_arg(sm, arg, false);
     let Some(elems) = decoded_lambda(arg, logical) else {
         return fallback();
@@ -1909,7 +1899,6 @@ fn presentation_children(
     registry: &CommandRegistry,
     identities: &FormattingSourceLayout,
 ) -> Option<Vec<tcl_lexer::Span>> {
-
     use tcl_lexer::{ExecutablePart, Span, WordKind};
     let mut children = Vec::new();
     for word in words {
@@ -2019,7 +2008,6 @@ pub(crate) fn formatting_range_region(
     registry: &CommandRegistry,
     identities: &FormattingSourceLayout,
 ) -> Option<FormattingRegion> {
-
     use tcl_lexer::{SourceImage, Span};
     let image = SourceImage::document(source);
     let end = u32::try_from(source.len()).ok()?;
@@ -2832,7 +2820,6 @@ mod tests {
 
     #[test]
     fn original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config() {
-
         // Original source presentation only; no callable or Native entry grant.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let lexer_config = tcl_lexer::LexerConfig {
@@ -2884,7 +2871,6 @@ mod tests {
 
     #[test]
     fn original_formatter_range_uses_the_selected_script_prologue_purpose() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = FormatterConfig::for_profile(profile);
         let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -2903,7 +2889,6 @@ mod tests {
         assert_eq!(edits.len(), 1);
         assert_eq!(edits[0].new_text, "\u{feff}puts 1\n");
     }
-
 
     #[test]
     fn original_source_formatting_uses_effective_roles_without_widening_captured_operands() {
@@ -2927,7 +2912,6 @@ mod tests {
         );
         assert!(result.contains("    puts selected"), "{result}");
     }
-
 
     #[test]
     fn original_source_formatting_braces_only_a_retained_literal_equivalence() {
@@ -2980,7 +2964,6 @@ mod tests {
     /// unformatted rather than crashing.
     #[test]
     fn deeply_nested_if_survives_formatting() {
-
         const DEPTH: usize = 2000;
         let mut src = String::new();
         for _ in 0..DEPTH {
@@ -2995,7 +2978,6 @@ mod tests {
 
     #[test]
     fn formatting_budget_preserves_complete_source_before_analysis() {
-
         let source = format!(
             "set value {{{}}}\r\n",
             "{".repeat(128) + "opaque  " + &"}".repeat(128)
@@ -3022,7 +3004,6 @@ mod tests {
 
     #[test]
     fn count_body_commands_counts_top_level_statements() {
-
         let config = FormatterConfig::default().lexer_config();
         for (source, expected) in [
             ("", 0),
@@ -3046,7 +3027,6 @@ mod tests {
 
     #[test]
     fn command_count_retains_complete_body_grammar() {
-
         let source = "puts x\n{y}";
         let config = FormatterConfig::default().lexer_config();
         assert_eq!(count_body_commands(source, config), Some(2));
@@ -3449,7 +3429,6 @@ mod tests {
 
     #[test]
     fn logical_default_formatting_retains_its_whole_context_over_mixed_specs() {
-
         let registry = CommandRegistry::build_default();
         assert!(
             !registry
@@ -3521,7 +3500,6 @@ mod tests {
 
     #[test]
     fn analysed_layout_retains_supplied_entry_and_provider_world_without_recapture() {
-
         // Actual source entry/provider coverage remains independent of source roles.
         use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
         use tcl_compiler::command_binding::SourceAnalysisEntry;
@@ -3975,7 +3953,6 @@ mod tests {
 
     #[test]
     fn original_param_spacing_retains_native_children_and_opaque_units() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = profile_of(name);
             for (source, expected) in [
@@ -4025,7 +4002,6 @@ mod tests {
 
     #[test]
     fn original_param_spacing_declines_foreign_word_and_full_config() {
-
         let source = "{a    b}";
         let (config, mut arg) = original_list_arg(source, profile_of("tcl8.6"));
         let word = arg.original_word.as_ref().unwrap();
@@ -4049,7 +4025,6 @@ mod tests {
 
     #[test]
     fn original_lambda_spacing_checks_nested_formals_before_emission() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = profile_of(name);
             for source in [r"{{a\uD800    b} {puts    ok}}", r"{a\\uD800 {puts    ok}}"] {
@@ -4092,7 +4067,6 @@ mod tests {
 
     #[test]
     fn original_source_formatting_keeps_opaque_formal_word_verbatim() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let output = fmt_dialect(r"proc p {a\uD800    b} {return}", profile_of(name));
             assert!(output.contains(r"{a\uD800    b}"), "{name}: {output}");
@@ -4248,7 +4222,6 @@ mod tests {
 
     #[test]
     fn expression_wrapping_preserves_string_terms_and_declines_comments() {
-
         let config = FormatterConfig::for_profile(profile_of("tcl9.0"));
         let expression = "\"a  b\" eq \"a  b\" && [string equal {c   d} {c   d}]";
         let wrapped = wrap_braced_expr(expression, &config, 0).unwrap();
@@ -4263,7 +4236,6 @@ mod tests {
 
     #[test]
     fn bracket_continuations_preserve_nested_word_data() {
-
         let source = "set x [list \\\n \"a \\\n b\" {c \\\n d}]\n";
         let result = fmt(source);
         assert!(
@@ -4274,7 +4246,6 @@ mod tests {
 
     #[test]
     fn multiline_braced_data_keeps_its_original_continuation() {
-
         let source = "set x {a \\\n b}\n";
         for name in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
             let profile = profile_of(name);
@@ -4357,7 +4328,6 @@ mod tests {
 
     #[test]
     fn procedure_spacing_uses_selected_source_traits() {
-
         let profile = profile_of("tcl8.6");
         let registry = tcl_registry::model::ingress::context_for_profile(profile);
         let config = FormatterConfig {

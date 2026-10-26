@@ -92,7 +92,6 @@ fn hex(bytes: &[u8]) -> String {
 
 #[test]
 fn original_jim_cached_boolean_returns_the_measured_public_integer() {
-
     // These two public primitive rows describe raw output and cache effects;
     // they do not answer the independent ExprBool or command-condition question.
     let protocol =
@@ -125,7 +124,6 @@ fn original_jim_cached_boolean_returns_the_measured_public_integer() {
 
 #[test]
 fn primitive_target_absence_is_terminal_and_does_not_select_fresh_parsing() {
-
     // Software availability contract, not an additional Native capture.
     for fields in [(8, 4, 4), (8, 8, 8), (16, 4, 8), (0, 4, 8)] {
         assert!(
@@ -219,7 +217,6 @@ fn cache_type(cache: Option<&NativeScalarCache>) -> &'static str {
 
 #[test]
 fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
-
     // Exact selected Long rows from both modes. Live failures compare primitive
     // result/errorCode; null rows compare conversion/cache, without publication.
     // Target fields come from each original ABI row, not its profile label.
@@ -314,7 +311,6 @@ fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
 
 #[test]
 fn original_long_octal_failure_keeps_its_integer_purpose() {
-
     // Seven original live failures separate the integer-only Long parser from
     // Double/Boolean hints. Two C9 Long successes retain their measured cache.
     // These public-field comparisons supply no object or expression authority.
@@ -414,10 +410,6 @@ fn original_long_octal_failure_keeps_its_integer_purpose() {
 
 #[test]
 fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations() {
-
-
-
-
     // Five original public primitive fields and three independent final Eval
     // fields. The Int/Long Eval recipe is bounded by the shared original C
     // reset/error-log source, not an additional provider observation here.
@@ -491,7 +483,6 @@ fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations(
 
 #[test]
 fn native_long_unsigned_edge_is_independent_of_native_wide_acceptance() {
-
     let fixture = C_LIVE[3];
     let target = target(fixture);
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V9_0);
@@ -516,7 +507,6 @@ fn native_long_unsigned_edge_is_independent_of_native_wide_acceptance() {
 
 #[test]
 fn primitive_failure_string_obligation_refuses_operand_free_rendering_for_quoted_errors() {
-
     // Availability/purpose contract; the constant recipe supplies no original
     // bytes, while invalid/cached-noninteger diagnostics require their operand.
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_6);
@@ -617,7 +607,6 @@ fn original_c84_boolean_case(
 
 #[test]
 fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_does_not() {
-
     // Public primitive value/cache fields only; expression and command truth
     // follow their own measured purposes. The original C84 library config owns
     // TCL_WIDE_INT_IS_LONG=1 independently of the probe translation unit macro.
@@ -714,7 +703,6 @@ fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_d
 
 #[test]
 fn c84_fresh_numeric_boolean_requires_explicit_target_while_word_and_invalid_do_not() {
-
     // Availability/value projection contract, not a Native execution receipt.
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
     for input in [b"17".as_slice(), b"4294967296", b"1.5", b"NaN", b"08"] {

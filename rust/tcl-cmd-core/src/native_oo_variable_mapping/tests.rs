@@ -146,7 +146,6 @@ fn setup(fail_old: bool) -> (Ops, Vec<Member>) {
 }
 #[test]
 fn original_mapping_role_drop_observes_all_incoming_and_old_visible_before_hash() {
-
     // Actual Rust role Drop observer under the coordinator; no Native callback/count equivalence.
     let (mut ops, original) = setup(false);
     install_original_variable_mapping(&mut ops, &original).unwrap();
@@ -169,7 +168,6 @@ fn original_mapping_role_drop_observes_all_incoming_and_old_visible_before_hash(
 }
 #[test]
 fn original_mapping_first_role_refusal_stops_hash_and_preserves_mandatory_release() {
-
     let (mut ops, original) = setup(true);
     let reached = install_original_variable_mapping(&mut ops, &original).unwrap_err();
     let first = ops.state.first.borrow().clone().unwrap();

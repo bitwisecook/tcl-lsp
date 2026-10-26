@@ -133,7 +133,6 @@ fn table(vm: &Vm, class: bool, target: OoId) -> &MethodTable {
 
 #[test]
 fn original_vm_rename_missing_source_does_not_reach_destination_string() {
-
     // Native source lookup order and the actual supplied formatter are distinct facts.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for class in [false, true] {
@@ -167,7 +166,6 @@ fn original_vm_rename_missing_source_does_not_reach_destination_string() {
 
 #[test]
 fn original_vm_rename_destination_string_failure_keeps_source_and_first_cause() {
-
     // Host formatter refusal is software evidence, not a measured Native callback mode.
     for class in [false, true] {
         let (mut vm, target, formatter) = provided("tcl8.6", class);
@@ -223,7 +221,6 @@ fn original_vm_rename_destination_string_failure_keeps_source_and_first_cause() 
 
 #[test]
 fn original_vm_rename_moves_same_record_and_observes_reached_payload_changes() {
-
     // Real RefCell record flags mutate inside the supplied formatter; no Native flag parity is inferred.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for class in [false, true] {
@@ -258,7 +255,6 @@ fn original_vm_rename_moves_same_record_and_observes_reached_payload_changes() {
 
 #[test]
 fn original_vm_rename_source_receipt_refuses_deleted_and_reborn_slot() {
-
     // The same production receipt is checked after real public delete/recreate effects.
     // This is a software continuation control, not a Native destination callback claim.
     for class in [false, true] {
@@ -311,7 +307,6 @@ fn original_vm_rename_source_receipt_refuses_deleted_and_reborn_slot() {
 
 #[test]
 fn original_vm_rename_record_receipt_keeps_context_aba_first_cause() {
-
     let (mut vm, target, formatter) = provided("tcl8.6", true);
     let reached = original_name_operands::run_result(&mut vm, Some((true, target)), |vm, names| {
         let selected = OriginalMethodRenameSource::capture(&vm.oo, true, target, "m").unwrap();

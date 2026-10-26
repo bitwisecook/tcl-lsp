@@ -71,7 +71,6 @@ fn refuse(interpreter: &Interp, error: tcl_syntax::value::ValueError) -> CmdErro
 }
 #[test]
 fn original_list_current_retirement_adopts_once_without_an_extra_header_role() {
-
     let interpreter = native();
     let value = original();
     let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
@@ -96,7 +95,6 @@ fn original_list_current_retirement_adopts_once_without_an_extra_header_role() {
 }
 #[test]
 fn original_list_reentrant_primary_and_restore_refuse_before_backing_adoption() {
-
     // Real primary callbacks; these are software bounds, not C callback parity.
     for mode in [1, 2, 3, 4] {
         let mut interpreter = native();
@@ -181,7 +179,6 @@ static MEMBER: TclObjType = TclObjType {
 };
 #[test]
 fn original_list_failed_adoption_retires_the_actual_prepared_member_before_settlement() {
-
     let mut interpreter = native();
     let value = original();
     let member = obj::alloc_typed(&MEMBER, 0);
@@ -224,7 +221,6 @@ fn original_list_failed_adoption_retires_the_actual_prepared_member_before_settl
 
 #[test]
 fn original_list_primary_guard_precedes_the_unused_member_host_retirement() {
-
     let mut interpreter = native();
     let value = original();
     let member = obj::alloc_typed(&MEMBER, 0);
@@ -275,7 +271,6 @@ fn original_list_primary_guard_precedes_the_unused_member_host_retirement() {
 
 #[test]
 fn original_dictionary_current_and_reentrant_primary_keep_the_same_stage_cause() {
-
     for mode in [0, 1, 2, 3, 4] {
         let mut interpreter = native();
         let value = original();
@@ -361,7 +356,6 @@ impl Drop for ReentrantPrimary {
 
 #[test]
 fn original_operational_conversion_retains_slot_failure_before_unused_member_host() {
-
     // Actual List/Dict converters and the return-instruction adapter retain the
     // earlier slot failure. Software cache/free callbacks confer no Native chronology.
     for operation in 0..3 {
@@ -470,7 +464,6 @@ fn original_copy_series(length: usize, protocol: NativeStringProtocol) -> obj::O
 
 #[test]
 fn original_ordinary_list_projection_keeps_fresh_series_members_and_captured_header_roles() {
-
     let interpreter = original_copy_native();
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
     let value = original_copy_series(3, protocol);
@@ -506,7 +499,6 @@ fn original_ordinary_list_projection_keeps_fresh_series_members_and_captured_hea
 
 #[test]
 fn original_ordinary_list_projection_retirement_refuses_before_new_backing() {
-
     let mut interpreter = original_copy_native();
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
     let value = original_copy_series(2, protocol);
@@ -561,7 +553,6 @@ fn original_ordinary_list_projection_retirement_refuses_before_new_backing() {
 
 #[test]
 fn original_list_copy_projection_keeps_shared_members_and_lazy_abstract_length() {
-
     let interpreter = original_copy_native();
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
     {
@@ -628,7 +619,6 @@ fn original_list_copy_projection_keeps_shared_members_and_lazy_abstract_length()
 
 #[test]
 fn original_list_copy_projection_refuses_reached_retirement_before_fresh_header() {
-
     for mode in [1, 2, 3] {
         let mut interpreter = original_copy_native();
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);

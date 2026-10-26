@@ -1110,7 +1110,6 @@ mod tests {
 
     #[test]
     fn original_package_index_handlers_retain_each_genuine_registration_point() {
-
         let cases = [
             (
                 "package ifneeded p 1.0 {source p.tcl}\npackage ifneeded q 2.0 {source q.tcl}",
@@ -1196,7 +1195,6 @@ mod tests {
 
     #[test]
     fn original_package_index_unknown_entry_value_cannot_close_registration_argv() {
-
         let source = "set {auto_index(p\\u0000tail)} [list source [file join $dir p.tcl]]";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let config = LexerConfig::from_grammar(registry.profile().unwrap().grammar);

@@ -650,7 +650,6 @@ mod tests {
 
     #[test]
     fn variable_completion_requires_positive_logical_input_for_scope_advice() {
-
         let source = "set ordinary 1\nputs $ord";
         let logical = Analyser::new().analyse(source, "tcl");
         assert!(logical.allows_retained_logical_declaration_advice());
@@ -695,8 +694,6 @@ mod tests {
 
     #[test]
     fn original_variable_completion_selects_actual_formal_frame_and_alias_spelling() {
-
-
         let source = "set shared 1\nproc first {argument} {set local 1; global shared; upvar #0 shared link; puts $}\nproc second {other} {set foreign 1}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         analysis.global_scope.variables.clear();
@@ -750,7 +747,6 @@ mod tests {
 
     #[test]
     fn original_vendor_variable_completion_uses_authentic_body_and_formal_source_advice() {
-
         let source = "proc first {argument} {set local 1; set v\\uD800 2; puts $}\nproc second {other} {set foreign 1}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-iapps");
         assert!(analysis.has_original_vendor_source_names());

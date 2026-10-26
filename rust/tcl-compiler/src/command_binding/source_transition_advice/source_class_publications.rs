@@ -173,7 +173,6 @@ impl OriginalSourceClassPublications {
         &'a self,
         analysis: &'a AnalysisResult,
     ) -> Vec<OriginalSourceClassCandidate<'a>> {
-
         if !analysis.matches_original_source_image(&self.image, self.config) {
             return Vec::new();
         }
@@ -348,7 +347,6 @@ mod tests {
 
     #[test]
     fn original_class_publications_keep_current_slots_and_canonical_factories() {
-
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let source = "oo::class create Old {}; oo::class create Removed {}; rename Old New; rename Removed {}";
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -389,7 +387,6 @@ mod tests {
 
     #[test]
     fn original_class_publications_keep_unknown_mutations_and_known_terminals_distinct() {
-
         let source = "oo::class create Old {}; unknown_effect; rename Old New";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let inventory = source_class_publications(source, &analysis).unwrap();
@@ -418,7 +415,6 @@ mod tests {
 
     #[test]
     fn original_class_publications_require_retained_input_and_actual_availability() {
-
         let source = "oo::class create C {}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let inventory = source_class_publications(source, &analysis).unwrap();

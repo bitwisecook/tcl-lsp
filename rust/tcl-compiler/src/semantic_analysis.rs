@@ -997,7 +997,6 @@ mod tests {
 
     #[test]
     fn supplied_semantic_bundle_retains_owner_and_keeps_missing_context_unavailable() {
-
         use std::sync::Arc;
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let actual = Arc::new(generation.with_command_store(Arc::clone(generation.commands())));
@@ -1056,7 +1055,6 @@ mod tests {
 
     #[test]
     fn absent_source_keeps_valid_supplied_metadata_without_invocation_facts() {
-
         let actual =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -1116,7 +1114,6 @@ mod tests {
 
     #[test]
     fn guarded_intrinsics_keep_explicit_standalone_and_supplied_protocols() {
-
         // Metadata-selection control; no Native command or execution receipt is issued.
         use std::sync::Arc;
         let registry = Arc::new(CommandRegistry::build_default());

@@ -1109,7 +1109,6 @@ mod tests {
     #[cfg(have_tommath)]
     #[test]
     fn original_jim_container_and_regex_indices_share_one_original_expression_cache() {
-
         let mut interp = actual();
         let original = obj::Owned::fresh(obj::new_string_bytes(b"2*3"));
         assert_eq!(
@@ -1136,7 +1135,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_integer_bypass_and_bad_string_preserve_primary_and_error_code_stage() {
-
         // Native case 8 observes failed String->Int; second call clamp is source/API control.
         let mut interp = actual();
         let original = obj::Owned::fresh(obj::new_string_bytes(b"2147483648"));
@@ -1163,7 +1161,6 @@ mod tests {
     #[test]
     fn original_jim_index_getter_and_free_callbacks_preserve_full_cause_without_protective_references(
     ) {
-
         // Actual extension callbacks are software controls; no native hostile-callback chronology claim.
         for stage in [1, 2] {
             let mut interp = actual();
@@ -1196,7 +1193,6 @@ mod tests {
     }
     #[test]
     fn original_jim_list_indices_precede_list_getters_but_string_range_gets_its_subject_first() {
-
         // Pinned-source order is checked with actual Runtime extension headers.
         // The original 17-case native probe measures conversion, not this callback program.
         for mode in 0..4 {
@@ -1251,7 +1247,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_lifetime_lease_keeps_allocation_without_reviving_a_native_header() {
-
         let mut interp = actual();
         let original = obj::Owned::fresh(obj::new_string_bytes(b"end"));
         let pointer = original.as_ptr();
@@ -1268,7 +1263,6 @@ mod tests {
     }
     #[test]
     fn original_indexed_string_count_refuses_before_later_indices_and_cache_adoption() {
-
         // Genuine Runtime extension callbacks test this checked API. Native
         // Jim command/cache observations remain the separate pinned17 rows.
         for stage in [1, 2, 11, 12] {
@@ -1313,7 +1307,6 @@ mod tests {
 
     #[test]
     fn original_indexed_list_conversion_refuses_before_backing_adoption() {
-
         // Direct shared List API, original foreign updater/free, same actual
         // entered currency. No native adversarial-callback source claim.
         for stage in [1, 2, 11, 12] {
@@ -1367,7 +1360,6 @@ mod replacement_native_rows629 {
 
     #[test]
     fn original_replacement_matches_every_native_observed_projection() {
-
         // Direct software API controls compare retained public cache/alias/string
         // projections, not EvalObjv stack holds, guest-result publication, native
         // process counters, private C fields, callback chronology or teardown.
@@ -1474,7 +1466,6 @@ mod direct_binary_native_rows634a {
     }
     #[test]
     fn original_direct_c9_binary_replacement_matches_deterministic_native_roles() {
-
         // Direct parsed-range API, exact input constructor/native references;
         // pre-result-getter public primaries/aliases and counted String bytes.
         // This test does not invoke EvalObjv, parse indices or model its argv holds.
@@ -1593,7 +1584,6 @@ mod index_key_ownership_controls {
     }
     #[test]
     fn abstract_index_key_clones_keep_fresh_zero_role_without_native_references_or_element_cache() {
-
         // Genuine Runtime abstract Index constructor and allocation guard API.
         // Guard/refcount/cache cleanup predicates are software controls, not new
         // native callback/refcount observations from the counted command proof.
@@ -1622,7 +1612,6 @@ mod index_key_ownership_controls {
     }
     #[test]
     fn nested_selected_member_has_actual_hold_before_created_parent_cleanup_and_detached_result() {
-
         // Shared key-result API preserves child lifetime across actual created
         // parent retirement; this is an independent software ownership control.
         let mut interpreter = actual();
@@ -1669,7 +1658,6 @@ mod indexed_binary_native_projections633 {
     }
     #[test]
     fn original_indexed_binary_inputs_match_supported_native_public_projections() {
-
         // Every native633 input controls supported cache/type/String geometry.
         // This direct API supplies its own explicit caller references. It does
         // not copy measured EvalObjv temporary holds, fresh aliases, reference
@@ -1755,7 +1743,6 @@ mod parsed_empty_duplicate_control {
     use super::*;
     #[test]
     fn omitted_zero_count_without_in_place_uses_original_duplicate_constructor() {
-
         // The pinned helper source includes this early duplicate branch. This
         // direct software constructor control is not one of the16 native rows.
         let mut interpreter = Interp::with_native_core(
@@ -1798,7 +1785,6 @@ mod original_index_range_native_rows635 {
     }
     #[test]
     fn original_index_and_range_project_exact_measured_public_predicates() {
-
         // Direct API provides its own original owners. We compare public type,
         // residency, deterministic byte and alias predicates, not EvalObjv
         // temporary refcounts or unobserved native private Unicode caches.
@@ -1952,8 +1938,6 @@ mod original_c_string_stage_controls637 {
     }
     #[test]
     fn original_c_binary_pointer_and_reread_stages_use_actual_header_and_no_protective_reference() {
-
-
         // Real software extension updater mutates the selected subject during
         // its original index getter. Native635 public rows do not observe this
         // callback; pinned command branches bound the captured/reread schedule.
@@ -2016,7 +2000,6 @@ mod original_c_string_stage_controls637 {
     #[test]
     fn original_count_free_callback_preserves_first_cause_before_any_index_getter_or_string_cache_adoption(
     ) {
-
         // Actual original extension free callback, not native adversarial evidence.
         for profile in ["tcl8.5", "tcl8.6", "tcl9.0"] {
             let mut ops = actual(profile);
@@ -2050,7 +2033,6 @@ mod original_c_string_stage_controls637 {
     }
     #[test]
     fn original_primary_receipt_refuses_scalar_change_and_restore() {
-
         // Actual software epoch control; no native private-epoch observation.
         let value = obj::Owned::fresh(obj::alloc_typed(&REPLACED, 7));
         let receipt = obj::NativePrimaryReceipt::capture(value.as_ptr()).unwrap();

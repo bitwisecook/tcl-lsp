@@ -23,7 +23,6 @@ fn call(vm: &mut Vm, target: OoId, selector: &Value) -> Completion<Value> {
 }
 #[test]
 fn original_vm_idle_selector_cache_does_not_retain_deleted_method_records() {
-
     // Native506b idle case0 is a separate physical MethodType observation.
     // These assertions cover the VM's exact Rc record and selector cache roles.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -111,7 +110,6 @@ impl NativeCommand for MutateInherited {
 }
 #[test]
 fn original_vm_entered_chain_keeps_all_records_and_reads_current_same_record_payload() {
-
     // Real VM command callbacks and method bodies; no custom C MethodType grant.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..3 {
@@ -153,7 +151,6 @@ fn original_vm_entered_chain_keeps_all_records_and_reads_current_same_record_pay
 }
 #[test]
 fn original_vm_cache_world_does_not_adopt_a_fresh_stamp_after_actual_mutation() {
-
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = native(version);
         source(
@@ -202,7 +199,6 @@ impl NativeCommand for WithdrawContext {
 }
 #[test]
 fn original_vm_method_callback_context_restore_keeps_first_host_and_reached_cache() {
-
     // Context refusal at a genuine VM NativeCommand callback, not a simulated C free hook.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = native(version);
@@ -239,7 +235,6 @@ fn original_vm_method_callback_context_restore_keeps_first_host_and_reached_cach
 
 #[test]
 fn original_vm_method_key_refuses_inherited_context_before_string_and_cache() {
-
     // A real installed context change/restore precedes the original key getter.
     // This is VM ingress ordering, not a C3 extension String-updater observation.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -274,7 +269,6 @@ fn original_vm_method_key_refuses_inherited_context_before_string_and_cache() {
 
 #[test]
 fn original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_payload() {
-
     // Actual selected metadata epoch exhaustion is a software refusal, not Native counter overflow evidence.
     let mut vm =
         crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.1"));
@@ -315,7 +309,6 @@ fn original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_pa
 
 #[test]
 fn original_method_creation_epoch_refuses_after_actual_same_record_payload_retirement() {
-
     // Actual VM record and header roles; no external Native free or epoch claim.
     let mut vm = native("tcl9.1");
     source(&mut vm, "oo::class create C {}");
@@ -384,7 +377,6 @@ fn original_method_creation_epoch_refuses_after_actual_same_record_payload_retir
 
 #[test]
 fn original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_continuation() {
-
     // Same real definition consumers and MethodSlot roles; software order only.
     for constructor in [true, false] {
         for exhausted in [false, true] {

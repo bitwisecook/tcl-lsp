@@ -1304,7 +1304,6 @@ mod tests {
 
     #[test]
     fn original_literal_expression_bracing_preserves_native_argv_and_current_owners() {
-
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let source = "expr \"1 + 2\"";
             let proof = receipt(source, profile)
@@ -1327,7 +1326,6 @@ mod tests {
 
     #[test]
     fn original_literal_expression_bracing_declines_substitution_functions_and_handler_changes() {
-
         for source in [
             "expr {$value}",
             "expr \"$value + 2\"",
@@ -1353,7 +1351,6 @@ mod tests {
 
     #[test]
     fn original_literal_bracing_normality_and_source_reflection_are_independent() {
-
         // Captured natives: naming.expression.braced-error-context-publication
         // and naming.expression.braced-handler-and-observer-boundaries.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {

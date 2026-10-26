@@ -187,7 +187,6 @@ mod tests {
 
     #[test]
     fn selected_if_switch_scalar_syntax_preserves_reference_and_edit_permission() {
-
         for subject in [
             "${a b}",
             "\"${café}\"",

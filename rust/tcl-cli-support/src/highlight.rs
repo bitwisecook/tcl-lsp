@@ -110,7 +110,6 @@ struct HighlightPlan {
 
 impl HighlightPlan {
     fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
-
         let structure = tcl_lsp_core::SourceSyntaxStructure::capture(source, analysis)?;
         let context = analysis.resolved_input.as_ref()?.context_registry();
         let mut commands = HashSet::new();
@@ -377,7 +376,6 @@ mod tests {
 
     #[test]
     fn original_highlight_keeps_data_inert_and_single_line_bodies_visible() {
-
         let profile = crate::environment::profile_for_dialect("tcl8.6");
         let registry = tcl_registry::model::context_for_profile(profile);
         for (source, inner, expected) in [
@@ -396,7 +394,6 @@ mod tests {
 
     #[test]
     fn original_highlight_html_shares_script_regions_and_source_escaping() {
-
         let profile = crate::environment::profile_for_dialect("tcl8.6");
         let data = highlight_html("set value {\nnotACommand\n}", profile);
         assert!(!data.contains("font-weight:600;\">notACommand</span>"));
@@ -408,7 +405,6 @@ mod tests {
 
     #[test]
     fn original_highlight_keeps_selected_alias_prefix_and_shadow_roles() {
-
         let profile = crate::environment::profile_for_dialect("tcl8.6");
         let registry = tcl_registry::model::context_for_profile(profile);
         for (source, expected) in [
@@ -428,7 +424,6 @@ mod tests {
 
     #[test]
     fn original_highlight_keeps_actual_custom_and_reference_only_source_schemas() {
-
         fn reference_only(
             _: tcl_registry::InvocationArguments<'_>,
         ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
@@ -469,7 +464,6 @@ mod tests {
 
     #[test]
     fn original_highlight_uses_actual_c_jim_and_irules_lexical_axes() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = crate::environment::profile_for_dialect(name);
             let context = tcl_registry::model::context_for_profile(profile);

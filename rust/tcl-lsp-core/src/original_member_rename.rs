@@ -663,10 +663,8 @@ mod tests {
         }
     }
 
-
     #[test]
     fn original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear() {
-
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for name in ["pick", r"m\uD800"] {
                 let source = format!(
@@ -700,7 +698,6 @@ mod tests {
 
     #[test]
     fn original_member_body_coverage_uses_whole_words_and_formed_content() {
-
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for (body, expected) in [
                 ("{return body}", Some("return body")),
@@ -748,10 +745,8 @@ mod tests {
         }
     }
 
-
     #[test]
     fn original_member_rename_checks_builtin_roster_visibility_and_source_family_closure() {
-
         let source =
             "oo::class create C {method pick {} {return body}}\nC create object\nobject pick\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

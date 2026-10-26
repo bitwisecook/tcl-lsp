@@ -52,7 +52,6 @@ mod tests {
 
     #[test]
     fn authored_source_path_operations_keep_selected_members_and_exact_effective_argv() {
-
         let registry = crate::CommandRegistry::build_default();
         let query = |head: &str, args: &[&str]| {
             registry

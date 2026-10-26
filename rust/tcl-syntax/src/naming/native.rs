@@ -3355,7 +3355,6 @@ mod tests {
 
     #[test]
     fn ensemble_map_prefix_construction_preserves_counted_heads_before_lookup() {
-
         // Native312 public map heads/calls are separate from this pure API
         // projection; a namespace report alone never selects a physical holder.
         for version in [
@@ -4360,8 +4359,6 @@ mod tests {
 
     #[test]
     fn original_lambda_namespace_preserves_counted_object_and_lookup_purposes() {
-
-
         // SDK raw String00 and ByteArray materialised C080 remain independent.
         // These projections retain selected getter bytes without claiming an
         // original object header or namespace existence from the byte recipe.
@@ -4470,7 +4467,6 @@ mod tests {
 
     #[test]
     fn original_root_procedure_publication_preserves_a_literal_colon() {
-
         // C84/85 TclProcObjCmd only prepends a non-global holder's fullName.
         // CLI source observations are independent of these pure slot assertions.
         for version in VERSIONS {
@@ -4928,7 +4924,6 @@ fn native_oo_counted_method_and_cstring_object_publication_are_distinct() {
 
 #[test]
 fn alias_publication_retains_its_distinct_native_entry_point() {
-
     // Native rooted factory observations motivate table-key comparison; extent
     // controls preserve original/reporting producer bytes independently.
     let namespace = ByteNamespacePath::from_segments(["n"]);
@@ -5217,7 +5212,6 @@ mod command_source_word_tests {
 
 #[test]
 fn original_property_option_extent_is_separate_from_counted_declaration_names() {
-
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
         let recipe = NativeNameProtocol::C(version);
         for (original, expected) in [
@@ -5363,7 +5357,6 @@ mod coroutine_publication_tests {
 
 #[test]
 fn jim_two_word_factory_publication_uses_original_units_and_existing_publication_recipe() {
-
     // Extent cases are pure owner coverage, not additional native probe claims.
     let jim = NativeNameProtocol::Jim084;
     for (class, member, expected) in [
@@ -5435,7 +5428,6 @@ fn jim_two_word_factory_publication_uses_original_units_and_existing_publication
 
 #[test]
 fn child_alias_publication_has_its_own_counted_input_and_c_string_registration() {
-
     // Native298 separately measures child invocation/inventories. This pure
     // projection grants no installed command, original header or parent realm.
     let context_path = ByteNamespacePath::from_segments([b"N".as_slice()]);
@@ -5496,7 +5488,6 @@ mod original_command_key_tests {
 
     #[test]
     fn original_jim_command_key_constructors_keep_independent_capture_purposes() {
-
         // Constructor selection is a pure recipe, not object ownership or a
         // grant to install a command, evaluate a prefix or recover a context.
         let path = ByteNamespacePath::root();

@@ -1785,7 +1785,6 @@ mod tests {
 
     #[test]
     fn literal_name_patterns_keep_closed_element_and_open_root_distinct() {
-
         // Explicit authored-C lexical compatibility, not a physical name lookup.
         assert!(!names_a_dynamic_variable("a($key)"));
         assert!(names_a_dynamic_variable("a($key"));
@@ -1797,7 +1796,6 @@ mod tests {
 
     #[test]
     fn supplied_name_patterns_keep_variable_root_and_namespace_name_purposes() {
-
         // Conditional Logical source coordinates, independent of target/edit identity.
         use crate::analyser::Analyser;
         use crate::registry_invocation::InvocationMetadataContext;
@@ -1862,7 +1860,6 @@ mod tests {
 
     #[test]
     fn supplied_name_patterns_do_not_borrow_native_hosted_or_display_identity() {
-
         use crate::analyser::Analyser;
         use crate::registry_invocation::InvocationMetadataContext;
         use tcl_registry::model::semantic::SemanticContext;
@@ -1931,7 +1928,6 @@ mod tests {
 
     #[test]
     fn supplied_logical_name_patterns_require_an_actual_authored_c_policy() {
-
         use crate::analyser::ResolvedAnalysisInput;
         use crate::registry_invocation::InvocationMetadataContext;
         let profile = tcl_dialect::DialectProfile::projected_from_point(

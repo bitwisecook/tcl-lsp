@@ -32,7 +32,6 @@ fn kind(original: *mut obj::TclObj) -> &'static str {
 }
 #[test]
 fn original_stride_guest_and_header_predicates_match_native644() {
-
     // Direct software commands compare actual108 Guest/result/stride-primary/resident
     // fields before resultgetter. Nativeargvtemporarycounts, resultaliases/privatecache,
     // errorInfo and external callback schedule are excluded. Original argref1 only.

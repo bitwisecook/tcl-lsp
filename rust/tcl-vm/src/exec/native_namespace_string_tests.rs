@@ -101,7 +101,6 @@ fn original_namespace_tail_matches_one_hundred_counted_native_windows() {
 
 #[test]
 fn original_compiled_tail_declines_foreign_policy_and_unreached_unicode_range() {
-
     let mut vm = crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
     let subject = Value::new_native_string_bytes(b"a::tail".as_slice());
     let separator = Value::new_native_string_bytes(b"::".as_slice());
@@ -154,7 +153,6 @@ const QUALIFIERS_INPUTS: [&[u8]; 20] = [
 
 #[test]
 fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows() {
-
     let mut windows = 0;
     for (engine, table) in qualifiers_windows() {
         let mut vm =
@@ -229,7 +227,6 @@ fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_window
 
 #[test]
 fn original_compiled_index_preserves_counted_single_bytes_and_native_units() {
-
     let mut vm = crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
     let needle = Value::new_native_string_bytes(b"::".as_slice());
     let index = Value::new_native_string_bytes(b"0".as_slice());

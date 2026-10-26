@@ -864,7 +864,6 @@ mod tests {
 
     #[test]
     fn package_ifneeded_stores_future_script_without_current_callback_effect() {
-
         use crate::{CallbackKinds, InvocationDialect, InvocationWords, WorldStateDomain};
         let registry = CommandRegistry::build_default();
         for release in tcl_dialect::TclVersion::ALL {
@@ -1089,9 +1088,6 @@ mod tests {
 
     #[test]
     fn jim_package_inventory_keeps_hidden_list_and_excludes_ifneeded() {
-
-
-
         // Authored catalogue coverage; this does not execute the native provider.
         let dialect = crate::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),

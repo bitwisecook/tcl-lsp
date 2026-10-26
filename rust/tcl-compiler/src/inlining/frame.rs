@@ -737,7 +737,6 @@ mod tests {
 
     #[test]
     fn original_frame_context_keeps_selected_aliases_and_shadow_refusal() {
-
         // Conditional Logical source eligibility; no Native activation is issued.
         for source in [
             "proc p {x} {return [string length $x]}",
@@ -784,7 +783,6 @@ mod tests {
 
     #[test]
     fn original_frame_context_declines_missing_foreign_and_stale_carriers() {
-
         let (context, original) =
             crate::inlining::tests::logical_module_for("proc p {x} {return $x}; p 1");
         let selected = SourceContext::for_module(&original, context.commands()).unwrap();
@@ -822,7 +820,6 @@ mod tests {
 
     #[test]
     fn original_frame_context_declines_modified_procedure_headers_and_bodies() {
-
         // The retained producer signature is shared with source completion;
         // it provides no native frame or source-edit permission.
         let (context, module) =
@@ -964,7 +961,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_module_purpose_cannot_open_a_logical_inline_frame() {
-
         let source = "proc p {x} {return $x}; p VALUE";
         // Actual software Vm entry; no external Jim/provider execution.
         let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();

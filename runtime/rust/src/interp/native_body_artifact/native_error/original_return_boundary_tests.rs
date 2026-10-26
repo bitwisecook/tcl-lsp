@@ -217,7 +217,6 @@ fn first(actual: &Interp, error: &tcl_cmd_core::CmdError, mode: u8) {
 }
 #[test]
 fn original_return_options_key_stops_on_frame_host_context_and_carried_record_change() {
-
     // Software frame/header/callback observations; no external Native schedule.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2, 3, 4] {
@@ -276,7 +275,6 @@ fn original_return_options_key_stops_on_frame_host_context_and_carried_record_ch
 }
 #[test]
 fn original_return_info_string_keeps_frame_and_private_role_before_second_getter() {
-
     // Genuine borrowed value String; no extra protective Native reference.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2, 4] {
@@ -332,7 +330,6 @@ fn original_return_info_string_keeps_frame_and_private_role_before_second_getter
 }
 #[test]
 fn original_return_stack_string_refuses_before_list_backing_and_private_stack_adoption() {
-
     // Genuine modern private List stack and callback; C84/C85 have no such owner.
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2, 4] {
@@ -377,7 +374,6 @@ fn original_return_stack_string_refuses_before_list_backing_and_private_stack_ad
 
 #[test]
 fn original_return_info_retirement_keeps_reached_field_and_blocks_later_getter() {
-
     // Actual private-field publication/retirement and same-depth frame withdrawal;
     // this software control grants no selected Native setter chronology.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

@@ -2980,7 +2980,6 @@ impl DefinitionBodyGrammar {
         dialect: crate::InvocationDialect,
         argument_count: usize,
     ) -> Option<tcl_syntax::naming::NativeNameProtocol> {
-
         let protocol = dialect.native_name_protocol()?;
         if self.family != DefinerFamily::TclOo
             || !matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(version)
@@ -3113,7 +3112,6 @@ impl DefinitionBodyGrammar {
         kind: DefinitionSpecialMemberKind,
         body: Option<&[u8]>,
     ) -> Option<SourceFormalValidationApplicability> {
-
         let keyword = match kind {
             DefinitionSpecialMemberKind::Constructor => "constructor",
             DefinitionSpecialMemberKind::Destructor => "destructor",
@@ -3460,7 +3458,6 @@ impl DefinitionBodyGrammar {
         args: crate::InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<Option<(MemberRefKind, Vec<usize>)>> {
-
         let count = args.exact_argv_len()?;
         let member = self.source_member_in(keyword, dialect)?;
         let value = |index| {
@@ -3546,7 +3543,6 @@ impl DefinitionBodyGrammar {
         args: crate::InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<Vec<usize>> {
-
         Some(
             self.source_member_script_arguments_in(keyword, args, dialect)?
                 .into_iter()
@@ -5437,7 +5433,6 @@ mod tests {
 
     #[test]
     fn original_abstract_manufacturer_visibility_keeps_metaclass_and_created_class_surfaces() {
-
         // Public C9 observations establish defaults, not Native constructor admission.
         for environment in ["tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::resolve_known_environment(environment)
@@ -5506,7 +5501,6 @@ mod tests {
 
     #[test]
     fn source_member_reference_indices_keep_byte_values_and_control_words_separate() {
-
         let values = [
             crate::InvocationWord::KnownBytes(b"m space"),
             crate::InvocationWord::KnownBytes(b"m n"),
@@ -5821,7 +5815,6 @@ mod tests {
 
     #[test]
     fn source_member_script_layout_keeps_values_unknown_and_wrapper_vocabulary_typed() {
-
         use crate::{InvocationArguments, InvocationWord};
         let query = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
         let method = [
@@ -5890,7 +5883,6 @@ mod tests {
 
     #[test]
     fn source_member_keyword_uses_actual_availability_and_exact_bytes() {
-
         let old = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
         let current = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
         assert!(TCLOO_GRAMMAR.source_member_in(b"property", old).is_none());
@@ -5915,7 +5907,6 @@ mod tests {
 
     #[test]
     fn source_member_script_layout_uses_actual_release_and_optional_word_facts() {
-
         use crate::{InvocationArguments, InvocationWord};
         let private = [
             InvocationWord::Literal("m"),
@@ -5978,7 +5969,6 @@ mod tests {
 
     #[test]
     fn original_property_role_layout_consumes_option_values_once() {
-
         let grammar = &TCLOO_GRAMMAR;
         for release in ["9.0", "9.1"] {
             let query = Some(SurfaceQuery::core(Family::Tcl, release));
@@ -6025,7 +6015,6 @@ mod tests {
 
     #[test]
     fn original_property_role_layout_keeps_unknown_bodies_separate_from_selectors() {
-
         use crate::{InvocationArguments, InvocationWord};
         let query = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
         let arguments = [
@@ -6273,7 +6262,6 @@ mod tests {
 
     #[test]
     fn lifecycle_formal_applicability_keeps_empty_unknown_and_foreign_members_separate() {
-
         use SourceFormalValidationApplicability::{Required, SkippedRemovedLifecycle};
         let member = TCLOO_GRAMMAR.member("constructor").unwrap();
         assert_eq!(
@@ -6315,7 +6303,6 @@ mod tests {
 
     #[test]
     fn original_deferred_method_setter_keeps_native_storage_and_body_execution_separate() {
-
         let member = TCLOO_GRAMMAR.member("method").unwrap();
         for release in ["8.6", "9.0", "9.1"] {
             let recipe = TCLOO_GRAMMAR
@@ -6550,8 +6537,6 @@ mod tests {
     #[test]
     fn original_tcloo_slot_calls_distinguish_queries_empty_updates_and_materialised_zero() {
         use tcl_dialect::TclVersion;
-
-
 
         // The generated-zero control materialises C080 from a ByteArray;
         // it does not establish a raw native-string 00 comparison purpose.
@@ -7144,7 +7129,6 @@ mod original_property_accessor_tests {
     use super::*;
     #[test]
     fn original_property_accessor_layout_keeps_selector_names_and_values_separate() {
-
         for version in [TclVersion::V9_0, TclVersion::V9_1] {
             let recipe = tcl_syntax::naming::NativeNameProtocol::C(version);
             let layout = |count| {
@@ -7222,7 +7206,6 @@ mod original_forward_tests {
 
     #[test]
     fn original_forward_layout_requires_selected_oo_and_nonempty_prefix() {
-
         for version in [
             TclVersion::V8_4,
             TclVersion::V8_5,
@@ -7259,7 +7242,6 @@ mod original_forward_tests {
     }
     #[test]
     fn original_forward_layout_matches_captured_registration_boundaries() {
-
         let captures = [
             (
                 "tcl8.4",
@@ -7347,7 +7329,6 @@ mod original_member_presentation_tests {
 
     #[test]
     fn original_member_presentation_follows_callable_body_slot_and_selected_layout() {
-
         let query = Some(SurfaceQuery::core(Family::Tcl, "9.0"));
         for (keyword, arguments, ordinal) in [
             ("method", vec!["m", "", "puts α"], 2),

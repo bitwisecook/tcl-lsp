@@ -142,7 +142,6 @@ fn path(
 
 #[test]
 fn original_jim_root_sharing_precedes_path_conversion_and_follows_array_conversion() {
-
     // Software stages justified by Jim_SetDictKeysVector and jim-array.c;
     // no provider observation or native reference equivalence is inferred.
     for purpose in [Purpose::VariableSet, Purpose::ArraySet] {
@@ -204,7 +203,6 @@ fn original_jim_root_sharing_precedes_path_conversion_and_follows_array_conversi
 
 #[test]
 fn original_jim_missing_set_generic_unset_and_required_unset_have_distinct_publication() {
-
     for purpose in [
         Purpose::VariableSet,
         Purpose::VariableUnset,
@@ -242,7 +240,6 @@ fn original_jim_missing_set_generic_unset_and_required_unset_have_distinct_publi
 
 #[test]
 fn original_jim_copied_child_is_published_before_later_conversion_failure() {
-
     let mut interpreter = native();
     let _cleanup = arm(&interpreter, 0);
     let name = text(b"a");
@@ -299,7 +296,6 @@ fn original_jim_copied_child_is_published_before_later_conversion_failure() {
 
 #[test]
 fn original_jim_dictionary_getter_refusal_stops_later_keys_and_never_adopts_a_recreated_cell() {
-
     for mode in [1, 2, 3] {
         let mut interpreter = native();
         let _cleanup = arm(&interpreter, mode);
@@ -354,7 +350,6 @@ fn original_jim_dictionary_getter_refusal_stops_later_keys_and_never_adopts_a_re
 
 #[test]
 fn original_jim_tuple_retirement_refuses_before_root_lookup_or_adoption() {
-
     for mode in [1, 2] {
         let mut interpreter = native();
         let _cleanup = arm(&interpreter, mode);
@@ -407,7 +402,6 @@ fn update_original_member(interpreter: &mut Interp, argv: &[*mut TclObj]) -> Cod
 }
 #[test]
 fn original_jim_member_root_and_retained_alias_publish_through_the_same_original_parent() {
-
     let mut interpreter = native();
     interpreter.register_builtin(b"original_member_update", update_original_member);
     let code = interpreter.eval_str(b"set a [dict create slot [dict create old 1]]; proc update {} {upvar #0 a alias; original_member_update alias(slot) new 2}; update");
@@ -436,7 +430,6 @@ fn original_jim_member_root_and_retained_alias_publish_through_the_same_original
 
 #[test]
 fn original_jim_cached_dictionary_and_scalar_roots_keep_their_selected_copy_roles() {
-
     for cached in [false, true] {
         for held in [false, true] {
             let mut interpreter = native();
@@ -511,7 +504,6 @@ fn original_jim_cached_dictionary_and_scalar_roots_keep_their_selected_copy_role
 
 #[test]
 fn original_jim_variable_cache_retirement_refuses_before_root_conversion_and_key_getter() {
-
     for mode in [1, 2] {
         let mut interpreter = native();
         let key = text(b"k");
@@ -598,7 +590,6 @@ static SHIMMER_KEY: obj::TclObjType = obj::TclObjType {
 };
 #[test]
 fn original_jim_prepared_backing_refuses_key_shimmer_and_restore_before_typed_member_access() {
-
     // Software continuation control. No original native callback timing or
     // backing identity measurement is claimed from these custom updaters.
     for operation in 0..4 {

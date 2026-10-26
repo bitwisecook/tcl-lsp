@@ -2398,7 +2398,6 @@ mod original_boolean_transport_tests {
 
     #[test]
     fn original_boolean_stage_imports_check_first_host_cause_before_guest_status_or_out_slots() {
-
         // Typed software transport only. The original provider rows attest
         // reached getter/result effects separately from emitted instructions.
         let mut wasm = WasmModule::new();

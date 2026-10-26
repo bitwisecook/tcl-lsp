@@ -4364,7 +4364,6 @@ pub(crate) fn nested_dispatch_regions(
     _dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
-
     let Some(RetainedDispatchContext {
         config, context, ..
     }) = retained_dispatch_context(source, analysis)
@@ -8384,7 +8383,6 @@ mod tests {
 
     #[test]
     fn method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers() {
-
         // Conditional source reference geometry, not a live receiver or method entry.
         use std::sync::Arc;
         let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
@@ -8496,7 +8494,6 @@ mod tests {
 
     #[test]
     fn callback_source_roles_keep_actual_availability_and_original_builder_geometry() {
-
         // Conditional source reference spans; no Native callback, receiver or edit grant.
         let store = callback_source_store("dict");
         for source in [
@@ -8543,7 +8540,6 @@ mod tests {
 
     #[test]
     fn callback_source_roles_keep_actual_package_availability_in_the_same_store() {
-
         let source = "set cb [list source_dispatch selected]; source_callback $cb";
         let store = callback_source_store("bind");
         let available = callback_source_analysis_with_store(source, "tk", store.clone());
@@ -8557,7 +8553,6 @@ mod tests {
 
     #[test]
     fn callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes() {
-
         for source in [
             "proc source_callback args {}; source_callback [list source_dispatch selected]",
             "proc list args {}; source_callback [list source_dispatch selected]",
@@ -8580,7 +8575,6 @@ mod tests {
 
     #[test]
     fn caller_frame_reference_component_keeps_retained_registry_and_input() {
-
         // Readonly source template/reference geometry, not a completed native store.
         let source = "proc setdef {d} {upvar 1 $d dst; set dst SET}\nproc caller {} {setdef shared; puts $shared}\n";
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -8646,7 +8640,6 @@ mod tests {
 
     #[test]
     fn method_dispatch_scan_uses_retained_custom_schema_and_script_purpose() {
-
         fn reference_only(
             _args: tcl_registry::InvocationArguments<'_>,
         ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
@@ -8696,7 +8689,6 @@ mod tests {
 
     #[test]
     fn shifted_dispatch_regions_follow_original_moves_and_known_source_barriers() {
-
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         for (source, visible) in [
             (
@@ -8991,7 +8983,6 @@ mod original_highlight_selection_tests {
 
     #[test]
     fn original_highlights_preserve_opaque_declarations_and_whole_source_currency() {
-
         let source = r"proc p\uD800 {} {}
 proc p\uD801 {} {}
 p\uD800";
@@ -9022,7 +9013,6 @@ p\uD800";
 
     #[test]
     fn original_method_reference_helpers_do_not_select_from_reporting_names() {
-
         let source = "oo::class create C {method m {} {}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(analysis.all_classes.contains_key("::C"));
@@ -9109,7 +9099,6 @@ mod original_next_dispatch_context_tests {
 
     #[test]
     fn original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability() {
-
         // Conditional source topology/values only, not a next-method invocation.
         let store = store();
         for (source, target) in [
@@ -9134,7 +9123,6 @@ mod original_next_dispatch_context_tests {
 
     #[test]
     fn original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source() {
-
         let store = store();
         for source in [
             "proc source_next_named args {}; source_next_named ::Ancestor",
@@ -9171,7 +9159,6 @@ mod original_dispatch_parser_purpose_tests {
 
     #[test]
     fn original_dispatch_body_scans_keep_bom_content_and_selected_full_config() {
-
         // Source-only method reference geometry; no object or method execution.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let mut registry = tcl_registry::CommandRegistry::build_default();
@@ -9254,7 +9241,6 @@ mod logical_class_selector_tests {
 
     #[test]
     fn logical_class_selector_keeps_actual_alias_and_rename_source_lineage() {
-
         for tail in [
             "C m",
             "rename C D; D m",
@@ -9278,7 +9264,6 @@ mod logical_class_selector_tests {
 
     #[test]
     fn captured_selectors_and_replaced_class_commands_have_no_written_selector_grant() {
-
         for tail in [
             "interp alias {} invoke {} C m; invoke",
             "proc C args {}; C m",
@@ -9300,7 +9285,6 @@ mod logical_class_selector_tests {
 
     #[test]
     fn logical_selector_preserves_full_source_and_unicode_and_refuses_native_donation() {
-
         let source = "oo::class create C {self method mβ::x {} {}}; C mβ::x";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         let receiver = &analysis.all_classes["::C"];
@@ -9362,7 +9346,6 @@ mod constructed_compatibility_tests {
 
     #[test]
     fn constructed_reference_projection_keeps_colon_components_and_known_refusal() {
-
         // Explicit written metadata carries no positioned declaration receipt.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
@@ -9465,7 +9448,6 @@ mod configured_callback_variable_tests {
 
     #[test]
     fn actual_stored_callback_reference_uses_its_retained_brace_configuration() {
-
         let source = source("a{b}c", "${a{b}c}");
         let mut config = tcl_lexer::LexerConfig {
             braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
@@ -9488,7 +9470,6 @@ mod configured_callback_variable_tests {
 
     #[test]
     fn actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name() {
-
         for operand in ["${cbé}", "\"${cbé}\""] {
             let source = source("cbé", operand);
             assert!(

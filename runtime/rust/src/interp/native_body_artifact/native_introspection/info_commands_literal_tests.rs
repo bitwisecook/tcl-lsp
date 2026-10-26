@@ -72,7 +72,6 @@ fn assert_header(
 
 #[test]
 fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows() {
-
     // windows.tsv is a projection of exact original receipts, not a native run.
     // Every backend entry must genuinely execute before its headers are compared.
     let mut compared = 0;

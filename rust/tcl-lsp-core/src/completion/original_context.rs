@@ -441,7 +441,6 @@ mod tests {
 
     #[test]
     fn original_logical_completion_uses_actual_availability_and_captured_ordinals() {
-
         let mut registry = tcl_registry::CommandRegistry::build_default();
         let surface = registry.get("dict").unwrap().surface;
         let subcommands = registry.get("string").unwrap().subcommands;
@@ -486,7 +485,6 @@ mod tests {
 
     #[test]
     fn original_completion_switches_use_actual_option_surface_and_current_source() {
-
         let store = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
         let source = "chan configure stdin -inputm";
         let cursor = u32::try_from(source.len()).unwrap();

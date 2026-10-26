@@ -1436,7 +1436,6 @@ pub fn diagnostic_subject_data(diagnostic: &Diagnostic) -> Option<Value> {
 mod tests {
     #[test]
     fn callback_signature_transport_retains_original_counts_and_source_purpose() {
-
         // Readonly source assessment; the callback is not executed.
         use std::sync::Arc;
         use tcl_compiler::analyser::{
@@ -1490,7 +1489,6 @@ mod tests {
 
     #[test]
     fn original_callback_transport_keeps_unavailable_frame_and_registration_premises() {
-
         // Genuine source signature advice; the callback is not executed and
         // its unknown frame is never replaced by the registration frame.
         use std::sync::Arc;
@@ -1532,7 +1530,6 @@ mod tests {
 
     #[test]
     fn constructor_source_subject_retains_count_and_purpose_without_messages() {
-
         let source =
             "oo::class create C {constructor {a b} { }}\ninterp alias {} make {} C new fixed\nmake";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
@@ -1549,7 +1546,6 @@ mod tests {
     #[test]
     fn constructor_transport_retains_distinct_source_applicability_obligations() {
         use tcl_compiler::command_binding::SourceCommandTransitionObligation as Obligation;
-
 
         // Source inventory is conditional; the procedure is not invoked.
         let source = "proc make {} {C new 1}\noo::class create C {constructor {a b} { }}";
@@ -1597,7 +1593,6 @@ mod tests {
 
     #[test]
     fn lexical_next_arity_transport_retains_declaration_and_effective_count() {
-
         let source = "oo::class create Base {method f {a b} {}}\noo::class create C {superclass Base; method f {} {::::next 1}}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
         let diagnostic = analysis
@@ -1622,7 +1617,6 @@ mod tests {
 
     #[test]
     fn registered_instance_transport_retains_factory_and_applicability_without_message_identity() {
-
         let source = "ttk::treeview .t; .t bogus";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let diagnostic = analysis
@@ -1664,7 +1658,6 @@ mod tests {
 
     #[test]
     fn conditional_visibility_transport_preserves_assumptions_without_message_parsing() {
-
         let source = "interp create -safe s\ninterp eval s {::source a.tcl}";
         let result = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let original = result
@@ -1768,7 +1761,6 @@ mod tests {
 
     #[test]
     fn shape_advice_transport_keeps_original_purpose_and_operand_axes() {
-
         for (source, code, purpose, argument, written) in [
             (
                 "interp alias {} add {} append out\nadd \" $item\"",
@@ -1815,7 +1807,6 @@ mod tests {
 
     #[test]
     fn math_transport_preserves_expression_kind_without_reconstructing_a_command() {
-
         for (dialect, dispatch) in [
             ("tcl8.4", "fixedTable"),
             ("tcl8.5", "commandTable"),
@@ -1865,7 +1856,6 @@ mod tests {
     }
     #[test]
     fn declared_source_transport_preserves_contract_purpose_and_provenance() {
-
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub select {expression:expr}\n# tcl-lsp: stubs-end\nselect \"$value + 1\"";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let mut diagnostic = analysis
@@ -1896,7 +1886,6 @@ mod tests {
     }
     #[test]
     fn unavailable_command_transport_retains_the_original_purpose_without_messages() {
-
         for (source, dialect, code, command, class, domain) in [
             (
                 "::dict get {a 1} a",
@@ -1980,7 +1969,6 @@ mod tests {
     }
     #[test]
     fn declared_variable_name_transport_keeps_its_authored_purpose() {
-
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub store {destination:var value}\n# tcl-lsp: stubs-end\nstore $name payload";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let mut diagnostic = analysis
@@ -2000,7 +1988,6 @@ mod tests {
     }
     #[test]
     fn original_package_source_subject_transport_retains_selected_purpose_and_package() {
-
         let source = "csv::join {a b}";
         let result = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let diagnostic = result
@@ -2021,7 +2008,6 @@ mod tests {
     }
     #[test]
     fn callback_alias_transport_keeps_capture_baked_and_suffix_premises() {
-
         use std::sync::Arc;
         use tcl_compiler::analyser::{
             Analyser, Diagnostic, DiagnosticSubject, Severity, SourceCallbackAritySubject,
@@ -2082,7 +2068,6 @@ mod tests {
     }
     #[test]
     fn original_index_transport_preserves_captured_operand_purpose_without_message_names() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -2115,7 +2100,6 @@ mod tests {
     }
     #[test]
     fn original_template_transport_keeps_selected_prefix_purpose_and_ignores_presentation() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -2145,7 +2129,6 @@ mod tests {
     }
     #[test]
     fn original_reparse_transport_keeps_both_selected_purposes_without_presentation_names() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -2189,7 +2172,6 @@ mod tests {
     }
     #[test]
     fn original_path_transport_keeps_alias_ordinals_and_proven_value_premises() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -2232,7 +2214,6 @@ mod tests {
 
     #[test]
     fn original_channel_configuration_transport_keeps_selected_captured_option_values() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -2267,7 +2248,6 @@ mod tests {
 
     #[test]
     fn original_credential_transport_keeps_captured_literals_separate_from_lexical_policy() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -2310,7 +2290,6 @@ mod tests {
 
     #[test]
     fn original_pattern_shape_transport_keeps_child_ancestry_and_value_premises() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -2375,7 +2354,6 @@ mod tests {
 
     #[test]
     fn original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,

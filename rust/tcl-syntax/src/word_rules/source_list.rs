@@ -63,7 +63,6 @@ impl OriginalSourceListElement {
 pub fn original_static_word_list_elements(
     word: &NativeWord,
 ) -> Option<Vec<OriginalSourceListElement>> {
-
     let value = super::original_static_word_source_bytes(word)?;
     std::str::from_utf8(&value).ok()?;
     list_fields(&Arc::new(word.clone()), &value, |range| {
@@ -214,7 +213,6 @@ mod tests {
 
     #[test]
     fn original_lexical_list_fields_keep_unicode_escapes_and_literal_ancestry() {
-
         let source = "list {é {lo\\u006eg 5} escaped\\ name}";
         let original = word(source, tcl_lexer::LexerConfig::default());
         let fields = original_static_word_list_elements(&original).unwrap();
@@ -238,7 +236,6 @@ mod tests {
 
     #[test]
     fn original_lexical_list_geometry_uses_full_grammar_and_declines_opaque_values() {
-
         let config = tcl_lexer::LexerConfig {
             expand_syntax: true,
             ..tcl_lexer::LexerConfig::default()

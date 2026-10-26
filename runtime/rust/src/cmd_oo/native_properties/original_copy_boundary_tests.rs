@@ -86,7 +86,6 @@ static REPORT: obj::TclObjType = obj::TclObjType {
 };
 #[test]
 fn original_property_table_copy_checks_retirement_after_member_getter_before_query() {
-
     // Software callback/currentness controls, not a native property chronology.
     for mode in [0, 1, 2] {
         let _cleanup = Cleanup;

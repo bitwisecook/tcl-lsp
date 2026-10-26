@@ -35,7 +35,6 @@ pub(super) fn words_in(
 /// Clamp trimming to trivia outside every original whole word. A newline in a
 /// nested command or quoted word remains protected by its containing word.
 pub(super) fn trim_trailing_whitespace(text: &str, config: LexerConfig) -> String {
-
     let image = SourceImage::document(text);
     let Ok(end) = u32::try_from(text.len()) else {
         return text.to_owned();
@@ -128,7 +127,6 @@ pub(super) fn separator_spaces(
     config: LexerConfig,
     limit: RecursionLimit,
 ) -> Option<Vec<(usize, u32)>> {
-
     let mut result = Vec::new();
     for (gap, depth) in word_gaps(text, config, limit)? {
         for (index, byte) in text.as_bytes().get(gap.as_range())?.iter().enumerate() {
@@ -147,7 +145,6 @@ pub(super) fn collapse_script_separator_continuations(
     config: LexerConfig,
     limit: RecursionLimit,
 ) -> Option<String> {
-
     let gaps = word_gaps(text, config, limit)?;
     let mut output = String::with_capacity(text.len());
     let mut previous = 0;
@@ -185,7 +182,6 @@ mod tests {
 
     #[test]
     fn trimming_retains_nested_quoted_data_and_bare_unicode_units() {
-
         let config = LexerConfig::default();
         let source = "set x \"[set y \"inner   \ntext\"] outer\"   \nset y value\u{a0}   \n";
         assert_eq!(
@@ -203,7 +199,6 @@ mod tests {
 
     #[test]
     fn separators_belong_to_full_original_words_and_child_scripts() {
-
         let source = "puts \"a [list {b c} d] e\" $array(a b) tail";
         let separators =
             separator_spaces(source, LexerConfig::default(), RecursionLimit(128)).unwrap();

@@ -324,8 +324,6 @@ impl crate::InvocationDialect {
 mod tests {
     #[test]
     fn original_info_option_lookup_is_separate_from_ensemble_and_jim_dispatch() {
-
-
         // Pure purpose selection; both backends compare the whole original
         // six-provider inventory programs independently of this API control.
         for engine in [

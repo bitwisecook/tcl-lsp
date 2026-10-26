@@ -67,7 +67,6 @@ fn assert_class_factory_schema(
 
 #[test]
 fn original_class_factory_body_and_member_joins_retain_the_complete_source_input() {
-
     // Conditional source grammar and exact geometry only. No class creation,
     // entered definition frame, member table or body execution is established.
     for dialect in ["tcl", "tcl8.6", "tcl9.0", "tcl9.1"] {

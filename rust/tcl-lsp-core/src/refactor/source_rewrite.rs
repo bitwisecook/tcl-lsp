@@ -257,10 +257,8 @@ mod tests {
 
     use tcl_compiler::analyser::Analyser;
 
-
     #[test]
     fn original_source_rewrites_require_current_handler_and_distinct_permissions() {
-
         let source = "expr 1 + 2";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_procs.clear();
@@ -298,7 +296,6 @@ mod tests {
 
     #[test]
     fn source_rewrites_keep_actual_availability_and_command_horizons() {
-
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             surface: registry.get("dict").unwrap().surface,
@@ -386,7 +383,6 @@ mod tests {
 
     #[test]
     fn logical_source_rewrite_keeps_captured_values_outside_written_clause_positions() {
-
         let plain = "interp alias {} evaluate {} expr\nevaluate 1 + 2";
         let analysis = Analyser::new().analyse(plain, "tcl");
         let cursor = u32::try_from(plain.rfind("evaluate").unwrap()).unwrap();
@@ -414,10 +410,8 @@ mod tests {
         );
     }
 
-
     #[test]
     fn original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell() {
-
         for prefix in [
             "set result_map kept; ",
             "set result_map kept; trace add variable result_map read observer; ",

@@ -477,7 +477,6 @@ mod tests {
 
     #[test]
     fn original_hosted_source_barriers_keep_declarations_moves_and_unknowns_separate() {
-
         for (source, marker) in [
             (
                 "proc call {args} {}\nwhen HTTP_REQUEST {call Lib::one}",

@@ -1701,7 +1701,6 @@ mod original_inline_tests {
 
     #[test]
     fn original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared() {
-
         let source = r"proc p\uD800 {x} {puts $x}
  p\uD800 VALUE
 ";
@@ -1712,7 +1711,6 @@ mod original_inline_tests {
 
     #[test]
     fn original_inline_keeps_inert_braced_data_and_refuses_erased_reads_or_free_cells() {
-
         let literal = "proc p {x} {puts {$x}}\np VALUE\n";
         let result = action(literal, "p VALUE", false).unwrap();
         assert!(result.disabled.is_none(), "{:?}", result.disabled);
@@ -1734,7 +1732,6 @@ mod original_inline_tests {
 
     #[test]
     fn original_inline_bindings_keep_alias_prefix_expansion_defaults_and_arity() {
-
         for (source, call, expected) in [
             (
                 "proc p {x {y 2}} {expr {$x + $y}}\ninterp alias {} wrapped {} p 3\nwrapped\n",
@@ -1763,7 +1760,6 @@ mod original_inline_destination_tests {
     use super::*;
     #[test]
     fn original_inline_refuses_a_body_builtin_shadowed_at_the_call_destination() {
-
         let source = "proc p {x} {puts $x}\nnamespace eval Other {\nproc puts {x} {return SHADOW}\np VALUE\n}\n";
         let mut analyser = tcl_compiler::analyser::Analyser::new();
         let analysis = analyser.analyse(source, "tcl8.6").clone();
@@ -1786,7 +1782,6 @@ mod selected_source_body_tests {
 
     #[test]
     fn logical_inline_call_selection_uses_current_original_body_regions() {
-
         let source = "interp alias {} run {} eval\nproc p {x} {expr {$x + 1}}\nrun {p 2}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
         let cursor = u32::try_from(source.rfind("p 2").unwrap()).unwrap();
@@ -1807,7 +1802,6 @@ mod selected_source_body_tests {
 
     #[test]
     fn original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias() {
-
         let source = "proc p {x} {expr {$x + 1}}
 p 2";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
@@ -1852,7 +1846,6 @@ mod original_inline_body_purpose_tests {
 
     #[test]
     fn original_inline_body_keeps_bom_head_and_retained_parent_correspondence() {
-
         // Original body syntax/geometry only; no complete inline edit permission.
         let source = "\u{feff}proc p {x} {\u{feff}#prefix $x}\np VALUE";
         let mut prepared = tcl_compiler::analyser::Analyser::new();

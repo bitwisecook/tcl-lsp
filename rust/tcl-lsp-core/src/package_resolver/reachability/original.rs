@@ -30,7 +30,6 @@ pub(super) fn scan_disposition(
     config: LexerConfig,
     visit: &mut dyn FnMut(Reached<'_>),
 ) -> Option<super::OriginalSourceSurveyDisposition> {
-
     let image = SourceImage::document(source);
     if analysis.body_lexer_config != Some(config)
         || !analysis.matches_original_source_image(&image, config)
@@ -708,7 +707,6 @@ mod tests {
 
     #[test]
     fn original_package_paths_use_current_control_roles_and_completion_options() {
-
         for (source, expected) in [
             (
                 "package ifneeded p 1.0 {source p.tcl}",
@@ -753,7 +751,6 @@ mod tests {
 
     #[test]
     fn original_package_paths_preserve_current_loader_axes_and_version_uncertainty() {
-
         let source = "package ifneeded p 1.0 {source p.tcl}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let registry = analysis.resolved_registry().unwrap();
@@ -807,7 +804,6 @@ mod original_package_region_purpose_tests {
 
     #[test]
     fn original_package_body_words_keep_parent_image_and_nested_bom_geometry() {
-
         // This joins original lexical vectors; it does not close an unknown loader call.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = LexerConfig::for_file_grammar(profile.grammar);

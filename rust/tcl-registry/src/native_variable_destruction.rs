@@ -59,7 +59,6 @@ mod tests {
 
     #[test]
     fn array_unset_member_lookup_requires_its_selected_native_release() {
-
         // Pure release rule; whole original public results are separate tests.
         use tcl_dialect::TclVersion;
         for version in TclVersion::ALL {

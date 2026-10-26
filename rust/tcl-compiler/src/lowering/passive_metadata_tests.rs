@@ -20,7 +20,6 @@ fn supplied_input(
 
 #[test]
 fn trace_hazard_metadata_keeps_actual_availability_and_missing_owner_uncertainty() {
-
     // May observer inventory only; no installed physical trace is asserted.
     let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
     let mut commands = baseline
@@ -71,7 +70,6 @@ fn trace_hazard_metadata_keeps_actual_availability_and_missing_owner_uncertainty
 
 #[test]
 fn passive_class_body_metadata_uses_original_selection_and_supplied_availability() {
-
     // Original source method units only; no class allocation or entered method.
     let context = tcl_registry::model::ingress::context_for_profile(
         tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
@@ -132,7 +130,6 @@ fn passive_class_body_metadata_uses_original_selection_and_supplied_availability
 
 #[test]
 fn passive_member_layout_uses_actual_release_and_original_optional_word_shape() {
-
     // Original source vocabulary/body ordinals only, no method installation.
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     let current = tcl_registry::model::ingress::context_for_profile(profile);

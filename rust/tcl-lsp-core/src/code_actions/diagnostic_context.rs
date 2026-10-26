@@ -516,7 +516,6 @@ mod tests {
 
     #[test]
     fn logical_source_action_commands_use_actual_body_availability_and_script_purpose() {
-
         // Source-command geometry only; no sink, effect permission or Native edit grant.
         fn reference_only(
             _args: tcl_registry::InvocationArguments<'_>,
@@ -581,7 +580,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes() {
         let source = "set x [gets stdin]\nset out [subst $x]\n";
@@ -594,7 +592,6 @@ mod tests {
         diagnostic.data = None;
         assert!(actions(source, &analysis, &diagnostic).is_empty());
     }
-
 
     #[test]
     fn original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range() {
@@ -630,7 +627,6 @@ mod tests {
 
     #[test]
     fn original_context_diagnostic_currency_keeps_the_complete_availability_owner() {
-
         // A real source-only taint issuer supplies no Normal or Native effect grant.
         let source = "set x [gets stdin]\nsubst $x\n";
         let (analysis, diagnostic) = issued_logical(source, "T100");
@@ -666,7 +662,6 @@ mod tests {
         assert!(!data.matches(source, &older, registry, &diagnostic));
         assert!(actions(source, &older, &diagnostic).is_empty());
     }
-
 
     #[test]
     fn original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text() {
@@ -711,7 +706,6 @@ mod tests {
         assert!(actions(&occupied, &analysis, &diagnostic).is_empty());
     }
 
-
     #[test]
     fn original_native_taint_wrappers_do_not_infer_missing_evaluation_permission() {
         let source = "set x [gets stdin]\nputs $x\n";
@@ -719,7 +713,6 @@ mod tests {
         assert!(diagnostic.data.is_some());
         assert!(actions(source, &analysis, &diagnostic).is_empty());
     }
-
 
     #[test]
     fn original_bootstrap_actions_use_current_selected_handler_and_payload_metadata() {
@@ -756,7 +749,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn original_profile_actions_use_selected_context_and_ignore_reporting_names() {
         let source = "when HTTP_REQUEST {HTTP::respond 200 content ok}\n";
@@ -783,7 +775,6 @@ mod tests {
     }
     #[test]
     fn original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry() {
-
         use super::current_commands;
         let source = "when HTTP_REQUEST {HTTP::respond 200 content ok}";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
@@ -871,7 +862,6 @@ mod tests {
 
     #[test]
     fn original_logical_source_commands_use_actual_availability_over_catalogue_profile() {
-
         // A source metadata discriminator, not a loaded/native command proof.
         let source = "dict create key value";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -965,7 +955,6 @@ mod tests {
 
     #[test]
     fn original_logical_helper_collision_uses_the_emitted_root_publication() {
-
         let registry = crate::registry_for_dialect("tcl8.6");
         let point =
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);

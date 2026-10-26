@@ -61,7 +61,6 @@ fn statement(
 
 #[test]
 fn logical_callee_projection_retains_declaration_but_not_physical_allocation() {
-
     let input = input(true);
     let registry = input.borrowed_context_registry().commands();
     for (source, selected) in [
@@ -106,7 +105,6 @@ fn logical_callee_projection_retains_declaration_but_not_physical_allocation() {
 
 #[test]
 fn native_callee_advice_keeps_its_independently_retained_allocation() {
-
     let input = input(false);
     let captured = crate::environment_ingress::captured_native_entry(input.analyser_profile());
     let source = "proc available {} {}; available VALUE";
@@ -131,7 +129,6 @@ fn native_callee_advice_keeps_its_independently_retained_allocation() {
 
 #[test]
 fn source_class_projection_separates_native_name_from_logical_metadata() {
-
     let source = "oo::class create C {method ping {} {}}";
     for logical in [true, false] {
         let input = input(logical);
@@ -166,7 +163,6 @@ fn source_class_projection_separates_native_name_from_logical_metadata() {
 
 #[test]
 fn logical_class_metadata_requires_original_correspondence_and_unique_inventory() {
-
     let source = "oo::class create C {method ping {} {}}; oo::define C {method pong {} {}}";
     let input = input(true);
     let analysis = Analyser::new()

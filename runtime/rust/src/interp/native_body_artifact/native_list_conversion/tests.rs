@@ -5,7 +5,6 @@ use crate::cmd_control::original_list_conversion_tests as fixture;
 use std::cell::Cell;
 #[test]
 fn original_compiled_list_length_retirement_checks_actual_frame_birth_before_adoption() {
-
     // Same logical depth after pop/push cannot revive this original activation.
     let mut interpreter = fixture::native("tcl9.0");
     let _current = fixture::install(&mut interpreter, 3);
@@ -40,7 +39,6 @@ fn original_compiled_list_length_retirement_checks_actual_frame_birth_before_ado
 }
 #[test]
 fn original_compiled_list_current_length_has_one_native_input_role_and_no_frame_hold() {
-
     let mut interpreter = fixture::native("tcl9.0");
     let _current = fixture::install(&mut interpreter, 0);
     interpreter
@@ -60,7 +58,6 @@ fn original_compiled_list_current_length_has_one_native_input_role_and_no_frame_
 }
 #[test]
 fn original_compiled_list_temporary_projection_refuses_replaced_slot_without_new_lookup() {
-
     use tcl_runtime_api::native_compilation::{
         NativeCompiledLocalLayout, NativeCompiledLocalLayoutKind, NativeInterpreterIdentity,
     };
@@ -115,7 +112,6 @@ fn original_compiled_list_temporary_projection_refuses_replaced_slot_without_new
 
 #[test]
 fn original_compiled_group_retirement_keeps_frame_check_after_header_is_released() {
-
     // The real native header is retired before this pure frame check; the
     // allocation must not gain a protective reference to keep cleanup current.
     let mut interpreter = fixture::native("tcl9.0");
@@ -149,7 +145,6 @@ fn original_compiled_group_retirement_keeps_frame_check_after_header_is_released
 
 #[test]
 fn original_compiled_expansion_members_keep_same_frame_and_first_cause_before_adoption() {
-
     // Actual compiled expansion helper; extension callbacks are software controls.
     for mode in [0, 1, 2, 3] {
         let mut interpreter = fixture::native("tcl9.0");
@@ -209,7 +204,6 @@ fn original_compiled_expansion_members_keep_same_frame_and_first_cause_before_ad
 
 #[test]
 fn original_compiled_dictionary_prepare_retains_frame_and_first_cause_before_adoption() {
-
     // Software callback and real preparation roles, not a Native free schedule.
     use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
     for mode in [0, 1, 2, 3] {
@@ -290,7 +284,6 @@ static ORIGINAL_COMPOUND_CHILD: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn original_compiled_string_child_retirement_blocks_later_updater_and_parent_adoption() {
-
     let mut interpreter = fixture::native("tcl9.0");
     let _current = fixture::install(&mut interpreter, 0);
     let operation = BodyObjectOperation::capture(&interpreter).unwrap();
@@ -323,7 +316,6 @@ fn original_compiled_string_child_retirement_blocks_later_updater_and_parent_ado
 
 #[test]
 fn original_prepared_dictionary_key_updater_checks_parent_before_member_callback() {
-
     use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
     let interpreter = fixture::native("tcl9.0");
     let operation = BodyObjectOperation::capture(&interpreter).unwrap();
@@ -362,7 +354,6 @@ fn original_prepared_dictionary_key_updater_checks_parent_before_member_callback
 
 #[test]
 fn original_compiled_return_integer_cache_checks_frame_during_real_primary_retirement() {
-
     use tcl_cmd_core::return_options::ReturnOptionsOps;
     for mode in [0, 3] {
         let mut interpreter = fixture::native("tcl9.0");

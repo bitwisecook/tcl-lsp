@@ -591,7 +591,6 @@ mod tests {
     fn original_conditional_vendor_catalogue_keeps_policy_and_cell_barriers_separate() {
         // Implementation contract dependency: naming.consumer.hosted-source-taint-descriptor
 
-
         let generation = tcl_registry::model::ingress::static_context_for("f5-irules");
         let registry = generation.commands();
         let config = tcl_lexer::LexerConfig::for_profile(registry.profile());

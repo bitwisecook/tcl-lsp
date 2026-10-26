@@ -10409,7 +10409,6 @@ mod tests {
 
     #[test]
     fn actual_option_advice_keeps_selected_terminator_availability_and_source_vector() {
-
         // Conditional descriptor/operand admission, independently of the kept
         // Native entry. No regexp handler or option value is executed here.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -10497,7 +10496,6 @@ mod tests {
 
     #[test]
     fn actual_option_terminator_withdraws_possible_source_positions() {
-
         let current = source_option_context();
         let registry = current.commands();
         let (_terminated_owner, terminated) =
@@ -10556,7 +10554,6 @@ mod tests {
 
     #[test]
     fn whole_unit_warning_query_requires_its_retained_positioned_source_owner() {
-
         // Explicit source ingress supplies the tainted value; no external evaluation is performed.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -10589,7 +10586,6 @@ mod tests {
 
     #[test]
     fn actual_regexp_warning_refuses_missing_and_foreign_source_metadata() {
-
         // A retained literal terminator establishes source pattern topology;
         // the original variable read remains unknown, with no observed value.
         let current =
@@ -10624,7 +10620,6 @@ mod tests {
 
     #[test]
     fn constant_command_head_candidates_use_retained_escape_grammar() {
-
         // SSA source-value candidates only; no command lookup, target identity
         // or actual invocation follows from the decoded presentation value.
         let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
@@ -10684,7 +10679,6 @@ mod tests {
 
     #[test]
     fn actual_taint_lattice_keeps_availability_and_refuses_missing_source_owners() {
-
         // Source-lattice result and owner refusals, with an independently kept
         // Native entry. This test does not execute gets or observe its result.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -10761,7 +10755,6 @@ mod tests {
 
     #[test]
     fn actual_warning_wrapper_uses_the_retained_context_and_lexer() {
-
         // The sink's nested wrapper uses the same source-lattice owner as an
         // assigned value. No source-channel execution or mitigation is observed.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -10830,7 +10823,6 @@ mod tests {
 
     #[test]
     fn public_module_warning_projection_requires_matching_source_owners() {
-
         // These conditional source warnings retain metadata; no channel read
         // or output handler is executed by the source analysis.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -13595,7 +13587,6 @@ mod tests {
 
     #[test]
     fn command_substitution_callbacks_stop_before_replay_when_original_owner_is_refused() {
-
         // The loaded fixture supplies Tk provenance. These are compiler replay
         // controls, not claims about executing an external Tk event.
         let (unit, registry) = loaded_tk_callback_unit(
@@ -14883,7 +14874,6 @@ mod tests {
 
         #[test]
         fn retained_body_scope_ignores_display_and_refuses_detached_units() {
-
             let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
             let mut unit = crate::compilation_unit::CompilationUnit::build_for_profile(
@@ -15298,7 +15288,6 @@ mod tests {
     }
     #[test]
     fn hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims() {
-
         let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
             .default_context_registry();
         let registry = context.commands();
@@ -15626,7 +15615,6 @@ mod original_taint_local_parser_purpose_tests {
 
     #[test]
     fn original_taint_callback_and_bracket_shapes_keep_actual_full_config() {
-
         // These local source/synthetic replay projections grant no callback execution.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.0").unwrap();
@@ -15710,7 +15698,6 @@ mod original_taint_word_purpose_tests {
 
     #[test]
     fn original_interpolation_literals_keep_bom_prefix_and_rendered_line_breaks() {
-
         // Authored interpolation syntax; no value/effect or Native observer receipt.
         let config = tcl_lexer::LexerConfig {
             leading_bom: tcl_lexer::LeadingBom::Skip,

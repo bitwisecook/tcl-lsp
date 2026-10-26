@@ -27,7 +27,6 @@ fn match_arg_roles(
     args: crate::InvocationArguments<'_>,
     options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
-
     let count = args.exact_argv_len()?;
     let index = options.leading_word_count(args)?;
     Some(if index < count {
@@ -2901,7 +2900,6 @@ mod tests {
 
     #[test]
     fn original_class_type_projection_requires_its_own_family_and_release() {
-
         // Software class-policy selection only; no Native cache/frame/store
         // observation or successful command evaluation is asserted.
         let c84 = crate::InvocationDialect::for_version(TclVersion::V8_4);

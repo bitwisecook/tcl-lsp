@@ -1513,7 +1513,6 @@ mod original_job_boundary_tests {
 
     #[test]
     fn original_job_boundary_keeps_the_complete_cause_until_the_actual_scope_finishes() {
-
         // Actual job transport, not an external threaded Tcl observation.
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();

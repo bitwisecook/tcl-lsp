@@ -350,7 +350,6 @@ mod tests {
 
     #[test]
     fn original_stock_class_factory_normal_requires_fresh_valid_intrinsic_definition() {
-
         for version in [
             tcl_dialect::TclVersion::V8_6,
             tcl_dialect::TclVersion::V9_0,

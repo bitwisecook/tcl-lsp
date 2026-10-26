@@ -165,7 +165,6 @@ fn decode_hex(bytes: &str) -> Vec<u8> {
 
 #[test]
 fn original_named_declarations_keep_record_name_and_table_key_roles_separate() {
-
     // Genuine authored/generated declaration roles; shallow Rust observations are not Native copies.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);
@@ -273,7 +272,6 @@ fn original_named_declarations_keep_record_name_and_table_key_roles_separate() {
 
 #[test]
 fn original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages() {
-
     // Match stock worker name/verdict/role phases only; the Runtime forward payload is independent.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for object in [false, true] {
@@ -386,7 +384,6 @@ fn original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages
 
 #[test]
 fn original_destination_callback_cannot_replace_source_identity_or_first_cause() {
-
     // Actual software Host/context/source replacement; not an original provider callback verdict.
     for mode in [1, 2, 3] {
         let mut interpreter = native("tcl8.6");
@@ -433,7 +430,6 @@ fn original_destination_callback_cannot_replace_source_identity_or_first_cause()
 
 #[test]
 fn original_old_name_retirement_observes_destination_then_stops_later_publication() {
-
     // Software free-hook/currentness control; native names own two real separate references.
     for mode in [0, 1, 2] {
         let mut interpreter = native("tcl8.6");
@@ -479,7 +475,6 @@ fn original_old_name_retirement_observes_destination_then_stops_later_publicatio
 
 #[test]
 fn original_self_method_report_keeps_current_entered_name_and_unnamed_roles_distinct() {
-
     // Source-selected SELF_METHOD name role; no measured custom MethodType payload/body equivalence.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version);

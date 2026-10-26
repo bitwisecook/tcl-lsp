@@ -374,7 +374,6 @@ mod tests {
     // claim that a native interpreter independently produced these caches.
     #[test]
     fn scalar_carriers_preserve_full_payload_and_independent_origins() {
-
         let mut cases = vec![
             Carrier::Tcl84Long(i64::MIN),
             Carrier::Integer(i64::MAX),
@@ -427,7 +426,6 @@ mod tests {
 
     #[test]
     fn missing_boolean_origin_refuses_and_storage_is_never_inferred() {
-
         assert_eq!(
             export_scalar(NativeScalarCache::WordBoolean(true), None),
             Err(NativeScalarCarrierError::WordBooleanOriginUnavailable)
@@ -508,7 +506,6 @@ mod wide84_transport_tests {
     use super::*;
     #[test]
     fn explicit_c84_wide_wire_keeps_descriptor_data_distinct_from_integer_and_long() {
-
         for value in [17, 4_294_967_296, i64::MIN, i64::MAX] {
             let wide = Carrier::Tcl84Wide(value);
             let bytes = encode_scalar(&wide).unwrap();

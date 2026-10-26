@@ -419,7 +419,6 @@ mod tests {
 
     #[test]
     fn original_own_object_entries_keep_allocation_and_counted_names_separate() {
-
         let source = r"oo::class create C {method shared {} {}}; C create d; C create e; oo::objdefine d {method shared {} {}; method p\uD800 {} {}; method p\uD801 {} {}}; d shared; d p\uD800; d p\uD801; e shared";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let bindings = analyse(source, dialect);
@@ -462,7 +461,6 @@ mod tests {
 
     #[test]
     fn original_own_object_readonly_target_retains_no_generated_name() {
-
         let source = r"oo::class create C {}; set object [C new]; oo::objdefine $object {method own\uD800 {} {}}; $object own\uD800";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let bindings = analyse(source, dialect);
@@ -487,7 +485,6 @@ mod tests {
 
     #[test]
     fn original_own_object_unknown_or_changed_workers_withdraw_entries() {
-
         for configuration in [
             "unrepresentedOperation",
             "class Other",
@@ -519,7 +516,6 @@ mod tests {
 
     #[test]
     fn original_own_object_body_does_not_borrow_class_instance_variables() {
-
         let source = "oo::class create C {variable x; method base {} {}}; C create d; oo::objdefine d {method own {} {::info exists x}}; d own";
         let bindings = analyse(source, "tcl8.6");
         let binding = bindings.invocation_at_source(
@@ -535,7 +531,6 @@ mod tests {
 
     #[test]
     fn original_own_object_replacement_retires_prior_captured_prefix() {
-
         for (configuration, expected) in [("", 1), ("oo::objdefine d {method shared {} {}};", 0)] {
             let source = format!(
                 "oo::class create C {{method shared {{}} {{}}}}; C create d; set callback [list d shared]; {configuration} after 0 $callback"
@@ -555,7 +550,6 @@ mod tests {
 
     #[test]
     fn original_own_object_inline_member_installs_the_script_layout_entry() {
-
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let installed = [
                 r"oo::objdefine d {method p\uD800 {a} {return $a}}",
@@ -628,7 +622,6 @@ mod original_configuration_body_purpose_tests {
 
     #[test]
     fn original_own_object_configuration_keeps_body_bom_and_parent_policy_separate() {
-
         // Original represented source transfer only, not a physical method-entry grant.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();

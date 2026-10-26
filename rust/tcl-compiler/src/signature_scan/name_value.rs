@@ -225,7 +225,6 @@ impl SignatureSourceNameValue {
         receipt: &crate::command_binding::named_manufacture::OriginalObjectCommandNameResult,
         context: &crate::var_resolve::ResolveContext,
     ) -> Option<Self> {
-
         if !receipt.requested_name_input().is_current(context)
             || context
                 .execution_name_policy
@@ -1419,7 +1418,6 @@ mod variable_operand_root_tests {
 
     #[test]
     fn original_c_array_operand_root_keeps_unknown_index_and_complete_word_separate() {
-
         // Original C variable-word geometry source evidence:
 
         // This uses its compound-word root boundary, not its SET handler,

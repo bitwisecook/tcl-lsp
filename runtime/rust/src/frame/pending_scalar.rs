@@ -128,7 +128,6 @@ mod formal_tests {
 
     #[test]
     fn original_formal_store_refuses_pending_role_before_hold_and_after_metadata_retirement() {
-
         // Software storage/transport boundary only: the private fixture installs
         // the actual pending allocation role, without a C compiler chronology claim.
         for pending_at_entry in [true, false] {

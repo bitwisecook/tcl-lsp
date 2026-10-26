@@ -2259,7 +2259,6 @@ mod original_extract_tests {
 
     #[test]
     fn original_extract_name_collision_uses_publications_without_reporting_maps() {
-
         let source =
             "proc extracted_proc {} {}; interp alias {} extracted_proc_2 {} list; puts VALUE";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -2290,7 +2289,6 @@ mod original_extract_tests {
 
     #[test]
     fn original_extract_name_search_refuses_unknown_or_fully_occupied_slots() {
-
         assert!(first_fresh_proc_name(|_| None).is_err());
         assert!(first_fresh_proc_name(|_| Some(true)).is_err());
         assert_eq!(
@@ -2305,7 +2303,6 @@ mod original_extraction_capture_tests {
     use super::*;
     #[test]
     fn original_extraction_requires_motion_contract_without_reporting_fallback() {
-
         for source in ["set value VALUE\nputs $value\n", "puts VALUE\n"] {
             let mut analyser = tcl_compiler::analyser::Analyser::new();
             let mut analysis = analyser.analyse(source, "tcl8.6").clone();
@@ -2333,7 +2330,6 @@ mod selected_source_variable_tests {
 
     #[test]
     fn original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers() {
-
         let source = "interp alias {} write {} set held
 write 2
 proc set args {}
@@ -2348,7 +2344,6 @@ set hidden 1";
 
     #[test]
     fn original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input() {
-
         let source = "set x 5
 puts $x
 puts done";
@@ -2428,7 +2423,6 @@ puts done";
 
     #[test]
     fn original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners() {
-
         let source = "if {1} {puts ${a{b}c}}\nputs done\n";
         let needle = "if {1} {puts ${a{b}c}}";
         let selection = (0, u32::try_from(needle.len()).unwrap());

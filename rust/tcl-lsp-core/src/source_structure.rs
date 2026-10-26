@@ -617,7 +617,6 @@ impl SourceSyntaxStructure {
         &self,
         head: u32,
     ) -> Result<Option<SourceSyntaxDefinitionMember<'_>>, SourceSyntaxMemberUnavailable> {
-
         use tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberDisposition as D;
         let region = self
             .structure
@@ -1114,7 +1113,6 @@ impl SourceStructure {
         config: LexerConfig,
         purpose: CapturePurpose,
     ) -> Option<Self> {
-
         let image = SourceImage::document(source);
         let end = u32::try_from(source.len()).ok()?;
         if let Some(analysis) = analysis
@@ -2301,7 +2299,6 @@ mod tests {
 
     #[test]
     fn original_variable_cursor_keeps_selected_roots_and_complete_source_geometry() {
-
         let source = concat!(
             "set seed café🙂\n",
             "puts ${a{b}c}\n",
@@ -2387,7 +2384,6 @@ mod tests {
 
     #[test]
     fn original_cursor_declines_malformed_data_and_native_resolution_promotion() {
-
         let source = "set seed 1\nputs ${missing\n";
         let analysis = cursor_analysis(source, tcl_dialect::BracedVarStyle::Tcl9Nesting);
         let cursor = u32::try_from(source.find("${missing").unwrap() + 2).unwrap();
@@ -2409,7 +2405,6 @@ mod tests {
 
     #[test]
     fn original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles() {
-
         fn reference_only(
             _: tcl_registry::InvocationArguments<'_>,
         ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
@@ -2464,7 +2459,6 @@ mod tests {
 
     #[test]
     fn original_syntax_tokens_join_absolute_region_and_command_geometry() {
-
         let source =
             "set data {café🙂;\nnotACommand}\nif {1} {  puts [list café🙂]; puts $value  }";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -2524,7 +2518,6 @@ mod tests {
 
     #[test]
     fn original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear() {
-
         let source = concat!(
             "proc p {} {puts [list inner]}\n",
             "interp alias {} branch {} if 1\n",
@@ -2670,7 +2663,6 @@ mod tests {
 
     #[test]
     fn original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies() {
-
         // This control stops at the genuine selected source-owner boundary;
         // it does not depend on quick-fix diagnostics or candidate spelling.
         for source in [
@@ -2883,7 +2875,6 @@ mod tests {
 
     #[test]
     fn original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies() {
-
         let source = "oo::class create C {self self {method café {} {puts wrapper}}; if 1 {method café {} {puts immediate}}; method m {} {method ordinary {} {puts data}}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
@@ -2923,7 +2914,6 @@ mod tests {
 
     #[test]
     fn original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject() {
-
         let source = concat!(
             "switch -- $choice {\n x {\n  puts [list arm]\n }\n}\n",
             "apply {{} {\n puts [list lambda]\n}}\n",
@@ -2961,7 +2951,6 @@ mod syntax_compaction_tests {
 
     #[test]
     fn original_syntax_regions_keep_quiet_selected_bodies_and_source_currency() {
-
         let source = "proc p {} {if {1} {  puts [list quiet]  }}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
@@ -3000,7 +2989,6 @@ mod syntax_compaction_tests {
 
     #[test]
     fn original_syntax_regions_do_not_promote_conditional_roles_or_declarations() {
-
         let source = "unavailable\nif {1} {  puts advisory  }\nputs [list lexical]\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
@@ -3034,7 +3022,6 @@ mod syntax_compaction_tests {
 
     #[test]
     fn original_syntax_regions_reject_body_roles_when_arguments_replace_the_head() {
-
         let source = concat!(
             "if [eval {rename if saved; proc if {condition body} ",
             "{set ::custom_ran CUSTOM; set ::custom_body $body; return $body}; list 1}] ",

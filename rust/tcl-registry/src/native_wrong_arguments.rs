@@ -117,7 +117,6 @@ mod tests {
 
     #[test]
     fn measured_native_codes_have_independent_origin() {
-
         // Only the original public `catch {set}` error-code field supplies the
         // expectation. The separate origin/String assertions below exercise
         // software selection; these streams do not observe physical headers.

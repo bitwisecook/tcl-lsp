@@ -1774,7 +1774,6 @@ mod logical_body_inventory_tests {
 
     #[test]
     fn logical_immediate_body_schema_keeps_original_geometry_and_unknown_effects_separate() {
-
         for source in [
             "switch $subject one {set local 1} default {set other 2}",
             "if $condition {set local 1}",
@@ -1826,7 +1825,6 @@ mod logical_body_inventory_tests {
 
     #[test]
     fn logical_immediate_body_schema_keeps_child_mutations_and_foreign_owners_terminal() {
-
         let source = "switch $subject one {rename set gone; set blocked 1}";
         let analysis = analyse(source);
         let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
@@ -1868,7 +1866,6 @@ mod logical_body_inventory_tests {
     }
     #[test]
     fn logical_root_substitutions_keep_alias_point_without_future_body_applicability() {
-
         let source = "interp alias {} make {} list set x; eval [make $value]";
         let analysis = analyse(source);
         let input = analysis.resolved_input.as_ref().unwrap();
@@ -1915,7 +1912,6 @@ mod logical_body_inventory_tests {
 
     #[test]
     fn logical_root_substitutions_keep_earlier_mutations_and_owner_refusals() {
-
         let source = "interp alias {} make {} list set x; eval [make $value]";
         let baseline = analyse(source);
         let offset = u32::try_from(source.find("make $value").unwrap()).unwrap();
@@ -2053,7 +2049,6 @@ mod original_empty_coverage_tests {
 
     #[test]
     fn original_reference_only_coverage_is_complete_empty_and_keeps_following_source_lookup() {
-
         // Conditional source mutation coverage only; no execution or handler grant.
         let (projection, unchanged) = projection(
             "selected-script {rename set {}; rename puts {}}; set x 1",
@@ -2068,7 +2063,6 @@ mod original_empty_coverage_tests {
 
     #[test]
     fn original_unavailable_evaluated_body_coverage_cannot_claim_complete_empty() {
-
         // A dynamic or recooked selected body remains unavailable mutation coverage.
         for source in [
             "selected-script $body; set x 1",
@@ -2105,7 +2099,6 @@ mod original_source_expression_topology_tests {
 
     #[test]
     fn original_logical_expression_child_retains_alias_actual_base_and_no_native_recipe() {
-
         // Original conditional source schema only; no entered command or runtime output.
         let input = input();
         assert!(input.has_logical_source_name_context());
@@ -2196,7 +2189,6 @@ mod original_expression_purpose_frontier_tests {
 
     #[test]
     fn original_logical_expression_topology_cannot_supply_missing_native_parser_purpose() {
-
         // Descriptive source/name/parser axes only, without a Native invocation.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context =

@@ -1310,7 +1310,6 @@ mod tests {
 
     #[test]
     fn integer_option_exists_only_from_tcl91() {
-
         // The unchanged integer RESULT rows observe each release's option
         // enumeration. Their header/callback columns are not checked here.
         for (v, rows) in [

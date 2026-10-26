@@ -356,7 +356,6 @@ mod tests {
 
     #[test]
     fn original_cfg_lookup_uses_per_point_native_namespace_not_reported_function_name() {
-
         let (_owner, unit, context) = native_fixture("set result VALUE");
         let mut cfg = unit.top_level.cfg.clone();
         let original = CommandBindingSites::unanimous_statement_source_tokens(
@@ -437,7 +436,6 @@ mod tests {
 
     #[test]
     fn original_command_mutation_history_excludes_initial_cells_and_keeps_restored_slots() {
-
         // These table-owner operations test software mutation history. They
         // assert no Native invocation, publication or Normal completion.
         let (_owner, unit, context) = native_fixture("set result VALUE");
@@ -474,7 +472,6 @@ mod tests {
 
     #[test]
     fn original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata() {
-
         let (_owner, unit, context) = native_fixture("set result VALUE");
         let cfg = &unit.top_level.cfg;
         assert!(
@@ -545,7 +542,6 @@ mod tests {
 
     #[test]
     fn original_cfg_logical_lookup_keeps_its_positive_owner_separate_from_native_names() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
         let context =
@@ -621,7 +617,6 @@ mod tests {
 
     #[test]
     fn original_cfg_binding_replay_keeps_native_move_and_delete_horizons() {
-
         let (_owner, unit, context) = native_fixture(
             "rename set saved_set\nsaved_set result VALUE\nrename saved_set {}\nset other VALUE",
         );

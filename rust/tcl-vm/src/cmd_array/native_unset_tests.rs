@@ -59,8 +59,6 @@ const CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_array_unset_matches_native_refills_and_release_selected_lookup() {
-
-
     // Whole unchanged originals compare public results only. No native table,
     // original-header or compiled activation equivalence follows from them.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];

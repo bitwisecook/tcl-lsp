@@ -1007,7 +1007,6 @@ mod tests {
 
     #[test]
     fn original_expression_candidates_keep_actual_config_alias_and_shadow_context() {
-
         // Conditional original grammar only; these counts prove no Normal or edit.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -1054,7 +1053,6 @@ mod tests {
 
     #[test]
     fn original_expression_candidates_follow_consumed_source_without_native_edits() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -1120,7 +1118,6 @@ mod tests {
 
     #[test]
     fn original_expression_candidates_decline_missing_foreign_and_changed_module_inputs() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();

@@ -579,7 +579,6 @@ fn assert_empty_actual_cu_views(rendered: &Value, fields: [&str; 9]) {
 /// This drives the shipped JavaScript in Node's DOM stand-in, not a browser.
 #[test]
 fn retained_source_unavailable_payload_renders_without_empty_success_claims() {
-
     if Command::new("node").arg("--version").output().is_err() {
         skip("`node` is not on PATH");
         return;
@@ -668,7 +667,6 @@ fn retained_source_unavailable_payload_renders_without_empty_success_claims() {
 /// shipped core renderers and both shell hooks/counts. The DOM is a stand-in.
 #[test]
 fn remaining_actual_cu_unavailable_payload_renders_all_retained_views() {
-
     if Command::new("node").arg("--version").output().is_err() {
         skip("`node` is not on PATH");
         return;

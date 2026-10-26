@@ -708,7 +708,6 @@ mod tests {
     }
     #[test]
     fn compiled_try_matches_original_native_handlers_fallthrough_and_finally() {
-
         // Cases19..39 compare reached guest completions, never a host refusal.
         let cases = include_str!("../../../tests/data/native_compiled_try/cases.tsv");
         for (profile, observations) in [
@@ -781,7 +780,6 @@ mod tests {
     }
     #[test]
     fn original_compiled_try_trap_checks_frame_before_options_backing_adoption() {
-
         use crate::cmd_control::original_list_conversion_tests as fixture;
         use std::cell::Cell;
         for mode in [0, 1, 2, 3] {

@@ -671,7 +671,6 @@ impl OriginalSourceScriptBody {
         context: &ContextRegistry,
         previous: Option<&Self>,
     ) -> Option<Self> {
-
         if !self.matches_context(context) {
             return None;
         }
@@ -804,7 +803,6 @@ impl OriginalSourceDefinitionMemberScriptBody {
         context: &ContextRegistry,
         parent: &OriginalSourceScriptBody,
     ) -> Option<OriginalSourceDefinitionMemberBodyCorrespondence> {
-
         let original_parent = self.original_parent_body();
         let image = self.original_container().image();
         let config = self.original_container().config();
@@ -1006,7 +1004,6 @@ impl OriginalSourceScriptBody {
         context: &ContextRegistry,
         script_region: Span,
     ) -> Option<OriginalSourceDefinitionMemberRegion> {
-
         if !self.matches_context(context)
             || script_region.start() < self.content.start()
             || script_region.end() > self.content.end()
@@ -1226,7 +1223,6 @@ impl OriginalSourceDefinitionMemberRegion {
         original: &[NativeWord],
         complete: bool,
     ) -> Option<Vec<OriginalSourceDefinitionMemberReference>> {
-
         let values = self.member_values(original)?;
         let keyword = values.first()?.as_deref()?;
         let arguments = original
@@ -1558,7 +1554,6 @@ pub(crate) fn declared_source_script_bodies_for(
     words: &crate::command_binding::OriginalDeclaredCommandWords,
     purpose: OriginalSourceScriptPurpose,
 ) -> Vec<OriginalDeclaredSourceScriptBody> {
-
     // Authored declarations specify source Body roles, but do not specify
     // script timing. Role syntax cannot establish potential evaluation.
     if purpose != OriginalSourceScriptPurpose::Syntax {
@@ -2547,7 +2542,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_member_references_retain_whole_words_parent_vocabulary_and_scope() {
-
         let source = "oo::class create C {export {m space} m\\0n; self export m; export $unknown}";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let (analysis, parent) = original_definition_parent(source, dialect);
@@ -2634,7 +2628,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_definition_parent_uses_actual_plain_current_immediate_body_metadata() {
-
         fn immediate(_args: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
             vec![(0, ScriptTiming::SameInvocation)]
         }
@@ -2725,7 +2718,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_definition_parent_declines_structural_foreign_and_uncontained_source() {
-
         let source =
             "oo::class create C {if 1 {method café {} {puts live}}; proc p {} {method ordinary}}";
         let (analysis, parent) = original_definition_parent(source, "tcl8.6");
@@ -2879,7 +2871,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_member_keyword_requires_complete_owned_argv_but_not_body_applicability() {
-
         let source = "oo::class create C {method café $params {puts hidden}}";
         let (analysis, parent) = original_definition_parent(source, "tcl8.6");
         let context = analysis.resolved_input.as_ref().unwrap().context_registry();
@@ -2899,7 +2890,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_property_member_bodies_skip_option_like_values_and_quoted_options() {
-
         // Native observations concern stored Tcl scripts; this control binds
         // their layout to authentic source spans without granting installation.
         for dialect in ["tcl9.0", "tcl9.1"] {
@@ -3020,7 +3010,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_member_region_owns_complete_argv_and_unicode_body_geometry() {
-
         let source = "oo::class create C {\nmethod café {} {puts café}\nself self {method n {} {puts nested}}\n}\n";
         let (analysis, parent) = original_definition_parent(source, "tcl8.6");
         let context = analysis.resolved_input.as_ref().unwrap().context_registry();
@@ -3076,7 +3065,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_member_region_declines_foreign_context_words_and_cooked_bodies() {
-
         let source = "oo::class create C {method café {} {puts café}}";
         let (analysis, parent) = original_definition_parent(source, "tcl8.6");
         let context = analysis.resolved_input.as_ref().unwrap().context_registry();
@@ -3147,7 +3135,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_expression_script_regions_use_actual_grammar_and_container() {
-
         for dialect in ["tcl8.6", "tcl9.0"] {
             let source = "expr {[format café]}";
             let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
@@ -3202,7 +3189,6 @@ mod script_purpose_tests {
 
     #[test]
     fn original_script_inventory_separates_reference_syntax_from_potential_evaluation() {
-
         let source = "reference-script {format reference}\nrun-script {format potential}";
         let mut registry = CommandRegistry::build_default();
         registry.insert(CommandSpec {

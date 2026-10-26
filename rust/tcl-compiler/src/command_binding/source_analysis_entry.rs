@@ -36,7 +36,6 @@ impl SourceDeclaredCommandContracts {
         input: &crate::analyser::ResolvedAnalysisInput,
         entry: Option<&SourceAnalysisEntry>,
     ) -> Arc<Self> {
-
         let context = input.context_registry();
         let document = crate::analyser::utils::document_declared_surface(
             source,
@@ -65,7 +64,6 @@ impl SourceDeclaredCommandContracts {
         &'a self,
         mut options: SourceAnalysisOptions<'a>,
     ) -> SourceAnalysisOptions<'a> {
-
         options.declared_commands = Some(&self.0);
         options
     }
@@ -555,7 +553,6 @@ mod source_entry_tests {
 
     #[test]
     fn owned_source_entry_retains_metadata_without_naming_or_native_entry_donation() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = context.commands().profile().unwrap();
@@ -611,7 +608,6 @@ mod source_entry_tests {
 
     #[test]
     fn owned_hosted_entry_keeps_source_policy_and_unknown_runtime_history() {
-
         for environment in ["f5-irules", "f5-iapps"] {
             let environment = tcl_registry::model::ingress::resolve_environment(environment);
             let profile = environment.unit_profile();
@@ -654,7 +650,6 @@ mod source_entry_tests {
 
     #[test]
     fn owned_logical_entry_preserves_actual_input_and_refuses_native_axes() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
@@ -712,7 +707,6 @@ mod original_source_config_owner_tests {
 
     #[test]
     fn original_source_config_survives_independent_handler_policy_without_native_entry() {
-
         // Complete source grammar, not Native execution or compiler admission.
         let environment = tcl_registry::model::ingress::resolve_known_environment("tcl9.0")
             .expect("known source environment");
@@ -775,7 +769,6 @@ mod original_source_config_owner_tests {
 
     #[test]
     fn original_source_config_and_retained_native_grammar_keep_separate_issuers() {
-
         // Original VM registration is held; the checks exercise grammar selection only.
         let environment = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
             .expect("known Native fixture environment");

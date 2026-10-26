@@ -403,7 +403,6 @@ mod tests {
 
     #[test]
     fn original_authored_namespace_selector_keeps_table_members_and_strict_utf8_refusal() {
-
         let mut vm = host();
         let original = Value::string("ex");
         let table = Value::list(vec![Value::string("exists"), Value::string("eval")]);

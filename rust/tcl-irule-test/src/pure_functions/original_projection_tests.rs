@@ -42,7 +42,6 @@ fn fixture() -> Vm {
 
 #[test]
 fn original_pure_callback_refuses_first_utf8_word_before_later_string_getter() {
-
     let mut vm = fixture();
     let values = [
         Value::new_native_string_bytes(b"\xff".as_slice()),
@@ -79,7 +78,6 @@ fn original_pure_callback_refuses_first_utf8_word_before_later_string_getter() {
 
 #[test]
 fn original_pure_callback_preserves_strict_nul_words_and_actual_argument_roles() {
-
     let mut vm = fixture();
     let values = [Value::string("A\0B")];
     let counts = values

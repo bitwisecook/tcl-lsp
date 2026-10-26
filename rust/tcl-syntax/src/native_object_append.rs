@@ -56,7 +56,6 @@ impl NativeObjectAppendProtocol {
     /// Later releases return before reaching its primary representation.
     #[must_use]
     pub const fn converts_empty_counted_receiver(self) -> bool {
-
         matches!(
             self.string.tcl_version(),
             Some(TclVersion::V8_4 | TclVersion::V8_5)

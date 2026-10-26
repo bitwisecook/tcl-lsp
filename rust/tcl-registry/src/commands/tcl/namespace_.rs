@@ -441,7 +441,6 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
 /// there is no flag or terminator word to skip. The exact count is after
 /// the `delete` subcommand; namespace values need not be logical strings.
 fn namespace_delete_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
-
     (0..count)
         .filter_map(|i| u8::try_from(i).ok())
         .map(|i| (i, ArgRole::NamespaceName))
@@ -895,7 +894,6 @@ fn namespace_unknown_state_transitions(arguments: InvocationArguments<'_>) -> St
 // from the public ensemble compiler and runtime body-selection contract.
 macro_rules! namespace_no_hook_compiler {
     ($member:literal, $operation:expr, $body:expr) => {
-
         crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
                 compiler: &crate::native_compilation::NativeCompilationSpec {
@@ -1685,8 +1683,6 @@ mod tests {
 
     #[test]
     fn jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_binding() {
-
-
         // The original returned helper body rejects unsupported operations.
         // These are source-schema assertions, not current helper/Normal proofs.
         let spec = super::jim_spec();
@@ -1847,7 +1843,6 @@ mod tests {
 
     #[test]
     fn original_namespace_delete_roles_require_cardinality_without_requiring_text_values() {
-
         use crate::{ArgRole, InvocationWord, InvocationWords};
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = crate::InvocationDialect::for_version(version);
@@ -1884,7 +1879,6 @@ mod tests {
 
     #[test]
     fn original_namespace_delete_effects_hand_only_legacy_state_to_the_recursive_transition() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = crate::InvocationDialect::for_version(version);
             let registry =
@@ -1927,7 +1921,6 @@ mod tests {
 
     #[test]
     fn original_namespace_delete_keeps_independent_policy_writes_and_trace_callbacks() {
-
         use crate::world_effect::{
             EffectAccessMode, StaticEffectAccess, StaticInterpreterScope, StaticNamespaceScope,
             StaticSubjectScope,

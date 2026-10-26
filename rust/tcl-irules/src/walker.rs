@@ -81,7 +81,6 @@ pub fn extract_original_irules_source_object_references(
     context: &crate::OriginalIrulesSourceContext,
     rule_module: Option<&str>,
 ) -> Vec<IrulesObjectReference> {
-
     if !context.matches_source(source) {
         return Vec::new();
     }
@@ -588,7 +587,6 @@ mod case_list_tests {
     }
     #[test]
     fn original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses() {
-
         let source = "when HTTP_REQUEST {pool /Common/literal; set p /Common/guess; pool $p}";
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let context = crate::OriginalIrulesSourceContext::capture(source, registry).unwrap();

@@ -14,7 +14,6 @@ pub(super) fn select(
     current: &SourceNamespaceKey,
     input: &SignatureSourceNameInput,
 ) -> Option<Vec<SourceNamespaceKey>> {
-
     let policy = state.baseline.execution_name_policy?.native_recipe()?;
     let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
         return None;
@@ -73,7 +72,6 @@ mod tests {
 
     #[test]
     fn original_namespace_path_keeps_whole_lists_and_existing_identities() {
-
         for version in [
             TclVersion::V8_5,
             TclVersion::V8_6,
@@ -121,7 +119,6 @@ mod tests {
 
     #[test]
     fn original_namespace_path_declines_missing_malformed_and_dynamic_elements() {
-
         for version in [
             TclVersion::V8_5,
             TclVersion::V8_6,
@@ -166,7 +163,6 @@ mod tests {
 
     #[test]
     fn original_namespace_path_requires_current_original_policy_and_unique_incarnations() {
-
         use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
         let source = "namespace eval A {}; namespace path {::A}";
         let bindings = analyse(source, TclVersion::V8_6);

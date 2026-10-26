@@ -1373,7 +1373,6 @@ mod original_key_construction_tests {
 
     #[test]
     fn original_jim_qualification_keeps_namespace_owner_and_stops_after_refused_getter() {
-
         // Qualified source/first-cause controls; Native421b observes root keys.
         for mode in [0, 1, 2] {
             let mut interp = crate::cmd_alias::original_operand_tests::native("jim");
@@ -1459,7 +1458,6 @@ mod original_key_construction_tests {
 
     #[test]
     fn original_jim_key_append_keeps_the_actual_zero_reference_receiver() {
-
         let interp = crate::cmd_alias::original_operand_tests::native("jim");
         let scope = NativeOperationScope::enter(&interp).unwrap();
         let raw = obj::new_string_bytes(b"key_scope");
@@ -1501,7 +1499,6 @@ mod original_key_construction_tests {
 
     #[test]
     fn original_jim_missing_rename_source_stops_before_destination_lookup() {
-
         let mut interp = crate::cmd_alias::original_operand_tests::native("jim");
         let original = obj::Owned::fresh(obj::alloc_typed(&TYPE, 0));
         let source = obj::Owned::fresh(obj::new_string_bytes(b"missing_original_key"));

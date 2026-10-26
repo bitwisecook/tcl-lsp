@@ -850,7 +850,6 @@ mod tests {
 
     #[test]
     fn chain_uses_authentic_alias_captures_and_moved_append() {
-
         for (source, code, expected) in [
             (
                 "interp alias {} extend {} append s PRE; set s {}; extend A; extend B",
@@ -892,7 +891,6 @@ mod tests {
 
     #[test]
     fn chain_preserves_literal_scalar_names_and_closed_array_refusal() {
-
         for (name, expected) in [
             ("$scalar(open", "{$scalar(open}"),
             ("café", "{café}"),
@@ -926,7 +924,6 @@ mod tests {
 
     #[test]
     fn chain_requires_supplied_function_and_module_metadata() {
-
         let registry = registry();
         let source = "set s {}; append s A; append s B";
         let original = logical_unit_at(source, &registry, "tcl9.0");
@@ -983,7 +980,6 @@ mod tests {
 
     #[test]
     fn chain_requires_original_statement_tape_after_structured_lowering() {
-
         // The source sidecar survives typed lowering without becoming a Native receipt.
         let registry = registry();
         let source = "set s {}; append s A; append s B";
@@ -1008,7 +1004,6 @@ mod tests {
 
     #[test]
     fn chain_uses_retained_availability_over_catalogue_generation() {
-
         let mut registry = registry();
         let append = registry.get("append").unwrap().clone();
         registry.insert(tcl_registry::CommandSpec {
@@ -1028,7 +1023,6 @@ mod tests {
 
     #[test]
     fn native_chain_layout_never_grants_erasure() {
-
         // Original API receipts only; this is not a native execution comparison.
         let source = "set s {}; append s A; append s B";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1108,7 +1102,6 @@ mod tests {
 
     #[test]
     fn traced_interleaved_write_ends_chain() {
-
         let source = "proc observe args {puts $::s}; trace add variable ::t write observe; set s {}; set t A; append s B";
         assert!(
             run_pass(source)
@@ -1372,7 +1365,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_chain_advice_cannot_become_a_logical_rewrite() {
-
         let source = "set s {}; append s FIRST; append s SECOND";
         // Actual software Vm entry; no external Jim/provider execution.
         let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
@@ -1441,7 +1433,6 @@ mod tests {
     }
     #[test]
     fn retained_authored_simulation_chain_layout_stays_hint_only() {
-
         // Actual authored source entry/policy; no supplied Native interpreter.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();

@@ -209,7 +209,6 @@ mod tests {
 
     #[test]
     fn original_default_manufacture_shape_requires_current_class_and_absent_handlers() {
-
         for version in [
             tcl_dialect::TclVersion::V8_6,
             tcl_dialect::TclVersion::V9_0,
@@ -268,7 +267,6 @@ mod tests {
 
     #[test]
     fn original_default_manufacture_layout_comes_from_the_selected_row_and_full_vector() {
-
         // These are retained source shapes. No constructor completion or
         // Native frame is issued by the layout projection.
         for version in [

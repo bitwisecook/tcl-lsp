@@ -104,7 +104,6 @@ fn observer(
 
 #[test]
 fn original_trace_epilogue_releases_original_operations_and_keeps_child_storage() {
-
     let mut vm = native();
     let original_id = vm.cur;
     let target = child(&mut vm);
@@ -135,7 +134,6 @@ fn original_trace_epilogue_releases_original_operations_and_keeps_child_storage(
 
 #[test]
 fn original_owned_variable_teardown_keeps_first_cause_and_releases_its_real_trace_roles() {
-
     for mode in [0, 1, 4] {
         let mut vm = native();
         let original_id = vm.cur;
@@ -179,7 +177,6 @@ fn original_owned_variable_teardown_keeps_first_cause_and_releases_its_real_trac
 
 #[test]
 fn original_variable_finish_refuses_unbalanced_frame_and_allows_balanced_reentry() {
-
     for mode in [2, 3] {
         let mut vm = native();
         let target = child(&mut vm);
@@ -212,7 +209,6 @@ fn original_variable_finish_refuses_unbalanced_frame_and_allows_balanced_reentry
 
 #[test]
 fn original_arena_withdrawal_never_releases_same_numbered_replacement_cell() {
-
     // Explicit real storage allocation fixture; a VarId grants no Native purpose.
     let mut vm = native();
     vm.set_var_bytes(b"x", Value::int(1)).unwrap();
@@ -239,7 +235,6 @@ fn original_arena_withdrawal_never_releases_same_numbered_replacement_cell() {
 
 #[test]
 fn original_dying_namespace_table_finishes_owned_rows_after_child_callback() {
-
     let mut vm = native();
     let original_id = vm.cur;
     let target = child(&mut vm);
@@ -278,7 +273,6 @@ fn original_dying_namespace_table_finishes_owned_rows_after_child_callback() {
 
 #[test]
 fn original_c_array_detach_keeps_default_roles_until_actual_old_member_retirement() {
-
     // Software counts of the actual C91 descriptor, not public Native free callbacks.
     let mut vm = native();
     vm.write_array_raw(

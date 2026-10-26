@@ -372,7 +372,6 @@ mod tests {
 
     #[test]
     fn original_factory_scans_keep_body_bom_distinct_from_definer_and_call_heads() {
-
         // Conditional wrapper/header shape only; no entered procedure or manufactured command.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();

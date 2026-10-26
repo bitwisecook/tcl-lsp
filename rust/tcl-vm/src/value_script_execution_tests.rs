@@ -195,7 +195,6 @@ fn original_script_execution_matches_51_native_callback_windows() {
 
 #[test]
 fn deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit() {
-
     // Software ownership/activation control; no native pointer or new provider observation.
     let profile = tcl_registry::model::ingress::resolve_known_environment("jim")
         .unwrap()
@@ -236,7 +235,6 @@ fn deferred_original_jim_script_owner_survives_transport_clones_only_until_activ
 
 #[test]
 fn deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers() {
-
     // Equal bytes and lifetime transports cannot establish the actual pending owner.
     let profile = tcl_registry::model::ingress::resolve_known_environment("jim")
         .unwrap()
@@ -274,7 +272,6 @@ fn deferred_original_jim_script_owner_refuses_foreign_and_retired_original_heade
 
 #[test]
 fn deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script() {
-
     // Original source reaches both actual deferred workers; these are software controls.
     let profile = tcl_registry::model::ingress::resolve_known_environment("jim")
         .unwrap()

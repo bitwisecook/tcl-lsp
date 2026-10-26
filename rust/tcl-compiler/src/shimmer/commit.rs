@@ -1238,7 +1238,6 @@ mod tests {
 
     #[test]
     fn retained_increment_reads_use_literal_operand_names_without_reparsing_sigils() {
-
         // Exact original SSA read projection, not execution or cache equivalence.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();

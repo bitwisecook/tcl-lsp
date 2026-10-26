@@ -192,7 +192,6 @@ static PUBLISHED_NAME: obj::TclObjType = obj::TclObjType {
 #[test]
 fn original_jim_cached_scalar_store_retires_visible_old_role_before_assignment_and_checks_original_cell(
 ) {
-
     for mode in [0, 1, 2, 3, 4] {
         let mut interpreter = native();
         interpreter.frames.borrow_mut().push(GLOBAL);
@@ -248,7 +247,6 @@ fn original_jim_cached_scalar_store_retires_visible_old_role_before_assignment_a
 }
 #[test]
 fn original_jim_variable_cache_adoption_preserves_callback_primary_and_stops_before_scalar_store() {
-
     for mode in [0, 1, 2, 3] {
         let mut interpreter = native();
         interpreter.frames.borrow_mut().push(GLOBAL);
@@ -301,7 +299,6 @@ fn original_jim_variable_cache_adoption_preserves_callback_primary_and_stops_bef
 }
 #[test]
 fn original_jim_cached_static_scalar_store_and_link_recursion_keep_original_shared_cell_roles() {
-
     let mut interpreter = native();
     interpreter.frames.borrow_mut().push(GLOBAL);
     let initial = text(b"initial");

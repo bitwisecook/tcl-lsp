@@ -800,7 +800,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_restores_its_captured_previous_after_the_first_host_cause() {
-
         let (mut vm, slot, original_token, released) = selected_local();
         let scope =
             super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
@@ -840,7 +839,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_refuses_recreate_delete_aba_and_retires_the_detached_previous() {
-
         let (mut vm, slot, original_token, released) = selected_local();
         let scope =
             super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
@@ -884,7 +882,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_permits_an_independent_child_table_mutation() {
-
         let (mut vm, slot, original_token, released) = selected_local();
         vm.create_child(Some("independent".into()), false);
         let child = vm.child_id("independent").unwrap();
@@ -921,7 +918,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_cleanup_refuses_an_exhausted_table_stamp() {
-
         let (mut vm, slot, _, released) = selected_local();
         let scope =
             super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
@@ -964,7 +960,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_frame_receipt_completes_cleanup_after_pre_entry_host_refusal() {
-
         let (mut vm, slot, original_token, released) = selected_local();
         let (original, record) = captured_local_record(&mut vm, &slot);
         let captured_node = record.node.clone();
@@ -1027,7 +1022,6 @@ mod tests {
 
     #[test]
     fn original_jim_local_frame_receipt_keeps_a_recreated_binding_unreached_after_refusal() {
-
         let (mut vm, slot, _, released) = selected_local();
         let (original, record) = captured_local_record(&mut vm, &slot);
         let previous_key = vm.command_storage_key_at_slot(&slot).unwrap();

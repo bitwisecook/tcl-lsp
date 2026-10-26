@@ -312,7 +312,6 @@ mod owned_metadata_tests {
 
     #[test]
     fn retained_metadata_ingress_keeps_actual_availability_and_terminal_missing_tags() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();

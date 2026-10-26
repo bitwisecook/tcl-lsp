@@ -704,7 +704,6 @@ mod tests {
 
     #[test]
     fn original_namespace_export_storage_keeps_exact_opaque_units() {
-
         // Native question: naming.namespace.source-export-filter-units
 
         for version in tcl_dialect::TclVersion::ALL {
@@ -732,7 +731,6 @@ mod tests {
 
     #[test]
     fn original_namespace_import_and_forget_keep_actual_origin_with_closed_prelude() {
-
         // Native question: naming.namespace.source-import-token-lifetime
 
         for version in tcl_dialect::TclVersion::ALL {
@@ -764,7 +762,6 @@ mod tests {
 
     #[test]
     fn original_namespace_import_completion_requires_closed_prelude_and_destinations() {
-
         // Native question: naming.namespace.source-pattern-options-and-errors
 
         for version in tcl_dialect::TclVersion::ALL {

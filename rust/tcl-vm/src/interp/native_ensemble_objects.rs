@@ -386,7 +386,6 @@ mod physical_ensemble_owner_tests {
 
     #[test]
     fn original_physical_ensemble_table_and_prefix_keep_source_policy_independent() {
-
         // Actual software core and original table/prefix; no external C object measurement.
         let actual = crate::environment::profile_for_dialect("tcl9.0");
         let source = crate::environment::profile_for_dialect("tcl8.4");
@@ -428,7 +427,6 @@ mod physical_ensemble_owner_tests {
 
     #[test]
     fn original_ensemble_table_refuses_source_profile_as_physical_configuration_owner() {
-
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
         let def = EnsembleDef {

@@ -984,7 +984,6 @@ mod tests {
 
     #[test]
     fn regexp_layout_effects_are_reported_as_shifts() {
-
         for (provider, supports_about) in [
             ("tcl8.4", true),
             ("tcl8.5", true),

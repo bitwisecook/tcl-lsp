@@ -28,7 +28,6 @@ fn argument(value: &Value) -> Value {
 }
 #[test]
 fn original_stride_guest_and_header_predicates_match_native644() {
-
     // Actual108 Guest/result/original stride primary/resident fields only.
     // Argref1 and allocation-only transport; no additional observer/nativehold,
     // resultalias, privatecache or provider EvalObjv/callback chronology assertion.

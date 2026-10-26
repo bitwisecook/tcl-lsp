@@ -5738,7 +5738,6 @@ mod tests {
 
     #[test]
     fn procedure_and_method_callback_advice_requires_the_module_source_producer() {
-
         // Callback edges are conditional authored reachability. This source
         // control does not establish a native invocation or callback frame.
         let context =
@@ -5831,7 +5830,6 @@ mod tests {
 
     #[test]
     fn original_positioned_child_bodies_preserve_replacements_and_aliases() {
-
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         for (setup, body, expected) in [
@@ -5882,7 +5880,6 @@ mod tests {
     /// The `trace add variable … command cb` shape.
     #[test]
     fn original_callback_reachability_distinguishes_literal_values_and_selected_builders() {
-
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         for setup in ["", "rename list make", "interp alias {} make {} list"] {

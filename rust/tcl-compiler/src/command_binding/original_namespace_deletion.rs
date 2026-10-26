@@ -35,7 +35,6 @@ pub(super) struct OriginalNamespaceDeletionTransfer {
 pub(crate) struct AppliedOriginalNamespaceDeletions(OriginalNamespaceDeletionTransfer);
 
 impl OriginalNamespaceDeletionTransfer {
-
     pub(super) fn capture(
         native: SourceNativeInvocation<'_>,
         facts: &InvocationFacts,
@@ -72,7 +71,6 @@ impl OriginalNamespaceDeletionTransfer {
         })
     }
 
-
     pub(super) fn after_command_transfer(
         self,
         state: &ModuleCommandBindings,
@@ -95,7 +93,6 @@ impl OriginalNamespaceDeletionTransfer {
 }
 
 impl AppliedOriginalNamespaceDeletions {
-
     pub(crate) fn matches(
         &self,
         subject: &TransitionSubject,
@@ -199,7 +196,6 @@ fn fresh_namespace_tree(
     transfer: &OriginalNamespaceDeletionTransfer,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Option<BTreeSet<SourceNamespaceKey>> {
-
     let root = state.source_root_namespace_key()?;
     let namespaces = state
         .namespaces
@@ -246,7 +242,6 @@ fn intrinsic_namespace_commands(
     namespaces: &BTreeSet<SourceNamespaceKey>,
     site: &CommandAllocationSite,
 ) -> Option<Vec<DeletedCommand>> {
-
     let mut commands = Vec::new();
     for (key, alternatives) in state.bindings.iter() {
         if !namespaces.contains(key.holder().as_ref()) {
@@ -289,7 +284,6 @@ fn intrinsic_namespace_commands(
 }
 
 impl OriginalNamespaceDeletion {
-
     pub(super) fn capture(
         native: SourceNativeInvocation<'_>,
         facts: &InvocationFacts,
@@ -381,7 +375,6 @@ impl OriginalNamespaceDeletion {
         })
     }
 
-
     pub(super) fn completed(
         &self,
         native: SourceNativeInvocation<'_>,
@@ -437,7 +430,6 @@ mod tests {
     #[test]
 
     fn original_fresh_namespace_delete_closes_only_empty_cells_and_intrinsic_procedures() {
-
         for version in tcl_dialect::TclVersion::ALL {
             for source in [
                 "namespace eval N {proc p {} {}}; namespace delete N; namespace eval N {}",
@@ -461,7 +453,6 @@ mod tests {
     #[test]
 
     fn original_namespace_delete_refuses_missing_unknown_and_overlapping_targets() {
-
         for version in tcl_dialect::TclVersion::ALL {
             for source in [
                 "namespace eval N {proc p {} {}}; namespace delete M",

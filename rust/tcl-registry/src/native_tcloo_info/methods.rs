@@ -234,7 +234,6 @@ mod tests {
     }
     #[test]
     fn method_options_keep_cstring_prefix_and_sequential_scope_selection() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             assert!(
                 parse(version, &[b"-p\0\xff"])

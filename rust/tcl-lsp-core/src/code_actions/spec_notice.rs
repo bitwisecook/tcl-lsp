@@ -409,7 +409,6 @@ mod tests {
 
     #[test]
     fn original_spec_notice_actions_use_typed_subjects_and_current_owners_instead_of_prose() {
-
         let source = "speclib demo 1 {\n command demo::x {\n arty 1\n }\n}\n";
         let mut analysis = Analyser::new().analyse(source, "spectcl");
         let config = analysis.body_lexer_config.unwrap();

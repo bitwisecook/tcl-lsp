@@ -385,7 +385,6 @@ mod tests {
 
     #[test]
     fn original_dictionary_conversion_keeps_selected_case_shape_and_original_subject() {
-
         for subject in ["{$x}", "fixed", "\"literal$x\"", "$array(key)", "${a b}"] {
             let source =
                 format!("switch -exact -- {subject} {{a {{return one}} b {{return two}}}}");
@@ -447,7 +446,6 @@ mod tests {
 
     #[test]
     fn original_dictionary_conversion_keeps_effective_alias_layout_and_current_source() {
-
         let source = "interp alias {} choose {} switch -exact --\nchoose {$x} {a {return one} b {return two}}";
         let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
         let registry = super::super::test_registry();
@@ -478,7 +476,6 @@ mod tests {
 
     #[test]
     fn original_dictionary_case_receipt_does_not_grant_native_rewrite_permissions() {
-
         let source = "switch -exact -- {$x} {a {return one} b {return two}}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let original = super::super::original_exact_case_source_at_analysis(source, &analysis, 0)
@@ -514,7 +511,6 @@ mod original_branch_parser_tests {
     }
     #[test]
     fn original_dictionary_branches_keep_nested_bom_content_and_parent_edit_geometry() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig {
             leading_bom: tcl_lexer::LeadingBom::Skip,

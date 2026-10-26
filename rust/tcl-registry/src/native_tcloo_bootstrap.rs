@@ -274,7 +274,6 @@ mod tests {
 
     #[test]
     fn original_configurable_bootstrap_roles_require_selected_stock_release() {
-
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
             let dialect = InvocationDialect::for_version(version);
@@ -334,7 +333,6 @@ mod abstract_bootstrap_tests {
 
     #[test]
     fn original_abstract_bootstrap_recipe_is_c9_initial_state_without_live_factory_authority() {
-
         for version in [
             TclVersion::V8_4,
             TclVersion::V8_5,

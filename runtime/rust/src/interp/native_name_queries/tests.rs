@@ -141,7 +141,6 @@ fn declaration(
 }
 #[test]
 fn original_procedure_query_retains_selected_binding_through_reached_defaults_and_body() {
-
     // Actual callbacks and header/reference roles; no Native Proc-query chronology claim.
     for profile in ["tcl8.4", "tcl9.1"] {
         for mode in [0, 1, 2, 3, 4, 5] {
@@ -193,7 +192,6 @@ fn original_procedure_query_retains_selected_binding_through_reached_defaults_an
 }
 #[test]
 fn generic_proc_body_preserves_first_host_without_missing_procedure_or_default_getters() {
-
     // The actual shared consumer preserves outer execution failure before Guest formatting.
     let mut interpreter = native("tcl9.1");
     let body = typed(b'C');
@@ -214,7 +212,6 @@ fn generic_proc_body_preserves_first_host_without_missing_procedure_or_default_g
 }
 #[test]
 fn original_alias_query_checks_actual_generation_and_namespace_after_lazy_member_callbacks() {
-
     // Actual stored List/target/name owners; query leases acquire no native references.
     for mode in [0, 1, 3, 4, 5] {
         let mut interpreter = native("tcl9.1");

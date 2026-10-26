@@ -456,7 +456,6 @@ mod procedure_publication_tests {
     };
     #[test]
     fn original_publication_getter_context_change_stops_later_inputs_and_mutation() {
-
         // Real extension callbacks and original borrowed headers; this is a
         // software currency control, independent of native source admission.
         for route in 0..3 {

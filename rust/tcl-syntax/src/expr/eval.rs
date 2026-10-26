@@ -873,7 +873,6 @@ mod tests {
 
     #[test]
     fn checked_comparison_refusal_stops_before_lexical_fallback() {
-
         // Pure walker routing control; this is not an external numeric observation.
         let node = parse_expr("{left} == {right}", None);
         let mut refused = Ops {

@@ -194,8 +194,6 @@ pub fn minify_with_analysis(
         return result;
     }
     if analysis.allows_lexical_declaration_advice() {
-
-
         let Some(input) = analysis.resolved_input.as_ref() else {
             result.refusals.push(MinifyRefusal::MissingAnalysisContext);
             return result;
@@ -422,7 +420,6 @@ pub(super) fn analysis_for_profile(
     profile: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> AnalysisResult {
-
     let generation = crate::context_for_dialect_profile(profile);
     let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
     let input = ResolvedAnalysisInput::new(
@@ -438,7 +435,6 @@ pub(super) fn analysis_for_profile(
 
 /// A compatibility rewrite changes the source, retaining every actual input axis.
 pub(super) fn analysis_with_input(source: &str, input: &ResolvedAnalysisInput) -> AnalysisResult {
-
     Analyser::new()
         .with_resolved_input(input.clone())
         .analyse(source, input.analyser_profile().name)
@@ -602,7 +598,6 @@ fn source_body_expression_gap_proofs(
 }
 
 fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
-
     let config = analysis
         .body_lexer_config
         .ok_or(MinifyRefusal::MissingAnalysisContext)?;
@@ -1091,7 +1086,6 @@ mod tests {
 
     #[test]
     fn original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion() {
-
         let source = "# comment\n  proc p\\uD800 {} { set x  1; return $x }\n  puts  ${x}  [list {# data} café]\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let analysis = analyse(source, dialect);
@@ -1124,7 +1118,6 @@ mod tests {
 
     #[test]
     fn original_recursive_minification_uses_only_current_authenticated_script_regions() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let source = "proc p {argument} {\n    set literal {  # data  }\n    if {1} {\n        return [list  $argument  $literal]\n    }\n}\np VALUE\n";
             let mut analysis = analyse(source, dialect);
@@ -1168,7 +1161,6 @@ mod tests {
 
     #[test]
     fn original_hosted_syntax_compaction_preserves_zero_gap_word_and_bracket_boundaries() {
-
         let source = "  {list}{A}{}[list {C}{D}{}]\n";
         let analysis = analyse(source, "f5-irules");
         let config = analysis.body_lexer_config.unwrap();
@@ -1204,7 +1196,6 @@ mod tests {
 
     #[test]
     fn original_minifier_refuses_naming_insertion_and_keywords_without_promoting_isolation() {
-
         let source = "proc longname {longvar} {return $longvar}\nset existing 1\ntrace add variable existing write observe\nlongname 7\n";
         let mut analysis = analyse(source, "tcl8.6");
         analysis.all_procs.clear();
@@ -1242,7 +1233,6 @@ mod tests {
 
     #[test]
     fn original_scalar_minification_requires_equivalence_and_complete_edit_geometry() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             for name in ["longargument", "longé😀"] {
                 let read = if name.is_ascii() {
@@ -1303,8 +1293,6 @@ mod tests {
 
     #[test]
     fn original_scalar_minification_keeps_isolation_and_other_pass_permissions_separate() {
-
-
         let source = "proc publicname {longargument} {return $longargument}\n";
         let analysis = analyse(source, "tcl8.6");
         let result = minify_with_analysis(
@@ -1332,7 +1320,6 @@ mod tests {
 
     #[test]
     fn original_scalar_minification_declines_observers_stores_and_open_source() {
-
         for source in [
             "proc p {longargument} {return [info locals]}\n",
             "proc p {longargument} {set local $longargument; return $local}\n",
@@ -1366,7 +1353,6 @@ mod tests {
 
     #[test]
     fn original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail() {
-
         let source = "set café 1\nputs $café\n";
         let mut analysis = analyse(source, "tcl8.6");
         let stale = format!("# changed\n{source}");
@@ -1413,7 +1399,6 @@ mod tests {
 
     #[test]
     fn original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label() {
-
         let mut profile = crate::profile_for_dialect("tcl8.4").clone();
         profile.name = "f5-irules";
         let profile = profile.intern();
@@ -1446,7 +1431,6 @@ mod tests {
 
     #[test]
     fn original_hosted_minifier_keeps_source_syntax_without_native_alpha_permission() {
-
         let source = "proc longname {longvar} {return $longvar}\n";
         let analysis = analyse(source, "f5-irules");
         assert!(analysis.has_original_vendor_source_names());
@@ -1470,7 +1454,6 @@ mod tests {
 
     #[test]
     fn lexical_minifier_keeps_explicit_authoring_compaction_separate() {
-
         let source = "proc longname {longvar} {return $longvar}\n";
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-lexical-authoring";
@@ -1493,7 +1476,6 @@ mod tests {
     }
     #[test]
     fn isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults() {
-
         let source = "proc general {longleft {longright longleft}} {list $longleft $longright $longleft; return $longright}\n";
         let analysis =
             analysis_for_profile(source, lexical_profile(), &CommandRegistry::build_default());
@@ -1527,7 +1509,6 @@ mod tests {
 
     #[test]
     fn logical_formal_alpha_requires_isolation_and_closed_binding_observability() {
-
         let source =
             "proc general {longleft longright} {list $longleft $longright; return $longleft}";
         let analysis =
@@ -1581,7 +1562,6 @@ mod tests {
 
     #[test]
     fn lexical_roles_use_retained_context_instead_of_heterogeneous_last_spec() {
-
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
         let source = "expr { 1 + 2 }\n";
@@ -1623,7 +1603,6 @@ mod tests {
 
     #[test]
     fn lexical_context_refusal_retains_source_for_every_tier() {
-
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
         let context = Arc::new(
@@ -1668,7 +1647,6 @@ mod tests {
 
     #[test]
     fn lexical_custom_configuration_refuses_every_tier_without_fallback() {
-
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
         let context = Arc::new(
@@ -1710,7 +1688,6 @@ mod tests {
 
     #[test]
     fn lexical_intermediate_source_retains_actual_input_generation() {
-
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
         let source = "set longname  1\n";
@@ -1741,7 +1718,6 @@ mod tests {
     }
     #[test]
     fn lexical_case_shape_retains_dynamic_subject_and_expansion_uncertainty() {
-
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
         let source = "switch -exact $value {a {puts A}}\n";
@@ -1784,7 +1760,6 @@ mod tests {
 
     #[test]
     fn lexical_source_headers_keep_runtime_and_metadata_separate() {
-
         let registry = CommandRegistry::build_default();
         let source = "if {1} {  puts  payload  }\n";
         let analysis = analysis_for_profile(source, lexical_profile(), &registry);
@@ -1807,7 +1782,6 @@ mod tests {
 
     #[test]
     fn lexical_source_headers_refuse_dynamic_argv_and_prior_mutations() {
-
         let registry = CommandRegistry::build_default();
         for source in [
             "if $condition {  puts  payload  }\n",
@@ -1840,7 +1814,6 @@ mod tests {
 
     #[test]
     fn lexical_source_header_checks_retained_input_source_and_configuration() {
-
         let registry = CommandRegistry::build_default();
         let source = "expr {1 + 2}\n";
         let analysis = analysis_for_profile(source, lexical_profile(), &registry);
@@ -1892,7 +1865,6 @@ mod tests {
 
     #[test]
     fn lexical_complete_heads_preserve_computed_body_data() {
-
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
         for head in [
@@ -1917,7 +1889,6 @@ mod tests {
 
     #[test]
     fn lexical_complete_static_heads_keep_selected_body_roles() {
-
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
         for head in ["if", "{if}", "\"if\"", r"i\x66"] {
@@ -1935,7 +1906,6 @@ mod tests {
 
     #[test]
     fn lexical_head_value_checks_whole_image_config_and_tokens() {
-
         let source = "if {1} {puts payload}\n";
         let config = LexerConfig::for_profile(Some(lexical_profile()));
         let plan = super::super::lexical_script_words(source, config).unwrap();
@@ -1964,7 +1934,6 @@ mod tests {
 
     #[test]
     fn lexical_head_value_keeps_expansion_and_opaque_units_unavailable() {
-
         let mut config = LexerConfig::for_profile(Some(lexical_profile()));
         config.expand_syntax = true;
         for source in [
@@ -2185,7 +2154,6 @@ mod tests {
 
     #[test]
     fn logical_keyword_metadata_edits_whole_selected_controls_only() {
-
         let source = "string equal -nocase A a\n";
         let (output, count) = with_lexical_metadata(source, |env| {
             super::super::lexical_keywords::abbreviate(source, env)
@@ -2219,7 +2187,6 @@ mod tests {
 
     #[test]
     fn logical_keyword_walk_distinguishes_data_from_selected_script_regions() {
-
         let data = "list {string equal -nocase A a}\n";
         with_lexical_metadata(data, |env| {
             let commands = super::super::lexical_metadata::commands(data, env).unwrap();
@@ -2248,7 +2215,6 @@ mod tests {
 
     #[test]
     fn logical_positioned_metadata_retains_unknown_values_and_exact_owner() {
-
         let source = "string equal -nocase $value other\n";
         with_lexical_metadata(source, |env| {
             let image = SourceImage::document(source);
@@ -2336,7 +2302,6 @@ mod tests {
 
     #[test]
     fn logical_barriers_use_complete_selected_form_and_unknown_coverage() {
-
         for source in ["info locals\n", "info locals$tail\n", "mystery\n"] {
             let registry = CommandRegistry::build_default();
             let analysis = analysis_for_profile(source, lexical_profile(), &registry);
@@ -2368,7 +2333,6 @@ mod tests {
 
     #[test]
     fn logical_metadata_never_supplies_native_or_hosted_keyword_permission() {
-
         let source = "string equal -nocase A a\n";
         for name in ["tcl8.6", "f5-irules"] {
             let registry = CommandRegistry::build_default();

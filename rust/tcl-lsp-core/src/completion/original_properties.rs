@@ -339,7 +339,6 @@ mod tests {
 
     #[test]
     fn original_property_options_require_receiver_selector_currency_and_do_not_retag_values() {
-
         let source = "oo::configurable create C {property readable -kind readable writable -kind writable}\nset object [C new]\n$object configure \n";
         let analysis = Analyser::new().analyse(source, "tcl9.0").clone();
         let cursor = u32::try_from(source.len() - 1).unwrap();
@@ -377,8 +376,6 @@ mod source_instance_tests {
 
     #[test]
     fn original_property_options_share_symbolic_and_captured_receiver_source_argv() {
-
-
         for source in [
             "oo::configurable create C {property readable -kind readable writable -kind writable}; set o [C new]; $o configure ",
             "oo::configurable create C {property readable -kind readable writable -kind writable}; C create object; interp alias {} read {} object configure; read ",

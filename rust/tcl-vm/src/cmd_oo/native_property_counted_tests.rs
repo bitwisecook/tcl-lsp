@@ -188,7 +188,6 @@ fn check_property_label(engine: &str, captured: &str, label: &str) {
 
 #[test]
 fn original_property_names_and_values_match_native_c9_counted_access() {
-
     for (engine, captured) in PROPERTY_COUNTED_ROWS {
         let interp = instance(engine);
         // The original property capture enters C9 source before counted
@@ -286,7 +285,6 @@ fn original_property_names_and_values_match_native_c9_counted_access() {
 
 #[test]
 fn original_configurable_availability_matches_native_counted_argv_without_source_preflight() {
-
     for (engine, captured) in [
         (
             "tcl8.4",

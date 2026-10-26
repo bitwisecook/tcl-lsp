@@ -1755,7 +1755,6 @@ mod original_slot_boundary_tests {
 
     #[test]
     fn original_property_slot_list_callback_stops_before_cache_and_storage() {
-
         // Software checked transport; no C9.1 property storage-order equivalence.
         for mode in [1, 2] {
             let (mut interpreter, target) = native();
@@ -1803,7 +1802,6 @@ mod original_slot_boundary_tests {
 
     #[test]
     fn original_property_slot_member_callback_stops_later_member_and_reference_stages() {
-
         // Allocation leases do not read Strings; the selected slot takes all incoming references before hashing.
         for mode in [1, 2] {
             let (mut interpreter, target) = native();
@@ -1839,7 +1837,6 @@ mod original_slot_boundary_tests {
 
     #[test]
     fn original_property_slot_retirement_runs_outside_borrow_and_checks_before_epoch() {
-
         // Selected C91 retirement precedes later adoption and epoch publication.
         for mode in [0, 1, 2, 3] {
             let (mut interpreter, target) = native();
@@ -1921,7 +1918,6 @@ mod original_slot_boundary_tests {
 
     #[test]
     fn original_property_slot_selected_list_keeps_member_identity_and_counted_names() {
-
         // Existing selected List and first-win storage roles; no native phase comparison.
         let (mut interpreter, target) = native();
         MODE.with(|selected| selected.set(0));

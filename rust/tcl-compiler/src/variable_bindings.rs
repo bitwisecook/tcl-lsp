@@ -4240,7 +4240,6 @@ fn transfer_source_state_transitions(
                         .cloned()
                 })
             {
-
                 state.namespace_identities.insert(namespace.clone());
                 state.namespace_addressable_identities.insert(namespace);
             } else if let StateTransition::Namespace(NamespaceTransition::Delete {
@@ -4412,7 +4411,6 @@ mod tests {
 
     #[test]
     fn original_logical_store_point_refuses_changed_words_context_and_input() {
-
         use crate::analyser::ResolvedAnalysisInput;
         use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
         let context =

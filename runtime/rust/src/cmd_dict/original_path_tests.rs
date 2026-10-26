@@ -82,7 +82,6 @@ fn assert_original_cause(interpreter: &Interp, change: bool) {
 }
 #[test]
 fn original_dictionary_subcommand_getter_refuses_before_name_and_worker_effects() {
-
     for change in [false, true] {
         let mut interpreter = native();
         let _cleanup = arm(&interpreter, change);
@@ -118,7 +117,6 @@ fn original_dictionary_subcommand_getter_refuses_before_name_and_worker_effects(
 }
 #[test]
 fn original_dictionary_key_refusal_retains_early_empty_publication_and_stops_later_keys() {
-
     for change in [false, true] {
         let mut interpreter = native();
         let _cleanup = arm(&interpreter, change);
@@ -165,7 +163,6 @@ fn original_dictionary_key_refusal_retains_early_empty_publication_and_stops_lat
 }
 #[test]
 fn original_dictionary_stock_set_and_unset_use_retained_alias_and_member_roots() {
-
     // Genuine actual worker integration; no argument-reference parity inferred.
     let mut interpreter = native();
     assert_eq!(interpreter.eval_str(b"set a [dict create slot [dict create old 1]]; proc update {} {upvar #0 a alias; dict set alias(slot) new 2; dict unset alias(slot) old}; update"),Code::Ok);
@@ -186,7 +183,6 @@ fn original_dictionary_stock_set_and_unset_use_retained_alias_and_member_roots()
 }
 #[test]
 fn original_dictionary_generic_unset_missing_root_and_sugar_required_unset_remain_distinct() {
-
     let mut interpreter = native();
     let command = text(b"dict");
     let sub = text(b"unset");

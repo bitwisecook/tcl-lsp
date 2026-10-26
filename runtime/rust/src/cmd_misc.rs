@@ -231,7 +231,6 @@ fn encoding_in_scope(
             Code::Ok
         }
         b"convertto" => {
-
             let data = match argv {
                 [_, _, data] if interp.system_encoding() == tcl_platform::SystemEncoding::Utf8 => {
                     *data

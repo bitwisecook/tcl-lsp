@@ -173,7 +173,6 @@ mod tests {
 
     #[test]
     fn original_credential_metadata_keeps_alias_ordinals_and_original_literal_spans() {
-
         let input = credential_input();
         for (source, value, argument, written) in [
             (
@@ -244,7 +243,6 @@ mod tests {
 
     #[test]
     fn original_credential_metadata_refuses_replaced_targets_and_unknown_option_windows() {
-
         let input = credential_input();
         for source in [
             "proc credential_current args {return CUSTOM}; credential_current -headers VALUE",
@@ -272,7 +270,6 @@ mod tests {
 
     #[test]
     fn original_credential_metadata_keeps_actual_availability_and_source_correspondence() {
-
         let input = credential_input();
         let current = input.context_registry();
         let older = Arc::new(
@@ -329,7 +326,6 @@ mod tests {
 
     #[test]
     fn lexical_credential_defaults_remain_independent_of_registry_selection() {
-
         let input = current_input();
         for source in [
             "mycmd -Password VALUE",

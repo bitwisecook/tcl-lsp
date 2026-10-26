@@ -531,7 +531,6 @@ mod tests {
 mod alias_publication_tests {
     #[test]
     fn original_upvar_error_publication_matches_all_six_native_sources() {
-
         // Public script results only; C9 legacy trace refusal is a separate row.
         let source = include_str!(
             "../../../tcl-registry/tests/data/native_upvar_error_publication307/source.tcl"

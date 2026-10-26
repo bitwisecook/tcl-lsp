@@ -5011,7 +5011,6 @@ mod tests {
 
     #[test]
     fn supplied_executable_metadata_keeps_availability_inside_nested_regions() {
-
         // Fixed IR metadata control, without a Native entry or execution claim.
         use std::sync::Arc;
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -5086,7 +5085,6 @@ mod tests {
 
     #[test]
     fn supplied_executable_metadata_refuses_missing_and_foreign_owners() {
-
         let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
         let script =

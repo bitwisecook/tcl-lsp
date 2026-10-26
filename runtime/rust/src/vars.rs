@@ -2275,7 +2275,6 @@ mod tests {
 
     #[test]
     fn selected_scalar_trace_home_retains_the_actual_undefined_root_binding() {
-
         // Rust cell correspondence only; native public rows do not observe IDs.
         leak_free(|frames, ns| {
             let selected = capture_variable_receiver(frames, ns, GLOBAL, b"fresh", None).unwrap();
@@ -2376,7 +2375,6 @@ mod tests {
 
     #[test]
     fn stable_alias_preparation_follows_existing_namespace_alias_before_capture() {
-
         // Cell correspondence control for the shared preparation owner. Actual
         // TclOO public results are tested independently in cmd_info; this test
         // does not attribute Rust cell identities to the native observation.

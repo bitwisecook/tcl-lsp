@@ -21,7 +21,6 @@ pub struct OriginalSourceCommandPublication {
 }
 impl OriginalSourceCommandPublication {
     pub(super) fn capture(words: OriginalRegistryWords, context: &ContextRegistry) -> Option<Self> {
-
         let naming = words.with_source_schema(context, |schema| {
             schema.authored_source_command_publication()
         })??;
@@ -210,7 +209,6 @@ mod tests {
 
     #[test]
     fn source_publications_keep_original_factory_alias_and_refuse_shadowed_labels() {
-
         let source = "rename button widget; widget .b -text hello";
         let analysis = Analyser::new().analyse(source, "tk");
         let offset = u32::try_from(source.find("widget .b").unwrap()).unwrap();
@@ -241,7 +239,6 @@ mod tests {
 
     #[test]
     fn source_publications_refuse_unknown_options_expansion_and_missing_names() {
-
         for source in [
             "interp create $option child",
             "interp create {*}$options child",

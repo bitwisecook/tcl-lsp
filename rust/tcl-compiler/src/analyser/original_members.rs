@@ -103,7 +103,6 @@ impl Analyser {
         member: &SignatureSourceNameInput,
         class: &ClassDef,
     ) -> Option<OriginalSourceMethodMetadata> {
-
         (reference.source_procedure(&self.result)? == procedure).then_some(())?;
         let canonical = reference.class_declaration().source_class(&self.result)?;
         (class.source_name.as_ref() == Some(canonical.name())
@@ -1797,7 +1796,6 @@ mod tests {
 
     #[test]
     fn original_readonly_method_names_keep_the_selected_option_position() {
-
         let source = r"oo::class create C {foreach m {p\uD800 p\uD801} {method $m -private {arg} {return $arg}}; method zero\x00tail {} {return zero}}";
         for dialect in ["tcl9.0", "tcl9.1"] {
             let analysis = super::super::Analyser::new().analyse(source, dialect);
@@ -1860,7 +1858,6 @@ mod tests {
 
     #[test]
     fn original_method_source_roles_retain_complete_words_across_routes_and_readonly_names() {
-
         let source = "oo::class create C {method pick {arg} {return $arg}; renamemethod pick moved; foreach m {one two} {method $m {} {return body}}; forward proxy target fixed}";
         let analysis = super::super::Analyser::new().analyse(source, "tcl8.6");
         let class = analysis
@@ -1955,7 +1952,6 @@ mod tests {
 
     #[test]
     fn original_literal_member_installer_keeps_known_shadow_and_shape_barriers() {
-
         for source in [
             "proc foreach {args} {}; oo::class create C {foreach m {one two} {method $m {} {return body}}}",
             "oo::class create C {foreach {m n} {one two} {method $m {} {return body}}}",
@@ -2047,7 +2043,6 @@ mod tests {
 
     #[test]
     fn original_property_options_retain_exact_declaration_policy_and_source() {
-
         let source = r"oo::configurable create C {property p\uD800 p\uD801 zero\x00tail}";
         for dialect in ["tcl9.0", "tcl9.1"] {
             let class = class(source, dialect);
@@ -2243,7 +2238,6 @@ mod tests {
 
     #[test]
     fn original_relations_preserve_opaque_operands_caller_scope_and_receiver_side() {
-
         let source = r"namespace eval N {oo::class create C {superclass B\uD800 B\uD801; mixin B\uD800; self mixin B\uD801}}";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let class = class(source, dialect);
@@ -2288,7 +2282,6 @@ mod tests {
 
     #[test]
     fn original_relation_removal_compares_joined_providers_and_renews_after_unknown() {
-
         let replaced = class(
             "oo::class create C {mixin First; mixin -remove Other; mixin $unknown; mixin -set Last}",
             "tcl9.1",
@@ -2324,7 +2317,6 @@ mod tests {
 
     #[test]
     fn original_class_configuration_joins_opaque_target_allocation_and_own_delta() {
-
         let source = r"oo::class create C\uD800 {method p\uD800 {} {}}; oo::class create C\uD801 {method p\uD801 {} {}}; oo::define C\uD800 {renamemethod p\uD800 moved; mixin -set M\uD800}";
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let result = Analyser::new().analyse(source, dialect);
@@ -2376,7 +2368,6 @@ mod tests {
 
     #[test]
     fn original_class_configuration_preserves_moved_identity_and_external_obligation() {
-
         let source = "oo::class create C {method old {} {}}; rename C D; oo::define D {renamemethod old changed}";
         let result = Analyser::new().analyse(source, "tcl9.1");
         let declaration = result.original_class_declarations().next().unwrap();
@@ -2417,7 +2408,6 @@ mod tests {
 
     #[test]
     fn original_class_configuration_does_not_promote_alias_or_computed_target() {
-
         for source in [
             "oo::class create C {method old {} {}}; interp alias {} A {} C; oo::define A {method extra {} {}}",
             "oo::class create C {method old {} {}}; oo::define $unknown {method extra {} {}}",
@@ -2446,7 +2436,6 @@ mod tests {
 
     #[test]
     fn original_object_configuration_keeps_class_object_and_instance_tables_separate() {
-
         let source = r"oo::class create C {method same {} {}; self method same {} {}}; oo::objdefine C {renamemethod same own; mixin -set ObjectMixin}";
         let result = Analyser::new().analyse(source, "tcl9.1");
         let declaration = result.original_class_declarations().next().unwrap();

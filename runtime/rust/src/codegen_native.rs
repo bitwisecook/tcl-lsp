@@ -1333,7 +1333,6 @@ mod original_expression_completion_tests {
 
     #[test]
     fn original_combined_expression_truth_runs_public_producer_once() {
-
         // This software integration counts real Host.double calls reached by
         // an actual original object command; external provider rows are separate.
         for route in 0..3 {
@@ -1389,7 +1388,6 @@ mod original_expression_completion_tests {
 
     #[test]
     fn original_expression_completion_preserves_guest_codes_and_rejects_changed_worlds() {
-
         for combined in [false, true] {
             for code in [1, 3, 7] {
                 let (mut interp, host) = native();
@@ -1475,7 +1473,6 @@ mod original_expression_completion_tests {
 
     #[test]
     fn original_combined_condition_keeps_return_continue_and_false_completion() {
-
         for mode in [
             CallbackMode::False,
             CallbackMode::Guest(2),
@@ -1538,7 +1535,6 @@ mod original_expression_completion_tests {
 
     #[test]
     fn original_codegen_completion_exports_preserve_first_host_and_output_storage() {
-
         for route in 0..4 {
             let (mut interp, host) = native();
             let state = CallbackState {
@@ -1604,7 +1600,6 @@ mod original_expression_completion_tests {
 
     #[test]
     fn original_codegen_completion_capture_refusal_releases_handles_without_publication() {
-
         let (mut interp, _) = native();
         let original = Owned::fresh(obj::alloc_typed(&REFUSING_METADATA, 0));
         interp.set_error_state(b"ORIGINAL COMPLETION CODE");

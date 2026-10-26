@@ -14,7 +14,6 @@ const NO_HOOK: crate::native_compilation::NativeCompilationSpec =
         body: crate::native_compilation::NativeBodyCompilation::Inherit,
     };
 
-
 // Jim_InfoCoreCommand owns these rows. No C ensemble worker, compiler hook,
 // result-object class or successful-handler receipt is inherited here.
 const fn member(
@@ -851,7 +850,6 @@ mod tests {
 
     #[test]
     fn original_jim_core_arity_precedes_generic_info_parser_reporting() {
-
         // Native292 measures bare info independently from empty selector input.
         // Pinned JimCallNative checks the genuine worker's minargs before
         // Jim_ParseSubCmd. The renamed/NUL cases below are renderer controls,
@@ -884,7 +882,6 @@ mod tests {
 
     #[test]
     fn original_jim_existence_query_shares_operation_without_c_compiler_admission() {
-
         // Source: retained Jim_InfoCoreCommand INFO_EXISTS selects
         // Jim_GetVariable(interp, argv[2], 0), with no required contents read.
         let context = crate::model::ingress::static_context_for("jimtcl");
@@ -911,7 +908,6 @@ mod tests {
 
     #[test]
     fn original_jim_parser_keeps_immediate_and_counted_prefix_purposes_separate() {
-
         assert!(matches!(
             parse(&[b"info", b"body\0\xff", b"p"]),
             NativeJimInfoDispatch::Member {

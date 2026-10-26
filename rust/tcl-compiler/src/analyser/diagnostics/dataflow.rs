@@ -3026,7 +3026,6 @@ is renamed or deleted in this file."
         ctx: &ReadBeforeSetCtx<'_>,
         params: &HashSet<&str>,
     ) {
-
         let Some(input) = self.result.resolved_input.as_ref() else {
             return;
         };
@@ -5404,7 +5403,6 @@ mod issue996_tests {
 
     #[test]
     fn opaque_body_local_set_requires_original_body_owner() {
-
         // Conditional source suppression only; no entered interpreter or store.
         let source = "interp eval {} {set x 1; puts $x}\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
@@ -5460,7 +5458,6 @@ mod issue996_tests {
 
     #[test]
     fn original_body_ownership_keeps_installer_horizon_and_child_refusal() {
-
         // Conditional suppression, never an entered child or completed store.
         for (source, target, expected) in [
             ("interp eval {} {puts $missing}", "missing", false),
@@ -5554,7 +5551,6 @@ mod source_body_purpose_tests {
 
     #[test]
     fn original_reference_only_body_cannot_supply_local_store_suppression() {
-
         // Diagnostic suppression capability; no executed store or child entry.
         let source = "reference-script {set x 1; puts $x}\nrun-script {set x 1; puts $x}";
         let mut registry = CommandRegistry::build_default();
@@ -5654,7 +5650,6 @@ mod original_variable_anchor_tests {
 
     #[test]
     fn variable_read_anchor_preserves_literal_name_and_complete_reference_geometry() {
-
         // Lexical anchor controls, not variable existence, W210 admission or
         // successful native reads. A braced scalar may contain an unmatched '('.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -5694,7 +5689,6 @@ mod original_variable_anchor_tests {
 
     #[test]
     fn variable_read_anchor_uses_retained_braced_and_bare_name_grammar() {
-
         // Exact source/configuration discrimination, not a native cell or
         // completion observation. Bare Unicode is Jim syntax only.
         let source = "puts ${a{b}c}";
@@ -5745,7 +5739,6 @@ mod original_matcher_admission_tests {
 
     #[test]
     fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_barriers() {
-
         // Selected conditional source protocol and decoded original argv only;
         // none of these Native analyses grants current output cells or reads.
         for dialect in [
@@ -5796,7 +5789,6 @@ mod original_matcher_admission_tests {
 
     #[test]
     fn original_matcher_query_refuses_missing_foreign_and_stale_source_inputs() {
-
         let source = "regexp x y v";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
@@ -5845,7 +5837,6 @@ mod original_matcher_admission_tests {
 
     #[test]
     fn logical_no_match_diagnostics_keep_prior_and_intervening_values_and_literal_names() {
-
         // Emitted conditional Logical diagnostics, not Native current contents.
         for (source, expected) in [
             ("proc f {} {regexp x y v; puts $v}", Some("$v")),
@@ -5925,7 +5916,6 @@ mod original_store_context_tests {
 
     #[test]
     fn original_store_points_keep_actual_module_function_and_source_owners() {
-
         // This authentic original point validates metadata only. A native cell,
         // literal contents, adjacency and callbacks remain separate store gates.
         let (context, unit, _native_owner) = original_unit();
@@ -6011,7 +6001,6 @@ mod original_body_parser_config_tests {
 
     #[test]
     fn original_body_reference_suppression_keeps_bom_in_the_selected_head() {
-
         // Unknown literal heads cannot grant a script role to inert argument data.
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
@@ -6042,7 +6031,6 @@ mod original_condition_child_purpose_tests {
 
     #[test]
     fn original_condition_child_keeps_bom_alias_and_actual_expression_base() {
-
         // Selected conditional matcher/output schema only, no executed matcher or output cell contents.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context =
@@ -6124,7 +6112,6 @@ mod original_condition_extent_tests {
 
     #[test]
     fn original_condition_matcher_retains_multibyte_inclusive_extent_and_refuses_overflow() {
-
         // Original conditional matcher schema, without execution or output values.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context =
@@ -6190,7 +6177,6 @@ mod constructed_projection_tests {
 
     #[test]
     fn w214_namespace_grouping_keeps_literal_reporting_prefix() {
-
         // Literal String grouping only; overlapping pairs are not native paths.
         for (qname, expected) in [
             ("", "::"),

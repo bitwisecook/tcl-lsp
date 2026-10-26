@@ -36,7 +36,6 @@ mod tests {
 
     #[test]
     fn labels_preserve_counted_bytes_without_claiming_source_roundtrips() {
-
         assert_eq!(resident_name_label(b"greet"), "greet");
         assert_eq!(resident_name_label("café".as_bytes()), "café");
         let names: &[&[u8]] = &[

@@ -220,7 +220,6 @@ mod tests {
 
     #[test]
     fn unset_roles_keep_counted_names_and_selected_option_prefixes() {
-
         let registry = crate::CommandRegistry::build_default();
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let dialect = crate::InvocationDialect::of_point(

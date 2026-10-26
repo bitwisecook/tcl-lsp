@@ -1007,7 +1007,6 @@ mod tests {
 
     #[test]
     fn selected_if_scalar_source_keeps_reference_spelling_in_proposals() {
-
         for subject in [
             "${a b}",
             "\"${café}\"",
@@ -1052,7 +1051,6 @@ mod tests {
 
     #[test]
     fn selected_if_scalar_conditions_keep_eq_and_or_shape_under_actual_config() {
-
         let first = LexerConfig::for_dialect("tcl8.6");
         let nested = LexerConfig::for_dialect("tcl9.1");
         let jim = LexerConfig::for_dialect("jim");
@@ -1151,7 +1149,6 @@ mod tests {
 
     #[test]
     fn supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons() {
-
         let source =
             "if {$x eq \"one\"} {set answer FIRST} elseif {$x eq \"two\"} {set answer SECOND}";
         let registry = authored_output_registry();
@@ -1184,7 +1181,6 @@ mod tests {
 
     #[test]
     fn supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner() {
-
         let tail = "choose {$x eq \"one\"} {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
         let source = format!("interp alias {{}} choose {{}} if\n{tail}");
         let registry = authored_output_registry();
@@ -1240,7 +1236,6 @@ mod tests {
 
     #[test]
     fn supplied_datagroup_alias_does_not_restore_a_removed_output_handler() {
-
         let source = "rename if saved_if\ninterp alias {} choose {} saved_if\nchoose {$x eq \"one\"} {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
         let registry = authored_output_registry();
         let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry);
@@ -1546,7 +1541,6 @@ mod original_arm_parser_tests {
     use super::*;
     #[test]
     fn original_datagroup_arm_parsing_keeps_nested_marks_and_literal_extents() {
-
         // Proposal shape only; selected source handlers and edits remain separate.
         let config = LexerConfig {
             leading_bom: tcl_lexer::LeadingBom::Skip,

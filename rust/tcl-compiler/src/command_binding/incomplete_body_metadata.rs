@@ -291,7 +291,6 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) {
-
         let Some(origin) = &state.current_source_origin else {
             return;
         };
@@ -326,7 +325,6 @@ impl SourceCommandBindings {
         cursor: u32,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Span> {
-
         if !self.matches_original_source_image(image, config) {
             return None;
         }
@@ -378,7 +376,6 @@ impl SourceCommandBindings {
         tokens: &crate::ir::CommandTokens,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<OriginalCompilationLookupAdvice> {
-
         if tokens.synthetic.is_some() {
             return None;
         }
@@ -564,7 +561,6 @@ mod tests {
 
     #[test]
     fn incomplete_original_body_prefix_has_grammar_without_a_complete_body() {
-
         let source = "proc p {} \"puts ";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let config = LexerConfig::from_grammar(registry.profile().unwrap().grammar);
@@ -654,7 +650,6 @@ mod tests {
 
     #[test]
     fn incomplete_original_braced_body_owns_geometry_without_a_complete_word() {
-
         let source = "proc p {} {\n    puts [set x]\n    if {$flag} {puts x}\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
@@ -695,7 +690,6 @@ mod tests {
 
     #[test]
     fn incomplete_body_prefix_declines_outer_substitutions_and_successor_tables() {
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for source in [
             "proc p {} \"$value puts ",

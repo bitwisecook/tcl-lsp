@@ -146,7 +146,6 @@ pub fn hover_in_program(
     _profile: &'static tcl_dialect::DialectProfile,
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Option<Hover> {
-
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let offset = crate::definition::byte_offset_at(
         &tcl_lexer::LineIndex::new(source),
@@ -646,7 +645,6 @@ fn registry_pattern_format_hover(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
 ) -> Option<Hover> {
-
     let line_index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     original_pattern_format_hover(source, analysis, registry, cursor)
@@ -3790,7 +3788,6 @@ mod tests {
 
     #[test]
     fn standalone_reference_cursor_uses_explicit_selected_grammar_and_utf16_geometry() {
-
         let source = "puts café🙂 ${a{b}c} ${cash$name} ${scalar(open)tail}";
         let prefix = "puts café🙂 ";
         let character = u32::try_from(prefix.encode_utf16().count() + 2).unwrap();
@@ -5626,7 +5623,6 @@ mod tests {
 
     #[test]
     fn subcommand_hover_surfaces_for_string_length() {
-
         let text = retained_registry_text("string length $name\n", 10, "tcl8.6")
             .expect("subcommand hover");
         assert!(text.contains("`string length`"), "{text}");
@@ -5635,14 +5631,12 @@ mod tests {
 
     #[test]
     fn subcommand_hover_resolves_unique_prefix_abbreviation() {
-
         let text = retained_registry_text("string le $name\n", 8, "tcl8.6").expect("prefix hover");
         assert!(text.contains("`string length`"), "{text}");
     }
 
     #[test]
     fn subcommand_hover_prefix_is_dialect_aware() {
-
         let source = "info class def ::C\n";
         assert!(
             retained_registry_text(source, 13, "tcl8.6")
@@ -5656,13 +5650,11 @@ mod tests {
 
     #[test]
     fn subcommand_hover_skips_unknown_subcommand() {
-
         assert!(retained_registry_text("string bogusSubcommand\n", 12, "tcl8.6").is_none());
     }
 
     #[test]
     fn option_hover_resolves_subcommand_scoped_option() {
-
         let text = retained_registry_text("chan configure $chan -inputmode raw\n", 26, "tcl9.0")
             .expect("configure-scoped option");
         assert!(text.contains("`-inputmode`"), "{text}");
@@ -5671,7 +5663,6 @@ mod tests {
 
     #[test]
     fn option_hover_notes_dialect_unavailability() {
-
         let source = "chan configure $chan -inputmode raw\n";
         let old =
             retained_registry_text(source, 26, "tcl8.6").expect("excluded exact option metadata");
@@ -5685,7 +5676,6 @@ mod tests {
 
     #[test]
     fn option_hover_falls_back_to_top_level_options_for_simple_command() {
-
         let text = retained_registry_text("lsearch -exact {a b} x\n", 11, "tcl8.6")
             .expect("root option metadata");
         assert!(text.contains("`-exact`"), "{text}");
@@ -5694,7 +5684,6 @@ mod tests {
 
     #[test]
     fn sub_subcommand_hover_surfaces_for_info_object_class() {
-
         let text = retained_registry_text("info object class $obj\n", 14, "tcl8.6")
             .expect("nested subcommand");
         assert!(text.contains("`info object class`"), "{text}");
@@ -5711,7 +5700,6 @@ mod tests {
 
     #[test]
     fn logical_registry_hover_keeps_actual_context_and_source_currency() {
-
         let source = "string cat A B";
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-logical-hover-context";
@@ -5751,7 +5739,6 @@ mod tests {
 
     #[test]
     fn logical_registry_hover_preserves_whole_alias_operands_and_declines_data() {
-
         for (source, needle, expected) in [
             (
                 "interp alias {} length {} string; length length value",
@@ -6304,7 +6291,6 @@ mod tests {
 
     #[test]
     fn command_profile_metadata_keeps_foreign_surface_and_own_requirements() {
-
         let descriptor = |surface| tcl_registry::CommandSpec {
             name: "ACCESS::log",
             surface,
@@ -6395,7 +6381,6 @@ mod original_math_hover_tests {
 
     #[test]
     fn original_math_hover_keeps_fixed_registration_without_a_fake_wrapper() {
-
         let source = "expr {abs(-2)}\n";
         for dialect in ["tcl8.4", "jim"] {
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -6420,7 +6405,6 @@ mod original_math_hover_tests {
 
     #[test]
     fn original_math_hover_uses_the_actual_current_source_and_override() {
-
         let source = "# Actual override\nproc ::tcl::mathfunc::abs {argument} {return OVERRIDE}\nexpr {abs(-2)}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_procs.clear();
@@ -6453,7 +6437,6 @@ mod original_vendor_hover_tests {
 
     #[test]
     fn original_vendor_header_hover_keeps_source_only_opaque_cards_after_ui_clear() {
-
         let source = "proc {p\\uD800} {argument} {return $argument}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-iapps");
         assert_eq!(analysis.original_vendor_procedure_declarations().count(), 1);
@@ -6473,7 +6456,6 @@ mod original_pattern_hover_tests {
 
     #[test]
     fn original_pattern_hover_keeps_actual_schema_operands_and_current_source() {
-
         let source = "format {%04d} 7";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         analysis.command_invocations.clear();
@@ -6519,7 +6501,6 @@ mod original_pattern_hover_tests {
 
     #[test]
     fn original_format_hover_keeps_selected_availability_and_generation() {
-
         let source = "clock scan 2020 -format {%Y}";
         let profile = crate::profile_for_dialect("tcl9.1");
         let driver =
@@ -6574,7 +6555,6 @@ mod original_pattern_hover_tests {
 
     #[test]
     fn original_pattern_hover_keeps_selected_availability_and_generation() {
-
         let source = "lsearch -regexp -stride 2 {a b} {a+}";
         let profile = crate::profile_for_dialect("tcl9.1");
         let driver =
@@ -6629,7 +6609,6 @@ mod original_pattern_hover_tests {
 
     #[test]
     fn original_pattern_hover_keeps_alias_written_operands_and_captured_refusal() {
-
         for (source, expected) in [
             (
                 "interp alias {} search {} lsearch -regexp; search {a b} {a+}",
@@ -6662,7 +6641,6 @@ mod original_pattern_hover_tests {
 
     #[test]
     fn pattern_hover_entry_keeps_explicit_logical_source_context_and_nested_words() {
-
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-logical-pattern-source";
         let profile = profile.intern();
@@ -6732,7 +6710,6 @@ mod original_pattern_hover_tests {
 
     #[test]
     fn pattern_hover_entry_keeps_logical_shadow_and_captured_anchor_refusals() {
-
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-logical-pattern-refusals";
         let profile = profile.intern();
@@ -6771,7 +6748,6 @@ mod original_pattern_hover_tests {
 
     #[test]
     fn original_pattern_hover_preserves_full_lexer_configuration() {
-
         let source = "\u{feff}format {%04d} 7";
         let context = tcl_registry::model::ingress::context_for_profile(
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
@@ -6828,7 +6804,6 @@ mod original_special_variable_context_tests {
 
     #[test]
     fn original_special_hover_uses_actual_availability_and_withdraws_changed_owners() {
-
         let source = "puts $tcl_precision";
         let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
             .unwrap()
@@ -6898,7 +6873,6 @@ mod original_special_variable_context_tests {
 
     #[test]
     fn original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability() {
-
         let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
             .unwrap()
             .default_context_registry();

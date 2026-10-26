@@ -27,7 +27,6 @@ impl NativeCommand for BatchCommand {
 }
 #[test]
 fn original_callback_batch_uses_actual_dispatch_and_counted_unicode_without_new_roles() {
-
     // Software dispatch counts; no external callback/reference chronology claim.
     let (mut vm, formatter, queries) = provided();
     let seen = Rc::new(RefCell::new(Vec::new()));
@@ -46,7 +45,6 @@ fn original_callback_batch_uses_actual_dispatch_and_counted_unicode_without_new_
 }
 #[test]
 fn original_callback_batch_requires_entered_operation_and_genuine_string_provider() {
-
     let (mut vm, formatter, queries) = provided();
     assert!(!vm.native_operation_context.has_entered_operation());
     assert!(
@@ -68,7 +66,6 @@ fn original_callback_batch_requires_entered_operation_and_genuine_string_provide
 }
 #[test]
 fn original_callback_batch_refuses_non_text_before_reaching_later_getters() {
-
     let (mut vm, formatter, queries) = provided();
     let args = [
         Value::new_native_string_bytes(b"\xed\xa0\x80".as_slice()),
@@ -89,7 +86,6 @@ fn original_callback_batch_refuses_non_text_before_reaching_later_getters() {
 }
 #[test]
 fn original_callback_batch_retains_formatter_failure_before_changed_name_owner() {
-
     // The supplied formatter fails and retires the actual world at its format stage.
     let (mut vm, formatter, _) = provided();
     formatter.fail.set(true);
@@ -124,7 +120,6 @@ fn original_callback_batch_retains_formatter_failure_before_changed_name_owner()
 }
 #[test]
 fn supplied_callback_name_scope_keeps_original_frame_before_string_stages() {
-
     let (mut vm, formatter, queries) = provided();
     let operation = NativeOperationScope::enter(&mut vm).unwrap();
     let names = OriginalNameConsumerScope::in_original_scope(&mut vm, &operation).unwrap();

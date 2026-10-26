@@ -91,7 +91,6 @@ fn preserved(vm: &mut Vm, original: InterpId, child: InterpId, birth: &Weak<Acti
 }
 #[test]
 fn original_activation_abort_retires_userproc_in_parent_and_preserves_child_and_first_cause() {
-
     for prior_host in [false, true] {
         let mut vm = native();
         let original = vm.cur_interp();
@@ -126,7 +125,6 @@ fn original_activation_abort_retires_userproc_in_parent_and_preserves_child_and_
 }
 #[test]
 fn original_activation_abort_keeps_apply_publication_and_oo_cleanup_on_original_target() {
-
     for oo in [false, true] {
         let mut vm = native();
         let original = vm.cur_interp();
@@ -176,7 +174,6 @@ impl NativeCommand for Reborn {
 }
 #[test]
 fn original_activation_abort_preserves_callback_reborn_call_and_namespace_in_parent() {
-
     let mut vm = native();
     let calls = Rc::new(Cell::new(0));
     let fresh = Rc::new(RefCell::new(None));
@@ -212,7 +209,6 @@ fn original_activation_abort_preserves_callback_reborn_call_and_namespace_in_par
 }
 #[test]
 fn original_activation_unwind_keeps_saved_target_after_last_frame_before_leave_callback() {
-
     let mut vm = native();
     let original = vm.cur_interp();
     let child = child(&mut vm);
@@ -233,7 +229,6 @@ fn original_activation_unwind_keeps_saved_target_after_last_frame_before_leave_c
 }
 #[test]
 fn original_activation_empty_tailcall_cleanup_uses_issued_parent_and_preserves_child_pending() {
-
     let mut vm = native();
     let original = vm.cur_interp();
     let child = child(&mut vm);
@@ -266,7 +261,6 @@ fn original_activation_empty_tailcall_cleanup_uses_issued_parent_and_preserves_c
 }
 #[test]
 fn original_activation_positive_procedure_keeps_existing_owned_roles_and_no_saved_entry() {
-
     let mut vm = native();
     assert_eq!(
         vm.try_eval_source("proc original_positive {owned} {return $owned}")

@@ -1153,7 +1153,6 @@ mod tests {
 
     #[test]
     fn rewriter_uses_the_original_positioned_owner_and_stops_before_writes_on_refusal() {
-
         // Model rewrite and exact original-owner refusal only; this fixture
         // does not execute an external uplevel or observe a physical frame.
         let registry = reg();
@@ -1374,7 +1373,6 @@ mod reported_namespace_tests {
 
     #[test]
     fn uplevel_caller_reporting_namespace_roots_relative_prefixes() {
-
         // Shared analytical name contract:
         // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
         // Actual consumer purpose selection; reporting text grants no lookup identity.

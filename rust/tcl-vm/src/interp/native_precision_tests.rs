@@ -6,7 +6,6 @@
 
 #[test]
 fn original_precision_unset_matches_all_six_native_sources() {
-
     // Exact public results only; these rows do not observe hidden cell
     // identities or establish a pointer-equivalence claim.
     macro_rules! provider {

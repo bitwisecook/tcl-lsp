@@ -82,7 +82,6 @@ impl OriginalProducedNameValue {
         receipt: &super::named_manufacture::OriginalObjectCommandNameResult,
         context: &ResolveContext,
     ) -> Option<Self> {
-
         let value = crate::signature_scan::scope::SignatureSourceNameValue::from_object_command_name_result(
             receipt, context,
         )?;
@@ -1224,7 +1223,6 @@ impl super::SourceInvocationBinding {
         config: tcl_lexer::LexerConfig,
         span: tcl_lexer::Span,
     ) -> Option<SignatureSourceNameInput> {
-
         let site = self.invocation_site()?;
         (site.source.source_image() == image).then_some(())?;
         let (words, retained_config) = self.original_recorded_name_words()?;
@@ -2845,7 +2843,6 @@ mod graph_tests {
 
     #[test]
     fn original_word_issuers_require_the_complete_current_compatibility_vector() {
-
         for dialect in dialects() {
             let source = "list ONE";
             let (bindings, config) = analyse(source, dialect);

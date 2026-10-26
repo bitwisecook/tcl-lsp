@@ -260,7 +260,6 @@ impl NativeVariableObserver<Interp> for Unset {
 
 #[test]
 fn original_byte_unsets_retire_actual_owners_outside_all_storage_borrows() {
-
     // Generic software storage safety does not attest native pointer chronology.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for route in 0..4 {
@@ -295,7 +294,6 @@ fn original_byte_unsets_retire_actual_owners_outside_all_storage_borrows() {
 
 #[test]
 fn original_removal_allows_reached_refill_but_refuses_a_reborn_frame() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for route in 0..4 {
             let mut interpreter = native(profile);
@@ -328,7 +326,6 @@ fn original_removal_allows_reached_refill_but_refuses_a_reborn_frame() {
 
 #[test]
 fn original_detached_array_finishes_member_owners_after_first_refusal_before_later_traces() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..3 {
             let mut interpreter = native(profile);
@@ -378,7 +375,6 @@ fn original_detached_array_finishes_member_owners_after_first_refusal_before_lat
 
 #[test]
 fn original_namespace_variable_cleanup_retains_the_actual_table_through_refusal_and_refill() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         for mode in 0..4 {
             let mut interpreter = native(profile);
@@ -425,7 +421,6 @@ fn original_namespace_variable_cleanup_retains_the_actual_table_through_refusal_
 
 #[test]
 fn original_indexed_unset_refuses_reborn_frame_before_any_slot_selection() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = native(profile);
         interpreter.frames.borrow_mut().push(GLOBAL);
@@ -469,7 +464,6 @@ fn original_indexed_unset_refuses_reborn_frame_before_any_slot_selection() {
 
 #[test]
 fn original_pending_removal_preserves_unreached_stored_owners() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut interpreter = native(profile);
         let old = Owned::fresh(obj::alloc_typed(&OLD, 0));
@@ -528,7 +522,6 @@ impl NativeVariableObserver<Interp> for OriginalUnset {
 }
 #[test]
 fn original_c_unset_keeps_the_transferred_dummy_owner_through_trace_before_retirement() {
-
     // The actual C dummy-owner schedule is source inspected; Host/ABA is a software control.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for route in [0, 5] {

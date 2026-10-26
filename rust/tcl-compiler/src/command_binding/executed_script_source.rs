@@ -90,7 +90,6 @@ impl ExecutedScriptSource {
         value: &[u8],
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Self {
-
         let text = tcl_lexer::SourceImage::native(value);
         if word.image() == parent.source.source_image()
             && word.span().start() >= parent.offset
@@ -281,7 +280,6 @@ mod tests {
 
     #[test]
     fn original_counted_body_operand_keeps_native_image_without_document_coordinates() {
-
         let source = "proc p {longé😀} {return ${longé😀}}";
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
@@ -341,7 +339,6 @@ mod tests {
 
     #[test]
     fn original_body_value_mapping_keeps_native_units_and_original_channels_separate() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = tcl_registry::InvocationDialect::for_version(version);
             let config = LexerConfig::from_grammar(dialect.lexer_grammar);
@@ -492,7 +489,6 @@ mod tests {
 
     #[test]
     fn original_script_list_geometry_uses_the_same_selected_grammar_as_values() {
-
         let profile = tcl_registry::model::ingress::static_context_for("jim");
         let config = LexerConfig::for_profile(profile.commands().profile());
         for (source, value) in [

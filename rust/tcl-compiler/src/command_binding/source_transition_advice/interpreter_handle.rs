@@ -239,7 +239,6 @@ mod tests {
 
     #[test]
     fn original_created_handle_body_retains_source_order_and_refuses_unowned_entries() {
-
         // Native CLI answers basic creation/handle/path/delete equivalence in
         // naming.interpreter.original-created-parent-command. This assertion
         // tests a separate conditional source recipe, not entered dispatch.
@@ -325,7 +324,6 @@ mod tests {
 
     #[test]
     fn original_created_handle_moves_keep_child_path_and_parent_lineage_separate() {
-
         // Independent CLI observations: naming.interpreter.original-created-parent-command-move
 
         // Source receipts retain the original path and exact successful-move

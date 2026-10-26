@@ -154,7 +154,6 @@ command_table_effect DefinesProcedure
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status() {
-
     // These are parser recognition candidates, not installed command receipts.
     let backend = crate::tests::test_backend();
     let config = provider_pack(&backend).await;
@@ -247,7 +246,6 @@ async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status()
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers() {
-
     // The real recovery entry retains each provider's independent source input.
     let store = Arc::new(vfs::MemoryStore::new());
     store.upsert(
@@ -303,7 +301,6 @@ async fn malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_sources() {
-
     // Copied source facts cannot bypass the complete current-input guard.
     let store = Arc::new(vfs::MemoryStore::new());
     store.upsert("/library/owned.tcl", b"proc provided {} {}".to_vec());
@@ -389,7 +386,6 @@ async fn assert_unavailable_caller(backend: &Backend, uri: &Uri, source: &str) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn original_base_completeness_retains_indexed_and_untracked_input_owners() {
-
     // Server source gate; no scalar String byte/header or execution equivalence.
     let backend = crate::tests::test_backend();
     let uri = Uri::from_file_path("/caller/completeness.tcl").unwrap();
@@ -457,7 +453,6 @@ async fn original_base_completeness_retains_indexed_and_untracked_input_owners()
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn malformed_recovery_preserves_original_autoload_labels_and_root_marker() {
-
     // Actual parser recognition candidates; neither Native lookup nor loader execution.
     let backend = crate::tests::test_backend();
     backend.package_resolver.write().await.add_tcl_index(vec![

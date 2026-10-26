@@ -84,7 +84,6 @@ mod tests {
 
     #[test]
     fn public_completion_returns_original_reached_host_metadata_outside_catch() {
-
         // Native scripts establish the direct/nested info-level distinction.
         // The original Host metadata below is a separate software control.
         let mut interp = Interp::new();
@@ -117,7 +116,6 @@ mod tests {
 
     #[test]
     fn namespace_eval_and_direct_procedure_calls_preserve_native_level_distinction() {
-
         // All six native script transcripts report nested2/direct1. This does
         // not assert a native frame structure or a Host metadata ABI.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {

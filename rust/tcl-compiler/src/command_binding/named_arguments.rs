@@ -196,7 +196,6 @@ mod tests {
 
     #[test]
     fn original_named_projection_keeps_complete_source_ownership_and_selected_ordinals() {
-
         let source = r"namespace export p\uD800";
         let image = tcl_lexer::SourceImage::document(source);
         let config = tcl_lexer::LexerConfig::default();
@@ -251,7 +250,6 @@ mod tests {
 
     #[test]
     fn original_named_namespace_helper_retains_counted_operand_input() {
-
         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
             let generation = tcl_registry::model::ingress::context_for_profile(profile);

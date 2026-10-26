@@ -103,7 +103,6 @@ fn integer(vm: &Vm) -> Value {
 
 #[test]
 fn original_body_capture_observes_actual_reference_role_before_working_copy() {
-
     // Real VM owners exercise the selected algorithm; no external extension reference measurement.
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut vm = native(engine);
@@ -136,8 +135,6 @@ fn original_body_capture_observes_actual_reference_role_before_working_copy() {
 
 #[test]
 fn original_shared_body_string_worker_keeps_exact_native_reference_count() {
-
-
     // Supplied formatter observes software method stages and the actual borrowed header role.
     let (mut vm, formatter) = supplied_formatter();
     let original = integer(&vm);
@@ -165,7 +162,6 @@ fn original_shared_body_string_worker_keeps_exact_native_reference_count() {
 
 #[test]
 fn original_body_formatter_retirement_precedes_copy_and_public_error_boundary() {
-
     // The callback retires both genuine owners; allocation-only observations add no Native reference.
     let (mut vm, formatter) = supplied_formatter();
     let outer = native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
@@ -200,7 +196,6 @@ fn original_body_formatter_retirement_precedes_copy_and_public_error_boundary() 
 
 #[test]
 fn original_formal_list_capture_order_is_selected_before_body_reference_acquisition() {
-
     // Actual C capture skips formal parsing here; actual Jim reaches its original formal List first.
     for engine in ["tcl8.4", "tcl8.6", "tcl9.1", "jim"] {
         let mut vm = native(engine);
@@ -226,7 +221,6 @@ fn original_formal_list_capture_order_is_selected_before_body_reference_acquisit
 
 #[test]
 fn original_c_alias_query_keeps_target_global_late_binding_and_loop_cleanup() {
-
     // Physical TclPreventAliasLoop target-global query; no command execution or prefix receipt is issued.
     let mut vm = native("tcl8.6");
     let parent = vm.cur_interp();
@@ -274,7 +268,6 @@ fn original_c_alias_query_keeps_target_global_late_binding_and_loop_cleanup() {
 
 #[test]
 fn original_jim_alias_creation_reaches_no_c_loop_string_worker() {
-
     // Selected physical Jim creation contains no TclPreventAliasLoop call; this control invokes no cycle.
     let mut vm = native("jim");
     let root = vm.cur_interp();
@@ -297,7 +290,6 @@ fn original_jim_alias_creation_reaches_no_c_loop_string_worker() {
 
 #[test]
 fn original_jim_static_duplicate_cleanup_retires_only_fresh_unbound_cells() {
-
     // Same original List children and copied member references; failed install discards both fresh cells.
     let mut vm = native("jim");
     let protocol = vm
@@ -336,7 +328,6 @@ fn original_jim_static_duplicate_cleanup_retires_only_fresh_unbound_cells() {
 
 #[test]
 fn original_legacy_string_role_retains_exact_header_refusal_at_real_boundary() {
-
     use tcl_syntax::value::ValueOps;
     let (mut vm, formatter) = supplied_formatter();
     let outer = native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
@@ -359,7 +350,6 @@ fn original_legacy_string_role_retains_exact_header_refusal_at_real_boundary() {
 
 #[test]
 fn original_alias_source_header_refusal_precedes_publication_and_keeps_prior_cause() {
-
     let mut vm = native("tcl8.6");
     let outer = native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
     let original = Value::new_native_string_bytes(b"withdrawnAlias".as_slice());
@@ -395,8 +385,6 @@ fn original_alias_source_header_refusal_precedes_publication_and_keeps_prior_cau
 
 #[test]
 fn original_alias_retained_payload_cannot_revive_a_deleted_target_interpreter() {
-
-
     // Actual publication/deletion supplies the payload and dead target; no command lookup or execution is admitted.
     let mut vm = native("tcl8.6");
     let parent = vm.cur_interp();

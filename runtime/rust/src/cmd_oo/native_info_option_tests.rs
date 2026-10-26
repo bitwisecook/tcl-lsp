@@ -5,7 +5,6 @@ use super::*;
 
 #[test]
 fn variable_info_validates_original_options_before_target_lookup() {
-
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),

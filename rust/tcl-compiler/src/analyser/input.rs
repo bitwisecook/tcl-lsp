@@ -85,7 +85,6 @@ impl ResolvedAnalysisInput {
     /// not supply a Native naming policy; hosted source stays separate.
     #[must_use]
     pub fn has_logical_source_name_context(&self) -> bool {
-
         !self.has_hosted_source_name_context()
             && [self.profile, self.unit_profile]
                 .into_iter()
@@ -189,7 +188,6 @@ mod tests {
 
     #[test]
     fn logical_source_domain_keeps_authored_simulation_and_actual_native_entry_separate() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = ResolvedAnalysisInput::new(
             profile,
@@ -293,8 +291,6 @@ mod tests {
 
     #[test]
     fn logical_declaration_advice_uses_actual_input_at_each_analysis_entry() {
-
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = ResolvedAnalysisInput::new(
             profile,
@@ -357,7 +353,6 @@ mod tests {
 
     #[test]
     fn logical_declaration_advice_requires_its_retained_input_after_copying_metadata() {
-
         let source = "proc lexical {} {}; set ordinary 1";
         let logical = Analyser::new().analyse(source, "tcl");
         assert!(logical.allows_lexical_declaration_advice());
@@ -388,7 +383,6 @@ mod tests {
 
     #[test]
     fn logical_declaration_advice_keeps_native_entry_and_recipe_as_independent_barriers() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = ResolvedAnalysisInput::new(
             profile,
@@ -492,7 +486,6 @@ mod tests {
 
     #[test]
     fn original_file_ingress_keeps_supplied_bom_configuration_and_default_source_policy() {
-
         // Source syntax correspondence only; no native source or event entry.
         for profile in [
             tcl_dialect::DialectProfile::irules(),

@@ -481,7 +481,6 @@ pub(super) mod tests {
     /// caller follows its callees' definitions.
     #[test]
     fn a_callee_counts_as_defined_only_where_its_definition_surely_ran() {
-
         // Conditional Logical model only; no Native invocation is asserted.
         let main = "proc main {} {set a [label abc]; return 1}\n";
         let label = "proc label {x} {return [string length $x]}\n";
@@ -537,7 +536,6 @@ pub(super) mod tests {
     /// `{*}` under 8.4, which reads it as a braced word.
     #[test]
     fn a_word_the_release_rejects_never_completes() {
-
         // Conditional Logical model only; no Native invocation is asserted.
         for (body, dialects) in [
             (
@@ -569,7 +567,6 @@ pub(super) mod tests {
     /// scalar the body set, and a call with the word count the callee takes.
     #[test]
     fn a_body_of_commands_that_complete_completes() {
-
         // Conditional Logical model only; no Native invocation is asserted.
         let completes = completes(
             "proc one {} {return 1}\n\
@@ -595,7 +592,6 @@ pub(super) mod tests {
     /// which the nesting limit ends.
     #[test]
     fn a_body_that_may_raise_does_not_complete() {
-
         // Conditional Logical model only; no Native invocation is asserted.
         let completes = completes(
             "proc add {a b} {expr {$a + $b}}\n\
@@ -646,7 +642,6 @@ pub(super) mod tests {
     /// nothing, not that it completes.
     #[test]
     fn a_rebound_or_declared_head_states_no_completion() {
-
         // Conditional Logical model only; no Native invocation is asserted.
         let shadowed = completes(
             "proc string {args} {error boom}\nproc len {x} {return [string length $x]}\n",
@@ -676,7 +671,6 @@ pub(super) mod tests {
     /// states no completion.
     #[test]
     fn the_ir_only_summary_states_no_completion() {
-
         // Conditional Logical model only; no Native invocation is asserted.
         let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
         let registry = tcl_registry::model::ingress::static_context_for(DIALECT).commands();
@@ -694,7 +688,6 @@ pub(super) mod tests {
     }
     #[test]
     fn original_completion_keeps_alias_prefixes_defaults_and_child_horizons() {
-
         // Source-model completion, independent of Native entry and edit licence.
         for source in [
             "proc leaf {{x VALUE}} {return $x}; proc p {} {return [leaf]}",
@@ -718,7 +711,6 @@ pub(super) mod tests {
 
     #[test]
     fn original_completion_keeps_selected_scalar_reference_and_element_obligations() {
-
         for source in [
             "proc p {café} {return ${café}}",
             "proc p {{scalar(open}} {return ${scalar(open}}",
@@ -818,7 +810,6 @@ pub(super) mod tests {
 
     #[test]
     fn original_completion_declines_missing_foreign_native_and_mutated_headers() {
-
         let source = "proc leaf {x} {return $x}; proc p {x} {return [leaf $x]}";
         let (context, unit) = logical_unit(source, DIALECT);
         let module = &unit.ir_module;
@@ -876,7 +867,6 @@ pub(super) mod tests {
 
     #[test]
     fn original_completion_retains_selected_jim_formal_binding_strategy() {
-
         // Actual selected Jim syntax in an explicit Logical source model,
         // independently of native Jim activation and public normal completion.
         for (source, minimum, maximum, names) in [
@@ -954,7 +944,6 @@ mod original_source_purpose_tests {
 
     #[test]
     fn original_module_completion_uses_actual_native_or_logical_entry_purpose() {
-
         // A real source-only completion model cannot borrow a held Native Jim entry.
         let source = "if {1} {set value VALUE}";
         for native in [true, false] {

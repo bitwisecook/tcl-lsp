@@ -1456,7 +1456,6 @@ fn retained_substitution_calls(
     module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<Vec<crate::word_subst::LiftedCall>> {
-
     if module.source_metadata_input.is_none()
         && module.source_entry.metadata_context.is_standalone()
     {
@@ -3896,7 +3895,6 @@ mod tests {
 
     #[test]
     fn interpolation_uses_retained_close_policy_over_catalogue_profile() {
-
         // Lexical rewrite software control, not variable/frame or Native evidence.
         let source = "\"v=${a{b}c}\"";
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
@@ -3957,7 +3955,6 @@ mod tests {
 
     #[test]
     fn interpolation_element_indices_keep_literal_braced_names_and_dynamic_refusal() {
-
         let constants = std::collections::HashMap::from([
             ("a($idx)".into(), "ELEMENT".into()),
             ("a($idx".into(), "SCALAR".into()),
@@ -3979,7 +3976,6 @@ mod tests {
 
     #[test]
     fn retained_substitution_inventory_keeps_module_input_config_and_availability() {
-
         // Conditional original child geometry, without handler or erasure permission.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -5993,7 +5989,6 @@ mod tests {
     }
     #[test]
     fn retained_expression_argument_folding_requires_actual_availability() {
-
         // Actual original registrations are retained independently of metadata
         // availability. The owner stays alive through every refusal control.
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
@@ -6071,7 +6066,6 @@ mod tests {
 
     #[test]
     fn retained_recursive_folding_preserves_actual_availability() {
-
         let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = current.commands();
         let cu = CompilationUnit::build_for_dialect(

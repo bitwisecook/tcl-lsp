@@ -32,7 +32,6 @@ mod tests {
 
     #[test]
     fn original_alias_chain_keeps_missing_unknown_and_cycles_separate() {
-
         assert_eq!(
             alias_chain_loops(0, |node| Ok::<_, ()>((*node < 2).then(|| *node + 1))),
             Ok(false)

@@ -367,7 +367,6 @@ mod tests {
 
     #[test]
     fn original_store_advice_keeps_actual_availability_and_literal_cell_names() {
-
         // Availability describes the selected setter; original local cells,
         // contents order and observer requirements remain independently needed.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();

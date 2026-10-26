@@ -1803,7 +1803,6 @@ impl AdviceGraph {
         head: &SourceAdviceNameInput,
         words: &[NativeWord],
     ) -> Option<super::DeclaredSourceSelection> {
-
         let key = self.selected_head_key(head.bytes())?;
         let AdviceCell::Declared(declaration) = self.cells.get(&key)? else {
             return None;
@@ -3594,7 +3593,6 @@ mod tests {
 
     #[test]
     fn logical_original_advice_words_keep_lossless_values_and_native_units_independent() {
-
         use super::{AdviceNamingPolicy, original_words};
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -3641,7 +3639,6 @@ mod tests {
 
     #[test]
     fn original_move_qualifier_retains_the_complete_operand_and_rejects_other_projections() {
-
         // This is a source-projection guard, not a successful runtime rename.
         use super::{AdviceNamingPolicy, original_transition_subject_matches, original_words};
         use tcl_registry::{
@@ -3718,7 +3715,6 @@ mod tests {
 
     #[test]
     fn authored_source_catalogue_barriers_keep_known_shadow_and_unloaded_advice_distinct() {
-
         for source in [
             "package require Tk 8.6; proc entry args {}; entry .e -placeholder text",
             "package require Tk 8.6; proc entry args {}; rename entry {}; entry .e -placeholder text",
@@ -3736,7 +3732,6 @@ mod tests {
 
     #[test]
     fn authored_source_tape_refusals_do_not_reissue_stock_declaration_advice() {
-
         assert_eq!(
             last_words("if {1} {puts original}", "tcl")
                 .unwrap()
@@ -3786,7 +3781,6 @@ mod tests {
 
     #[test]
     fn authored_source_transitions_keep_order_prefixes_and_conditional_authority() {
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source =
                 "opaque\ninterp alias {} pick {} switch -exact\npick subject {default {puts ok}}";
@@ -3885,7 +3879,6 @@ mod tests {
 
     #[test]
     fn authored_immediate_bodies_keep_mutation_and_callback_obligations_separate() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = version.dialect_name();
             let prefix =
@@ -3974,7 +3967,6 @@ mod tests {
 
     #[test]
     fn authored_dynamic_operands_keep_source_advice_before_the_future_barrier() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = version.dialect_name();
             let source = "opaque; interp alias {} pick {} switch; pick $value {default {puts body}}; pick subject {default {puts after}}";
@@ -4012,7 +4004,6 @@ mod tests {
 
     #[test]
     fn authored_source_transition_tape_keeps_deletion_rebinding_and_namespace_geometry() {
-
         for source in [
             "opaque; interp alias {} pick {} switch; pick subject {default {puts yes}}",
             "opaque; interp alias {} pick {} puts; interp alias {} pick {}; interp alias {} pick {} switch; pick subject {default {puts yes}}",
@@ -4091,7 +4082,6 @@ mod tests {
 
     #[test]
     fn authored_logical_source_advice_keeps_its_explicit_input_and_original_operands() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -4180,7 +4170,6 @@ mod tests {
 
     #[test]
     fn authored_jim_root_alias_advice_keeps_the_jim_name_recipe() {
-
         let source = "opaque; alias pick puts; pick hello";
         let words = last_words(source, "jim").unwrap();
         assert_eq!(words.command(), "puts");
@@ -4225,7 +4214,6 @@ mod tests {
 
     #[test]
     fn original_logical_unicode_transitions_keep_exact_alias_and_move_inputs() {
-
         // Conditional source transitions only; no Native input or successful dispatch.
         let input = original_unicode_source_input();
         assert!(input.has_logical_source_name_context());
@@ -4299,7 +4287,6 @@ mod tests {
 
     #[test]
     fn original_logical_nested_expression_keeps_bom_head_and_parent_configuration() {
-
         // Original expression child source schema; no entered matcher or output value.
         let input = original_unicode_source_input();
         let source = "\u{feff}interp alias {} \u{feff}match {} regexp\nif {![\u{feff}match λ λ out]} {puts $out}";

@@ -223,7 +223,6 @@ pub fn original_exact_case_source_at_analysis(
     analysis: &AnalysisResult,
     head_offset: u32,
 ) -> Option<OriginalExactCaseSource> {
-
     let input = analysis.resolved_input.as_ref()?;
     let words = source_registry_words_at(source, analysis, head_offset)?;
     let layout = words.with_source_schema(input.borrowed_context_registry(), exact_layout)??;
@@ -251,7 +250,6 @@ pub fn original_exact_switch_source_at_analysis(
     analysis: &AnalysisResult,
     head_offset: u32,
 ) -> Option<OriginalExactSwitchSource> {
-
     original_exact_case_source_at_analysis(source, analysis, head_offset)?.into_scalar_switch()
 }
 
@@ -319,7 +317,6 @@ mod tests {
 
     #[test]
     fn scalar_fragment_syntax_preserves_selected_reference_boundaries() {
-
         for (dialect, spelling, expected) in [
             ("tcl8.4", "${a{b}", Some("a{b")),
             ("tcl8.6", "${a{b}c}", None),
@@ -358,7 +355,6 @@ mod tests {
 
     #[test]
     fn original_scalar_subject_uses_shared_selected_reference_boundaries() {
-
         for (dialect, source, expected) in [
             ("tcl8.6", "${a{b}", "a{b"),
             ("tcl9.0", "${a{b}c}", "a{b}c"),

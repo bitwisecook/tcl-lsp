@@ -2864,7 +2864,6 @@ mod tests {
 
     #[test]
     fn original_generic_precision_uses_current_builtin_alias_and_rename_selection() {
-
         // This is the branch-level source metadata/precision gate. It proves
         // no Normal completion, handler effects or whole-function precision.
         let version = tcl_dialect::TclVersion::V9_1;
@@ -2909,7 +2908,6 @@ mod tests {
 
     #[test]
     fn original_generic_precision_does_not_repair_unknown_or_absent_lookup_from_metadata() {
-
         // The whole-function gate separately refuses the preceding mutation.
         // This checks this helper's actual lookup barrier, without claiming an
         // observed wrong whole-function result in the previous source state.
@@ -2938,7 +2936,6 @@ mod tests {
 
     #[test]
     fn original_generic_precision_withdraws_foreign_and_changed_source_owners() {
-
         let version = tcl_dialect::TclVersion::V9_1;
         let metadata = standalone_factory_metadata(version);
         let tokens = original_factory_tokens("info patchlevel", version, "info patchlevel", "info");
@@ -3008,7 +3005,6 @@ mod tests {
 
     #[test]
     fn original_generic_precision_retains_the_independent_declared_transition_predicate() {
-
         // Authenticated selection does not alter the separate predicate. This
         // control records its current declared-transition refusal, not a claim
         // that this ordinary list invocation mutates Tcl's command names.
@@ -3068,7 +3064,6 @@ mod tests {
 
     #[test]
     fn original_caller_safe_factory_keeps_selected_layout_and_withdraws_changed_owners() {
-
         // This checks source layout and the TypeInfer precision gate only. The
         // explicit standalone source carrier supplies no actual Native frame,
         // successful allocation, Normal result or execution equivalence.
@@ -3154,7 +3149,6 @@ mod tests {
 
     #[test]
     fn original_caller_safe_factory_does_not_promote_abstract_exports_or_custom_metaclasses() {
-
         // The C9 public-call proof permits explicit export of Abstract new.
         // That does not issue the ordinary Native default recipe required by
         // this separate precision gate, or establish a completed allocation.
@@ -3193,7 +3187,6 @@ mod tests {
 
     #[test]
     fn original_nested_factory_precision_requires_actual_child_tokens() {
-
         let version = tcl_dialect::TclVersion::V9_1;
         let metadata = standalone_factory_metadata(version);
         let source = "oo::class create C {}; set made [C new]";
@@ -3232,7 +3225,6 @@ mod tests {
 
     #[test]
     fn original_literal_contents_keep_point_grammar_and_withdraw_stale_owners() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -3291,7 +3283,6 @@ mod tests {
 
     #[test]
     fn original_literal_contents_do_not_borrow_numeric_grammar_or_substituted_values() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         // Independently authored source numerals remain Tcl85 while command
@@ -3344,7 +3335,6 @@ mod tests {
 
     #[test]
     fn original_type_metadata_retains_actual_availability_and_independent_source_grammar() {
-
         use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
         use std::sync::Arc;
 
@@ -3422,7 +3412,6 @@ mod tests {
 
     #[test]
     fn original_type_consumers_keep_positive_normal_results_and_refuse_missing_foreign_metadata() {
-
         use crate::compilation_unit::CompilationUnit;
 
         let registry = registry();
@@ -5260,7 +5249,6 @@ mod reported_namespace_tests {
 
     #[test]
     fn constructor_advice_reporting_namespace_preserves_literal_prefixes() {
-
         // Shared analytical name contract:
         // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
         // Actual consumer purpose selection; reporting text grants no lookup identity.
@@ -5280,7 +5268,6 @@ mod scope_alias_metadata_tests {
     use crate::ir::Statement;
     #[test]
     fn original_alias_type_widening_requires_the_actual_invocation_and_input() {
-
         // Genuine compiled source carriers; values/links and actual execution remain separate.
         let source = "interp alias {} selectedGlobal {} global; selectedGlobal original";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -5333,7 +5320,6 @@ mod scope_alias_metadata_tests {
     }
     #[test]
     fn native_jim_alias_metadata_cannot_use_raw_logical_name_eligibility() {
-
         // Real software entry and original source only; no external Jim execution.
         let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
         let context =

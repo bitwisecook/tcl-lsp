@@ -80,7 +80,6 @@ pub(super) fn capture_original_read_completion(
     state: &ModuleCommandBindings,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<crate::var_resolve::OriginalNormalValueRead> {
-
     if facts.operation
         != tcl_registry::SemanticOperationId::StructuredLowering(
             tcl_registry::hooks::LoweringHookId::Set,
@@ -951,7 +950,6 @@ mod tests {
 
     #[test]
     fn original_root_entry_retains_selected_frame_and_withdraws_after_unknown_observer() {
-
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
@@ -1007,7 +1005,6 @@ mod tests {
 
     #[test]
     fn original_set_read_completion_requires_a_current_defined_quiet_receiver() {
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
             let registry =

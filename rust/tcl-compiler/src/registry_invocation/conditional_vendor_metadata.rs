@@ -144,7 +144,6 @@ mod script_body_metadata_tests {
 
     #[test]
     fn original_script_child_without_lookup_keeps_its_sealed_source_premises() {
-
         let source = "proc f {} { ILX::call $h m }";
         let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
         let offset = u32::try_from(source.find("ILX::call").unwrap()).unwrap();

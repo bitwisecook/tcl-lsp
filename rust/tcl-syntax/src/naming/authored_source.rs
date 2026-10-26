@@ -24,7 +24,6 @@ pub fn authored_source_command_slot(
     current: &ByteNamespacePath,
     written: &[u8],
 ) -> Option<ByteCommandSlot> {
-
     source_units(current, written)?;
     let parts = super::qualifier_segments(written);
     let simple = super::written_command_tail(written);
@@ -61,7 +60,6 @@ pub fn authored_source_command_candidates(
     path: &[ByteNamespacePath],
     written: &[u8],
 ) -> Option<Vec<ByteCommandSlot>> {
-
     source_units(current, written)?;
     let mut result = Vec::new();
     let root = ByteNamespacePath::root();
@@ -85,7 +83,6 @@ pub fn authored_source_namespace_path(
     current: &ByteNamespacePath,
     written: &[u8],
 ) -> Option<ByteNamespacePath> {
-
     source_units(current, written)?;
     let mut namespace = if written.starts_with(b"::") {
         ByteNamespacePath::root()
@@ -136,7 +133,6 @@ mod tests {
 
     #[test]
     fn original_authored_scope_preserves_constructed_components_and_empty_tail() {
-
         let mut current = ByteNamespacePath::root();
         current.push(NameBytes::from(&b"literal::component"[..]));
         let slot = authored_source_command_slot(&current, b"child:::command").unwrap();
@@ -157,7 +153,6 @@ mod tests {
 
     #[test]
     fn original_authored_candidates_keep_order_and_decline_unmodelled_units() {
-
         let mut current = ByteNamespacePath::root();
         current.push(NameBytes::from(&b"current"[..]));
         let mut search = ByteNamespacePath::root();
@@ -181,7 +176,6 @@ mod tests {
     }
     #[test]
     fn original_authored_unicode_scope_keeps_raw_components_and_canonical_colons() {
-
         // Conditional Logical geometry only; no Native name or table binding.
         let mut current = ByteNamespacePath::root();
         current.push(NameBytes::from("λ::retained".as_bytes()));
@@ -231,7 +225,6 @@ mod tests {
 
     #[test]
     fn original_authored_unicode_scope_refuses_invalid_written_and_retained_units() {
-
         let root = ByteNamespacePath::root();
         for written in [
             b"name\0suffix".as_slice(),

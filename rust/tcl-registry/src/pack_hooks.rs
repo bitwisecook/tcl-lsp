@@ -2411,7 +2411,6 @@ mod tests {
 
     #[test]
     fn pack_aliases_preserve_original_known_bytes_and_selected_name_policy() {
-
         // Descriptor facts retain operands; they prove neither a physical
         // variable link nor an entered native frame.
         let name = b"::ns::v\xff\0tail";
@@ -2468,7 +2467,6 @@ mod tests {
 
     #[test]
     fn pack_caller_alias_keeps_counted_operands_and_effective_ordinals() {
-
         let words = [
             InvocationWord::KnownBytes(b"#0"),
             InvocationWord::KnownBytes(b"target\0bytes\xff"),
@@ -2511,7 +2509,6 @@ mod tests {
 
     #[test]
     fn native_byte_hook_kind_cannot_reuse_a_logical_literal_cache_entry() {
-
         let words = [HookWord {
             value: "",
             kind: InvocationWordKind::KnownBytes,

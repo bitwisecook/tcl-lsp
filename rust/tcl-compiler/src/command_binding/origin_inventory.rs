@@ -1252,7 +1252,6 @@ mod tests {
 
     #[test]
     fn unchanged_namespace_selection_reuses_original_inventory_without_detachments() {
-
         // Count eight shared inventories over 32 identical whole-source context
         // selections. This proves no detachments in those collections, not
         // elapsed-time improvement, entered child levels or native execution.
@@ -1315,7 +1314,6 @@ mod tests {
 
     #[test]
     fn namespace_selection_detaches_changed_points_and_preserves_original_views() {
-
         // Genuine mixed namespaces remain filtered. An unrelated namespace
         // obtains no dispatch or expression preparation from a shared view.
         let source = "namespace eval a {expr {1 + 2}}; namespace eval b {expr {3 + 4}}";
@@ -1531,7 +1529,6 @@ mod original_math_body_purpose_tests {
 
     #[test]
     fn original_math_body_inventory_keeps_extracted_bom_and_parent_origin() {
-
         // Original conditional expression topology only; no native function registration.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
@@ -1591,7 +1588,6 @@ mod original_math_body_purpose_tests {
     }
     #[test]
     fn retained_authored_simulation_requires_its_actual_policy_and_supplied_input() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
         let registry = context.commands();

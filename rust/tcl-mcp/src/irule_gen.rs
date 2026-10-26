@@ -1332,7 +1332,6 @@ mod tests {
 
     #[test]
     fn original_generated_static_setup_preserves_literal_repeated_prefixes() {
-
         // A source scaffold preserves labels; it proves no loaded variable,
         // event execution, storage identity or observed outcome.
         let generated = generate_irule_test(&json!({
@@ -1631,8 +1630,6 @@ mod tests {
     }
     #[test]
     fn original_irule_scaffolds_keep_source_candidates_without_predicted_outcomes() {
-
-
         let source = "when HTTP_REQUEST {pool /Common/candidate; HTTP::respond 503}";
         let generated = generate_irule_test(&json!({"source": source}));
         assert_eq!(generated["analysis_kind"], "conditional-source");

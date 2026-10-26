@@ -145,7 +145,6 @@ fn compare_public(interp: &mut Interp, code: Code, capture: &str, case: usize) {
 
 #[test]
 fn original_array_set_successful_rows_preserve_selected_header_getter_order() {
-
     // Only successful505b4/6 public code/bytes and worker-phase tape. Header
     // reference counts, later array presentation and backend entry stay separate.
     for &(profile, capture) in ORIGINALS {
@@ -211,7 +210,6 @@ fn original_array_set_successful_rows_preserve_selected_header_getter_order() {
 
 #[test]
 fn original_array_for_successful_rows_read_member_names_only_after_array_selection() {
-
     // Only C9 successful505b7 code/bytes/tape. The software identity checks
     // below use actual stored objects, without a public capture identity claim.
     for &(profile, capture) in &ORIGINALS[3..5] {
@@ -254,7 +252,6 @@ fn original_array_for_successful_rows_read_member_names_only_after_array_selecti
 
 #[test]
 fn original_array_for_selected_rejections_leave_later_member_getters_unreached() {
-
     // Direct selected worker source stages only: public505b error context
     // reads extra argv before VECTOR_RETURN and is intentionally not compared.
     for profile in ["tcl9.0", "tcl9.1"] {
@@ -299,7 +296,6 @@ fn original_array_for_selected_rejections_leave_later_member_getters_unreached()
 
 #[test]
 fn original_array_operand_refusal_keeps_prefix_effect_and_stops_later_key() {
-
     // Software-only actual extension updater and accepted pair prefix.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2] {
@@ -414,7 +410,6 @@ impl NativeVariableObserver<Interp> for Write {
 
 #[test]
 fn original_array_set_old_value_retirement_stops_before_write_observer() {
-
     // Actual stored cell/native free hook, software callback/refcount scope.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=2 {
@@ -469,7 +464,6 @@ fn original_array_set_old_value_retirement_stops_before_write_observer() {
 
 #[test]
 fn original_array_for_assigns_actual_retained_key_without_synthesizing_a_header() {
-
     // Software physical identity/capability control;505b public rows do not
     // attest key identity, key sharing, or arbitrary iterator equivalence.
     for profile in ["tcl9.0", "tcl9.1"] {
@@ -524,7 +518,6 @@ fn original_array_for_assigns_actual_retained_key_without_synthesizing_a_header(
 
 #[test]
 fn original_jim_array_set_existing_dictionary_checks_each_reached_key_and_retirement() {
-
     // Actual original Jim root and shared conversion/mutation worker. No new
     // external existing-root callback/order or reference-count equivalence.
     for mode in [1, 2] {

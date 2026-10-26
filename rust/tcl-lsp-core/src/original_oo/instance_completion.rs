@@ -141,7 +141,6 @@ pub(crate) fn instance_completion_source<'a>(
     source: &str,
     cursor: u32,
 ) -> Option<InstanceCompletionSource<'a>> {
-
     let config = analysis.body_lexer_config?;
     let structure =
         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;

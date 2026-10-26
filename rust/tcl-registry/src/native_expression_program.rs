@@ -455,7 +455,6 @@ impl NativeExpressionProgram {
         &self,
         dialect: InvocationDialect,
     ) -> NativeExpressionCompilerNameEffects {
-
         use NativeExpressionCompilerNameEffects as Effects;
         use tcl_syntax::expr::{ExprNode, parser::NativeExprSyntax};
         if self.context != dialect.expression_parse_context(None) {
@@ -1231,7 +1230,6 @@ mod tests {
 
     #[test]
     fn compiler_function_name_effects_are_selected_without_runtime_dispatch() {
-
         use NativeExpressionCompilerNameEffects as Effects;
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = InvocationDialect::for_version(version);

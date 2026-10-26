@@ -29,7 +29,6 @@ pub(super) enum MemberBodyArguments {
 
 impl AnalysisFormattingLayout {
     pub(super) fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
-
         let analysis_source = tcl_lexer::normalise_lone_cr(source);
         crate::original_context::CurrentSourceContext::capture(&analysis_source, analysis)?;
         let image = analysis

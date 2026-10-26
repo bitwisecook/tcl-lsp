@@ -29,7 +29,6 @@ fn analyse_input(source: &str, input: ResolvedAnalysisInput) -> AnalysisResult {
 
 #[test]
 fn hosted_source_advice_domain_does_not_require_complete_name_occurrences() {
-
     for dialect in ["f5-irules", "f5-tmsh", "f5-iapps"] {
         for source in ["", "# No command or name occurrence\n"] {
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -49,7 +48,6 @@ fn hosted_source_advice_domain_does_not_require_complete_name_occurrences() {
 
 #[test]
 fn hosted_source_policy_and_context_remain_independent_of_occurrence_inventory() {
-
     let profile = logical_profile();
     let config = LexerConfig::for_profile(Some(profile));
     let logical_context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -86,7 +84,6 @@ fn hosted_source_policy_and_context_remain_independent_of_occurrence_inventory()
 
 #[test]
 fn explicit_logical_source_advice_keeps_its_own_context_without_native_promotion() {
-
     let profile = logical_profile();
     let input = ResolvedAnalysisInput::new(
         profile,

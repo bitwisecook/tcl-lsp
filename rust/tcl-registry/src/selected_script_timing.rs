@@ -354,7 +354,6 @@ mod tests {
 
     #[test]
     fn authored_timing_keeps_unknown_payloads_and_refuses_unknown_layouts() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::static_context_for(name);
             let registry = context.commands();
@@ -448,7 +447,6 @@ mod tests {
 
     #[test]
     fn authored_plain_scripts_keep_lambda_lists_separate_from_bodies_and_prefixes() {
-
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::static_context_for(name);
             let registry = context.commands();
@@ -479,7 +477,6 @@ mod tests {
 
     #[test]
     fn authored_ascii_list_result_retains_element_boundaries_and_unknown_values() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::static_context_for(name);
             let registry = context.commands();
@@ -676,7 +673,6 @@ mod tests {
 
     #[test]
     fn original_unknown_handler_scopes_require_selected_supported_callback_operands() {
-
         // This asserts Registry projection. The linked public native controls
         // independently record the reached handler; no frame or lookup is issued.
         use crate::ScriptLookupScope::{GlobalFrame, TriggerFrame};

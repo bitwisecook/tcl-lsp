@@ -193,7 +193,6 @@ fn original_list_event_scripts_retain_counted_name_objects() {
 
 #[test]
 fn original_vwait_extended_forms_decline_before_global_observers_or_callbacks() {
-
     for (engine, forms) in [
         (
             "tcl9.0",

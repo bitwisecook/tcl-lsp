@@ -625,7 +625,6 @@ mod tests {
 
     #[test]
     fn minimise_variable_edits_use_actual_availability_and_atomic_list_containers() {
-
         // Actual source roles and edits are tested; no body entry or runtime
         // availability is inferred from an assistance declaration.
         let source = "lassign {1 2} first second; list $first $second";
@@ -643,7 +642,6 @@ mod tests {
 
     #[test]
     fn minimise_diagnostic_retains_supplied_input_across_reduction() {
-
         let input = input_for("tcl8.6");
         let source = "# removable\nset unused 1";
         let result = minimize_diagnostic_with_input(source, "W211", true, &input).unwrap();

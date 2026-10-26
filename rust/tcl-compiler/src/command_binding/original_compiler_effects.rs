@@ -462,7 +462,6 @@ fn expression_compiler_names_preserved(
     dialect: tcl_registry::InvocationDialect,
     state: &ModuleCommandBindings,
 ) -> bool {
-
     use tcl_registry::native_expression_program::NativeExpressionCompilerNameEffects as Effects;
     match program.compiler_name_effects(dialect) {
         Effects::CallFree => true,
@@ -533,7 +532,6 @@ mod tests {
 
     #[test]
     fn function_name_registration_requires_original_pool_and_quiet_lookup() {
-
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let source = words("expr {Pi()}", dialect);
         let program = program(&source, dialect);
@@ -565,7 +563,6 @@ mod tests {
 
     #[test]
     fn function_argument_compilation_keeps_original_nested_script_visits() {
-
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
         let original = words("expr {missing([set checkpoint READY])}", dialect);
         let captured = NativeCompilerWords::capture(
@@ -638,7 +635,6 @@ mod tests {
 
     #[test]
     fn original_compiler_descendant_proofs_parse_each_region_once_per_lookup_point() {
-
         // Source-contract control: exact visits can be reused; they do not issue
         // a native execution, source-frame or compiler-admission receipt.
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
@@ -715,7 +711,6 @@ mod tests {
 
     #[test]
     fn original_compiler_proof_memo_retains_refusals_and_exact_source_context() {
-
         // Source-contract controls; memo population supplies no execution facts.
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
@@ -818,7 +813,6 @@ mod tests {
 
     #[test]
     fn original_compiler_proof_memo_cannot_cross_a_changed_literal_or_lookup_world() {
-
         // A preservation memo is derived source planning, not an entry receipt.
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();

@@ -8468,7 +8468,6 @@ mod tests {
 
     #[test]
     fn native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members() {
-
         // Software carrier/cache contract: no Native worker or conversion admission.
         let original = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0);
         let foreign = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
@@ -8678,7 +8677,6 @@ mod tests {
 
     #[test]
     fn return_options_presence_uses_owned_shape_without_materialising_children() {
-
         // Software shape query only; no native private object or execution proof.
         assert!(!Value::empty().native_return_options_nonempty(None).unwrap());
         assert!(
@@ -8741,7 +8739,6 @@ mod tests {
 
     #[test]
     fn return_options_presence_preserves_retired_foreign_and_borrowed_refusals() {
-
         // An emptiness query cannot revive a header or borrow argv ownership.
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
         let original =

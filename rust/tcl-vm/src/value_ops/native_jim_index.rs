@@ -983,7 +983,6 @@ mod tests {
     }
     #[test]
     fn original_index_scope_refuses_another_header_before_getters_or_adoption() {
-
         // Actual software receiver/header control; equal spelling is no receipt.
         let mut vm = actual();
         let original = Value::new_native_string_bytes(b"end".as_slice());
@@ -1003,7 +1002,6 @@ mod tests {
 
     #[test]
     fn original_jim_container_indices_reuse_the_original_safe_expression_primary() {
-
         // Same original 17-case operands; this tests command integration, not a
         // new native command-order observation or an invented C Index protocol.
         let mut vm = actual();
@@ -1035,7 +1033,6 @@ mod tests {
     }
     #[test]
     fn original_jim_integer_bypass_is_distinct_from_first_string_index_conversion() {
-
         // Retained native case 8 establishes failed String conversion leaves Int;
         // subsequent Int clamp is a pinned-source/API control, not a second probe.
         let mut vm = actual();
@@ -1062,7 +1059,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_cache_cannot_revive_a_retired_header_through_a_lifetime_lease() {
-
         // Software ownership control with an actual VM header and native roles.
         let mut vm = actual();
         let original = Value::new_native_string_bytes(b"end".as_slice());
@@ -1084,7 +1080,6 @@ mod tests {
     }
     #[test]
     fn original_jim_index_cache_preserves_the_complete_earlier_host_cause() {
-
         let mut vm = actual();
         let original = Value::new_native_string_bytes(b"end".as_slice());
         assert_eq!(
@@ -1101,7 +1096,6 @@ mod tests {
     }
     #[test]
     fn original_jim_list_and_string_consumers_publish_the_reached_safe_expression_result() {
-
         // Integration control: the original GetWideExpr result publication is
         // independently observable before the command adapter publishes its result.
         let mut vm = actual();
@@ -1139,7 +1133,6 @@ mod replacement_native_rows629 {
 
     #[test]
     fn original_replacement_matches_every_native_observed_projection() {
-
         // Direct software API controls compare only public cache/alias/string
         // projections. Allocation-only argv transports do not pretend to reproduce
         // native EvalObjv stack/reference holds or private cache/callback chronology.
@@ -1231,7 +1224,6 @@ mod direct_binary_native_rows634a {
     }
     #[test]
     fn original_direct_c9_binary_replacement_matches_deterministic_native_roles() {
-
         // Direct checked parsed-range API compares public cache/alias/String
         // projections. VM Value result ownership is separate from C refCount0.
         // No index-parser, EvalObjv argv-hold or native process claim is made.
@@ -1329,7 +1321,6 @@ mod indexed_binary_native_projections633 {
     }
     #[test]
     fn original_indexed_binary_inputs_match_supported_native_public_projections() {
-
         // Every native633 input controls supported cache/type/String geometry.
         // This direct API supplies its own explicit caller references. It does
         // not copy measured EvalObjv temporary holds, fresh aliases, reference
@@ -1389,7 +1380,6 @@ mod parsed_empty_duplicate_control {
     use super::*;
     #[test]
     fn omitted_zero_count_without_in_place_uses_original_duplicate_constructor() {
-
         // The pinned helper source includes this early duplicate branch. This
         // direct software constructor control is not one of the16 native rows.
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
@@ -1411,7 +1401,6 @@ mod original_index_range_native_rows635 {
     );
     #[test]
     fn original_index_and_range_project_exact_measured_public_predicates() {
-
         // Direct API provides its own original owners. We compare public type,
         // residency, deterministic byte and alias predicates, not EvalObjv
         // temporary refcounts or unobserved native private Unicode caches.
@@ -1507,7 +1496,6 @@ mod original_c_string_cache_controls637 {
     use super::*;
     #[test]
     fn original_c_count_retains_source_backed_eager_and_lazy_unicode_caches() {
-
         // Private cache shape is a pinned-source/software control, not a public
         // field in the native635 streams. Getter/result bytes have separate rows.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1533,7 +1521,6 @@ mod original_c_string_cache_controls637 {
     }
     #[test]
     fn original_c_binary_backing_receipt_does_not_keep_a_replaced_backing_alive() {
-
         // Actual Weak backing/header control. This grants no VM general primary
         // epoch or native C84 adversarial pointer-lifetime observation.
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));

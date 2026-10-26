@@ -1984,7 +1984,6 @@ mod constructed_projection_tests {
 
     #[test]
     fn constructed_class_graph_lookup_preserves_literal_colon_holder() {
-
         // Explicit constructed graph assistance; no retained source lookup exists here.
         let tails: HashMap<String, Vec<String>> = HashMap::new();
         for (owner, expected) in [

@@ -336,7 +336,6 @@ mod original_script_syntax_tests {
 
     #[test]
     fn original_jim_syntax_roster_keeps_channel_and_native_value_ingress_separate() {
-
         let source = "proc before {} {}; list {a}b; proc after {} {}";
         let document = SourceImage::document(source);
         let native = SourceImage::native(source.as_bytes());
@@ -359,8 +358,6 @@ mod original_script_syntax_tests {
 
     #[test]
     fn original_jim_syntax_roster_delays_child_syntax_but_keeps_enclosing_delimiters() {
-
-
         // The physical Direct observations are separate from this syntax-only
         // projection; neither channel nor descent issues an execution receipt.
         for source in [
@@ -403,7 +400,6 @@ mod original_script_syntax_tests {
 
     #[test]
     fn original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar() {
-
         let source = "\u{feff}set value one\r\nset later two";
         let image = SourceImage::document(source);
         let root = jim_script_syntax_tokens(&image, config()).unwrap();

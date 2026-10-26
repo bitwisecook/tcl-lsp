@@ -155,7 +155,6 @@ fn first(actual: &Interp, mode: u8) {
 }
 #[test]
 fn original_parent_return_and_both_syntax_ports_keep_the_entered_frame_before_keys() {
-
     // Actual cached opcode/literal headers and callbacks; no external Native schedule.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for operation in 0..3 {
@@ -222,7 +221,6 @@ fn original_parent_return_and_both_syntax_ports_keep_the_entered_frame_before_ke
 }
 #[test]
 fn original_compiled_errorcode_uses_selected_old_role_before_incoming_hold_without_capi_counter() {
-
     // Native614c supplies header-observer bounds only. These actual compiled
     // frame/Host/context and incoming-reference observations are software controls.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -296,7 +294,6 @@ fn original_compiled_errorcode_uses_selected_old_role_before_incoming_hold_witho
 }
 #[test]
 fn original_generic_field_publication_remains_distinct_from_selected_setter_retirement() {
-
     // Generic451c byte-author publication is independently exercised, not used
     // as a selected setter or Native614c timing equivalence.
     let (mut actual, _artifact) = entered("tcl8.6", false);
@@ -347,7 +344,6 @@ static OLD_RESULT: TclObjType = TclObjType {
 };
 #[test]
 fn original_parent_result_retirement_checks_frame_before_later_error_metadata() {
-
     // The prior result is held only by the actual result slot at its free.
     // This software callback observation grants no external Native chronology.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

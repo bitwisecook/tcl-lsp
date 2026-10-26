@@ -663,7 +663,6 @@ fn format_args(
     analysis: &AnalysisResult,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(FormatHintOperand, tcl_registry::FormatType)> {
-
     let Some(selected) = source_registry_words(source, analysis, seg) else {
         return Vec::new();
     };
@@ -2247,7 +2246,6 @@ mod original_hint_tests {
 
     #[test]
     fn original_builtin_alias_and_expansion_hints_keep_effective_slots_and_original_extents() {
-
         let source = "interp alias {} slice {} string range CAPTURED; slice 1 2";
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         let hints = builtin_hints(source, &analysis);
@@ -2310,7 +2308,6 @@ mod original_hint_tests {
 
     #[test]
     fn original_format_alias_expansion_and_escape_hints_use_the_template_producer() {
-
         let hints = |source: &str| {
             let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
             let registry = analysis.resolved_registry().unwrap();
@@ -2379,7 +2376,6 @@ mod original_hint_tests {
 
     #[test]
     fn original_builtin_hints_use_retained_descriptor_and_do_not_borrow_shadowed_prototype() {
-
         let source = "set value 1";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         let hints = builtin_hints(source, &analysis);
@@ -2504,7 +2500,6 @@ mod original_procedure_topology_hint_tests {
 
     #[test]
     fn original_procedure_hints_share_expanded_children_and_formal_binding_topology() {
-
         for source in [
             "proc target {captured written} {}; target {*}{FIXED VALUE}",
             "proc target {captured written} {}; interp alias {} alias {} target FIXED; alias {*}{VALUE}",
@@ -2663,7 +2658,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_format_hints_keep_actual_context_and_full_source_currency() {
-
         let source = "clock scan 2020 -format {%Y}";
         for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
             let input = logical_format_input(environment);
@@ -2702,7 +2696,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors() {
-
         let input = logical_format_input("tcl9.1");
         let context = input.context_registry();
         for source in [
@@ -2750,7 +2743,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_format_escape_hints_use_the_complete_selected_grammar() {
-
         let source = r"format \x25d 7";
         let modern = logical_format_input("tcl9.1");
         let config = tcl_lexer::LexerConfig {
@@ -2887,7 +2879,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_parameter_hints_keep_actual_context_and_original_source_currency() {
-
         let source = "string cat A B";
         for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
             let input = logical_format_input(environment);
@@ -2925,7 +2916,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors() {
-
         let input = logical_format_input("tcl9.1");
         let context = input.context_registry();
         for (source, needle) in [
@@ -2976,7 +2966,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_builtin_hints_use_the_selected_availability_not_registry_profile() {
-
         let source = "string cat A B";
         let current = analysis_with_availability(source, "tcl9.1");
         let profile = current.resolved_profile().unwrap();
@@ -3022,7 +3011,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_format_hints_use_selected_option_roles_under_the_actual_context() {
-
         let source = "clock scan 2020 -format {%Y}";
         let current = analysis_with_availability(source, "tcl9.1");
         let profile = current.resolved_profile().unwrap();
@@ -3057,7 +3045,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared() {
-
         let source = "format {%d} 3";
         let mut analysis = analysis_with_availability(source, "tcl9.1");
         let profile = analysis.resolved_profile().unwrap();
@@ -3092,7 +3079,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_inlay_hints_keep_retained_profile_registry_and_whole_source() {
-
         let source = "set value 42\nformat {%d} 3";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.global_scope.variables.clear();
@@ -3134,7 +3120,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn original_format_hints_follow_actual_nested_roles_and_known_shadow() {
-
         let source = "proc p {} {format {%d} 3}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let out = hints(
@@ -3252,7 +3237,6 @@ mod retained_hint_context_tests {
 
     #[test]
     fn logical_type_hints_keep_constructed_colon_scopes_and_original_source() {
-
         let source = "namespace eval Ω {\nproc :pair {} {set x 42}\nproc pair {} {set x 3.5}\n}\n";
         let analysis = Analyser::new().analyse(source, "tcl");
         assert!(analysis.allows_lexical_declaration_advice());

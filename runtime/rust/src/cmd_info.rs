@@ -1243,7 +1243,6 @@ mod tests {
 
     #[test]
     fn original_info_complete_retains_checked_string_worker_and_selected_runtime_grammar() {
-
         // Form original scalar text through format%c as in the captured String
         // request. Raw source encoding, object/header and entry remain separate.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1662,7 +1661,6 @@ mod tests {
 
     #[test]
     fn info_consts_includes_only_tcloo_instance_links() {
-
         leak_free(|i| {
             assert_eq!(
                 run(

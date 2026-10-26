@@ -4374,7 +4374,6 @@ mod tests {
     }
     #[test]
     fn original_token_purity_requires_actual_availability_and_complete_children() {
-
         let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = current.commands();
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(

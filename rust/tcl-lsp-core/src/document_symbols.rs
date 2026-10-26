@@ -1624,7 +1624,6 @@ mod tests {
 
     #[test]
     fn original_outline_does_not_borrow_tcl9_member_roles_under_tcl86() {
-
         // Native stock configurable availability is independently recorded by
         // naming.tcloo.configurable-bootstrap-definition-path; this test binds
         // the unavailable source factory/header and outline refusal only.

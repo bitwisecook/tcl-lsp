@@ -543,7 +543,6 @@ mod tests {
 
     #[test]
     fn readonly_self_selectors_retain_own_and_inherited_source_members() {
-
         for dialect in ["tcl8.6", "tcl9.0"] {
             for (source, expected) in [
                 (
@@ -630,7 +629,6 @@ mod tests {
 
     #[test]
     fn readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources() {
-
         for source in [
             "oo::class create C {method ping {} {}; method body {} {ping}}",
             "oo::class create C {method ping {} {}; method body {} {::my ping}}",
@@ -719,7 +717,6 @@ mod original_source_correspondence_tests {
 
     #[test]
     fn readonly_member_correspondence_retains_both_issuers_and_strong_query_result() {
-
         let source = "oo::class create C {method ping {} {}; method body {} {my ping}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let input = analysis.resolved_input.as_ref().unwrap();
@@ -800,7 +797,6 @@ mod original_head_correspondence_tests {
 
     #[test]
     fn readonly_member_parent_retains_written_and_selected_head_issuers() {
-
         let source = "oo::class create C {method ping {} {}; method body {} {my ping}}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let input = analysis.resolved_input.as_ref().unwrap();

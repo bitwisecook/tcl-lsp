@@ -84,7 +84,6 @@ fn header_refusal() -> NativeExecutionError {
 
 #[test]
 fn original_tuple_children_keep_actual_owned_children_without_an_extra_native_hold() {
-
     // Actual child views protect allocation only; these software counts assert no additional Native hold.
     let (mut vm, host) = provided();
     let operation = NativeOperationScope::enter(&mut vm).unwrap();
@@ -125,7 +124,6 @@ fn original_tuple_children_keep_actual_owned_children_without_an_extra_native_ho
 
 #[test]
 fn original_tuple_consumers_execute_the_actual_script_and_blocking_child_route() {
-
     // Both existing consumers receive genuine Jim source objects, not a compiler or recipe donor.
     let (mut vm, host) = provided();
     assert_eq!(
@@ -159,7 +157,6 @@ fn original_tuple_consumers_execute_the_actual_script_and_blocking_child_route()
 
 #[test]
 fn original_tuple_consumer_refuses_a_retired_root_before_adoption_and_preserves_result() {
-
     let (mut vm, host) = provided();
     let operation = NativeOperationScope::enter(&mut vm).unwrap();
     let result = original_result(&mut vm);
@@ -187,7 +184,6 @@ fn original_tuple_consumer_refuses_a_retired_root_before_adoption_and_preserves_
 
 #[test]
 fn original_tuple_consumer_refuses_a_foreign_original_context_before_child_preparation() {
-
     // A live same-profile foreign context is not the addressed interpreter's original tuple issuer.
     let (mut vm, host) = provided();
     let (foreign, _) = provided();
@@ -218,7 +214,6 @@ fn original_tuple_consumer_refuses_a_foreign_original_context_before_child_prepa
 
 #[test]
 fn original_tuple_consumer_preserves_prior_host_and_restored_context_refusals() {
-
     // The authentic outer entry stays live through the later boundary; no ended or parked receipt is reissued.
     for change_context in [false, true] {
         let (mut vm, host) = provided();
@@ -268,7 +263,6 @@ fn original_tuple_consumer_preserves_prior_host_and_restored_context_refusals() 
 
 #[test]
 fn original_parked_tuple_context_resumes_same_currency_without_an_entered_grant() {
-
     let (mut vm, host) = provided();
     let original = Value::new_native_string_bytes(b"d(KEY)".as_slice());
     let names = OriginalNameConsumerScope::enter(&mut vm).unwrap();
@@ -306,7 +300,6 @@ fn original_parked_tuple_context_resumes_same_currency_without_an_entered_grant(
 
 #[test]
 fn original_parked_tuple_context_refuses_foreign_target_before_entry_or_result_publication() {
-
     let (mut vm, host) = provided();
     let (mut foreign, foreign_host) = provided();
     let names = OriginalNameConsumerScope::enter(&mut vm).unwrap();
@@ -340,7 +333,6 @@ fn original_parked_tuple_context_refuses_foreign_target_before_entry_or_result_p
 
 #[test]
 fn original_parked_tuple_context_refuses_restored_host_and_retires_same_target_state() {
-
     let (mut vm, host) = provided();
     let names = OriginalNameConsumerScope::enter(&mut vm).unwrap();
     let saved = names.operation_scope().currency().clone();
@@ -373,7 +365,6 @@ fn original_parked_tuple_context_refuses_restored_host_and_retires_same_target_s
 
 #[test]
 fn original_pending_dictionary_accept_uses_saved_context_and_stops_withdrawn_currency() {
-
     // This is the actual Subst token/Dictionary continuation, without a simulated extension callback.
     for withdraw in [false, true] {
         let (mut vm, host) = provided();
@@ -460,7 +451,6 @@ fn original_pending_dictionary_accept_uses_saved_context_and_stops_withdrawn_cur
 
 #[test]
 fn original_dictionary_cursor_borrows_members_without_native_holds_and_detects_changed_epoch() {
-
     let root = Value::from_native_dictionary_cache(vec![(
         Value::new_native_string_bytes(b"KEY".as_slice()),
         Value::new_native_string_bytes(b"BEFORE".as_slice()),

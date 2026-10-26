@@ -406,7 +406,6 @@ mod tests {
 
     #[test]
     fn original_document_pipeline_keeps_root_and_later_bom_roles() {
-
         // Original document carriers supply no Native handler receipt.
         let source = "\u{feff}probe root\n\u{feff}probe later\n";
         for name in [
@@ -469,7 +468,6 @@ mod tests {
 
     #[test]
     fn original_document_pipeline_keeps_config_withdrawal_terminal() {
-
         let source = "\u{feff}probe root";
         let mut result = run_pipeline(source, "tcl9.1");
         assert!(crate::serialise::retained_explorer_source(&result, source).is_some());
@@ -507,7 +505,6 @@ mod tests {
 
     #[test]
     fn deep_pipeline_preserves_the_actual_source_metadata_owner() {
-
         let result = run_pipeline(
             "::puts TOP; proc p {} {::puts PROC}; namespace eval n {::puts BODY}",
             "tcl8.6",

@@ -1680,7 +1680,6 @@ mod original_field_emission_tests {
     use super::*;
     #[test]
     fn original_scan_field_is_emitted_before_later_grammar_error() {
-
         let mut assigned = Vec::new();
         let result = scan_values_using(
             b"AB",
@@ -1703,7 +1702,6 @@ mod original_field_emission_tests {
     }
     #[test]
     fn original_scan_refused_emission_stops_before_next_field() {
-
         let mut emissions = 0;
         let mut bad_fields = 0;
         let result = scan_values_using(

@@ -671,7 +671,6 @@ mod written_group_geometry_tests {
 
     #[test]
     fn original_written_group_geometry_keeps_every_closer_and_expansion_marker() {
-
         // Lexical written geometry only; no entered source or Native recipe grant.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let config =
@@ -713,7 +712,6 @@ mod written_group_geometry_tests {
 
     #[test]
     fn original_written_group_geometry_refuses_unowned_groups_and_markers() {
-
         let source = b"list {*}${name}";
         let config = LexerConfig::default();
         let tokens = Lexer::with_config(std::str::from_utf8(source).unwrap(), config)

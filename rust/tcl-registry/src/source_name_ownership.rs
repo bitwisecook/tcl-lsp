@@ -121,7 +121,6 @@ impl ResolvedInvocation<'_, '_> {
         role_purpose: SourceRolePurpose,
         purpose: SourceNameOwnershipPurpose,
     ) -> SourceVariableNameOwnership {
-
         let mut out = SourceVariableNameOwnership::default();
         if let Some(arity) = self.authored_source_arity() {
             if arity.count.indeterminate || !arity.arity.accepts(arity.count.minimum) {

@@ -231,7 +231,6 @@ mod source_inventory_tests {
 
     #[test]
     fn original_conditional_source_inventory_preserves_roles_and_current_owners() {
-
         let source = "set first 1\nset second 2\n";
         let mut analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let image = SourceImage::document(source);
@@ -285,7 +284,6 @@ mod source_inventory_tests {
 
     #[test]
     fn original_conditional_source_controls_select_subcommands_without_reencoding_payloads() {
-
         use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
 
         let source = concat!(

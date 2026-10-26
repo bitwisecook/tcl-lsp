@@ -104,7 +104,6 @@ pub(crate) fn retained_explorer_source<'a>(
     result: &'a ExplorerResult,
     source: &str,
 ) -> Option<RetainedExplorerSource<'a>> {
-
     let module = &result.unit.ir_module;
     if source != result.source
         || source != result.unit.source
@@ -5580,7 +5579,6 @@ mod original_configured_index_tests {
     use super::*;
     #[test]
     fn original_structural_completeness_keeps_module_input_and_unknown_null() {
-
         // Explorer source display; fixed C9 structural indexes remain separate.
         let mut result = crate::run_pipeline("set x ${a{}", "tcl9.1");
         result.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
@@ -5650,7 +5648,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn retained_explorer_source_keeps_actual_profiles_and_ignores_display_labels() {
-
         // Producer/model controls, independently of C/Jim binary observations.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let environment = tcl_registry::model::resolve_known_environment(engine).unwrap();
@@ -5685,7 +5682,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn retained_event_order_uses_the_custom_full_config_and_actual_command_store() {
-
         // Explicit source-parser axis, not a measured BIG-IP BOM acceptance claim.
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let context = environment.default_context_registry();
@@ -5878,7 +5874,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn rewritten_explorer_image_retains_metadata_without_reusing_old_source_ownership() {
-
         let environment = tcl_registry::model::resolve_known_environment("tcl8.4").unwrap();
         let context = environment.default_context_registry();
         let config = LexerConfig::from_grammar(environment.grammar());
@@ -5906,7 +5901,6 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn remaining_actual_cu_views_retain_profiles_and_ignore_display_labels() {
-
         // Source/model agreement, independently of provider execution results.
         for engine in [
             "tcl8.4",

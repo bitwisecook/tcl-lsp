@@ -182,7 +182,6 @@ fn search(interpreter: &Interp, namespace: bool) -> obj::NativeObjectLifetime {
 }
 #[test]
 fn original_trace_member_creation_retires_searches_outside_storage_before_registration() {
-
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=4 {
             let mut interpreter = native(profile);
@@ -243,7 +242,6 @@ impl Drop for Observer {
 }
 #[test]
 fn original_native_observer_name_getter_keeps_original_scope_through_failed_incoming_cleanup() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2] {
             let mut interpreter = native(profile);
@@ -272,7 +270,6 @@ fn original_native_observer_name_getter_keeps_original_scope_through_failed_inco
 }
 #[test]
 fn original_trace_root_preparation_keeps_exact_addressed_home_and_undefined_alias_target() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = native(profile);
         interpreter.frames.borrow_mut().push(GLOBAL);
@@ -305,7 +302,6 @@ fn original_trace_root_preparation_keeps_exact_addressed_home_and_undefined_alia
 #[test]
 fn original_trace_member_creation_refuses_rebound_alias_before_registering_original_or_replacement()
 {
-
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = native(profile);
         let value = text(b"V");

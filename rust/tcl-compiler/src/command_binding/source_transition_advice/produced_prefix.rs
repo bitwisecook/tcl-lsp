@@ -303,7 +303,6 @@ fn original_single_command_substitution_words_with_plan(
     operand: &NativeWord,
     checked_parent: Option<&tcl_lexer::NativeScriptWordsPlan>,
 ) -> Option<OriginalSingleCommandSubstitution> {
-
     let arena = operand.executable_parts();
     let [part] = arena.list(arena.root()) else {
         return None;
@@ -344,7 +343,6 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         retained_producer: Option<&OriginalSourceCommandTransitionAdvice>,
     ) {
-
         if tape.authored_prefixes.len() >= 256
             || !schema
                 .semantics
@@ -392,7 +390,6 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         retained_parent: Option<&OriginalSourceCommandTransitionAdvice>,
     ) {
-
         if schema.semantics.body_interpreter.resolve_with(|ordinal| {
             std::str::from_utf8(invocation.arguments.get(ordinal)?.value.as_deref()?).ok()
         }) != tcl_registry::world_effect::InterpreterScope::Current
@@ -655,7 +652,6 @@ mod tests {
 
     #[test]
     fn authored_prefix_data_keeps_builder_point_without_a_deferred_parent() {
-
         // Software source/data correspondence; no result object or future dispatch.
         use crate::registry_invocation::source_structure::source_authored_command_prefix;
         let source = "set cb [list upvar #0 originalName localName]; after idle $cb";
@@ -708,7 +704,6 @@ mod tests {
 
     #[test]
     fn authored_prefix_keeps_alias_origins_and_known_target_barriers() {
-
         use crate::registry_invocation::source_structure::source_authored_command_prefix;
         let source = "interp alias {} sourceList {} list upvar #0 originalName; set cb [sourceList localName]";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -766,7 +761,6 @@ mod tests {
 
     #[test]
     fn substitution_geometry_keeps_expansion_and_declines_compound_or_multiple_commands() {
-
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
@@ -795,7 +789,6 @@ mod tests {
 
     #[test]
     fn logical_produced_prefix_retains_consensus_roles_without_an_entered_frame() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -844,7 +837,6 @@ mod tests {
 
     #[test]
     fn original_produced_prefix_keeps_deferred_parent_builder_and_each_word() {
-
         let source = "after idle [list apply {{x} {puts $x}} 5]";
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let analysis = Analyser::new().analyse(source, dialect);
@@ -903,7 +895,6 @@ mod tests {
 
     #[test]
     fn original_produced_prefix_keeps_logical_context_capture_and_terminal_refusals() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
         let input = ResolvedAnalysisInput::new(

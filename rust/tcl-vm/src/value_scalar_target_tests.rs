@@ -48,7 +48,6 @@ fn original(integer: i64) -> Value {
 
 #[test]
 fn original_jim_cached_boolean_uses_independent_target_without_string_access() {
-
     // Software transport of the bounded public primitive; no ExprBool or
     // runtime admission is inferred from this supplied descriptive target.
     let environment = TargetOnly(Some(NativeCIntegerAbi {
@@ -80,7 +79,6 @@ fn original_jim_cached_boolean_uses_independent_target_without_string_access() {
 
 #[test]
 fn original_cached_getter_refuses_missing_or_unsupported_target_before_mutation() {
-
     for environment in [
         TargetOnly(None),
         TargetOnly(Some(NativeCIntegerAbi {
@@ -111,7 +109,6 @@ fn original_cached_getter_refuses_missing_or_unsupported_target_before_mutation(
 
 #[test]
 fn descriptive_target_does_not_admit_retired_or_foreign_original_cache() {
-
     let environment = TargetOnly(Some(NativeCIntegerAbi {
         char_bits: 8,
         int_bytes: 4,
@@ -149,7 +146,6 @@ fn descriptive_target_does_not_admit_retired_or_foreign_original_cache() {
 #[cfg(all(target_os = "linux", target_env = "gnu", target_pointer_width = "64"))]
 #[test]
 fn retained_jim_context_queries_its_actual_host_target_without_default_width() {
-
     // Actual software context supplies the independent host; descriptive layout
     // does not supply handler admission or a foreign original object.
     let context = NativeJimObjectContext::new(jim()).unwrap();
@@ -174,7 +170,6 @@ fn retained_jim_context_queries_its_actual_host_target_without_default_width() {
 
 #[test]
 fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fields() {
-
     // C85+ original case24/getter4 live fields. This primitive receipt does not
     // select a NOT/conditional/ExprBool result or interpreter result header.
     const FIXTURES: [(tcl_dialect::TclVersion, &str); 4] = [
@@ -251,7 +246,6 @@ fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fiel
 
 #[test]
 fn operand_dependent_scalar_failure_uses_original_getter_after_a_single_neutral_probe() {
-
     // Contrasting software transport of C86 Long's original cached Double
     // failure: null probe leavesString0, live rendering reaches its operand.
     let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);

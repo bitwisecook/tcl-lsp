@@ -86,7 +86,6 @@ fn native() -> (Interp, Rc<ClockState>) {
 
 #[test]
 fn original_limit_tick_unarmed_stays_query_free_in_each_backend_configuration() {
-
     let (mut interpreter, clock) = native();
     let scope = native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
     let reads = clock.reads.get();
@@ -103,7 +102,6 @@ fn original_limit_tick_unarmed_stays_query_free_in_each_backend_configuration() 
 
 #[test]
 fn original_limit_tick_retains_real_engine_budget_deadline_and_exceeded_state() {
-
     let (mut interpreter, clock) = native();
     let scope = native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
     let numeric = clock.numeric_queries.get();
@@ -130,7 +128,6 @@ fn original_limit_tick_retains_real_engine_budget_deadline_and_exceeded_state() 
 
 #[test]
 fn original_limit_tick_keeps_native_time_throttle_separate_from_engine_budget() {
-
     let (mut interpreter, clock) = native();
     let scope = native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
     let numeric = clock.numeric_queries.get();

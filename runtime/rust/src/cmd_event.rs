@@ -341,7 +341,6 @@ impl NativeVariableObserver<Interp> for WaitFlag {
     }
 }
 fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-
     let p = match selected(interp) {
         Ok(p) => p,
         Err(c) => return c,

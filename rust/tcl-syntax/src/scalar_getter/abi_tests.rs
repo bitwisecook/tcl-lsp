@@ -3,7 +3,6 @@ use super::*;
 
 #[test]
 fn queried_output_layout_does_not_supply_long64_or_a_c84_build_recipe() {
-
     // Descriptive layout/software eligibility only: the standalone Rust guest
     // observation supplies no original Tcl32 getter or engine/header issuer.
     let c86 = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_6);
@@ -66,7 +65,6 @@ fn queried_output_layout_does_not_supply_long64_or_a_c84_build_recipe() {
 
 #[test]
 fn c84_primary_width_and_reached_fresh_recipe_are_independent() {
-
     // Source equations/software contract: a representable retained long is a
     // direct return, while fresh original build-dependent parsing is distinct.
     let c84 = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);

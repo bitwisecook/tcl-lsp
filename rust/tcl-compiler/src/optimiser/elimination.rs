@@ -1884,7 +1884,6 @@ mod tests {
 
     #[test]
     fn original_global_alias_scan_retains_literal_target_and_command_identity() {
-
         // Conditional source startup names are independent of Native cell identity.
         let registry = std::sync::Arc::new(CommandRegistry::build_default());
         let context = tcl_registry::model::ingress::static_context_for("tcl9.0")
@@ -1922,7 +1921,6 @@ mod tests {
 
     #[test]
     fn original_alias_scans_refuse_unavailable_and_foreign_metadata() {
-
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             name: "gated-global",
@@ -2051,7 +2049,6 @@ mod tests {
 
     #[test]
     fn original_completion_deletion_consumer_uses_same_module_and_header() {
-
         // The call no-error consumer only. SCCP existence, observers, purity
         // and source edit permission are independently required for deletion.
         let source = "proc leaf {x} {return $x}; set unused [leaf VALUE]";
@@ -2109,7 +2106,6 @@ mod tests {
 
     #[test]
     fn resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names() {
-
         // This is the store-observer suppression gate, not a current Native
         // trace, reaching cell, SSA use or deletion proof.
         let mut context = PassContext::new("", InterproceduralAnalysis::default());
@@ -2520,7 +2516,6 @@ mod tests {
 
     #[test]
     fn original_adce_keeps_actual_remote_stores_after_local_consumers_disappear() {
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
             let source = "proc f {} {global exported; set exported OLD; set first $exported; set unused $first; return OK}; f";
@@ -2982,7 +2977,6 @@ mod tests {
     }
     #[test]
     fn actual_jim_raise_proof_cannot_use_raw_logical_assistance() {
-
         let source = "set value VALUE; set copy $value";
         // Actual software Vm entry; no external Jim/provider execution.
         let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");

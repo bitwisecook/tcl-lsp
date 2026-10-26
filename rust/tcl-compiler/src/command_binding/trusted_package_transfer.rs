@@ -219,7 +219,6 @@ mod tests {
 
     #[test]
     fn attested_provider_entry_keeps_original_qualified_and_imported_slots() {
-
         let source = "package require tcltest; namespace import ::tcltest::test; list done";
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             // The selected package transfer certifies this completed prefix.
@@ -256,7 +255,6 @@ mod tests {
 
     #[test]
     fn attested_provider_transfer_declines_unknown_revoked_and_shadowed_preludes() {
-
         for prefix in [
             "unknown_before; ",
             "proc ::catch args {}; ",

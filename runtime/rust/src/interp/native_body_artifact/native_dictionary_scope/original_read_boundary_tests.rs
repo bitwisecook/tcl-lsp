@@ -60,7 +60,6 @@ impl NativeVariableObserver<Interp> for ReadRole {
 #[test]
 fn original_compiled_scope_read_refuses_pending_role_before_missing_metadata_and_keeps_live_replacement(
 ) {
-
     // Pending publication here is an explicit Rust callback transport control.
     // It grants no modern Native scalar/setter schedule or C84 teardown parity.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -220,7 +219,6 @@ impl NativeVariableObserver<Interp> for ReadFrame {
 }
 #[test]
 fn original_compiled_scope_read_checks_original_frame_before_selected_read_and_missing_metadata() {
-
     // Genuine reached Rust Read callback; no Native retirement chronology claim.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for withdraw in [false, true] {

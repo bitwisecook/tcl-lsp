@@ -679,7 +679,6 @@ mod original_storage_unit_controls {
     use super::*;
     #[test]
     fn legacy_storage_plain_char_promotion_is_separate_from_public_unit_decoding() {
-
         // The measured legacy provider has signed char. Unsigned is a pure
         // supplied-ABI control; no external unsigned-build process is claimed.
         let bytes = [0xf0, 0x9f, 0x98, 0x80];

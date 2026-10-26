@@ -339,7 +339,6 @@ fn original_head_split(
     ctx: ScriptCtx<'_>,
     words: &crate::original_invocation::OriginalRegistryWords,
 ) -> Option<(Span, Span)> {
-
     let original = words.head_source()?;
     let word = original.word()?;
     if word.image() != &SourceImage::document(ctx.full_source) || word.config() != ctx.config {
@@ -372,7 +371,6 @@ pub(super) fn original_logical_head<'a>(
     ctx: ScriptCtx<'_>,
     words: &'a crate::original_invocation::OriginalRegistryWords,
 ) -> Option<&'a tcl_lexer::NativeWord> {
-
     let crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice) =
         &words.source
     else {
@@ -659,7 +657,6 @@ pub(super) fn declared_overrides(
     command: &SegmentedCommand,
     words: &tcl_compiler::command_binding::OriginalDeclaredCommandWords,
 ) -> FxHashMap<u32, ArgOverride> {
-
     let mut overrides = FxHashMap::default();
     if let Some(roles) = words.supplied_argument_roles() {
         insert_source_roles(
@@ -1086,7 +1083,6 @@ pub(super) fn insert_format_overrides(
     words: &crate::original_invocation::OriginalRegistryWords,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-
     let _ = words.with_source_schema(ctx.generation, |schema| {
         for found in schema
             .authored_source_format_arguments()
@@ -1114,7 +1110,6 @@ pub(super) fn insert_pattern_overrides(
     words: &crate::original_invocation::OriginalRegistryWords,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-
     let _ = words.with_source_schema(ctx.generation, |schema| {
         for pattern in schema
             .authored_source_pattern_arguments()
@@ -1566,7 +1561,6 @@ mod tests {
 
     #[test]
     fn original_vendor_token_roles_require_supported_header_units_and_current_source() {
-
         let source = "proc helper {} {}\nproc p\\uD800 {} {}\nwhen HTTP_REQUEST {}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-irules");
         analysis.all_procs.clear();
@@ -1738,7 +1732,6 @@ mod original_missing_head_tests {
 
     #[test]
     fn original_native_missing_head_never_authorises_reporting_oo_overlays() {
-
         let source = "oo::class create C {method pick {} {}}; C create object; object pick";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.rfind("object pick").unwrap()).unwrap();
@@ -1879,7 +1872,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn produced_prefix_colours_keep_owned_deferred_roles_and_static_target_words() {
-
         for logical in [false, true] {
             let context = tcl_registry::model::ingress::resolve_environment("tcl9.1")
                 .default_context_registry();
@@ -1953,7 +1945,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_source_role_colours_keep_actual_option_context_and_reserved_data() {
-
         let driver =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         for (environment, expected) in [("tcl8.4", false), ("tcl9.1", true)] {
@@ -2011,7 +2002,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_source_role_colours_keep_effective_alias_operands_and_shadow_refusal() {
-
         let input = logical_role_input(
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
         );
@@ -2065,7 +2055,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_source_role_colours_keep_nested_selectors_values_and_oo_members() {
-
         let input = logical_role_input(
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
         );
@@ -2120,7 +2109,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_format_colours_keep_actual_context_and_original_alias_geometry() {
-
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-logical-format-colours";
         let profile = profile.intern();
@@ -2204,7 +2192,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn retained_head_colours_keep_the_selected_full_context_descriptor_traits() {
-
         let modern = crate::profile_for_dialect("tcl9.1");
         let mut registry =
             tcl_registry::CommandRegistry::build_default().project_for_profile(modern);
@@ -2310,7 +2297,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_qualified_head_colours_keep_original_decoded_boundaries() {
-
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-logical-head-qualifiers";
         let profile = profile.intern();
@@ -2353,7 +2339,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_format_colours_keep_selected_availability_and_generation() {
-
         let source = "clock scan 2020 -format {%Y}";
         let profile = crate::profile_for_dialect("tcl9.1");
         let driver =
@@ -2405,7 +2390,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_pattern_colours_keep_selected_availability_and_generation() {
-
         let source = "lsearch -regexp -stride 2 {a b} {a+}";
         let profile = crate::profile_for_dialect("tcl9.1");
         let driver =
@@ -2468,7 +2452,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_pattern_colours_keep_alias_written_operands_and_captured_refusal() {
-
         for (source, expected) in [
             (
                 "interp alias {} search {} lsearch -regexp; search {a b} {a+}",
@@ -2501,7 +2484,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_pattern_colours_keep_actual_context_over_a_profiled_store() {
-
         let source = "lsearch -regexp -stride 2 {a b} {a+}";
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-logical-pattern-colours";
@@ -2572,7 +2554,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_pattern_colours_keep_nested_and_alias_original_operand_anchors() {
-
         let mut profile = crate::profile_for_dialect("f5-irules").clone();
         profile.name = "explicit-logical-pattern-anchors";
         let profile = profile.intern();
@@ -2619,7 +2600,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_semantic_command_qualifiers_use_decoded_source_geometry() {
-
         for source in [r"::set marker 1", r"\u003a\u003aset marker 1"] {
             let mut analysis = Analyser::new().analyse(source, "tcl8.6");
             analysis.command_invocations.clear();
@@ -2671,7 +2651,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_semantic_method_roles_keep_canonical_worker_words() {
-
         let source = "oo::class create C {method p {argument {optional 7}} {set local $argument; return $local}}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let class = analysis.original_class_declarations().next().unwrap();
@@ -2720,7 +2699,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_semantic_source_roles_survive_reporting_map_erasure() {
-
         let source = "set marker 1\nif {1} {set inside 2}\nproc p {a {b 5}} {return $a}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.command_invocations.clear();
@@ -2769,7 +2747,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_semantic_roles_decline_custom_and_deleted_command_cells() {
-
         for source in [
             "proc set {name value} {return value}\nset marker 1\n",
             "rename set saved\nset marker 1\n",
@@ -2796,7 +2773,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn original_semantic_source_grammar_and_hosted_object_roles_remain_independent() {
-
         let source = "\u{feff}set marker 1\n";
         let profile = crate::environment_for_dialect("tcl9.0").analyser_profile();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -2857,7 +2833,6 @@ mod original_source_schema_tests {
     }
     #[test]
     fn original_expression_colours_require_actual_source_roles_and_lambda_parent_geometry() {
-
         let data = "set data {1 + 2}\n";
         let analysis = Analyser::new().analyse(data, "tcl8.6");
         assert!(!colour_at(
@@ -2904,7 +2879,6 @@ mod original_source_schema_tests {
     }
     #[test]
     fn refused_logical_head_schema_keeps_generic_colour_without_library_flags() {
-
         let input = logical_role_input(
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
         );
@@ -2950,7 +2924,6 @@ mod original_source_schema_tests {
     }
     #[test]
     fn logical_list_roles_keep_complete_unicode_escaped_and_semicolon_fields() {
-
         let input = logical_role_input(
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
         );
@@ -2996,7 +2969,6 @@ mod original_source_schema_tests {
 
     #[test]
     fn logical_list_roles_decline_cooked_subranges_opaque_and_malformed_lambdas() {
-
         let input = logical_role_input(
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
         );

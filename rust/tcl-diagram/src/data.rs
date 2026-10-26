@@ -964,7 +964,6 @@ pub fn diagram_data_for_analysis(
     module: &Module,
     availability: &tcl_registry::model::ContextRegistry,
 ) -> Value {
-
     let registry = availability.commands();
     let Some((image, config)) = tcl_compiler::source_graph::current_analysis(source, analysis)
     else {
@@ -1785,7 +1784,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear() {
-
         let source = r"proc p\uD800 {} {return FIRST}; p\uD800; proc p\uD801 {} {return OTHER}; p\uD801; proc p\uD800 {} {return LAST}; p\uD800";
         let (mut analysis, mut unit, context) = analysed(source, "tcl8.6");
         analysis.all_procs.clear();
@@ -1856,7 +1854,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagram_calls_use_retained_allocations_and_decline_missing_lookup() {
-
         let source = "proc target {} {return OK}; target; proc other {} {return OTHER}; other";
         let (mut analysis, unit, availability) = analysed(source, "tcl8.6");
         let context = DiagramContext {
@@ -1896,7 +1893,6 @@ mod original_source_tests {
 
     #[test]
     fn diagram_source_calls_keep_real_body_owners_and_refuse_foreign_ids() {
-
         let source = "proc p {} {return FIRST}; p; proc p {} {return LAST}; p";
         let (analysis, unit, availability) = analysed(source, "tcl8.6");
         let registry = availability.commands();
@@ -1988,7 +1984,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagram_metadata_keeps_actual_availability_and_source_currency() {
-
         // Conditional source metadata only; no native invocation or completion
         // is issued by the same-store availability controls.
         let source = "throw ERR payload";
@@ -2082,7 +2077,6 @@ mod original_source_tests {
 
     #[test]
     fn original_diagram_events_require_actual_event_descriptors_instead_of_when_labels() {
-
         let source = "namespace eval when {proc HTTP_REQUEST {} {return ordinary}}";
         let (analysis, unit, context) = analysed(source, "tcl8.6");
         let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &context);
@@ -2103,7 +2097,6 @@ mod original_source_tests {
     }
     #[test]
     fn original_diagram_actions_keep_source_schema_separate_from_display_labels() {
-
         for source in [
             "when HTTP_REQUEST {pool /Common/first; HTTP::respond 503}",
             "when HTTP_REQUEST {pool /Common/first\nHTTP::respond 503}",

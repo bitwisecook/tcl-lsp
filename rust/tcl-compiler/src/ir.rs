@@ -3965,7 +3965,6 @@ mod tests {
 
     #[test]
     fn original_word_carrier_keeps_actual_quotes_escapes_and_expansion_presentations() {
-
         // This only checks a genuine written token carrier's compatibility
         // projections. It supplies no source provenance or evaluated argv.
         for version in tcl_dialect::TclVersion::ALL {
@@ -4004,7 +4003,6 @@ mod tests {
 
     #[test]
     fn original_word_carrier_refuses_same_count_text_and_word_changes() {
-
         let source = "list ONE";
         let config = LexerConfig::default();
         let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);

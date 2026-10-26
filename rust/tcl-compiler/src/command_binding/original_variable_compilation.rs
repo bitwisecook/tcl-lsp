@@ -33,7 +33,6 @@ pub(super) fn logical_original_substitution_access(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<Place> {
-
     let input = super::logical_definition::logical_entry(state, context)?;
     let (spelling, site) = original?;
     let arena = arena?;
@@ -826,7 +825,6 @@ mod logical_substitution_tests {
 
     #[test]
     fn logical_original_substitution_reads_only_the_existing_symbolic_storage() {
-
         // Admission into chosen symbolic inputs, not a Native process/value proof.
         let input = logical_input();
         for (source, expected) in [
@@ -878,7 +876,6 @@ mod logical_substitution_tests {
 
     #[test]
     fn logical_original_substitution_keeps_observers_and_dynamic_storage_open() {
-
         let input = logical_input();
         for traced in [false, true] {
             inspect_original_read(
@@ -948,7 +945,6 @@ mod logical_substitution_tests {
 
     #[test]
     fn logical_original_substitution_refuses_missing_native_and_stale_ownership() {
-
         let input = logical_input();
         inspect_original_read(
             "consume $scalar",

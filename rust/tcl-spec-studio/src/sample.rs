@@ -1271,7 +1271,6 @@ mod tests {
 
     #[test]
     fn computed_selectors_and_expansion_keep_source_roles_unknown() {
-
         bench_on(PACK, |bench| {
             for sample in [
                 "dict $member key value",
@@ -1310,7 +1309,6 @@ mod tests {
 
     #[test]
     fn literal_escapes_and_dynamic_value_words_share_the_registry_owner() {
-
         bench_on(PACK, |bench| {
             let view = bench.inspect("di\\x63t {get} $value key", 10).unwrap();
             assert_eq!(view["call"]["resolved"], json!(true));
@@ -1439,7 +1437,6 @@ mod tests {
 
     #[test]
     fn original_sample_walk_keeps_actual_input_body_purpose_and_word_geometry() {
-
         bench_on(PACK, |bench| {
             let sample = "\u{feff}greet root\nwithbody {\u{feff}greet ${a{b}}}\n";
             let default = bench.analysis_result(sample);
@@ -1510,7 +1507,6 @@ mod tests {
 
     #[test]
     fn original_sample_view_refuses_missing_foreign_and_changed_input_without_zero_counts() {
-
         bench_on(PACK, |bench| {
             let sample = "greet world\n";
             let result = bench.analysis_result(sample);

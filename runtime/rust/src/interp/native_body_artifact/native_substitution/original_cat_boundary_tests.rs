@@ -113,7 +113,6 @@ fn assert_first(actual: &Interp, mode: u8) {
 
 #[test]
 fn original_substitution_chunk_cat_checks_before_later_chunk_and_retains_first_cleanup_cause() {
-
     // Real 255-component flush and original owning headers, software-only.
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2, 4] {

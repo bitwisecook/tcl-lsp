@@ -279,7 +279,6 @@ mod tests {
 
     #[test]
     fn original_authored_string_selector_and_counted_length_keep_actual_provider_and_roles() {
-
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
         assert!(vm.set_logical_name_provider(
@@ -325,7 +324,6 @@ mod tests {
 
     #[test]
     fn original_rule_callable_text_keeps_actual_provider_declaration_and_domain_failures() {
-
         let mut vm = callable_vm();
         let owner = Value::string("/Common/folder/request");
         let name = Value::string("local");
@@ -378,7 +376,6 @@ mod tests {
 
     #[test]
     fn original_rule_callable_strict_text_refusal_precedes_unreached_header_and_publication() {
-
         let mut vm = callable_vm();
         let owner = Value::new_native_string_bytes(b"/Common/\xff".as_slice());
         let name = Value::string("unreached");

@@ -421,7 +421,6 @@ mod tests {
 
     #[test]
     fn retained_alias_materialises_only_its_original_undefined_root() {
-
         // Rust receiver correspondence only; native public values are independent.
         let mut table = VarTable::default();
         table.insert_link(
@@ -457,7 +456,6 @@ mod tests {
 
     #[test]
     fn same_spelled_foreign_link_cannot_issue_an_undefined_root_marker() {
-
         // Rust receiver correspondence only; native public values are independent.
         let mut table = VarTable::default();
         table.insert_link(

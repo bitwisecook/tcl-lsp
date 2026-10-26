@@ -3300,7 +3300,6 @@ mod policy_tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners() {
-
         let args = json!({
             "source": FOLDING, "dialect": "tcl9.0",
             "start_line": 0, "start_character": 0,
@@ -3781,7 +3780,6 @@ mod original_refactor_request_tests {
 
     #[test]
     fn original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons() {
-
         let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
         let registry = authored_datagroup_registry();
         let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
@@ -3836,7 +3834,6 @@ choose {puts SAME} elseif {$x eq two} {puts SAME}";
 
     #[test]
     fn original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners() {
-
         let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
         let registry = authored_datagroup_registry();
         let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
@@ -3860,7 +3857,6 @@ choose {puts SAME} elseif {$x eq two} {puts SAME}";
         assert!(datagroup_advice(source, 0, "answers", &analysis, &index).is_some());
     }
 
-
     #[test]
     fn original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules() {
         let source = "switch -- $value { a {set result 1} b {set result 2} }";
@@ -3882,7 +3878,6 @@ choose {puts SAME} elseif {$x eq two} {puts SAME}";
 
     #[test]
     fn original_code_action_responses_retain_disabled_rewrite_obligations() {
-
         let source = "if {1} {puts YES} else {puts NO}";
         let response = code_actions(&json!({
             "source": source,
@@ -3907,7 +3902,6 @@ choose {puts SAME} elseif {$x eq two} {puts SAME}";
         );
     }
 
-
     #[test]
     fn original_refactor_requests_use_the_selected_analysis_for_shadowed_heads() {
         let source = "proc expr {value} {return $value}\nexpr $x + 1\n";
@@ -3927,7 +3921,6 @@ mod original_event_source_tests {
 
     #[test]
     fn original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps() {
-
         let source = "when HTTP_REQUEST {}";
         let mut analysis = analyse(source, "f5-irules");
         analysis.all_defined_symbols.clear();
@@ -3955,7 +3948,6 @@ mod original_event_source_tests {
 mod retained_graph_input_tests {
     #[test]
     fn memory_alias_tool_keeps_authored_exposure_and_unknown_storage() {
-
         let graph = super::memory_aliases(&serde_json::json!({
             "source": "proc aliaser {} {global ::shared; set shared 1}", "dialect": "tcl",
         }));

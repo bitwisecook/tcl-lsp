@@ -300,7 +300,6 @@ pub fn comment_facts_from_analysis(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Option<Vec<tcl_compiler::analyser::utils::ScriptCommentFact>> {
-
     tcl_compiler::analyser::utils::script_comment_facts_from_analysis(source, analysis)
 }
 
@@ -779,7 +778,6 @@ mod tests {
 
     #[test]
     fn original_comment_facts_keep_actual_registry_config_and_reference_syntax() {
-
         let source = "hold-script {\n    # café 😀 \\\n    puts hidden\n    puts visible\n}\nreference-script {\n    # reference \\\n    format hidden\n    format visible\n}\n";
         let analysis = original_comment_analysis(source);
         let facts = comment_facts_from_analysis(source, &analysis).unwrap();
@@ -828,7 +826,6 @@ mod tests {
 
     #[test]
     fn original_comment_facts_share_genuine_stub_body_source_geometry() {
-
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {\n    # café 😀 \\\n    puts hidden\n}\n";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let facts = comment_facts_from_analysis(source, &analysis).unwrap();
@@ -855,7 +852,6 @@ mod tests {
 
     #[test]
     fn original_comment_facts_refuse_stale_source_input_and_config() {
-
         let source = "hold-script {\n# note \\\nputs hidden\n}\n";
         let analysis = original_comment_analysis(source);
         assert_eq!(
@@ -888,7 +884,6 @@ mod tests {
 
     #[test]
     fn original_comment_facts_do_not_invent_body_or_physical_line_mapping() {
-
         for source in [
             "unknown-body {\n# note \\\nputs hidden\n}\n",
             "proc hold-script {value} {}\nhold-script {\n# note \\\nputs hidden\n}\n",
@@ -906,7 +901,6 @@ mod tests {
 
     #[test]
     fn original_style_orchestrator_keeps_actual_normalised_image_and_independent_checks() {
-
         let source = "hold-script {\r# café 😀 \\\nputs 😀\r}\r";
         let normalised = tcl_lexer::normalise_lone_cr(source);
         let analysis = original_comment_analysis(&normalised);

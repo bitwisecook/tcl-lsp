@@ -897,7 +897,6 @@ mod tests {
 
     #[test]
     fn original_math_navigation_and_reference_edges_share_expression_allocations() {
-
         let source = "proc ::tcl::mathfunc::abs {argument} {return OVERRIDE}\nexpr {abs(-2)}\n";
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -967,7 +966,6 @@ mod tests {
 
     #[test]
     fn original_call_edges_keep_opaque_declarations_and_independent_source_owners() {
-
         let source = r"proc p\uD800 {} {}; p\uD800; proc p\uD801 {} {}; p\uD801";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_procs.clear();
@@ -1021,7 +1019,6 @@ mod own_object_call_tests {
 
     #[test]
     fn original_own_object_calls_and_references_keep_the_canonical_object_worker() {
-
         let source = r"oo::class create C {method p\uD800 {} {}}; C create object; oo::objdefine object method p\uD800 {} {}; object p\uD800";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_classes.clear();

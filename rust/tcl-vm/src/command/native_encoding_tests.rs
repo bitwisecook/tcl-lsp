@@ -33,8 +33,6 @@ fn hex(bytes: &[u8]) -> String {
 
 #[test]
 fn original_utf8_conversion_matches_all_55_c_object_storage_windows() {
-
-
     // Original direct object-vector invocation and before-getter snapshots;
     // no source compiler/CLI rewrite or original pointer/refcount assertion.
     use std::rc::Rc;

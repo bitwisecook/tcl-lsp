@@ -45,7 +45,6 @@ fn context<'a>(
 
 #[test]
 fn original_standalone_scan_keeps_static_unicode_namespace_metadata_without_name_keys() {
-
     // Public standalone scanning owns source metadata only. No interpreter,
     // input generation, Native naming key or command lookup is supplied.
     let registry = tcl_registry::CommandRegistry::build_default();
@@ -91,7 +90,6 @@ fn original_standalone_scan_keeps_static_unicode_namespace_metadata_without_name
 
 #[test]
 fn original_logical_scanner_and_analyser_select_the_same_complete_word_owner() {
-
     let input = input();
     let registry = input.borrowed_context_registry().commands();
     let config = input.lexer_config();
@@ -142,7 +140,6 @@ fn original_logical_scanner_and_analyser_select_the_same_complete_word_owner() {
 
 #[test]
 fn original_source_name_purpose_preserves_native_entry_recipe_and_hosted_barriers() {
-
     let input = input();
     let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     let (_owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);

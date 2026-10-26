@@ -216,7 +216,6 @@ mod tests {
     }
     #[test]
     fn original_list_membership_stops_after_reached_list_needle_or_member_first_host() {
-
         // Software updater/first-cause control, not native IN opcode behaviour.
         for stage in 0..3 {
             let mut context = native();
@@ -270,7 +269,6 @@ mod tests {
     }
     #[test]
     fn original_list_membership_keeps_counted_bytes_and_native_member_reference_roles() {
-
         // Original software List/String producers; no provider result comparison.
         let mut context = native();
         let member = Owned::fresh(obj::new_string_bytes("é\0literal $ []".as_bytes()));
@@ -303,7 +301,6 @@ mod tests {
     }
     #[test]
     fn original_list_membership_retains_allocation_safety_without_reviving_retired_members() {
-
         // Real backing retirement during original getter; native child count stays unchanged.
         let mut context = native();
         let member = obj::new_string_bytes(b"member");
@@ -329,7 +326,6 @@ mod tests {
     }
     #[test]
     fn authored_f5_predicates_require_policy_checked_unicode_and_owned_cleanup() {
-
         // Authored expression policy only; no BIG-IP native predicate or character claim.
         let mut context = native();
         let left = Owned::fresh(obj::new_string_bytes("é\0prefix suffix".as_bytes()));
@@ -363,7 +359,6 @@ mod tests {
     }
     #[test]
     fn authored_f5_getter_first_host_stops_before_later_operand_and_result() {
-
         // Actual software updater under an installed authored policy; no BIG-IP result claim.
         let mut context = native();
         context

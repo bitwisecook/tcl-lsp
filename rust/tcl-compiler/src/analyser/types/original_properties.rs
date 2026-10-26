@@ -165,7 +165,6 @@ impl OriginalSourcePropertyMetadata {
             crate::analyser::ClassDef,
         >,
     ) -> bool {
-
         let Some(receipt) = crate::command_binding::OriginalSourceClassDeclaration::from_class(
             source, analysis, provider,
         ) else {

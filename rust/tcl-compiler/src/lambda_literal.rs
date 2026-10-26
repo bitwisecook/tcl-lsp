@@ -113,7 +113,6 @@ pub fn split_lambda_literal(source: &str, tok: Token) -> Option<LambdaLiteralEle
 pub fn split_original_lambda_literal(
     word: &tcl_lexer::NativeWord,
 ) -> Option<LambdaLiteralElements> {
-
     if word.group().kind != tcl_lexer::WordKind::Braced {
         return None;
     }
@@ -216,7 +215,6 @@ pub fn split_original_lambda_literal_decoded(
     word: &tcl_lexer::NativeWord,
     input: &crate::signature_scan::scope::SignatureSourceNameInput,
 ) -> Option<DecodedLambdaLiteral<'static>> {
-
     let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = input else {
         return None;
     };
@@ -250,7 +248,6 @@ pub fn split_original_lambda_literal_decoded(
 pub fn split_original_lambda_literal_lexical_decoded(
     word: &tcl_lexer::NativeWord,
 ) -> Option<DecodedLambdaLiteral<'static>> {
-
     if word.image().channel() != tcl_lexer::SourceChannel::Document
         || word.group().kind != tcl_lexer::WordKind::Braced
         || word.group().expand
@@ -404,7 +401,6 @@ mod tests {
 
     #[test]
     fn original_lexical_lambda_decoding_retains_word_config_and_channel() {
-
         let source = "apply {a {puts a\\
  b}}";
         let config = tcl_lexer::LexerConfig::default();
@@ -581,7 +577,6 @@ mod tests {
 mod original_geometry_tests {
     #[test]
     fn original_lambda_geometry_uses_its_parent_selected_list_grammar() {
-
         let source = tcl_lexer::SourceImage::document("apply {{} {puts x}tail}");
         for (profile, expected) in [("tcl8.6", None), ("jim0.84", Some("puts x"))] {
             let profile =
@@ -606,7 +601,6 @@ mod original_geometry_tests {
 mod original_decoded_tests {
     #[test]
     fn original_lambda_decoding_retains_parent_native_units_without_cooked_geometry() {
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim0.84"] {
             let profile =
                 tcl_registry::model::ingress::resolve_environment(name).analyser_profile();

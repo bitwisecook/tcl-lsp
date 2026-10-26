@@ -615,7 +615,6 @@ mod original_checked_return_tests {
     }
     #[test]
     fn original_return_numeric_probe_keeps_cached_object_and_neutral_thread_role() {
-
         // Software transport uses an actual queried native Host ABI; no getter-provider run or extension callback is claimed.
         let (mut vm, numeric, acquisitions) = provided(true);
         let value = Value::int(6);
@@ -639,7 +638,6 @@ mod original_checked_return_tests {
     }
     #[test]
     fn original_return_numeric_unavailable_stays_outside_keyword_guest_fallback() {
-
         let (mut vm, numeric, _) = provided(false);
         let value = Value::int(6);
         let before = value.native_object_snapshot();
@@ -661,7 +659,6 @@ mod original_checked_return_tests {
     }
     #[test]
     fn original_return_numeric_probe_refuses_a_foreign_selected_scalar_protocol() {
-
         let (mut vm, numeric, acquisitions) = provided(true);
         let value = Value::int(6);
         let before = value.native_object_snapshot();
@@ -686,7 +683,6 @@ mod original_checked_return_tests {
 
     #[test]
     fn original_return_numeric_scope_stops_callback_change_before_continuation() {
-
         // The checked closure enters an actual software Vm callback; VM closed IntRep supplies no extension updater/free issuer.
         let (mut vm, _, acquisitions) = provided(true);
         let value = Value::int(6);

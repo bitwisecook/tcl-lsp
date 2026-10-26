@@ -218,7 +218,6 @@ impl SourceInvocationBinding {
         registry: &CommandRegistry,
         purpose: OriginalWordSourcePurpose,
     ) -> Option<InvocationMetadataContext<'a>> {
-
         if !module
             .retained_source_bindings
             .as_deref()?
@@ -566,7 +565,6 @@ impl SourceInvocationBinding {
         module: &crate::ir::Module,
         registry: &'a CommandRegistry,
     ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
-
         let metadata = self.original_invocation_metadata_for_module(tokens, module, registry)?;
         let source = self
             .invocation_site()?
@@ -586,7 +584,6 @@ impl SourceInvocationBinding {
         registry: &'a CommandRegistry,
         metadata: Option<InvocationMetadataContext<'a>>,
     ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
-
         let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
         let input = metadata.source_analysis_input()?;
         if self.lookup_state.is_none() {
@@ -1171,7 +1168,6 @@ mod tests {
 
     #[test]
     fn original_tagged_point_selection_keeps_supplied_refusal_distinct_from_standalone() {
-
         use crate::registry_invocation::OwnedInvocationMetadataContext;
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -1442,7 +1438,6 @@ mod tests {
 
     #[test]
     fn original_declaration_flow_keeps_selected_point_availability_and_supplied_refusal() {
-
         // Conditional setter metadata supplies no successful store or physical frame.
         use crate::registry_invocation::OwnedInvocationMetadataContext;
         let mut registry = tcl_registry::CommandRegistry::build_default();
@@ -1546,7 +1541,6 @@ mod tests {
 
     #[test]
     fn original_caller_alias_operands_keep_captured_geometry_and_selected_metadata() {
-
         // Conditional formal mentions only: no reached upvar or caller cell.
         use crate::command_binding::SourceAnalysisOptions;
         use crate::registry_invocation::OwnedInvocationMetadataContext;
@@ -1648,7 +1642,6 @@ mod tests {
 
     #[test]
     fn warmed_original_lexical_projection_cannot_donate_changed_module_metadata() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let unit = unit("eval set ::original VALUE", &context);
@@ -1719,7 +1712,6 @@ mod tests {
 
     #[test]
     fn original_installer_module_projection_keeps_snapshot_and_future_scope_refusal() {
-
         // Software source snapshot/lookup controls, not callback or frame entry.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -1805,7 +1797,6 @@ mod tests {
 
     #[test]
     fn original_installer_module_projection_withdraws_changed_entry_and_frame_owner() {
-
         // Full source-owner reuse controls, independently of physical frame entry.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -1862,7 +1853,6 @@ mod tests {
 
     #[test]
     fn original_installer_module_projection_accepts_only_the_retained_nested_input() {
-
         // Independently produced source points retain their explicit nested policy.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -1933,7 +1923,6 @@ mod tests {
 
     #[test]
     fn original_point_metadata_keeps_unknown_lookup_and_changed_vector_separate() {
-
         // Source/API ownership only: metadata does not prove a reached command.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -1975,7 +1964,6 @@ mod tests {
 
     #[test]
     fn original_function_point_metadata_retains_input_without_granting_module_or_normality() {
-
         // Actual FU/point metadata is distinct from whole-Module currency and
         // from a reached handler, successful read, physical frame or result.
         let context =
@@ -2021,7 +2009,6 @@ mod tests {
 
     #[test]
     fn original_function_point_metadata_declines_missing_foreign_stale_and_changed_geometry() {
-
         // Even a same-store availability change cannot replace the point's
         // original full input. Missing supplied input is never Standalone.
         let context =
@@ -2094,7 +2081,6 @@ mod tests {
 
     #[test]
     fn original_materialized_footprint_keeps_alias_targets_and_literal_roots() {
-
         // Source/API possible names only; no process result, child argv or store.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -2195,7 +2181,6 @@ mod tests {
 
     #[test]
     fn original_materialized_footprint_uses_actual_availability_on_the_same_store() {
-
         // The command generation is identical; only actual availability changes.
         let mut registry = tcl_registry::CommandRegistry::build_default();
         let setter = registry.get("set").unwrap().clone();
@@ -2241,7 +2226,6 @@ mod tests {
 
     #[test]
     fn materialized_bodies_keep_the_original_entry_availability_phase() {
-
         // Exact source/API phase selection only. The explicit entry has no
         // native interpreter, body-entry, worker or successful store receipt.
         use tcl_dialect::model::InvocationRealm;
@@ -2310,7 +2294,6 @@ mod tests {
 
     #[test]
     fn original_materialized_footprint_refuses_missing_foreign_and_stale_owners() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let source = "eval set x VALUE";
@@ -2380,7 +2363,6 @@ mod tests {
     }
     #[test]
     fn original_literal_body_ownership_keeps_named_purposes_and_literal_roots() {
-
         // Conditional lexical names only, never installed aliases or current reads.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -2465,7 +2447,6 @@ mod tests {
 
     #[test]
     fn original_literal_body_aliases_keep_local_names_and_opaque_residuals() {
-
         // Held alias names/captures and a conditional residual, no frame or execution.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -2511,7 +2492,6 @@ mod tests {
 
     #[test]
     fn original_literal_body_ownership_keeps_availability_and_source_currency() {
-
         // Conditional source names only; availability is not actual execution.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -2607,7 +2587,6 @@ mod tests {
 
     #[test]
     fn original_source_realm_keeps_sealed_declaration_and_reached_owners_independent() {
-
         // Readonly source realm; no reached lookup or body/frame permission.
         let context = logical_script_context();
         let source = "interp alias {} shared {} run-script; shared {set local VALUE}";
@@ -2704,7 +2683,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_names_keep_static_and_captured_source_horizons() {
-
         // Conditional MAY names; no reached handler, child entry or physical store.
         // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
@@ -3008,7 +2986,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_names_refuse_changed_and_missing_source_owners() {
-
         // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
         let source = "return DONE; run-script {set x VALUE}";
@@ -3124,7 +3101,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_horizon_refuses_dynamic_expanded_and_invalid_vectors() {
-
         // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
         for (source, expected) in [
@@ -3256,7 +3232,6 @@ mod tests {
 
     #[test]
     fn original_procedure_argument_roles_keep_native_entry_and_logical_source_owners_separate() {
-
         // Software-owned source argv roles, independently of entered calls and Normal.
         for source in [
             "proc selected {value} {}; selected {[inert CHILD]}",
@@ -3309,7 +3284,6 @@ mod tests {
 
     #[test]
     fn original_procedure_argument_roles_refuse_changed_missing_and_open_owners() {
-
         let source = "proc selected {value} {}; selected VALUE";
         let (_owner, context, input, tokens) = original_native_procedure_argument_tokens(source);
         let binding = tokens.source_binding.as_ref().unwrap();
@@ -3410,8 +3384,6 @@ mod tests {
     }
     #[test]
     fn original_logical_procedure_roles_keep_declaration_layout_separate_from_allocation_advice() {
-
-
         let context = logical_script_context();
         for source in [
             "proc selected {value} {}; selected VALUE",
@@ -3461,7 +3433,6 @@ mod tests {
 
     #[test]
     fn original_native_source_procedure_roles_keep_the_genuine_allocation_purpose() {
-
         // The actual held software Native entry remains distinct from the
         // positive Logical source model. No external Native execution is observed.
         let (_owner, context, input, tokens) =
@@ -3489,7 +3460,6 @@ mod tests {
 
     #[test]
     fn original_logical_procedure_argv_keeps_unentered_alias_prefix_and_literal_child() {
-
         // Lexical argv roles retain the real declaration prefix, not a call frame.
         let context = logical_script_context();
         let source = "proc café {prefix value} {}; interp alias {} forwarded {} café PREFIX; return DONE; forwarded {[inert CHILD]}";
@@ -3534,7 +3504,6 @@ mod tests {
 
     #[test]
     fn original_logical_procedure_argv_refuses_replaced_receipt_vector_and_source_world() {
-
         let context = logical_script_context();
         let source = "proc selected {value} {}; return DONE; selected {LITERAL}";
         let (analysis, tokens) = logical_original_tokens(source, &context);
@@ -3635,7 +3604,6 @@ mod tests {
 
     #[test]
     fn original_logical_procedure_argv_cannot_repair_open_or_registry_targets() {
-
         let context = logical_script_context();
         for source in [
             "proc selected {value} {}; unknown; selected VALUE",
@@ -3658,7 +3626,6 @@ mod tests {
 
     #[test]
     fn original_logical_materialized_root_keeps_its_actual_source_lookup_point() {
-
         // The root source point supplies conditional schema and MAY names;
         // it is distinct from an unentered suffix and grants no handler/store.
         let context = logical_script_context();

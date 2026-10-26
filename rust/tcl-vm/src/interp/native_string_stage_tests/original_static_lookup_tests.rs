@@ -19,7 +19,6 @@ fn provided_jim() -> (Vm, Rc<Formatter>, Rc<Cell<usize>>) {
 
 #[test]
 fn original_static_lookup_keeps_one_formatter_and_cached_absent_string_without_query() {
-
     // Supplied software formatter, not an external Tcl callback experiment.
     let (mut vm, formatter, acquisitions) = provided();
     let original = value(&vm, i64::MIN);
@@ -65,7 +64,6 @@ fn original_static_lookup_keeps_one_formatter_and_cached_absent_string_without_q
 
 #[test]
 fn original_static_lookup_preserves_counted_invalid_bytes_and_does_not_cache_miss() {
-
     let (mut vm, formatter, acquisitions) = provided();
     let original = Value::new_native_string_bytes(b"\xff".as_slice());
     let before = original.native_object_snapshot();
@@ -88,7 +86,6 @@ fn original_static_lookup_preserves_counted_invalid_bytes_and_does_not_cache_mis
 
 #[test]
 fn original_static_lookup_stops_retired_compound_before_cache_and_guest_projection() {
-
     let (mut vm, formatter, _) = provided();
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
     let root = Value::native_list_constructor(
@@ -133,7 +130,6 @@ fn original_static_lookup_stops_retired_compound_before_cache_and_guest_projecti
 
 #[test]
 fn original_index_mirror_checks_actual_currency_after_retirement_before_adoption() {
-
     // The software checker withdraws currency at a reached kernel boundary; no opaque Native free hook is claimed.
     let (mut vm, _, _) = provided();
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -182,7 +178,6 @@ fn original_index_mirror_checks_actual_currency_after_retirement_before_adoption
 
 #[test]
 fn original_jim_enum_keeps_cache_hit_without_getter_and_foreign_index_refusal() {
-
     let (mut vm, formatter, acquisitions) = provided_jim();
     let original = Value::new_native_string_bytes(b"provide".as_slice());
     let table = NativeStaticIndexTable::supported_backend(&["provide", "present"]);
@@ -222,7 +217,6 @@ fn original_jim_enum_keeps_cache_hit_without_getter_and_foreign_index_refusal() 
 
 #[test]
 fn original_static_usage_keeps_actual_canonical_index_and_retained_typed_host() {
-
     let (mut vm, formatter, acquisitions) = provided();
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
     let original = Value::new_native_string_bytes(b"pro".as_slice());
@@ -255,7 +249,6 @@ fn original_static_usage_keeps_actual_canonical_index_and_retained_typed_host() 
 
 #[test]
 fn original_jim_cat_keeps_empty_unary_and_compound_source_roles_without_host_query() {
-
     // Software checked worker roles only; no new public zero/unary observation.
     let (mut vm, formatter, acquisitions) = provided_jim();
     let empty = vm.native_jim_string_cat(&[]).unwrap().unwrap();
@@ -288,7 +281,6 @@ fn original_jim_cat_keeps_empty_unary_and_compound_source_roles_without_host_que
 
 #[test]
 fn original_jim_cat_preserves_prior_full_host_before_later_operand_or_materialization() {
-
     let (mut vm, formatter, acquisitions) = provided_jim();
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
     let original = Value::int(17);
@@ -313,7 +305,6 @@ fn original_jim_cat_preserves_prior_full_host_before_later_operand_or_materializ
 
 #[test]
 fn original_jim_cat_authored_routing_checks_inherited_currency_without_native_issuer() {
-
     let (mut vm, formatter, acquisitions) = provided();
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
     assert!(

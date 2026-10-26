@@ -4214,7 +4214,6 @@ mod tests {
 
     #[test]
     fn original_abstract_grammar_roundtrip_keeps_created_class_and_factory_visibilities() {
-
         let registry = tcl_registry::CommandRegistry::build_default();
         let selected = registry.get("oo::abstract").unwrap();
         // Roundtrip the selected semantic data without exporting Native hooks.
@@ -4440,7 +4439,6 @@ mod tests {
 
     #[test]
     fn source_deprecation_advice_survives_both_renderers_and_pack_reload() {
-
         let spec = tcl_registry::CommandSpec {
             name: "probe::legacy",
             source_deprecation_advice: Some(tcl_registry::SourceDeprecationAdvice::IruleMatchclass),
@@ -4475,7 +4473,6 @@ mod tests {
 
     #[test]
     fn positional_option_prefix_survives_both_renderers_and_pack_reload() {
-
         const NESTED: &[tcl_registry::SubSubCommand] = &[tcl_registry::SubSubCommand {
             name: "configure",
             option_prefix_words: 3,
@@ -5651,7 +5648,6 @@ mod tests {
     }
     #[test]
     fn authored_source_path_operations_survive_render_load_and_draft() {
-
         static MEMBERS: &[tcl_registry::SubCommand] = &[
             tcl_registry::SubCommand {
                 name: "combine",
@@ -5826,7 +5822,6 @@ mod tests {
 
     #[test]
     fn authored_channel_configuration_survives_render_load_and_draft() {
-
         static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "configure",
             channel_configuration: Some(
@@ -5880,7 +5875,6 @@ mod tests {
 
     #[test]
     fn authored_source_index_bounds_survive_render_load_and_draft() {
-
         static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "insert",
             source_index_bounds: Some(tcl_registry::SourceIndexBounds::StringInsert),

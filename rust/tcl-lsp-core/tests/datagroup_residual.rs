@@ -757,7 +757,6 @@ fn if_chain_trailing_condition_without_body_declines() {
 
 #[test]
 fn original_switch_subject_keeps_complete_scalar_spelling() {
-
     for subject in [
         "${café}",
         "${a b}",
@@ -790,7 +789,6 @@ fn original_switch_subject_keeps_complete_scalar_spelling() {
 
 #[test]
 fn original_switch_subject_declines_data_compounds_and_arrays() {
-
     for subject in [
         "{$x}",
         "{${x}}",
@@ -811,7 +809,6 @@ fn original_switch_subject_declines_data_compounds_and_arrays() {
 
 #[test]
 fn original_switch_subject_uses_supplied_brace_grammar_and_complete_generated_source() {
-
     // This is explicit source authoring with an iRules emission store and a
     // supplied lexical grammar; it does not describe an F5 runtime release.
     let nested = "switch -exact -- ${a{b}c} {GET {drop} POST {drop} PUT {drop}}";

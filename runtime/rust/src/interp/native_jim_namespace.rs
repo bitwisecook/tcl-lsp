@@ -900,7 +900,6 @@ mod tests {
 
     #[test]
     fn jim_root_command_context_requires_its_live_original_top_object() {
-
         let mut interp = Interp::new();
         interp.set_dialect_profile(profile());
         let context = interp.native_jim_object_context().unwrap();

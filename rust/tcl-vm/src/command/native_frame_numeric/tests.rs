@@ -52,7 +52,6 @@ fn provided(available: bool) -> (Vm, Rc<RecordedNumericEnvironment>, Rc<Cell<usi
 
 #[test]
 fn original_frame_numeric_probe_preserves_cached_level_and_borrowed_reference_role() {
-
     // This adapter uses a genuine queried Host ABI, not an external Tcl frame/getter execution.
     let (mut vm, numeric, acquisitions) = provided(true);
     let original = Value::int(0);
@@ -74,7 +73,6 @@ fn original_frame_numeric_probe_preserves_cached_level_and_borrowed_reference_ro
 
 #[test]
 fn original_frame_numeric_unavailable_cannot_become_a_guest_bad_level_or_default() {
-
     let (mut vm, numeric, _) = provided(false);
     let original = Value::int(0);
     let before = original.native_object_snapshot();
@@ -100,7 +98,6 @@ fn original_frame_numeric_unavailable_cannot_become_a_guest_bad_level_or_default
 
 #[test]
 fn original_frame_numeric_scope_preserves_first_refusal_before_callback_continuation() {
-
     // The actual Vm callback is a software context mutation, not an extension updater issuer.
     let (mut vm, numeric, acquisitions) = provided(true);
     let original = Value::int(0);
@@ -147,7 +144,6 @@ fn original_frame_numeric_scope_preserves_first_refusal_before_callback_continua
 
 #[test]
 fn original_frame_temporary_int_refuses_foreign_protocol_without_host_query_or_cache_publication() {
-
     let (mut vm, numeric, acquisitions) = provided(true);
     let original = Value::string("#0");
     let before = original.native_object_snapshot();
@@ -228,7 +224,6 @@ impl Host for FormatterHost {
 }
 #[test]
 fn original_frame_string_stage_keeps_formatter_reference_role_and_stops_retired_level() {
-
     // Closed VM object retirement and software formatter transport do not attest an external Tcl updater.
     for retire in [false, true] {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
@@ -286,7 +281,6 @@ fn original_frame_string_stage_keeps_formatter_reference_role_and_stops_retired_
 
 #[test]
 fn original_frame_single_script_list_checks_header_before_default_selection() {
-
     // Closed VM List/header controls do not attest an external updater callback.
     for engine in ["tcl9.0", "tcl9.1"] {
         for retire in [false, true] {
@@ -341,7 +335,6 @@ fn original_frame_single_script_list_checks_header_before_default_selection() {
 
 #[test]
 fn original_frame_list_worker_checks_header_after_ok_and_guest_error() {
-
     // The closure retires the real closed VM owner after the actual cached List probe.
     for engine in ["tcl9.0", "tcl9.1"] {
         for retire in [false, true] {

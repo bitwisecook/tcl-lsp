@@ -872,7 +872,6 @@ mod tests {
     }
     #[test]
     fn original_rename_projection_keeps_selected_reference_grammar_and_literal_names() {
-
         // Source edit projection only; native341 answers public expression results,
         // not alpha-renaming, compiled frames or runtime execution.
         let c8 = tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some(
@@ -948,7 +947,6 @@ mod tests {
 
     #[test]
     fn original_rename_projection_keeps_literal_binding_indices_and_unrenamed_roots() {
-
         let names = rn(&[("arr", "array"), ("idx", "index")]);
         let rename = Rename {
             names: &names,

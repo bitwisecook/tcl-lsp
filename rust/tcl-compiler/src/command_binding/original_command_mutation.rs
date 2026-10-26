@@ -287,7 +287,6 @@ mod tests {
 
     #[test]
     fn original_command_move_retains_the_allocation_in_a_complete_normal_world() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = "proc P {} {}; rename P Q";
             let bindings = analyse(source, version);
@@ -306,7 +305,6 @@ mod tests {
 
     #[test]
     fn original_byte_command_move_keeps_the_original_definition_and_complete_world() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"proc P\uD800 {} {}; rename P\uD800 Q\uD801";
             let bindings = analyse(source, version);
@@ -326,7 +324,6 @@ mod tests {
 
     #[test]
     fn original_imported_command_move_keeps_the_wrapper_and_direct_origin() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"rename auto_import savedPrelude; namespace eval A {proc p\uD800 {} {}; namespace export p\uD800}; namespace eval B {namespace import ::A::*; rename p\uD800 moved}; set checkpoint READY";
             let bindings = analyse(source, version);
@@ -369,7 +366,6 @@ mod tests {
 
     #[test]
     fn original_imported_command_move_keeps_origin_and_observer_barriers() {
-
         for version in tcl_dialect::TclVersion::ALL {
             for body in [
                 r"proc moved {} {}; rename p\uD800 moved",
@@ -392,7 +388,6 @@ mod tests {
 
     #[test]
     fn original_command_move_does_not_close_missing_occupied_or_observed_targets() {
-
         for version in tcl_dialect::TclVersion::ALL {
             for source in [
                 "rename absent Q",

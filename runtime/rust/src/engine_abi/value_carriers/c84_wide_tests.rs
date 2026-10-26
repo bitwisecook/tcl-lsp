@@ -15,7 +15,6 @@ fn native(profile: &str) -> Interp {
 }
 #[test]
 fn selected_c84_wide_import_duplicate_getter_and_string_preserve_the_physical_descriptor() {
-
     let mut interp = native("tcl8.4");
     let original = scalar(&mut interp, &NativeScalarCache::Tcl84Wide(4_294_967_296)).unwrap();
     let ptr = original.as_ptr();
@@ -63,7 +62,6 @@ fn selected_c84_wide_import_duplicate_getter_and_string_preserve_the_physical_de
 #[test]
 fn selected_c84_scalar_ingress_refuses_unqualified_or_foreign_descriptor_without_guest_publication()
 {
-
     for (profile, facts) in [
         ("tcl8.4", NativeScalarCache::Integer(17)),
         ("tcl8.6", NativeScalarCache::Tcl84Wide(17)),

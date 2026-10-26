@@ -199,7 +199,6 @@ fn profiles(substitution: bool) -> &'static [&'static str] {
 }
 #[test]
 fn original_preparation_source_string_keeps_frame_and_currency_before_cache_publication() {
-
     // Actual C issuers; updater observations are software controls, not Native chronology.
     for substitution in [false, true] {
         for profile in profiles(substitution) {
@@ -242,7 +241,6 @@ fn original_preparation_source_string_keeps_frame_and_currency_before_cache_publ
 }
 #[test]
 fn original_preparation_old_primary_retirement_checks_real_frame_and_primary_aba_before_adoption() {
-
     for substitution in [false, true] {
         for profile in profiles(substitution) {
             for mode in [0, 1, 2, 3] {
@@ -284,7 +282,6 @@ fn original_preparation_old_primary_retirement_checks_real_frame_and_primary_aba
 #[test]
 fn original_preparation_borrowed_name_table_stops_at_actual_first_updater_without_extra_native_hold(
 ) {
-
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2, 4] {
             let mut actual = tests::interpreter(profile);

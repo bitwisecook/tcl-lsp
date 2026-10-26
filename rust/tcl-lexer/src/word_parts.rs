@@ -1313,7 +1313,6 @@ mod template_policy_tests {
 
     #[test]
     fn c_template_retains_disabled_sigil_and_escape_token_boundaries() {
-
         // v6 source0/flags5 has four native pushes before strcat, so C9
         // returns a String rather than one unchanged literal with no primary.
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1484,7 +1483,6 @@ mod tests {
 
     #[test]
     fn original_bracket_boundaries_keep_selected_variable_name_grammar() {
-
         // Original lexical geometry only; no variable read or command entry.
         let selected = LexerConfig {
             braced_var: BracedVarStyle::FirstClose,
@@ -1537,7 +1535,6 @@ mod tests {
 
     #[test]
     fn outer_substitution_mask_does_not_disable_array_index_commands() {
-
         // The C v6 array-index control runs its command with outer commands
         // disabled. JimExpandDictSugar separately selects JIM_NONE.
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -1726,7 +1723,6 @@ mod tests {
 
     #[test]
     fn original_name_extent_requires_the_actual_source_allocation() {
-
         // Exact lexical extent only; no Native name, frame or edit grant.
         for original in ["${café}", "${$literal}", "${arr(key)}", "${}", "$arr($key)"] {
             let source = original.as_bytes().to_vec();
@@ -2101,7 +2097,6 @@ mod tests {
 
     #[test]
     fn raw_index_geometry_keeps_empty_and_foreign_source_distinct() {
-
         let source = b"$a()".to_vec();
         let reference = scan_var_ref(&source, 0, nine()).unwrap().unwrap();
         assert_eq!(reference.index_range_in(&source), Some(3..3));

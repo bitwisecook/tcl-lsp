@@ -556,7 +556,6 @@ mod tests {
 
     #[test]
     fn repl_uses_original_result_getter_and_preserves_counted_nul_output() {
-
         // Distribution CLI owner and original result/header; no Native-provider comparison.
         let bytes = Rc::new(RefCell::new(Vec::new()));
         let capture = Capture(Rc::clone(&bytes));
@@ -595,7 +594,6 @@ mod tests {
 
     #[test]
     fn repl_completeness_keeps_selected_source_configuration_and_document_channel() {
-
         // Distribution Document contract, independent of native String
         // observations and native handler/header/entry admission.
         for version in [TclVersion::V8_4, TclVersion::V8_6, TclVersion::V9_0] {

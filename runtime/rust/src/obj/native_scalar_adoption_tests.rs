@@ -69,7 +69,6 @@ fn getter(
 }
 #[test]
 fn original_scalar_old_primary_refusal_settles_vacancy_before_incoming_cache() {
-
     // Real Runtime extension free callback; no external native free chronology claim.
     let mut interp = native();
     let value = original();
@@ -101,7 +100,6 @@ fn original_scalar_old_primary_refusal_settles_vacancy_before_incoming_cache() {
 }
 #[test]
 fn original_scalar_reentrant_publication_keeps_its_real_cache_and_refuses_outer_adoption() {
-
     let mut interp = native();
     let value = original();
     let scope = NativeOperationScope::enter(&interp).unwrap();
@@ -130,7 +128,6 @@ fn original_scalar_reentrant_publication_keeps_its_real_cache_and_refuses_outer_
 }
 #[test]
 fn original_scalar_resident_cache_preserves_absent_string_and_native_role() {
-
     let interp = native();
     let value = Owned::fresh(new_wide_int_obj(7));
     let scope = NativeOperationScope::enter(&interp).unwrap();
@@ -146,7 +143,6 @@ fn original_scalar_resident_cache_preserves_absent_string_and_native_role() {
 }
 #[test]
 fn original_primary_epoch_overflow_stays_unavailable_without_free_or_adoption() {
-
     let value = original();
     auxiliary(value.as_ptr()).primary_epoch.set(Some(u64::MAX));
     MODE.with(|m| m.set(0));
@@ -177,7 +173,6 @@ impl Drop for RefusingAuxiliary {
 }
 #[test]
 fn original_scalar_auxiliary_retirement_refuses_after_old_free_before_cache_adoption() {
-
     let mut interp = native();
     let value = original();
     let scope = NativeOperationScope::enter(&interp).unwrap();
@@ -281,7 +276,6 @@ impl tcl_platform::NumericEnvironment for JimNumericHost {
 }
 #[test]
 fn original_jim_context_numeric_workers_share_header_currency_and_stop_after_first_host_state() {
-
     // Actual selected Jim context/Host software stages; not a native worker chronology oracle.
     for withdraw in [false, true] {
         let host = std::rc::Rc::new(JimNumericHost {
@@ -367,7 +361,6 @@ impl tcl_platform::NumericEnvironment for ForeignNumericEnvironment {
 }
 #[test]
 fn original_jim_context_owns_all_scalar_workers_even_when_an_outer_environment_is_supplied() {
-
     for withdraw in [false, true] {
         let host = std::rc::Rc::new(JimNumericHost {
             actual: crate::interp::default_host(),
@@ -442,7 +435,6 @@ impl tcl_platform::Host for QueryCountingJimHost {
 }
 #[test]
 fn original_jim_cache_and_boolean_word_keep_unreached_environment_unqueried() {
-
     // Query counters observe software Host acquisition, not physical Jim worker chronology.
     let host = std::rc::Rc::new(QueryCountingJimHost {
         actual: crate::interp::default_host(),

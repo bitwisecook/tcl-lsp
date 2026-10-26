@@ -192,7 +192,6 @@ fn install_chain(actual: &mut Interp, p: &Probe, records: &mut [Record; 2]) {
 
 #[test]
 fn original_active_object_deletion_separates_callback_from_dispatch_role_and_recreation() {
-
     // Software callback timing and later fresh-script replacement only; no Native held-word/client-data lifetime grant.
 
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -255,7 +254,6 @@ fn original_active_object_deletion_separates_callback_from_dispatch_role_and_rec
 
 #[test]
 fn original_import_retirement_uses_release_order_and_depth_first_original_generations() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
         let (p, mut records) = probe(&actual, 2);
@@ -351,7 +349,6 @@ fn install_alias(
 
 #[test]
 fn original_alias_metadata_views_do_not_duplicate_stored_native_roles() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
         let (p, _records) = probe(&actual, 2);
@@ -379,7 +376,6 @@ fn original_alias_metadata_views_do_not_duplicate_stored_native_roles() {
 
 #[test]
 fn original_active_alias_keeps_only_its_genuine_forwarded_argument_roles() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
         let (p, mut records) = probe(&actual, 3);
@@ -408,7 +404,6 @@ fn original_active_alias_keeps_only_its_genuine_forwarded_argument_roles() {
 
 #[test]
 fn original_deletion_retains_first_cause_and_finishes_actual_import_cleanup() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 4..=6 {
             let mut actual = actual(profile);
@@ -450,7 +445,6 @@ fn original_deletion_retains_first_cause_and_finishes_actual_import_cleanup() {
 
 #[test]
 fn original_namespace_and_forget_routes_retire_captured_command_generations() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
         let (p, mut records) = probe(&actual, 2);
@@ -518,7 +512,6 @@ unsafe extern "C" fn move_or_recursive_trace(
 }
 #[test]
 fn original_recursive_and_moved_deletion_preserves_same_name_replacement() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [7, 8] {
             let mut actual = actual(profile);
@@ -570,7 +563,6 @@ fn original_recursive_and_moved_deletion_preserves_same_name_replacement() {
 }
 #[test]
 fn original_hidden_and_oo_automatic_cleanup_withdraw_real_implementation_roles() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
         let (p, mut records) = probe(&actual, 2);
@@ -629,7 +621,6 @@ fn original_hidden_and_oo_automatic_cleanup_withdraw_real_implementation_roles()
 
 #[test]
 fn original_creation_delete_reuses_active_driver_and_preserves_actual_import_roster() {
-
     // C creation's import preservation differs from true ordinary deletion.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut actual = actual(profile);

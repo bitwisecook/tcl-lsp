@@ -29,7 +29,6 @@ pub(super) fn transfer(
     state: &mut ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<SourceOutcomes> {
-
     if let Some(definition) =
         LogicalProcedureDefinition::capture(words, target, offset, state, context)
     {
@@ -46,7 +45,6 @@ pub(super) fn transfer_selected(
     state: &mut ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<SourceOutcomes> {
-
     let original = original_invocation_words(words, offset, state, context)?;
     let head = static_value(original.first()?)?;
     let selected = source_binding_projection(state, &head, &context.namespace_identity());
@@ -67,7 +65,6 @@ impl LogicalProcedureDefinition {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<Self> {
-
         let input = logical_entry(state, context)?;
         let origin = Arc::clone(state.current_source_origin.as_ref()?);
         if origin.source_image().channel() != SourceChannel::Document
@@ -147,7 +144,6 @@ impl LogicalProcedureDefinition {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
-
         if logical_entry(state, context) != Some(&self.input)
             || state.current_source_origin.as_ref() != Some(&self.site.source)
             || context.invocation_offset != self.site.offset
@@ -586,7 +582,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_publishes_general_static_procedures_in_the_authored_model() {
-
         let input = input();
         for source in [
             "proc defined {} {}; defined",
@@ -621,7 +616,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_keeps_unicode_moves_and_captured_factory_operands() {
-
         // Original source values remain conditional authored data, without
         // Native publication, handler entry or successful allocation.
         let input = input();
@@ -643,7 +637,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_static_values_keep_checked_source_and_native_channel_boundaries() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         let project = |image: tcl_lexer::SourceImage| {
@@ -678,7 +671,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_keeps_unrepresentable_names_distinct_from_literal_replacement() {
-
         // Authored source lookup remains separate from Native string/name units.
         let input = input();
         for source in [
@@ -707,7 +699,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_captured_values_keep_exact_unicode_bytes_and_refuse_unknown_units() {
-
         use crate::registry_invocation::EffectiveInvocationWord;
         let bytes = EffectiveInvocationWord::ByteLiteral(Arc::from("café $literal".as_bytes()));
         assert_eq!(
@@ -750,7 +741,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs() {
-
         let input = input();
         for source in [
             "mystery; proc defined {} {}; defined",
@@ -773,7 +763,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_model_roster_requires_the_complete_current_input_and_source_mode() {
-
         let input = input();
         let context = input.context_registry();
         let registry = context.commands();
@@ -843,7 +832,6 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn logical_definition_receipt_rechecks_source_configuration_and_entry_without_native_normal() {
-
         let input = input();
         let context_registry = input.context_registry();
         let registry = context_registry.commands();

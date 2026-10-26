@@ -122,7 +122,6 @@ impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
     /// syntax, without an entered namespace, frame or executed body.
     #[must_use]
     pub fn authored_source_namespace_body_arguments(&self) -> Option<(usize, usize)> {
-
         use crate::{ArgRole, BodyInterpreter, ScriptTiming, Traits};
         if !self.semantics.traits.contains(Traits::DECLARES_NAMESPACE)
             || self.semantics.body_interpreter != BodyInterpreter::Current
@@ -157,7 +156,6 @@ impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
     /// ordinal only; it supplies no owning rule, lookup or successful call.
     #[must_use]
     pub fn authored_source_rule_procedure_operand(&self) -> Option<usize> {
-
         let arguments = self.words.arguments();
         let count = arguments.exact_argv_len()?;
         let offset = self.semantics.argument_offset;
@@ -222,7 +220,6 @@ impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
     /// and option walk. A `provide NAME` query supplies no provision evidence.
     #[must_use]
     pub fn authored_source_package_reference(&self) -> Option<SourcePackageReference> {
-
         use crate::hooks::AnalyserHookId;
         match self.semantics.analyser_hook? {
             AnalyserHookId::PackageRequire => {
@@ -337,7 +334,6 @@ mod tests {
 
     #[test]
     fn authored_path_roles_preserve_namespace_body_and_assignment_layouts() {
-
         let actual =
             crate::model::ingress::context_for_profile(tcl_dialect::DialectProfile::plain_tcl());
         let registry = actual.commands();
@@ -378,7 +374,6 @@ mod tests {
 
     #[test]
     fn authored_navigation_operands_preserve_actual_templates_and_option_ordinals() {
-
         let context = crate::model::ingress::static_context_for("f5-iapps");
         let select = |head, args: &[InvocationWord<'_>]| {
             crate::model::assembly::resolve_structured_invocation_in_resolved_context(
@@ -440,7 +435,6 @@ mod tests {
     }
     #[test]
     fn original_rule_operand_uses_actual_traits_options_and_cardinality() {
-
         let context = crate::model::ingress::static_context_for("f5-irules");
         let select = |head, arguments: &[InvocationWord<'_>]| {
             crate::model::assembly::resolve_structured_invocation_in_resolved_context(
@@ -555,7 +549,6 @@ mod tests {
 
     #[test]
     fn original_package_reference_distinguishes_provision_query_and_selected_options() {
-
         let context = crate::model::ingress::static_context_for("tcl8.6");
         let select = |args: &[InvocationWord<'_>]| {
             crate::model::assembly::resolve_structured_invocation_in_resolved_context(

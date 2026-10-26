@@ -355,7 +355,6 @@ pub fn script_comment_facts_from_analysis(
     source: &str,
     analysis: &super::AnalysisResult,
 ) -> Option<Vec<ScriptCommentFact>> {
-
     CommentLineWalker::from_analysis(source, analysis)?.collect_original()
 }
 
@@ -368,7 +367,6 @@ pub fn script_command_comment_facts_from_analysis(
     source: &str,
     analysis: &super::AnalysisResult,
 ) -> Option<Vec<ScriptCommentFact>> {
-
     let mut walker = CommentLineWalker::from_analysis(source, analysis)?;
     walker.comment_position = ScriptCommentPosition::CommandPosition;
     walker.collect_original()
@@ -444,7 +442,6 @@ fn original_script_comment_facts_for_position(
     config: tcl_lexer::LexerConfig,
     position: ScriptCommentPosition,
 ) -> Option<Vec<ScriptCommentFact>> {
-
     let source = image.try_text().ok()?;
     let source_map = image.source_map();
     let mut facts = Vec::new();
@@ -2662,7 +2659,6 @@ mod tests {
 
     #[test]
     fn retained_noqa_facts_use_actual_custom_and_declared_body_syntax() {
-
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold-script {\n# noqa: W210\n# comment-only\n}\nhold {\n# noqa: W305\n# comment-only\n}\n";
         let analysis = retained_comment_analysis(source);
         let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
@@ -2684,7 +2680,6 @@ mod tests {
 
     #[test]
     fn retained_noqa_declines_body_roles_at_a_known_source_replacement() {
-
         let source = "proc if args {}\nif 1 {\n# noqa: W210\n# literal-data\n}";
         let analysis = retained_comment_analysis(source);
         let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
@@ -2694,7 +2689,6 @@ mod tests {
 
     #[test]
     fn retained_noqa_expression_commands_keep_original_comment_regions() {
-
         let source = "expr {[\n# noqa: W210\n# comment-only\nformat café\n]}";
         let analysis = retained_comment_analysis(source);
         let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
@@ -2709,7 +2703,6 @@ mod tests {
 
     #[test]
     fn retained_noqa_definition_vocabulary_clears_ordinary_and_procedure_bodies() {
-
         for (source, expected) in [
             (
                 "oo::class create C {if 1 {method café {} {\n# noqa: W210\n# control\n}}}",
@@ -2741,7 +2734,6 @@ mod tests {
 
     #[test]
     fn retained_noqa_member_geometry_keeps_original_selectors_and_whole_words() {
-
         let source = "oo::class create C {\nmethod café {} {\n# noqa: W210\n# comment-only\n}\nself self {\nmethod m {} {\n# noqa: W305\n# comment-only\n}\n}\n}\n";
         let analysis = retained_comment_analysis(source);
         let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
@@ -2914,7 +2906,6 @@ mod tests {
 
     #[test]
     fn original_comment_projection_keeps_whole_image_geometry_and_declines_unmapped_text() {
-
         let source = "hold {\n    # café 😀 \\\n    puts hidden\n}\n";
         let image = tcl_lexer::SourceImage::document(source);
         let start = u32::try_from(source.find('\n').unwrap() + 1).unwrap();
@@ -3587,7 +3578,6 @@ proc foo {} {}
 
     #[test]
     fn original_recovery_procedure_declarations_keep_all_written_name_forms() {
-
         // Genuine scanner metadata only; no command-cell or execution receipt.
         let source = "namespace eval source_names {proc SourceOnlyHelper {} {}}\nset unfinished {";
         let registry = registry();
@@ -3617,7 +3607,6 @@ proc foo {} {}
 
     #[test]
     fn original_recovery_class_spellings_remain_metadata_under_the_complete_file_gate() {
-
         // Original symbolic declarations and recovery candidates grant no namespace fact.
         let complete = "namespace eval source_classes {oo::class create SourceOnlyClass {}}";
         let source = format!("{complete}\nset unfinished {{");
@@ -3754,7 +3743,6 @@ proc foo {} {}
 mod original_configured_recovery_tests {
     #[test]
     fn original_recovery_scan_and_gate_share_the_supplied_whole_configuration() {
-
         // Conditional signature candidates; no command installation or entry.
         let registry = tcl_registry::CommandRegistry::build_default();
         let extra = std::sync::Arc::default();

@@ -5,7 +5,6 @@ use super::*;
 
 #[test]
 fn object_eval_retains_original_script_and_concat_children() {
-
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for concatenate in [false, true] {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();

@@ -37,7 +37,6 @@ fn invoke(interpreter: &mut Interp, words: &[&[u8]]) -> super::super::Code {
 
 #[test]
 fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_lookup() {
-
     let (mut interpreter, stages) = supplied(b"set ::encoded \xe9; return YES");
     assert_eq!(
         invoke(
@@ -77,8 +76,6 @@ fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_looku
 
 #[test]
 fn original_system_reset_and_catalogue_callback_keep_original_currency() {
-
-
     let (mut interpreter, stages) = supplied(b"return YES");
     assert_eq!(
         invoke(&mut interpreter, &[b"encoding", b"system", b"ascii"]),
@@ -121,7 +118,6 @@ fn original_system_reset_and_catalogue_callback_keep_original_currency() {
 
 #[test]
 fn original_unknown_io_refusal_is_retained_before_mandatory_close_callback() {
-
     // Actual supplied read/close callbacks, without external Native errno or close chronology.
     let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
     *stages.read_error.borrow_mut() = Some(HostError::Io("unrecorded errno".to_owned()));
@@ -157,7 +153,6 @@ fn original_unknown_io_refusal_is_retained_before_mandatory_close_callback() {
 
 #[test]
 fn original_filename_external_zero_refuses_before_open_and_keeps_report_bytes() {
-
     for suffix in [b"\0TAIL".as_slice(), b"\xc0\x80TAIL".as_slice()] {
         let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
         assert_eq!(
@@ -193,7 +188,6 @@ fn original_filename_external_zero_refuses_before_open_and_keeps_report_bytes() 
 
 #[test]
 fn original_filename_supplied_codec_checks_currency_before_open() {
-
     let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
     assert_eq!(
         invoke(&mut interpreter, &[b"encoding", b"system", b"ascii"]),
@@ -226,7 +220,6 @@ fn original_filename_supplied_codec_checks_currency_before_open() {
 
 #[test]
 fn original_filename_iso88591_selected_system_keeps_plain_source_working() {
-
     let (mut interpreter, stages) = supplied(b"set ::filename_effect YES; return DONE");
     assert_eq!(
         invoke(&mut interpreter, &[b"encoding", b"system", b"iso8859-1"]),

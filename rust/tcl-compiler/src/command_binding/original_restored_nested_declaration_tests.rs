@@ -71,7 +71,6 @@ fn assert_raw_nested(owner: &SourceCommandBindings, tokens: &CommandTokens) {
 
 #[test]
 fn original_restored_nested_declaration_keeps_actual_child_vector_without_dispatch() {
-
     // The Lowerer owns the body, selected source and nested inventory. This
     // reaches the same nested restoration worker used by both Script carriers.
     let input = logical_input();
@@ -130,7 +129,6 @@ fn original_restored_nested_declaration_keeps_actual_child_vector_without_dispat
 
 #[test]
 fn original_restored_nested_declaration_requires_retained_inventory_input_config_and_rows() {
-
     let input = logical_input();
     let source = "proc subject {} {puts [package require Tcl]}";
     let (owner, parent) = original_body_parent(source, &input);
@@ -218,7 +216,6 @@ fn original_restored_nested_declaration_requires_retained_inventory_input_config
 
 #[test]
 fn original_script_restoration_keeps_reached_nested_statement_and_consumed_site_bindings() {
-
     // A held Native entry supplies the unchanged reached route. Conditional
     // declaration restoration grants nothing to this separate execution route.
     let environment = tcl_registry::model::ingress::resolve_known_environment("tcl8.6").unwrap();

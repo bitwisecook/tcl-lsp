@@ -55,7 +55,6 @@ fn method_at(
 
 #[test]
 fn original_receiver_heads_keep_canonical_class_and_actual_availability() {
-
     for source in [
         "oo::class create C {method ping {} {}}; [::C new] ping",
         "oo::class create C {method ping {} {}}; interp alias {} make {} C new; [make] ping",
@@ -82,7 +81,6 @@ fn original_receiver_heads_keep_canonical_class_and_actual_availability() {
 
 #[test]
 fn original_registry_and_collection_receivers_keep_selected_child_operands() {
-
     let source = "# tcl-lsp: requires Tk\n[listbox .l] curselection";
     let current = analyse(source, "tcl8.6");
     assert!(method_at(source, &current, None, "curselection"));
@@ -198,7 +196,6 @@ fn project_collection_receiver_refusal_is_not_recovered_without_providers() {
 
 #[test]
 fn original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata() {
-
     let source = "oo::class create C {method ping {} {}}; [C new] ping";
     let current = analyse(source, "tcl8.6");
     assert!(method_at(source, &current, None, "ping"));
@@ -236,7 +233,6 @@ fn original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metad
 
 #[test]
 fn original_receiver_heads_keep_actual_leading_bom_policy() {
-
     let source = "\u{feff}oo::class create C {method ping {} {}}; [C new] ping";
     let profile = tcl_dialect::DialectProfile::plain_tcl();
     let context =
@@ -259,7 +255,6 @@ fn original_receiver_heads_keep_actual_leading_bom_policy() {
 
 #[test]
 fn original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source() {
-
     let source = "oo::class create C {method ping {} {}}; [C new] ping";
     let analysis = analyse(source, "tcl8.6");
     assert!(method_at(source, &analysis, None, "ping"));

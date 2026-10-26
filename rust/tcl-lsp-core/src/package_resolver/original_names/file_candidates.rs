@@ -207,7 +207,6 @@ impl<'a> FileCandidateScanner<'a> {
         exists: &dyn Fn(&Path) -> bool,
         list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
     ) -> Vec<OriginalPackageFileCandidate> {
-
         let image = SourceImage::document(self.source);
         let Some(config) = self.analysis.body_lexer_config else {
             return Vec::new();
@@ -359,7 +358,6 @@ mod tests {
 
     #[test]
     fn original_package_files_keep_source_ordinals_data_and_directory_hints_distinct() {
-
         for version in TclVersion::ALL {
             let source = "package ifneeded P 1.0 {source actual.tcl; set data {source inert.tcl}; puts source}\n";
             let entries = super::super::original_package_entries(
@@ -416,7 +414,6 @@ mod tests {
 
     #[test]
     fn original_package_file_scanner_keeps_the_full_input_generation() {
-
         let source = "package ifneeded P 1.0 {source actual.tcl}";
         let retained = analysis(source, TclVersion::V9_0);
         assert!(FileCandidateScanner::new(source, &retained).is_some());
@@ -437,7 +434,6 @@ mod tests {
 
     #[test]
     fn original_package_file_currency_keeps_file_ingress_and_nested_bom_distinct() {
-
         let source = "package ifneeded P 1.0 {source actual.tcl}";
         for version in TclVersion::ALL {
             let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
@@ -512,7 +508,6 @@ mod tests {
 
     #[test]
     fn original_package_file_advice_keeps_future_values_shadow_arity_and_currency_separate() {
-
         let version = TclVersion::V8_6;
         let source = "package ifneeded P 1.0 {source $dir/path.tcl}";
         let entries = super::super::original_package_entries(
@@ -576,8 +571,6 @@ mod tests {
 
     #[test]
     fn original_package_file_candidates_require_potential_loader_evaluation() {
-
-
         let source = "package {source selected.tcl}";
         for reference_only in [true, false] {
             let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();

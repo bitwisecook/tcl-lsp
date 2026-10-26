@@ -84,7 +84,6 @@ mod tests {
 
     #[test]
     fn variable_info_flags_keep_exact_cstring_and_release_arity_separate() {
-
         for version in TclVersion::ALL {
             let selected =
                 NativeTclooVariableInfoProtocol::select(InvocationDialect::for_version(version));

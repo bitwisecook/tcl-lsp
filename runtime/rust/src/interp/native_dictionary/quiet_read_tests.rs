@@ -51,7 +51,6 @@ impl NativeVariableObserver<Interp> for Read {
 }
 #[test]
 fn quiet_dictionary_initial_read_stops_first_refusal_before_key_getter_or_publication() {
-
     // Real software native read callbacks; the unchanged 15-window comparison
     // retains the independent C/Jim public missing-variable observations.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

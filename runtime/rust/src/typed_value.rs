@@ -1772,7 +1772,6 @@ mod tests {
 
     #[test]
     fn primitive_nan_constant_failure_preserves_original_absent_string() {
-
         // C85+ original case24/getter4 needs no original-string diagnostic.
         for version in VERSIONS.into_iter().skip(1) {
             let dialect = tcl_registry::InvocationDialect::for_version(version);

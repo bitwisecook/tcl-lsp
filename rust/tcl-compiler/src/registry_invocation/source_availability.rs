@@ -99,7 +99,6 @@ impl OriginalSourceCommandAvailability {
     /// no currency. The exact immutable Registry generation remains retained.
     #[must_use]
     pub fn matches_source_input(&self, image: &SourceImage, input: &ResolvedAnalysisInput) -> bool {
-
         self.input == *input
             && self
                 .original
@@ -141,7 +140,6 @@ impl OriginalSourceCommandAvailability {
     /// Current analysis and original Realm retain the same immutable issuer.
     #[must_use]
     pub fn matches_analysis(&self, analysis: &AnalysisResult) -> bool {
-
         analysis.resolved_input.as_ref().is_some_and(|input| {
             self.matches_source_input(self.original_head().image(), input)
                 && analysis.matches_original_source_image(
@@ -172,7 +170,6 @@ pub fn original_source_command_availability(
     analysis: &AnalysisResult,
     tokens: &crate::ir::CommandTokens,
 ) -> Option<OriginalSourceCommandAvailability> {
-
     let input = analysis.resolved_input.as_ref()?;
     let image = SourceImage::document(source);
     let config = input.lexer_config();
@@ -350,7 +347,6 @@ mod tests {
 
     #[test]
     fn unavailable_command_source_owns_native_words_context_and_shadow_barriers() {
-
         let source = "::dict get {a 1} a";
         let mut analysis = Analyser::new().analyse(source, "tcl8.4");
         let receipt = last_receipt(source, &analysis).unwrap();
@@ -405,7 +401,6 @@ mod tests {
 
     #[test]
     fn unavailable_hosted_literal_retains_source_policy_and_separate_loader_metadata() {
-
         let source = "rename a b";
         let analysis = Analyser::new().analyse(source, "f5-irules");
         let receipt = last_receipt(source, &analysis).unwrap();
@@ -433,7 +428,6 @@ mod tests {
 
     #[test]
     fn unavailable_logical_source_requires_its_complete_positive_domain() {
-
         let profile = tcl_dialect::DialectProfile::projected_from_point(
             "logical-unavailability-advice",
             &[],

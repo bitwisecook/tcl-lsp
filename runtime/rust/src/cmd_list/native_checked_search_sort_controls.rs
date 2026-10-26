@@ -77,7 +77,6 @@ static LAST: TclObjType = TclObjType {
 };
 #[test]
 fn checked_original_search_sort_key_and_pattern_refusals_keep_first_cause_and_real_references() {
-
     // Genuine local Runtime C extension updater/refusal and operand-release controls,
     // separate from native644 empty-input outcomes. Those processes did not run
     // callbacks or prove software reference/currentness chronology.
@@ -157,7 +156,6 @@ fn checked_original_search_sort_key_and_pattern_refusals_keep_first_cause_and_re
 
 #[test]
 fn original_numeric_primitives_preserve_first_refusal_before_keys_and_mandatory_cleanup() {
-
     // Real software extension + selected primitive owners; native645/647 contain
     // no callbacks. Getter counts are actual local software roles, not donated
     // EvalObjv/private provider references. Jim numeric search is unsupported.

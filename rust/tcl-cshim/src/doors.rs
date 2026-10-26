@@ -1146,7 +1146,6 @@ mod tests {
 
     #[test]
     fn original_typed_engine_failure_survives_the_actual_c_door() {
-
         let first = EngineError::execution_failure(
             tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(

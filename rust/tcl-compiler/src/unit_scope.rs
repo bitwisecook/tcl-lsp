@@ -3604,7 +3604,6 @@ mod tests {
 
     #[test]
     fn independent_caller_ingresses_keep_their_actual_sources_and_loader_identity() {
-
         // Actual independent ingress remains available; changing source text
         // starts its own producer rather than querying a mismatched Module.
         let library = "proc helper {mode} {return $mode}";
@@ -4581,7 +4580,6 @@ mod tests {
 
     #[test]
     fn normal_procedure_invoker_retains_operand_offsets_and_real_uncertainty() {
-
         // Conditional source caller metadata; no appliance or entered-frame claim.
         let profile = tcl_dialect::DialectProfile::irules();
         let exact = evidence_for_dialect(
@@ -4830,7 +4828,6 @@ mod tests {
 
     #[test]
     fn original_callback_callers_share_source_horizons_without_parameter_seeds() {
-
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         for prefix in ["{cb extra}", "[list cb $x]", "[make $x]"] {
@@ -4956,7 +4953,6 @@ mod tests {
 
     #[test]
     fn unit_linkage_keeps_supplied_availability_without_inventing_missing_boundaries() {
-
         // Conditional Registry trait inventory only; no actual loading or export claim.
         let baseline = crate::environment_ingress::context_for_profile(
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
@@ -5004,7 +5000,6 @@ mod tests {
 
     #[test]
     fn scope_variable_facts_keep_actual_availability_and_refuse_missing_or_foreign_owners() {
-
         // Original normal-write metadata only; no physical variable or frame claim.
         let context = crate::environment_ingress::context_for_profile(
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
@@ -5065,7 +5060,6 @@ mod tests {
 
     #[test]
     fn unit_caller_seeds_require_the_retained_metadata_owner() {
-
         // Actual source-owned caller operands, not a complete Native command world.
         let context = crate::environment_ingress::context_for_profile(
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
@@ -5090,7 +5084,6 @@ mod tests {
 
     #[test]
     fn supplied_native_caller_scan_retains_source_input_without_entry_or_frame_donation() {
-
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let context = std::sync::Arc::new(crate::environment_ingress::context_for_profile(profile));
         let input = crate::analyser::ResolvedAnalysisInput::new(
@@ -5143,7 +5136,6 @@ mod tests {
 
     #[test]
     fn source_entry_caller_metadata_requires_an_independent_supplied_input() {
-
         // Trusted source allocation remains independent of source metadata availability.
         let source = "source library.tcl; helper dev";
         let entry = source_loader_entry("proc helper {mode} {return $mode}");
@@ -5214,7 +5206,6 @@ mod tests {
 
     #[test]
     fn original_cfg_caller_inventory_keeps_consumed_expression_source_and_configuration() {
-
         // Source caller alternatives only; no Native parameter or Normal grant.
         let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -5245,7 +5236,6 @@ mod tests {
 
     #[test]
     fn original_cfg_caller_inventory_refuses_missing_foreign_and_stale_owners() {
-
         let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let source = "proc helper {mode} {return $mode}\nhelper FIXED";
         let module = original_caller_fixture(
@@ -5332,7 +5322,6 @@ mod tests {
 
     #[test]
     fn original_body_caller_inventory_requires_each_original_child_sidecar() {
-
         // Whole authored body syntax is separate from dispatch and Native frame entry.
         let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let source = "proc helper {mode} {return $mode}\nhelper FIXED\ncatch {helper DIFFERENT}";
@@ -5466,7 +5455,6 @@ mod tests {
 
     #[test]
     fn original_argument_caller_phase_keeps_real_return_and_direct_argument_counts() {
-
         // The actual catch region captures this Return as an argv phase.
         let (_, unit) = native_argument_caller_unit(
             "proc add {b c} {catch {return [expr {$b + $c}]}}; add 2 4; add 3 5",
@@ -5507,7 +5495,6 @@ mod tests {
 
     #[test]
     fn original_argument_caller_child_keeps_its_own_expression_roles() {
-
         let (_, unit) = native_argument_caller_unit(
             "proc helper {x} {return $x}; proc run {} {return [expr {[helper SECOND]}]}; helper FIRST; run",
         );
@@ -5793,7 +5780,6 @@ mod tests {
 
     #[test]
     fn original_native_procedure_argv_roles_do_not_invent_registry_body_callers() {
-
         // Actual held Vm entry and source call inventory, not a successful native call.
         let (_, unit) = native_argument_caller_unit(
             "proc selected {value} {}; selected {[inert CHILD]}; selected {[inert CHILD]}",
@@ -5816,7 +5802,6 @@ mod tests {
 
     #[test]
     fn original_native_procedure_argv_roles_keep_authentic_alias_prefix_counts() {
-
         let (_, unit) = native_argument_caller_unit(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED; selected PREFIX FIXED",
         );
@@ -5878,7 +5863,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_keeps_actual_publication_and_prefix_owner() {
-
         // The held Vm supplies actual Native source entry, not successful alias execution.
         let (context, unit) = native_argument_caller_unit(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED",
@@ -5932,7 +5916,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_refuses_missing_foreign_source_and_vector_owners() {
-
         let (context, unit) = native_argument_caller_unit(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED",
         );
@@ -6021,7 +6004,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_keeps_rebinding_unknown_and_callback_opacity() {
-
         for source in [
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; interp alias {} forwarded {} selected PREFIX; forwarded FIXED",
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; rename forwarded moved; moved FIXED",
@@ -6043,7 +6025,6 @@ mod tests {
 
     #[test]
     fn original_covered_alias_effect_requires_original_entered_continuation() {
-
         let (context, current) = native_argument_caller_unit(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED",
         );
@@ -6075,7 +6056,6 @@ mod tests {
 
     #[test]
     fn original_direct_return_keeps_terminator_argv_without_captured_phase_marker() {
-
         // A procedure exit retains its original argv as a terminator. Captured
         // completions use the distinct EvaluatedArguments statement purpose.
         let (_, unit) = native_argument_caller_unit(

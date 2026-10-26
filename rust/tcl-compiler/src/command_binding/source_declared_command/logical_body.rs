@@ -115,7 +115,6 @@ impl OriginalDeclaredLogicalBodyContext {
         input: &ResolvedAnalysisInput,
         parent: Option<Arc<Self>>,
     ) -> Option<Self> {
-
         if !input.has_logical_source_name_context()
             || scope_name.original_word().image() != scope.original_container().image()
             || scope_name.original_word().config() != input.lexer_config()
@@ -233,7 +232,6 @@ impl OriginalDeclaredLogicalBodyContext {
     }
 
     pub(crate) fn with_body(&self, body: Arc<OriginalSourceScriptBody>) -> Option<Self> {
-
         let scope = self.scope.content_span();
         let child = body.content_span();
         if child.start() < scope.start() || child.end() > scope.end() {

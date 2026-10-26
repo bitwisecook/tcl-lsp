@@ -121,7 +121,6 @@ mod tests {
 
     #[test]
     fn reported_qname_namespaces_keep_purpose_and_literal_text() {
-
         // Shared analytical name contract:
         // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
         // Fixed metadata projections only; no Native namespace or lookup assertion.

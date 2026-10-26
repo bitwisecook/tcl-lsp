@@ -3594,7 +3594,6 @@ mod original_jim_import_tests {
 
     #[test]
     fn original_vm_jim_alias_query_keeps_explicit_root_context_after_destination_cache() {
-
         // Authentic root/frame owners, stored List identity and cache context;
         // no original Enum header or C query/refcount equivalence is inferred.
         let mut vm = native();
@@ -3651,7 +3650,6 @@ mod original_jim_import_tests {
 
     #[test]
     fn original_vm_jim_import_uses_cached_prefix_without_reading_original_members() {
-
         let mut vm = native();
         let target = Value::string("list");
         let member = Value::int(5);
@@ -3689,7 +3687,6 @@ mod original_jim_import_tests {
 
     #[test]
     fn original_vm_jim_import_compares_whole_prefix_before_following_alias_chains() {
-
         for case in 0..3 {
             let mut vm = native();
             let source = match case {
@@ -3730,7 +3727,6 @@ mod original_jim_import_tests {
 
     #[test]
     fn original_vm_jim_import_keeps_first_host_and_restored_context_terminal() {
-
         // Real entered scope and actual context setters; not injected object
         // getter results or an original Native chronology comparison.
         for restore in [false, true] {

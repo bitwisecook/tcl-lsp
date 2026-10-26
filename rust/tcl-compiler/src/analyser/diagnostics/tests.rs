@@ -1496,7 +1496,6 @@ fn w216_upvar_local_name_is_indirect_array_idiom() {
 
 #[test]
 fn variable_name_positions_are_registry_driven() {
-
     let pos = |cmd: &str, args: &[&str]| {
         let source = format!("{cmd} {}", args.join(" "));
         let mut analyser = Analyser::new();
@@ -9287,7 +9286,6 @@ $o make 1
 
 // -- TclOO constructor call-site arity (`ClassName new` / `ClassName create`)
 
-
 // Conditional constructor-source controls select the C9 formal grammar used
 // by their cited CLI examples. No constructor entry or actual argv is proved.
 fn tcloo_constructor_codes_for(src: &str) -> Vec<String> {
@@ -9296,7 +9294,6 @@ fn tcloo_constructor_codes_for(src: &str) -> Vec<String> {
 
 #[test]
 fn tcloo_constructor_signature_advice_keeps_unknown_formal_grammar_separate_from_authored_names() {
-
     let plain =
         tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
     assert!(plain.authored_name_policy().is_some());
@@ -9760,7 +9757,6 @@ oo::class create Derived {
 
 #[test]
 fn apply_lambda_arity_fires_and_stays_silent() {
-
     assert_eq!(
         e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1\n"),
         vec!["E002".to_owned()]
@@ -9797,7 +9793,6 @@ fn apply_dynamic_lambda_abstains() {
 
 #[test]
 fn apply_expand_args_abstains_too_few() {
-
     let src = "set rest {1}\napply {{a b} {return $a}} {*}$rest\n";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }
@@ -9806,7 +9801,6 @@ fn apply_expand_args_abstains_too_few() {
 
 #[test]
 fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
-
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `set o [Dog new]; $o` — tclsh 9.0.4: `wrong # args: should be "o
     // method ?arg ...?"`. The dispatcher checks argument count before any
@@ -9834,7 +9828,6 @@ fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
 
 #[test]
 fn tp_e001_bare_tcloo_object_dispatch_named_constructor() {
-
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `Dog create rex` names the instance directly; `$rex` bare still
     // requires a method.
@@ -9848,7 +9841,6 @@ fn tp_e001_bare_tcloo_object_dispatch_named_constructor() {
 
 #[test]
 fn tp_e001_bare_dispatch_fires_even_when_class_is_ambiguous() {
-
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // Unlike per-method arity (which abstains under ambiguity — see
     // `tcloo_method_arity_abstains_for_ambiguous_receiver_class`), a
@@ -9905,7 +9897,6 @@ fn tn_e001_bare_dispatch_silent_for_unclassified_variable() {
 
 #[test]
 fn tp_e001_bare_command_substitution_head() {
-
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `[Dog new]` used directly
     // as a command runs `Dog new`, then invokes the produced object with no
@@ -9920,7 +9911,6 @@ fn tp_e001_bare_command_substitution_head() {
 
 #[test]
 fn tp_e001_bare_cmd_head_named_constructor_and_alias() {
-
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // `[Dog create rex]` returns the object command too, and an
     // `interp alias` / `rename` reaching the class is the same constructor
@@ -9940,7 +9930,6 @@ fn tp_e001_bare_cmd_head_named_constructor_and_alias() {
 
 #[test]
 fn tp_e001_bare_cmd_head_factory_proc_return() {
-
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // The proc-return flow: the lattice proves `make` object-returning
     // (`ObjectHandleFacts::returns_object`), so a bare `[make]` is the same
@@ -10119,7 +10108,6 @@ fn w308_fires_for_bogus_method_on_method_return_captured_handle() {
 
 #[test]
 fn tp_e001_bare_dispatch_on_method_return_captured_handle() {
-
     // Genuine Logical object facts and observed family advice; no Native activation grant.
     // The same lattice typing makes a bare `$b` the unconditional TclOO
     // zero-word failure.
@@ -10380,7 +10368,6 @@ foo$suffix
         r.diagnostics,
     );
 }
-
 
 // An interpolated head folding to a deleted procedure retains the positioned
 // absence diagnosis. A reporting name cannot supply a live command candidate.
@@ -11564,7 +11551,6 @@ fn w214_quoted_keyword_marker_silent() {
 
 #[test]
 fn w214_dispatch_protocol_suppresses_peer_family() {
-
     // ≥3 peers sharing `{ctx token}` + an arity-compatible dispatcher
     // (`$cmd $ctx $token`, 2 args) — `token` is a protocol contract.
     let src = "namespace eval ::n {\n\
@@ -11586,7 +11572,6 @@ fn w214_dispatch_protocol_suppresses_peer_family() {
 
 #[test]
 fn w214_repeated_publication_does_not_count_as_three_protocol_peers() {
-
     let source = "namespace eval n {
 \
         proc peer {ctx token} {puts $ctx}
@@ -11610,7 +11595,6 @@ fn w214_repeated_publication_does_not_count_as_three_protocol_peers() {
 
 #[test]
 fn w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers() {
-
     let source = "namespace eval n {
 \
         proc a {ctx token} {puts $ctx}
@@ -11643,7 +11627,6 @@ fn w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers() 
 
 #[test]
 fn w214_no_dispatcher_still_fires_on_peer_family() {
-
     // TP control: 3 peers sharing `{ctx token}` but NO dispatcher — the
     // shared shape is coincidence, so `token` still fires.
     let src = "namespace eval ::n {\n\
@@ -13103,7 +13086,6 @@ fn w310_subcommand_sensitive_header() {
 
 #[test]
 fn w306_literal_expected_in_regexp_pattern() {
-
     // The explicit terminator establishes the pattern role independently of its unknown value.
     fn has_w306(src: &str) -> bool {
         let mut a = Analyser::new();
@@ -13495,7 +13477,6 @@ fn tcltest_aliased_fixture(source: &str, profile: &str, captured: bool) -> (Stri
 
 #[test]
 fn tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads() {
-
     // Original #2286 programs, source-only alias/ordinal and W210 regression.
     // Selecting a package fixture grants no new Native handler/frame permission.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -13560,7 +13541,6 @@ fn tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads() {
 
 #[test]
 fn tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque() {
-
     // Captured effective ordinals do not move the source read to result data.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for captured in [false, true] {
@@ -16798,7 +16778,6 @@ fn analyse_w308_1330_quick_fix_span_matches_the_diagnostic() {
 
 #[test]
 fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
-
     let src = "interp slaves\n";
     for dialect in ["tcl8.6", "tcl9.0"] {
         let result = crate::analyser::Analyser::new().analyse(src, dialect);
@@ -16918,7 +16897,6 @@ fn diagnostic_without_owned_subject_does_not_parse_identity_from_message() {
 
 #[test]
 fn w123_retains_original_math_function_context_without_command_head_authority() {
-
     use crate::command_binding::SourceCommandSlotPresence;
     use tcl_registry::mathfunc::NativeMathFunctionDispatch;
     let source = "expr {Pi()}";
@@ -16974,7 +16952,6 @@ fn w123_retains_original_math_function_context_without_command_head_authority() 
 
 #[test]
 fn original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout() {
-
     for source in [
         "interp alias {} replace {} regsub\nreplace -command x y z\n",
         "rename regsub replace\nreplace -command x y z\n",
@@ -17062,7 +17039,6 @@ fn w100_marks_every_unbraced_expression() {
 
 #[test]
 fn original_terminator_advice_retains_source_words_without_current_value_claims() {
-
     let source = concat!(
         "interp alias {} remove {} file delete -force\n",
         r#"remove "$path""#,
@@ -17103,7 +17079,6 @@ fn original_terminator_advice_retains_source_words_without_current_value_claims(
 
 #[test]
 fn original_registry_diagnostics_follow_written_alias_operands() {
-
     // Source metadata and reporting geometry; no native alias-installation claim.
     let source = "interp alias {} observe {} trace add variable value\nobserve {read bad} callback";
     let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -17132,7 +17107,6 @@ fn original_registry_diagnostics_follow_written_alias_operands() {
 
 #[test]
 fn original_registry_variable_role_diagnostics_keep_shadow_and_capture_boundaries() {
-
     for source in [
         "rename set write\nwrite $name 1",
         "interp alias {} write {} set\nwrite $name 1",
@@ -17178,7 +17152,6 @@ fn original_registry_variable_role_diagnostics_keep_shadow_and_capture_boundarie
 
 #[test]
 fn original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms() {
-
     // This checks source-schema selection and written coordinates, not native execution.
     for source in [
         "interp alias {} strings {} string\nstrings {lenght} abc",
@@ -17226,7 +17199,6 @@ fn original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms
 
 #[test]
 fn original_deprecation_advice_preserves_whole_source_words_and_declines_captures() {
-
     // This proves source proposal geometry, not BIG-IP command equivalence.
     let source = "when HTTP_REQUEST {\n    ::::matchclass [HTTP::uri] starts_with {paths\nmore}\n}";
     let result = crate::analyser::Analyser::new().analyse(source, "f5-irules");
@@ -17265,7 +17237,6 @@ fn original_deprecation_advice_preserves_whole_source_words_and_declines_capture
 
 #[test]
 fn original_expression_diagnostics_keep_effective_roles_and_whole_written_words() {
-
     // This proves source grammar/coordinates, not native evaluation or rewrite equivalence.
     for source in [
         "interp alias {} calculate {} expr\ncalculate \"$a + $b\"",
@@ -17317,7 +17288,6 @@ fn original_expression_diagnostics_keep_effective_roles_and_whole_written_words(
 
 #[test]
 fn original_source_arity_and_relationships_keep_effective_counts_and_written_suffixes() {
-
     use crate::analyser::RegistrySourceDiagnosticKind;
     for source in [
         "::::set a 1 {extra value}",
@@ -17393,7 +17363,6 @@ fn original_source_arity_and_relationships_keep_effective_counts_and_written_suf
 
 #[test]
 fn declared_source_diagnostics_use_only_the_declared_roles_and_signature() {
-
     use crate::analyser::DeclaredSourceDiagnosticKind;
     for profile in ["tcl8.6", "tcl9.0", "tcl"] {
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub select {?kind? expression:expr}\n# tcl-lsp: stubs-end\nselect \"$value + 1\"";
@@ -17453,7 +17422,6 @@ fn declared_source_diagnostics_use_only_the_declared_roles_and_signature() {
 
 #[test]
 fn original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners() {
-
     for source in [
         "::::apply {{a b} {return ok}} 1",
         "rename apply invoke\ninvoke {{a b} {return ok}} 1",
@@ -17513,7 +17481,6 @@ fn original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners() {
 
 #[test]
 fn declared_variable_name_positions_keep_only_supplied_contract_roles() {
-
     use crate::analyser::DeclaredSourceDiagnosticKind;
     for profile in ["tcl8.6", "tcl9.0", "tcl"] {
         let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub store {?mode? destination:var value}\n# tcl-lsp: stubs-end\nstore $name payload";
@@ -17582,7 +17549,6 @@ fn original_shape_advice_case(
 
 #[test]
 fn original_append_advice_keeps_effective_roles_and_whole_written_operands() {
-
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for (source, code, kind, written, fixes) in [
         (
@@ -17613,7 +17579,6 @@ fn original_append_advice_keeps_effective_roles_and_whole_written_operands() {
 
 #[test]
 fn original_case_advice_keeps_effective_roles_and_whole_written_operands() {
-
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for (source, code, kind, written, fixes) in [
         (
@@ -17644,7 +17609,6 @@ fn original_case_advice_keeps_effective_roles_and_whole_written_operands() {
 
 #[test]
 fn original_option_only_advice_keeps_effective_roles_and_whole_written_operands() {
-
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for (source, code, kind, written, fixes) in [
         (
@@ -17675,7 +17639,6 @@ fn original_option_only_advice_keeps_effective_roles_and_whole_written_operands(
 
 #[test]
 fn original_shape_advice_withdraws_unknown_geometry_and_known_shadows() {
-
     for (source, code) in [
         (
             "proc append {args} {}\nappend out \" value\"",
@@ -17717,7 +17680,6 @@ fn original_shape_advice_withdraws_unknown_geometry_and_known_shadows() {
 }
 #[test]
 fn original_pattern_advice_keeps_selected_roles_and_complete_written_spans() {
-
     use crate::analyser::RegistrySourceDiagnosticKind as Kind;
     for source in [
         "::regexp -- \"prefix$pattern\" $subject",
@@ -17760,7 +17722,6 @@ fn original_pattern_advice_keeps_selected_roles_and_complete_written_spans() {
 
 #[test]
 fn w216_literal_root_replacement_preserves_bytes_and_index_source() {
-
     // Actual diagnostic/fix source projection only. No Native name/cell,
     // completed read, inserted ::set identity or index evaluation is granted.
     for dialect in [
@@ -17835,7 +17796,6 @@ fn w216_literal_root_replacement_preserves_bytes_and_index_source() {
 
 #[test]
 fn w216_fixed_proposals_match_captured_public_value_examples() {
-
     // Archive association and genuine proposal spelling controls. The native
     // rows measure these eight stock-set value contexts, not editor safety,
     // original native name identity or runtime availability of an inserted head.
@@ -17870,7 +17830,6 @@ fn w216_fixed_proposals_match_captured_public_value_examples() {
 
 #[test]
 fn w216_public_value_capture_keeps_whole_provider_rows() {
-
     // Stored provider observations are checked without rerunning native Tcl
     // or treating their value equality as private identity/editor permission.
     let expected = concat!(

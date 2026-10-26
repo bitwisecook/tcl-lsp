@@ -1737,7 +1737,6 @@ mod tests {
 
     #[test]
     fn report_retains_typed_subjects_independently_of_diagnostic_presentation() {
-
         // Problem: Report conversion must retain counted subject units, even when prose changes.
         // This transport control asserts no Native publication or handler execution.
         let key = tcl_registry::native_package::NativePackageNameKey::from_native_units(

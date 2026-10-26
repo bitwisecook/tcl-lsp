@@ -209,7 +209,6 @@ mod original_package_advice_tests {
 
     #[test]
     fn original_package_advice_keeps_actual_context_and_original_requirement_units() {
-
         let source = "package require Tk 8.7\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
@@ -253,7 +252,6 @@ mod original_package_advice_tests {
 
     #[test]
     fn original_package_advice_preserves_alternative_floor_and_conditional_bounds() {
-
         let source = "package require Tk 9.1 8.7\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();

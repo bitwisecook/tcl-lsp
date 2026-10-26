@@ -65,7 +65,6 @@ mod tests {
 
     #[test]
     fn original_command_retirement_keeps_both_owned_stages_and_first_full_error() {
-
         // Pure coordinator only; no interpreter, token or Native callback.
         for (order, expected) in [
             (

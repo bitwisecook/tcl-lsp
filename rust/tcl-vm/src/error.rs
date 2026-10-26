@@ -760,7 +760,6 @@ mod checked_projection_tests {
     }
     #[test]
     fn borrowed_projection_refuses_conversion_and_actual_context_reads_original_values() {
-
         // Software getter/transport control, not a new original-provider receipt.
         let mut vm = native();
         let result = Value::int(7);
@@ -803,7 +802,6 @@ mod checked_projection_tests {
     }
     #[test]
     fn checked_guest_projection_preserves_first_host_cause_without_materialising() {
-
         let mut vm = native();
         let cause = NativeValueAccessRefusal::ExpressionEngineUnavailable;
         vm.refuse_tcl_host_failure(TclHostFailure::ValueAccess(cause));
@@ -825,7 +823,6 @@ mod checked_projection_tests {
 
     #[test]
     fn original_completion_unicode_keeps_counted_nul_and_refuses_non_utf8() {
-
         // Actual getter and host display controls, independent of Native source admission.
         for code in [Code::Ok, Code::Error] {
             let mut vm = native();

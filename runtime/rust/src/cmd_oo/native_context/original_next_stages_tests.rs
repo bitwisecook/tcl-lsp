@@ -172,7 +172,6 @@ fn interpreter(dialect: &str, mode: u8) -> Interp {
 }
 #[test]
 fn original_next_head_selects_current_context_only_after_c91_string() {
-
     let mut interpreter = interpreter("tcl9.1", 1);
     let _current = fixture::install(&mut interpreter, 0);
     let originals = OriginalArguments::enter(&interpreter, &[]).unwrap();
@@ -184,7 +183,6 @@ fn original_next_head_selects_current_context_only_after_c91_string() {
 }
 #[test]
 fn original_next_earlier_compiled_route_does_not_read_the_helper_head() {
-
     for dialect in ["tcl8.6", "tcl9.0"] {
         let mut interpreter = interpreter(dialect, 1);
         let _current = fixture::install(&mut interpreter, 0);
@@ -198,7 +196,6 @@ fn original_next_earlier_compiled_route_does_not_read_the_helper_head() {
 }
 #[test]
 fn original_nextto_selected_context_withdrawal_stops_command_cache_adoption() {
-
     for mode in [2, 3] {
         let mut interpreter = interpreter("tcl9.1", mode);
         let _current = fixture::install(&mut interpreter, 0);
@@ -236,7 +233,6 @@ fn receipt(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 }
 #[test]
 fn original_next_receipt_observes_the_context_without_holding_method_roles_or_freezing_payload() {
-
     let mut interpreter = interpreter("tcl9.1", 0);
     let _current = fixture::install(&mut interpreter, 0);
     interpreter.register_builtin(b"selected_next", receipt);
@@ -245,7 +241,6 @@ fn original_next_receipt_observes_the_context_without_holding_method_roles_or_fr
 }
 #[test]
 fn original_next_missing_context_reports_only_after_its_selected_head_stage() {
-
     for (dialect, expected) in [("tcl8.6", 0), ("tcl9.0", 0), ("tcl9.1", 1)] {
         let mut interpreter = fixture::native(dialect);
         let _current = fixture::install(&mut interpreter, 0);
@@ -282,7 +277,6 @@ fn original_next_missing_context_reports_only_after_its_selected_head_stage() {
 
 #[test]
 fn original_nextto_cache_retirement_checks_the_selected_context_before_adoption() {
-
     let mut interpreter = interpreter("tcl9.1", 4);
     let _current = fixture::install(&mut interpreter, 0);
     let originals = OriginalArguments::enter(&interpreter, &[]).unwrap();
@@ -296,7 +290,6 @@ fn original_nextto_cache_retirement_checks_the_selected_context_before_adoption(
 
 #[test]
 fn original_ordinary_nextto_uses_its_actual_c_command_head_and_class_stage_order() {
-
     for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [5, 6] {
             let mut interpreter = interpreter(dialect, mode);
@@ -311,7 +304,6 @@ fn original_ordinary_nextto_uses_its_actual_c_command_head_and_class_stage_order
 }
 #[test]
 fn original_ordinary_nextto_missing_context_reads_the_diagnostic_head_once() {
-
     for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = fixture::native(dialect);
         let _current = fixture::install(&mut interpreter, 0);

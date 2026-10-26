@@ -26,7 +26,6 @@ fn native() -> Vm {
 
 #[test]
 fn checked_option_mutation_retains_original_opaque_members_and_carrier() {
-
     // Software object/option ownership control; no original-provider pass or
     // native physical-header observation follows from these assertions.
     let mut vm = native();
@@ -80,7 +79,6 @@ fn checked_option_mutation_retains_original_opaque_members_and_carrier() {
 
 #[test]
 fn invalid_carried_control_is_a_failure_and_absence_has_its_separate_default() {
-
     let mut vm = native();
     assert_eq!(
         option_integer_checked(&mut vm, &Value::empty(), b"-level", 1).unwrap(),
@@ -114,7 +112,6 @@ fn invalid_carried_control_is_a_failure_and_absence_has_its_separate_default() {
 
 #[test]
 fn option_snapshot_preserves_first_host_cause_and_earlier_guest_effects() {
-
     let mut vm = native();
     vm.set_var("before", Value::string("RETAINED")).unwrap();
     let cause = tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;

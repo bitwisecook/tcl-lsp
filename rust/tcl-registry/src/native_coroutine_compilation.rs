@@ -417,7 +417,6 @@ impl NativeCoroutineInjectionProtocol {
     /// Select the measured native callback protocol independently of CPP.
     #[must_use]
     pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
-
         matches!(
             dialect.native_name_protocol(),
             Some(tcl_syntax::naming::NativeNameProtocol::C(
@@ -521,7 +520,6 @@ mod coroutine_name_tests {
 
     #[test]
     fn original_coroutine_name_compiler_keeps_zero_operand_recipe_and_native_decline() {
-
         // The original hook/zero-worker-operand/opcode source is independent
         // from Native250 public coroutine holder/resumption observations.
         // The source/word receipt does not select an entry protocol.

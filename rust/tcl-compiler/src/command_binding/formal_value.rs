@@ -36,7 +36,6 @@ fn direct_formal_argument_value(
     parameters: &[&str],
     registry: &CommandRegistry,
 ) -> Option<(CommandTokens, String)> {
-
     let context = &observation.snapshot.state.source_variables;
     // Command-table uncertainty cannot change this conditional input.
     // Only independently retained caller-frame aliases may precede a
@@ -189,7 +188,6 @@ impl SourceCommandBindings {
         let (registry, owner) = selection;
         self.formal_source_owner_matches(owner, registry)?;
 
-
         if self.root_origin.as_ref() != Some(origin) {
             return None;
         }
@@ -296,7 +294,6 @@ impl SourceCommandBindings {
         observation: &super::declaration_layout::DeclarationLayoutObservation,
         registry: &CommandRegistry,
     ) -> bool {
-
         let context = &observation.snapshot.state.source_variables;
         if matches!(
             observation.entry.as_ref(),
@@ -795,7 +792,6 @@ mod tests {
 
     #[test]
     fn original_formal_copy_query_retains_full_source_metadata_and_explicit_compatibility() {
-
         use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
         use std::sync::Arc;
         let context =
@@ -886,7 +882,6 @@ mod tests {
 
     #[test]
     fn original_receiver_formal_value_uses_its_unentered_declaration() {
-
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
             let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
@@ -1028,7 +1023,6 @@ mod tests {
 
     #[test]
     fn original_receiver_formal_prefix_keeps_unrelated_aliases_and_refuses_clobbers() {
-
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for (prefix, expected) in [
                 ("upvar name local; set local VALUE;", Some("input")),

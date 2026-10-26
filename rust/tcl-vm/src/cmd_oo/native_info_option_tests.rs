@@ -6,7 +6,6 @@ use tcl_syntax::value::ValueOps;
 
 #[test]
 fn variable_info_validates_original_options_before_target_lookup() {
-
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
         let mut vm = crate::native_fixture::core(profile);

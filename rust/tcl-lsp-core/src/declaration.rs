@@ -576,7 +576,6 @@ mod tests {
 
     #[test]
     fn original_declaration_navigation_declines_unowned_analysis_without_recapture() {
-
         let source = "set x 1; proc p {} {global x; puts $x}";
         let analysis = analyse(source);
         let (line, character) = pos_of(source, "$x", 1);
@@ -608,7 +607,6 @@ mod tests {
 
     #[test]
     fn logical_declaration_navigation_keeps_its_explicit_compatibility_scan() {
-
         let source = "proc p {} {global x; puts $x}";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);
@@ -667,7 +665,6 @@ mod tests {
 
     #[test]
     fn original_logical_declarations_join_global_aliases_without_local_root_stripping() {
-
         let source = "set foo 1; proc p {} {global foo; puts $::foo; puts $foo}";
         let analysis = logical_source_analysis(source);
         let expected = u32::try_from(source.find("global foo").unwrap() + "global ".len()).unwrap();
@@ -700,7 +697,6 @@ mod tests {
 
     #[test]
     fn original_qualified_alias_declarations_keep_the_target_and_body_frame() {
-
         let source = "namespace eval ns {variable foo 1}; proc p {} {global ::ns::foo; puts $foo; puts $::ns::foo; puts $::other::foo}; proc sibling {} {puts $foo}";
         let expected =
             u32::try_from(source.find("global ::ns::foo").unwrap() + "global ".len()).unwrap();
@@ -741,7 +737,6 @@ mod tests {
 
     #[test]
     fn original_logical_declarations_keep_qualified_targets_and_current_source_owners() {
-
         let source = "namespace eval ns {variable foo 1; proc p {} {variable foo; puts $::ns::foo; puts $foo}}";
         let mut analysis = logical_source_analysis(source);
         let expected = u32::try_from(
@@ -1235,7 +1230,6 @@ mod original_declaration_region_purpose_tests {
 
     #[test]
     fn original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let source = "\u{feff}global x; if 1 {\u{feff}global x}";

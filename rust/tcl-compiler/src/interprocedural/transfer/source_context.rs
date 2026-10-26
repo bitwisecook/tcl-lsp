@@ -568,7 +568,6 @@ mod tests {
 
     #[test]
     fn original_expression_fused_top_level_retains_its_existing_parent_record() {
-
         // Retained top-level IR ownership, independently of any execution frame.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
             "proc leaf {} {return 7}\nset answer [expr {[leaf] + 1}]",
@@ -610,7 +609,6 @@ mod tests {
 
     #[test]
     fn original_expression_receipts_join_actual_literal_operand_and_child_extent() {
-
         // Software source ancestry and byte extents, not Native Normal completion.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
             "proc leaf {} {return 7}\ninterp alias {} e {} expr\nproc p {} {e {[leaf] + 1}; expr {\"é:[leaf]\" eq \"é:7\"}}",
@@ -684,7 +682,6 @@ mod tests {
 
     #[test]
     fn original_expression_receipts_refuse_cooked_and_foreign_producers() {
-
         // Whole source receipt refusal; no command-table or execution inference.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
             "proc leaf {} {return 7}\nproc p {} {expr {[leaf]} + 1}",
@@ -747,7 +744,6 @@ mod tests {
 
     #[test]
     fn original_expression_receipts_refuse_captured_and_shadowed_producers() {
-
         // No source producer can be invented from captured argv or a reported head.
         let assembled = crate::expr_parser::parse_expr("[leaf] + 1", None);
         let (captured_context, captured_unit) = crate::interprocedural::logical_completion_unit(
@@ -836,7 +832,6 @@ mod tests {
 
     #[test]
     fn original_transfer_call_keeps_selected_procedure_and_captured_operands_together() {
-
         // Conditional source/argv correspondence, not Native activation or effects.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
             "proc leaf {name {by 1} args} {return $name}\ninterp alias {} frozen {} leaf chosen\nproc caller {} {frozen 2 extra}",
@@ -876,7 +871,6 @@ mod tests {
 
     #[test]
     fn original_transfer_child_and_body_require_the_genuine_parent_word() {
-
         // Existing original child carriers, independently of entered Body authority.
         let (context, unit) = crate::interprocedural::logical_completion_unit(
             "proc leaf {} {return 9}\ninterp alias {} each {} dict for\nproc caller {} {catch {leaf}; each {k v} {} {leaf}; return [leaf]}",
@@ -947,7 +941,6 @@ mod tests {
 
     #[test]
     fn original_transfer_source_refuses_missing_foreign_config_and_changed_headers() {
-
         // Software source-world correspondence; no Native dispatch permission.
         let (context, unit) =
             crate::interprocedural::logical_completion_unit("proc p {x} {return $x}", "tcl8.6");
@@ -1004,7 +997,6 @@ mod tests {
 
     #[test]
     fn original_transfer_shadow_and_command_observers_do_not_borrow_catalogue_closure() {
-
         let (context, unit) = crate::interprocedural::logical_completion_unit(
             "proc set {name value} {return changed}\nproc caller {} {set x 1}",
             "tcl8.6",

@@ -157,7 +157,6 @@ fn assert_first(interpreter: &Interp, mode: u8) {
 #[test]
 fn original_trace_member_key_removal_retires_outside_storage_and_checks_the_same_frame_and_member()
 {
-
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=4 {
             let mut interpreter = native(profile);
@@ -208,7 +207,6 @@ fn original_trace_member_key_removal_retires_outside_storage_and_checks_the_same
 
 #[test]
 fn original_trace_root_key_withdrawal_preserves_a_callback_reborn_cell_and_first_refusal() {
-
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=3 {
             let mut interpreter = native(profile);
@@ -299,7 +297,6 @@ impl Drop for Observer {
 
 #[test]
 fn original_native_observer_removal_keeps_saved_cleanup_entered_through_actual_callback_drop() {
-
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..=3 {
             let mut interpreter = native(profile);
@@ -342,7 +339,6 @@ fn original_native_observer_removal_keeps_saved_cleanup_entered_through_actual_c
 
 #[test]
 fn original_trace_home_metadata_cannot_withdraw_a_reborn_binding_under_the_same_spelling() {
-
     let mut interpreter = native("tcl9.1");
     assert_eq!(
         interpreter.eval_str(b"trace add variable shell unset {}"),

@@ -1018,7 +1018,6 @@ mod root_protocol_tests {
     use super::*;
     #[test]
     fn original_jim_root_schedules_keep_path_array_and_required_unset_purposes_separate() {
-
         // Pure selected source schedules do not grant an original cell/header.
         let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
             tcl_dialect::model::Release::JIM_0_84,

@@ -555,7 +555,6 @@ mod tests {
 
     #[test]
     fn active_retirement_keeps_trace_registration_separate_from_value_access() {
-
         // Software allocation control; the native proof observes callback logs.
         let mut table = VarTable::default();
         let value = Owned::fresh(obj::new_string_bytes(b"one"));

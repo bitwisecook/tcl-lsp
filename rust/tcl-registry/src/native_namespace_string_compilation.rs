@@ -99,7 +99,6 @@ mod tests {
 
     #[test]
     fn original_namespace_tail_recipe_retains_dynamic_and_counted_operands() {
-
         for (version, engine) in [
             (TclVersion::V8_4, "tcl8.4"),
             (TclVersion::V8_5, "tcl8.5"),
@@ -183,7 +182,6 @@ mod tests {
     }
     #[test]
     fn original_namespace_qualifiers_recipe_retains_dynamic_and_counted_operands() {
-
         for (version, engine) in [
             (TclVersion::V8_4, "tcl8.4"),
             (TclVersion::V8_5, "tcl8.5"),
@@ -268,7 +266,6 @@ mod tests {
     }
     #[test]
     fn original_namespace_qualifiers_declines_arity_and_unresolved_expansion() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let dialect = crate::InvocationDialect::for_version(version);
             for source in [

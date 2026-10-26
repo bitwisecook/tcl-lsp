@@ -7134,7 +7134,6 @@ mod original_import_alias_tests {
 
     #[test]
     fn original_jim_import_uses_the_cached_alias_list_without_member_getters() {
-
         // Software helper control: cached List and original member identity;
         // no original Enum name header or C import equivalence is inferred.
         let mut interp = native();
@@ -7193,7 +7192,6 @@ mod original_import_alias_tests {
 
     #[test]
     fn original_jim_import_retains_reached_list_getter_first_cause_before_publication() {
-
         for mode in [1, 2] {
             let mut interp = native();
             let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
@@ -7252,7 +7250,6 @@ mod original_import_alias_tests {
 
     #[test]
     fn original_jim_import_follows_original_alias_lists_and_refuses_destination_loops() {
-
         for closes_loop in [false, true] {
             let mut interp = native();
             let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
@@ -7295,7 +7292,6 @@ mod original_import_alias_tests {
 
     #[test]
     fn original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions() {
-
         let mut interp = native();
         let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
             OWNER.with(|owner| owner.borrow_mut().take());

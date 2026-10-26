@@ -991,7 +991,6 @@ mod original_alpha_body_parser_purpose_tests {
 
     #[test]
     fn original_scalar_body_site_keeps_body_bom_and_original_declaration_geometry() {
-
         // Genuine declared body geometry, independently of an alpha rewrite receipt.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();

@@ -129,7 +129,6 @@ fn installed(vm: &mut Vm, mode: u8, child: Option<InterpId>) -> InstalledCommand
 
 #[test]
 fn original_true_command_deletion_keeps_release_order_and_visible_source_imports() {
-
     // Actual software NativeCommand callbacks and actual public namespace imports;
     // original C source orders are descriptive, not executed Native callbacks.
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -175,7 +174,6 @@ impl NativeCommand for Nested {
 
 #[test]
 fn original_recursive_delete_unlinks_once_and_outer_owner_retires_captured_implementation() {
-
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for recreate in [false, true] {
             let mut vm = native(environment);
@@ -224,7 +222,6 @@ fn original_recursive_delete_unlinks_once_and_outer_owner_retires_captured_imple
 
 #[test]
 fn original_command_cleanup_keeps_first_cause_and_retires_only_original_child_table() {
-
     for mode in [1, 2, 3, 4] {
         let mut vm = native("tcl9.1");
         let parent = vm.cur;
@@ -298,7 +295,6 @@ impl NativeCommand for MoveSource {
 }
 #[test]
 fn original_command_retirement_follows_actual_rename_without_repeating_delete_trace() {
-
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = native(environment);
         let (key, events, retired) = installed(&mut vm, 0, None);
@@ -390,7 +386,6 @@ impl NativeCommand for NamespaceRetire {
 }
 #[test]
 fn original_delete_namespace_effect_follows_same_generation_cross_namespace_rename() {
-
     // These are actual software namespace/path/rename producers. The observed
     // cache effect grants no Native namespace temporary or callback chronology.
     for environment in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -451,7 +446,6 @@ impl NativeCommand for EnterChild {
 }
 #[test]
 fn original_delete_trace_epilogue_preserves_child_stack_and_original_trace_gate() {
-
     let mut vm = native("tcl9.1");
     let parent = vm.cur;
     let name = vm.create_child(Some("trace_child".into()), false);
@@ -556,7 +550,6 @@ impl NativeCommand for EpochTrace {
 
 #[test]
 fn original_command_deletion_cache_epoch_stages_follow_actual_outer_trace_and_recursive_unlink() {
-
     // Actual software callbacks observe the selected original command epoch;
     // C source predicates do not constitute Native cache/callback observations.
     for (environment, entry, recursive_entry, final_unlink) in [
@@ -656,7 +649,6 @@ impl NativeCommand for RecreateCoroutine {
 }
 #[test]
 fn original_coroutine_retirement_leaves_a_genuine_same_key_recreated_state() {
-
     // Actual coroutine producer/parked state and real trace callback; no Native
     // coroutine cache/refcount or external callback chronology is inferred.
     let mut vm = native("tcl9.1");
@@ -740,7 +732,6 @@ impl NativeCommand for RepeatedEpochTrace {
 
 #[test]
 fn original_repeated_recursive_unlinked_command_advances_only_selected_epoch_stages() {
-
     // Actual software trace and retained original token; pinned source stages
     // do not constitute executed Native cache/callback observations.
     for (environment, entry, each_recursive) in [

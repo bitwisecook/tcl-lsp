@@ -517,7 +517,6 @@ mod tests {
 
     #[test]
     fn graph_analysis_retains_selected_profile_grammar_and_source_projection() {
-
         let profile = Box::leak(Box::new(tcl_dialect::DialectProfile {
             grammar: tcl_dialect::LexerGrammar {
                 escapes: tcl_dialect::EscapeSyntax::Tcl84,
@@ -574,7 +573,6 @@ mod tests {
     }
     #[test]
     fn logical_cli_symbols_share_current_outline_and_parameter_owners() {
-
         let source = "set global VALUE\nproc top {first} {set local VALUE; proc nested {inside} {}}\nnamespace eval n {variable x VALUE; proc p {second} {}}";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert!(analysis.allows_lexical_declaration_advice());
@@ -613,7 +611,6 @@ mod tests {
 
     #[test]
     fn original_cli_symbols_preserve_repeated_opaque_headers_and_current_source() {
-
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; proc p\uD800 {arg} {}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_procs.clear();

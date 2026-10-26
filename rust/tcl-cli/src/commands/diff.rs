@@ -168,7 +168,6 @@ struct DiffDocument<'a> {
 
 impl<'a> DiffDocument<'a> {
     fn capture(source: &'a str, input: &ResolvedAnalysisInput, build_unit: bool) -> Option<Self> {
-
         let analysis = Analyser::new()
             .structure_only()
             .with_resolved_input(input.clone())
@@ -573,7 +572,6 @@ mod tests {
 
     #[test]
     fn original_diff_subcommands_use_current_source_targets_and_captured_prefixes() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let registry = registry_for_dialect("tcl9.0");
@@ -599,7 +597,6 @@ mod tests {
 
     #[test]
     fn original_diff_pack_subcommands_keep_availability_and_refuse_withdrawn_inputs() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let mut registry = CommandRegistry::build_default();
@@ -667,7 +664,6 @@ mod tests {
 
     #[test]
     fn original_diff_ir_and_cfg_share_the_exact_checked_source_input() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let mut config = LexerConfig::for_file_grammar(profile.grammar);
         config.strict_quoting = !config.strict_quoting;

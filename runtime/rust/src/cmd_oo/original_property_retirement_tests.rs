@@ -149,7 +149,6 @@ fn assert_first(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn property_registration_refusal_stops_later_direction_and_epoch_publication() {
-
     // Genuine reached owner callbacks; registration chronology is not a Native probe result.
     for mode in 0..4 {
         let mut interpreter = native();
@@ -217,7 +216,6 @@ fn property_registration_refusal_stops_later_direction_and_epoch_publication() {
 
 #[test]
 fn mandatory_property_retirement_releases_both_caches_before_original_members() {
-
     // Release order is inspected C91 source, not a measured teardown callback tape.
     for mode in 0..3 {
         let mut interpreter = native();
@@ -260,7 +258,6 @@ fn mandatory_property_retirement_releases_both_caches_before_original_members() 
 
 #[test]
 fn property_invalidation_retires_stale_lists_outside_borrows_and_transports_first_cause() {
-
     // Actual derived cache survives a Foundation change; no speculative cache owner is planted.
     for mode in 0..3 {
         let mut interpreter = native();

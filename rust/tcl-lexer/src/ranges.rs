@@ -1776,7 +1776,6 @@ mod shared_boundary_tests {
 
     #[test]
     fn array_index_nested_variables_use_the_shared_ascii_name_scanner() {
-
         // Actual array-index scan; ASCII nested bare variables keep the old door.
         for (source, end) in [
             ("$a($n:::v(k))", 13),

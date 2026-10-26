@@ -198,7 +198,6 @@ mod tests {
     }
     #[test]
     fn exact_unrooted_backing_keys_keep_literal_leading_colons() {
-
         // Pure diagnostic key storage; no Native lookup, dispatch or injectivity claim.
         let report = BackingReport::from_unrooted_entries([
             ("run".to_owned(), RegisteredBacking::Builtin),

@@ -3836,7 +3836,6 @@ mod tests {
     /// real error options instead of an empty placeholder.
     #[test]
     fn invoke_argv_reports_unknown_error_with_options() {
-
         // The default ABI interpreter selects C9.0. Native295's ordinary-miss
         // public errorCode differs from the namespace-origin error producer.
         leak_free(|| unsafe {
@@ -4111,7 +4110,6 @@ mod tests {
 
     #[test]
     fn boxed_primitive_reads_keep_missing_abi_and_first_host_terminal() {
-
         leak_free(|| unsafe {
             for first_host in [false, true] {
                 let mut interp = scalar_interpreter("tcl8.4");
@@ -4144,7 +4142,6 @@ mod tests {
 
     #[test]
     fn boxed_primitive_reads_refuse_foreign_and_restored_engine_issuers() {
-
         leak_free(|| unsafe {
             for foreign in [false, true] {
                 let mut owner = scalar_interpreter("tcl8.6");
@@ -4639,7 +4636,6 @@ mod tests {
     /// without starting an eval loop or resetting the error episode.
     #[test]
     fn compiled_activation_leave_retains_native_errors_for_public_read() {
-
         leak_free(|| unsafe {
             let native = Interp::with_native_core(
                 crate::interp::default_host(),
@@ -4768,7 +4764,6 @@ mod tests {
 
     #[test]
     fn original_refused_abi_activation_keeps_every_genuinely_held_entry() {
-
         // Actual software entry refusal and paired ownership only; this records
         // no C Tcl nesting limit or original provider callback chronology.
         leak_free(|| unsafe {
@@ -5717,7 +5712,6 @@ mod tests {
 
     #[test]
     fn a_declining_entry_falls_back_to_the_source_body_observably_unchanged() {
-
         leak_free(|| unsafe {
             with_current_interp(|interp| {
                 // The same proc, same name, same body — once with a
@@ -5931,7 +5925,6 @@ mod tests {
     /// the original body's selected native instruction.
     #[test]
     fn a_logged_statement_site_preserves_the_source_trace_without_instruction_identity() {
-
         // This ABI stub exercises source logging, not native returnImm admission.
         leak_free(|| unsafe {
             with_current_interp(|interp| {

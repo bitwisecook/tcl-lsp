@@ -5691,7 +5691,6 @@ mod tests {
 
     #[test]
     fn prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners() {
-
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let context = Arc::new(generation.with_command_store(Arc::clone(generation.commands())));
         let registry = generation.commands();
@@ -5786,7 +5785,6 @@ mod tests {
 
     #[test]
     fn cfg_condition_possible_writes_keep_original_aliases_and_replacements() {
-
         // These are analysis-only <cond> footprints, not native stores/entry.
         let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
@@ -5843,7 +5841,6 @@ mod tests {
 
     #[test]
     fn prepared_cfg_refuses_changed_module_profile_and_body_configuration() {
-
         let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let context =
@@ -5958,7 +5955,6 @@ mod tests {
 
     #[test]
     fn prepared_cfg_source_metadata_is_shared_by_module_and_body_builders() {
-
         let context = tcl_registry::model::ingress::context_for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
@@ -8269,7 +8265,6 @@ mod tests {
 
     #[test]
     fn distinct_body_summaries_preserve_conflicting_alias_targets() {
-
         // Actual whole-module source and existing frame-summary producer.
         let module = lower_module(
             "namespace eval a {proc bind {} {upvar 1 left local; set local 1}}\n\
@@ -8303,7 +8298,6 @@ mod tests {
 
     #[test]
     fn summary_parameters_retain_each_original_signature() {
-
         // Defaults, order and variadic position belong to the original header.
         let module = lower_module(
             "namespace eval a {proc p {{name left} args} {}; proc q {{name shared} args} {}; proc r {a b} {}; proc s {a args} {}}\n\
@@ -8429,7 +8423,6 @@ mod tests {
 
     #[test]
     fn summary_keys_decline_one_changed_member_and_foreign_module_source() {
-
         // Removing original correspondence cannot leave a false unique winner.
         let module = lower_module(
             "namespace eval a {proc p {name} {upvar 1 $name local}}\n\

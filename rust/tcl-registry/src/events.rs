@@ -5018,7 +5018,6 @@ mod original_event_source_config_tests {
 
     #[test]
     fn event_boundary_keeps_full_input_and_nested_bom_purposes_distinct() {
-
         // Parser/registry boundary control; no executed BIG-IP handler claim.
         let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         let parent = LexerConfig {

@@ -595,7 +595,6 @@ mod explicit_variable_tests {
 
     #[test]
     fn explicit_local_and_varname_lookup_keep_their_independent_byte_extents() {
-
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let protocol = NativeNameProtocol::C(version);
             assert_eq!(

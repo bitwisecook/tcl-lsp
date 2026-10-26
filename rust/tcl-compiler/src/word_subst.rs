@@ -2405,7 +2405,6 @@ mod tests {
 
     #[test]
     fn original_nested_word_parser_keeps_body_bom_parent_metadata_and_child_geometry() {
-
         // Conditional original geometry/inventory, never Native child dispatch or result.
         let mut prepared = crate::analyser::Analyser::new();
         // The authored Logical owner retains this independently selected grammar.
@@ -2492,7 +2491,6 @@ mod tests {
 
     #[test]
     fn original_extracted_surface_keeps_bom_before_comment_and_no_point_receipt() {
-
         // Lexical extracted-surface utility; no original point/ExprBool/Normal receipt.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
@@ -2517,7 +2515,6 @@ mod tests {
 
     #[test]
     fn original_nested_call_inventory_keeps_actual_roles_and_availability() {
-
         // Conditional source geometry only: no handler, body entry or result is proved.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -2599,7 +2596,6 @@ mod tests {
 
     #[test]
     fn original_logical_inventory_uses_source_roles_without_native_role_completion() {
-
         // Conditional original geometry; no Native frame/handler or result.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl").unwrap();
@@ -2669,7 +2665,6 @@ mod tests {
 
     #[test]
     fn original_logical_inventory_keeps_alias_ordinals_and_uncertain_geometry_refusals() {
-
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl").unwrap();
         let registry = input.borrowed_context_registry().commands();
@@ -2736,7 +2731,6 @@ mod tests {
 
     #[test]
     fn original_nested_call_inventory_withdraws_changed_geometry_and_missing_sidecars() {
-
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let registry = current.commands();
@@ -3537,7 +3531,6 @@ mod tests {
 
     #[test]
     fn original_lexical_bracket_inventory_does_not_require_parent_handler_roles() {
-
         // Authenticated written substitutions only; no child dispatch or body entry.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl").unwrap();
@@ -3624,7 +3617,6 @@ mod tests {
 
     #[test]
     fn original_braced_expression_inventory_still_requires_actual_selected_roles() {
-
         // Braced Expr descent remains separate from lexical bracket substitutions.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl").unwrap();

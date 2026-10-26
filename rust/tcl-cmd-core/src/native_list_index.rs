@@ -376,7 +376,6 @@ fn command_range_inner<O: NativeListRangeOps>(
     first: &O::Value,
     last: &O::Value,
 ) -> Result<O::Owner, CmdError> {
-
     // Actual command worker reaches ListLength, then each SAME index object.
     ops.index_version()?;
     let length = ops.index_list_length(original)?;

@@ -105,7 +105,6 @@ pub(super) fn candidates<'a>(
     ctx: ScriptCtx<'a>,
     command: &SegmentedCommand,
 ) -> Result<ReceiverSourceCandidates<'a>, ReceiverSourceUnavailable> {
-
     let analysis = ctx
         .analysis
         .ok_or(ReceiverSourceUnavailable::OriginalOperand)?;

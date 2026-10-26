@@ -799,7 +799,6 @@ fn lexical_compact(
     input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     isolated: bool,
 ) -> Result<(String, SymbolMap), MinifyRefusal> {
-
     let (renamed, symbol_map) = compact_names(source, input, isolated);
     let current = original::analysis_with_input(&renamed, input);
     let minified = lexical_default(&renamed, &current)?;
@@ -821,7 +820,6 @@ pub fn minify_with_profile(
 }
 
 fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
-
     let input = analysis
         .resolved_input
         .as_ref()
@@ -1106,7 +1104,6 @@ fn find_rename_barriers<'a>(
     commands: &[tcl_lexer::NativeScriptCommandWords],
     include_global: bool,
 ) -> RenameBarriers<'a> {
-
     let mut out = RenameBarriers::default();
     for command in commands {
         let traits = lexical_metadata::with_editable_command_schema(env, command, |schema| {
@@ -1423,7 +1420,6 @@ fn compact_logical_formals(
     symbol_map: &mut SymbolMap,
     edits: &mut Vec<Edit>,
 ) {
-
     if !isolated {
         return;
     }
@@ -1703,7 +1699,6 @@ fn rmw_target_var_names(
     env: MinifyEnv<'_>,
     commands: &[tcl_lexer::NativeScriptCommandWords],
 ) -> FxHashSet<String> {
-
     let mut names = FxHashSet::default();
     for command in commands {
         lexical_metadata::with_command_schema(env, command, |schema| {
@@ -2909,7 +2904,6 @@ fn parse_var_ref(
 /// Project shared complete groups into the renderer's argument container.
 /// Group kinds/ranges and expansion ownership come from the same lexer owner.
 fn parse_commands(source: &str, tokens: &[Token], config: LexerConfig) -> Vec<Vec<Arg>> {
-
     tcl_lexer::group_commands(tokens, source, config)
         .into_iter()
         .map(|command| {
@@ -3036,7 +3030,6 @@ fn lexical_script_words(
     source: &str,
     config: LexerConfig,
 ) -> Option<tcl_lexer::NativeScriptWordsPlan> {
-
     let image = tcl_lexer::SourceImage::document(source);
     let region = tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?);
     tcl_lexer::native_script_words_in(image, region, config).ok()
@@ -3050,7 +3043,6 @@ fn lexical_head_value(
     word: &tcl_lexer::NativeWord,
     config: LexerConfig,
 ) -> Option<String> {
-
     if word.image().channel() != tcl_lexer::SourceChannel::Document
         || word.image().bytes() != sm.source().as_bytes()
         || word.config() != config
@@ -3123,7 +3115,6 @@ fn lexical_source_schema<'r: 'w, 'w, T>(
     arguments: &'w [tcl_registry::InvocationWord<'w>],
     project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, 'w>) -> T,
 ) -> Option<T> {
-
     if name.is_empty()
         || env.context.commands().snapshot().semantic_key()
             != env.registry.snapshot().semantic_key()
@@ -3833,7 +3824,6 @@ mod tests {
 
     #[test]
     fn original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config() {
-
         // Original source geometry only; this does not grant body execution.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -5593,8 +5583,6 @@ mod constructed_compatibility_tests {
 
     #[test]
     fn constructed_minifier_call_sites_keep_original_indirect_and_naming_guards() {
-
-
         // Descriptive compatibility rows do not authorise public source rewriting.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::signature_scan::types::SignatureCommandInvocation;

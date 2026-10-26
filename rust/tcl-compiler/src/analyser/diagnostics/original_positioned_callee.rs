@@ -19,7 +19,6 @@ fn unproved_call(command: &str) -> crate::ir::Statement {
 
 #[test]
 fn positioned_body_availability_refuses_unproved_native_labels_and_future_definitions() {
-
     let mut analyser = Analyser::new();
     let analysis = analyser.analyse("unknown local_name; proc unknown {} {}", "tcl8.6");
     analyser.result = analysis;
@@ -46,7 +45,6 @@ fn positioned_body_availability_refuses_unproved_native_labels_and_future_defini
 
 #[test]
 fn reporting_procedure_compatibility_requires_positive_logical_inputs() {
-
     let mut analyser = Analyser::new();
     let source = "proc available {} {}; available";
     analyser.result = analyser.analyse(source, "tcl");
@@ -65,7 +63,6 @@ fn reporting_procedure_compatibility_requires_positive_logical_inputs() {
 
 #[test]
 fn reporting_procedure_compatibility_refuses_missing_input_and_uses_shared_qualification() {
-
     let mut analyser = Analyser::new();
     let source = "namespace eval ns {proc available {} {}}; ::ns::available";
     analyser.result = analyser.analyse(source, "tcl");

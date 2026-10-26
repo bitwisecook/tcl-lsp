@@ -125,8 +125,6 @@ mod tests {
 
     #[test]
     fn native_level_integer_error_retains_primitive_fields_and_string_producer() {
-
-
         // Native introspection case13 observes the String result. Primitive
         // row10 separately supplies this exact original String bad's message
         // and error code; this transport check observes no header or frame.
@@ -182,7 +180,6 @@ mod tests {
 
     #[test]
     fn native_level_width_failure_keeps_the_fresh_result_producer() {
-
         // Native C90 case12 reaches GetInt width overflow and observes no
         // result primary. C86/C91 select Wide for that source operand, so this
         // five-release pure recipe control does not claim the same opcode there.

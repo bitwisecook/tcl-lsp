@@ -1579,7 +1579,6 @@ mod original_frame_walk_tests {
 
     #[test]
     fn original_frame_walk_keeps_full_document_context_and_absolute_components() {
-
         let source = "proc p {x} {expr {$x + [string length VALUE]}}\np 2\n";
         let mut analyser = tcl_compiler::analyser::Analyser::new();
         let mut analysis = analyser.analyse(source, "tcl8.6").clone();
@@ -1637,7 +1636,6 @@ mod selected_frame_context_tests {
 
     #[test]
     fn original_frame_roles_keep_actual_availability_captures_and_source_currency() {
-
         let mut registry = CommandRegistry::build_default();
         let mut setter = registry.get("set").unwrap().clone();
         setter.name = "selected_write";
@@ -1676,7 +1674,6 @@ write 2";
 
     #[test]
     fn original_frame_regions_keep_selected_expression_template_and_replacement_horizon() {
-
         let source = "rename expr evaluate
 evaluate {$x + [string length VALUE]}
 subst -novariables {[puts $x]}
@@ -1717,7 +1714,6 @@ mod original_parse_purpose_tests {
     use super::*;
     #[test]
     fn original_frame_segmentation_labels_document_and_nested_sources_explicitly() {
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig {
             leading_bom: tcl_lexer::LeadingBom::Skip,

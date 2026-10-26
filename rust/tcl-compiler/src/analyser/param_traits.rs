@@ -2430,7 +2430,6 @@ mod tests {
 
     #[test]
     fn original_parameter_scans_keep_parent_input_and_nested_body_bom() {
-
         // Conditional own-body/caller-name advice only; no entered caller or alias link.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();

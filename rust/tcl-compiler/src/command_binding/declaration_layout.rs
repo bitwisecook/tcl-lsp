@@ -2609,7 +2609,6 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         name: &str,
     ) -> Option<String> {
-
         if !self.matches_original_source_image(image, config) {
             return None;
         }
@@ -2742,7 +2741,6 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         words: &[tcl_lexer::NativeWord],
     ) -> Option<String> {
-
         if !self.matches_original_source_image(image, config) {
             return None;
         }
@@ -2853,7 +2851,6 @@ impl SourceCommandBindings {
         &self,
         tokens: &mut crate::ir::CommandTokens,
     ) {
-
         let Some(binding) = tokens.source_binding.as_ref() else {
             return;
         };
@@ -4152,7 +4149,6 @@ mod tests {
 
     #[test]
     fn original_variable_cursor_at_body_end_keeps_occurrence_membership_half_open() {
-
         let source = concat!(
             "set shared 1\n",
             "proc first {argument} {set local 1; global shared; upvar #0 shared link; puts $}\n",
@@ -4462,7 +4458,6 @@ mod tests {
 
     #[test]
     fn declaration_variable_operands_preserve_decoded_name_and_decline_aliases() {
-
         // Alias exclusion requires complete original body ownership, not an
         // installed alias, entered variable frame or successful read.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -4943,7 +4938,6 @@ mod tests {
 
     #[test]
     fn original_destruction_operand_keys_follow_the_retained_alias_point() {
-
         let source = "proc f {} {set original 1; upvar 0 original linked; unset linked}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
@@ -4976,7 +4970,6 @@ mod tests {
 
     #[test]
     fn declaration_read_occurrences_keep_missing_reads_without_physical_ssa() {
-
         // Alias exclusion requires complete original body ownership, not an
         // installed alias, entered variable frame or successful read.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -5258,7 +5251,6 @@ mod original_nested_root_activation_purpose_tests {
 
     #[test]
     fn original_nested_parser_keeps_entered_root_frame_separate_from_whole_input() {
-
         // A genuine eval observation supplies its frame; NestedScript supplies grammar only.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context =
@@ -5385,7 +5377,6 @@ mod original_logical_declaration_receipt_tests {
 
     #[test]
     fn original_logical_nested_declaration_retains_availability_without_dispatch() {
-
         for (source, selected, prefix) in [
             (
                 "proc subject {} {package require Tcl}",
@@ -5472,7 +5463,6 @@ mod original_logical_declaration_receipt_tests {
 
     #[test]
     fn original_logical_declaration_receipt_rejects_changed_inputs_rows_and_world() {
-
         let (input, tokens) = original_statement(
             "proc subject {} {package require Tcl}",
             "package require Tcl",
@@ -5557,7 +5547,6 @@ mod original_logical_declaration_receipt_tests {
 
     #[test]
     fn original_logical_declaration_receipt_keeps_reached_and_opaque_guards() {
-
         let (input, tokens) = original_statement("package require Tcl", "package require Tcl");
         let registry = input.borrowed_context_registry().commands();
         let binding = tokens.source_binding.as_ref().unwrap();

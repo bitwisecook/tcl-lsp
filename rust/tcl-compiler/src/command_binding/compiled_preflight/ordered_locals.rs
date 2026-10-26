@@ -295,7 +295,6 @@ mod tests {
 
     #[test]
     fn ordered_source_locals_keep_counted_primary_and_namespace_attempts() {
-
         let source = b"proc p {formal} {set k\0a 1; set k\0b 2; global g; set g 3}; p VALUE";
         let bindings = inventory(source);
         let local = bindings
@@ -340,7 +339,6 @@ mod tests {
 
     #[test]
     fn source_locals_retain_recursive_word_allocations_and_anonymous_slot_order() {
-
         let recursive = inventory(b"proc p {} {set [set k\0a first] 1; set k\0b 2}; p");
         let local = recursive
             .compiler_invocations
@@ -394,7 +392,6 @@ mod tests {
 
     #[test]
     fn source_locals_preserve_partial_namespace_allocations_and_withdraw_missing_attempts() {
-
         let partial = inventory(b"proc p {} {global first {} later; set k\0a 1; set k\0b 2}; p");
         let local = partial
             .compiler_invocations

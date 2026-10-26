@@ -789,7 +789,6 @@ mod tests {
 
     #[test]
     fn original_native_world_selects_policy_before_any_branch_and_never_reseeds_withdrawal() {
-
         let registry = tcl_registry::CommandRegistry::build_default();
         for version in tcl_dialect::TclVersion::ALL {
             let mut snapshot = entry(NativeCommandImplementation::Opaque);
@@ -862,7 +861,6 @@ mod tests {
 
     #[test]
     fn original_jim_native_world_keeps_root_lookup_without_unrelated_holder_geometry() {
-
         let registry = tcl_registry::CommandRegistry::build_default();
         let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jimtcl")).unwrap();
         let dialect = tcl_registry::InvocationDialect::of_point(point);

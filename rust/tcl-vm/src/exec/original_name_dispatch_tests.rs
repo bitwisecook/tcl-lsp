@@ -57,7 +57,6 @@ fn retained_first(
 
 #[test]
 fn original_name_dispatch_keeps_direct_success_and_guest_error_separate() {
-
     // Actual closed VM values and software callbacks; no external extension issuer.
     for guest_error in [false, true] {
         let mut vm = native();
@@ -87,7 +86,6 @@ fn original_name_dispatch_keeps_direct_success_and_guest_error_separate() {
 
 #[test]
 fn original_name_dispatch_checks_enter_and_leave_before_later_work() {
-
     for operation in ["enter", "leave"] {
         let mut vm = native();
         let work = register(&mut vm, "work", false, false);
@@ -108,7 +106,6 @@ fn original_name_dispatch_checks_enter_and_leave_before_later_work() {
 
 #[test]
 fn original_name_dispatch_retains_deferred_body_scope_through_refused_cleanup() {
-
     for body in [
         "deferred",
         "eval {withdraw; later}",
@@ -131,7 +128,6 @@ fn original_name_dispatch_retains_deferred_body_scope_through_refused_cleanup() 
 
 #[test]
 fn original_name_dispatch_carries_tailcall_owner_into_replacement() {
-
     for withdraw in [false, true] {
         let mut vm = native();
         let target = register(&mut vm, "target", withdraw, false);
@@ -160,7 +156,6 @@ fn original_name_dispatch_carries_tailcall_owner_into_replacement() {
 
 #[test]
 fn original_name_dispatch_keeps_parked_coroutine_receipt_without_reissuing_it() {
-
     for change in 0..3 {
         let mut vm = native();
         let target = register(&mut vm, "target", false, false);
@@ -220,7 +215,6 @@ fn original_name_dispatch_keeps_parked_coroutine_receipt_without_reissuing_it() 
 
 #[test]
 fn original_name_dispatch_refuses_retired_head_before_lookup_or_guest_error() {
-
     let mut vm = native();
     let original = NativeOperationScope::enter(&mut vm).unwrap();
     let head = Value::string("unregistered");
@@ -243,7 +237,6 @@ fn original_name_dispatch_refuses_retired_head_before_lookup_or_guest_error() {
 
 #[test]
 fn original_return_code_branch_uses_selected_integer_and_keeps_guest_table() {
-
     // A fixed software bytecode specimen exercises the real opcode, not compiler admission.
     for code in [1, 2, 3, 4, 5, 17] {
         let mut vm = native();
@@ -303,7 +296,6 @@ fn original_return_code_branch_uses_selected_integer_and_keeps_guest_table() {
 
 #[test]
 fn original_return_code_branch_stops_retired_operand_before_jump() {
-
     let mut vm = native();
     let original = NativeOperationScope::enter(&mut vm).unwrap();
     let value = Value::int(1);
@@ -338,7 +330,6 @@ fn original_return_code_branch_stops_retired_operand_before_jump() {
 
 #[test]
 fn original_name_dispatch_parks_caught_tailcall_owner_before_unrelated_entry() {
-
     // A caught TCL_RETURN retains the genuine request on the actual procedure frame.
     let mut vm = native();
     let target = register(&mut vm, "target", false, false);
@@ -381,7 +372,6 @@ fn original_name_dispatch_parks_caught_tailcall_owner_before_unrelated_entry() {
 
 #[test]
 fn original_name_dispatch_probe_checks_saved_currency_before_callback() {
-
     for withdraw in [false, true] {
         let mut vm = native();
         let observer = register(&mut vm, "observer", false, false);
@@ -438,7 +428,6 @@ fn original_name_dispatch_probe_checks_saved_currency_before_callback() {
 
 #[test]
 fn original_name_dispatch_injection_refusal_stops_older_callbacks_and_body() {
-
     // Selected C9 injection ordering with software Host callbacks, not an external extension.
     let mut vm =
         crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));

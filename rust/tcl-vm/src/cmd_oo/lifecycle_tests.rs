@@ -87,7 +87,6 @@ fn dead(lease: &NativeObjectLifetimeLease) {
 }
 #[test]
 fn original_oo_class_cleanup_retires_actual_names_properties_and_whole_records() {
-
     // Actual VM owning roles and NsIds; no C free-callback or MethodType chronology claim.
     let (mut vm, class, object) = provided();
     let class_namespace = vm.oo.objects[&class].namespace_token.unwrap();
@@ -157,7 +156,6 @@ fn original_oo_class_cleanup_retires_actual_names_properties_and_whole_records()
 }
 #[test]
 fn original_oo_cleanup_after_entry_refusal_skips_destructor_and_completes_owned_retirement() {
-
     let (mut vm, class, object) = provided();
     let calls = install_destructor(&mut vm, class, 0);
     let namespace = vm.oo.objects[&object].namespace_token.unwrap();
@@ -181,7 +179,6 @@ fn original_oo_cleanup_after_entry_refusal_skips_destructor_and_completes_owned_
 }
 #[test]
 fn original_oo_destructor_guest_host_and_restored_context_preserve_cleanup_and_first_cause() {
-
     // Real destructor dispatch supplies Guest/Host/context effects, rather than a fabricated payload Drop.
     for mode in 0..=3 {
         let (mut vm, class, object) = provided();
@@ -233,7 +230,6 @@ fn original_oo_destructor_guest_host_and_restored_context_preserve_cleanup_and_f
 }
 #[test]
 fn original_oo_cleanup_uses_parked_original_interpreter_without_retiring_child_records() {
-
     let (mut vm, class, object) = provided();
     let namespace = vm.oo.objects[&object].namespace_token.unwrap();
     let name = retained_name(&vm, object);
@@ -258,7 +254,6 @@ fn original_oo_cleanup_uses_parked_original_interpreter_without_retiring_child_r
 }
 #[test]
 fn original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restored_context() {
-
     for mode in 0..3 {
         let (mut vm, _, object) = provided();
         let name = retained_name(&vm, object);
@@ -316,7 +311,6 @@ fn original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restore
 }
 #[test]
 fn original_oo_cascade_keeps_original_records_and_stops_later_destructors_after_host_refusal() {
-
     let (mut vm, class, first_object) = provided();
     let result = vm.eval_source("C create later").unwrap();
     assert_eq!(result.code, Code::Ok);

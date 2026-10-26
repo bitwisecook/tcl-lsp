@@ -9,7 +9,6 @@ use tcl_core_types::DiagCode;
 
 #[test]
 fn original_control_shape_keeps_unknown_payload_and_selected_alias() {
-
     for source in [
         "if {$unknown}",
         "rename if branch; branch {$unknown}",
@@ -29,7 +28,6 @@ fn original_control_shape_keeps_unknown_payload_and_selected_alias() {
 
 #[test]
 fn original_control_shape_refuses_replaced_heads_and_unknown_keywords() {
-
     for source in ["proc if args {}; if {$unknown}", "if 1 {puts ok} $keyword"] {
         let result = Analyser::new().analyse(source, "tcl8.6");
         assert!(
@@ -43,7 +41,6 @@ fn original_control_shape_refuses_replaced_heads_and_unknown_keywords() {
 
 #[test]
 fn original_control_capture_keeps_alias_body_and_whole_edit_extent() {
-
     let source = "interp alias {} capture {} catch; capture {\nerror oops\n}";
     let result = Analyser::new().analyse(source, "tcl8.6");
     let diagnostic = result
@@ -63,7 +60,6 @@ fn original_control_capture_keeps_alias_body_and_whole_edit_extent() {
 
 #[test]
 fn original_control_capture_does_not_donate_teardown_to_namespace_tail() {
-
     let source = "namespace eval application {proc close args {error actual}}; catch {application::close value}";
     let result = Analyser::new().analyse(source, "tcl8.6");
     assert!(
@@ -83,7 +79,6 @@ fn original_control_capture_does_not_donate_teardown_to_namespace_tail() {
 
 #[test]
 fn original_control_context_uses_count_without_guessing_operand_values() {
-
     let result = Analyser::new().analyse("when CLIENT_ACCEPTED {return $unknown}", "f5-irules");
     let diagnostic = result
         .diagnostics
@@ -104,7 +99,6 @@ fn original_control_context_uses_count_without_guessing_operand_values() {
 
 #[test]
 fn original_control_captured_prefix_does_not_mint_a_written_clause_edit() {
-
     let result = Analyser::new().analyse("interp alias {} branch {} if 1; branch", "tcl8.6");
     // The missing-body subject addresses the captured condition. It has no
     // call-site word and therefore cannot supply this word-anchored diagnostic.
@@ -118,7 +112,6 @@ fn original_control_captured_prefix_does_not_mint_a_written_clause_edit() {
 
 #[test]
 fn original_control_clause_edit_keeps_the_last_compound_word_complete() {
-
     let source = "if 1 {puts ok} else body trailing[command]";
     let result = Analyser::new().analyse(source, "tcl8.6");
     let diagnostic = result
@@ -145,7 +138,6 @@ fn original_control_clause_edit_keeps_the_last_compound_word_complete() {
 
 #[test]
 fn original_control_clause_edit_uses_the_grammar_keyword_not_a_condition_name() {
-
     let source = "if 1 {puts ok} elseif elseif";
     let result = Analyser::new().analyse(source, "tcl8.6");
     let diagnostic = result

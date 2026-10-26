@@ -1712,7 +1712,6 @@ mod tests {
 
     #[test]
     fn detached_previous_retirement_releases_the_actual_chain_outside_world_borrows() {
-
         // Software owner cleanup; no Native pointer or reference-count parity.
         let mut vm = actual_jim();
         let releases = Rc::new(RefCell::new(Vec::new()));
@@ -1748,7 +1747,6 @@ mod tests {
 
     #[test]
     fn detached_previous_retirement_preserves_its_real_active_invocation_owner() {
-
         // Software entered-role cleanup, independent of idle table ownership.
         let mut vm = actual_jim();
         let releases = Rc::new(RefCell::new(Vec::new()));
@@ -1779,7 +1777,6 @@ mod tests {
 
     #[test]
     fn detached_previous_retirement_uses_its_original_world_when_another_vm_is_current() {
-
         // Explicit original world custody grants no authority to another interpreter.
         let mut original_vm = actual_jim();
         let original_world = Rc::clone(&original_vm.name_world);

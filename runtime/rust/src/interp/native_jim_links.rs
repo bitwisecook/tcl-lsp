@@ -81,7 +81,6 @@ impl Interp {
         Ok(match element {
             Some(element) => self.var_unset_elem(&root, &element),
             None => {
-
                 let scope = super::native_operation_currency::NativeOperationScope::enter(self)
                     .map_err(|first| self.refuse_native_execution(first))?;
                 let captured = crate::vars::EnteredVariablePlace::capture(

@@ -440,7 +440,6 @@ mod tests {
 
     #[test]
     fn selected_if_suggestions_share_actual_scalar_reference_grammar() {
-
         for (dialect, subject, root) in [
             ("tcl8.6", "${a b}", "a b"),
             ("tcl9.1", "${a{b}c}", "a{b}c"),
@@ -568,7 +567,6 @@ mod tests {
 
     #[test]
     fn original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility() {
-
         let source = "if {$host eq \"a.com\"} {pool p} elseif {$host eq \"b.com\"} {pool p} elseif {$host eq \"c.com\"} {pool p}";
         let hosted = crate::tools::analyse(source, DIALECT);
         let native = crate::tools::analyse(source, "tcl8.6");
@@ -629,7 +627,6 @@ mod tests {
 
     #[test]
     fn original_switch_suggestions_share_scalar_subject_and_literal_case_values() {
-
         for (subject, name) in [
             ("${café}", "café"),
             ("\"${a b}\"", "a b"),
@@ -661,7 +658,6 @@ mod tests {
 
     #[test]
     fn original_switch_suggestions_keep_selected_alias_and_current_analysis() {
-
         let source = "interp alias {} select {} switch -exact --\nselect ${café} {GET {drop} POST {drop} PUT {drop}}";
         let mut analysis = crate::tools::analyse(source, DIALECT);
         let c = suggest_for_analysis(source, &analysis);
@@ -694,7 +690,6 @@ mod original_arm_parser_purpose_tests {
 
     #[test]
     fn original_datagroup_arm_parser_preserves_body_bom_and_actual_grammar_overrides() {
-
         // Heuristic body shape only; static edit eligibility is independent.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = LexerConfig::for_file_grammar(profile.grammar);

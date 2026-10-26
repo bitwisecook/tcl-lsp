@@ -536,7 +536,6 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<Arc<OriginalSourceRegisteredInstance>> {
-
         let descriptor = schema.authored_source_descriptors().command;
         descriptor.object_class?;
         if schema.facts().arity_accepts_frozen_arguments() != Some(true) {
@@ -887,7 +886,6 @@ mod tests {
 
     #[test]
     fn original_registered_instance_keeps_factory_argv_alias_move_and_method_prefix() {
-
         let source = "rename ttk::treeview make; make .t; rename .t .held; interp alias {} dispatch {} .held; dispatch mov onlyone";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let words =
@@ -939,7 +937,6 @@ mod tests {
 
     #[test]
     fn original_registered_handle_retains_whole_setter_and_factory_without_value_grant() {
-
         let source = "::set lb [listbox .l]; $lb curselection extra";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let handle = source_registered_handle_binding_at(source, &analysis, 0)
@@ -973,7 +970,6 @@ mod tests {
 
     #[test]
     fn original_registered_instance_refuses_known_replacement_deletion_and_unowned_factory() {
-
         for source in [
             "proc ttk::treeview {args} {}; ttk::treeview .t; .t bogus",
             "ttk::treeview .t; proc .t {args} {}; .t bogus",
@@ -1004,7 +1000,6 @@ mod tests {
     }
     #[test]
     fn original_registered_instance_unknown_mutation_retains_only_conditional_factory_advice() {
-
         // The original factory remains source advice; no current widget or command is proved.
         let source = "ttk::treeview .t; unknown; .t bogus";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
@@ -1029,7 +1024,6 @@ mod tests {
     }
     #[test]
     fn original_registered_factory_candidate_keys_delegate_jim_comparison_without_publication() {
-
         // This checks bounded candidate geometry, not a native factory or source receipt.
         for dialect_name in ["jim", "tcl8.6"] {
             let analysis = Analyser::new().analyse("", dialect_name);

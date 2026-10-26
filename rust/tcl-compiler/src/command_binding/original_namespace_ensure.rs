@@ -49,7 +49,6 @@ impl OriginalNamespaceEnsureTransfer {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<Self> {
-
         if facts.operation
             != tcl_registry::SemanticOperationId::StructuredLowering(
                 tcl_registry::hooks::LoweringHookId::NamespaceEval,
@@ -97,7 +96,6 @@ impl OriginalNamespaceEnsureTransfer {
         self,
         state: &ModuleCommandBindings,
     ) -> Option<AppliedOriginalNamespaceEnsures> {
-
         if state.has_opaque_domain()
             || state.current_source_origin.as_ref() != Some(&self.site.source)
         {
@@ -131,7 +129,6 @@ impl AppliedOriginalNamespaceEnsures {
         state: &crate::var_resolve::ResolveContext,
         offset: u32,
     ) -> Option<&SourceNamespaceKey> {
-
         if self.site.offset != offset {
             return None;
         }
@@ -169,7 +166,6 @@ mod tests {
 
     #[test]
     fn original_namespace_ensure_shares_actual_allocations_without_widening_empty_cells() {
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"namespace eval N\uD800 {namespace eval child {proc p\uD801 {} {}}}";
             let bindings = analyse(source, version);
@@ -215,7 +211,6 @@ mod tests {
 
     #[test]
     fn original_namespace_ensure_does_not_close_unknown_operands_or_body_observers() {
-
         for version in tcl_dialect::TclVersion::ALL {
             for source in [
                 "namespace eval $unknown {proc p {} {}}",

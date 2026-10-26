@@ -154,7 +154,6 @@ fn assert_first(interpreter: &Interp, mode: u8) {
 
 #[test]
 fn private_dispatcher_retirement_stops_the_next_binding_and_preserves_first_cause() {
-
     // Real owned-shim delete callbacks; no external Tcl callback timing claim.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in 0..3 {
@@ -211,7 +210,6 @@ fn private_dispatcher_retirement_stops_the_next_binding_and_preserves_first_caus
 
 #[test]
 fn private_dispatcher_refuses_retired_namespace_without_adopting_recreated_holder() {
-
     let mut interpreter = native("tcl9.1");
     let object = interpreter.oo_resolve_object(b"PublicationObject");
     let namespace = interpreter.oo.borrow().objects[&object].var_ns;
@@ -244,7 +242,6 @@ fn private_dispatcher_refuses_retired_namespace_without_adopting_recreated_holde
 
 #[test]
 fn public_replacement_refusal_stops_creation_workers_and_retires_partial_objects() {
-
     // Select a genuine empty publication slot before installing the actual old
     // shim. This isolates the continuation, not collision-pretest parity.
     for class in [false, true] {
@@ -332,7 +329,6 @@ static NAMESPACE: obj::TclObjType = obj::TclObjType {
 
 #[test]
 fn copy_replacement_callback_stops_cloned_worker_after_original_namespace_getter() {
-
     for mode in 0..3 {
         let mut interpreter = native("tcl9.1");
         MODE.with(|selected| selected.set(mode));
@@ -383,7 +379,6 @@ fn copy_replacement_callback_stops_cloned_worker_after_original_namespace_getter
 
 #[test]
 fn foundation_installation_does_not_continue_after_prior_typed_refusal() {
-
     let mut interpreter = native("tcl9.1");
     let original = {
         let oo = interpreter.oo.borrow();

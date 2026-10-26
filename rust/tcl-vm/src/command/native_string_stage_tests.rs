@@ -68,7 +68,6 @@ fn integer(vm: &Vm, value: i64) -> Value {
 #[test]
 fn original_procedure_header_string_adapter_uses_the_selected_formatter_and_stops_at_absent_header()
 {
-
     // This software Host checks the real adapter schedule, not a C Tcl procedure compiler.
     let (mut vm, host) = provided();
     let parameters = integer(&vm, 6);
@@ -87,7 +86,6 @@ fn original_procedure_header_string_adapter_uses_the_selected_formatter_and_stop
 }
 #[test]
 fn original_procedure_header_string_adapter_preserves_the_entered_refusal_before_formatting() {
-
     let (mut vm, host) = provided();
     let parameters = integer(&vm, 6);
     let body = integer(&vm, 9);

@@ -912,7 +912,6 @@ mod original_bracket_parser_purpose_tests {
 
     #[test]
     fn original_declaration_bracket_keeps_bom_child_and_complete_parent_owner() {
-
         // Conditional lookup preservation, without reached or Native dispatch.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
@@ -985,7 +984,6 @@ mod original_bracket_parser_purpose_tests {
 mod original_produced_static_source_purpose_tests {
     #[test]
     fn original_static_value_child_keeps_bom_and_full_parent_word_recipe() {
-
         // Original static word-to-value source geometry only, without expression execution or header authority.
         let version = tcl_dialect::TclVersion::V9_1;
         let config = tcl_lexer::LexerConfig {

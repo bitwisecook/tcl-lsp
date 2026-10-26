@@ -1447,7 +1447,6 @@ mod native_fixture_tests {
 
     #[test]
     fn original_try_source_without_actual_core_keeps_native_preflight_refusal() {
-
         // An authored profile/compiler is not a genuine native-core constructor.
         let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
         let mut vm = Vm::new();

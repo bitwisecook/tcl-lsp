@@ -390,7 +390,6 @@ pub fn analyse_tk_ui(
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> TkUiModel {
-
     let retained = tk_source_analysis(source, dialect, registry);
     analyse_tk_ui_with_analysis(source, &retained)
 }
@@ -401,7 +400,6 @@ pub fn analyse_tk_ui(
 /// This supplies no Native command, widget instance or execution entry.
 #[must_use]
 pub fn analyse_tk_ui_with_analysis(source: &str, retained: &AnalysisResult) -> TkUiModel {
-
     let Some(input) = retained.resolved_input.as_ref() else {
         return unavailable_tk_context();
     };
@@ -1831,7 +1829,6 @@ pack .w -\x69n \x2e"#;
 
     #[test]
     fn supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source() {
-
         let source = "package require Tk\nttk::toggleswitch .new\nframe .kept";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let newer = crate::registry_for_dialect_profile(crate::profile_for_dialect("tcl9.1"));
@@ -1904,7 +1901,6 @@ pack .w -\x69n \x2e"#;
 
     #[test]
     fn original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries() {
-
         let supplied = crate::profile_for_dialect("tcl8.6");
         let newer = crate::registry_for_dialect_profile(crate::profile_for_dialect("tcl9.1"));
         let source = "package require Tk\nttk::toggleswitch .unavailable\nframe .kept";

@@ -245,7 +245,6 @@ impl CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         name: &str,
     ) -> Option<String> {
-
         if !self.matches_resolved_analysis_input(input)
             || input.has_hosted_source_name_context()
             || tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
@@ -279,7 +278,6 @@ impl CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         words: &[tcl_lexer::NativeWord],
     ) -> Option<String> {
-
         if !self.matches_resolved_analysis_input(input)
             || input.has_hosted_source_name_context()
             || tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
@@ -433,7 +431,6 @@ impl CommandBindingRealm {
     /// Each consumer must select its own purpose projection afterwards;
     /// attachment itself grants neither dispatch nor body-entry authority.
     pub fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
-
         self.bindings
             .stamp_original_tokens_with_bindings(tokens, |offset| {
                 self.retained_original_invocation(offset).as_ref().clone()
@@ -526,7 +523,6 @@ impl CommandBindingRealm {
         cursor: u32,
         registry: &CommandRegistry,
     ) -> Option<tcl_lexer::Span> {
-
         self.bindings
             .original_incomplete_body_region_at(image, config, cursor, registry)
     }
@@ -873,7 +869,6 @@ pub(crate) fn document_realm_bindings_with_resolved_input(
     input: &crate::analyser::ResolvedAnalysisInput,
     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
 ) -> CommandBindingRealm {
-
     let context = input.context_registry();
     let config = input.lexer_config();
     let dialect = crate::environment_ingress::authoring_invocation_dialect(
@@ -907,7 +902,6 @@ pub(crate) fn document_lexical_realm_with_resolved_input(
     input: &crate::analyser::ResolvedAnalysisInput,
     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
 ) -> CommandBindingRealm {
-
     let context = input.context_registry();
     let options = logical_source_options(input);
     let bindings = SourceCommandBindings::analyse_with_options(
@@ -977,7 +971,6 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
     input: &crate::analyser::ResolvedAnalysisInput,
     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
 ) -> CommandBindingRealm {
-
     let context = input.context_registry();
     let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
     dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
@@ -1019,7 +1012,6 @@ pub fn document_realm_bindings_for_module(
     module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<CommandBindingRealm> {
-
     let retained = module.retained_source_bindings.as_deref()?;
     let bindings = retained.positioned_for_module(module, registry)?;
     let mut realm = realm_from_source_bindings(bindings.clone(), registry);
@@ -1110,7 +1102,6 @@ mod tests {
 
     #[test]
     fn original_module_realm_reuses_positioned_inventory_across_native_engine_profiles() {
-
         let source = "namespace eval N {proc p {} {return OK}}; interp alias {} forwarding {} N::p; rename forwarding moved; moved";
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
@@ -1142,7 +1133,6 @@ mod tests {
 
     #[test]
     fn original_module_realm_refuses_missing_and_same_store_foreign_availability() {
-
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let older = std::sync::Arc::new(
@@ -1192,7 +1182,6 @@ mod tests {
 
     #[test]
     fn resolved_input_preserves_math_policy_without_catalogue_default() {
-
         use tcl_registry::mathfunc::NativeMathFunctionDispatch;
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let environment = crate::environment_ingress::resolve_environment(name);
@@ -1445,7 +1434,6 @@ mod tests {
     /// Creating a named child also installs its own parent command.
     #[test]
     fn a_safe_interpreters_hidden_command_states_nothing_here() {
-
         // Native CLI observes named child creation/deletion and handle/path
         // evaluation. These assertions exercise source command-table advice;
         // they do not derive native tokens or effects from the CLI result.
@@ -1914,7 +1902,6 @@ mod original_resolved_realm_input_tests {
 
     #[test]
     fn original_resolved_realm_producers_keep_exact_input_and_independent_source_currency() {
-
         // Retaining editing input supplies no Native admission or frame entry.
         let source = "\u{feff}set saved 1\nset final 2";
         for (label, input, producer) in original_inputs() {
@@ -1955,7 +1942,6 @@ mod original_resolved_realm_input_tests {
 
     #[test]
     fn original_resolved_realm_producers_refuse_missing_foreign_and_changed_inputs() {
-
         let source = "set retained 1";
         for (label, input, producer) in original_inputs() {
             let realm = producer(source, &input, None);

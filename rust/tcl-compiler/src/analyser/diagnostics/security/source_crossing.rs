@@ -234,7 +234,6 @@ mod tests {
 
     #[test]
     fn original_frame_reparse_keeps_possible_layouts_alias_prefixes_and_whole_words() {
-
         let input = current_input();
         for source in [
             "uplevel 1 \"pré $value\"",
@@ -282,7 +281,6 @@ mod tests {
 
     #[test]
     fn original_interpreter_reparse_uses_selected_script_words_without_path_or_value_drift() {
-
         let input = current_input();
         for (source, argument, written, text) in [
             ("interp ev $child \"pré $script\"", 2, 2, "\"pré $script\""),
@@ -350,7 +348,6 @@ mod tests {
 
     #[test]
     fn original_crossing_advice_keeps_selected_option_availability_and_missing_owner_refusals() {
-
         let current = current_input();
         let older = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")

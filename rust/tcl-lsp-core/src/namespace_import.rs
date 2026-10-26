@@ -1540,7 +1540,6 @@ mod original_export_tests {
 
     #[test]
     fn original_export_fold_preserves_counted_identity_and_clear_at_import_time() {
-
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let declarations = analysis

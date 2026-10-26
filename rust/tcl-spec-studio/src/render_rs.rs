@@ -2124,7 +2124,6 @@ mod tests {
 
     #[test]
     fn original_abstract_grammar_rust_render_keeps_the_shared_named_descriptor() {
-
         let registry = tcl_registry::CommandRegistry::build_default();
         let seeded = draft::from_command_spec(registry.get("oo::abstract").unwrap());
         let rendered = render(&seeded);

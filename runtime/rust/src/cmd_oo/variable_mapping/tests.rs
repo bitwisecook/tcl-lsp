@@ -215,7 +215,6 @@ fn reset() {
 }
 #[test]
 fn original_runtime_mapping_retires_old_visible_roles_before_unique_original_keys() {
-
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut interpreter = provided(engine, false);
         let (old, _) = install_old(&mut interpreter);
@@ -242,7 +241,6 @@ fn original_runtime_mapping_retires_old_visible_roles_before_unique_original_key
 }
 #[test]
 fn original_runtime_mapping_first_retirement_refusal_stops_keys_and_cleans_matching_visibility() {
-
     for private in [false, true] {
         for mode in [1, 2, 3, 5] {
             let mut interpreter = provided("tcl9.1", private);
@@ -283,7 +281,6 @@ fn original_runtime_mapping_first_retirement_refusal_stops_keys_and_cleans_match
 }
 #[test]
 fn original_runtime_private_mapping_copy_keeps_both_stored_headers_and_original_storage_identity() {
-
     let mut interpreter = provided("tcl9.1", true);
     let original = obj::Owned::fresh(obj::new_string_bytes(b"p\0tail"));
     assert_eq!(publish(&mut interpreter, &[original.as_ptr()]), Code::Ok);
@@ -326,7 +323,6 @@ fn original_runtime_private_mapping_copy_keeps_both_stored_headers_and_original_
 }
 #[test]
 fn original_runtime_mapping_preserves_recursive_roster_until_outer_publication() {
-
     let mut interpreter = provided("tcl9.1", false);
     let (old, _) = install_old(&mut interpreter);
     let outer = operand(42);
@@ -347,7 +343,6 @@ fn original_runtime_mapping_preserves_recursive_roster_until_outer_publication()
 
 #[test]
 fn original_runtime_private_link_uses_the_stored_full_name_header_for_its_actual_cache() {
-
     let mut interpreter = provided("tcl9.1", true);
     let original = obj::Owned::fresh(obj::new_string_bytes(b"p"));
     assert_eq!(publish(&mut interpreter, &[original.as_ptr()]), Code::Ok);
@@ -386,7 +381,6 @@ fn original_runtime_private_link_uses_the_stored_full_name_header_for_its_actual
 
 #[test]
 fn original_runtime_mapping_requires_current_definition_frame_and_allows_balanced_nested_frame() {
-
     // Real FrameStack births check software continuation, not Native frame chronology.
     for mode in [6, 7] {
         let mut interpreter = provided("tcl9.1", false);

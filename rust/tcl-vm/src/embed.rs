@@ -1253,7 +1253,6 @@ mod embedding_settlement_tests {
 
     #[test]
     fn public_completion_option_bytes_retains_opaque_empty_and_absent_members() {
-
         // Software API control: these constructed carriers do not establish an
         // original C Tcl/Jim physical-object or completion observation.
         let mut vm = crate::native_fixture::interpreter(
@@ -1321,7 +1320,6 @@ mod embedding_settlement_tests {
 
     #[test]
     fn public_completion_option_bytes_preserves_first_host_before_any_getter() {
-
         // The retained refusal is a software owner control, not a measured
         // original-provider failure or a claim that a getter was reached.
         let mut vm = crate::native_fixture::interpreter(

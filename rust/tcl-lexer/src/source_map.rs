@@ -1007,7 +1007,6 @@ mod immutable_image_geometry_tests {
 
     #[test]
     fn original_image_positions_reuse_immutable_geometry_without_changing_identity() {
-
         let text = "first\r\né\n😀\0last";
         let original = SourceImage::document(text);
         let clone = original.clone();
@@ -1048,7 +1047,6 @@ mod immutable_image_geometry_tests {
 
     #[test]
     fn original_native_byte_positions_need_no_unicode_or_document_channel() {
-
         let bytes = b"\xff\r\n\xed\xa0\x80\0\nx";
         let original = SourceImage::native(bytes.as_slice());
         assert!(original.try_text().is_err());
@@ -1069,7 +1067,6 @@ mod document_line_ending_projection_tests {
 
     #[test]
     fn document_projection_round_trips_whole_unicode_words_across_mixed_endings() {
-
         // Source geometry only; no native value, command or source-entry authority.
         let original = "set café {α\r\nβ}\rset γ 3\n";
         let projection =
@@ -1094,7 +1091,6 @@ mod document_line_ending_projection_tests {
 
     #[test]
     fn document_projection_refuses_collapsed_boundary_native_values_and_non_source_extents() {
-
         // The missing boundary is an actual mapping refusal, not a shortened word.
         let original = "é\r\nnext\r\n";
         let projection =

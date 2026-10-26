@@ -4443,7 +4443,6 @@ mod tests {
 
     #[test]
     fn original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim() {
-
         // This emitter contract binds physical source metadata only; Native286
         // separately measures public C/Jim results and supplies no opcode grant.
         let registry = CommandRegistry::build_default();
@@ -4602,7 +4601,6 @@ mod tests {
 
     #[test]
     fn nested_value_tokens_keep_the_retained_lexer_policy_without_lookup_permission() {
-
         // Lexical source control; this supplies no Native selection or body admission.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -5101,7 +5099,6 @@ mod tests {
 
     #[test]
     fn original_expanded_calls_keep_complete_words_and_lexical_nul_values() {
-
         let registry = CommandRegistry::build_default();
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);

@@ -127,7 +127,6 @@ fn table() -> [*const c_char; 3] {
 
 #[test]
 fn original_collection_rc0_views_keep_header_and_backing_copy_on_write_separate() {
-
     // Actual software header and backing ownership; no external callback timing claim.
     leak_free(|| {
         let mut interpreter = native(TclVersion::V8_6);
@@ -191,7 +190,6 @@ fn error_code_keeps_unreached_original_updater(action: u8) {
 
 #[test]
 fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs() {
-
     // Each real updater mutates/restores the original context or raises the first Host cause.
     for action in [1, 2] {
         for worker in 0..5 {
@@ -263,7 +261,6 @@ fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_out
 
 #[test]
 fn original_collection_retirement_runs_once_before_later_cache_publication() {
-
     // A real old freeIntRep runs outside interpreter borrows. Reached retirement is retained.
     for action in [1, 2] {
         for index_worker in [false, true] {
@@ -305,7 +302,6 @@ fn original_collection_retirement_runs_once_before_later_cache_publication() {
 
 #[test]
 fn original_collection_empty_and_abstract_length_keep_their_actual_cache_purposes() {
-
     // Selected software native protocol and genuine constructor, independent of execution admission.
     leak_free(|| {
         for version in [TclVersion::V8_4, TclVersion::V8_6, TclVersion::V9_0] {
@@ -385,7 +381,6 @@ fn original_collection_empty_and_abstract_length_keep_their_actual_cache_purpose
 
 #[test]
 fn original_collection_null_missing_and_foreign_issuers_cannot_supply_a_view() {
-
     // Header/backing protocol alone does not supply an interpreter/current-operation issuer.
     leak_free(|| {
         let value = obj::Owned::fresh(list::new_list_obj(&[]));
@@ -438,7 +433,6 @@ fn original_collection_null_missing_and_foreign_issuers_cannot_supply_a_view() {
 
 #[test]
 fn original_index_cache_keeps_table_stride_protocol_and_selected_output_width() {
-
     // Original table contract and source spelling; no NativeStaticIndexTable capability fabricated.
     leak_free(|| {
         let mut interpreter = native(TclVersion::V9_0);
@@ -542,7 +536,6 @@ fn original_index_cache_keeps_table_stride_protocol_and_selected_output_width() 
 
 #[test]
 fn original_collection_parse_failure_keeps_original_primary_and_owned_children() {
-
     // The genuine selected List parser fails before original retirement; no native failure row is inferred.
     leak_free(|| {
         let mut interpreter = native(TclVersion::V8_6);
@@ -583,7 +576,6 @@ fn original_collection_parse_failure_keeps_original_primary_and_owned_children()
 
 #[test]
 fn original_collection_dictionary_members_require_their_retained_protocol() {
-
     // Pure original Dictionary member conversion validates its actual backing recipe without a String detour.
     for foreign in [false, true] {
         leak_free(|| {

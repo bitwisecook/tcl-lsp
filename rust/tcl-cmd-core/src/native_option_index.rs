@@ -425,7 +425,6 @@ mod local_layout_source_controls {
 
     #[test]
     fn local_list_store_bound_and_c9_encoding_edges_follow_pinned_source_arithmetic() {
-
         // Source controls: source-windows.json /anchors/19/snippet TclIndexEncode;
         // retained pinned-input-map.json + pinned-input-bytes.tar.gz contain
         // tcl9.1.0/generic/tclInt.h physical-LF 2591..2611 (ListStore/LIST_MAX).

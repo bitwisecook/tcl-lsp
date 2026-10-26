@@ -384,7 +384,6 @@ fn drop_def_elims_resurrected_by_replacements(
     registry: &CommandRegistry,
     selected: &mut Vec<Optimisation>,
 ) {
-
     let elims: Vec<(usize, Option<Vec<String>>)> = selected
         .iter()
         .enumerate()
@@ -1247,7 +1246,6 @@ mod tests {
 
     #[test]
     fn supplied_multipass_refreshes_conditional_candidates_for_each_source_image() {
-
         let context =
             crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
         let registry = std::sync::Arc::clone(context.commands());
@@ -1860,7 +1858,6 @@ mod tests {
 
     #[test]
     fn original_definition_guard_keeps_quoted_qualified_and_alias_names() {
-
         for (source, command, replacement) in [
             ("set {b c} 0\n", "set {b c} 0", "puts ${b c}"),
             ("set \"b c\" 0\n", "set \"b c\" 0", "puts ${b c}"),
@@ -1895,7 +1892,6 @@ mod tests {
 
     #[test]
     fn original_definition_guard_declines_foreign_source_registry_and_missing_carrier() {
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let source = "set {b c} 0\n";
         let cu = CompilationUnit::build_for_profile(

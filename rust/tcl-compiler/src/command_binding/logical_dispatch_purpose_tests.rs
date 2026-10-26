@@ -83,7 +83,6 @@ fn assert_deferred_logical_bindings_have_no_execution(
 
 #[test]
 fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_original_owners() {
-
     let input = logical_input();
     let context = input.context_registry();
     for (source, selected, captured, nested) in [
@@ -180,7 +179,6 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
 
 #[test]
 fn original_logical_dispatch_condition_requires_exact_retained_input_and_availability() {
-
     let input = logical_input();
     let context = input.context_registry();
     let source = "package require Tcl";
@@ -270,7 +268,6 @@ fn original_logical_dispatch_condition_requires_exact_retained_input_and_availab
 
 #[test]
 fn original_native_and_explicit_standalone_dispatch_keep_their_reached_purpose() {
-
     // Live VM capture checks the software owner; no external provider row is inferred.
     let environment = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
         .expect("known Native fixture provider");

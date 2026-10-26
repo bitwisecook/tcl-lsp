@@ -1831,7 +1831,6 @@ mod tests {
 
     #[test]
     fn jim_child_constructor_refusal_preserves_typed_cause_and_parent_result() {
-
         // Direct constructor-worker ownership and unavailable-frame controls;
         // no native process or selected invocation after owner retirement claim.
         for retire_owner in [true, false] {
@@ -1888,7 +1887,6 @@ mod tests {
 
     #[test]
     fn c_child_constructor_refusal_keeps_owner_cause_without_success_result() {
-
         // Direct C installer host controls, including a genuinely retained
         // nested owner; native success rows do not observe these host failures.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -2239,7 +2237,6 @@ mod tests {
 
     #[test]
     fn original_jim_core_alias_matches_all_four_standalone_native_public_rows() {
-
         // Core registration and unchanged public source; no private object
         // identity follows from the native stdout observations.
         compare_alias_publication_fixture(
@@ -2255,7 +2252,6 @@ mod tests {
 
     #[test]
     fn jim_core_alias_retains_original_name_result_and_prefix_members() {
-
         // The original API observer independently records name/member identity
         // and absent resident member strings at definition, query and invocation.
         // Implementation control: the retained prefix owner supplies actual
@@ -2321,7 +2317,6 @@ mod tests {
 
     #[test]
     fn jim_child_counted_crossings_match_original_native_public_rows() {
-
         // The counted driver metadata/result channel is separate from the
         // guest's public rows. These rows assert no private pointer ownership.
         let recorded = include_bytes!(
@@ -3352,7 +3347,6 @@ pub(crate) mod original_operand_tests {
 
     #[test]
     fn original_alias_reads_stop_before_later_prefix_and_publication() {
-
         // Native415 observes no prefix String read at definition. Only name and
         // target are reached here; target failure retains post-publication effects.
         // Prefix refusal is exercised separately at actual invocation below.
@@ -3452,7 +3446,6 @@ pub(crate) mod original_operand_tests {
 
     #[test]
     fn original_alias_prefix_refusal_is_reached_only_at_actual_invocation() {
-
         for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in [Update::Host, Update::Restore] {
                 let mut interp = native(version);
@@ -3529,7 +3522,6 @@ pub(crate) mod original_operand_tests {
 
     #[test]
     fn original_interpreter_options_and_names_keep_actual_read_order_and_refusal() {
-
         let cases: &[(&[&[u8]], usize)] = &[
             (&[b"interp", b"create", b"flag", b"LATER"], 2),
             (&[b"interp", b"target", b"", b"name"], 3),
@@ -3581,7 +3573,6 @@ pub(crate) mod original_operand_tests {
 
     #[test]
     fn original_interpreter_path_reads_selected_list_and_original_elements() {
-
         let mut interp = native("tcl8.6");
         let child = Owned::fresh(obj::new_string_bytes(b"child\0ignored"));
         let path = Owned::fresh(interp.new_list_object(&[child.as_ptr()]));
@@ -3627,7 +3618,6 @@ pub(crate) mod original_operand_tests {
 
     #[test]
     fn original_hidden_child_result_getter_preserves_namespace_cleanup_and_first_cause() {
-
         // Actual child lazy result getter and mandatory cleanup, not a Native provider assertion.
         for mode in [Update::Host, Update::Restore] {
             let mut interp = native("tcl8.6");
@@ -3671,7 +3661,6 @@ pub(crate) mod original_operand_tests {
 
     #[test]
     fn original_child_alias_adapters_keep_guest_code_result_and_typed_refusal() {
-
         for hidden in [false, true] {
             for mode in [Update::Normal, Update::Host, Update::Restore] {
                 let mut interp = native("tcl8.6");
@@ -3725,7 +3714,6 @@ pub(crate) mod original_operand_tests {
 
     #[test]
     fn original_child_handle_alias_reads_the_selected_operand_before_publication() {
-
         // This actual worker control distinguishes the C target pretest from
         // Jim's List-first capture. It does not equate child and core name roles.
         for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -3827,7 +3815,6 @@ mod original_rename_operation_tests {
 
     #[test]
     fn original_rename_observers_keep_reached_effects_and_stop_later_result_publication() {
-
         // Actual command-trace callbacks and native entry; no external Native order claim.
         for version in ["tcl8.6", "tcl9.1"] {
             for mode in [Callback::Normal, Callback::Host, Callback::Restore] {
@@ -4090,7 +4077,6 @@ mod original_alias_storage_tests {
 
     #[test]
     fn original_alias_capture_and_query_match_the_measured_member_and_header_recipe() {
-
         // Bounded exact physical fields; Jim body-only name updater refs are not
         // compared with its public EvalObjVector registration invocation.
         for (version, stream) in fixtures() {
@@ -4309,7 +4295,6 @@ mod original_alias_storage_tests {
 
     #[test]
     fn original_alias_query_retains_unread_members_until_the_last_query_is_released() {
-
         for (version, stream) in fixtures() {
             reset();
             let mut interp = super::original_operand_tests::native(version);
@@ -4361,7 +4346,6 @@ mod original_alias_storage_tests {
 
     #[test]
     fn original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role() {
-
         // C aliases own the supplied name; Jim_RegisterCmd owns a fresh child
         // key. These are software role controls, not unmeasured native counts.
         for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -4645,7 +4629,6 @@ mod original_alias_key_tests {
 
     #[test]
     fn original_alias_replacement_keeps_measured_name_key_and_query_roles() {
-
         // Only observed name refs and query header/member roles are compared;
         // no Jim body-only updater refcount or general frame claim is inferred.
         for (version, stream) in rows() {
@@ -4706,7 +4689,6 @@ mod original_alias_key_tests {
 
     #[test]
     fn original_alias_rename_keeps_measured_record_and_destination_key_roles() {
-
         for (version, stream) in rows() {
             reset();
             RENAME.with(|rename| rename.set(true));
@@ -4754,7 +4736,6 @@ mod original_alias_key_tests {
 
     #[test]
     fn original_jim_key_retirement_runs_before_value_cleanup_without_adopting_replacement() {
-
         // Real destructor callbacks are software controls of cleanup/reentry.
         // Native421b did not execute these Host/context callback modes.
         for mode in [1, 2, 3] {
@@ -4803,7 +4784,6 @@ mod original_alias_key_tests {
 
     #[test]
     fn original_jim_replacement_refusal_keeps_occupied_key_and_reached_name_result() {
-
         // These real value-destructor Host/context modes are software controls;
         // the original421b probe did not execute these refusal callbacks.
         for mode in [1, 2] {
@@ -4860,7 +4840,6 @@ mod original_alias_key_tests {
 
     #[test]
     fn original_jim_rename_qualification_and_table_key_keep_distinct_native_references() {
-
         // The held temporary stage checks the pinned QualifyName/keyDup source
         // roles. Native421b's measured comparison is after both temporaries
         // have actually retired, rather than a claim of an observed callback.

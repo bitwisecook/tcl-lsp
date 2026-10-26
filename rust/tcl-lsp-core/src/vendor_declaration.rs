@@ -243,7 +243,6 @@ mod tests {
 
     #[test]
     fn original_vendor_cards_preserve_owned_unknown_units_without_reporting_maps() {
-
         let source = "proc helper {argument} {return $argument}\nproc {p\\uD800} {} {}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-iapps");
         assert!(analysis.has_original_vendor_source_names());
@@ -293,7 +292,6 @@ mod tests {
     }
     #[test]
     fn original_vendor_event_cards_use_selected_metadata_and_current_whole_source() {
-
         let source = "when HTTP_REQUEST {set local 1}\n";
         let mut analysis = Analyser::new().analyse(source, "f5-irules");
         assert_eq!(analysis.original_vendor_symbol_declarations().count(), 1);

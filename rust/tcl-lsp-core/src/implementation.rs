@@ -623,7 +623,6 @@ namespace eval Inner {{
 
     #[test]
     fn constructed_implementation_ancestry_keeps_root_marker_distinct_from_colon_segment() {
-
         // Explicit metadata graph only, under the existing lexical caller gate.
         let mut analysis = Analyser::new().analyse("", "tcl");
         assert!(analysis.allows_lexical_declaration_advice());
@@ -671,7 +670,6 @@ mod original_implementation_tests {
     use tcl_compiler::analyser::Analyser;
     #[test]
     fn original_implementation_uses_opaque_method_identity_and_exact_descendant_relations() {
-
         let source = "oo::class create B {method m\\uD800 {} {}; method m\\uD801 {} {}}\noo::class create C {superclass B; method m\\uD800 {} {}}\noo::class create Other {method m\\uD800 {} {}}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_classes.clear();
@@ -693,7 +691,6 @@ mod original_implementation_tests {
     }
     #[test]
     fn original_method_implementations_keep_cross_document_owners_and_block_ambiguous_parents() {
-
         let base = r"oo::class create B\uD800 {method m\uD800 {} {}}";
         let child = r"oo::class create C {superclass B\uD800; method m\uD800 {} {}}";
         let unrelated = r"oo::class create Other {method m\uD800 {} {}}";
@@ -761,7 +758,6 @@ mod original_implementation_tests {
     }
     #[test]
     fn original_class_object_implementation_does_not_borrow_instance_superclass_order() {
-
         let source = "oo::class create B {self method shared {} {}}\noo::class create C {superclass B; self method shared {} {}}\n";
         let mut analysis = Analyser::new().analyse(source, "tcl9.0");
         analysis.all_classes.clear();

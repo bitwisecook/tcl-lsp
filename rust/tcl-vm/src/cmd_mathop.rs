@@ -102,7 +102,6 @@ mod tests {
 
     #[test]
     fn original_jim_namespace_info_guard_retains_its_original_headers() {
-
         // This compares the unchanged original guarded Jim source and public
         // completion. Optional header-access diagnostics supply no provider evidence.
         let source = include_str!(
@@ -143,7 +142,6 @@ mod tests {
 
     #[test]
     fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
-
         // The pinned current Jim distribution reconfirms these ten unchanged
         // Jim public code/result pairs with its actual NamespaceInfo library.
         // It does not establish the different old CLI's library roster.
@@ -199,7 +197,6 @@ mod tests {
 
     #[test]
     fn original_mathop_compilation_matches_all_84_native_controls() {
-
         // Current Jim independently reconfirms these fourteen unchanged guarded
         // script completions with NamespaceInfo. The unavailable mathop branch
         // does not observe original Jim specialised compilation or operators.

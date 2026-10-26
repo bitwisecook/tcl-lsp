@@ -1055,7 +1055,6 @@ mod original_ownership_tests {
 
     #[test]
     fn original_idle_method_cache_observes_retirement_without_retaining_payload() {
-
         // Runtime method-record ownership; procedure clientData has its own roles.
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let (mut interpreter, target, selector) = native(version,
@@ -1089,7 +1088,6 @@ mod original_ownership_tests {
 
     #[test]
     fn original_entered_chain_retains_every_inherited_record_until_last_next_owner() {
-
         // This tests the validated entered-record role, not an entered proc body.
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let (mut interpreter,target,selector) = native(version,
@@ -1140,7 +1138,6 @@ mod original_ownership_tests {
 
     #[test]
     fn original_same_record_replacement_retires_unentered_old_payload_immediately() {
-
         // Strong record ownership is distinct from a proc's real entered-body role.
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let (mut interpreter,target,selector) = native(version,
@@ -1172,7 +1169,6 @@ mod original_ownership_tests {
 
     #[test]
     fn original_missing_cached_record_cannot_adopt_a_recreated_name() {
-
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let (mut interpreter,target,selector) = native(version,
                 b"oo::class create CacheClass {method m {} {return FIRST}}; CacheClass create CacheObject");
@@ -1258,7 +1254,6 @@ mod original_ownership_tests {
     };
     #[test]
     fn original_cache_retirement_callback_cannot_publish_a_fresh_world_stamp() {
-
         // Genuine software callbacks/actual context ABA, not original C methodType equivalence.
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in [0, 1, 2, 3, 4] {

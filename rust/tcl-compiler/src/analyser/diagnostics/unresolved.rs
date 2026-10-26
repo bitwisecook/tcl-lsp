@@ -449,7 +449,6 @@ impl Analyser {
     fn original_package_advice_invocations(
         &self,
     ) -> Vec<super::super::diagnostic_registry::OriginalDiagnosticInvocation> {
-
         use crate::signature_scan::types::SignatureCommandLookup;
         let context = self.analysis_context();
         let mut offsets = HashSet::new();
@@ -696,7 +695,6 @@ fn original_command_suggestion_fix(
     candidate: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<super::types::CodeFix> {
-
     let super::super::DiagnosticSubject::UnresolvedCommand(subject) = subject else {
         return None;
     };
@@ -952,7 +950,6 @@ mod require_ordering_tests {
     }
     #[test]
     fn original_package_advice_distinguishes_queries_and_genuine_source_provisions() {
-
         assert_eq!(count("package provide csv\ncsv::join {a b}", "W120"), 1);
         assert_eq!(count("package provide csv 1\ncsv::join {a b}", "W120"), 0);
         assert_eq!(
@@ -984,7 +981,6 @@ mod require_ordering_tests {
 
     #[test]
     fn package_source_advice_does_not_reparse_mutated_reporting_invocations_or_packages() {
-
         for source in ["csv::join {a b}", "csv::join {a b}\npackage require csv"] {
             let mut analyser = Analyser::new();
             let original = analyser.analyse(source, "tcl8.6");
@@ -1023,7 +1019,6 @@ mod require_ordering_tests {
 
     #[test]
     fn reviewed_command_suggestions_keep_original_word_extent_and_full_context() {
-
         let source = "{puta} hi";
         let result = Analyser::new().analyse(source, "tcl8.6");
         let diagnostic = result
@@ -1074,7 +1069,6 @@ mod original_parent_subject_tests {
 
     #[test]
     fn original_unresolved_subjects_keep_default_and_supplied_file_configuration() {
-
         // Original diagnostic operands; no runtime absence/dispatch authority.
         let mut prepared = Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();

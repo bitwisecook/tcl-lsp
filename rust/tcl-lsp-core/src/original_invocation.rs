@@ -382,7 +382,6 @@ mod source_words_tests {
 
     #[test]
     fn original_source_words_share_roles_and_original_geometry() {
-
         let source = "set first 1\nset second 2\n";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         analysis.command_invocations.clear();
@@ -520,7 +519,6 @@ mod original_diagnostic_value_tests {
 
     #[test]
     fn original_core_word_contents_use_logical_advice_without_executable_constants() {
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();

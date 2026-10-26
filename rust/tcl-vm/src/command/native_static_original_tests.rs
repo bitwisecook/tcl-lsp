@@ -156,7 +156,6 @@ fn check_static_reference(engine: &str, captured: &str, reference: bool) {
 
 #[test]
 fn original_static_member_objects_match_native_counted_names_and_value_capture() {
-
     for (engine, captured) in STATIC_MEMBER_ROWS {
         for input in captured.lines().filter(|line| line.starts_with("INPUT|")) {
             let fields: Vec<_> = input.split('|').collect();
@@ -245,8 +244,6 @@ fn original_static_member_objects_match_native_counted_names_and_value_capture()
 
 #[test]
 fn original_jim_static_links_match_native_frame_storage_reuse_boundaries() {
-
-
     for (engine, captured) in [
         (
             "tcl8.4",
