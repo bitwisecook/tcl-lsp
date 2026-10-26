@@ -21,6 +21,8 @@ mod native_try;
 use native_named::NamedOperation;
 use native_try::TryOperation;
 mod native_control;
+#[cfg(have_tommath)]
+mod native_i64_add;
 mod native_string;
 mod native_string_operand;
 mod native_string_range;
@@ -249,6 +251,10 @@ struct SwitchOperation {
 #[derive(Default)]
 struct BodyExecution {
     done: bool,
+    #[cfg(have_tommath)]
+    native_i64_add: Option<Box<native_i64_add::EnteredI64AddPlan>>,
+    #[cfg(have_tommath)]
+    native_i64_ran: bool,
 }
 struct Target {
     original: NativeVariableWordOperand,
@@ -2163,7 +2169,16 @@ impl Interp {
         }
         self.cmd_frames.borrow_mut().push(frame);
         let mut execution = BodyExecution::default();
+        #[cfg(have_tommath)]
+        {
+            execution.native_i64_add = self.capture_entered_i64_body(artifact);
+        }
         let code = self.execute_body_region(artifact, artifact.region, &mut execution);
+        #[cfg(have_tommath)]
+        if execution.native_i64_ran && execution.done && code == Code::Return {
+            self.native_proc_dispatches
+                .set(self.native_proc_dispatches.get().saturating_add(1));
+        }
         let code = if execution.done && code == Code::Return {
             Code::Ok
         } else {

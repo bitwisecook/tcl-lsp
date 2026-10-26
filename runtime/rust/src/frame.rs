@@ -2691,6 +2691,104 @@ pub(crate) fn split_array_ref(name: &[u8]) -> (Vec<u8>, Option<Vec<u8>>) {
     }
 }
 
+impl FrameStack {
+    #[cfg(have_tommath)]
+    pub(crate) fn native_i64_execution_matches(
+        &self,
+        procedure: &Rc<crate::interp::ProcDef>,
+        original: &std::rc::Weak<()>,
+    ) -> bool {
+        let index = self.current_frame_index();
+        let Some(frame) = self.frames.get(index) else {
+            return false;
+        };
+        index + 1 == self.frames.len()
+            && std::rc::Weak::ptr_eq(original, &Rc::downgrade(&frame.jim_link_birth))
+            && frame
+                .c_procedure
+                .as_ref()
+                .is_some_and(|current| Rc::ptr_eq(current, procedure))
+            && frame
+                .native_procedure_execution
+                .as_ref()
+                .is_some_and(|role| Rc::ptr_eq(role.owner(), procedure))
+    }
+
+    #[cfg(have_tommath)]
+    pub(crate) fn quiet_native_i64_frame(
+        &self,
+        procedure: &Rc<crate::interp::ProcDef>,
+        slots: [usize; 2],
+        protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+    ) -> Option<std::rc::Weak<()>> {
+        let frame = self.current_activation_owner();
+        if !self.native_i64_execution_matches(procedure, &frame) {
+            return None;
+        }
+        let mut integers = [0; 2];
+        for (index, slot) in slots.into_iter().enumerate() {
+            if self.compiled_slot_name(slot)? != procedure.params[index].name.as_slice() {
+                return None;
+            }
+            let (frame, cell) = self.compiled_cell(slot)?;
+            let contents = self.frames[frame]
+                .table
+                .cells
+                .get(cell)?
+                .contents
+                .try_borrow()
+                .ok()?;
+            contents.check_owned_value_role().ok()?;
+            let Var::Scalar(value) = contents.var.as_ref()? else {
+                return None;
+            };
+            if !contents.compiled_declaration
+                || contents.operation_refs != 0
+                || contents.native_alias_refs != 0
+                || contents.rmw_refs != 0
+            {
+                return None;
+            }
+            crate::obj::check_native_liveness(*value).ok()?;
+            let descriptor = crate::obj::obj_type_ptr(*value);
+            integers[index] = if core::ptr::eq(descriptor, &crate::obj::TCL_INT_TYPE) {
+                crate::obj::wide_of(*value)
+            } else if descriptor.is_null() && crate::obj::has_string_rep(*value) {
+                // The actual scalar cell retains this plain resident header;
+                // no getter/updater runs while testing candidate eligibility.
+                // SAFETY: the checked scalar cell owns this live allocation.
+                let length = usize::try_from(unsafe { (**value).length }).ok()?;
+                if length > 64 {
+                    return None;
+                }
+                // SAFETY: the checked live scalar owns this non-null resident
+                // buffer for its bounded cached length; no callback runs here.
+                let bytes =
+                    unsafe { core::slice::from_raw_parts((**value).bytes.cast::<u8>(), length) };
+                let digits = bytes
+                    .strip_prefix(b"+")
+                    .or_else(|| bytes.strip_prefix(b"-"))
+                    .unwrap_or(bytes);
+                if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
+                    return None;
+                }
+                let conversion = protocol.fresh_number_conversion(
+                    tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
+                    bytes,
+                )?;
+                let Ok(tcl_syntax::number::Number::Int(integer)) = conversion.outcome() else {
+                    return None;
+                };
+                *integer
+            } else {
+                return None;
+            };
+        }
+        integers[0].checked_add(integers[1])?;
+        Some(frame)
+    }
+}
+
 #[cfg(test)]
 mod native_inventory_tests {
     use super::*;

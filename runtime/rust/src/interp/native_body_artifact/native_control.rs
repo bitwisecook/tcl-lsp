@@ -689,12 +689,17 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
         )
     }
     fn has_compiled_nodes(&self) -> bool {
-        !self.prepared.folded.is_empty() || !self.prepared.logical_left84.is_empty()
+        self.execution.native_i64_add.is_some()
+            || !self.prepared.folded.is_empty()
+            || !self.prepared.logical_left84.is_empty()
     }
     fn compiled_node(
         &mut self,
         node: &tcl_syntax::expr::NativeExprNode,
     ) -> Option<Result<obj::Owned, crate::expr_error::ExprError>> {
+        if let Some(result) = self.compiled_native_i64_node(node) {
+            return Some(result);
+        }
         if let Some(indices) = self.prepared.logical_left84.get(node).copied() {
             let ExprNode::Binary { op, left, right } = node else {
                 unreachable!("original C84 logical recipe")
@@ -1463,6 +1468,131 @@ impl ControlOperation {
             hazards.push(Hazard::ScriptEvaluation);
         }
         hazards
+    }
+}
+
+#[cfg(have_tommath)]
+pub(super) struct I64AddOperands<'a> {
+    pub(super) program: &'a NativeExpressionProgram,
+    pub(super) slots: [usize; 2],
+    pub(super) names: [&'a [u8]; 2],
+}
+
+#[cfg(have_tommath)]
+impl ExpressionOperation {
+    pub(super) fn native_i64_add_operands(
+        &self,
+        image: &SourceImage,
+    ) -> Option<I64AddOperands<'_>> {
+        let prepared = self.static_program.as_ref()?;
+        if prepared.rejected.is_some()
+            || !prepared.commands.is_empty()
+            || !prepared.function_heads.is_empty()
+            || !prepared.fixed_functions.is_empty()
+            || !prepared.folded.is_empty()
+            || !prepared.literals.is_empty()
+            || !prepared.logical_left84.is_empty()
+            || prepared.arenas.len() != 2
+        {
+            return None;
+        }
+        let NativeExpressionTree::Parsed(ExprNode::Binary {
+            op: tcl_syntax::expr::BinOp::Add,
+            left,
+            right,
+        }) = &prepared.program.tree
+        else {
+            return None;
+        };
+        let mut slots = [0; 2];
+        let mut names = [&[][..]; 2];
+        for (index, node) in [left.as_ref(), right.as_ref()].into_iter().enumerate() {
+            let ExprNode::Var {
+                name: variable_name,
+                start,
+                ..
+            } = node
+            else {
+                return None;
+            };
+            let arena = prepared.arenas.get(start)?;
+            let [part] = arena.original.list(arena.original.root()) else {
+                return None;
+            };
+            let ExecutablePart::Variable { name, index: None } = &part.part else {
+                return None;
+            };
+            if image.bytes().get(name.as_range())? != variable_name.as_slice()
+                || arena.locals.len() != 1
+            {
+                return None;
+            }
+            slots[index] = *arena.locals.get(&part.span)?;
+            names[index] = variable_name;
+        }
+        Some(I64AddOperands {
+            program: &prepared.program,
+            slots,
+            names,
+        })
+    }
+}
+
+#[cfg(have_tommath)]
+impl CompiledExpressionContext<'_> {
+    fn compiled_native_i64_node(
+        &mut self,
+        node: &tcl_syntax::expr::NativeExprNode,
+    ) -> Option<Result<obj::Owned, crate::expr_error::ExprError>> {
+        if self
+            .execution
+            .native_i64_add
+            .as_ref()
+            .is_some_and(|plan| plan.matches(self.artifact, &self.prepared.program, node))
+        {
+            let plan = self
+                .execution
+                .native_i64_add
+                .take()
+                .expect("selected entered i64 strategy");
+            return Some((|| {
+                plan.check(self.interp, &self.original)?;
+                let ExprNode::Binary {
+                    op: tcl_syntax::expr::BinOp::Add,
+                    left,
+                    right,
+                } = node
+                else {
+                    unreachable!("selected ADD tree");
+                };
+                let left = crate::expr::eval_compiled_expression_operand(left, self)?;
+                let right = crate::expr::eval_compiled_expression_operand(right, self)?;
+                plan.check(self.interp, &self.original)?;
+                let traces = self.interp.traces.borrow();
+                let quiet = traces.cmd_traces.is_empty()
+                    && traces.traces.is_empty()
+                    && traces.step_active.is_empty();
+                drop(traces);
+                let original = Rc::clone(&self.original);
+                let (value, primitive) =
+                    crate::expr::retained_i64_add(self, left, right, |context| {
+                        let interpreter = context.boolean_interpreter().ok_or_else(|| {
+                            crate::expr_error::ExprError::host_refusal(
+                                unavailable("native i64 original numeric context")
+                                    .native_access_refusal()
+                                    .expect("typed refusal"),
+                            )
+                        })?;
+                        plan.check(interpreter, &original)?;
+                        Ok(quiet && plan.optimization_is_current(interpreter))
+                    })?;
+                plan.check(self.interp, &self.original)?;
+                self.execution.native_i64_ran =
+                    primitive && plan.optimization_is_current(self.interp);
+                Ok(value)
+            })());
+        }
+        None
     }
 }
 

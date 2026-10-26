@@ -2508,6 +2508,104 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_guarded_argv(
     unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
 }
 
+/// Publish the ordinary original procedure with an inert future body candidate.
+/// Actual entered original compiler instructions and frame owners select any
+/// checked body later; the supplied byte ranges grant no execution authority.
+///
+/// # Safety
+/// `argv` holds `argc` live borrowed objects, `out` is writable, and each
+/// nonempty byte range is valid unchanged storage for its counted length.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_proc_define_guarded_i64_add_argv(
+    argv: *const *mut TclObj,
+    argc: i32,
+    expected_value: u64,
+    parameters: *const u8,
+    parameters_len: i32,
+    body: *const u8,
+    body_len: i32,
+    out: *mut TclCompletionAbi,
+) -> i32 {
+    if out.is_null() {
+        return TCL_INVOKE_ABI_NULL_OUT;
+    }
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            unsafe {
+                write_detached_completion(
+                    out,
+                    detached_error_completion(b"no current interpreter for guarded definition"),
+                )
+            };
+            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+        }
+        Err(status) => return status,
+    };
+    let Some(argc) = usize::try_from(argc).ok().filter(|argc| *argc > 0) else {
+        let code = operation
+            .interpreter
+            .set_error(b"guarded definition requires a command head");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_INVALID_ARGC) };
+    };
+    if argv.is_null() {
+        let code = operation
+            .interpreter
+            .set_error(b"guarded definition received a null argv");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_ARGV) };
+    }
+    // SAFETY: the caller supplies these borrowed live pointer slots.
+    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
+    if words.iter().any(|word| word.is_null()) {
+        let code = operation
+            .interpreter
+            .set_error(b"guarded definition received a null word");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_WORD) };
+    }
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    if activation.is_none() {
+        return unsafe {
+            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
+        };
+    }
+    let expected = GuardIdentity::new(
+        tcl_runtime_api::guard::REGISTRY_DEFINITION_IDENTITY_NAMESPACE,
+        expected_value,
+    );
+    let lengths = usize::try_from(parameters_len)
+        .ok()
+        .zip(usize::try_from(body_len).ok());
+    let candidate = lengths
+        .filter(|(parameters_len, body_len)| {
+            *parameters_len <= 128
+                && *body_len <= 4096
+                && (*parameters_len == 0 || !parameters.is_null())
+                && (*body_len == 0 || !body.is_null())
+        })
+        .map(|(parameters_len, body_len)| {
+            // SAFETY: the generated module borrows these unchanged data ranges.
+            let parameters = if parameters_len == 0 {
+                &[][..]
+            } else {
+                unsafe { core::slice::from_raw_parts(parameters, parameters_len) }
+            };
+            let body = if body_len == 0 {
+                &[][..]
+            } else {
+                unsafe { core::slice::from_raw_parts(body, body_len) }
+            };
+            crate::interp::native_i64_body::FutureNativeI64AddPlan::new(parameters, body)
+        });
+    let code = match candidate {
+        Some(plan) => operation
+            .interpreter
+            .dispatch_guarded_i64_add_definition(words, plan, expected),
+        None => operation.interpreter.dispatch(words),
+    };
+    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
+}
+
 /// Release both owned object references in a [`TclCompletionAbi`] and reset its
 /// fields to null/zero. This is an alternative to releasing `result` and
 /// `options` separately with [`tcl_obj_release`]; do not use both forms.
