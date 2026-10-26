@@ -297,7 +297,7 @@ impl SourceCommandBindings {
         site: &CommandAllocationSite,
     ) -> Vec<&SourceCompilerInvocation> {
         let mut visits = Vec::new();
-        for (child_site, children) in self.expression_syntax_children.iter() {
+        for (child_site, children) in &self.expression_syntax_children {
             if !Arc::ptr_eq(&child_site.source, &site.source) || child_site.offset > site.offset {
                 continue;
             }
