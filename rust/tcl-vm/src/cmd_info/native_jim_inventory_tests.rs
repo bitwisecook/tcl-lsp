@@ -20,7 +20,7 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
     )
 }
 
-type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
+type OriginalControl = (&'static str, &'static [u8], [String; 6]);
 
 type OwnedOriginalControl = (&'static str, &'static [u8], [String; 6]);
 
@@ -272,40 +272,42 @@ fn original_jim_inventory_and_current_helper_sources_match_all_native_columns() 
     assert_eq!(comparisons, 138);
 }
 
-const ALIAS_CONTROLS: &[OriginalControl] = &[
+fn alias_controls() -> [OriginalControl; 4] {
+    [
     ("original-prefix-query", include_bytes!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/original-prefix-query.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.4.20/original-prefix-query/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.5.19/original-prefix-query/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.6.18/original-prefix-query/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.0.4/original-prefix-query/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.1.0/original-prefix-query/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/jim/original-prefix-query/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.4.20/original-prefix-query/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.5.19/original-prefix-query/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.6.18/original-prefix-query/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.0.4/original-prefix-query/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.1.0/original-prefix-query/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "jim/original-prefix-query/stdout"),
     ]),
     ("original-missing-and-nonalias", include_bytes!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/original-missing-and-nonalias.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.4.20/original-missing-and-nonalias/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.5.19/original-missing-and-nonalias/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.6.18/original-missing-and-nonalias/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.0.4/original-missing-and-nonalias/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.1.0/original-missing-and-nonalias/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/jim/original-missing-and-nonalias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.4.20/original-missing-and-nonalias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.5.19/original-missing-and-nonalias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.6.18/original-missing-and-nonalias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.0.4/original-missing-and-nonalias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.1.0/original-missing-and-nonalias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "jim/original-missing-and-nonalias/stdout"),
     ]),
     ("original-flat-alias-inventory", include_bytes!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/original-flat-alias-inventory.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.4.20/original-flat-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.5.19/original-flat-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.6.18/original-flat-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.0.4/original-flat-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.1.0/original-flat-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/jim/original-flat-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.4.20/original-flat-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.5.19/original-flat-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.6.18/original-flat-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.0.4/original-flat-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.1.0/original-flat-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "jim/original-flat-alias-inventory/stdout"),
     ]),
     ("original-namespace-alias-inventory", include_bytes!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/original-namespace-alias-inventory.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.4.20/original-namespace-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.5.19/original-namespace-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/8.6.18/original-namespace-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.0.4/original-namespace-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/9.1.0/original-namespace-alias-inventory/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/jim/original-namespace-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.4.20/original-namespace-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.5.19/original-namespace-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "8.6.18/original-namespace-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.0.4/original-namespace-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "9.1.0/original-namespace-alias-inventory/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_introspection274/captures.tsv"), "jim/original-namespace-alias-inventory/stdout"),
     ]),
-];
+    ]
+}
 
 fn assert_original_alias_public_window(case: &str, observed: &[u8], captured: &[u8], jim: bool) {
     if !jim || case != "original-namespace-alias-inventory" {
@@ -347,9 +349,9 @@ fn original_alias_queries_and_inventory_compare_all_24_native_windows() {
     // No native alias prefix pointer/cache identity follows from these bytes.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in ALIAS_CONTROLS {
+    for (case, source, columns) in alias_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let profile = tcl_registry::model::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
@@ -377,24 +379,26 @@ fn original_alias_queries_and_inventory_compare_all_24_native_windows() {
     assert_eq!(comparisons, 24);
 }
 
-const ALIAS_EXTENT_CONTROLS: &[OriginalControl] = &[
+fn alias_extent_controls() -> [OriginalControl; 2] {
+    [
     ("original-missing-alias-diagnostic-extent", include_bytes!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/original-missing-alias-diagnostic-extent.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/8.4.20/original-missing-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/8.5.19/original-missing-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/8.6.18/original-missing-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/9.0.4/original-missing-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/9.1.0/original-missing-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/jim/original-missing-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "8.4.20/original-missing-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "8.5.19/original-missing-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "8.6.18/original-missing-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "9.0.4/original-missing-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "9.1.0/original-missing-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "jim/original-missing-alias-diagnostic-extent/stdout"),
     ]),
     ("original-nonalias-alias-diagnostic-extent", include_bytes!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/original-nonalias-alias-diagnostic-extent.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/8.4.20/original-nonalias-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/8.5.19/original-nonalias-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/8.6.18/original-nonalias-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/9.0.4/original-nonalias-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/9.1.0/original-nonalias-alias-diagnostic-extent/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/jim/original-nonalias-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "8.4.20/original-nonalias-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "8.5.19/original-nonalias-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "8.6.18/original-nonalias-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "9.0.4/original-nonalias-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "9.1.0/original-nonalias-alias-diagnostic-extent/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_alias_error_extent279/captures.tsv"), "jim/original-nonalias-alias-diagnostic-extent/stdout"),
     ]),
-];
+    ]
+}
 
 #[test]
 fn original_alias_diagnostic_extents_match_all_12_native_public_windows() {
@@ -406,9 +410,9 @@ fn original_alias_diagnostic_extents_match_all_12_native_public_windows() {
     // no complete distribution, table identity or helper availability is granted.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in ALIAS_EXTENT_CONTROLS {
+    for (case, source, columns) in alias_extent_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let profile = tcl_registry::model::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             if *engine == "jim" {
@@ -435,40 +439,42 @@ fn original_alias_diagnostic_extents_match_all_12_native_public_windows() {
     assert_eq!(comparisons, 12);
 }
 
-const PROCEDURE_USAGE_CONTROLS: &[OriginalControl] = &[
+fn procedure_usage_controls() -> [OriginalControl; 4] {
+    [
     ("original-called-name-nul-usage", include_bytes!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/original-called-name-nul-usage.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-called-name-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-called-name-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-called-name-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-called-name-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-called-name-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-called-name-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.4.20/original-called-name-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.5.19/original-called-name-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.6.18/original-called-name-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.0.4/original-called-name-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.1.0/original-called-name-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "jim/original-called-name-nul-usage/stdout"),
     ]),
     ("original-required-formal-nul-usage", include_bytes!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/original-required-formal-nul-usage.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-required-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-required-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-required-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-required-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-required-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-required-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.4.20/original-required-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.5.19/original-required-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.6.18/original-required-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.0.4/original-required-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.1.0/original-required-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "jim/original-required-formal-nul-usage/stdout"),
     ]),
     ("original-default-formal-nul-usage", include_bytes!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/original-default-formal-nul-usage.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-default-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-default-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-default-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-default-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-default-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-default-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.4.20/original-default-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.5.19/original-default-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.6.18/original-default-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.0.4/original-default-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.1.0/original-default-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "jim/original-default-formal-nul-usage/stdout"),
     ]),
     ("original-reference-formal-nul-usage", include_bytes!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/original-reference-formal-nul-usage.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-reference-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-reference-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-reference-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-reference-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-reference-formal-nul-usage/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-reference-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.4.20/original-reference-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.5.19/original-reference-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "8.6.18/original-reference-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.0.4/original-reference-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "9.1.0/original-reference-formal-nul-usage/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_procedure_usage_extents288/captures.tsv"), "jim/original-reference-formal-nul-usage/stdout"),
     ]),
-];
+    ]
+}
 
 #[test]
 fn original_procedure_usage_extents_match_all_24_native_public_windows() {
@@ -480,9 +486,9 @@ fn original_procedure_usage_extents_match_all_24_native_public_windows() {
     // formal object/header/table identity or internal CString conversion stage.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in PROCEDURE_USAGE_CONTROLS {
+    for (case, source, columns) in procedure_usage_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let profile = tcl_registry::model::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             // Explicit byte producer only, separate from source compiler entry.
@@ -510,24 +516,26 @@ fn original_procedure_usage_extents_match_all_24_native_public_windows() {
     assert_eq!(comparisons, 24);
 }
 
-const INFO_DISPATCH_CONTROLS: &[OriginalControl] = &[
+fn info_dispatch_controls() -> [OriginalControl; 2] {
+    [
     ("original-info-no-selector", include_bytes!("../../../tcl-registry/tests/data/native_info_original_dispatch292/original-info-no-selector.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/8.4.20/original-info-no-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/8.5.19/original-info-no-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/8.6.18/original-info-no-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/9.0.4/original-info-no-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/9.1.0/original-info-no-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/jim/original-info-no-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "8.4.20/original-info-no-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "8.5.19/original-info-no-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "8.6.18/original-info-no-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "9.0.4/original-info-no-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "9.1.0/original-info-no-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "jim/original-info-no-selector/stdout"),
     ]),
     ("original-info-empty-selector", include_bytes!("../../../tcl-registry/tests/data/native_info_original_dispatch292/original-info-empty-selector.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/8.4.20/original-info-empty-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/8.5.19/original-info-empty-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/8.6.18/original-info-empty-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/9.0.4/original-info-empty-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/9.1.0/original-info-empty-selector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/jim/original-info-empty-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "8.4.20/original-info-empty-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "8.5.19/original-info-empty-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "8.6.18/original-info-empty-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "9.0.4/original-info-empty-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "9.1.0/original-info-empty-selector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_info_original_dispatch292/captures.tsv"), "jim/original-info-empty-selector/stdout"),
     ]),
-];
+    ]
+}
 
 #[test]
 fn original_info_dispatch_matches_all_12_native_public_windows() {
@@ -538,9 +546,9 @@ fn original_info_dispatch_matches_all_12_native_public_windows() {
     // substitution. These windows grant no private command/table/header identity.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in INFO_DISPATCH_CONTROLS {
+    for (case, source, columns) in info_dispatch_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             let completion = vm

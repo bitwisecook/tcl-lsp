@@ -35,57 +35,59 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
     )
 }
 
-type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
-const CONTROLS: &[OriginalControl] = &[
+type OriginalControl = (&'static str, &'static [u8], [String; 6]);
+fn child_alias_controls() -> [OriginalControl; 6] {
+    [
     ("original-rooted-child-alias", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/original-rooted-child-alias.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.4.20/original-rooted-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.5.19/original-rooted-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.6.18/original-rooted-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.0.4/original-rooted-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.1.0/original-rooted-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/jim/original-rooted-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.4.20/original-rooted-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.5.19/original-rooted-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.6.18/original-rooted-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.0.4/original-rooted-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.1.0/original-rooted-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "jim/original-rooted-child-alias/stdout"),
     ]),
     ("original-extra-root-child-alias", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/original-extra-root-child-alias.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.4.20/original-extra-root-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.5.19/original-extra-root-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.6.18/original-extra-root-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.0.4/original-extra-root-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.1.0/original-extra-root-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/jim/original-extra-root-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.4.20/original-extra-root-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.5.19/original-extra-root-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.6.18/original-extra-root-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.0.4/original-extra-root-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.1.0/original-extra-root-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "jim/original-extra-root-child-alias/stdout"),
     ]),
     ("original-nul-before-suffix-child-alias", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/original-nul-before-suffix-child-alias.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.4.20/original-nul-before-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.5.19/original-nul-before-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.6.18/original-nul-before-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.0.4/original-nul-before-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.1.0/original-nul-before-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/jim/original-nul-before-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.4.20/original-nul-before-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.5.19/original-nul-before-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.6.18/original-nul-before-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.0.4/original-nul-before-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.1.0/original-nul-before-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "jim/original-nul-before-suffix-child-alias/stdout"),
     ]),
     ("original-nul-after-suffix-child-alias", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/original-nul-after-suffix-child-alias.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.4.20/original-nul-after-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.5.19/original-nul-after-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.6.18/original-nul-after-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.0.4/original-nul-after-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.1.0/original-nul-after-suffix-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/jim/original-nul-after-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.4.20/original-nul-after-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.5.19/original-nul-after-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.6.18/original-nul-after-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.0.4/original-nul-after-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.1.0/original-nul-after-suffix-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "jim/original-nul-after-suffix-child-alias/stdout"),
     ]),
     ("original-unicode-child-alias", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/original-unicode-child-alias.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.4.20/original-unicode-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.5.19/original-unicode-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.6.18/original-unicode-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.0.4/original-unicode-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.1.0/original-unicode-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/jim/original-unicode-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.4.20/original-unicode-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.5.19/original-unicode-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.6.18/original-unicode-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.0.4/original-unicode-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.1.0/original-unicode-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "jim/original-unicode-child-alias/stdout"),
     ]),
     ("original-ff-child-alias", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/original-ff-child-alias.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.4.20/original-ff-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.5.19/original-ff-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/8.6.18/original-ff-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.0.4/original-ff-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/9.1.0/original-ff-child-alias/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/jim/original-ff-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.4.20/original-ff-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.5.19/original-ff-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "8.6.18/original-ff-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.0.4/original-ff-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "9.1.0/original-ff-child-alias/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_child_alias_inventory298/captures.tsv"), "jim/original-ff-child-alias/stdout"),
     ]),
-];
+    ]
+}
 
 #[test]
 fn original_child_alias_publication_matches_all_36_native_public_windows() {
@@ -100,9 +102,9 @@ fn original_child_alias_publication_matches_all_36_native_public_windows() {
     // key identity, cross-provider string encoding or Rust execution authority.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in CONTROLS {
+    for (case, source, columns) in child_alias_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let mut interp = super::Interp::with_native_core(
                 super::default_host(),
                 crate::environment::profile_for_dialect(engine),
