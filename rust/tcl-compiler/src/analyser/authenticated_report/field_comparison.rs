@@ -68,6 +68,50 @@ fn subjects(
     }
 }
 
+// These labels read only the diagnostic's already-held enum discriminant.
+#[cfg(test)]
+fn held_subject_kind(subject: Option<&DiagnosticSubject>) -> &'static str {
+    match subject {
+        None => "None",
+        Some(DiagnosticSubject::PrivateTclNamespace(_)) => "PrivateTclNamespace",
+        Some(DiagnosticSubject::UserSourceArity(_)) => "UserSourceArity",
+        Some(DiagnosticSubject::CallbackSourceArity(_)) => "CallbackSourceArity",
+        Some(DiagnosticSubject::ObjectSourceArity(_)) => "ObjectSourceArity",
+        Some(DiagnosticSubject::CommandAvailability(_)) => "CommandAvailability",
+        Some(DiagnosticSubject::DeclaredSource(_)) => "DeclaredSource",
+        Some(DiagnosticSubject::RegisteredInstanceSource(_)) => "RegisteredInstanceSource",
+        Some(DiagnosticSubject::RegistrySource(_)) => "RegistrySource",
+        Some(DiagnosticSubject::ConditionalInterpreterVisibility(_)) => {
+            "ConditionalInterpreterVisibility"
+        }
+        Some(DiagnosticSubject::RequiredPackage(_)) => "RequiredPackage",
+        Some(DiagnosticSubject::UnresolvedCommand(_)) => "UnresolvedCommand",
+        Some(DiagnosticSubject::UnresolvedMathFunction(_)) => "UnresolvedMathFunction",
+    }
+}
+
+// Keep the original Option. No subject/message formatter or producer is queried.
+fn trace_held_subject_option(
+    value: Option<bool>,
+    ordinal: usize,
+    left: &crate::analyser::Diagnostic,
+    right: &crate::analyser::Diagnostic,
+) -> Option<bool> {
+    #[cfg(test)]
+    if value.is_none() && std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        eprintln!(
+            "REPORT_CAPTURE stage=compare.diagnostic_subject_detail ordinal={ordinal} left={} right={} code_left={} code_right={} available=false",
+            held_subject_kind(left.subject.as_ref()),
+            held_subject_kind(right.subject.as_ref()),
+            left.code,
+            right.code,
+        );
+    }
+    #[cfg(not(test))]
+    let _ = (ordinal, left, right);
+    value
+}
+
 fn check_exhaustive_report_fields(a: &AnalysisResult) {
     let AnalysisResult {
         optimiser_source_origin: _,
@@ -259,6 +303,54 @@ fn report_owners_are_exact(a: &AnalysisResult, b: &AnalysisResult) -> bool {
     true
 }
 
+fn diagnostic_fields_equal(
+    a: &AnalysisResult,
+    b: &AnalysisResult,
+    output: &super::ReportOutputCorrespondence<'_>,
+) -> Option<bool> {
+    if super::trace_capture_gate(
+        a.diagnostics.len() != b.diagnostics.len(),
+        "compare.diagnostic_count",
+    ) {
+        return None;
+    }
+    let mut diagnostics_equal = true;
+    for (ordinal, (a, b)) in a.diagnostics.iter().zip(&b.diagnostics).enumerate() {
+        // A new Diagnostic facet must also be given an explicit policy.
+        let crate::analyser::Diagnostic {
+            subject: _,
+            code: _,
+            span: _,
+            message: _,
+            severity: _,
+            fixes: _,
+        } = a;
+        let subject_equal = match (&a.subject, &b.subject) {
+            (None, None) => true,
+            (Some(left), Some(right)) => match super::trace_capture_option(
+                trace_held_subject_option(subjects(left, right, output), ordinal, a, b),
+                "compare.diagnostic_subject",
+            ) {
+                Some(equal) => equal,
+                None => {
+                    return None;
+                }
+            },
+            _ => {
+                super::trace_capture_gate(true, "compare.diagnostic_subject_presence");
+                return None;
+            }
+        };
+        diagnostics_equal &= subject_equal
+            && a.code == b.code
+            && a.span == b.span
+            && a.message == b.message
+            && a.severity == b.severity
+            && a.fixes == b.fixes;
+    }
+    Some(diagnostics_equal)
+}
+
 pub(super) fn compare(
     a: &AnalysisResult,
     b: &AnalysisResult,
@@ -298,52 +390,11 @@ pub(super) fn compare(
             AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
         );
     };
-    if super::trace_capture_gate(
-        a.diagnostics.len() != b.diagnostics.len(),
-        "compare.diagnostic_count",
-    ) {
+    let Some(diagnostics_equal) = diagnostic_fields_equal(a, b, output) else {
         return AnalysisReportComparison::Unavailable(
             AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
         );
-    }
-    let mut diagnostics_equal = true;
-    for (a, b) in a.diagnostics.iter().zip(&b.diagnostics) {
-        // A new Diagnostic facet must also be given an explicit policy.
-        let crate::analyser::Diagnostic {
-            subject: _,
-            code: _,
-            span: _,
-            message: _,
-            severity: _,
-            fixes: _,
-        } = a;
-        let subject_equal = match (&a.subject, &b.subject) {
-            (None, None) => true,
-            (Some(a), Some(b)) => match super::trace_capture_option(
-                subjects(a, b, output),
-                "compare.diagnostic_subject",
-            ) {
-                Some(equal) => equal,
-                None => {
-                    return AnalysisReportComparison::Unavailable(
-                        AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
-                    );
-                }
-            },
-            _ => {
-                super::trace_capture_gate(true, "compare.diagnostic_subject_presence");
-                return AnalysisReportComparison::Unavailable(
-                    AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
-                );
-            }
-        };
-        diagnostics_equal &= subject_equal
-            && a.code == b.code
-            && a.span == b.span
-            && a.message == b.message
-            && a.severity == b.severity
-            && a.fixes == b.fixes;
-    }
+    };
     // Only plain value facets and fully authenticated compared data may issue
     // Difference. Missing correspondence above is always terminal.
     if a.has_dynamic_providers != b.has_dynamic_providers {
