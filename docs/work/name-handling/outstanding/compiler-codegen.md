@@ -2,13 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T05:07:24Z
+Last updated: 2026-10-27T05:37:28Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
 
-Current572 strict run40451648569/job122015518287 ACTIVE in original capture at05:02, exact572dd98a8bd62811513b141c6ff1f1ee16656229. Prior1932 FULLAUTH22 2eb8a31b reached zero Rust/Clippy primaries then proofchecker FAIL2235 structural obligations (no ledger waiver). Final43ec current25 packet6e595684/5ab49b02 strongCLEARa462a272, authorV16 PASS13/30/22 4493730b; exact6 source refreshes+6approved producer keys/7files, no row/env/budget changes, Root adoption pending. Ca8d Rust5 FULLAUTHc484=4605P609F/exact5214selected plus1ignored; complete ledger62811eee suppliedRoot. Ca8d remaining Rust2/E2E1/2 APIin_progress at05:02; no heartbeat or new step, liveness UNOBSERVED/preserved. N17 DATA pieceV2 46cc7640/ee553022 with8unrun controls/shared geometry/typed registry/catch-prefix/lineage is Scope review only, no Backend/NativeNormal/CU grant and not integration-ready. MAP/RANGE actualFAIL unchanged; genuine optimiser-time owned consumer remains implementation task.
+Current572 strict CLOSED FULLAUTH22 4742842b: zero actual Rust/Clippy primaries, x5094/4PASS, original make FAIL2 at unchanged WORK proofchecker2235 structural obligations. No proof-ledger refresh/waiver or newer-source admission. Tinyf3c38df/214f strong1033/authorV16PASS; canonical adoption and dispatch remain Root-owned. NEXT file-stage source9143 current; seven production joins approved per read-only f99915 census, final union waits actual file7 protocol/head. Ca8d Rust2 APICANCELLED05:29:47 solearchive fa98a100 contains cappedstderr+EMPTY terminal/no summary: all7924selected outcomesUNOBSERVED/no owned-group closure. Rust5 exact5214=4605P609F, completeledger62811eee suppliedRoot; remaining2E2E APIactive/no heartbeat at05:35. N17 DATA V246cc/ee553 staticDATAclearb6c31fcb only,8testsUNRUN/no Backend/CU/NativeNormal grant; actual optimiser-time closed application consumer/backend/evaluator/emitted alias closure still in progress, no runtime replay/counter donation and MAP/RANGE remain actualFAIL.
 
 Currentff67 strict40445772183/job121996588920 CLOSED FULLAUTH23 8d2d1d8e: one default_trait_access at new source_availability/report_tests.rs108; noRustE, priorSourceStructure lint cleared, downstreamstrictUNRUN. Names65594003/Compilera5cce2f7 same-type explicitdefault repair Rootready; tinyrecipe prepared for166nested14source+actualaffectedfinalfnSHA+mirroredliteral, no newkeys, awaitactualnextHEAD. Final1bd8 dfdefc82/1a170c76/9839 peer adoptedff67 fullysourcequalified. Ca8d last03:40actual54/58complete4running preserved. Realappclosedconsumerdesign1b7fb stillScope-reviewonly, optionalNativeissuerparked/noSourceNormalworldgrant orMAP/RANGEgain.
 

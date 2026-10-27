@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-27T05:18:11.661402+00:00",
+  "source": "c2d06232c513a3e8eaf35967ef830cc5e6b6ffa6",
+  "candidate": "ebeadf4266d8d869da3b55a2ebfc040b2450975c",
+  "rows": [
+    {
+      "mode": "lsp-startup-diagnostics",
+      "stdout": "DISPATCHED lsp-startup-diagnostics c2d06232c513a3e8eaf35967ef830cc5e6b6ffa6\n"
+    },
+    {
+      "mode": "exact-prep-pr",
+      "stdout": "{\"utc\": \"2026-10-27T05:18:11.622140+00:00\", \"harness\": \"c2d06232c513a3e8eaf35967ef830cc5e6b6ffa6\", \"candidate\": \"ebeadf4266d8d869da3b55a2ebfc040b2450975c\", \"request\": {\"ref\": \"work\", \"inputs\": {\"mode\": \"prep-pr-candidate-validation\", \"candidate_sha\": \"ebeadf4266d8d869da3b55a2ebfc040b2450975c\"}}, \"workflow_sha256\": \"e7f0406b569afe16b7eeed15fa9299062045eb46d18313e501dcd93e7f00767a\", \"owner_sha256\": \"88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811\", \"fixed_setup\": [\"make\", \"install-test-deps\"], \"fixed_gate\": [\"make\", \"prep-pr\"], \"gate_accepted\": false, \"separate_rust_check_full_CI_required\": true, \"shipping_workflow_unchanged\": true}\n"
+    }
+  ],
+  "source_head_unchanged_between_posts": true
+}

@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-27T05:44:54.055854+00:00",
+  "scope": "Exact-source small receipts; no gate or audit-unit admission",
+  "records": [
+    {
+      "copy": "spec572-logical7-authentication.json",
+      "source": "/workspace/naming-proof-storage/vm-spectcl-actual-40451629434/logical-eval7-artifact-authentication.json",
+      "sha256": "16197fb5d92ec73e8db0bdab83b1873a1cdfb42af79c230afb108d00abc93bcf",
+      "bytes": 41867
+    },
+    {
+      "copy": "runtime-file-root-precheck.json",
+      "source": "/workspace/naming-proof-storage/root-logical-file-firststage-precheck-v1.json",
+      "sha256": "06b2c65bd5cf77d787778bb638f8dbb8db97d7ffff7af5ed228e65d44a4befcd",
+      "bytes": 685
+    },
+    {
+      "copy": "tiny-f3c-root-audit.json",
+      "source": "/workspace/naming-proof-storage/root-finalf3c-tiny-union-audit-v1.json",
+      "sha256": "a09aa6205441ddca7684bc7e6f94e43ea71c431926cb97ea2dc20961929af9ef",
+      "bytes": 262
+    },
+    {
+      "copy": "c2d-two-posts.json",
+      "source": "/workspace/naming-proof-storage/root-nextc2d-two-posts-complete.json",
+      "sha256": "0d967c2e8df30253b8f67b676433613afc2f2b22303fa5cd942610160eaa4651",
+      "bytes": 1150
+    },
+    {
+      "copy": "c2d-run-discovery.json",
+      "source": "/workspace/naming-proof-storage/root-nextc2d-run-discovery.json",
+      "sha256": "65e9670144ee52182ef2b3aa56dd6ad8d6cedc9b919b38d93c2085a0312a70bb",
+      "bytes": 772
+    }
+  ]
+}

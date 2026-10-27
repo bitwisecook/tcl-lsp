@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-27T05:29:16.644214+00:00",
+  "master_sha256": "730cc3a10fda791ee85aac53b83b7eacb8c09b537b8513d013e1a717d5e2ab27",
+  "scope_peer_sha256": "1d44160869a23e244a9f5d5b03402e5382c8a55b5b37281e0d14d856873718b8",
+  "records": [
+    {
+      "lane": "WORK",
+      "head": "d25618a49df40674c6f2b2c553dc9aae08d7ada9",
+      "files": 7,
+      "current_preimages_newabsence_afterimages_pathset": true
+    },
+    {
+      "lane": "CLEAN",
+      "head": "2a9aaf4b11c73b48c28f242722589ef08e82139f",
+      "files": 7,
+      "current_preimages_newabsence_afterimages_pathset": true
+    }
+  ],
+  "bounded_type_peer": "PENDING",
+  "actualRust": "UNRUN",
+  "canonical_mutations": false
+}

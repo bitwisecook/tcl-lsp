@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-27T05:15:40.317616+00:00",
+  "result": "PASS",
+  "source": "f3c364efc1e1d6f2ef8bf26a1a83c9b68a2a7efe",
+  "files": 2,
+  "source_refreshes": 1,
+  "derived_guards": 1,
+  "whole_JSON_and_driver_byte_AST_inverses": true,
+  "actualRust": "UNRUN"
+}

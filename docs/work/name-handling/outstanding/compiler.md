@@ -2,13 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T05:02:31.560281+00:00 (compiler166/1932 Layout FULLAUTH; initialC6 exact16/18PASS; current Jim3 remain; finite source+43ec union clear; bodyMAY draft next)
+Last updated: 2026-10-27T05:31:24.245952+00:00 (new2766 Layout/Jim API-active; prior captures FULLAUTH; exactC6joinPASS; bodyMAY checkpoint3d350; Runtime filetypepeer a28def clear)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Current state
 
-All owned current captures are terminal and source-qualified: index8beac2869baa32b15c35fb01855886568a5cb7cc879d6968e6da082cac3169d5 at /workspace/naming-proof-storage/compiler-currentff67-main1932-layout-closed-v1/index.json. No healthy cancellation/replay or duplicate archives. Names owns corpus/prep; Codegen strict/framing; Runtime VM/Spec/WASM; LSP hosted scopes.
+New owned next2766 runs are Layout40453029383/job122019903052 and Jim5240453033937/job122019917300, exact source27663e031f11c16853aa77271d67642b80a9f1b6. API-terminal failure at05:31UTC; sole artifacts pending capture/authentication, no inferred repaired gain yet. No cancellation/replay. Current old compiler166 remains terminal; Root explicitly withholds a main rerun until a functional body fix. Newly applied a667/8444 finite parser owner fix and W002 firstguardV3 preserve existing selectors/guards. Scope file-source first-stage semantic1d441608 and bounded compiler type/API/drop a28defb6 are separate static source reviews; actual SCF/Rust/new7 unrun.
+
+All prior owned captures are terminal and source-qualified: index8beac2869baa32b15c35fb01855886568a5cb7cc879d6968e6da082cac3169d5 at /workspace/naming-proof-storage/compiler-currentff67-main1932-layout-closed-v1/index.json. No healthy cancellation/replay or duplicate archives. Names owns corpus/prep; Codegen strict/framing; Runtime VM/Spec/WASM; LSP hosted scopes.
 
 Initial C6 exact target join is now closed for the measured retained cases:16 distinct fp_rbs_15/fp_sh_21/fp_tnt_03 selectors/18 observations ALLPASS on ff67, immutable51cf5eac145b4bb2754cb8448598e52d721b406b503c3825d836495b7905aa2e at compiler-original166-40445776674/initial-c6-exact-selector-join-v1.json. These are distinct from current original135 Jim3FAIL: original_procedure_source_layout_keeps_plain_and_rooted_jim_forms; own_jim_member_keeps_before_and_after_factory_custody; own_jim_member_refuses_rebound_class_and_replaced_initialisers. No whole-prefix/shard/source-inverse or audit admission inferred. BodyMAY implementation targets separately measured heavy taint failures, not these three original135 identities.
 
