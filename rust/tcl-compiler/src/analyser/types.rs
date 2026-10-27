@@ -573,7 +573,11 @@ pub struct ProcDef {
     pub params_computed: bool,
     /// Source span of the proc-name token.
     pub name_span: Span,
-    /// Source span of the proc body (braces excluded).
+    /// Body geometry retained by this declaration's producer.
+    /// Token-based declarations can retain group geometry; finite source
+    /// reports can retain the complete delimited word. This is not a uniform
+    /// delimiter-free content span. Content readers and editors must use the
+    /// matching original body word's canonical content span.
     pub body_span: Span,
     /// Doc-comment text harvested from the line(s) above the
     /// ``proc`` statement, or empty when none was found.
