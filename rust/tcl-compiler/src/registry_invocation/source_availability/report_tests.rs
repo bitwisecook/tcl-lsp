@@ -92,6 +92,7 @@ fn availability_report_preserves_every_other_binding_facet() {
     let a = a.invocation.source_binding.as_ref().unwrap();
     let b = b.invocation.source_binding.as_ref().unwrap();
     assert!(a.authenticated_availability_report_eq(b, &output).is_some());
+    a.assert_argument_syntax_report_refusals_for_test(b, &output);
     let mut changed = b.clone();
     changed.unknown = !changed.unknown;
     assert!(
