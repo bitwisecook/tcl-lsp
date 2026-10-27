@@ -238,6 +238,9 @@ impl CellStorage {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ShadowState {
     shadows: BTreeMap<CellPlace, NativeValueId>,
+    // Candidates cannot answer `read`: only the synchronous runtime operation
+    // can validate their current object, cache, frame and observer premises.
+    cached_increments: BTreeMap<CellPlace, (NativeValueId, NativeValueId)>,
 }
 
 impl ShadowState {
@@ -255,17 +258,22 @@ impl ShadowState {
         let base = place.base().to_owned();
         self.shadows
             .retain(|shadowed, _| shadowed.base() != base || shadowed == &place);
+        self.cached_increments
+            .retain(|other, _| other.base() != base);
         self.shadows.insert(place, value);
     }
 
     /// Forget every shadow of `base` and its elements.
     pub fn forget_base(&mut self, base: &str) {
         self.shadows.retain(|shadowed, _| shadowed.base() != base);
+        self.cached_increments
+            .retain(|place, _| place.base() != base);
     }
 
     /// Forget every shadow: an observer may have reached any cell.
     pub fn clobber(&mut self) {
         self.shadows.clear();
+        self.cached_increments.clear();
     }
 
     /// Keep only the shadows this state and `other` agree on.
@@ -277,12 +285,35 @@ impl ShadowState {
     pub fn intersect(&mut self, other: &Self) {
         self.shadows
             .retain(|place, value| other.shadows.get(place) == Some(value));
+        self.cached_increments
+            .retain(|place, value| other.cached_increments.get(place) == Some(value));
+    }
+
+    pub(super) fn cached_increment(
+        &self,
+        place: &CellPlace,
+    ) -> Option<(NativeValueId, NativeValueId)> {
+        self.cached_increments.get(place).copied()
+    }
+
+    pub(super) fn remember_cached_increment(
+        &mut self,
+        place: CellPlace,
+        receiver: NativeValueId,
+        integer: NativeValueId,
+    ) {
+        self.forget_base(place.base());
+        self.cached_increments.insert(place, (receiver, integer));
+    }
+
+    pub(super) fn forget_cached_increments(&mut self) {
+        self.cached_increments.clear();
     }
 
     /// Whether no shadow is held.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.shadows.is_empty()
+        self.shadows.is_empty() && self.cached_increments.is_empty()
     }
 }
 

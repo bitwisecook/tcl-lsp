@@ -348,6 +348,12 @@ pub enum CodegenAbiImportId {
     /// Whether a host-only refusal is retained after a reached operation.
     /// This does not consume the refusal or publish a Tcl completion.
     HostRefusalPending,
+    /// Synchronous default-increment candidate over the same borrowed delta.
+    /// name/length, held expected object, delta, old/sum i64s, owned-result out.
+    /// Zero is pre-effect no-match (out untouched); one entered the original
+    /// kernel (out is its owned result or null); negative is terminal ABI/Host
+    /// refusal. These are not NativeProcEntry completion statuses.
+    TryCachedIncr,
 }
 
 impl CodegenAbiImportId {
@@ -451,6 +457,7 @@ impl CodegenAbiImportId {
         Self::ReturnState,
         Self::NativeProcDispatches,
         Self::HostRefusalPending,
+        Self::TryCachedIncr,
     ];
 
     /// Return this import's shared ABI descriptor.
@@ -525,6 +532,7 @@ impl CodegenAbiImportId {
                 tcl_import("tcl_codegen_var_set_element", I32_I32_I32_I32_I32, I32)
             }
             Self::VarIncr => tcl_import("tcl_codegen_var_incr", I32_I32_I32, I32),
+            Self::TryCachedIncr => cached_increment_import(),
             Self::VarUpdate => tcl_import("tcl_codegen_var_update", I32_I32_I32_I32_I32, I32),
             Self::ValueTryWideInt => tcl_import("tcl_codegen_value_try_wide_int", I32_I32, I32),
             Self::ValueTryDouble => tcl_import("tcl_codegen_value_try_double", I32_I32, I32),
@@ -564,6 +572,11 @@ const fn guarded_i64_definition_import() -> CodegenAbiImport {
         I32_I32_I64_I32_I32_I32_I32_I32,
         I32,
     )
+}
+
+const fn cached_increment_import() -> CodegenAbiImport {
+    use CodegenAbiValueType::{I32 as P, I64 as W};
+    tcl_import("tcl_codegen_try_cached_incr", &[P, P, P, P, W, W, P], I32)
 }
 
 /// The runtime's exported wasm32 indirect function table.
@@ -1218,6 +1231,16 @@ mod tests {
         assert_eq!(WASM32_COMPLETION_OPTIONS_OFFSET, 8);
         assert_eq!(WASM32_COMPLETION_SIZE, 12);
         assert_eq!(WASM32_COMPLETION_ALIGN, 4);
+    }
+
+    #[test]
+    fn cached_increment_keeps_borrowed_operands_and_separate_status_transport() {
+        use CodegenAbiValueType::{I32 as P, I64 as W};
+        let import = CodegenAbiImportId::TryCachedIncr.descriptor();
+        assert_eq!(import.name, "tcl_codegen_try_cached_incr");
+        assert_eq!(import.parameters, &[P, P, P, P, W, W, P]);
+        assert_eq!(import.results, &[P]);
+        assert!(CodegenAbiImportId::TryCachedIncr.requires_host_refusal_check());
     }
 
     #[test]

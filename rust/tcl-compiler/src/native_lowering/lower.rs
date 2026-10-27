@@ -45,11 +45,11 @@ use super::cells::{
     CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution, name_data_place,
     variable_reference_place, variable_word_place, whole_reference,
 };
-use super::elide::{BarrierDecision, CellDemotion, TraceLedger};
+use super::elide::{BarrierDecision, BarrierKept, CellDemotion, TraceLedger};
 use super::ir::{
-    CmpOp, CompareKind, DefinitionDispatch, EntryProtocol, IfElseResult, IntOp, NativeBlock,
-    NativeBlockId, NativeFunction, NativeOp, NativeStatement, NativeTerminator, NativeType,
-    NativeValue, NativeValueId, StatementSite,
+    CachedIntegerIncrement, CmpOp, CompareKind, DefinitionDispatch, EntryProtocol, IfElseResult,
+    IntOp, NativeBlock, NativeBlockId, NativeFunction, NativeOp, NativeStatement, NativeTerminator,
+    NativeType, NativeValue, NativeValueId, StatementSite,
 };
 use super::representation::{
     Representation, cmp_op, double_op, double_result_defined, exactly_representable_as_double,
@@ -253,6 +253,7 @@ struct Lowerer<'a> {
     current_node: Option<NodeId>,
     current_site: Option<StatementSite>,
     shadows: ShadowState,
+    boxed_integer_sources: BTreeMap<NativeValueId, NativeValueId>,
     exit_shadows: Vec<Option<ShadowState>>,
     records: Vec<StatementRecord>,
     current: Option<StatementRecord>,
@@ -351,6 +352,7 @@ impl<'a> Lowerer<'a> {
             current_node: None,
             current_site: None,
             shadows: ShadowState::default(),
+            boxed_integer_sources: BTreeMap::new(),
             exit_shadows: vec![None; input.function.blocks.len()],
             records: Vec::new(),
             current: None,
@@ -381,6 +383,11 @@ impl<'a> Lowerer<'a> {
     }
 
     fn emit(&mut self, op: NativeOp) {
+        if let NativeOp::Box { dst, src } = &op
+            && self.ty(*src) == NativeType::I64
+        {
+            self.boxed_integer_sources.insert(*dst, *src);
+        }
         self.ops
             .last_mut()
             .expect("an open operation buffer")
@@ -569,6 +576,7 @@ impl<'a> Lowerer<'a> {
         } else {
             self.shadows.forget_base(place.base());
         }
+        self.remember_cached_increment(place, boxed, shadow, barrier);
         self.record_cell(place, CellAccessKind::Write, barrier, false);
     }
 
@@ -579,6 +587,7 @@ impl<'a> Lowerer<'a> {
     /// Record that the statement's operand words observed the world through
     /// a runtime dispatch or an unproven cell read.
     fn note_observation(&mut self) {
+        self.shadows.forget_cached_increments();
         if let Some(node) = &self.current_node {
             self.observing_nodes.insert(node.clone());
         }
@@ -1173,7 +1182,7 @@ impl<'a> Lowerer<'a> {
                     Some(value) => *value,
                     None => self.const_int(1),
                 };
-                self.lower_incr(&place, delta);
+                self.lower_incr(&place, delta, argv.len() == 2);
                 Some(StatementOutcome::Native)
             }
             CellUpdate::Append | CellUpdate::ListAppend => {
@@ -1191,9 +1200,48 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    fn remember_cached_increment(
+        &mut self,
+        place: &CellPlace,
+        boxed: NativeValueId,
+        integer: NativeValueId,
+        barrier: BarrierDecision,
+    ) {
+        if self.input.top_level
+            && self.input.module.source_entry.native_entry.is_some()
+            && matches!(place, CellPlace::Named { .. })
+            && barrier == BarrierDecision::Kept(BarrierKept::TraceLedgerUnknown)
+            && self.boxed_integer_sources.get(&boxed) == Some(&integer)
+        {
+            self.shadows
+                .remember_cached_increment(place.clone(), boxed, integer);
+        }
+    }
+
+    fn cached_increment_candidate(
+        &mut self,
+        place: &CellPlace,
+        delta: NativeValueId,
+    ) -> Option<CachedIntegerIncrement> {
+        let (receiver, old) = self.shadows.cached_increment(place)?;
+        let interval = proven_int_result(
+            IntOp::Add,
+            self.rep(old).interval()?,
+            self.rep(delta).interval()?,
+        )?;
+        let sum = self.new_value(NativeType::I64, Representation::NativeInt(interval));
+        self.emit(NativeOp::IntBinary {
+            dst: sum,
+            op: IntOp::Add,
+            lhs: old,
+            rhs: delta,
+        });
+        Some(CachedIntegerIncrement { receiver, old, sum })
+    }
+
     /// `incr place delta`: native when the cell's shadow and the delta are
     /// proven-in-range integers, else the guarded runtime read-modify-write.
-    fn lower_incr(&mut self, place: &CellPlace, delta: NativeValueId) {
+    fn lower_incr(&mut self, place: &CellPlace, delta: NativeValueId, implicit: bool) {
         let shadow = self.shadows.read(place);
         if let (Some(current), NativeType::I64) = (shadow, self.ty(delta))
             && self.ty(current) == NativeType::I64
@@ -1214,12 +1262,16 @@ impl<'a> Lowerer<'a> {
         }
         let barrier = self.ledger.decide(place);
         let guard = self.ledger.incr_guard(place);
+        let cached = implicit
+            .then(|| self.cached_increment_candidate(place, delta))
+            .flatten();
         let dst = self.new_value(NativeType::Obj, Representation::Boxed(Some(TypeShape::Int)));
         self.emit(NativeOp::CellIncr {
             dst,
             place: place.clone(),
             delta,
             guard,
+            cached,
             barrier,
         });
         if barrier.is_elided() {
@@ -1453,7 +1505,7 @@ impl<'a> Lowerer<'a> {
                         }
                     },
                 };
-                self.lower_incr(&place, delta);
+                self.lower_incr(&place, delta, amount.is_none());
                 StatementOutcome::Native
             }
             Statement::ExprEval { expr, .. } => {
