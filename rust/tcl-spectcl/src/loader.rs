@@ -7025,6 +7025,7 @@ fn apply_command_stmt(
                 CommandTableEffect::DefinesProcedure,
                 CommandTableEffect::RenamesCommands,
                 CommandTableEffect::CreatesAliases,
+                CommandTableEffect::CreatesCallerAliases,
             ];
             spec.command_table_effect =
                 enum_by_name(EFFECTS, &value, "command-table effect", stmt.line, log);
@@ -9086,6 +9087,7 @@ fn apply_subcommand_stmt(
                 CommandTableEffect::DefinesProcedure,
                 CommandTableEffect::RenamesCommands,
                 CommandTableEffect::CreatesAliases,
+                CommandTableEffect::CreatesCallerAliases,
             ];
             sub.command_table_effect =
                 enum_by_name(EFFECTS, &value, "command-table effect", stmt.line, log);

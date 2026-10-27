@@ -322,4 +322,30 @@ mod tests {
         // Everything else spans the whole ladder.
         assert!(jim.admits("proc", Some(&at("0.76"))));
     }
+
+    #[test]
+    fn the_compiled_jim_alias_keeps_its_caller_namespace_transition() {
+        let commands = builtin_commands();
+        let alias = commands
+            .iter()
+            .find(|command| command.name == "alias")
+            .unwrap();
+        assert_eq!(
+            alias.command_table_effect,
+            Some(tcl_registry::CommandTableEffect::CreatesCallerAliases)
+        );
+        let arguments =
+            tcl_registry::invocation_words::InvocationArguments::literals(&["Point", "puts"]);
+        let actual = alias
+            .command_table_effect
+            .unwrap()
+            .transitions()
+            .resolve(arguments);
+        assert_eq!(
+            actual,
+            tcl_registry::state_transition::command_binding::CREATES_CALLER_ALIASES
+                .resolve(arguments)
+        );
+        assert_eq!(actual.facts().len(), 1);
+    }
 }

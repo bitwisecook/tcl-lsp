@@ -69,6 +69,8 @@ pub enum CommandTableEffect {
     /// `generic/tclInterp.c`).  Stamped on `interp`'s `alias`
     /// subcommand.
     CreatesAliases,
+    /// Jim command-prefix alias preserving the caller namespace.
+    CreatesCallerAliases,
 }
 
 impl CommandTableEffect {
@@ -83,6 +85,7 @@ impl CommandTableEffect {
             Self::DefinesProcedure => command_binding::DEFINES_PROCEDURE,
             Self::RenamesCommands => command_binding::RENAMES_COMMANDS,
             Self::CreatesAliases => command_binding::CREATES_ALIASES,
+            Self::CreatesCallerAliases => command_binding::CREATES_CALLER_ALIASES,
         }
     }
 }
@@ -160,5 +163,40 @@ mod tests {
             CommandBindingTransition::Move { from, to }
                 if from.literal().is_none() && to.literal() == Some("new")
         )));
+    }
+
+    #[test]
+    fn the_caller_alias_selector_keeps_the_original_jim_descriptor() {
+        use crate::state_transition::{AliasTargetLookup, TransitionSubject};
+        let descriptor = CommandTableEffect::CreatesCallerAliases.transitions();
+        for words in [&["Point", "puts"][..], &["pick", "puts", "FIXED"][..]] {
+            let arguments = InvocationArguments::literals(words);
+            let actual = descriptor.resolve(arguments);
+            assert_eq!(
+                actual,
+                crate::state_transition::command_binding::CREATES_CALLER_ALIASES.resolve(arguments)
+            );
+            assert!(matches!(
+                actual.command_bindings().next(),
+                Some(CommandBindingTransition::Alias {
+                    source_interpreter: TransitionSubject::Literal(source),
+                    target_interpreter: TransitionSubject::Literal(target),
+                    target_lookup: AliasTargetLookup::CallerNamespace,
+                    ..
+                }) if source.is_empty() && target.is_empty()
+            ));
+        }
+        assert!(
+            descriptor
+                .resolve(InvocationArguments::literals(&["only"]))
+                .facts()
+                .is_empty()
+        );
+        let dynamic = [InvocationWord::Dynamic, InvocationWord::Literal("puts")];
+        assert!(
+            descriptor
+                .resolve(InvocationArguments::structured(&dynamic))
+                .touches_command_bindings()
+        );
     }
 }
