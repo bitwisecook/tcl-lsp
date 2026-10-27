@@ -388,8 +388,11 @@ mod tests {
     fn original_jim_long_uses_actual_unsigned_stage_and_retained_target_layout() {
         // These selected fresh public Long rows exercise the actual errno stage;
         // they are independent of a NativeWide API result or expression truth.
-        let fixture = include_str!(
-            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/linked-jim458/jim/execute-live.stdout"
+        let fixture = tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+            ),
+            "linked-jim458/jim/execute-live.stdout",
         );
         let field = |line: &str, key: &str| -> String {
             line.split('\t')

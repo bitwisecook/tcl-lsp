@@ -300,6 +300,12 @@ fn scalar_engine_importer_issues_context_only_for_selected_scalar_purpose() {
     assert!(probe(&binary, NativeScalarGetterKind::Wide).is_err());
 }
 
+fn original(key: &str) -> String {
+    tcl_test_support::fixture_tables::text(
+        include_str!("../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"),
+        key,
+    )
+}
 fn fixture_row(fixture: &str, case: usize, getter: usize) -> BTreeMap<&str, &str> {
     fixture
         .lines()
@@ -449,55 +455,35 @@ fn scalar_public_facade_matches_recorded_live_and_null_c_primitives() {
     let fixtures = [
         (
             "tcl8.4",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
-            ),
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
-            ),
+            original("8.4.20/execute-live.stdout"),
+            original("8.4.20/execute-null.stdout"),
         ),
         (
             "tcl8.5",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-live.stdout"
-            ),
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-null.stdout"
-            ),
+            original("8.5.19/execute-live.stdout"),
+            original("8.5.19/execute-null.stdout"),
         ),
         (
             "tcl8.6",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-live.stdout"
-            ),
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-null.stdout"
-            ),
+            original("8.6.18/execute-live.stdout"),
+            original("8.6.18/execute-null.stdout"),
         ),
         (
             "tcl9.0",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-live.stdout"
-            ),
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-null.stdout"
-            ),
+            original("9.0.4/execute-live.stdout"),
+            original("9.0.4/execute-null.stdout"),
         ),
         (
             "tcl9.1",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-live.stdout"
-            ),
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-null.stdout"
-            ),
+            original("9.1.0/execute-live.stdout"),
+            original("9.1.0/execute-null.stdout"),
         ),
     ];
     for (environment, live, null) in fixtures {
         for (null_interpreter, fixture) in [(false, live), (true, null)] {
             for case in [1, 16, 19, 23, 24, 26] {
                 for getter in 0..5 {
-                    compare_original_row(environment, fixture, null_interpreter, case, getter);
+                    compare_original_row(environment, &fixture, null_interpreter, case, getter);
                 }
             }
         }
@@ -530,16 +516,14 @@ fn scalar_jim_public_boolean_keeps_raw_integer_separate_from_expression_truth() 
     // Native public rows: naming.numeric.original-capi-scalar-publication-width
 
     // Expression459 is independently measured; this control reaches only the primitive.
-    let fixture = include_str!(
-        "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/linked-jim458/jim/execute-live.stdout"
-    );
+    let fixture = original("linked-jim458/jim/execute-live.stdout");
     let mut interpreter = core("jim");
     for (case, integer) in [(22, 17), (26, 4_294_967_296)] {
         let value = Owned::fresh(obj::new_wide_int_obj(integer));
         interpreter
             .associate_native_jim_arguments(&[value.as_ptr()])
             .unwrap();
-        let row = fixture_row(fixture, case, 4);
+        let row = fixture_row(&fixture, case, 4);
         let mut returned = 777;
         assert_eq!(
             unsafe { capi::Tcl_GetBooleanFromObj(&mut interpreter, value.as_ptr(), &mut returned) },

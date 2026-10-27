@@ -251,11 +251,12 @@ mod tests {
     ];
 
     fn native_row(id: &str) -> (bool, Vec<u8>) {
-        let path = format!(
-            "{}/../tcl-registry/tests/data/native_info_inventory_original/jim/{id}/stdout.tsv",
-            env!("CARGO_MANIFEST_DIR")
+        let captured = tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-registry/tests/data/native_info_inventory_original/captures.tsv"
+            ),
+            &format!("jim/{id}/stdout.tsv"),
         );
-        let captured = std::fs::read_to_string(path).unwrap();
         let row = captured
             .lines()
             .find(|line| line.starts_with("INFO|"))

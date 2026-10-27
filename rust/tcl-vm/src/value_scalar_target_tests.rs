@@ -172,29 +172,41 @@ fn retained_jim_context_queries_its_actual_host_target_without_default_width() {
 fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fields() {
     // C85+ original case24/getter4 live fields. This primitive receipt does not
     // select a NOT/conditional/ExprBool result or interpreter result header.
-    const FIXTURES: [(tcl_dialect::TclVersion, &str); 4] = [
+    let fixtures: [(tcl_dialect::TclVersion, String); 4] = [
         (
             tcl_dialect::TclVersion::V8_5,
-            include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-live.stdout"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+                ),
+                "8.5.19/execute-live.stdout",
             ),
         ),
         (
             tcl_dialect::TclVersion::V8_6,
-            include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-live.stdout"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+                ),
+                "8.6.18/execute-live.stdout",
             ),
         ),
         (
             tcl_dialect::TclVersion::V9_0,
-            include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-live.stdout"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+                ),
+                "9.0.4/execute-live.stdout",
             ),
         ),
         (
             tcl_dialect::TclVersion::V9_1,
-            include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-live.stdout"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+                ),
+                "9.1.0/execute-live.stdout",
             ),
         ),
     ];
@@ -213,7 +225,7 @@ fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fiel
             text
         })
     }
-    for (version, fixture) in FIXTURES {
+    for (version, fixture) in fixtures {
         let row = fixture
             .lines()
             .find(|row| row.starts_with("ROW\tcase=24\tgetter=4\t"))

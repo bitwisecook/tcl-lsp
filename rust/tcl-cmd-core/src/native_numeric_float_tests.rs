@@ -405,11 +405,17 @@ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and
     // original object/handler admission. The pure value/cache recipe is joined
     // only after the reached native signed-long/double stages.
     let fixtures = [
-        include_str!(
-            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+            ),
+            "8.4.20/execute-live.stdout",
         ),
-        include_str!(
-            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+            ),
+            "8.4.20/execute-null.stdout",
         ),
     ];
     let inputs: [&[u8]; 20] = [
@@ -436,7 +442,12 @@ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and
     ];
     let protocol = NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
     let environment = tcl_host_c_abi::NativeNumericEnvironment;
-    let count = assert_c84_fresh_boolean_fixture_rows(fixtures, &inputs, protocol, &environment);
+    let count = assert_c84_fresh_boolean_fixture_rows(
+        fixtures.each_ref().map(String::as_str),
+        &inputs,
+        protocol,
+        &environment,
+    );
     assert_eq!(count, 44);
 }
 

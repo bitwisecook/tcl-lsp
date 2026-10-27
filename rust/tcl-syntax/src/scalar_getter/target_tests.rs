@@ -2,44 +2,36 @@
 //! Primitive result/layout comparisons, separately from expression truth.
 
 use super::*;
+use std::sync::LazyLock;
 
-const C_LIVE: [&str; 5] = [
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-live.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-live.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-live.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-live.stdout"
-    ),
-];
-const C_NULL: [&str; 5] = [
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-null.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-null.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-null.stdout"
-    ),
-    include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-null.stdout"
-    ),
-];
-const JIM: &str = include_str!(
-    "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/linked-jim458/jim/execute-live.stdout"
-);
+fn original(key: &str) -> String {
+    tcl_test_support::fixture_tables::text(
+        include_str!(
+            "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+        ),
+        key,
+    )
+}
+
+static C_LIVE: LazyLock<[String; 5]> = LazyLock::new(|| {
+    [
+        original("8.4.20/execute-live.stdout"),
+        original("8.5.19/execute-live.stdout"),
+        original("8.6.18/execute-live.stdout"),
+        original("9.0.4/execute-live.stdout"),
+        original("9.1.0/execute-live.stdout"),
+    ]
+});
+static C_NULL: LazyLock<[String; 5]> = LazyLock::new(|| {
+    [
+        original("8.4.20/execute-null.stdout"),
+        original("8.5.19/execute-null.stdout"),
+        original("8.6.18/execute-null.stdout"),
+        original("9.0.4/execute-null.stdout"),
+        original("9.1.0/execute-null.stdout"),
+    ]
+});
+static JIM: LazyLock<String> = LazyLock::new(|| original("linked-jim458/jim/execute-live.stdout"));
 
 fn field<'a>(line: &'a str, key: &str) -> &'a str {
     line.split('\t')
@@ -96,9 +88,9 @@ fn original_jim_cached_boolean_returns_the_measured_public_integer() {
     // they do not answer the independent ExprBool or command-condition question.
     let protocol =
         NativeScalarGetterProtocol::for_point(DialectPoint::canonical(Release::JIM_0_84)).unwrap();
-    let target = target(JIM);
+    let target = target(JIM.as_str());
     for (case, integer) in [(20, 17), (26, 4_294_967_296)] {
-        let row = row(JIM, case, 4);
+        let row = row(JIM.as_str(), case, 4);
         let cache = NativeScalarCache::Number(Number::Int(integer));
         let conversion = protocol
             .cached_conversion(NativeScalarGetterKind::Boolean, &cache, Some(target))
@@ -232,7 +224,7 @@ fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
     let cases = [0, 8, 9, 10, 11, 12, 13, 16, 20, 21, 22, 23, 24, 26];
     let mut compared = 0;
     for (index, version) in versions.into_iter().enumerate() {
-        for fixture in [C_LIVE[index], C_NULL[index]] {
+        for fixture in [C_LIVE[index].as_str(), C_NULL[index].as_str()] {
             let target = target(fixture);
             let protocol = NativeScalarGetterProtocol::for_tcl_version(version);
             for case in cases {
@@ -340,7 +332,7 @@ fn original_long_octal_failure_keeps_its_integer_purpose() {
             ],
         ),
     ] {
-        let fixture = C_LIVE[index];
+        let fixture = C_LIVE[index].as_str();
         let protocol = NativeScalarGetterProtocol::for_tcl_version(version);
         for kind in kinds.into_iter().flatten() {
             let getter = match kind {
@@ -386,7 +378,7 @@ fn original_long_octal_failure_keeps_its_integer_purpose() {
     assert_eq!(failures, 7);
     let mut successes = 0;
     for (index, version) in [(3, TclVersion::V9_0), (4, TclVersion::V9_1)] {
-        let fixture = C_LIVE[index];
+        let fixture = C_LIVE[index].as_str();
         let row = row(fixture, 13, 1);
         let conversion = NativeScalarGetterProtocol::for_tcl_version(version)
             .fresh_conversion_with_target(
@@ -425,7 +417,7 @@ fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations(
         (NativeScalarGetterKind::Double, 3, Some("1")),
         (NativeScalarGetterKind::Boolean, 4, Some("2")),
     ] {
-        let direct = row(C_LIVE[0], 0, getter);
+        let direct = row(C_LIVE[0].as_str(), 0, getter);
         let error = protocol
             .failure_presentation(kind, NativeScalarGetterFailure::Invalid, b"")
             .unwrap();
@@ -474,7 +466,10 @@ fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations(
     let NativeScalarGetterErrorCode::Set(code) = overflow.error_code_update() else {
         panic!("selected overflow code")
     };
-    assert_eq!(hex(code), field(row(C_LIVE[0], 10, 1), "error_code"));
+    assert_eq!(
+        hex(code),
+        field(row(C_LIVE[0].as_str(), 10, 1), "error_code")
+    );
     assert_eq!(
         overflow.eval_error_code_update(),
         &NativeScalarGetterErrorCode::Unchanged
@@ -483,7 +478,7 @@ fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations(
 
 #[test]
 fn native_long_unsigned_edge_is_independent_of_native_wide_acceptance() {
-    let fixture = C_LIVE[3];
+    let fixture = C_LIVE[3].as_str();
     let target = target(fixture);
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V9_0);
     for (case, bytes) in [
@@ -633,16 +628,15 @@ fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_d
         b"1.0",
         b"1\0X",
     ];
-    let library_config = include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--unix--tclConfig.sh"
-    );
+    let library_config =
+        original("original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--unix--tclConfig.sh");
     assert!(
         library_config
             .lines()
             .any(|line| line.starts_with("TCL_DEFS=") && line.contains("-DTCL_WIDE_INT_IS_LONG=1"))
     );
     let mut count = 0;
-    for fixture in [C_LIVE[0], C_NULL[0]] {
+    for fixture in [C_LIVE[0].as_str(), C_NULL[0].as_str()] {
         let target = target(fixture);
         for case in 0..29 {
             let (bytes, cache) = original_c84_boolean_case(protocol, &original_strings, case);
@@ -697,8 +691,8 @@ fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_d
         }
     }
     assert_eq!(count, 58);
-    assert_eq!(field(row(C_LIVE[0], 4, 4), "int"), "0");
-    assert_eq!(field(row(C_LIVE[0], 26, 4), "int"), "1");
+    assert_eq!(field(row(C_LIVE[0].as_str(), 4, 4), "int"), "0");
+    assert_eq!(field(row(C_LIVE[0].as_str(), 26, 4), "int"), "1");
 }
 
 #[test]
@@ -754,7 +748,7 @@ fn c84_fresh_numeric_boolean_requires_explicit_target_while_word_and_invalid_do_
         None
     );
     // Geometry remains counted even though both libc stages stop at first NUL.
-    let target = target(C_LIVE[0]);
+    let target = target(C_LIVE[0].as_str());
     assert!(
         protocol
             .c84_boolean_from_long_host(b"17\0X", target, 17, 2)

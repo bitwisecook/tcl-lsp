@@ -960,8 +960,9 @@ mod tests {
         let context = crate::model::static_context_for("jim");
         let selected = context.resolve_command("info").unwrap();
         assert_eq!(selected.subcommands.len(), 27);
-        let captured = include_str!(
-            "../../../tests/data/native_info_inventory_original/jim/inventory-jim-list/stdout.tsv"
+        let captured = tcl_test_support::fixture_tables::text(
+            include_str!("../../../tests/data/native_info_inventory_original/captures.tsv"),
+            "jim/inventory-jim-list/stdout.tsv",
         );
         let row = captured
             .lines()
@@ -986,12 +987,10 @@ mod tests {
         foreign.native_family = Some(Family::Tcl);
         assert_eq!(foreign.native_jim_info_member_names(), None);
         for subcommand in selected.subcommands {
-            let path = format!(
-                "{}/tests/data/native_info_inventory_original/jim/exact-{}/stdout.tsv",
-                env!("CARGO_MANIFEST_DIR"),
-                subcommand.name
+            let captured = tcl_test_support::fixture_tables::text(
+                include_str!("../../../tests/data/native_info_inventory_original/captures.tsv"),
+                &format!("jim/exact-{}/stdout.tsv", subcommand.name),
             );
-            let captured = std::fs::read_to_string(path).unwrap();
             let row = captured
                 .lines()
                 .find(|line| line.starts_with("INFO|1|"))

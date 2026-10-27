@@ -217,8 +217,11 @@ fn fixture_fresh_conversion(
     input: &[u8],
 ) -> Option<NativeScalarGetterConversion> {
     if recipe.tcl_version() == Some(TclVersion::V8_4) && kind == NativeScalarGetterKind::Boolean {
-        let fixture = include_str!(
-            "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+        let fixture = tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/captures.tsv"
+            ),
+            "8.4.20/execute-live.stdout",
         );
         let abi = fixture
             .lines()
