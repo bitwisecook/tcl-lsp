@@ -160,7 +160,7 @@ mod tests {
     use std::cell::Cell;
 
     const OBSERVED: &str = include_str!(
-        "../../../tests/data/native_jim_namespace_parent/getter-identity-20261015.tsv"
+        "../../../../../runtime/rust/tests/data/native_jim_namespace_parent/getter-identity-20261015.tsv"
     );
 
     fn observation(kind: &str, case: &str) -> Vec<&'static str> {

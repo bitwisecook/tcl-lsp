@@ -2376,23 +2376,33 @@ mod tests {
         for (engine, expected) in [
             (
                 "tcl8.4",
-                include_str!("../../tests/data/native_global_cache_token/8.4.20.txt"),
+                include_str!(
+                    "../../../../runtime/rust/tests/data/native_global_cache_token/8.4.20.txt"
+                ),
             ),
             (
                 "tcl8.5",
-                include_str!("../../tests/data/native_global_cache_token/8.5.19.txt"),
+                include_str!(
+                    "../../../../runtime/rust/tests/data/native_global_cache_token/8.5.19.txt"
+                ),
             ),
             (
                 "tcl8.6",
-                include_str!("../../tests/data/native_global_cache_token/8.6.18.txt"),
+                include_str!(
+                    "../../../../runtime/rust/tests/data/native_global_cache_token/8.6.18.txt"
+                ),
             ),
             (
                 "tcl9.0",
-                include_str!("../../tests/data/native_global_cache_token/9.0.4.txt"),
+                include_str!(
+                    "../../../../runtime/rust/tests/data/native_global_cache_token/9.0.4.txt"
+                ),
             ),
             (
                 "tcl9.1",
-                include_str!("../../tests/data/native_global_cache_token/9.1.0.txt"),
+                include_str!(
+                    "../../../../runtime/rust/tests/data/native_global_cache_token/9.1.0.txt"
+                ),
             ),
         ] {
             GLOBAL_CACHE_ROWS.with(|rows| rows.borrow_mut().clear());
@@ -2440,23 +2450,23 @@ mod tests {
         for (engine, expected) in [
             (
                 "tcl8.4",
-                include_str!("../../tests/data/native_alias_simple/8.4.20.txt"),
+                include_str!("../../../../runtime/rust/tests/data/native_alias_simple/8.4.20.txt"),
             ),
             (
                 "tcl8.5",
-                include_str!("../../tests/data/native_alias_simple/8.5.19.txt"),
+                include_str!("../../../../runtime/rust/tests/data/native_alias_simple/8.5.19.txt"),
             ),
             (
                 "tcl8.6",
-                include_str!("../../tests/data/native_alias_simple/8.6.18.txt"),
+                include_str!("../../../../runtime/rust/tests/data/native_alias_simple/8.6.18.txt"),
             ),
             (
                 "tcl9.0",
-                include_str!("../../tests/data/native_alias_simple/9.0.4.txt"),
+                include_str!("../../../../runtime/rust/tests/data/native_alias_simple/9.0.4.txt"),
             ),
             (
                 "tcl9.1",
-                include_str!("../../tests/data/native_alias_simple/9.1.0.txt"),
+                include_str!("../../../../runtime/rust/tests/data/native_alias_simple/9.1.0.txt"),
             ),
         ] {
             ALIAS_SIMPLE_ROWS.with(|rows| rows.borrow_mut().clear());

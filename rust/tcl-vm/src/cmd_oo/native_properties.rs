@@ -1289,7 +1289,8 @@ mod tests {
                 lookup_property(&mut vm, target, &caller, false, &mut table, false).unwrap();
             assert!(selected.value().native_property_name_is_cached());
         }
-        let rows = include_str!("../../tests/data/native_property_opaque/native.tsv");
+        let rows =
+            include_str!("../../../../runtime/rust/tests/data/native_property_opaque/native.tsv");
         assert_eq!(rows, "opaque-0\tRAW\tnone\nopaque-1\tRAW\tnone\n");
     }
     #[test]
@@ -1362,7 +1363,9 @@ mod tests {
                 tcl_syntax::native_object::NativeObjectCacheSnapshot::None
             );
         }
-        let rows = include_str!("../../tests/data/native_property_clientdata/native.tsv");
+        let rows = include_str!(
+            "../../../../runtime/rust/tests/data/native_property_clientdata/native.tsv"
+        );
         assert_eq!(rows.lines().count(), 9);
         for index in 0..3 {
             assert!(rows.contains(&format!("decl-{index}\t1\t1\t3\tnone\n")));
