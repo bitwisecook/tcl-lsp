@@ -375,3 +375,87 @@ mod tests {
         assert_eq!(reads.residual, SourceVariableReadResidual::Unknown);
     }
 }
+
+// Report-bound classification of an already refused field; ordinary equality stays exact.
+#[cfg(test)]
+pub(super) fn report_trace_invocation_reads_part(
+    left: &std::collections::BTreeMap<CommandAllocationSite, Arc<SourceInvocationVariableReads>>,
+    right: &std::collections::BTreeMap<CommandAllocationSite, Arc<SourceInvocationVariableReads>>,
+) -> String {
+    if !left.keys().eq(right.keys()) {
+        return format!("keys={}/{}", left.len(), right.len());
+    }
+    let Some((site, left, right)) = left
+        .iter()
+        .zip(right.values())
+        .find_map(|((site, left), right)| (left != right).then_some((site, left, right)))
+    else {
+        return "keys=equal values=equal".to_owned();
+    };
+    let part = if left.substitutions != right.substitutions {
+        report_trace_substitution_part(&left.substitutions, &right.substitutions)
+    } else if left.native_reads != right.native_reads {
+        report_trace_native_read_part(&left.native_reads, &right.native_reads)
+    } else {
+        "residual"
+    };
+    format!("offset={} part={part}", site.offset)
+}
+
+#[cfg(test)]
+fn report_trace_substitution_part(
+    left: &[SourceVariableAccess],
+    right: &[SourceVariableAccess],
+) -> &'static str {
+    if left.len() == right.len() && left.iter().all(|access| right.contains(access)) {
+        return "substitutions.order";
+    }
+    let Some((left, right)) = left.iter().zip(right).find(|(left, right)| left != right) else {
+        return "substitutions.length";
+    };
+    if left.source != right.source {
+        "substitutions.source"
+    } else if left.owner != right.owner {
+        "substitutions.owner"
+    } else if left.original_spelling != right.original_spelling {
+        "substitutions.original_spelling"
+    } else if left.context_fingerprint != right.context_fingerprint {
+        if left.variable_context == right.variable_context {
+            "substitutions.context_fingerprint.equal_context"
+        } else {
+            "substitutions.context_fingerprint.different_context"
+        }
+    } else if left.variable_context != right.variable_context {
+        "substitutions.variable_context"
+    } else if left.context_alternatives != right.context_alternatives {
+        "substitutions.context_alternatives"
+    } else if left.object_instance != right.object_instance {
+        "substitutions.object_instance"
+    } else {
+        "substitutions.selected_places"
+    }
+}
+
+#[cfg(test)]
+fn report_trace_native_read_part(
+    left: &[SourceInvocationVariableRead],
+    right: &[SourceInvocationVariableRead],
+) -> &'static str {
+    if left.len() == right.len() && left.iter().all(|read| right.contains(read)) {
+        return "native_reads.order";
+    }
+    let Some((left, right)) = left.iter().zip(right).find(|(left, right)| left != right) else {
+        return "native_reads.length";
+    };
+    if left.place != right.place {
+        "native_reads.place"
+    } else if left.context_fingerprint != right.context_fingerprint {
+        if left.variable_context == right.variable_context {
+            "native_reads.context_fingerprint.equal_context"
+        } else {
+            "native_reads.context_fingerprint.different_context"
+        }
+    } else {
+        "native_reads.variable_context"
+    }
+}

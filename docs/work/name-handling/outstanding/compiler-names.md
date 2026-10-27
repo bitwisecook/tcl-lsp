@@ -1,13 +1,13 @@
 # Outstanding work: compiler-names agent
 
-## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+## Resume — 2026-10-27 resumed session (compiler-names)
 
-USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+Scratch evidence (not repository state): `/tmp/claude-0/-home-user-tcl-lsp/ecf365c5-6571-597f-97b7-b7fbb7d1acfb/scratchpad/fixture-cleanup/<family>/manifest.json`, logs under `.../scratchpad/logs/compiler-names-*.log`, proposal `.../scratchpad/proposals/names-invocation-reads-trace-part-v1/`.
 
-Current cleanup44/51; upvar V2 aea08787 / Scope c6e6b1f7 reviewed UNAPPLIED (would become45/51 only after adoption). Remaining six families then follow;86 prior-unread records require read-based disposition. Actual7fd ref_option is routed but no finished packet was found. Corpus buildstop leaves both phasesUNRUN; global Eq/cutoffs remain strict.
-
-The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
-
+- Root `ref_option` (field_comparison.rs, WORK): reviewed, no objection. `Option<&Arc<_>>` compares through the same `Arc` `PartialEq`; `ptr_eq`/`exact_eq_for_report_trace` receive the same `&Arc`; the macro list (order, short circuit) is unchanged. It makes the corpus2 pin for field_comparison.rs stale (root refresh).
+- Release cleanup (release/lsp-naming working tree, UNCOMMITTED, root commits): upvar/exists V2 adopted with every packet afterimage hash exact (45/51 once committed); ensemble_map_prefix312, encoding_utf8_object306 and control_expression converted (48/51). Each has a lossless key/byte/order proof and a whole-file inverse. Executed on release: tcl-runtime consumers for all four families, tcl-cmd-core encoding consumer, tcl-test-support/tcl-cmd-core clippy. Three control_expression storage tests fail identically on the unchanged beforeimage (pre-existing runtime result-storage divergence, vm-runtime). VM and registry consumers UNRUN (tcl-compiler dev-dependency build).
+- Remaining three: capi_scalar (tcl-syntax `const C_LIVE/C_NULL/JIM` with borrow-returning row helpers needs lifetime restructuring), info (52 runtime-loaded/unresolved paths need actual-read disposition), scalar getters (67 paths/11 consumers). `JIM_AVAILABILITY` (now `jim_availability()`) has no consumer: assert-or-justify, not delete. 86 prior-unread records unchanged.
+- Corpus command realm: local run of the exact text selector on a 21:34 WORK lib-test binary (sha256 860fc702…; predates in-flight const_subst/optimiser/taint edits) passed 17 inputs/34 markers, then `70_var_traces.tcl mixed=false old-old` refuses at `command_realm.bindings field=invocation_reads` for all three pairs. Two cold analyses of identical input disagree. Hash helpers are order-independent and no process counter was found. Test-only refinement V1 (unapplied, apply-check clean) names the first differing site and sub-part; Rust UNRUN. Global Eq/cutoffs untouched.
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 

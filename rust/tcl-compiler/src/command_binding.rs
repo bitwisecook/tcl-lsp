@@ -27074,6 +27074,17 @@ impl SourceCommandBindings {
             original_argument_syntax_commands,
             origin_points,
             implicit_math_invocations,
+        );
+        if self.invocation_reads != other.invocation_reads {
+            let part = invocation_reads::report_trace_invocation_reads_part(
+                &self.invocation_reads,
+                &other.invocation_reads,
+            );
+            eprintln!(
+                "REPORT_CAPTURE stage=compare.owner.command_realm.bindings.invocation_reads {part} refuses=true"
+            );
+        }
+        same_fields!(
             invocation_reads,
             normal_variable_continuations,
             original_variable_invocations,
