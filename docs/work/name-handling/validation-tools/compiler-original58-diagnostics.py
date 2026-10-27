@@ -6470,7 +6470,7 @@ layout11_acceptance_exit = None
 finite_foreach_validation = None
 finite_foreach_rows = []
 if args.jim_source_layout_only:
-    require(sha(BASE / "compiler-jim-source-layout11.json") == "b361515453bf874c77d0e938bd74078f4a1ebc20f5b2cf4d5104977ac5aa7946",
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "c57be08587831b1b6df00fae58b3b89291998444498f6f50709b61cca43055be",
             "exact Layout11 roster/direct source pins required")
     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
     require(jim_layout_validation["expected_selected"] == 11
@@ -6507,7 +6507,7 @@ if args.jim_source_layout_only:
     for row in finite_foreach_validation["rows"]:
         require(row["package"] == "tcl-compiler" and row["kind"] == ["lib"]
                 and row["target"] == "tcl_compiler" and row["expected_selected"] == 1
-                and row["env"] == {} and row["list_seconds"] == row["budget_seconds"] == 180
+                and row["env"] == {"TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"} and row["list_seconds"] == row["budget_seconds"] == 180
                 and row["cleanup_reservation_seconds"] == 40,
                 "finite foreach exact target/env/budget mismatch")
         finite_foreach_rows.append({**row, "state": "UNRUN", "admission": "NOT_ATTEMPTED"})

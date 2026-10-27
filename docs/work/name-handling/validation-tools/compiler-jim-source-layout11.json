@@ -17,7 +17,7 @@
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "7d68fab8ec707151890e6f6f226edaf4c26379b8101f179c4cfba749142027d5",
     "rust/tcl-compiler/src/analyser/commands.rs": "1aeb34f0e1e1805dba5ddac1add605e81f383717e14f94cef54411a1380b1a53",
-    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "cfb0a93f5801ea18173d9b65e6ed488466ab512f133a7971016055dadef6e0b1",
+    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "e1a61e348127f9ca44e13d724cabf5bf5ba0d3fd3203404b320b217effe9bd78",
     "rust/tcl-compiler/src/analyser/state.rs": "31159fd04fe9189d70eddd886988819be5d78d0a267e588d8d53306d137a9180"
   },
   "build_targets": [
@@ -294,7 +294,7 @@
     "schema": "finite-foreach-source-controls4-v1",
     "expected_selected": 4,
     "source": "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
-    "source_sha256": "cfb0a93f5801ea18173d9b65e6ed488466ab512f133a7971016055dadef6e0b1",
+    "source_sha256": "e1a61e348127f9ca44e13d724cabf5bf5ba0d3fd3203404b320b217effe9bd78",
     "source_peer_sha256": "a677716ee4a58a8e62190533c42d39270e5112c7a1938c7370423300944b40cf",
     "rows": [
       {
@@ -306,7 +306,9 @@
         "target": "tcl_compiler",
         "selector": "analyser::handlers::finite_foreach_source::controls::literal_jim_iterations_keep_readonly_list_lineage_and_source_names",
         "expected_selected": 1,
-        "env": {},
+        "env": {
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+        },
         "list_seconds": 180,
         "budget_seconds": 180,
         "cleanup_reservation_seconds": 40,
@@ -321,7 +323,9 @@
         "target": "tcl_compiler",
         "selector": "analyser::handlers::finite_foreach_source::controls::iteration_names_refuse_equal_foreign_owner_changed_source_and_namespace",
         "expected_selected": 1,
-        "env": {},
+        "env": {
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+        },
         "list_seconds": 180,
         "budget_seconds": 180,
         "cleanup_reservation_seconds": 40,
@@ -336,7 +340,9 @@
         "target": "tcl_compiler",
         "selector": "analyser::handlers::finite_foreach_source::controls::iteration_plan_refuses_mutation_multiple_bindings_expansion_and_name_prefixes",
         "expected_selected": 1,
-        "env": {},
+        "env": {
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+        },
         "list_seconds": 180,
         "budget_seconds": 180,
         "cleanup_reservation_seconds": 40,
@@ -351,7 +357,9 @@
         "target": "tcl_compiler",
         "selector": "analyser::handlers::finite_foreach_source::controls::reporting_scope_restores_after_unwind_and_preserves_body_depth_refusal",
         "expected_selected": 1,
-        "env": {},
+        "env": {
+          "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+        },
         "list_seconds": 180,
         "budget_seconds": 180,
         "cleanup_reservation_seconds": 40,
