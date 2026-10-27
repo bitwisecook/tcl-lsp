@@ -1189,6 +1189,7 @@ mod tests {
 pub(crate) enum PlainSourceOperands {
     Native(NativeDirectSourceOperands),
     LogicalUpLevel(crate::interp::LogicalUpLevelSourceEntry),
+    LogicalEval(crate::interp::LogicalEvalSourceEntry),
 }
 
 impl PlainSourceOperands {
@@ -1196,6 +1197,7 @@ impl PlainSourceOperands {
         match self {
             Self::Native(original) => original.is_current(policy),
             Self::LogicalUpLevel(logical) => logical.is_current(policy),
+            Self::LogicalEval(logical) => logical.is_current(policy),
         }
     }
 
@@ -1203,6 +1205,7 @@ impl PlainSourceOperands {
         match self {
             Self::Native(original) => original.value(literal),
             Self::LogicalUpLevel(logical) => logical.value(literal),
+            Self::LogicalEval(logical) => logical.value(literal),
         }
     }
 }
@@ -1257,6 +1260,25 @@ impl NativeDirectSourceOperands {
     }
 }
 
+/// Pure control-plan validation shared by the two independently issued
+/// logical source entries. It supplies no word or execution receipt.
+pub(crate) fn plain_source_operand_plan(asm: &tcl_bytecode::FunctionAsm) -> bool {
+    asm.plain_command_dispatch
+        && !asm.literals.entries().iter().any(|literal| {
+            matches!(
+                literal.allocation(),
+                NativeLiteralAllocation::PrivateConstantList { .. }
+                    | NativeLiteralAllocation::PrivateInteger(_)
+            )
+        })
+        && asm.literals.discarded_native_passes().is_empty()
+        && !asm
+            .literals
+            .native_actions()
+            .iter()
+            .any(|action| !matches!(action, NativeLiteralAction::Register(_)))
+}
+
 impl crate::Vm {
     pub(crate) fn logical_uplevel_source_unit(
         &self,
@@ -1268,21 +1290,7 @@ impl crate::Vm {
         let Some(entry) = self.logical_uplevel_source_entry(selected, purpose)? else {
             return Ok(None);
         };
-        if !asm.plain_command_dispatch
-            || asm.literals.entries().iter().any(|literal| {
-                matches!(
-                    literal.allocation(),
-                    NativeLiteralAllocation::PrivateConstantList { .. }
-                        | NativeLiteralAllocation::PrivateInteger(_)
-                )
-            })
-            || !asm.literals.discarded_native_passes().is_empty()
-            || asm
-                .literals
-                .native_actions()
-                .iter()
-                .any(|action| !matches!(action, NativeLiteralAction::Register(_)))
-        {
+        if !plain_source_operand_plan(asm) {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "logical uplevel source operand plan",
             ));
