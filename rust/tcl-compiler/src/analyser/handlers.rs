@@ -64,6 +64,11 @@ use super::types::{
 use super::utils::{param_name_spans_for_token, parse_param_list};
 use tcl_dialect::model::SpecSurface;
 
+struct ResolvedProcedureReportingName {
+    finite: Option<(crate::signature_scan::scope::SignatureSourceCommand, String)>,
+    resolved: String,
+}
+
 /// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
 /// one view of a proc body: the per-parameter trait map, the caller-frame
 /// parameter names ([`super::types::ProcDef::caller_frame_params`]), and the
@@ -2807,6 +2812,51 @@ impl Analyser {
         )
     }
 
+    fn resolve_proc_name(
+        &self,
+        raw_name: &str,
+        name_tok: Token,
+        arg_single: &[bool],
+        scope_path: &[usize],
+        source_head: Option<Token>,
+    ) -> Option<ResolvedProcedureReportingName> {
+        let finite_name = match self.finite_foreach_names.lookup(
+            source_head,
+            name_tok,
+            scope_path,
+            self.body_depth,
+        ) {
+            FiniteNameLookup::Ordinary => None,
+            FiniteNameLookup::Refused => return None,
+            FiniteNameLookup::Candidate(receipt) => {
+                Some(receipt.reborrow(self, name_tok, scope_path)?)
+            }
+        };
+        // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
+        // `wtype` a known constant) resolves the same way `rename`'s operands
+        // already do (`tk/library/accessibility.tcl`'s
+        // rename-away-and-reinstall idiom names its wrapper proc this way).
+        // An unresolvable dynamic name falls back to the raw written text
+        // unchanged — this only *improves* the resolvable case, the same
+        // scope boundary `resolve_dynamic_word`'s other callers keep.
+        let resolved_name = finite_name.as_ref().map_or_else(
+            || {
+                self.resolve_dynamic_word(
+                    raw_name,
+                    Some(name_tok),
+                    arg_single.first().copied().unwrap_or(false),
+                    scope_path,
+                )
+                .unwrap_or_else(|| raw_name.to_owned())
+            },
+            |(_, text)| text.clone(),
+        );
+        Some(ResolvedProcedureReportingName {
+            finite: finite_name,
+            resolved: resolved_name,
+        })
+    }
+
     fn handle_proc_command_with_source_head(
         &mut self,
         cmd_name: &str,
@@ -2836,40 +2886,15 @@ impl Analyser {
 
         let raw_name = &args[words.name];
         let name_tok = arg_tokens[words.name];
-        let finite_name = match self.finite_foreach_names.lookup(
-            source_head,
-            name_tok,
-            scope_path,
-            self.body_depth,
-        ) {
-            FiniteNameLookup::Ordinary => None,
-            FiniteNameLookup::Refused => return false,
-            FiniteNameLookup::Candidate(receipt) => {
-                let Some(name) = receipt.reborrow(self, name_tok, scope_path) else {
-                    return false;
-                };
-                Some(name)
-            }
+        let Some(reporting) =
+            self.resolve_proc_name(raw_name, name_tok, arg_single, scope_path, source_head)
+        else {
+            return false;
         };
-        // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
-        // `wtype` a known constant) resolves the same way `rename`'s operands
-        // already do (`tk/library/accessibility.tcl`'s
-        // rename-away-and-reinstall idiom names its wrapper proc this way).
-        // An unresolvable dynamic name falls back to the raw written text
-        // unchanged — this only *improves* the resolvable case, the same
-        // scope boundary `resolve_dynamic_word`'s other callers keep.
-        let resolved_name = finite_name
-            .as_ref()
-            .map(|(_, text)| text.clone())
-            .unwrap_or_else(|| {
-                self.resolve_dynamic_word(
-                    raw_name,
-                    Some(name_tok),
-                    arg_single.first().copied().unwrap_or(false),
-                    scope_path,
-                )
-                .unwrap_or_else(|| raw_name.clone())
-            });
+        let ResolvedProcedureReportingName {
+            finite: finite_name,
+            resolved: resolved_name,
+        } = reporting;
         // Home the proc to the *command-resolution* namespace, not the purely
         // lexical one: a proc defined inside another proc's body homes to that
         // enclosing proc's **defining** namespace (the prefix of its qualified
