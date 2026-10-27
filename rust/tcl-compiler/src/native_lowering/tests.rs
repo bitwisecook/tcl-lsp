@@ -1827,3 +1827,88 @@ fn definition_policy_comparison_retains_canonical_release_and_all_other_axes() {
         }
     }
 }
+
+/// A live entry keeps every trace barrier: a boxed arithmetic result can only
+/// become a synchronous runtime candidate, never an unconditional cell shadow.
+#[test]
+fn a_live_boxed_integer_increment_keeps_its_original_trace_barrier() {
+    use tcl_registry::native_compilation::{
+        NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+    };
+    let (_owner, context, unit) = original_boolean_unit_with_compilation(
+        "set a [expr {1}]\nincr a\n",
+        "tcl9.0",
+        NativeCompilationContext {
+            mode: NativeCompilationMode::Direct,
+            frame: NativeCompilationFrame::ScriptCode,
+            loop_depth: 0,
+            catch_depth: Some(0),
+        },
+    );
+    let (function, report) =
+        lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module).expect("lowers");
+    let candidates: Vec<_> = all_ops(&function)
+        .into_iter()
+        .filter_map(|operation| match operation {
+            NativeOp::CellIncr {
+                cached: Some(candidate),
+                ..
+            } => Some(candidate),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        candidates.len(),
+        1,
+        "the actual Box/I64 producer is retained"
+    );
+    let candidate = candidates[0];
+    assert!(all_ops(&function).iter().any(|operation| {
+        matches!(operation, NativeOp::Box { dst, src }
+            if *dst == candidate.receiver && *src == candidate.old)
+    }));
+    assert!(
+        report
+            .statements
+            .iter()
+            .flat_map(|row| &row.cells)
+            .all(|cell| { cell.barrier == BarrierDecision::Kept(BarrierKept::TraceLedgerUnknown) })
+    );
+}
+
+#[test]
+fn cached_increment_candidates_do_not_erase_string_or_explicit_amount_effects() {
+    use tcl_registry::native_compilation::{
+        NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+    };
+    for source in [
+        "set a 1\nincr a\n",
+        "set a [expr {1}]\nincr a 1\n",
+        "set a [expr {9223372036854775807}]\nincr a\n",
+    ] {
+        let (_owner, context, unit) = original_boolean_unit_with_compilation(
+            source,
+            "tcl9.0",
+            NativeCompilationContext {
+                mode: NativeCompilationMode::Direct,
+                frame: NativeCompilationFrame::ScriptCode,
+                loop_depth: 0,
+                catch_depth: Some(0),
+            },
+        );
+        let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+            .expect("lowers");
+        assert!(
+            all_ops(&function).iter().all(|operation| {
+                !matches!(
+                    operation,
+                    NativeOp::CellIncr {
+                        cached: Some(_),
+                        ..
+                    }
+                )
+            }),
+            "{source:?}"
+        );
+    }
+}

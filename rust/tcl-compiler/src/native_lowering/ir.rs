@@ -337,6 +337,19 @@ pub enum DefinitionDispatch {
     RuntimeGuarded(tcl_runtime_api::guard::GuardIdentity),
 }
 
+/// Conditional arithmetic candidate, never a cell-value or execution proof.
+/// The runtime must match its actual owned receiver, numeric probes and all
+/// original operation premises before consuming the supplied integer sum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CachedIntegerIncrement {
+    /// Existing owned object produced by boxing `old`, borrowed for the check.
+    pub receiver: NativeValueId,
+    /// Native integer used by that actual Box producer.
+    pub old: NativeValueId,
+    /// Pure, statically in-range `old + 1` candidate.
+    pub sum: NativeValueId,
+}
+
 /// One NLIR operation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NativeOp {
@@ -604,6 +617,8 @@ pub enum NativeOp {
         delta: NativeValueId,
         /// How the native fast path is guarded.
         guard: IncrGuard,
+        /// Optional default-only candidate; absence preserves the original ABI.
+        cached: Option<CachedIntegerIncrement>,
         /// The trace-barrier decision recorded for the update.
         barrier: BarrierDecision,
     },

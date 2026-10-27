@@ -103,6 +103,7 @@ pub(super) struct NativeImports {
     var_set: u32,
     var_set_element: u32,
     var_incr: u32,
+    try_cached_incr: u32,
     var_update: u32,
     word_concat: u32,
     value_new_wide_int: u32,
@@ -152,6 +153,7 @@ pub(super) fn add_native_imports(
         var_set: add(wasm, CodegenAbiImportId::VarSet),
         var_set_element: add(wasm, CodegenAbiImportId::VarSetElement),
         var_incr: add(wasm, CodegenAbiImportId::VarIncr),
+        try_cached_incr: add(wasm, CodegenAbiImportId::TryCachedIncr),
         var_update: add(wasm, CodegenAbiImportId::VarUpdate),
         word_concat: add(wasm, CodegenAbiImportId::WordConcat),
         value_new_wide_int: add(wasm, CodegenAbiImportId::ValueNewWideInt),
@@ -941,17 +943,22 @@ impl Emitter<'_, '_> {
         match self.ty(value) {
             NativeType::Obj => self.get(self.local_of(value)),
             NativeType::I64 | NativeType::F64 | NativeType::Bool => {
-                let scratch = if self.scratch_owned.contains(&LOCAL_SCRATCH_OBJ_A) {
-                    LOCAL_SCRATCH_OBJ_B
-                } else {
-                    LOCAL_SCRATCH_OBJ_A
-                };
-                self.box_value(value);
-                self.set_owned(scratch);
-                self.scratch_owned.push(scratch);
+                let scratch = self.box_scratch(value);
                 self.get(scratch);
             }
         }
+    }
+
+    fn box_scratch(&mut self, value: NativeValueId) -> u64 {
+        let scratch = if self.scratch_owned.contains(&LOCAL_SCRATCH_OBJ_A) {
+            LOCAL_SCRATCH_OBJ_B
+        } else {
+            LOCAL_SCRATCH_OBJ_A
+        };
+        self.box_value(value);
+        self.set_owned(scratch);
+        self.scratch_owned.push(scratch);
+        scratch
     }
 
     /// Release the scratch boxes an operation created.
@@ -962,6 +969,45 @@ impl Emitter<'_, '_> {
             self.i32(0);
             self.set(local);
         }
+    }
+
+    fn try_cached_increment(
+        &mut self,
+        place: &crate::native_lowering::cells::CellPlace,
+        delta: NativeValueId,
+        candidate: &crate::native_lowering::ir::CachedIntegerIncrement,
+    ) {
+        let boxed_delta = self.box_scratch(delta);
+        self.text_pair(&place.spelling());
+        self.get(self.local_of(candidate.receiver));
+        self.get(boxed_delta);
+        self.get(self.local_of(candidate.old));
+        self.get(self.local_of(candidate.sum));
+        self.frame_offset(FRAME_SCRATCH_I32);
+        self.call(self.imports.try_cached_incr);
+        self.set(LOCAL_SCRATCH_I32);
+        self.get(LOCAL_SCRATCH_I32);
+        self.push(WasmOp::I32Eqz);
+        self.open(WasmOp::If, Label::Plain);
+        self.text_pair(&place.spelling());
+        self.get(boxed_delta);
+        self.call(self.imports.var_incr);
+        self.set(LOCAL_SCRATCH_I32);
+        self.else_();
+        self.get(LOCAL_SCRATCH_I32);
+        self.i32(1);
+        self.push(WasmOp::I32Eq);
+        self.open(WasmOp::If, Label::Plain);
+        self.get(LOCAL_FRAME);
+        self.load_i32(FRAME_SCRATCH_I32);
+        self.set(LOCAL_SCRATCH_I32);
+        self.else_();
+        // Host refusal is handled by `call`; invalid transport has no output.
+        self.i32(0);
+        self.set(LOCAL_SCRATCH_I32);
+        self.close();
+        self.close();
+        self.get(LOCAL_SCRATCH_I32);
     }
 
     /// Box a native value, leaving the owned handle on the stack.
@@ -1609,11 +1655,19 @@ impl Emitter<'_, '_> {
                 self.fail_on_code(completion);
             }
             NativeOp::CellIncr {
-                dst, place, delta, ..
+                dst,
+                place,
+                delta,
+                cached,
+                ..
             } => {
-                self.text_pair(&place.spelling());
-                self.push_boxed(*delta);
-                self.call(self.imports.var_incr);
+                if let Some(candidate) = cached {
+                    self.try_cached_increment(place, *delta, candidate);
+                } else {
+                    self.text_pair(&place.spelling());
+                    self.push_boxed(*delta);
+                    self.call(self.imports.var_incr);
+                }
                 self.tee(LOCAL_SCRATCH_I32);
                 self.push(WasmOp::I32Eqz);
                 self.open(WasmOp::If, Label::Plain);
