@@ -126,7 +126,7 @@
     "rust/tcl-registry/src/source_file.rs": "744243474fecf235c83795356befef72bc7aaecf1b4c939badcb191665b7d864",
     "rust/tcl-vm/src/interp/logical_file_source.rs": "c130f2ab9c2afab3c5fbbfd5a73c8386552d5df504da2418e62352f692df479b",
     "rust/tcl-vm/src/command/native_encoding_source.rs": "b2006b375e09e82598b8e6853c213fe6269b9b4e624f756acd5b7b3ee816b1ff",
-    "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs": "d0feea7ca90fc3f020abeb265e03296568edbb5d46ed083acc31c6177bcf477d"
+    "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs": "6ac6e7c3ac389262879585d9000dd770086448605518e9c8decaf47355428062"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",
@@ -262,51 +262,51 @@
     {
       "selector": "command::native_encoding_source::logical_file_tests::logical_file_provider_is_explicit_and_does_not_select_native_grammar",
       "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
-      "function_sha256": "95bdd0c9bcef6380f11d672695f4dcc947155247b1bf40e43d703486c7649813",
+      "function_sha256": "5d511d96295e295727bc8389410adf42bc4c353baa9431a9be8a2d443cc8f749",
       "first_line": 46,
-      "last_line": 82
+      "last_line": 81
     },
     {
       "selector": "command::native_encoding_source::logical_file_tests::logical_file_ascii_kernel_reads_once_and_closes_the_actual_handle",
       "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
-      "function_sha256": "8d192b1d730565de73be6d55d72f60b9a59d3fda3a53a0404cfaef6c62b07c49",
-      "first_line": 85,
-      "last_line": 114
+      "function_sha256": "7bec8ecd286be2dff44e5a16776ea1a4902f5327147dc157ebb6ba07b98a2ade",
+      "first_line": 84,
+      "last_line": 112
     },
     {
       "selector": "command::native_encoding_source::logical_file_tests::logical_file_high_bytes_refuse_before_conversion_or_open",
       "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
-      "function_sha256": "017705ba0735ff2ba29d7425de85afb50eefa2800e7855b713591eb9d4d790e3",
-      "first_line": 117,
-      "last_line": 150
+      "function_sha256": "1004365cc146e48a7cd7e96060d58bd94d82c43765160f7d80ba00d645f4e965",
+      "first_line": 115,
+      "last_line": 147
     },
     {
       "selector": "command::native_encoding_source::logical_file_tests::logical_file_ascii_empty_dash_and_nul_keep_original_filename_kernel",
       "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
-      "function_sha256": "ea80b604c9a716007f876b029abc1b57a14da6bfed23f03f6ddfa6874e37a62e",
-      "first_line": 153,
-      "last_line": 184
+      "function_sha256": "ceb69871eaca587d95fda926a4c6fa90efbb5444787c5dba261e7395b324e990",
+      "first_line": 150,
+      "last_line": 180
     },
     {
       "selector": "command::native_encoding_source::logical_file_tests::logical_file_provider_withdrawal_and_restore_cannot_revive_entry",
       "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
-      "function_sha256": "417ba55a295de5255e54b9fb0b2837776cbb6ca94c9f1799ef6e3c80557f3a74",
-      "first_line": 187,
-      "last_line": 202
+      "function_sha256": "21db8ef9c77ed66abfc85dbd129e246201659ea0122172a4d2e248789923d626",
+      "first_line": 183,
+      "last_line": 197
     },
     {
       "selector": "command::native_encoding_source::logical_file_tests::logical_file_read_header_withdrawal_keeps_first_error_and_closes_once",
       "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
-      "function_sha256": "f005327bec90e8c1ba1bf92030866aa1749c80bc5c0336429997921b5fb7d93f",
-      "first_line": 205,
-      "last_line": 241
+      "function_sha256": "d3da48991dcafccad5498140fc03d94fd4d58859a978054beb045f8cc4ec1365",
+      "first_line": 200,
+      "last_line": 235
     },
     {
       "selector": "command::native_encoding_source::logical_file_tests::logical_file_nonresident_integer_keeps_the_single_original_string_stage",
       "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
-      "function_sha256": "6e59e9e7b6aaec390db3dacb5485e953872ef016476d4117e3658f35e35302ed",
-      "first_line": 244,
-      "last_line": 277
+      "function_sha256": "38bac6e69beb7b747b645d6608a35388356537809c3db8bb63d60964108e4f00",
+      "first_line": 238,
+      "last_line": 270
     }
   ],
   "logical_file_budget": {
