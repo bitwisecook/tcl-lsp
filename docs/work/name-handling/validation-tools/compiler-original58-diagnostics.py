@@ -161,6 +161,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
             "diagnostic-cached-increment-compiler3-",
+            "diagnostic-primary-procedure-value4-",
             "diagnostic-finite-foreach4-",
             "list-",
             "select-",
@@ -197,6 +198,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
             "diagnostic-cached-increment-compiler3-",
+            "diagnostic-primary-procedure-value4-",
             "diagnostic-finite-foreach4-",
         )
     ):
@@ -234,6 +236,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
             "diagnostic-cached-increment-compiler3-",
+            "diagnostic-primary-procedure-value4-",
             "diagnostic-finite-foreach4-",
         )
     ):
@@ -3568,6 +3571,217 @@ def run_cached_increment_compiler_controls() -> None:
 
 
 
+def run_primary_procedure_value_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows + source_point_memo_rows + analyser_layout_diagnostic_rows + source_point_report_rows + inherited_report_rows + cached_increment_compiler_rows
+        ),
+        "primary procedure value controls cannot precede existing report-repeat closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    for source_path, expected in primary_procedure_value_validation["source_pins"].items():
+        require(sha(root / source_path) == expected,
+                "primary procedure value source drift: " + source_path)
+    for function in primary_procedure_value_validation["functions"]:
+        text = (root / function["path"]).read_text()
+        marker = "fn " + function["name"] + "("
+        matches = list(re.finditer(r"(?m)^\s*" + re.escape(marker), text))
+        require(len(matches) == 1, "primary procedure value function absent/ambiguous")
+        begin = text.index(marker, matches[0].start())
+        opening = text.index("{", begin)
+        level, end = 1, opening + 1
+        while level and end < len(text):
+            level += (text[end] == "{") - (text[end] == "}")
+            end += 1
+        require(level == 0 and hashlib.sha256(text[begin:end].encode()).hexdigest() == function["sha256"],
+                "primary procedure value actual function body differs")
+    for index, row in enumerate(primary_procedure_value_rows):
+        require(deadline - time.time() >= 180 + 180 + 40,
+                "insufficient full primary-procedure-value list/test/cleanup budget")
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        current_roster = json.loads((out / ("roster-" + target_name + ".json")).read_text())
+        require(row["selector"] in current_roster["selected"],
+                "primary procedure value selector missing from same fresh owned target inventory")
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "primary procedure value current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "primary procedure value requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "primary procedure value artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "primary-procedure-value4"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        require(deadline - time.time() >= 180 + 40,
+                "insufficient full primary procedure value test/cleanup budget after listing")
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "primary-procedure-value-outcomes.json", primary_procedure_value_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "primary-procedure-value-outcomes.json", primary_procedure_value_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "primary-procedure-value-outcomes.json", primary_procedure_value_rows)
+            raise
+        save(out / "primary-procedure-value-outcomes.json", primary_procedure_value_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
+
 def run_source_point_memo_controls() -> None:
     global remaining
     require("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" not in env, "memo8 requires diagnostic bypass absent; old environments are never mutated")
@@ -5560,7 +5774,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "1bfd89a037139f413ad583ef6d85e5031f1dca68d4e6ce50489534d17fdf8429",
+    == "5f2208f116121e101194a973c3393e101e3a4387ee148f3d779a3698549b8aec",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -5755,6 +5969,10 @@ require(cached_increment_compiler_validation["schema"] == "cached-increment-comp
         and cached_increment_compiler_validation["functions"] == [{'selector': 'native_lowering::tests::a_live_boxed_integer_increment_keeps_its_original_trace_barrier', 'path': 'rust/tcl-compiler/src/native_lowering/tests.rs', 'name': 'a_live_boxed_integer_increment_keeps_its_original_trace_barrier', 'sha256': '87fd4a8d57a0b431e7f3b78e83b4997d1de538ab1de8bae0f1b9dfd9cfbf5aff'}, {'selector': 'native_lowering::tests::cached_increment_candidates_do_not_erase_string_or_explicit_amount_effects', 'path': 'rust/tcl-compiler/src/native_lowering/tests.rs', 'name': 'cached_increment_candidates_do_not_erase_string_or_explicit_amount_effects', 'sha256': 'f0eda5ebba09cfca09542de6df6f931b860f1b7b55d07b9bc3c47f359d3520d8'}, {'selector': 'codegen_abi::tests::cached_increment_keeps_borrowed_operands_and_separate_status_transport', 'path': 'rust/tcl-runtime-api/src/codegen_abi.rs', 'name': 'cached_increment_keeps_borrowed_operands_and_separate_status_transport', 'sha256': 'ecaeb70d0e33bd54e9f4af5f4394e0cdd145ef42902e6acd31ef60f47692e4cd'}],
         "exact cached increment compiler3 source/function/selector/environment contract")
 cached_increment_compiler_rows = [dict(row, state="UNRUN") for row in cached_increment_compiler_validation["rows"]]
+
+primary_procedure_value_validation = logical_validation["separate_primary_procedure_value_controls"]
+require(primary_procedure_value_validation == {'schema': 'primary-procedure-value4-v1', 'expected_selected': 4, 'source_pins': {'rust/tcl-compiler/src/command_binding.rs': '003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2', 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs': '2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30', 'rust/tcl-compiler/src/command_binding/retained_source.rs': 'da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659', 'rust/tcl-compiler/src/realm/source_transition_advice.rs': '549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574', 'rust/tcl-compiler/src/registry_invocation.rs': 'fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac', 'rust/tcl-compiler/src/registry_invocation/source_structure.rs': 'dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca'}, 'functions': [{'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'primary_declaration_values_keep_the_final_record_and_command_refusal', 'sha256': 'ebd07c9e125c3f1ef14a6155901f55bdfdca5dddc1562c24ac5ebb37ac4f2aeb'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'sha256': '94559dac6fb3a1718597f928e85db453db088622b09bb54854db70bb942f9497'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'sha256': '27abb4ce686fd9a2d9ebeca1f10b4dbb12380886f7de20c601c122130a7d7af4'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_changed_input_source_and_selected_operands', 'sha256': '538719e632940b1d0d32f2e114222ef9f57c7f73b8ffd64197ff541ba9cc3488'}], 'rows': [{'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'env': {}}]}, "exact primary procedure value4 roster/source/functions")
+primary_procedure_value_rows = [dict(row, state="UNRUN") for row in primary_procedure_value_validation["rows"]]
 
 source_point_memo_validation = logical_validation["separate_source_point_memo_controls"]
 require(source_point_memo_validation["schema"] == "source-point-memo8-v1" and source_point_memo_validation["expected_selected"] == 8 and source_point_memo_validation["source"] in logical_validation["source_pins"] and source_point_memo_validation["required_absent_environment"] == "TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" and source_point_memo_validation["rows"] == [{'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_matches_complete_input_and_independent_builder_clones', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_keeps_supplied_metadata_generation_and_missing_tag', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_bounds_history_and_refuses_oversized_sources', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_distinguishes_channel_config_entry_frame_and_registry', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_live_lease_keeps_snapshot_acyclic_and_shares_while_live', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_retirement_drops_parent_payload_but_retains_only_history_origin', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_rejects_foreign_and_changed_context_keys', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {}}], "exact separate memo8 roster")
@@ -6792,6 +7010,8 @@ try:
     require(len(inherited_report_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in inherited_report_rows), "inherited point report custody3 incomplete")
     run_cached_increment_compiler_controls()
     require(len(cached_increment_compiler_rows) == 3 and all(row["state"] in ["PASS", "FAIL"] for row in cached_increment_compiler_rows), "cached increment compiler3 incomplete")
+    run_primary_procedure_value_controls()
+    require(len(primary_procedure_value_rows) == 4 and all(row["state"] in ["PASS", "FAIL"] for row in primary_procedure_value_rows), "primary procedure value4 incomplete")
     run_source_point_corpus_controls()
     require(len(source_point_corpus_rows) == 2 and all(row["state"] in ["PASS", "FAIL"] for row in source_point_corpus_rows), "complete text corpus2 incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
@@ -6800,6 +7020,8 @@ try:
     if any(row["state"] != "PASS" for row in inherited_report_rows):
         status = 1
     if any(row["state"] != "PASS" for row in cached_increment_compiler_rows):
+        status = 1
+    if any(row["state"] != "PASS" for row in primary_procedure_value_rows):
         status = 1
     if any(row["state"] != "PASS" for row in source_point_corpus_rows):
         status = 1
@@ -6900,6 +7122,7 @@ finally:
     save(out / "source-point-memo-outcomes.json", source_point_memo_rows)
     save(out / "source-point-report-firstguard-outcomes.json", source_point_report_rows)
     save(out / "inherited-point-report-outcomes.json", inherited_report_rows)
+    save(out / "primary-procedure-value-outcomes.json", primary_procedure_value_rows)
     save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
     save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
     save(out / "outcomes.json", rows)
@@ -7026,6 +7249,10 @@ finally:
             "required_inherited_point_report_custody_controls": 3,
             "inherited_point_report_custody3_outcomes": inherited_report_rows,
             "inherited_point_report_custody3_roster": inherited_report_validation,
+            "required_primary_procedure_value_controls": 4,
+            "primary_procedure_value4_outcomes": primary_procedure_value_rows,
+            "primary_procedure_value4_roster": primary_procedure_value_validation,
+            "primary_procedure_value4_closed": sum(row["state"] in ["PASS", "FAIL"] for row in primary_procedure_value_rows),
             "required_cached_increment_compiler_controls": 3,
             "cached_increment_compiler3_outcomes": cached_increment_compiler_rows,
             "cached_increment_compiler3_roster": cached_increment_compiler_validation,

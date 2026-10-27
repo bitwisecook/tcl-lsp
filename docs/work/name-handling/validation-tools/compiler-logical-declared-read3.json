@@ -40,7 +40,7 @@
     "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "8498e51d983ed09876975b518b102c30f0779fa56be0e25d52006bd2ccb01ecb",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
-    "rust/tcl-compiler/src/command_binding.rs": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412",
+    "rust/tcl-compiler/src/command_binding.rs": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2",
     "rust/tcl-compiler/src/command_binding/native_string_access/tests.rs": "bc2547d57b23050b5a8ef68545680349544a606b7229095e7cf04c33ed9f2168",
     "rust/tcl-compiler/src/command_binding/evaluated_word.rs": "bbdcbaa87ff68b5550e57adc683fe40a96337b926bbe2f8cc662e0927ddd464c",
     "rust/tcl-compiler/src/command_binding/literal_object_pool.rs": "1193653ff6d4df0c2c77834b818bb41e189ca2f64e78ca3207920cd864312db9",
@@ -67,7 +67,7 @@
     "rust/tcl-compiler/src/command_binding/original_name_value.rs": "63d7dbdd31aa3861c0f5cfcdb555950fbaf387ff47538eb837d67456d282cd7c",
     "rust/tcl-compiler/src/var_resolve/original_name_contents.rs": "6fa39c54f9461ca6b22d4ac772f58208b793b376b62890779158afb2e0a2d517",
     "rust/tcl-syntax/src/native_object_append.rs": "ab8da3e07f30a14ac5d2024e7437ce1990baf101f97178c6375538d939f14290",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "0a3069f741604e5c42a530e129c49e0c582bbbc6503df0bf7508a77ce6e95c82",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
     "rust/tcl-compiler/src/analyser/authenticated_report.rs": "85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0",
@@ -77,7 +77,10 @@
     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
     "rust/tcl-compiler/src/analyser/commands.rs": "1aeb34f0e1e1805dba5ddac1add605e81f383717e14f94cef54411a1380b1a53",
     "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "affdcdbf339d2dcd0d192463bbb7a4a0f151e633b05628ee4207cef3ded51584",
-    "rust/tcl-compiler/src/analyser/state.rs": "31159fd04fe9189d70eddd886988819be5d78d0a267e588d8d53306d137a9180"
+    "rust/tcl-compiler/src/analyser/state.rs": "31159fd04fe9189d70eddd886988819be5d78d0a267e588d8d53306d137a9180",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
+    "rust/tcl-compiler/src/registry_invocation.rs": "fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
@@ -742,6 +745,86 @@
         ],
         "target": "tcl_runtime_api",
         "selector": "codegen_abi::tests::cached_increment_keeps_borrowed_operands_and_separate_status_transport",
+        "env": {}
+      }
+    ]
+  },
+  "separate_primary_procedure_value_controls": {
+    "schema": "primary-procedure-value4-v1",
+    "expected_selected": 4,
+    "source_pins": {
+      "rust/tcl-compiler/src/command_binding.rs": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
+      "rust/tcl-compiler/src/command_binding/retained_source.rs": "da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659",
+      "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
+      "rust/tcl-compiler/src/registry_invocation.rs": "fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac",
+      "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca"
+    },
+    "functions": [
+      {
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal",
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "name": "primary_declaration_values_keep_the_final_record_and_command_refusal",
+        "sha256": "ebd07c9e125c3f1ef14a6155901f55bdfdca5dddc1562c24ac5ebb37ac4f2aeb"
+      },
+      {
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records",
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "name": "declaration_values_refuse_absent_and_sticky_conflicted_final_records",
+        "sha256": "94559dac6fb3a1718597f928e85db453db088622b09bb54854db70bb942f9497"
+      },
+      {
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner",
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "name": "declaration_values_refuse_registry_barrier_and_equal_foreign_owner",
+        "sha256": "27abb4ce686fd9a2d9ebeca1f10b4dbb12380886f7de20c601c122130a7d7af4"
+      },
+      {
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands",
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "name": "declaration_values_refuse_changed_input_source_and_selected_operands",
+        "sha256": "538719e632940b1d0d32f2e114222ef9f57c7f73b8ffd64197ff541ba9cc3488"
+      }
+    ],
+    "rows": [
+      {
+        "group": "diagnostic-primary-procedure-value4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-primary-procedure-value4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-primary-procedure-value4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-primary-procedure-value4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands",
         "env": {}
       }
     ]
