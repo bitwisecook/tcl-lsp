@@ -5,58 +5,100 @@ use crate::{
 };
 use std::{cell::RefCell, rc::Rc};
 use tcl_syntax::value::ValueOps;
-const FIXTURES: [(&str, &str, &str); 6] = [
-    (
-        "tcl8.4",
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.4.txt"
+fn original_each_fixtures() -> [(&'static str, String, String); 6] {
+    [
+        (
+            "tcl8.4",
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "original/tcl8.4.txt",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "shimmer/tcl8.4.txt",
+            ),
         ),
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/shimmer/tcl8.4.txt"
+        (
+            "tcl8.5",
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "original/tcl8.5.txt",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "shimmer/tcl8.5.txt",
+            ),
         ),
-    ),
-    (
-        "tcl8.5",
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.5.txt"
+        (
+            "tcl8.6",
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "original/tcl8.6.txt",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "shimmer/tcl8.6.txt",
+            ),
         ),
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/shimmer/tcl8.5.txt"
+        (
+            "tcl9.0",
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "original/tcl9.0.txt",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "shimmer/tcl9.0.txt",
+            ),
         ),
-    ),
-    (
-        "tcl8.6",
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.6.txt"
+        (
+            "tcl9.1",
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "original/tcl9.1.txt",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "shimmer/tcl9.1.txt",
+            ),
         ),
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/shimmer/tcl8.6.txt"
+        (
+            "jim",
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "original/jim.txt",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/captures.tsv"
+                ),
+                "shimmer/jim.txt",
+            ),
         ),
-    ),
-    (
-        "tcl9.0",
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.0.txt"
-        ),
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/shimmer/tcl9.0.txt"
-        ),
-    ),
-    (
-        "tcl9.1",
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.1.txt"
-        ),
-        include_str!(
-            "../../../../rust/tcl-cmd-core/tests/data/native_each_loop/shimmer/tcl9.1.txt"
-        ),
-    ),
-    (
-        "jim",
-        include_str!("../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/jim.txt"),
-        include_str!("../../../../rust/tcl-cmd-core/tests/data/native_each_loop/shimmer/jim.txt"),
-    ),
-];
+    ]
+}
 struct Inputs {
     argv: Vec<Owned>,
     roots: [*mut TclObj; 3],
@@ -268,7 +310,7 @@ fn unhex(bytes: &str) -> Vec<u8> {
 fn run(physical: bool) -> (usize, usize) {
     let mut completions = 0;
     let mut windows = 0;
-    for (engine, original, shimmer_fixture) in FIXTURES {
+    for (engine, original, shimmer_fixture) in original_each_fixtures() {
         for (shimmer, fixture) in [(false, original), (true, shimmer_fixture)] {
             for case in 0..10 {
                 let case_label = format!("{case}/shimmer={shimmer}/physical={physical}");

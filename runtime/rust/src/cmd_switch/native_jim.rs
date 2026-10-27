@@ -181,38 +181,56 @@ mod tests {
         for (profile, rows) in [
             (
                 "tcl8.4",
-                include_str!(
-                    "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/8.4.20.tsv"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/captures.tsv"
+                    ),
+                    "8.4.20.tsv",
                 ),
             ),
             (
                 "tcl8.5",
-                include_str!(
-                    "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/8.5.19.tsv"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/captures.tsv"
+                    ),
+                    "8.5.19.tsv",
                 ),
             ),
             (
                 "tcl8.6",
-                include_str!(
-                    "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/8.6.18.tsv"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/captures.tsv"
+                    ),
+                    "8.6.18.tsv",
                 ),
             ),
             (
                 "tcl9.0",
-                include_str!(
-                    "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/9.0.4.tsv"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/captures.tsv"
+                    ),
+                    "9.0.4.tsv",
                 ),
             ),
             (
                 "tcl9.1",
-                include_str!(
-                    "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/9.1.0.tsv"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/captures.tsv"
+                    ),
+                    "9.1.0.tsv",
                 ),
             ),
             (
                 "jim",
-                include_str!(
-                    "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/jim0.84.tsv"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/captures.tsv"
+                    ),
+                    "jim0.84.tsv",
                 ),
             ),
         ] {

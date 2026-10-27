@@ -1765,7 +1765,10 @@ mod native_error_variable_tests {
 
     #[test]
     fn hidden_error_read_policy_matches_five_original_c_releases() {
-        let fixture = include_str!("../tests/data/native_error_variables/observations.tsv");
+        let fixture = tcl_test_support::fixture_tables::text(
+            include_str!("../tests/data/native_error_variables/captures.tsv"),
+            "observations.tsv",
+        );
         assert_eq!(fixture.lines().count(), 50);
         for (name, version) in [
             ("tcl8.4", "8.4.20"),

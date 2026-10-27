@@ -1315,19 +1315,31 @@ mod tests {
         for (v, rows) in [
             (
                 TclVersion::V8_4,
-                include_str!("../tests/data/native_jim_switch/8.4.20.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_jim_switch/captures.tsv"),
+                    "8.4.20.tsv",
+                ),
             ),
             (
                 TclVersion::V8_5,
-                include_str!("../tests/data/native_jim_switch/8.5.19.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_jim_switch/captures.tsv"),
+                    "8.5.19.tsv",
+                ),
             ),
             (
                 TclVersion::V8_6,
-                include_str!("../tests/data/native_jim_switch/8.6.18.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_jim_switch/captures.tsv"),
+                    "8.6.18.tsv",
+                ),
             ),
             (
                 TclVersion::V9_0,
-                include_str!("../tests/data/native_jim_switch/9.0.4.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_jim_switch/captures.tsv"),
+                    "9.0.4.tsv",
+                ),
             ),
         ] {
             let original: Vec<_> = rows

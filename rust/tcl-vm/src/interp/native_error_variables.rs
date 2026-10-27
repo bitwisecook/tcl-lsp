@@ -950,8 +950,9 @@ mod tests {
 
     #[test]
     fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
-        let observations = include_str!(
-            "../../../tcl-registry/tests/data/native_error_variables/reset-episodes.tsv"
+        let observations = tcl_test_support::fixture_tables::text(
+            include_str!("../../../tcl-registry/tests/data/native_error_variables/captures.tsv"),
+            "reset-episodes.tsv",
         );
         for (version, profile) in [
             ("8.4.20", "tcl8.4"),
@@ -1616,17 +1617,29 @@ mod tests {
 
     fn producer_reference_counts(profile: &str) -> (usize, usize) {
         let fixture = match profile {
-            "tcl8.5" => include_str!(
-                "../../../tcl-registry/tests/data/native_error_variables/8.5.19-producers.tsv"
+            "tcl8.5" => tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_error_variables/captures.tsv"
+                ),
+                "8.5.19-producers.tsv",
             ),
-            "tcl8.6" => include_str!(
-                "../../../tcl-registry/tests/data/native_error_variables/8.6.18-producers.tsv"
+            "tcl8.6" => tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_error_variables/captures.tsv"
+                ),
+                "8.6.18-producers.tsv",
             ),
-            "tcl9.0" => include_str!(
-                "../../../tcl-registry/tests/data/native_error_variables/9.0.4-producers.tsv"
+            "tcl9.0" => tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_error_variables/captures.tsv"
+                ),
+                "9.0.4-producers.tsv",
             ),
-            "tcl9.1" => include_str!(
-                "../../../tcl-registry/tests/data/native_error_variables/9.1.0-producers.tsv"
+            "tcl9.1" => tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../../tcl-registry/tests/data/native_error_variables/captures.tsv"
+                ),
+                "9.1.0-producers.tsv",
             ),
             _ => panic!("native producer fixture"),
         };
