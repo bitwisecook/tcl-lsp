@@ -105,6 +105,26 @@ impl AuthenticatedAnalysisReport {
         )
     }
 
+    #[cfg(test)]
+    pub(crate) fn availability_output_pair_for_test<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> Option<ReportOutputCorrespondence<'a>> {
+        let left = self.current_capture().ok()?;
+        let right = other.current_capture().ok()?;
+        if left.input != right.input || left.image != right.image || left.registry != right.registry
+        {
+            return None;
+        }
+        ReportBodyCorrespondence::capture(&left.bodies, &right.bodies)?;
+        Some(ReportOutputCorrespondence {
+            left: &self.analysis,
+            right: &other.analysis,
+            left_owner: &left.realm_owner,
+            right_owner: &right.realm_owner,
+        })
+    }
+
     fn current_capture(&self) -> Result<&ActualReportCapture, AnalysisReportUnavailable> {
         let capture = self.capture.as_ref().map_err(|reason| *reason)?;
         let matched = capture.matches_output(&self.analysis);

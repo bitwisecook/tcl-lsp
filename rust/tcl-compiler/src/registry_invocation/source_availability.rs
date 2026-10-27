@@ -50,6 +50,39 @@ pub struct OriginalSourceCommandAvailability {
     realm: tcl_dialect::model::InvocationRealm,
 }
 impl OriginalSourceCommandAvailability {
+    /// Distinct report purpose: authenticate each complete retained subject in
+    /// its actual output before joining only that output's nominal owner pair.
+    /// Ordinary subject/binding Eq and every runtime/cache permission stay strict.
+    pub(crate) fn authenticated_report_eq(
+        &self,
+        other: &Self,
+        output: &crate::analyser::authenticated_report::ReportOutputCorrespondence<'_>,
+    ) -> Option<bool> {
+        let Self {
+            descriptor: _,
+            original: _,
+            input: _,
+            origin: _,
+            invocation: _,
+            realm: _,
+        } = self;
+        let (left, right) = output.analyses();
+        if self.original.is_empty()
+            || other.original.is_empty()
+            || !self.matches_analysis(left)
+            || !other.matches_analysis(right)
+            || self.descriptor != other.descriptor
+            || self.original != other.original
+            || self.input != other.input
+            || self.origin != other.origin
+            || self.realm != other.realm
+        {
+            return None;
+        }
+        retained_report_tokens_eq(&self.invocation, &other.invocation, output)?;
+        Some(true)
+    }
+
     /// Negative metadata from the same complete availability generation.
     #[must_use]
     pub const fn descriptor(&self) -> &CommandSourceUnavailability {
@@ -476,3 +509,48 @@ mod tests {
         assert!(last_receipt(source, &unknown).is_none());
     }
 }
+
+fn retained_report_tokens_eq(
+    left: &crate::ir::CommandTokens,
+    right: &crate::ir::CommandTokens,
+    output: &crate::analyser::authenticated_report::ReportOutputCorrespondence<'_>,
+) -> Option<()> {
+    macro_rules! same_fields {
+        ($($field:ident),+ $(,)?) => {
+            let crate::ir::CommandTokens { source_binding: _, nested_bindings: _, $($field: _),+ } = left;
+            $(if left.$field != right.$field { return None; })+
+        };
+    }
+    same_fields!(
+        argv,
+        argv_texts,
+        word_exprs,
+        argv_kinds,
+        single_token_word,
+        all_tokens,
+        expand_word,
+        synthetic,
+        evaluated_body,
+        variable_accesses,
+        hosted_taint_context,
+        source_bpf_command,
+    );
+    left.source_binding
+        .as_ref()?
+        .authenticated_availability_report_eq(right.source_binding.as_ref()?, output)?;
+    if left.nested_bindings.len() != right.nested_bindings.len() {
+        return None;
+    }
+    for ((left_offset, left), (right_offset, right)) in
+        left.nested_bindings.iter().zip(&right.nested_bindings)
+    {
+        if left_offset != right_offset {
+            return None;
+        }
+        left.authenticated_availability_report_eq(right, output)?;
+    }
+    Some(())
+}
+
+#[cfg(test)]
+mod report_tests;
