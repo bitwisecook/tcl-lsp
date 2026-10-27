@@ -452,8 +452,11 @@ mod tests {
         ).expect("the same original conditional procedure call");
         let declaration = call.declaration(&shadow_analysis).unwrap();
         assert_eq!(declaration.metadata().qualified_name, "::button");
+        let image = tcl_lexer::SourceImage::document(shadow);
+        let input = shadow_analysis.resolved_input.as_ref().unwrap();
+        let body = declaration.original_body_word(&image, input).unwrap();
         assert_eq!(
-            &shadow[declaration.metadata().body_span.as_range()],
+            &shadow[body.content_span().unwrap().as_range()],
             "return custom"
         );
         let shadow_hover = at(shadow, &shadow_analysis, "button").unwrap();
