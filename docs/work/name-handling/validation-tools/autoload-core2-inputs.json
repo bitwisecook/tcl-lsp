@@ -26,7 +26,7 @@
     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "7d68fab8ec707151890e6f6f226edaf4c26379b8101f179c4cfba749142027d5",
     "rust/tcl-compiler/src/realm/source_transition_advice.rs": "75fdf97572790e889cf79eb26b84c8433e1d74ee0eaa6fe1509f1be0412b4573",
-    "rust/tcl-lsp-core/src/hover/original_registry.rs": "4673af651f99108a5883ff8a709cbe6bdeebb9e6d1b0ea84860a174091d757f6",
+    "rust/tcl-lsp-core/src/hover/original_registry.rs": "8a5ec525292a27def7e7a05c5273c438afb5685dd3f56b22b99b032492521022",
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77",
     "rust/tcl-compiler/src/command_binding/conditional_source.rs": "d1bf6c102561f9fd72379b2f8d9603146e23485211300234af94bb56b9f87f26",
