@@ -35,7 +35,7 @@
     "rust/tcl-compiler/src/command_binding.rs": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412",
     "rust/tcl-compiler/src/command_binding/called_static_layouts.rs": "709a9c49819d10e69a4d97f86e641e4c41c6dd9a2c7083e3d25070fa1ebad679",
     "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "567521bb72be8f7db4345e8398110f1028f8a6915844cf7ad55077b7583314c0",
-    "rust/tcl-compiler/src/command_binding/retained_source.rs": "f2919bda0850cc0f6f2fd54fc88837686138b4d24e27ed301b03a94688800797",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659",
     "rust/tcl-compiler/src/command_binding/source_catalogue_advice.rs": "247cbac9085a9363fa2eabefe5b12fabdef5f964fe5605e7ddb700726df6518b",
     "rust/tcl-compiler/src/compilation_unit.rs": "646b630dd2ddcfb3574363e90d0b8a9a8e0b608ee856640e9db034ab719d0d6f",
     "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
@@ -52,11 +52,11 @@
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs": "93aa4c65574aa47f8341e87209cd87640968f13d8b1f6c44dd5061f341d90c3f",
     "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs": "15ac77d4fedb584f30718f831a874a498a6abece404a1034d5be803781edff57",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "3af147084d8b2e1984cbf53a558faad409908d29d1337bf1c6dc7371e6f45568",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "6fe1d3d8060c465b867e3bb3611c9e10a4cd799f861aad966455cba5531be328",
     "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "4e5c1369a02ed26df4becae20580292cf0b3419fe8915c118b4644a9e9dda96d",
     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
-    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "c3f80b6ccb8139380fa0ffb15e2236c1cdca68206661c826aa01c17317a65dfd",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "4133a2a93b919503a2513e428a989ed670ee3418ecbec1dd5d04eaaffa517b9e",
     "rust/tcl-compiler/src/realm/source_transition_advice.rs": "e01a15481bc6744cec7a5cb5cefabd48b8dcc85ea618e7ae4b73ca18c5662d8c"
   }
 }

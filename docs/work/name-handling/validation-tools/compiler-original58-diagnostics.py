@@ -4684,7 +4684,7 @@ def run_jim_source_layout_controls() -> None:
 
 
 def finite_foreach_source_guard():
-    path = root / finite_foreach_validation["source_path"]
+    path = root / finite_foreach_validation["source"]
     require(sha(path) == finite_foreach_validation["source_sha256"],
             "finite foreach control module changed")
     text = path.read_text()
@@ -5192,7 +5192,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "682576528999248485edd1e75f925316c5006a751736aeb60c0082c12518e9c0",
+    == "283e550b9104efa741569e1a1d7727b81f088d9d801dbbc4fec28145e07da8bf",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -5229,7 +5229,7 @@ original_rows = [
 ]
 require(
     sha(BASE / "compiler-native35-supplemental3.json")
-    == "279bd4949e4e615ffff582e0f820d1e228456d8df4c84d3a08b67165d31bdb80",
+    == "832271a76f16c9287f395bc427f81f85a6f2e7524b7704d8587f9146d4c2817d",
     "exact separate Native35 supplemental3 input pin",
 )
 supplemental = json.loads((BASE / "compiler-native35-supplemental3.json").read_text())
@@ -5380,7 +5380,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "0bf8fb32f273281cca010857e9a34527eaea395af67a949937810982a3ebc92c",
+    == "2e2d1b33ac817e62c378f3161bb204ff8c3e93c832a51da61e23b23e599b4618",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -5436,7 +5436,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "fcbacd7fb71957c35ceca130bc3099a41e939c4e797e7be7888da73456559af9",
+    == "d721d37d647162bc8d57e99ea553d4bdd29ff94c6c98fe0e666ed0d278fdf17e",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -5560,7 +5560,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "d33be794b678d9bfa7699e3bdfb319b2abcc3d4c64ae247523a1dd1efd5f9951",
+    == "1bfd89a037139f413ad583ef6d85e5031f1dca68d4e6ce50489534d17fdf8429",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -5767,7 +5767,7 @@ source_point_corpus_validation = json.loads((BASE / "source-point-complete-text-
 require(sha(BASE / "source-point-complete-text-corpus2.json") == "c0b8f8ea7c655e5cb495cd725433e84a4418c6208a4f28d3edf7efbd3e0c7818", "exact separately bounded complete text corpus roster")
 source_point_corpus_rows = [dict(row, state="UNRUN") for row in source_point_corpus_validation["rows"]]
 
-source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': '5c71f5e71feced1fd8ec839dd7b4522d3343960e8f36f05e0813837ddcd9e27d'}
+source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': 'e7975d3056844a75252fe51ecffd60baab20d7360a0b6a88e0f4787161de3921'}
 source_point_report_rows = [dict(row, state="UNRUN", capture_observation="UNOBSERVED") for row in [{'group': 'diagnostic-source-point-report-firstguard1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {'TCL_LSP_TRACE_AUTHENTICATED_REPORT': '1'}}]]
 
 require(
@@ -5817,7 +5817,7 @@ layout11_acceptance_exit = None
 finite_foreach_validation = None
 finite_foreach_rows = []
 if args.jim_source_layout_only:
-    require(sha(BASE / "compiler-jim-source-layout11.json") == "88135d385992c9a7717eb85a1b5724dcf6a8bc770ca3ec2585d202565716fc96",
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "d8e4e16d21359d4c72bc0acd6e566caa3b3af335a969557867f3d624aa925d6d",
             "exact Layout11 roster/direct source pins required")
     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
     require(jim_layout_validation["expected_selected"] == 11
