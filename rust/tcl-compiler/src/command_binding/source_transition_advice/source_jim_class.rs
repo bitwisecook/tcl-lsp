@@ -685,3 +685,50 @@ impl AdviceInvocationContext<'_> {
         true
     }
 }
+
+impl AdviceInvocationContext<'_> {
+    pub(super) fn apply_jim_stock_source_effects(
+        graph: &mut AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> bool {
+        if graph.native_baseline
+            || graph.procedure_body.is_some()
+            || graph.future_procedure_source
+            || !graph.uncertain_operations.is_empty()
+            || !graph.arity_debts.is_empty()
+            || !invocation.lineage.is_empty()
+        {
+            return false;
+        }
+        let Some(policy) = graph.policy.native() else {
+            return false;
+        };
+        let Some(layout) = schema.authored_source_jim_class_lists(
+            tcl_registry::source_name_ownership::SourceRolePurpose::Original,
+        ) else {
+            return false;
+        };
+        if layout.policy != Some(policy) || layout.stock_source_recipe().is_none() {
+            return false;
+        }
+        let mut effects = graph
+            .stock_source_effects
+            .iter()
+            .filter_map(|effect| effect.publications(invocation.native, policy));
+        let Some(publications) = effects.next() else {
+            return false;
+        };
+        if effects.next().is_some() {
+            return false;
+        }
+        let publications = publications.to_vec();
+        for publication in publications {
+            let slot = publication.slot();
+            graph.remove_namespace_import_origin(slot);
+            graph.namespace_imports.remove(slot);
+            graph.cells.insert(slot.clone(), AdviceCell::Shadowed);
+        }
+        true
+    }
+}

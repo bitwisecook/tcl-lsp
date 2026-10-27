@@ -1694,6 +1694,7 @@ fn merge_receipt_inventory<K: Ord, T: PartialEq>(
 #[derive(Clone)]
 struct AdviceGraph {
     native_baseline: bool,
+    stock_source_effects: Vec<super::jim_stock_class::OriginalJimStockSourceEffects>,
     cells: super::SharedSourceInventory<HashMap<ByteCommandSlot, AdviceCell>>,
     namespaces: BTreeSet<ByteNamespacePath>,
     namespace_exports: BTreeMap<ByteNamespacePath, Vec<NameBytes>>,
@@ -1781,6 +1782,7 @@ impl AdviceGraph {
     ) -> Self {
         Self {
             native_baseline: false,
+            stock_source_effects: Vec::new(),
             cells: seed.cells(),
             namespaces: seed.namespaces(),
             namespace_exports: seed.namespace_exports(),
@@ -2918,7 +2920,10 @@ impl AdviceInvocationContext<'_> {
                 graph.widen(native);
             }
             inventory.extend_inventory(projected.inventory);
-        } else if !declared && !self.normal_source_variable_effects_closed(invocation, schema) {
+        } else if !declared
+            && !self.normal_source_variable_effects_closed(invocation, schema)
+            && !Self::apply_jim_stock_source_effects(graph, invocation, schema)
+        {
             graph.widen(native);
         }
         if schema.semantics.procedure_definition.is_none()
@@ -3489,6 +3494,7 @@ impl super::SourceCommandBindings {
             config,
             baseline: Arc::clone(&self.final_state.baseline),
             logical_input: self.final_state.logical_source_name_advice_input().cloned(),
+            stock_source_effects: self.original_jim_stock_source_effects(),
         })
     }
 
@@ -3573,6 +3579,7 @@ pub(super) struct OriginalSourceTransitionSeed {
     pub(super) config: LexerConfig,
     pub(super) baseline: Arc<super::BindingBaseline>,
     pub(super) logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    pub(super) stock_source_effects: Vec<super::jim_stock_class::OriginalJimStockSourceEffects>,
 }
 impl PartialEq for OriginalSourceTransitionSeed {
     fn eq(&self, other: &Self) -> bool {
@@ -3580,6 +3587,7 @@ impl PartialEq for OriginalSourceTransitionSeed {
             && self.config == other.config
             && self.baseline == other.baseline
             && self.logical_input == other.logical_input
+            && self.stock_source_effects == other.stock_source_effects
     }
 }
 impl Eq for OriginalSourceTransitionSeed {}
@@ -3758,6 +3766,18 @@ impl OriginalSourceTransitionSeed {
             plan,
         } = self.prepare_source_advice_tape(context, purpose)?;
         let mut graph = self.initial_source_advice_graph(context, &policy)?;
+        graph.stock_source_effects = self
+            .stock_source_effects
+            .iter()
+            .filter(|effect| {
+                effect.matches_seed(self.analysis_owner.as_ref(), origin, &self.baseline)
+                    && plan
+                        .commands
+                        .iter()
+                        .any(|command| command.words == effect.original())
+            })
+            .cloned()
+            .collect();
         let mut tape = OriginalSourceTransitionAdviceTape::default();
         if matches!(policy, AdviceNamingPolicy::Logical(_))
             && let Some(tail) = plan.fatal_tail
@@ -3872,6 +3892,7 @@ pub(super) fn original_conditional_procedure_declaration(
         config: row.config,
         baseline: Arc::clone(baseline),
         logical_input: None,
+        stock_source_effects: Vec::new(),
     };
     let context = seed.source_context(registry)?;
     let selections = conditional_procedure_declaration_selections(owner, &seed, &context)?;

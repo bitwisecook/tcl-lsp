@@ -274,6 +274,7 @@ impl OriginalSourcePointEntry {
                     config: self.input().lexer_config(),
                     baseline: Arc::clone(&state.baseline),
                     logical_input: state.logical_source_name_advice_input().cloned(),
+                    stock_source_effects: Vec::new(),
                 };
                 seed.source_point_graph(
                     context,

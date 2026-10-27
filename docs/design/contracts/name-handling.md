@@ -31,6 +31,13 @@ prelude.
 A fresh source method publication retains its original member, formals and
 body, with independently current dispatcher and method-creator allocations.
 This publication supplies no object caller frame or wrapper-body entry.
+The independent root-source advice graph can reuse the same empty-base stock
+class publication only through its complete current thirteen-helper ledger,
+actual analysis owner, baseline and original source. It projects the retained
+publication slots without constructing new names. Missing or foreign custody,
+changed dependencies and other uncertain operations retain their applicability
+debts; source members still require the existing strict debt guard. This view
+supplies no runtime completion, Native lookup or method-entry authority.
 
 ## Source-associated diagnostic completion
 
