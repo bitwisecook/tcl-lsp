@@ -112,7 +112,7 @@
     "rust/tcl-compiler/src/compile_service.rs": "9c8b354617f9beb8462f14705371bb38028df0dd2b01a712077f3a253fed0a93",
     "rust/tcl-fuzz/Cargo.toml": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16",
     "rust/tcl-irule-test/Cargo.toml": "c0883b70b216f3dda1fe4965dc0408288f3356ea730b2f4c39d03bd303abab2b",
-    "rust/tcl-irule-test/src/live.rs": "d1324a5424cb4a9f1fe4db662af61c471d0c01d003dfa61650f547252e68858a",
+    "rust/tcl-irule-test/src/live.rs": "99a9e4f92bf14335f56fa3f88dfeadf1ed5ccf3ca9d46e4f1b29d49c1767baf2",
     "rust/tcl-registry/src/commands/tcl/format_.rs": "99ddacd3c0bf52b8bf904afbbbc1cb0844f30e16a6f334c976bdd5d0db634c04",
     "rust/tcl-registry/src/commands/tcl/string_.rs": "aa2214c1efa5cbaa939047bf71ae6ebb69f8900b9a00752bc25fc91d0d781b47",
     "rust/tcl-registry/src/lib.rs": "37756de99950f31b05129ab8a30687bec0a41a7d3573e9460e2f4ba65ff97e55",
@@ -128,7 +128,7 @@
     "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs": "2917cd196ed7012372e0df463e446499702567ecb18d97ca4bf245006dbc958f",
     "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002",
     "rust/tcl-vm/src/exec.rs": "3e4767532341a20ce5f323684e2ee322dd70c36e4bbdb89cb55bda5a35b04c8d",
-    "rust/tcl-vm/src/interp.rs": "b61bf04867c6ab4586fd5aa31bcf3c30d1619adeeeda4ae2f0292718fe8ceae4",
+    "rust/tcl-vm/src/interp.rs": "dd40caec31b684f2ef8fe418fc42810fac3f6bc3882fddbac6664b7ddf5ce896",
     "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5",
     "runtime/rust/src/cmd_proc.rs": "ecf2f9416c2da5f0d49da10b34dfd33bb27203eadefa5ca3f949eb09c59d6d86",
     "runtime/rust/src/codegen_abi.rs": "afca5f0070a763eb9fc79a5897c1218b26c7041cd3b0a6eb9eb2e9cbe0d678ab",
@@ -169,7 +169,10 @@
     "runtime/rust/src/interp/cached_increment.rs": "5461b65a2bfe339ae5d0baad136583ad6d7d19f62a58fa6a771902a5af770162",
     "rust/tcl-irule-test/src/pure_functions.rs": "feb630998c7ed68e2a74e961702f6109d5103bb944e138e1821083be36e24688",
     "rust/tcl-vm/src/interp/logical_eval_source.rs": "e871f3900cab98d0b34c00ddfba6ece24e297475b4714d8379370a23e0a53296",
-    "rust/tcl-vm/src/compiled.rs": "ebf121d4d11f4d492128c7724eb462b921c0e57b7ae7befbe5432093d8525ae5"
+    "rust/tcl-vm/src/compiled.rs": "ebf121d4d11f4d492128c7724eb462b921c0e57b7ae7befbe5432093d8525ae5",
+    "rust/tcl-vm/src/interp/logical_file_source.rs": "c130f2ab9c2afab3c5fbbfd5a73c8386552d5df504da2418e62352f692df479b",
+    "rust/tcl-registry/src/source_file.rs": "744243474fecf235c83795356befef72bc7aaecf1b4c939badcb191665b7d864",
+    "rust/tcl-vm/src/command/native_encoding_source.rs": "b2006b375e09e82598b8e6853c213fe6269b9b4e624f756acd5b7b3ee816b1ff"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",
@@ -194,15 +197,15 @@
     {
       "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
       "path": "rust/tcl-irule-test/src/live.rs",
-      "first_line": 1459,
-      "last_line": 1521,
+      "first_line": 1462,
+      "last_line": 1524,
       "sha256": "ad5b5ec3888489bcb60f070b927dec4c7ecf1939881bb30f6a1e8e3ea9cee461"
     },
     {
       "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
       "path": "rust/tcl-irule-test/src/live.rs",
-      "first_line": 1540,
-      "last_line": 1650,
+      "first_line": 1543,
+      "last_line": 1653,
       "sha256": "c5c912438dec7e1e1022ef38eb9e6a4be652f173c266345b633a9436f196a7c9"
     }
   ]

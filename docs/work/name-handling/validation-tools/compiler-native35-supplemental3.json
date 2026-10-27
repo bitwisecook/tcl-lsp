@@ -21,7 +21,8 @@
     "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "e7975d3056844a75252fe51ecffd60baab20d7360a0b6a88e0f4787161de3921",
     "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs": "fe3fb9cbb66aff05830315474c92ef0bd4deaf45a42bc5133a43e32aea6cce1c",
     "rust/tcl-compiler/src/registry_invocation/source_availability.rs": "27bee3b0e1c99fdcf32bcd39c12a60808baa5e47d55586fbf10b4573d95e23c4",
-    "rust/tcl-compiler/src/command_binding/availability_report.rs": "03e241aa9471d509a7e8ff6d24996c68a6207afdd0843415bb636aa4dd3dabe1"
+    "rust/tcl-compiler/src/command_binding/availability_report.rs": "fe77686d4decf12ed8b7c6f6531b475cd9a3a7f6481e195b3947470936d70b2c",
+    "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs": "0b91c59fd92ada7061ac06e65888d37e54220ed607180b60fe90c8f1e3b244ac"
   },
   "source_proposal_manifest_sha256": "d2457e9dae28bc1343ab5ceba6ec92fb48e166f5865cc14efb8b8d7ba11c345a",
   "source_semantic_peer_reference": "0607937a",
