@@ -28,11 +28,6 @@ impl Interp {
                 .observed_names
                 .try_borrow()
                 .is_ok_and(|names| names.is_none())
-            || !self
-                .native_error_cells
-                .try_borrow()
-                .is_ok_and(|cells| cells.is_empty())
-            || self.native_precision_cell.get().is_some()
         {
             return false;
         }
@@ -77,8 +72,12 @@ impl Interp {
         self.namespaces.try_borrow().is_ok_and(|namespaces| {
             namespaces
                 .original_variable_table_at(crate::namespace::GLOBAL)
-                .map(|table| table.cached_increment_scalar_matches(name, expected))
-                == Some(true)
+                .and_then(|table| table.cached_increment_scalar_identity(name, expected))
+                .is_some_and(|identity| {
+                    self.native_error_cells.try_borrow().is_ok_and(|cells| {
+                        cells.iter().all(|(_, registered)| *registered != identity)
+                    }) && self.native_precision_cell.get() != Some(identity)
+                })
         })
     }
 }
