@@ -2242,7 +2242,14 @@ mod tests {
         };
         let words = [b"2".as_slice(), b"2.0", b"2", b"2", b"2", b"0x10", b"010"];
         let mut compared = 0;
-        for row in include_str!("../../tcl-syntax/tests/data/native_numeric_operand_conversions/expression84-reached.tsv").lines() {
+        for row in tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "expression84-reached.tsv",
+        )
+        .lines()
+        {
             let fields = row.split('\t').collect::<Vec<_>>();
             let mode = fields[0].parse::<usize>().unwrap();
             let original = match mode {
@@ -2250,22 +2257,50 @@ mod tests {
                 4 => Value::int(2),
                 _ => Value::new_native_string_bytes(words[mode]),
             };
-            if mode < 2 { original.native_scalar_getter(dialect, Getter::Double).unwrap(); }
-            if mode == 3 { original.native_scalar_getter(dialect, Getter::Wide).unwrap(); }
+            if mode < 2 {
+                original
+                    .native_scalar_getter(dialect, Getter::Double)
+                    .unwrap();
+            }
+            if mode == 3 {
+                original
+                    .native_scalar_getter(dialect, Getter::Wide)
+                    .unwrap();
+            }
             assert_eq!(class(&original), fields[1], "native before mode {mode}");
-            assert_eq!(usize::from(original.resident_string_bytes().is_some()).to_string(), fields[2]);
+            assert_eq!(
+                usize::from(original.resident_string_bytes().is_some()).to_string(),
+                fields[2]
+            );
             let one = Value::from_native_scalar_cache(Cache::Tcl84Long(1), None, dialect).unwrap();
             let result = arith_in(dialect, BinOp::Add, &original, &one).unwrap();
             assert_eq!(fields[3], "0");
             assert_eq!(class(&original), fields[4], "native reached mode {mode}");
-            assert_eq!(usize::from(original.resident_string_bytes().is_some()).to_string(), fields[5]);
+            assert_eq!(
+                usize::from(original.resident_string_bytes().is_some()).to_string(),
+                fields[5]
+            );
             assert_eq!(class(&result), fields[6], "native result mode {mode}");
-            assert_eq!(usize::from(result.resident_string_bytes().is_some()).to_string(), fields[7]);
+            assert_eq!(
+                usize::from(result.resident_string_bytes().is_some()).to_string(),
+                fields[7]
+            );
             let mut vm = crate::native_fixture::interpreter(
-                crate::environment::profile_for_dialect("tcl8.4"));
+                crate::environment::profile_for_dialect("tcl8.4"),
+            );
             let normalized = normalize_numeric_instruction_for_vm(&mut vm, &result).unwrap();
-            assert_eq!(class(&normalized), fields[6], "native normalized result mode {mode}");
-            assert_eq!(normalized.native_string_bytes(dialect.native_string_protocol().unwrap()).unwrap().as_ref(), fields[8].as_bytes());
+            assert_eq!(
+                class(&normalized),
+                fields[6],
+                "native normalized result mode {mode}"
+            );
+            assert_eq!(
+                normalized
+                    .native_string_bytes(dialect.native_string_protocol().unwrap())
+                    .unwrap()
+                    .as_ref(),
+                fields[8].as_bytes()
+            );
             compared += 1;
         }
         assert_eq!(compared, 7);

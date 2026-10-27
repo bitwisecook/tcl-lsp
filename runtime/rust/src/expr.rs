@@ -1883,7 +1883,7 @@ mod tests {
         };
         let words = [b"2".as_slice(), b"2.0", b"2", b"2", b"2", b"0x10", b"010"];
         let mut compared = 0;
-        for row in include_str!("../../../rust/tcl-syntax/tests/data/native_numeric_operand_conversions/expression84-reached.tsv").lines() {
+        for row in tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"), "expression84-reached.tsv").lines() {
             let fields = row.split('\t').collect::<Vec<_>>();
             let mode = fields[0].parse::<usize>().unwrap();
             let original = Owned::fresh(match mode {

@@ -15,13 +15,40 @@ const VERSIONS: [TclVersion; 5] = [
     TclVersion::V9_0,
     TclVersion::V9_1,
 ];
-const FIXTURES: [&str; 5] = [
-    include_str!("../../../tcl-syntax/tests/data/native_numeric_operand_conversions/8.4.20.txt"),
-    include_str!("../../../tcl-syntax/tests/data/native_numeric_operand_conversions/8.5.19.txt"),
-    include_str!("../../../tcl-syntax/tests/data/native_numeric_operand_conversions/8.6.18.txt"),
-    include_str!("../../../tcl-syntax/tests/data/native_numeric_operand_conversions/9.0.4.txt"),
-    include_str!("../../../tcl-syntax/tests/data/native_numeric_operand_conversions/9.1.0.txt"),
-];
+fn operand_fixtures() -> [String; 5] {
+    [
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "8.4.20.txt",
+        ),
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "8.5.19.txt",
+        ),
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "8.6.18.txt",
+        ),
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "9.0.4.txt",
+        ),
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "9.1.0.txt",
+        ),
+    ]
+}
 
 fn witness(profile: &str, source: &str) -> PreparedExpressionWitness {
     let context = crate::model::ingress::static_context_for(profile);
@@ -205,7 +232,7 @@ fn jim_index_conversion_declines_c_numeric_operand_production() {
 #[test]
 fn native_operand_cache_fixtures_preserve_original_object_and_fallback_distinctions() {
     let mut count = 0;
-    for (profile, fixture) in PROFILES.iter().zip(FIXTURES) {
+    for (profile, fixture) in PROFILES.iter().zip(operand_fixtures()) {
         for line in fixture.lines() {
             let mode = field(line, "mode");
             let case = field(line, "case");
@@ -234,20 +261,35 @@ fn native_operand_cache_fixtures_preserve_original_object_and_fallback_distincti
 #[test]
 fn native_get_number_original_cache_matrix_preserves_double_and_string_fallback() {
     let fixtures = [
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/original-class-8.4.20.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "original-class-8.4.20.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/original-class-8.5.19.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "original-class-8.5.19.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/original-class-8.6.18.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "original-class-8.6.18.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/original-class-9.0.4.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "original-class-9.0.4.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/original-class-9.1.0.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../tcl-syntax/tests/data/native_numeric_operand_conversions/captures.tsv"
+            ),
+            "original-class-9.1.0.txt",
         ),
     ];
     let mut count = 0;

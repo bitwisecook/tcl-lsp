@@ -2455,28 +2455,18 @@ mod tests {
 
     #[test]
     fn physical_list_length_matches_all_204_native_storage_rows() {
+        const CAPTURES: &str =
+            include_str!("../../../rust/tcl-syntax/tests/data/native_list_methods/captures.tsv");
         use crate::obj;
         use tcl_registry::native_stock_list::NativeStockListInputClass as Class;
         use tcl_syntax::value::ValueOps;
-        const FIXTURES: [&str; 6] = [
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/8.4.20.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/8.5.19.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/8.6.18.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/9.0.4.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/9.1.0.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/jim.txt"
-            ),
+        let fixtures: [String; 6] = [
+            tcl_test_support::fixture_tables::text(CAPTURES, "stock_length/8.4.20.txt"),
+            tcl_test_support::fixture_tables::text(CAPTURES, "stock_length/8.5.19.txt"),
+            tcl_test_support::fixture_tables::text(CAPTURES, "stock_length/8.6.18.txt"),
+            tcl_test_support::fixture_tables::text(CAPTURES, "stock_length/9.0.4.txt"),
+            tcl_test_support::fixture_tables::text(CAPTURES, "stock_length/9.1.0.txt"),
+            tcl_test_support::fixture_tables::text(CAPTURES, "stock_length/jim.txt"),
         ];
         fn field<'a>(row: &'a str, key: &str) -> &'a str {
             row.split_whitespace()
@@ -2499,7 +2489,7 @@ mod tests {
             }
         }
         let mut rows = 0;
-        for (index, fixture) in FIXTURES.iter().enumerate() {
+        for (index, fixture) in fixtures.iter().enumerate() {
             let mut interp = Interp::new();
             if let Some(version) = TclVersion::ALL.get(index) {
                 interp.set_runtime_version(*version);

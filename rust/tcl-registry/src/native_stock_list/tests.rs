@@ -67,37 +67,45 @@ fn stock_length_native_same_object_matrix() {
     let fixtures = [
         (
             "tcl8.4",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_list_methods/stock_length/8.4.20.txt"
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+                "stock_length/8.4.20.txt",
             ),
         ),
         (
             "tcl8.5",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_list_methods/stock_length/8.5.19.txt"
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+                "stock_length/8.5.19.txt",
             ),
         ),
         (
             "tcl8.6",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_list_methods/stock_length/8.6.18.txt"
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+                "stock_length/8.6.18.txt",
             ),
         ),
         (
             "tcl9.0",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_list_methods/stock_length/9.0.4.txt"
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+                "stock_length/9.0.4.txt",
             ),
         ),
         (
             "tcl9.1",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_list_methods/stock_length/9.1.0.txt"
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+                "stock_length/9.1.0.txt",
             ),
         ),
         (
             "jim",
-            include_str!("../../../tcl-syntax/tests/data/native_list_methods/stock_length/jim.txt"),
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+                "stock_length/jim.txt",
+            ),
         ),
     ];
     let operands = [InvocationWord::Dynamic];
@@ -190,20 +198,25 @@ fn empty_list_root_provider_requires_generic_normal_result() {
         );
     }
     for fixture in [
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.4.20.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+            "stock_length/empty-8.4.20.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.5.19.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+            "stock_length/empty-8.5.19.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.6.18.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+            "stock_length/empty-8.6.18.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.0.4.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+            "stock_length/empty-9.0.4.txt",
         ),
-        include_str!(
-            "../../../tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.1.0.txt"
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../../tcl-syntax/tests/data/native_list_methods/captures.tsv"),
+            "stock_length/empty-9.1.0.txt",
         ),
     ] {
         let generic = fixture.lines().next().unwrap();

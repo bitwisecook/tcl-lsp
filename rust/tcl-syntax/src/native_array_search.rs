@@ -165,6 +165,7 @@ mod tests {
     use std::fmt::Write as _;
     #[test]
     fn native_original_handle_cache_and_failures_match_sixty_five_c_rows() {
+        const CAPTURES: &str = include_str!("../tests/data/native_array_search/captures.tsv");
         let inputs: &[&[u8]] = &[
             b"s-1-a",
             b"s-01-a",
@@ -183,23 +184,23 @@ mod tests {
         let captures = [
             (
                 TclVersion::V8_4,
-                include_str!("../tests/data/native_array_search/8.4.20.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "8.4.20.tsv"),
             ),
             (
                 TclVersion::V8_5,
-                include_str!("../tests/data/native_array_search/8.5.19.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "8.5.19.tsv"),
             ),
             (
                 TclVersion::V8_6,
-                include_str!("../tests/data/native_array_search/8.6.18.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "8.6.18.tsv"),
             ),
             (
                 TclVersion::V9_0,
-                include_str!("../tests/data/native_array_search/9.0.4.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "9.0.4.tsv"),
             ),
             (
                 TclVersion::V9_1,
-                include_str!("../tests/data/native_array_search/9.1.0.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "9.1.0.tsv"),
             ),
         ];
         let mut rows = 0;

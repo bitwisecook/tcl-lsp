@@ -863,6 +863,8 @@ mod tests {
 
     #[test]
     fn original_search_handle_cache_matches_all_native_columns() {
+        const CAPTURES: &str =
+            include_str!("../../../rust/tcl-syntax/tests/data/native_array_search/captures.tsv");
         use crate::obj::Owned;
         let inputs: &[&[u8]] = &[
             b"s-1-a",
@@ -882,23 +884,23 @@ mod tests {
         let captures = [
             (
                 "tcl8.4",
-                include_str!("../../../rust/tcl-syntax/tests/data/native_array_search/8.4.20.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "8.4.20.tsv"),
             ),
             (
                 "tcl8.5",
-                include_str!("../../../rust/tcl-syntax/tests/data/native_array_search/8.5.19.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "8.5.19.tsv"),
             ),
             (
                 "tcl8.6",
-                include_str!("../../../rust/tcl-syntax/tests/data/native_array_search/8.6.18.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "8.6.18.tsv"),
             ),
             (
                 "tcl9.0",
-                include_str!("../../../rust/tcl-syntax/tests/data/native_array_search/9.0.4.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "9.0.4.tsv"),
             ),
             (
                 "tcl9.1",
-                include_str!("../../../rust/tcl-syntax/tests/data/native_array_search/9.1.0.tsv"),
+                tcl_test_support::fixture_tables::text(CAPTURES, "9.1.0.tsv"),
             ),
         ];
         let mut rows = 0;
@@ -957,32 +959,47 @@ mod tests {
         let captures = [
             (
                 "tcl8.4",
-                include_str!(
-                    "../../../rust/tcl-syntax/tests/data/native_array_search/search-lifecycle-8.4.txt"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../rust/tcl-syntax/tests/data/native_array_search/captures.tsv"
+                    ),
+                    "search-lifecycle-8.4.txt",
                 ),
             ),
             (
                 "tcl8.5",
-                include_str!(
-                    "../../../rust/tcl-syntax/tests/data/native_array_search/search-lifecycle-8.5.txt"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../rust/tcl-syntax/tests/data/native_array_search/captures.tsv"
+                    ),
+                    "search-lifecycle-8.5.txt",
                 ),
             ),
             (
                 "tcl8.6",
-                include_str!(
-                    "../../../rust/tcl-syntax/tests/data/native_array_search/search-lifecycle-8.6.txt"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../rust/tcl-syntax/tests/data/native_array_search/captures.tsv"
+                    ),
+                    "search-lifecycle-8.6.txt",
                 ),
             ),
             (
                 "tcl9.0",
-                include_str!(
-                    "../../../rust/tcl-syntax/tests/data/native_array_search/search-lifecycle-9.0.txt"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../rust/tcl-syntax/tests/data/native_array_search/captures.tsv"
+                    ),
+                    "search-lifecycle-9.0.txt",
                 ),
             ),
             (
                 "tcl9.1",
-                include_str!(
-                    "../../../rust/tcl-syntax/tests/data/native_array_search/search-lifecycle-9.1.txt"
+                tcl_test_support::fixture_tables::text(
+                    include_str!(
+                        "../../../rust/tcl-syntax/tests/data/native_array_search/captures.tsv"
+                    ),
+                    "search-lifecycle-9.1.txt",
                 ),
             ),
         ];
