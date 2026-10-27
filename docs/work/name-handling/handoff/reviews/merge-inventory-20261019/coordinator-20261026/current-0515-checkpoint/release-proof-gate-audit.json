@@ -1,0 +1,219 @@
+{
+  "disposition": "READ_ONLY_SOURCE_AUDIT_NO_GATE_ACCEPTANCE",
+  "utc": "2026-10-27T04:49:26.121163+00:00",
+  "current_heads": {
+    "WORK": "f5bb961f78f6de7c9b5a28b4ce7fb28d044b9bf4",
+    "CLEAN": "c7632df785126d61bcbb12613a16f5e241007203"
+  },
+  "observed_historical_failure": {
+    "source": "19321f695677750ad2c55ee8361673d082f487d9",
+    "assessment_sha256": "2eb8a31b64d83da9ee4d8891c10ecb29594c8c0743f2fe02d2947644bffacd90",
+    "classification_sha256": "5bcecc0787c2d968aa875678ca87d60f7e23f71fca6bce302edc8ff6f403bc0f",
+    "literal_categories_sha256": "0b6a1e13c6f8a6ab415f464001f392f1bfd5f0245e7d513adcf9ee01fa26e74f",
+    "scope": "Original make rust-check completed workspace/runtime Rust fmt/strict Clippy and four offline x509 tests, then WORK proof checker exited1;2235 structural errors incl1237 evidence-digest and973 census-digest lines, plus document/test-binding failures. Literal line categories are not a semantic disposition of each obligation. No later/current-source donation."
+  },
+  "gate_path_map": {
+    "WORK_rust_check": "make rust-check -> check-rust-pr (workspace/runtime fmt/strict Clippy +offline x509) -> xtask-check; FIRST xtask prerequisite check-name-resolution-proofs -> python3 scripts/dev/check-name-resolution-proofs.py (default complete mode). Failure stops that prerequisite path; later xtask invariants were not demonstrated by strict1932.",
+    "CLEAN_rust_check": "Same rust-check -> check-rust-pr +xtask-check, but no development proof checker/Make edge/ledger directory exists. All remaining xtask/source/owner/drift prerequisites still required; no dummy checker or ignored-error replacement is present in this path.",
+    "prep_pr_both": "format +codegen then parallel _prep-pr-checks and _prep-pr-smoke-tier; this is lint/types/generated/smoke coverage. It does not invoke rust-check/xtask-check or this proof-index checker. Independent rust-check remains required.",
+    "CI_both": "rust-check job calls make rust-check on checkout. Required pr-gate runs always and explicitly requires channel/rust-check/spectcl-compat/web-frontends success. No CLEAN-only ledger-skip introduced; CLEAN source omits development-only machinery."
+  },
+  "what_WORK_checker_proves": "Retained proof-record schema/document/question/provider/evidence selectors and whole-byte digests, census/classifications, source-snippet geometry, named owner declaration presence and exact proof-ID/document test comments. It explicitly executes no Rust/native probe and cannot establish current behaviour or release acceptance. --write-inventory exists but was not invoked; default mandatory complete checks unchanged.",
+  "durable_CLEAN_contracts": {
+    "owner_resolution": "Human-maintained shared-utility contract manifest -> actual source files/declarations +visibility/module/consumer routes and registered Make/xtask gates; dedicated owner/consumer source invariants also execute.",
+    "drift": "resolution-drift flags namespace-blind simple-name scans outside sanctioned owners; retired-api/one-oracle rejects reintroduced or duplicated ownership entrypoints. These are bounded structural lints, not native behavioural proofs.",
+    "real_conformance": "Maintained command-resolution contract retains Syntax real-tclsh vector suite, Compiler candidate-order suite, VM executable vector/tricky-resolution suites and runtime namespace dispatch vector test; original source identity/schema/currentness obligations documented separately in name-handling/consumer matrix/implementer guide. Shipping tests/actual consumed fixtures remain ordinary executable dependencies."
+  },
+  "equivalence_limit": "CLEAN has durable executable source/ownership/drift and behavioural conformance contracts, but NO equivalent2611-question retained-evidence completeness gate. Existing gates must not be described as re-proving all removed evidence. The extraction plan explicitly requires development-only machinery removed and real source invariants retained/migrated; this audit establishes build closure and distinct obligations, not completeness of every historical proof or current gate correctness/pass. Some high-level command-resolution Gate cells name prose contracts rather than exact test selectors; no automatic coverage follows from those labels.",
+  "required_next_evidence": "Actual final CLEAN rust-check/prep-pr/CI and required behavioural suites remain mandatory. WORK still needs independent per-error evidence/annotation disposition; do not blanket-refresh hashes, retag missing evidence or erase comments/guards to declare success. Existing performance/external review/zero baseline regressions remain unchanged.",
+  "source_evidence": [
+    {
+      "lane": "WORK",
+      "path": "Makefile",
+      "sha256": "765c0058bf12741924fad89480c1acfcde55c70912474a20c5c7801e7ab46991",
+      "bytes": 158185
+    },
+    {
+      "lane": "WORK",
+      "path": ".github/workflows/ci.yml",
+      "sha256": "9d333b7584493e31c9aa4a58cea420318ae4dd48958edd31a4c935b08f830273",
+      "bytes": 213000
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/xtask/src/owner_resolution.rs",
+      "sha256": "e54d3e68160c7d7a5fec992abb2af5dbe50b4c9555026899df7451da7dc68537",
+      "bytes": 121142
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "sha256": "beba4a73db73f95dd9c1cadeaf9b6db204fb89b7cb6d3b7cd72f0aef29329acd",
+      "bytes": 158389
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/xtask/src/resolution_drift.rs",
+      "sha256": "efad0b98d8151707c97fb070a969545891071bc5ab86bc0aa3719ca4feab2466",
+      "bytes": 9032
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/xtask/src/retired_api_gate.rs",
+      "sha256": "0a1098649fa6da00af93d62d745784ab911d14f914e4101cb79887a69ff2c20a",
+      "bytes": 38593
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "sha256": "068ad16789955b0741bd7a34901f2846f1c168d41250a278fb2d55ece7a8f0e4",
+      "bytes": 1317248
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/name-handling.md",
+      "sha256": "37077f8f9e3f1486724f05823f60ad3ea405e0a4b4ac45ec9a7241c0abd79564",
+      "bytes": 299586
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/command-resolution.md",
+      "sha256": "8e57954e3b9e2a9a2f6eea410856f534ea34dff7a9081c50f80cbe55f908fb88",
+      "bytes": 32081
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "sha256": "eba4580cbe80db206e57bf49cfe2db4ade71066a0777dd3e14ec43d93bd62ba1",
+      "bytes": 890546
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "sha256": "7b0aaf110e9f6658491471b76fd764ac83d38e0a612e64dd0f33ad55226f69f3",
+      "bytes": 212232
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-syntax/tests/command_resolution_conformance.rs",
+      "sha256": "458dac58d546d236dcb0e99566c5f9732a5933e861e67ce3b063f320040a2def",
+      "bytes": 4276
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/tests/command_resolution_conformance.rs",
+      "sha256": "5ed16f9ee547f92dc8b22ab5646e487c614ef95069d8ee95495ad8fb206cd848",
+      "bytes": 4632
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-vm/tests/command_resolution_conformance.rs",
+      "sha256": "f6efb8c550ce992294eb4438d8b585e8c7edbe5cb49fcf87dd644dd643554de0",
+      "bytes": 3224
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-vm/tests/tricky_resolution_e2e.rs",
+      "sha256": "33fed2b23aca2f10798acda2a929f2349673157c931ffcbcc649dd1d271f9685",
+      "bytes": 10351
+    },
+    {
+      "lane": "CLEAN",
+      "path": "Makefile",
+      "sha256": "49b3e5de5b804d938ee9c755af032fe76793d27b0f33624cc71d366e8ac8ef69",
+      "bytes": 157103
+    },
+    {
+      "lane": "CLEAN",
+      "path": ".github/workflows/ci.yml",
+      "sha256": "80902fa6012c96432a7efa3c465c0d5152fc3e9e930f4dd3280cfa8a1bdfc014",
+      "bytes": 211724
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/xtask/src/owner_resolution.rs",
+      "sha256": "7f361ee3cf497b89778fe98fba4b5c72425a2bf74de45c524c542d51d22c7e60",
+      "bytes": 115924
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "sha256": "beba4a73db73f95dd9c1cadeaf9b6db204fb89b7cb6d3b7cd72f0aef29329acd",
+      "bytes": 158389
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/xtask/src/resolution_drift.rs",
+      "sha256": "efad0b98d8151707c97fb070a969545891071bc5ab86bc0aa3719ca4feab2466",
+      "bytes": 9032
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/xtask/src/retired_api_gate.rs",
+      "sha256": "0a1098649fa6da00af93d62d745784ab911d14f914e4101cb79887a69ff2c20a",
+      "bytes": 38593
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "sha256": "f5d83823bdb629bb50143ce528224127c784be97bbc3fda89923d9f86bbba7a8",
+      "bytes": 1315348
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/name-handling.md",
+      "sha256": "39789c59d88b87dba681667a110fb0370a6ba579d3f23499760bf96695edc76c",
+      "bytes": 291739
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/command-resolution.md",
+      "sha256": "0b14315f0abf09b9e996ed6a59b3cb788958ed41796faca1874f6238e939c7ad",
+      "bytes": 31769
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "sha256": "f9e0a392fa72467719352286d44f80d7d3c1984f2372ddb8f657efe58e82bbb8",
+      "bytes": 869611
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "sha256": "2f57bef7a61aab831760e5e287c5313a7be6a4d4dc6b695bf7c686c2c0f49785",
+      "bytes": 206521
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-syntax/tests/command_resolution_conformance.rs",
+      "sha256": "458dac58d546d236dcb0e99566c5f9732a5933e861e67ce3b063f320040a2def",
+      "bytes": 4276
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/tests/command_resolution_conformance.rs",
+      "sha256": "5ed16f9ee547f92dc8b22ab5646e487c614ef95069d8ee95495ad8fb206cd848",
+      "bytes": 4632
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-vm/tests/command_resolution_conformance.rs",
+      "sha256": "f6efb8c550ce992294eb4438d8b585e8c7edbe5cb49fcf87dd644dd643554de0",
+      "bytes": 3224
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-vm/tests/tricky_resolution_e2e.rs",
+      "sha256": "33fed2b23aca2f10798acda2a929f2349673157c931ffcbcc649dd1d271f9685",
+      "bytes": 10351
+    }
+  ],
+  "checker_sha256": "52249cb5c5704cd76e685a01ae47eacef2e5bbfdb66e58f90d06331aac569910",
+  "extraction_plan_sha256": "6d3ca1417eef10d97fede0cd7e9560863e899d3f93c5a150c7e45c3f1e2815e0",
+  "no_actions": [
+    "No checker/build/test invocation",
+    "No ledger refresh or source changes",
+    "No fetch/history expansion/download/newZIP",
+    "No gate waiver or release acceptance"
+  ]
+}

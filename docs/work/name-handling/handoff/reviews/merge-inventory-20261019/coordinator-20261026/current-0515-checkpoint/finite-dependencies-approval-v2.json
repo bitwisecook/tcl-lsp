@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-27T04:56:01.841795+00:00",
+  "source": "43ec95285f40739dbe696ef4429d18bd6bd0e445",
+  "census": "/workspace/naming-proof-storage/ccg-finite-whole-word-source-dependency-census-v1.json",
+  "census_sha256": "21e575bda84deb4c1929f4a9e37ef3d6240d4f5d2601242b3ed98663784648c7",
+  "existing_maps": [
+    "compiler-logical-declared-read3.json",
+    "jim-source-roster.json",
+    "compiler-jim-source-layout11.json"
+  ],
+  "actual_json_names_must_match_census": true,
+  "approved_sources": [
+    "rust/tcl-compiler/src/value_shapes.rs",
+    "rust/tcl-syntax/src/naming.rs"
+  ],
+  "actual_production_route": "finite_foreach_source.rs433 -> value_shapes.rs96 -> canonical tcl_syntax::naming::whole_scalar_variable_reference_name",
+  "approved_exact_additions": 6,
+  "excluded_source": "segmenter.rs is cfg(test) fixture-only here, not new production predicate",
+  "constraints": [
+    "Only actual three existing maps that already pin finite_foreach_source.rs",
+    "No new maps/fanout/semantic permission",
+    "Current-Git preimages and all old JSON/driver byte and AST inverse required",
+    "Strong independent review and root adopted preflight required"
+  ],
+  "prior_approval_sha256": "4d8f321b204a9e144d0aa4c4b411187d8e6c90cc50311c062d315c75878f1925",
+  "correction": "Use exact actual map filename compiler-jim-source-layout11.json, correcting the earlier label; same approved existing three-parent closure."
+}

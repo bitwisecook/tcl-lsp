@@ -2,13 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T04:43:54.774078+00:00 (owned compiler166/1932 Layout FULLAUTH closed; qualification2 PASS/report3 FAIL; finite canonical-owner NEXT peer; d266metadata clear)
+Last updated: 2026-10-27T05:02:31.560281+00:00 (compiler166/1932 Layout FULLAUTH; initialC6 exact16/18PASS; current Jim3 remain; finite source+43ec union clear; bodyMAY draft next)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Current state
 
 All owned current captures are terminal and source-qualified: index8beac2869baa32b15c35fb01855886568a5cb7cc879d6968e6da082cac3169d5 at /workspace/naming-proof-storage/compiler-currentff67-main1932-layout-closed-v1/index.json. No healthy cancellation/replay or duplicate archives. Names owns corpus/prep; Codegen strict/framing; Runtime VM/Spec/WASM; LSP hosted scopes.
+
+Initial C6 exact target join is now closed for the measured retained cases:16 distinct fp_rbs_15/fp_sh_21/fp_tnt_03 selectors/18 observations ALLPASS on ff67, immutable51cf5eac145b4bb2754cb8448598e52d721b406b503c3825d836495b7905aa2e at compiler-original166-40445776674/initial-c6-exact-selector-join-v1.json. These are distinct from current original135 Jim3FAIL: original_procedure_source_layout_keeps_plain_and_rooted_jim_forms; own_jim_member_keeps_before_and_after_factory_custody; own_jim_member_refuses_rebound_class_and_replaced_initialisers. No whole-prefix/shard/source-inverse or audit admission inferred. BodyMAY implementation targets separately measured heavy taint failures, not these three original135 identities.
 
 Compiler166 run40445776674/job121996602001 atff67: API12710511239, ZIP12,588,427B/c462137f538fc6156d5758b4aac20606b09ff280342534d471e550e265554d64; boundary07ae66a4d9d0b5ae6b9b86d5eb8002fde78086f85a42d5672d40708da7c5b5c8. Actual166 observations155PASS9FAIL2UNRUN; original135132P3F remains finiteforeach1+OwnJim2.347ownedclosed/9freshELFs/zero build warnings. Full ff67 Git-content audit shared only after exact four source-before/after objects equal prior same-source Layout full audit. Every ZIP member/API/CRC/source/provider/dependency/tool/testfn/Cargo/ELFseal/process/count/transport authenticated. No uploaded ELF payload/physical mode snapshot and no release/performance acceptance.
 
@@ -581,12 +583,12 @@ Current original six failures remain:
 
 ## Next actions
 
-1. Capture and authenticate compiler166 ff67 through terminal; decode qualification2/newW0023/coroinject1 first, then full source/provider/tool/ELF/process/cap/transport ledger. Keep original135 vs corrected-purpose controls/repeats distinct.
-2. Capture new1932 Layout existing4 firstNone without guessing constructor/list/policy. Keep acceptance11/finite4/alias/member labels and source/ELF identity separate; missingtrace is UNOBSERVED. No replay of healthy runs.
-3. Only after genuine one-fixture custody measurement, implement distinct authored-body analysis MAY context with actual current module/body/card/CFG/SSA joins and foreign/stale/topology/profile/withdrawn refusals. General top-level/bodyIdSome/Native/Salsa contracts stay strict.
-4. Preserve actual OwnJim earlier-class debt and audit genuine source association/effect producer rather than waiving the guard. Keep staticNativeAdd decline-producer audit separate from Codegen framing and unchanged static negative/assertions.
-5. Coordinate Names actual W002 field attribution and current three controls; no blanket owner projection, fabricated reportpair, ordinaryEq/cutoff change or claim of complete corpus parity.
-6. Root alone canonical integration/push/dispatch; all full correctness/lint/resource/perf/public behavioral gates remain open until actual required outcomes pass.
+1. Preserve completed compiler166/1932Layout FULLAUTH and exact initialC6 16selector/18observationPASS join. Root owns next finite/W002 Layout/Jim/corpus dispatch; no duplicate main166 rerun before functional body fix or authorized new cohort.
+2. Complete distinct authored-body MAY production draft now that qualification2 actuallyPASS. Reuse actual unit/body/card/currentSSA graph and per-token source scope; general metadataNone/nominalfalse/bodyIdSome/Native guards remain unchanged. Current formal-entry seeding excludes authored bodies via module.procedures; use a distinct captured authored formal purpose/actual parsed roster rather than Native retagging or always-tainting clean actuals. Raw borrowed carrier and formal-purpose draft fragments are UNFROZEN at compiler-authored-body-may-draft-v1; no acceptance/source integration yet.
+3. Finite canonical variable fix a667/8444 is source clear and Root-integrated; repaired gain remains UNRUN. Metadata43ec6e595684/5ab49b02 clear a462a272 binds exact parser owner chain six keys in only three maps plus current W002 source hashes. Root alone applies/dispatches; preserve full old walk/read/depth/owner and all original assertions.
+4. Preserve actual OwnJim earlier class debt and audit genuine source association producer without waiving guard. Keep staticNativeAdd decline-producer audit separate from Codegen framing and unchanged static negative/assertions.
+5. Names owns W002 inner-field attribution: actual new3 positives pass current analysis/output factory then comparison None. ObserverV3 c389/e7e5 source clear with actual dedicated corpus debug profile qualification c408; actual mismatching field remains UNOBSERVED until new captured row. OrdinaryEq/Hash/cutoff and complete-report guards unchanged.
+6. All full correctness/lint/resource/performance/public-behaviour gates remain open until actual required outcomes pass. No missingtrace-to-absence or healthy replay/cancellation.
 
 ## Lossless history
 

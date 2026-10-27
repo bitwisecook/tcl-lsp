@@ -1,0 +1,90 @@
+{
+  "utc": "2026-10-27T04:57:47.106183+00:00",
+  "scope": "Source-qualified small receipt copies, no release/audit admission",
+  "records": [
+    {
+      "copy": "ca8d-heavy-rust3-rust5-baseline-summary.json",
+      "source": "/workspace/naming-proof-storage/root-cleana8d-baseline-heavy-rust3-rust5-available-join-v1/summary.json",
+      "sha256": "c2ef60a2a0ad6d1f6a2320abc3528c10f4011a5b260b5f3f7fc30c44bd49e301",
+      "bytes": 5351
+    },
+    {
+      "copy": "rust5-authentication.json",
+      "source": "/workspace/naming-proof-storage/ccg-fullcleana8d-40419028855-initial-v1/rust5-terminal-authentication.json",
+      "sha256": "c484e1dc37852aac1b8f4e91a1d41f8582df8da735268b033567af90e76301ab",
+      "bytes": 2303
+    },
+    {
+      "copy": "572-six-posts.json",
+      "source": "/workspace/naming-proof-storage/root-next572-six-posts-complete.json",
+      "sha256": "6cede8c0f34ff2b6537c325366d452171a93817d0ee9edfa6d5c1df324cfaff6",
+      "bytes": 2362
+    },
+    {
+      "copy": "572-run-discovery.json",
+      "source": "/workspace/naming-proof-storage/root-next572-run-discovery.json",
+      "sha256": "2b3de2725a9b10ea38fb10edde31fd24728348d7def33c79becf3186f105fefb",
+      "bytes": 2104
+    },
+    {
+      "copy": "cold-audit-archive.json",
+      "source": "/workspace/naming-proof-storage/root-cold-audit-output-archive-20261027-v1.json",
+      "sha256": "775846b068cb0f1371aeec9efdee55705417368d9a8f64d0fc24f8cbf558779d",
+      "bytes": 4911
+    },
+    {
+      "copy": "finite-root-precheck.json",
+      "source": "/workspace/naming-proof-storage/root-finite-canonical-carry-v1/precheck.json",
+      "sha256": "bcbb11b650811490d13ded5703017aaad7f3693ea3b5a7c9354b89368c7006ec",
+      "bytes": 547
+    },
+    {
+      "copy": "availability-root-precheck.json",
+      "source": "/workspace/naming-proof-storage/root-availability-firstguard-v3-precheck.json",
+      "sha256": "2cb8b8805685ac07e88b2867efe504bc06272873cefd9f70f202085c39a2f32e",
+      "bytes": 387
+    },
+    {
+      "copy": "historical-full600-binding.json",
+      "source": "/workspace/naming-proof-storage/vm-historical-full600-owned-binding-audit-v1.json",
+      "sha256": "2b6f89886505c107c55d8d448c88c16f30e6c100f87682355a685ab2d615e9c3",
+      "bytes": 7495
+    },
+    {
+      "copy": "release-proof-gate-audit.json",
+      "source": "/workspace/naming-proof-storage/peer-release-proof-gate-source-audit-v1/receipt.json",
+      "sha256": "fa184d98193a0af7a0cfec9b2db20b4b74d0f9da88343ed256e7229173c11b25",
+      "bytes": 11079
+    },
+    {
+      "copy": "final43ec-root-audit.json",
+      "source": "/workspace/naming-proof-storage/root-final43ec-union-audit-v1.json",
+      "sha256": "13892d380b41313238786e808ace47149f9c7900d3ff00e7bad6dd1fea7c1ff9",
+      "bytes": 562
+    },
+    {
+      "copy": "final43ec-peer.json",
+      "source": "/workspace/naming-proof-storage/compiler-peer-final43ec-current25-pin-union-v1/receipt.json",
+      "sha256": "a462a2722a863443f6b2e453620e832be6e19e8fb5b85b9c27fe68fbbf326cdf",
+      "bytes": 5782
+    },
+    {
+      "copy": "2766-three-posts.json",
+      "source": "/workspace/naming-proof-storage/root-next2766-three-posts-complete.json",
+      "sha256": "448365cc9df8600c23140083004f0d401da10a83c3009399074d42420c6b1342",
+      "bytes": 954
+    },
+    {
+      "copy": "2766-run-discovery.json",
+      "source": "/workspace/naming-proof-storage/root-next2766-run-discovery.json",
+      "sha256": "73480c5a9725849c9fd250751776ebdc8159efa46da05f2def05ccfabee9f92c",
+      "bytes": 880
+    },
+    {
+      "copy": "finite-dependencies-approval-v2.json",
+      "source": "/workspace/naming-proof-storage/root-finite-variable-producer-dependencies-approval-v2-20261027.json",
+      "sha256": "2c3de8503b79cd2302f9c526fd9812e84153775916ceeddf0fedfe73e02dddc5",
+      "bytes": 1428
+    }
+  ]
+}

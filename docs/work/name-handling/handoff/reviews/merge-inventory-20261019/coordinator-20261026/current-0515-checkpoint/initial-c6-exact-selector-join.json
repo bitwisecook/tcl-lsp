@@ -1,0 +1,241 @@
+{
+  "utc": "2026-10-27T05:02:16.663668+00:00",
+  "source": "ff67bd5d1295db8edbe205cce6219e81aa30d770",
+  "run": 40445776674,
+  "job": 121996602001,
+  "artifact": 12710511239,
+  "zip_sha256": "c462137f538fc6156d5758b4aac20606b09ff280342534d471e550e265554d64",
+  "full_boundary_sha256": "07ae66a4d9d0b5ae6b9b86d5eb8002fde78086f85a42d5672d40708da7c5b5c8",
+  "source_content_companion_sha256": "376524dc5f537d396318d83d1b1d56be779acb53994e7c9e3980d3dca88e82cf",
+  "distinct_selectors": 16,
+  "observations": 18,
+  "counts": {
+    "PASS": 18
+  },
+  "rows": [
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_braced_list_literal_in_foreach_silent",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 74,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.609045662
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_committed_dict_in_foreach_still_fires",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 76,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.516111026
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_committed_list_as_string_still_fires",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 78,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.248906266
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 80,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.568954583
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_empty_braces_in_foreach_silent",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 82,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.36719443
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 84,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.920529625
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 86,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 3.417670693
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 88,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.171428688
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 90,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.13987782
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 92,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.433350014
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 94,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.169324347
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 96,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.1600113
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {},
+      "process_index": 98,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 1.152042003
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "process_index": 100,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "2b69d5e1fd78edd42f117a869c462a041a4fc46c9911fa9fb17f017f59a063b3",
+      "elapsed": 1.763094402
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "process_index": 102,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "6da20d6f4d7ec8727832c22a974c3b23504d895b1b322e5016d6042f5f7ed4d5",
+      "elapsed": 1.93572925
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "process_index": 104,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "11834855c1b56025bcdec15045f1684a05b09ce226e4669c9832eca38707bcad",
+      "elapsed": 8.509074298
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_SH21_PRODUCER": "1"
+      },
+      "process_index": 10,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "50f5b526577c80b6de58426fad877c5e01d915a18a0d967c79224f09f9068dd0",
+      "elapsed": 3.368302695
+    },
+    {
+      "phase": "outcomes",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+      "reported_state": "PASS",
+      "effective_state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_SH21_PRODUCER": "1"
+      },
+      "process_index": 12,
+      "elf": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-a30aa02c7c830c9b",
+      "stderr_post_table_sha256": "9a2aedd7e83b74523ec1622d79958d2275df88b8d2a037a7afd3880ec29b0750",
+      "elapsed": 0.926898163
+    }
+  ],
+  "relationship": "All measured exact retained initial C6 fp_rbs_15/fp_sh_21/fp_tnt_03 controls PASS. Current original135 three FAIL identities are separately Jim layout1 and OwnJim2, not these C6 names. Authored-body MAY work concerns separately observed heavy taint cluster.",
+  "limits": [
+    "No whole-prefix/shard/full-CI or audit/performance admission inferred.",
+    "Observations include two duplicate SH rows.",
+    "Actual pinned ff67 test bodies and terminal outcomes; no invented claim of every historical fixture body being byte-identical without a separate source inverse.",
+    "Corrected NUL control purpose remains separately qualified in original135 accounting."
+  ]
+}

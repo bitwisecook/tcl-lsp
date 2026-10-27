@@ -874,9 +874,9 @@ Maintained by the lsp agent. It lists what this agent considers it must still co
 
 ## Resume
 
-Updated 2026-10-27T04:37:39+00:00. Next action: Root may integrate the WORK-only single-query cut.input staged facade9ff200/080663, independently cleared by Compiler d3a4de9e. It preserves the original Option/query order and every owner/input/purpose guard; the deeper written-input refusal remains grouped. Obtain actual first refusal from the next selected Core run; no body fallback or permission change is authorized by this observation.
+Updated 2026-10-27T05:10:38.669919+00:00. Current functional action: audit the genuine retained-body recorded-vector producer for exact44-byte parent's return at31. Source572's single-query facade measures cut.input.recorded-words as firstfalse; do not substitute a head/policy fallback or synthesize an invocation. Same-owner Tk content adapterbf66/1d650 is statically cleared and awaits Root; its exact returncustom assertion remains unchanged. Namespace loadcard gap remains separate.
 
-All assigned source19321f695677750ad2c55ee8361673d082f487d9 host run40448619936 jobs are terminal and fully authenticated: complete index f8a3a90c9282bd5abbc02e1d40ae5c83b883561bd7059bbebeeaca3bc31c4921. Maintained smoke1 passes with original assertions under the explicit diagnostic COARSE overlay; old9 remains6P3F. Browser and WASI retain their source-qualified original rename refusals. This is no normal-prep, shipping or performance acceptance. Prior ff67 index c8ace remains separate; Tk shadow correction is paired committed dd485/7b3. Root alone owns canonical changes and dispatch; no local builds, duplicate archives or ELF extraction.
+Both assigned source572dd98a8bd62811513b141c6ff1f1ee16656229 run40451634695 jobs are terminal/fullauth, index 796dbbcbb1d1683e9d9e397593f9e50070beee430b22afc7156646cab180c263. Core old8PASS/Source4 2P2F/Tk3 2P1F. Startup scan30 passes before original references-v1null refusal; Context2complete. No causal/performance claim. Prior1932 diagnostic smokePASS stays separate from normal Cprep ownedNames. Root alone canonical/dispatch; no local builds, duplicatearchives or ELF extraction.
 
 ## In progress
 
@@ -918,6 +918,8 @@ All assigned source19321f695677750ad2c55ee8361673d082f487d9 host run40448619936 
 - N10 provider ownership stays LSP; compiler-names will report typed `namespace path` class call facts in g4. W210/C9 DB helper/path propagation is narrowly granted to compiler-names; no conflict with LSP source work.
 
 ## Outstanding (in priority order)
+
+- Own the generic captured-document rewrite blocker `actual_direct_and_push_rewrites_retain_their_captured_document_source`, including its plain-Tcl reproduction. Relate it to the existing captured-source producer/currency work; preserve exact current publication, input and owner guards. External historical aeecf lint counts are not current failures; current source-qualified gates decide. No external role-file edits or takeover.
 
 1. tcl-lsp-core lib (3,485 tests, module filters) and tcl-lsp-db lib re-measurement on the current tree; tcl-lsp-server e2e.
 2. Remaining clippy in my crates (`cargo clippy -p tcl-lsp-core -p tcl-lsp-db -p tcl-lsp-server --all-targets`); baseline 152 from Luna-41.

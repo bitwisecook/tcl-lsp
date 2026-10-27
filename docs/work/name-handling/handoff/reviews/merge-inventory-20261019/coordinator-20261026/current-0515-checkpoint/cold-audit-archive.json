@@ -1,0 +1,73 @@
+{
+  "utc": "2026-10-27T04:51:51.110129+00:00",
+  "free_before": 2248413184,
+  "free_after": 2298097664,
+  "records": [
+    {
+      "utc": "2026-10-27T04:50:41.828770+00:00",
+      "original": "/workspace/naming-proof-storage/release-chaff-audit-v1/hits.jsonl",
+      "original_bytes": 26231750,
+      "original_sha256": "4403362904d922c5f25ce33a2643bbd3ed1d39c27cd6d20ae8c77d5f0665f6cf",
+      "original_mode": 384,
+      "original_mtime_ns": 1792822500328900202,
+      "archive": "/workspace/naming-proof-storage/release-chaff-audit-v1/hits.jsonl.gz",
+      "archive_bytes": 3225890,
+      "archive_sha256": "f43acb767dfbe3b797f5100986c9b0e99a66a3725e982ab5772891652832c94f",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Cold read-only audit census output only; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    },
+    {
+      "utc": "2026-10-27T04:50:42.540196+00:00",
+      "original": "/workspace/naming-proof-storage/release-chaff-audit-v2/hits.jsonl",
+      "original_bytes": 26232494,
+      "original_sha256": "4bbf60142052a4e9b1ac12127f36b9ff85b6e9e253536de415379555e2c84ef1",
+      "original_mode": 292,
+      "original_mtime_ns": 1792824046473897443,
+      "archive": "/workspace/naming-proof-storage/release-chaff-audit-v2/hits.jsonl.gz",
+      "archive_bytes": 3226023,
+      "archive_sha256": "a1c88ceff2adb8a6c7f813054b93ea70fc55b2c4313fe4968186d01747c44524",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Cold read-only audit census output only; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    },
+    {
+      "utc": "2026-10-27T04:50:43.243095+00:00",
+      "original": "/workspace/naming-proof-storage/release-chaff-audit-current-1045/hits.jsonl",
+      "original_bytes": 26224928,
+      "original_sha256": "f3b6192a481d15c9a654a67e7edda4b89422d24bf547903ed8f8cb1c780b2dbc",
+      "original_mode": 384,
+      "original_mtime_ns": 1792838816182042375,
+      "archive": "/workspace/naming-proof-storage/release-chaff-audit-current-1045/hits.jsonl.gz",
+      "archive_bytes": 3224243,
+      "archive_sha256": "ea65334cd1e49cf3c13ff5f0376e255315cb12273b0b45852f584e17ec959121",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Cold read-only audit census output only; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    },
+    {
+      "utc": "2026-10-27T04:51:49.963297+00:00",
+      "original": "/workspace/naming-proof-storage/release-editorial-audit-current-eadf-v1/census/hits.jsonl",
+      "original_bytes": 26473483,
+      "original_sha256": "e925d1164e41e37d69d7d994c9b613cfc32d17746c6d0aeeb8fd8d6114f42b2c",
+      "original_mode": 384,
+      "original_mtime_ns": 1793048718852179201,
+      "archive": "/workspace/naming-proof-storage/release-editorial-audit-current-eadf-v1/census/hits.jsonl.gz",
+      "archive_bytes": 3257021,
+      "archive_sha256": "ba5019dac5a42f5df4713db781ba87deb20aa44243fc6a4c1a125f881ebe1d67",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Cold read-only audit census output only; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    },
+    {
+      "utc": "2026-10-27T04:51:51.104938+00:00",
+      "original": "/workspace/naming-proof-storage/release-editorial-audit-current-eadf-v1/census-f70/hits.jsonl",
+      "original_bytes": 26473483,
+      "original_sha256": "bc2b864b05f9000095f5f6194267161612f9b52c1d115e8392fe207e13eb73ea",
+      "original_mode": 384,
+      "original_mtime_ns": 1793049214334669131,
+      "archive": "/workspace/naming-proof-storage/release-editorial-audit-current-eadf-v1/census-f70/hits.jsonl.gz",
+      "archive_bytes": 3257027,
+      "archive_sha256": "3e1694efb844c696ea7c008c895d4761295acc2b9dedbf5fa93e0e4e44bcef12",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Cold read-only audit census output only; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    }
+  ],
+  "all_decompressed_bytes_and_hashes_checked": true
+}

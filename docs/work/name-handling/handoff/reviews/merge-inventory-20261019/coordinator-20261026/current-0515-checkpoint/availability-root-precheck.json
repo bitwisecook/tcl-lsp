@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-27T04:54:27.383685+00:00",
+  "source": "06a94df2774c1f099f2664a2a6fe32485fea3058",
+  "result": "PASS_CURRENT1_PREIMAGE_AFTERIMAGE_PATHSET",
+  "peer_sha256": "e7e5c73e126c3932c430f6e847ccf8007295ca7051344cf883ec6e1cd16ac021",
+  "actualEmission": "UNRUN",
+  "prior_exact_corpus_ELF_profile": "debug_assertions=true per c4082622; nextactualprofile+AUTH still checked"
+}

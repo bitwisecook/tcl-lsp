@@ -1,0 +1,116 @@
+{
+  "utc": "2026-10-27T04:58:36.895946+00:00",
+  "decision": "STATIC CLEAR",
+  "manifest_sha256": "6e59568433faa17eee0ef7dcc860bd35fc1db71bb4b50639a1e903185cc94932",
+  "patch_sha256": "5ab49b02684842d6d951c33c0f673f0436b98bebc6a53b1efdfc100ac9bdf314",
+  "base": "43ec95285f40739dbe696ef4429d18bd6bd0e445",
+  "current_F_R_F0_modes": [
+    "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+    "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+    "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+    "docs/work/name-handling/validation-tools/jim-source-roster.json",
+    "docs/work/name-handling/validation-tools/source-point-complete-text-corpus2.json",
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+    "docs/work/name-handling/validation-tools/jim-source-diagnostics.py"
+  ],
+  "top_source_refreshes": [
+    [
+      "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+      "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
+      "e1a61e348127f9ca44e13d724cabf5bf5ba0d3fd3203404b320b217effe9bd78",
+      "17224000aba5feaae0f68d3d1dc4d14606c034693e2c502c27e430058fc5cb05"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
+      "e1a61e348127f9ca44e13d724cabf5bf5ba0d3fd3203404b320b217effe9bd78",
+      "17224000aba5feaae0f68d3d1dc4d14606c034693e2c502c27e430058fc5cb05"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "rust/tcl-compiler/src/command_binding/availability_report.rs",
+      "9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688",
+      "03e241aa9471d509a7e8ff6d24996c68a6207afdd0843415bb636aa4dd3dabe1"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "rust/tcl-compiler/src/command_binding/availability_report.rs",
+      "9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688",
+      "03e241aa9471d509a7e8ff6d24996c68a6207afdd0843415bb636aa4dd3dabe1"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
+      "e1a61e348127f9ca44e13d724cabf5bf5ba0d3fd3203404b320b217effe9bd78",
+      "17224000aba5feaae0f68d3d1dc4d14606c034693e2c502c27e430058fc5cb05"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/source-point-complete-text-corpus2.json",
+      "rust/tcl-compiler/src/command_binding/availability_report.rs",
+      "9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688",
+      "03e241aa9471d509a7e8ff6d24996c68a6207afdd0843415bb636aa4dd3dabe1"
+    ]
+  ],
+  "actual_new_keys": [
+    [
+      "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+      "rust/tcl-compiler/src/value_shapes.rs",
+      "6b4547de533069e2e041629222473494a4f9fcccd2a1a53e278cd0f5e0fca082"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+      "rust/tcl-syntax/src/naming.rs",
+      "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "rust/tcl-compiler/src/value_shapes.rs",
+      "6b4547de533069e2e041629222473494a4f9fcccd2a1a53e278cd0f5e0fca082"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "rust/tcl-syntax/src/naming.rs",
+      "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "rust/tcl-compiler/src/value_shapes.rs",
+      "6b4547de533069e2e041629222473494a4f9fcccd2a1a53e278cd0f5e0fca082"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "rust/tcl-syntax/src/naming.rs",
+      "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f"
+    ]
+  ],
+  "whole_JSON_byte_inverse": [
+    "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+    "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+    "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+    "docs/work/name-handling/validation-tools/jim-source-roster.json",
+    "docs/work/name-handling/validation-tools/source-point-complete-text-corpus2.json"
+  ],
+  "whole_driver_byte_AST_inverse": [
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "derived_whole_json_hash_literals": 6
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "derived_whole_json_hash_literals": 1
+    }
+  ],
+  "all25_current_source_census": {
+    "maps": 24,
+    "records": 661,
+    "unique_sources": 398
+  },
+  "default166_actual_source_literal_owned_by_body_availability_validation": true,
+  "actual_finite_parser_owner_chain": true,
+  "author_V16_sha256": "4493730b2c63a2aa3df393d2b9132f306b8b2c71fdd06191b5dea695921da5ed",
+  "limits": [
+    "Six approved finite parser producer keys added only Logical3/Jim/Layout; no segmenter or other fanout. Six top refreshes, one nested W002 source hash and one finite descriptor source hash; sourcepoint-report and body_availability_validation two actual inline owners retain their separate exact dictionaries.",
+    "Only current source/derived hashes change. All old rows/env/budgets/history/modes/guards byte-restored.",
+    "Static source/metadata only; no Rust/Clippy/product/guest/performance or repaired runtime efficacy claim."
+  ]
+}

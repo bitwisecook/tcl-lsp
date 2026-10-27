@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T04:43:59Z
+Last updated: 2026-10-27T04:52:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T04:52:00Z: Root572dd98a actualSOLE assigned Spec40451629434/job122015457776 (new7existingVMELF), iRulesfixed340451639883/job122015489161, WASM40451644225/job122015503198; all3 APIin_progress, artifactsNOTdownloaded. Exactsource/fullcaps/freshsize+2GiB+24MiBguards mandatory. VerifierV2 strongScope83144600 ready (8ce05/script04b00766), originalenvelope prerequisite/newtimeoutUNQUALIFIED. Genuinefirststagefile-source DESIGN29bec2ec only pendingScope: explicit sourcefileprovider/sameNameScope+argv currentcurrency, unchangedkernel/bodyguards, no newexecutiondoor/NativeDirect/Evalretag. No implementation/tests authored orSCFgain. Priorff67bothFULLAUTH +retrofullbinding2b6f sourcequalified retained.
 
 Current 2026-10-27T04:43:59Z: Spec7 artifactverifierV1 94b403 HELD stream/fullrowprovenance+actualreservation gaps; immutableV2 8ce05a86/script04b00766 fixes ownnew/fullrowreceipt/streams/exit, specELF/listuniqueARGV, exactintentSHA, signedWNO, unknownnew/Cargochildren, recorded1190/1010/805/625;45purepredicatecases/oldactualmissing7REFUSED, actualnewarchiveUNRUN, Scopepending. Rootrequested historicalboundedfullbindingaudit2b6f8988 confirmsff67+bd80INCOMPLETE/ea86540413140109PASS usingOWNfullstdout/receipt/listELF/exit/quiet/reserves; noZIPdownload/oldmutation/wholeSpecclaim. SCFread-only55ec9104 firstguard source_in205 source_file_grammar beforeI/O, LogicalEvalV2notfileconsumer; no sourceedit/newgrant. ProtocolV2 strong7257038c ready/rootappliedpendingfinalunion. No activeownedcapture.
 

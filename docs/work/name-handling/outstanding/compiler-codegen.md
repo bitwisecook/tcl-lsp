@@ -2,13 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T04:42:00Z
+Last updated: 2026-10-27T05:07:24Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
 
-Current1932 strict CLOSED FULLAUTH22 2eb8a31b: zero actual Rust/Clippy primaries, top-level and standalone runtime checks reached, x5094/4PASS; original make rust-check FAIL2 at check-name-resolution-proofs.py (2235 structural errors,973 census digest changes plus stale evidence/test-comment obligations). No proof-ledger refresh/waiver or later-stage admission. Finald266 V2 0b3cb9a2/6fb8d674 independent peer pending:10 intended approved joins,7 actually new (Spec3 already canonical),8 existing source refreshes, authorV16 PASS13/30/22 b662eeca and actual12/Numeric14/3 guards PASS. Ca8d four API in_progress at04:28 with in-step liveness UNOBSERVED, preserved/no cancellation. Actual-app owned-consumer design4b3deb47 direction conditionally sound only; implementation/fullnested/evaluator closure still pending, MAP/RANGE remain FAIL.
+Current572 strict run40451648569/job122015518287 ACTIVE in original capture at05:02, exact572dd98a8bd62811513b141c6ff1f1ee16656229. Prior1932 FULLAUTH22 2eb8a31b reached zero Rust/Clippy primaries then proofchecker FAIL2235 structural obligations (no ledger waiver). Final43ec current25 packet6e595684/5ab49b02 strongCLEARa462a272, authorV16 PASS13/30/22 4493730b; exact6 source refreshes+6approved producer keys/7files, no row/env/budget changes, Root adoption pending. Ca8d Rust5 FULLAUTHc484=4605P609F/exact5214selected plus1ignored; complete ledger62811eee suppliedRoot. Ca8d remaining Rust2/E2E1/2 APIin_progress at05:02; no heartbeat or new step, liveness UNOBSERVED/preserved. N17 DATA pieceV2 46cc7640/ee553022 with8unrun controls/shared geometry/typed registry/catch-prefix/lineage is Scope review only, no Backend/NativeNormal/CU grant and not integration-ready. MAP/RANGE actualFAIL unchanged; genuine optimiser-time owned consumer remains implementation task.
 
 Currentff67 strict40445772183/job121996588920 CLOSED FULLAUTH23 8d2d1d8e: one default_trait_access at new source_availability/report_tests.rs108; noRustE, priorSourceStructure lint cleared, downstreamstrictUNRUN. Names65594003/Compilera5cce2f7 same-type explicitdefault repair Rootready; tinyrecipe prepared for166nested14source+actualaffectedfinalfnSHA+mirroredliteral, no newkeys, awaitactualnextHEAD. Final1bd8 dfdefc82/1a170c76/9839 peer adoptedff67 fullysourcequalified. Ca8d last03:40actual54/58complete4running preserved. Realappclosedconsumerdesign1b7fb stillScope-reviewonly, optionalNativeissuerparked/noSourceNormalworldgrant orMAP/RANGEgain.
 

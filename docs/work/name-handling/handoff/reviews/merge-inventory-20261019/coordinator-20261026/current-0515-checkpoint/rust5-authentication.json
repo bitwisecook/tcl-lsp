@@ -1,0 +1,74 @@
+{
+  "utc": "2026-10-27T04:45:02.283495+00:00",
+  "source": "a8d34817fa7fac497c6669aea3e419e54ae5b351",
+  "run": 40419028855,
+  "job": 121908598579,
+  "artifact_id": 12709947722,
+  "zip_sha256": "50a619c7a14bb3038568d33f3f282d39f43b8a659256a41478cd4a0861bab731",
+  "zip_bytes": 3533190,
+  "members": [
+    {
+      "name": "nextest-stderr.txt",
+      "size": 2097152,
+      "crc32": 3226679686,
+      "sha256": "fe742fefc97a1076bd9511f0768328ee4767eb1ec7b1538b8212e242cc34bfc0"
+    },
+    {
+      "name": "summary.json",
+      "size": 623,
+      "crc32": 2253179691,
+      "sha256": "2971460a248e29cc0929b543d2e8239688589a632152e43ec5fb32352c60f93d"
+    },
+    {
+      "name": "terminal.jsonl",
+      "size": 1435029,
+      "crc32": 2825147741,
+      "sha256": "62811eee8676aa96b9873a218b49afc0626e24f9837b1c12c08f3bc2e844694f"
+    }
+  ],
+  "listing_sha256": "456f90a4f48c7fe27239d2f7a05d4028a710159d0846f7cabb1343aa1b7b568e",
+  "selected_nonignored": 5214,
+  "extra_ignored_rows": [
+    {
+      "binary_id": "tcl-compiler::differential_incremental",
+      "test": "incremental_matches_fresh_over_corpus",
+      "status": "ignored",
+      "retry_count": null,
+      "exec_time": null,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    }
+  ],
+  "unique_terminal_rows": 5215,
+  "counts": {
+    "ok": 4605,
+    "failed": 609,
+    "ignored": 1
+  },
+  "exact_selected_nonignored_join": true,
+  "summary": {
+    "schema": "nextest-capture-v1",
+    "listing_sha256": "456f90a4f48c7fe27239d2f7a05d4028a710159d0846f7cabb1343aa1b7b568e",
+    "nextest_exit": 100,
+    "terminal_count": 5215,
+    "selected_count": 5214,
+    "started_unfinished": [],
+    "never_started": [],
+    "ignored_unreported": [],
+    "missing_terminal": [],
+    "capture_errors": [],
+    "stderr_truncated": true,
+    "lifecycle": {
+      "parent_pid": 24647,
+      "parent_start_ticks": 71040,
+      "owned_pgid": 24647,
+      "group_scan_attempts": 2,
+      "group_empty_before_parent_reap": true,
+      "cleanup_signals": [],
+      "last_live_members": [],
+      "last_scan_complete": true
+    }
+  },
+  "scope": "API source-qualified selected ledger and owned process closure; no full source/provider/dependency/tool seals in this CI terminal protocol; stderr capped explicitly"
+}

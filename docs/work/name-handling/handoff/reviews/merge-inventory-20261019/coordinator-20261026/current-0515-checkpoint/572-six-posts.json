@@ -1,0 +1,49 @@
+{
+  "utc": "2026-10-27T04:47:18.320861+00:00",
+  "source": "572dd98a8bd62811513b141c6ff1f1ee16656229",
+  "candidate": "c7632df785126d61bcbb12613a16f5e241007203",
+  "rows": [
+    {
+      "mode": "spectcl-fold-diagnostics",
+      "label": "next572-spec",
+      "stdout": "DISPATCHED spectcl-fold-diagnostics 572dd98a8bd62811513b141c6ff1f1ee16656229\n",
+      "stderr": "",
+      "utc": "2026-10-27T04:47:02.404817+00:00"
+    },
+    {
+      "mode": "lsp-startup-diagnostics",
+      "label": "next572-core",
+      "stdout": "DISPATCHED lsp-startup-diagnostics 572dd98a8bd62811513b141c6ff1f1ee16656229\n",
+      "stderr": "",
+      "utc": "2026-10-27T04:47:05.721577+00:00"
+    },
+    {
+      "mode": "irules-preflight-diagnostics",
+      "label": "next572-irules-fixed3",
+      "stdout": "DISPATCHED irules-preflight-diagnostics 572dd98a8bd62811513b141c6ff1f1ee16656229\n",
+      "stderr": "",
+      "utc": "2026-10-27T04:47:09.081639+00:00"
+    },
+    {
+      "mode": "wasm-real-link-diagnostics",
+      "label": "next572-wasm",
+      "stdout": "DISPATCHED wasm-real-link-diagnostics 572dd98a8bd62811513b141c6ff1f1ee16656229\n",
+      "stderr": "",
+      "utc": "2026-10-27T04:47:11.850923+00:00"
+    },
+    {
+      "mode": "release-rust-check-diagnostics",
+      "label": "next572-strict",
+      "stdout": "DISPATCHED release-rust-check-diagnostics 572dd98a8bd62811513b141c6ff1f1ee16656229\n",
+      "stderr": "",
+      "utc": "2026-10-27T04:47:14.755336+00:00"
+    },
+    {
+      "mode": "exact-prep-pr",
+      "stdout": "{\"utc\": \"2026-10-27T04:47:18.293327+00:00\", \"harness\": \"572dd98a8bd62811513b141c6ff1f1ee16656229\", \"candidate\": \"c7632df785126d61bcbb12613a16f5e241007203\", \"request\": {\"ref\": \"work\", \"inputs\": {\"mode\": \"prep-pr-candidate-validation\", \"candidate_sha\": \"c7632df785126d61bcbb12613a16f5e241007203\"}}, \"workflow_sha256\": \"e7f0406b569afe16b7eeed15fa9299062045eb46d18313e501dcd93e7f00767a\", \"owner_sha256\": \"88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811\", \"fixed_setup\": [\"make\", \"install-test-deps\"], \"fixed_gate\": [\"make\", \"prep-pr\"], \"gate_accepted\": false, \"separate_rust_check_full_CI_required\": true, \"shipping_workflow_unchanged\": true}\n",
+      "stderr": "",
+      "utc": "2026-10-27T04:47:18.320652+00:00"
+    }
+  ],
+  "source_head_unchanged_between_posts": true
+}
