@@ -2,7 +2,7 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-26T23:24:08.215635+00:00 (finalfa5e25 CLEAR; Runtime cached-incrV2 CLEAR; finiteforeachV2 genuine-walk HOLD, V3 next off-tree)
+Last updated: 2026-10-26T23:59:31.303717+00:00 (finiteforeach WorkV3 preserving full walk unsealed; all urgent runtime/protocol/privacy/registry peers returned)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 

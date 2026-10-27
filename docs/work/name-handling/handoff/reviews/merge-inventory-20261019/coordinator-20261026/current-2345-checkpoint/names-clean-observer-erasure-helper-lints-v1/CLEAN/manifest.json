@@ -1,0 +1,39 @@
+{
+  "schema": "root-normalized-source-integration-v1",
+  "lane": "CLEAN_ONLY",
+  "base_commit": "85da3befa98c5f96edab7ec9607de110a7ae9600",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_callback_lookup.rs",
+      "operation": "modify",
+      "before_sha256": "6f7dedc076dd40c6cc60d600151b5a246159a9f30da51a3190ea4b98eed89d0a",
+      "after_sha256": "dd597582529b9f700234a15b66556d32df02cecdec39e74c0e16785b6803a2e8"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/command_presence.rs",
+      "operation": "modify",
+      "before_sha256": "49339dc75685922103d6862528605519dbcd829494d8a1cc392aecfa18b9a65c",
+      "after_sha256": "17793dfeb66ef91c18dd5776d5e0bf6ca22b77f90766d0498e7c60db38b8b176"
+    }
+  ],
+  "patch_sha256": "774c96edde456da3838d4fcec05db338cbbcf7e590261e5b0924b1b1c676cec2",
+  "WORK_head": "e8dbe095901b6e2deb424f8c891316859f2fcf64",
+  "WORK_witness": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_callback_lookup.rs",
+      "current_sha256": "1a21ce8f3ebbd319c3328a782e043901c387c641d5af61b0ad02b916a14d621e",
+      "change": "NONE",
+      "reason": "WORK let-else has an existing failed-token diagnostic; result is inspected by existing failed-prefix diagnostics before return. Both bindings remain required there."
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/command_presence.rs",
+      "current_sha256": "f519050b16625d62c76464e579c93937594a776ee0fd16093310fd002bc91a14",
+      "change": "NONE",
+      "reason": "WORK result is borrowed by its existing TCL_SLOT_DEBUG block before return; CLEAN has no such block. No WORK change is valid/needed."
+    }
+  ],
+  "scope": "Only cfg(test) helper residue after CLEAN observer erasure: identical Option None residual with ?, identical owned return expressions. Every fixture/assertion/query remains exact; no allows/API/visibility/owner changes. WORK logging and all WORK bytes remain untouched.",
+  "drop_proof": "Callback None still drops binding then bindings at the same early-return boundary; successful tokens and callback result follow same call/order. Presence receiver temporary is consumed by the same invocation query; no operations occur between original initializer and tail return. Other helper locals/parameters are borrowed references, and receiver/result transfers issue no Native work or extra clone/drop; returned binding is the same owned value.",
+  "F_R_F0_fmt_whitespace": true,
+  "actual_Clippy": "UNRUN"
+}

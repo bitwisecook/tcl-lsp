@@ -1,0 +1,48 @@
+{
+  "status": "PROPOSED_OFF_TREE_SUCCESSOR",
+  "lane": "CLEAN",
+  "base_commit": "e3b9950810ca92764b716935b9886ccdba7d8be3",
+  "scope": "Exact four-file continuation of the statically cleared 54-comment packet, preserving the v1 afterimages for three files and changing only the two reviewed DB callback-scope descriptions to clarify that future lookups are not issued.",
+  "composition": {
+    "base_packet": "/workspace/naming-proof-storage/lsp-held-label-replacements-85da-v1",
+    "base_packet_manifest_sha256": "02d75a26a3c4aeb4c6321ba898e7ebdc46e9fd0659c73ba6565f5872c389d592",
+    "base_packet_patch_sha256": "47f86a598693a2911fc40ec3d994126845de3b66ea795aa4bde4a7588d4e735b",
+    "corrected_db_packet": "/workspace/naming-proof-storage/lsp-held-label-replacements-85da-v2",
+    "corrected_db_patch_sha256": "9ea26e45303cfa54f13945532a532ec177e8b5eb7d195c424f82ad0733fe5afc",
+    "db_afterimage_verified_as_v1_afterimage_with_only_two_phrase_replacements": true
+  },
+  "files": [
+    {
+      "path": "editors/vscode/src/documentTransform.ts",
+      "mode": "100644",
+      "before_sha256": "52220cec239d36b4b54096460a871e76627b4bf637c56d0d60402c486bbfa439",
+      "after_sha256": "44c7e766dde7a502575f3c2977f2a22fa6ee2d51ccd5ca64acd7169ffd09b30d",
+      "before_bytes": 4569,
+      "after_bytes": 4599
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "mode": "100644",
+      "before_sha256": "26e419f3e2620a8f24cf3bd50a2712fe4f25470b4e30fcf0a26d11cbebde05dd",
+      "after_sha256": "3f83eed325ec609cdedbd777999108e8c11eea6292892e452bbc7293a5bdc2b7",
+      "before_bytes": 215471,
+      "after_bytes": 215480
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/folding.rs",
+      "mode": "100644",
+      "before_sha256": "6832c97f17ba4eb572a800d50f0520478fd29bbeffc66103b6b5c25cc894cce8",
+      "after_sha256": "0a85befc470460af60d802621952d9e08a7fe5bf6890473fb553408118ae16d0",
+      "before_bytes": 69841,
+      "after_bytes": 69789
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "mode": "100644",
+      "before_sha256": "e4a370e71e035374afc896367a234f12e7ef39614f054a47434d4fa2310bfd1d",
+      "after_sha256": "753b5d9271bebf5e3f5358770fc75001f3c31c5e24e916016e80262213e6bfdf",
+      "before_bytes": 518770,
+      "after_bytes": 518899
+    }
+  ]
+}

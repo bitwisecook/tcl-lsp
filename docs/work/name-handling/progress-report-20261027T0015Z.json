@@ -1,0 +1,80 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-27T00:15:00.376725+00:00",
+  "scheduled_report_utc": "2026-10-27T00:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-27T00:45:00+00:00",
+  "change_since_previous_report": [
+    "2345officialreporton-time23:45:00.228,A00d95909a, publishedWORK821fdc73a at23:47:10. Next0015timer10293recorded; allF/gatesopen/noadmissions.",
+    "CurrentWORK821fdc73a includesNoTomgettercfg7f5f+pairedEglotreport7696. CurrentCc18357f05 includesRuntimeV2/NoTomcfg7c2c/C-onlyhelperlintcleanup e3b/comment132c95b/comment54c183/Eglot0bb. Allreviewed/pushed; currentactualCIremains sourcequalifiedtoearliersnapshots.",
+    "HealthycurrentfullCI40419028855 exactCa8d active; early56jobs14closed19running23queued/3actualfailurejobs. ThreehelperClippy andNoTomdeadgetter sourcesarenowreviewedfixedbutunrun; WASMold25and3oracleplansPASS/NativeAdd+framingFAIL. No broadgreeninferred.",
+    "e8dbfocused23:34POSTs strict40420651309/corpus40420657860/CoreStartup40420664018/runtime16940420670714 remainqueued/active, eachsolecaptureassigned. Old934cstrict/Core/startup/corpusauthenticatedE0616 build-onlyUNRUN; narrowprivacyb970partofnewsource.",
+    "Exactabbbprep40418519693 fd22a221 FULLAUTH setup+canonicaldoublePASS, server11P3F/lens+push+TkFAIL, generateddiffEMPTY. TwofixturecorrectionsareLATERa8dsource, noactualgaindonation. NeedcurrentfullCIactualsmoketerminals/thenfinalprep.",
+    "OwnJim exactUnknownEarlierMutation PRESENTbutunsupported; present=falseisnotabsence. Runtimepreparingboundedexistingflagheld3contributoruncertain_operations provenanceobserverofftree, Compilerpeer; no Jimrerununtilsource/cause. Finiteforeachv3mustretainoriginalwalk/refreads/depth; CodegenN17MAPneedsactualinput+StringAccess+FrozenSourceRepresentation closure, RANGEseparate; no permissionwidening.",
+    "ExtraEmacsmanualworkflowimplementationHELDunsealed/offtree afterscopecheck: AGENTmake-test-emacsruleonlyeditors/emacs. Eglotnarrowtwo-filecomments/reportpatch5fa1strong0c5f integratedWORK-first/C; delta gate/exit1/xfails/metrics/allstressunchanged. No newtestwaiver.",
+    "Tkhoverexistingcontractpathidentified: authenticatedselectedschema.required_package declaresprerequisite metadata (notcurrentpackageavailability); boundedpairedpresentationproposalwilllabeldeclaredrequirementandretainprovider/source-kinduncertainty, no query/selection/runtimegrant/testweakening. LSPauthorpreparingwithpeer; no newpolicyquestionneededunlessactualcontractdiffers.",
+    "Final204labelcleanup2b4f/cb4d strongeaef2a91 appliedC80096:11paths/204comments+202blanks/0adds/alltokens+literals+source-reader+macro+fmtchecked,2fixtureprovenancepreserved. FunctionalCcarrycanrebindonceagainst80096.",
+    "e8dbstrict FULLbounded23fe629:oneWork-onlytoo_many_lines106/100field_comparison.rs262/noRustE; laterstandaloneUNRUN/no provider-depattestation. CombinedsubjectNoneheldwitness+lintfb9301pendingCompilerpeer, Cunchanged.",
+    "e8dbcorpus FULLAUTH74cc/fullGite3e0 bothFAIL101,same6of702+24of42Equal. Textallowners/body/strictfieldspassbeforediagnostic_subjectNone; generatedfirstemptyInstalledinheritedbodycapturefailsdespiteactualownership/position/root/input, needsreport-onlyinstalledcustody. No globalEq/cutoff/subjectguardrelax.",
+    "RootCa8dselectionjoinincludingE2E:33737selected, baseline24624explicitPASS=>24408selected/noTerminal+216notinAVAILABLEselection; alloutcomesUNOBSERVED/no oldC47carry/no missing-asPASS. Metadataonly, no gateadmission.",
+    "FullCIa8dlatest57jobs43closed14active,allRust5+Heavy+3E2Eactive. Browser/WASI executeharnessthenrenamefail(notcompilefailure); multi-folder/extensionpartition2two/pr-gatefailcausespending. Independenthealthyjobspreserved.",
+    "OwnJimobserverV2 7e02/f3ef strong24a569 appliedWORK96cbb8a62:3existingfiles,olddebtrowfirst/sharedflag+1024quota/noqueryorstatechange,3contributors/max4ops/source64/head32/max854B<1024. V1held1334B, actualcontributorUNRUN; sourcepinsmustrefreshbeforeJimretry.",
+    "TkV2source4ea9pendingCompilerpeer, Tk3protocolV27e06strongb3aa ready/oneCore2hoverkeyapproved/source-firstrequired. FiniteV3f70c genuinewalkmechanicspass0c7a butunused2field/deadcloneHOLDneedsimmutablefix. Numericcompiler06a0paired6files frozenWork821/C80096 Scope/Runtimepeeractive/unbuilt; no framingclosure.",
+    "TkV2source4ea9 stronga48f6d98 pairedCLEAR; Tk3protocol7e06 strongb3aa CLEAR, source-firstintegrationandcurrentunionpending. SourceW96cbb/C80096 freshpushconfirmed00:14 afterbriefexecdisconnect. ScopeNumericstaticemitter5d802clear buttype/interface/actualexecutionstillrequired."
+  ],
+  "committed": [
+    "00d95909a40c09bbb0714ed90e45bd9c30b51fce"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Integrate reviewed source fixes WORK-first, refresh exact source pins, dispatch strict and dedicated corpus diagnostics against current clean source.",
+    "Authenticate ea86 actual WASM and SpecTcl outcomes; fix LSP source producer, compiler finite foreach/Jim and runtime failures without weakening guards.",
+    "Complete final current broad CI, zero origin/rust PASS-to-FAIL, shipping Tcl performance, docs/comments/generated/package/squash checks before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2244927488,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

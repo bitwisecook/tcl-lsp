@@ -1,0 +1,1214 @@
+diff --git a/runtime/rust/src/cmd_oo.rs b/runtime/rust/src/cmd_oo.rs
+index 5b4d72a..e863c08 100644
+--- a/runtime/rust/src/cmd_oo.rs
++++ b/runtime/rust/src/cmd_oo.rs
+@@ -949,8 +949,6 @@ fn register_define_ns_commands(interp: &mut Interp) {
+ /// (for `configure`) and resolves `property` in the configurableclass /
+ /// configurableobject definition namespaces.
+ fn install_configurable(interp: &mut Interp) {
+-    // naming.tcloo.original-configurable-factory-support
+-
+     let registry = crate::environment::store_for_profile(interp.dialect_profile());
+     if let Some(support) = registry
+         .native_class_factory_recipe(
+@@ -2786,8 +2784,6 @@ fn install_original_method_vis(
+ /// marks the methods/variables it defines as private (`my`-only). TIP 500.
+ fn def_private(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+     native_context::with_original_arguments(interp, argv, |interp, originals| {
+-        // naming.tcloo.private-definition-mode
+-
+         if interp.active_def_target().is_none() {
+             return native_context::monkey_business(interp);
+         }
+@@ -9772,8 +9768,6 @@ mod tests {
+ 
+     #[test]
+     fn unknown_method_preserves_original_selector_for_returned_slot_data() {
+-        // naming.tcloo.original-counted-variable-header
+-
+         // This Rust control isolates the dispatcher before the native proof's
+         // direct declaration/query boundary; it claims no extra native observer.
+         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+@@ -9829,8 +9823,6 @@ mod tests {
+ 
+     #[test]
+     fn define_context_self_arity() {
+-        // naming.tcloo.original-definition-context-self
+-
+         leak_free(|i| {
+             ok(i, b"oo::class create Cls");
+             ok(i, b"Cls create obj");
+@@ -10351,8 +10343,6 @@ mod tests {
+ 
+     #[test]
+     fn definitionnamespace_semantics() {
+-        // naming.tcloo.original-definitionnamespace-source-control
+-
+         leak_free(|i| {
+             // TIP 524: a metaclass's -class definition namespace becomes the
+             // resolution scope when defining its instances (classes).
+@@ -10951,8 +10941,6 @@ mod tests {
+ 
+     #[test]
+     fn original_renamed_definition_matches_native_source_and_raw_return_boundaries() {
+-        // naming.class.original-renamed-definition-error-context
+-
+         // Whole public completion/errorInfo only; no private class/header
+         // identity follows. C8.4/8.5 stock TclOO is unavailable: their C API
+         // settles top-level return to OK, while this raw evaluator retains RETURN.
+@@ -11022,8 +11010,6 @@ mod tests {
+ 
+     #[test]
+     fn define_script_errorinfo_and_super_mixin_messages() {
+-        // naming.tcloo.original-nonclass-superclass-mixin-errors
+-
+         leak_free(|i| {
+             // superclass/mixin: not-an-object vs not-a-class messages (as-written
+             // name; matches C's Tcl_GetObjectFromObj + ClassSuperSet/MixinSet).
+@@ -11048,7 +11034,6 @@ mod tests {
+                 Code::Error
+             );
+             assert_eq!(i.result_bytes(), b"only a class can be a mixin");
+-            // naming.class.original-renamed-definition-error-context
+ 
+             // The define-script errorInfo frame uses the *current* (renamed) name.
+             ok(i, b"oo::class create base");
+@@ -11862,8 +11847,6 @@ mod original_argument_tests {
+ 
+     #[test]
+     fn define_target_callback_stops_before_body_and_definition_effects() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Software getter/currency control; native OO operand order is separate.
+         for mode in [1, 2] {
+             let mut interpreter = native();
+@@ -11896,8 +11879,6 @@ mod original_argument_tests {
+ 
+     #[test]
+     fn method_name_callback_withdraws_later_formal_body_and_installation_stages() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         for mode in [1, 2] {
+             let mut interpreter = native();
+             let (target, caller) = enter(&mut interpreter);
+@@ -11934,8 +11915,6 @@ mod original_argument_tests {
+ 
+     #[test]
+     fn definition_frame_reporting_runs_updaters_outside_frame_borrow_and_cleans_refusal() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Definition entry retains the original tape without presentation.
+         // The explicit report String stage reaches the original updater.
+         for mode in [0, 1, 2] {
+@@ -11999,8 +11978,6 @@ mod original_argument_tests {
+ 
+     #[test]
+     fn retired_method_callback_stops_before_later_name_and_result_publication() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         for mode in [1, 2] {
+             let mut interpreter = native();
+             let (target, caller) = enter(&mut interpreter);
+diff --git a/runtime/rust/src/cmd_var.rs b/runtime/rust/src/cmd_var.rs
+index ef28189..a29b902 100644
+--- a/runtime/rust/src/cmd_var.rs
++++ b/runtime/rust/src/cmd_var.rs
+@@ -1045,8 +1045,6 @@ list $root $nsresult $rootdict(k)
+ 
+     #[test]
+     fn original_upvar_error_publication_matches_all_six_native_sources() {
+-        // naming.variable.original-upvar-error-publication
+-
+         // Each whole row preserves catch result and errorCode. The C9 trace
+         // row records unavailable legacy API, independently of upvar rejection.
+         let source = include_bytes!(
+@@ -1141,8 +1139,6 @@ list $root $nsresult $rootdict(k)
+ 
+     #[test]
+     fn original_array_read_destruction_matches_six_native_source_results() {
+-        // naming.variable.original-array-read-destruction
+-
+         // Exact completion/value/trace-log observations only. Jim's original
+         // unavailable trace setup is independent of C's entered callbacks.
+         macro_rules! provider {
+@@ -1208,8 +1204,6 @@ list $root $nsresult $rootdict(k)
+ 
+     #[test]
+     fn whole_array_destruction_preserves_staged_native_member_lifetimes() {
+-        // naming.variable.original-array-member-trace-retirement-horizon
+-
+         // Whole public callback logs, including later-member trace registration.
+         use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
+diff --git a/runtime/rust/src/interp/native_error_headers.rs b/runtime/rust/src/interp/native_error_headers.rs
+index 88e8729..a8f7527 100644
+--- a/runtime/rust/src/interp/native_error_headers.rs
++++ b/runtime/rust/src/interp/native_error_headers.rs
+@@ -1413,8 +1413,6 @@ mod original_prepared_stack_tests {
+ 
+     #[test]
+     fn original_prepared_stack_unavailable_releases_do_not_issue_or_retire_private_headers() {
+-        // naming.error.original-private-error-stack-header
+-
+         // These real releases lack the private stack; they cannot borrow the modern positive premise.
+         for name in ["tcl8.4", "tcl8.5"] {
+             crate::counters::reset();
+@@ -1463,8 +1461,6 @@ mod original_prepared_stack_tests {
+ 
+     #[test]
+     fn original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Actual software member frees/tickets; no external Native stack chronology is inferred.
+         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+             for operation in 0..2 {
+@@ -1573,8 +1569,6 @@ mod original_prepared_stack_tests {
+ 
+     #[test]
+     fn original_stack_configuration_publishes_roles_before_mandatory_header_retirement() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Generic configuration software publication and cleanup, not selected Reset/Setter order.
+         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+             for mode in 0..4 {
+@@ -1637,8 +1631,6 @@ mod original_prepared_stack_tests {
+ 
+     #[test]
+     fn original_stack_frame_append_keeps_existing_members_and_actual_frame_roles() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Source-only actual List/member roles; no public getter or frame-admission grant.
+         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+             crate::counters::reset();
+@@ -1820,8 +1812,6 @@ mod original_carried_option_tests {
+ 
+     #[test]
+     fn original_carried_option_retirement_stops_new_body_and_preserves_reached_publication() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Software owning-member callbacks; no external C/Jim option retirement schedule is inferred.
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for action in 0..3 {
+@@ -1898,8 +1888,6 @@ mod original_carried_option_tests {
+ 
+     #[test]
+     fn original_carried_option_key_getter_keeps_actual_roles_and_refuses_before_publication() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for action in 0..3 {
+                 crate::counters::reset();
+@@ -1950,8 +1938,6 @@ mod original_carried_option_tests {
+ 
+     #[test]
+     fn original_carried_option_same_header_take_restore_cannot_revive_prepared_read() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // The retained Rust identity cannot wrap or be reused while held; no Native role is issued by it.
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             crate::counters::reset();
+@@ -2002,8 +1988,6 @@ mod original_carried_option_tests {
+ 
+     #[test]
+     fn original_saved_option_cleanup_finishes_result_restore_after_host_or_context_withdrawal() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for action in 0..3 {
+                 crate::counters::reset();
+@@ -2053,8 +2037,6 @@ mod original_carried_option_tests {
+ 
+     #[test]
+     fn original_coroutine_option_handoff_renews_installed_and_parked_incarnations() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Mandatory physical handoff software currentness only, no coroutine Native chronology grant.
+         let interpreter = native("tcl9.0");
+         interpreter
+@@ -2082,8 +2064,6 @@ mod original_carried_option_tests {
+ 
+     #[test]
+     fn original_procedure_option_body_start_refusal_still_tears_down_the_real_frame() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Actual stored procedure/entered frame and member free; no native procedure chronology inferred.
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for action in 0..3 {
+diff --git a/runtime/rust/src/interp/native_return_instruction.rs b/runtime/rust/src/interp/native_return_instruction.rs
+index c085cf5..21a4d05 100644
+--- a/runtime/rust/src/interp/native_return_instruction.rs
++++ b/runtime/rust/src/interp/native_return_instruction.rs
+@@ -1038,8 +1038,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_syntax_result_getter_keeps_borrowed_header_and_full_first_cause() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Genuine software extension callbacks/roles; no Native getter chronology is inferred.
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for mode in 0..4 {
+@@ -1099,8 +1097,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_syntax_shared_info_copy_checks_real_duplicate_before_adoption() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Actual extension duplication/borrowed roles, independent of Native reset/setter observations.
+         for name in ["tcl8.5", "tcl8.6"] {
+             for mode in [5, 6] {
+@@ -1205,8 +1201,6 @@ mod original_syntax_transport_tests {
+     };
+     #[test]
+     fn original_syntax_copy_primary_aba_precedes_actual_unused_copy_host_retirement() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Software duplicate/private-role currentness, not Native614c setter or reset chronology.
+         for profile in ["tcl8.5", "tcl8.6"] {
+             for change in [false, true] {
+@@ -1286,8 +1280,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_syntax_literal_action_transports_reached_header_retirement_refusal() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         use super::super::native_literal_pool::{
+             NativeRuntimeLiteral as Literal, NativeRuntimeLiteralAction as Action,
+         };
+@@ -1361,8 +1353,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_builder_syntax_retains_callback_cause_before_formatter_or_cache() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for mode in [1, 2] {
+                 crate::counters::reset();
+@@ -1408,8 +1398,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_error_stack_replacement_checks_real_retirement_and_owner_aba() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // List-member retirement and mutation-ticket/backing callbacks are software controls, not Native error-stack timing.
+         for name in ["tcl8.6", "tcl9.1"] {
+             for mode in 0..5 {
+@@ -1477,8 +1465,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_error_converters_check_real_primary_retirement_before_backing_adoption() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Real software freeIntRep callbacks test transport and adoption boundaries,
+         // without attesting external Tcl converter or error-stack chronology.
+         for name in ["tcl8.6", "tcl9.1"] {
+@@ -1579,8 +1565,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_completion_reads_keep_original_borrowed_roles_and_full_callback_cause() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Real software getter callbacks measure roles and typed transport, not external chronology.
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for operation in 0..2 {
+@@ -1660,8 +1644,6 @@ mod original_syntax_transport_tests {
+ 
+     #[test]
+     fn original_completion_options_read_real_carried_key_before_duplicate_or_overlay() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Actual stored Dictionary members and software updater effects, independent of Native options order.
+         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for mode in 7..10 {
+diff --git a/runtime/rust/src/interp/native_script.rs b/runtime/rust/src/interp/native_script.rs
+index b18bad9..0cdf725 100644
+--- a/runtime/rust/src/interp/native_script.rs
++++ b/runtime/rust/src/interp/native_script.rs
+@@ -407,8 +407,6 @@ impl Interp {
+         filename: &[u8],
+         frame: CmdFrame,
+     ) -> Code {
+-        // naming.source.jim-original-source-entry
+-
+         let context = match self.native_jim_object_context() {
+             Ok(context) => context,
+             Err(error) => return self.report_cmd_error(error.into()),
+@@ -450,8 +448,6 @@ impl Interp {
+             Err(first) => return self.refuse_native_execution(first),
+         };
+         let reached = (|| {
+-            // naming.source.jim-original-source-entry
+-
+             let context = match self.native_jim_object_context() {
+                 Ok(context) => context,
+                 Err(error) => return self.report_cmd_error(error.into()),
+@@ -546,8 +542,6 @@ impl Interp {
+         &self,
+         script: &tcl_syntax::native_jim_substitution::JimOrdinaryScript<Owned>,
+     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+-        // naming.source.jim-original-source-entry
+-
+         let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+         let location = tcl_runtime_api::jim_error_stack::JimScriptLocation {
+             file: script.filename.clone(),
+@@ -724,8 +718,6 @@ mod tests {
+ 
+     #[test]
+     fn sourced_jim_body_tokens_keep_original_lines_and_unlocated_objects_stay_unlocated() {
+-        // naming.source.jim-original-source-entry
+-
+         let mut interp = Interp::with_native_core(
+             default_host(),
+             crate::environment::profile_for_dialect("jim"),
+@@ -770,8 +762,6 @@ mod tests {
+ 
+     #[test]
+     fn jim_control_body_preserves_original_source_in_error_frames() {
+-        // naming.source.jim-original-source-entry
+-
+         let mut interp = Interp::with_native_core(
+             default_host(),
+             crate::environment::profile_for_dialect("jim"),
+@@ -807,8 +797,6 @@ mod tests {
+ 
+     #[test]
+     fn jim_original_lookup_error_keeps_live_procedure_and_script_frames() {
+-        // naming.source.jim-original-source-entry
+-
+         let mut interp = Interp::with_native_core(
+             default_host(),
+             crate::environment::profile_for_dialect("jim"),
+@@ -830,8 +818,6 @@ mod tests {
+ 
+     #[test]
+     fn normal_original_script_does_not_materialise_its_borrowed_filename() {
+-        // naming.source.jim-original-source-entry
+-
+         let mut interp = Interp::with_native_core(
+             default_host(),
+             crate::environment::profile_for_dialect("jim"),
+diff --git a/runtime/rust/src/interp/native_variable_names.rs b/runtime/rust/src/interp/native_variable_names.rs
+index c0c791c..b56f446 100644
+--- a/runtime/rust/src/interp/native_variable_names.rs
++++ b/runtime/rust/src/interp/native_variable_names.rs
+@@ -3370,8 +3370,6 @@ mod tests {
+ 
+     #[test]
+     fn original_upvar_free_callback_checks_currency_before_cells_and_aliases() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Actual selected C worker; software callback currency, not native equivalence.
+         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for mode in 0..=2 {
+@@ -3426,8 +3424,6 @@ mod tests {
+ 
+     #[test]
+     fn original_compiled_upvar_free_callback_refuses_later_slot_binding() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Genuine procedure artifact/slot and shared compiled worker, no codegen claim.
+         for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for mode in 0..=2 {
+@@ -3532,8 +3528,6 @@ mod tests {
+ 
+     #[test]
+     fn original_canonical_name_free_callback_releases_borrows_and_stops_next_cache() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Reached original cache stays installed; the later canonical cache is refused.
+         let mut interp = Interp::with_native_core(
+             super::super::default_host(),
+@@ -3592,8 +3586,6 @@ mod tests {
+ 
+     #[test]
+     fn legacy_existence_preserves_original_name_caches_and_object_reads_still_adopt_them() {
+-        // naming.variable.original-upvar-and-exists-completion-and-name-windows
+-
+         // Native case16 binds the fresh scalar primary. The list-cache,
+         // combined name and NUL controls separately test this source/API owner.
+         for engine in ["tcl8.4", "tcl8.5"] {
+@@ -5397,8 +5389,6 @@ mod original_assignment_tests {
+ 
+     #[test]
+     fn original_c_assignment_releases_old_value_before_trace_with_cell_borrows_released() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Actual receiver callbacks and ownership, without external refcount/order equivalence.
+         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             for element in [false, true] {
+@@ -5460,8 +5450,6 @@ mod original_assignment_tests {
+ 
+     #[test]
+     fn original_jim_assignment_updates_actual_cached_cell_before_retirement_callback() {
+-        // naming.embedding.original-host-publication-and-fact-transport
+-
+         // Jim_SetVariable keeps the old VarVal pointer during its decrement.
+         // A refused software continuation cannot perform the later assignment.
+         for fresh_name in [false, true] {
+diff --git a/runtime/rust/src/interp/native_variable_teardown.rs b/runtime/rust/src/interp/native_variable_teardown.rs
+index dfae4b4..1e95917 100644
+--- a/runtime/rust/src/interp/native_variable_teardown.rs
++++ b/runtime/rust/src/interp/native_variable_teardown.rs
+@@ -178,8 +178,6 @@ impl Interp {
+     }
+ 
+     pub(super) fn retire_namespace_variables(&mut self, namespace: NsId) {
+-        // naming.variable.original-owner-array-trace-retirement-horizon
+-
+         // The original table and cell retirement are software receipts; public
+         // namespace observations do not expose those physical identities.
+         let saved = super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
+@@ -446,8 +444,6 @@ mod tests {
+ 
+     #[test]
+     fn original_unset_alias_refills_match_six_native_source_results() {
+-        // naming.variable.original-unset-alias-trace-refill
+-
+         // Whole original script results retain the public refill and fresh trace.
+         // Jim's unavailable trace command remains an independent guest outcome.
+         const CONTROLS: &[OriginalControl] = &[
+@@ -484,8 +480,6 @@ mod tests {
+ 
+     #[test]
+     fn direct_byte_unset_keeps_callback_refill_registrations() {
+-        // naming.variable.original-unset-alias-trace-refill
+-
+         // This implementation control replaces one operation between unchanged
+         // source prelude/tail. It asserts shared callback disposal chronology;
+         // it does not claim a native C API or original operand/header comparison.
+@@ -498,8 +492,6 @@ mod tests {
+ 
+     #[test]
+     fn direct_separate_member_unset_keeps_callback_refill_registrations() {
+-        // naming.variable.original-unset-alias-trace-refill
+-
+         // The byte root/key consumer shares physical disposal. The native proof
+         // measures only its original alias script, not this Rust call interface.
+         const CONTROLS: &[OriginalControl] = &[control!(
+@@ -511,8 +503,6 @@ mod tests {
+ 
+     #[test]
+     fn original_array_unset_refills_match_six_native_source_results() {
+-        // naming.variable.original-array-unset-trace-refill
+-
+         // These are ArrayUnset originals, independent of the Unset alias source.
+         const CONTROLS: &[OriginalControl] = &[
+             control!("native_array_operational_unset355", "array-member-refill"),
+@@ -523,8 +513,6 @@ mod tests {
+ 
+     #[test]
+     fn original_array_unset_keeps_release_selected_member_lookup() {
+-        // naming.variable.original-array-unset-name-relookup
+-
+         // C84/85 relookup each member name; C86+ keep the selected array.
+         // All C releases relookup a whole root after its array callback.
+         // These public values do not expose private header/table identity.
+@@ -537,8 +525,6 @@ mod tests {
+ 
+     #[test]
+     fn direct_varstore_byte_unset_keeps_callback_refill_registrations() {
+-        // naming.variable.original-unset-alias-trace-refill
+-
+         // This independently tests the Rust operational byte adapter. The native
+         // proof measures its original script, not this VarStore call interface.
+         const CONTROLS: &[OriginalControl] = &[
+@@ -569,8 +555,6 @@ mod tests {
+ 
+     #[test]
+     fn direct_noncurrent_varstore_byte_unset_keeps_callback_refill_registrations() {
+-        // naming.variable.original-unset-alias-trace-refill
+-
+         // A Rust-owned additional frame exercises addressed removal. This is a
+         // software control, not a native C API/frame or generated-body proof.
+         const CONTROLS: &[OriginalControl] = &[
+@@ -662,8 +646,6 @@ mod tests {
+ 
+     #[test]
+     fn original_undefined_member_callbacks_match_six_native_retirement_sources() {
+-        // naming.variable.original-undefined-array-member-retirement
+-
+         // Each original result retains array existence/member absence before
+         // destruction and the public callback log. No native cell identity claim.
+         const CONTROLS: &[OriginalControl] = &[
+@@ -676,8 +658,6 @@ mod tests {
+ 
+     #[test]
+     fn original_namespace_array_teardown_matches_six_native_owner_sources() {
+-        // naming.variable.original-owner-array-trace-retirement-horizon
+-
+         // Three whole namespace results, including Jim's unavailable trace API.
+         // The original public logs do not expose private namespace/member identity.
+         const CONTROLS: &[OriginalControl] = &[
+@@ -690,10 +670,6 @@ mod tests {
+ 
+     #[test]
+     fn original_frame_alias_refusals_do_not_claim_teardown_chronology() {
+-        // naming.variable.original-owner-array-trace-retirement-horizon
+-
+-        // naming.variable.original-frame-array-trace-retirement-horizon
+-
+         // The original C bad-level/inverted-alias errors occur before traces.
+         // Jim's unavailable trace command is retained independently.
+         const CONTROLS: &[OriginalControl] = &[
+@@ -707,8 +683,6 @@ mod tests {
+ 
+     #[test]
+     fn original_frame_callbacks_observe_caller_without_donating_member_traces() {
+-        // naming.variable.original-frame-array-trace-caller-access
+-
+         // Positive owner reads and whole callback/caller results are compared.
+         // No receipt to an inaccessible departing C frame is fabricated.
+         const CONTROLS: &[OriginalControl] = &[
+diff --git a/runtime/rust/src/interp/stock_ensembles/retirement_tests.rs b/runtime/rust/src/interp/stock_ensembles/retirement_tests.rs
+index 1ba15ee..c70038f 100644
+--- a/runtime/rust/src/interp/stock_ensembles/retirement_tests.rs
++++ b/runtime/rust/src/interp/stock_ensembles/retirement_tests.rs
+@@ -149,8 +149,6 @@ fn first_is_original(interpreter: &Interp, mode: u8) {
+ 
+ #[test]
+ fn original_stock_family_replacement_retires_configuration_outside_borrows_before_continuation() {
+-    // naming.embedding.original-host-publication-and-fact-transport
+-
+     // A private configured role supplies its actual +1; slot observations add none.
+     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+         for mode in 0..4 {
+@@ -202,8 +200,6 @@ fn original_stock_family_replacement_retires_configuration_outside_borrows_befor
+ #[test]
+ fn original_stock_family_cleanup_restores_reached_records_after_first_refusal_without_reentry_grant(
+ ) {
+-    // naming.embedding.original-host-publication-and-fact-transport
+-
+     let mut interpreter = native("tcl8.6");
+     interpreter.register_builtin(b"stockRetirementRoot", noop);
+     let generation = interpreter
+@@ -239,8 +235,6 @@ fn original_stock_family_cleanup_restores_reached_records_after_first_refusal_wi
+ 
+ #[test]
+ fn original_stock_refresh_checks_new_root_after_the_extracted_old_configuration_retires() {
+-    // naming.embedding.original-host-publication-and-fact-transport
+-
+     // One real refresh family, plus its private owning-role fixture. No Native chronology.
+     for mode in 0..4 {
+         let mut interpreter = native("tcl8.6");
+diff --git a/rust/tcl-registry/src/native_procedure.rs b/rust/tcl-registry/src/native_procedure.rs
+index 5eaadb0..02ccf46 100644
+--- a/rust/tcl-registry/src/native_procedure.rs
++++ b/rust/tcl-registry/src/native_procedure.rs
+@@ -1477,8 +1477,6 @@ mod tests {
+ 
+     #[test]
+     fn original_static_list_bytes_keep_counted_names_and_capture_roles_separate() {
+-        // Implementation contract: naming.procedure.original-jim-static-list-capture-inputs
+-
+         let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap();
+         let dialect = crate::InvocationDialect::of_point(point);
+         let bytes = b"x\xed\xa0\x80 &y\xed\xa0\x81 {z\0tail VALUE} {&literal PAIR}";
+diff --git a/rust/tcl-registry/src/resolved_invocation.rs b/rust/tcl-registry/src/resolved_invocation.rs
+index 52863a8..4258736 100644
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -728,8 +728,6 @@ impl<'r> InvocationOptions<'r, '_> {
+     /// This supplies no handler, successful dispatch or rewrite permission.
+     #[must_use]
+     pub fn keyword_table(self) -> crate::abbrev::KeywordTable<'static> {
+-        // naming.minifier.complete-logical-metadata
+-
+         crate::spec::keyword_table_for_available_options(self.available(), self.prefix_matching)
+     }
+ 
+@@ -3060,8 +3058,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// prove all original binding-name uses plus isolated editing policy.
+     #[must_use]
+     pub fn authored_source_result_preserves_variable_bindings(&self) -> bool {
+-        // naming.minifier.logical-formal-binding-alpha
+-
+         let (roles, complete) = self.authored_source_argument_roles();
+         let barriers = crate::FRAME_REACH_TRAITS
+             | Traits::INTROSPECTS_BY_NAME
+@@ -3538,8 +3534,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     }
+ 
+     fn source_frame_script_arguments(&self, logical: bool) -> Option<Vec<std::ops::Range<usize>>> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         use crate::frame_effect::FrameArgumentResolution as Layout;
+         let frame = self.semantics.frame_effect?;
+         if frame.layout != crate::FrameArgLayout::ScriptInSelectedFrame {
+@@ -3747,8 +3741,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// native parameter acceptance nor a successful definition.
+     #[must_use]
+     pub fn authored_source_argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
+-        // Implementation contract: naming.vendor.original-registry-metadata
+-
+         let (roles, complete) = self.argument_roles_with_native_definition(false, false);
+         if self.uses_authored_jim_core_layout() {
+             self.authored_jim_core_roles(roles, complete)
+@@ -3834,8 +3826,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// transition and deferred source timing, without a native descriptor.
+     #[must_use]
+     pub fn authored_source_procedure_arguments(&self) -> Option<AuthoredSourceProcedureArguments> {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         let native_definition = self.semantics.procedure_definition.is_some();
+         let authored_hook =
+             self.semantics.analyser_hook == Some(crate::hooks::AnalyserHookId::Proc);
+@@ -3944,8 +3934,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// grants no Native grammar, entered frame, effects or successful handler.
+     #[must_use]
+     pub fn authored_logical_source_argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
+-        // naming.source.original-produced-command-prefix
+-
+         let layout = self
+             .semantics
+             .frame_effect
+@@ -3961,8 +3949,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_logical_source_role_projection(
+         &self,
+     ) -> Option<AuthoredLogicalSourceRoleProjection> {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         if !matches!(
+             self.subcommand,
+             SubcommandResolution::NotApplicable
+@@ -4215,8 +4201,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_source_command_prefix_arguments(
+         &self,
+     ) -> Option<Vec<(usize, crate::AppendedArity)>> {
+-        // naming.source.original-structured-script-timing
+-
+         let (roles, complete) = self.authored_source_argument_roles();
+         self.semantics
+             .script_metadata
+@@ -4485,8 +4469,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// result allocation, effect closure or successful handler entry follows.
+     #[must_use]
+     pub fn authored_source_ascii_list_result(&self) -> Option<Vec<u8>> {
+-        // naming.source.original-structured-script-timing
+-
+         let arguments = self.words.arguments();
+         let dialect = arguments.dialect()?;
+         if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+@@ -4520,8 +4502,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// evaluated pattern, normal completion or edit equivalence.
+     #[must_use]
+     pub fn authored_source_pattern_arguments(&self) -> Option<Vec<crate::patterns::PatternArg>> {
+-        // naming.core.original-pattern-retained-context
+-
+         if !matches!(
+             self.subcommand,
+             SubcommandResolution::NotApplicable
+@@ -4617,8 +4597,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// template value validation, successful completion or edit permission.
+     #[must_use]
+     pub fn authored_source_format_arguments(&self) -> Option<Vec<crate::FormatStringArg>> {
+-        // naming.core.original-inlay-retained-context
+-
+         if !matches!(
+             self.subcommand,
+             SubcommandResolution::NotApplicable
+@@ -4674,8 +4652,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// Package windows remain explicit for consumers that decide floors later.
+     #[must_use]
+     pub fn authored_source_arity(&self) -> Option<AuthoredSourceArity<'r>> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         if !matches!(
+             self.subcommand,
+             SubcommandResolution::NotApplicable
+@@ -4733,8 +4709,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// an unknown count. This establishes no actual lambda or invocation.
+     #[must_use]
+     pub fn authored_source_lambda_call(&self) -> Option<AuthoredSourceLambdaCall> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         if !matches!(
+             self.subcommand,
+             SubcommandResolution::NotApplicable
+@@ -4810,8 +4784,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// unknown roles/cardinality decline. No store or cell value is proved.
+     #[must_use]
+     pub fn authored_source_assignment_arguments(&self) -> Option<Vec<(usize, Option<usize>)>> {
+-        // naming.navigation.retained-path-source-inventory
+-
+         use crate::{ArgRole, Traits};
+         let count = self.words.arguments().exact_argv_len()?;
+         let (roles, complete) = self.authored_source_argument_roles();
+@@ -4936,8 +4908,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+         &self,
+         (roles, complete): (Vec<(u8, ArgRole)>, bool),
+     ) -> Option<AuthoredSourceExpressionArguments> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         if !matches!(
+             self.subcommand,
+             SubcommandResolution::NotApplicable
+@@ -5116,8 +5086,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// be skipped to discover a later option. No execution or edit is implied.
+     #[must_use]
+     pub fn authored_source_diagnostic_options(&self) -> Option<AuthoredSourceOptionScan<'r>> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         let subcommands = self.authored_source_option_selector_path()?;
+         let selected = self.semantics.script_metadata;
+         let options = self.semantics.options;
+@@ -5211,8 +5179,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_source_channel_configuration(
+         &self,
+     ) -> Option<crate::AuthoredSourceChannelConfiguration> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         let selected = self.authored_source_descriptors();
+         let descriptor = selected
+             .subcommand
+@@ -5227,8 +5193,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// effective post-head ordinals; no literal value, exposure or edit follows.
+     #[must_use]
+     pub fn authored_source_credential_arguments(&self) -> Vec<AuthoredSourceCredentialArgument> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         let selected = self.authored_source_descriptors();
+         let mut arguments = Vec::new();
+         if !selected.command.credential_options.is_empty()
+@@ -5356,8 +5320,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_source_option_relationships(
+         &self,
+     ) -> Option<AuthoredSourceOptionRelationships<'r>> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         let scan = self.authored_source_diagnostic_options()?;
+         let arguments = self.words.arguments();
+         let count = arguments.exact_argv_len()?;
+@@ -5487,8 +5449,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_source_case_invocation(
+         &self,
+     ) -> Option<(crate::CaseListSpec, crate::spec::CaseInvocation)> {
+-        // Implementation contract: naming.source.original-editor-body-structure
+-
+         if self.semantics.argument_offset != 0 {
+             return None;
+         }
+@@ -5557,8 +5517,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_source_case_pattern_layout(
+         &self,
+     ) -> Option<(crate::CaseListSpec, crate::spec::CaseInvocation)> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         if self.semantics.argument_offset != 0 {
+             return None;
+         }
+@@ -5578,8 +5536,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// despite unavailable executable roles; no matching/body/Normal follows.
+     #[must_use]
+     pub fn authored_source_case_presentation(&self) -> Option<(crate::CaseListSpec, usize)> {
+-        // Implementation contract: naming.source.original-editor-body-structure
+-
+         if self.semantics.argument_offset != 0 {
+             return None;
+         }
+@@ -5614,8 +5570,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+         &self,
+         argument: usize,
+     ) -> Option<VariableReceiverOperandForm> {
+-        // Implementation contract: naming.vendor.original-registry-metadata
+-
+         let (roles, complete) = self.authored_source_argument_roles();
+         if !complete
+             || self
+@@ -5841,8 +5795,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// decline. This supplies source metadata only, never a published command.
+     #[must_use]
+     pub fn authored_source_command_publication(&self) -> Option<AuthoredSourceCommandPublication> {
+-        // naming.source.original-command-name-publications
+-
+         let descriptors = self.authored_source_descriptors();
+         let arguments = self.words.arguments();
+         let count = arguments.exact_argv_len()?;
+@@ -5975,8 +5927,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_source_definition_body_grammar(
+         &self,
+     ) -> Option<&'static crate::definer::DefinitionBodyGrammar> {
+-        // naming.core.original-inlay-retained-context
+-
+         let grammar = self.authored_source_descriptors().command.definition_body?;
+         let transitions = self.state_transitions();
+         let target = transitions
+@@ -6010,8 +5960,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     /// values and excluded options are not enumerable source values.
+     #[must_use]
+     pub fn authored_source_enum_arguments(&self) -> Vec<usize> {
+-        // naming.core.original-inlay-retained-context
+-
+         let selected = self.authored_source_descriptors();
+         let arguments = self.words.arguments();
+         let version = self.semantics.options.availability.package_version;
+@@ -6090,8 +6038,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     pub fn authored_source_inline_case_clauses(
+         &self,
+     ) -> Option<Vec<crate::spec::InlineCaseClause>> {
+-        // naming.source.original-editor-body-structure
+-
+         let (case, invocation) = self.authored_source_case_invocation()?;
+         let start = invocation.inline_clause_start?;
+         let arguments = self.words.arguments();
+@@ -6972,8 +6918,6 @@ mod tests {
+ 
+     #[test]
+     fn original_destructive_source_paths_keep_dynamic_and_captured_option_boundaries() {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         use crate::InvocationWord::{Dynamic, Literal};
+         let owner = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+         for (arguments, expected, unknown) in [
+@@ -7016,8 +6960,6 @@ mod tests {
+ 
+     #[test]
+     fn original_destructive_source_paths_refuse_unknown_widths_and_unselected_descriptors() {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal, Opaque};
+         let owner = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+         for arguments in [
+@@ -7046,8 +6988,6 @@ mod tests {
+ 
+     #[test]
+     fn original_selected_completion_keeps_descriptor_and_argument_grammar_independent() {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         // A source completion shape is not a reached handler or Normal receipt.
+         use crate::registry::InvocationCompletion;
+         let context =
+@@ -7119,8 +7059,6 @@ mod tests {
+ 
+     #[test]
+     fn source_enum_projection_keeps_literal_and_native_byte_facets_separate() {
+-        // naming.core.original-inlay-retained-context
+-
+         let mut registry = CommandRegistry::build_default();
+         registry.insert(crate::CommandSpec {
+             name: "enum_source_test",
+@@ -7162,8 +7100,6 @@ mod tests {
+ 
+     #[test]
+     fn source_possible_options_branch_over_admitted_widths_and_terminators() {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         // Pure selected descriptor/source layout, without handler execution.
+         static OPTIONS: &[crate::hover::OptionSpec] = &[
+             crate::hover::OptionSpec {
+@@ -7230,7 +7166,6 @@ mod tests {
+     }
+ 
+     #[test]
+-    // naming.core.original-registry-context-completion
+ 
+     fn source_completion_options_keep_selected_form_and_surface() {
+         use crate::InvocationWord::Literal;
+@@ -7320,7 +7255,6 @@ mod tests {
+     }
+ 
+     #[test]
+-    // naming.core.original-registry-context-completion
+ 
+     fn source_completion_options_require_actual_nested_selector() {
+         use crate::InvocationWord::{Dynamic, Literal};
+@@ -7376,8 +7310,6 @@ mod tests {
+ 
+     #[test]
+     fn selected_option_variable_scope_shares_availability_prefix_and_value_geometry() {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         static OPTIONS: &[crate::hover::OptionSpec] = &[
+             crate::hover::OptionSpec {
+                 name: "-global",
+@@ -7474,8 +7406,6 @@ mod tests {
+ 
+     #[test]
+     fn original_case_pattern_layout_keeps_unknown_payloads_and_actual_option_windows() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         let current =
+             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+@@ -7538,8 +7468,6 @@ mod tests {
+ 
+     #[test]
+     fn original_logical_case_role_projection_keeps_selected_options_and_body_residuals() {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         use crate::InvocationWord::{Dynamic, Expanded, KnownBytes, Literal};
+         let current =
+             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+@@ -7643,8 +7571,6 @@ mod tests {
+ 
+     #[test]
+     fn original_source_file_argument_keeps_available_forms_and_unknown_selectors() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         // Selected source form only; no native file or accepted handler follows.
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         let current =
+@@ -7702,8 +7628,6 @@ mod tests {
+ 
+     #[test]
+     fn original_frame_script_advice_keeps_selected_and_logical_layouts_separate() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         let registry = CommandRegistry::build_default();
+         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+@@ -7752,8 +7676,6 @@ mod tests {
+ 
+     #[test]
+     fn original_invokehidden_options_keep_the_path_prefix_and_actual_availability() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         // Native source anchor: native_event_original/source/8.6.18/tclInterp.c
+         // OPT_INVOKEHID scans i=3 while the path remains original objv[2].
+         use crate::InvocationWord::{Dynamic, Literal};
+@@ -7794,8 +7716,6 @@ mod tests {
+ 
+     #[test]
+     fn source_enum_values_and_definition_bodies_use_the_selected_invocation() {
+-        // naming.core.original-inlay-retained-context
+-
+         let registry = CommandRegistry::build_default();
+         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+         let query = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
+@@ -7862,8 +7782,6 @@ mod tests {
+ 
+     #[test]
+     fn source_diagnostic_options_keep_nested_prefixes_and_unknown_boundaries() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         let registry = crate::CommandRegistry::build_default();
+         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+         for (words, expected) in [
+@@ -7918,8 +7836,6 @@ mod tests {
+ 
+     #[test]
+     fn source_clause_roles_keep_resolver_roles_and_actual_availability() {
+-        // naming.compiler.original-analysis-metadata-context
+-
+         use crate::InvocationWord::{Expanded, Literal};
+         let current =
+             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+@@ -7971,8 +7887,6 @@ mod tests {
+ 
+     #[test]
+     fn authored_source_procedure_roles_do_not_supply_native_definition_acceptance() {
+-        // Implementation contract: naming.vendor.original-registry-metadata
+-
+         let registry = CommandRegistry::build_default();
+         let arguments = [
+             crate::InvocationWord::Literal("p"),
+@@ -7993,7 +7907,6 @@ mod tests {
+         assert!(complete);
+         assert!(roles.contains(&(1, ArgRole::ParamList)));
+         assert!(roles.contains(&(2, ArgRole::Body)));
+-        // naming.compiler.original-analysis-metadata-context
+ 
+         assert_eq!(
+             selected.authored_source_procedure_arguments(),
+@@ -8433,8 +8346,6 @@ mod tests {
+ 
+     #[test]
+     fn selected_subcommand_options_preserve_reserved_positional_values() {
+-        // naming.minifier.complete-logical-metadata
+-
+         let registry = crate::CommandRegistry::build_default();
+         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+         for (arguments, expected) in [
+@@ -8473,8 +8384,6 @@ mod tests {
+ 
+     #[test]
+     fn authored_case_presentation_keeps_incomplete_list_separate_from_invocation() {
+-        // Implementation contract: naming.source.original-editor-body-structure
+-
+         let registry = crate::CommandRegistry::build_default();
+         for version in tcl_dialect::TclVersion::ALL {
+             let words = [
+@@ -8542,8 +8451,6 @@ mod tests {
+ 
+     #[test]
+     fn authored_case_layout_retains_dynamic_subject_and_exact_control_words() {
+-        // Implementation contract: naming.source.original-editor-body-structure
+-
+         let registry = CommandRegistry::build_default();
+         for version in tcl_dialect::TclVersion::ALL {
+             let dialect = crate::InvocationDialect::for_version(version);
+@@ -8819,8 +8726,6 @@ mod tests {
+ 
+     #[test]
+     fn authored_source_shape_advice_keeps_unknown_payloads_and_selected_dialect() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+             let context =
+@@ -8906,8 +8811,6 @@ mod tests {
+ 
+     #[test]
+     fn authored_source_patterns_keep_selected_context_and_option_languages() {
+-        // naming.core.original-pattern-retained-context
+-
+         use crate::InvocationWord::{Dynamic, Literal};
+         let driver =
+             crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+@@ -8980,8 +8883,6 @@ mod tests {
+ 
+     #[test]
+     fn authored_source_patterns_keep_payload_unknown_and_refuse_uncertain_layout() {
+-        // naming.core.original-pattern-retained-context
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         use crate::patterns::PatternType::{Glob, Regex};
+         let context =
+@@ -9061,8 +8962,6 @@ mod tests {
+ 
+     #[test]
+     fn authored_source_formats_keep_selected_context_and_effective_ordinals() {
+-        // naming.core.original-inlay-retained-context
+-
+         use crate::InvocationWord::{Dynamic, Literal};
+         let driver =
+             crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+@@ -9135,8 +9034,6 @@ mod tests {
+ 
+     #[test]
+     fn source_arity_count_layout_keeps_axis_prefix_data_and_expansion_bounds() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         let owner = crate::model::ingress::static_context_for("tcl8.6");
+         for (head, arguments, minimum, indeterminate, operands) in [
+@@ -9193,8 +9090,6 @@ mod tests {
+ 
+     #[test]
+     fn source_expression_roles_keep_selected_tail_and_unknown_cardinality() {
+-        // naming.diagnostic.registry-source-ownership
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         let context = crate::model::ingress::static_context_for("tcl8.6");
+         for (head, arguments, expected, concatenates) in [
+@@ -9404,8 +9299,6 @@ mod tests {
+ 
+     #[test]
+     fn structured_option_boundary_shares_alias_abbreviation_and_value_span_rules() {
+-        // Implementation contract: naming.studio.source-word-role-projection
+-
+         use crate::InvocationWord::{Dynamic, Literal};
+         let options = structured_boundary_options();
+         let available = options.iter().collect::<Vec<_>>();
+@@ -11433,7 +11326,6 @@ mod tests {
+     }
+ }
+ #[test]
+-// Implementation contract: naming.variable.registry-receiver-authoring-parity
+ 
+ fn variable_receiver_fact_projection_preserves_form_precedence_and_member_offsets() {
+     use VariableReceiverOperandForm::Combined;
+@@ -11506,7 +11398,6 @@ fn variable_receiver_fact_projection_preserves_form_precedence_and_member_offset
+ }
+ 
+ #[test]
+-// Implementation contract: naming.variable.registry-receiver-authoring-parity
+ 
+ fn selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate() {
+     let registry = crate::CommandRegistry::build_default();
+@@ -11582,8 +11473,6 @@ fn selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separat
+ 
+ #[test]
+ fn authored_receiver_form_does_not_require_native_procedure_acceptance() {
+-    // Implementation contract: naming.vendor.original-registry-metadata
+-
+     use crate::InvocationWord::{Dynamic, Expanded, Literal, Opaque};
+     use VariableReceiverOperandForm::Combined;
+     let mut registry = crate::CommandRegistry::build_default();
+@@ -11696,7 +11585,6 @@ fn assert_original_trace_computed_receivers(
+ }
+ 
+ #[test]
+-// Implementation contract: naming.variable.trace-source-receiver-purpose
+ fn original_trace_receiver_forms_select_variable_grammar_ordinals_and_release() {
+     use VariableReceiverOperandForm::TraceSubject;
+     let registry = crate::CommandRegistry::build_default();
+@@ -11814,8 +11702,6 @@ fn original_trace_subject_extent_preserves_counted_original_and_independent_arra
+ mod original_source_presentation_tests {
+     #[test]
+     fn original_source_presentation_uses_selected_roles_and_effective_ordinals() {
+-        // naming.core.original-command-source-schema
+-
+         use crate::{ArgPresentation, InvocationWord};
+         let context = crate::model::ingress::static_context_for("tcl8.6");
+         let arguments = [
+@@ -11858,8 +11744,6 @@ mod original_source_presentation_tests {
+     }
+     #[test]
+     fn selected_option_keyword_table_retains_prefix_positions_and_values() {
+-        // naming.minifier.complete-logical-metadata
+-
+         let context = crate::model::ingress::static_context_for("tcl8.6");
+         let arguments = [
+             crate::InvocationWord::Literal("equal"),
+@@ -11901,8 +11785,6 @@ mod logical_binding_result_tests {
+     use crate::ArgRole;
+     #[test]
+     fn selected_logical_result_binding_axis_keeps_native_effects_unknown() {
+-        // naming.minifier.logical-formal-binding-alpha
+-
+         let profile = tcl_dialect::DialectProfile::plain_tcl();
+         let context = crate::model::ingress::context_for_profile(profile);
+         assert!(
+@@ -11963,8 +11845,6 @@ mod logical_binding_result_tests {
+     }
+     #[test]
+     fn structured_conditional_and_output_roles_keep_unknown_payloads() {
+-        // naming.source.authored-registry-role-projection
+-
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};
+         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+             let owner = crate::model::ingress::static_context_for(profile);
+@@ -12061,8 +11941,6 @@ mod logical_frame_source_role_tests {
+ 
+     #[test]
+     fn logical_frame_source_roles_use_consensus_without_native_frame_facts() {
+-        // naming.source.original-produced-command-prefix
+-
+         let profile = tcl_dialect::DialectProfile::plain_tcl();
+         let context = crate::model::ingress::context_for_profile(profile);
+         let dialect = InvocationDialect::of_profile(profile);
+@@ -12142,8 +12020,6 @@ mod logical_frame_source_role_tests {
+ 
+     #[test]
+     fn logical_frame_source_roles_keep_dynamic_divergent_and_expanded_layouts_unknown() {
+-        // naming.source.original-produced-command-prefix
+-
+         let profile = tcl_dialect::DialectProfile::plain_tcl();
+         let context = crate::model::ingress::context_for_profile(profile);
+         for arguments in [
+@@ -12649,8 +12525,6 @@ impl ResolvedInvocation<'_, '_> {
+     /// Selection does not establish a native handler or substituted value.
+     #[must_use]
+     pub fn authored_source_index_bounds(&self) -> Option<crate::SourceIndexBoundsInvocation> {
+-        // naming.diagnostic.registry-source-ownership
+-
+         let selected = self.semantics.script_metadata;
+         let declared = selected
+             .subcommand
+@@ -12684,8 +12558,6 @@ impl ResolvedInvocation<'_, '_> {
+     pub fn authored_source_path_operation(
+         &self,
+     ) -> Option<crate::source_path::SourcePathInvocation> {
+-        // naming.navigation.retained-path-source-inventory
+-
+         if self.form.is_some() {
+             return None;
+         }
+@@ -12711,8 +12583,6 @@ mod scope_alias_metadata_tests {
+     use crate::CommandRegistry;
+     #[test]
+     fn selected_scope_alias_positions_keep_complete_roles_and_effective_ordinals() {
+-        // naming.analysis.selected-scope-alias-role-metadata
+-
+         // Selected authored descriptor positions only; no native link or frame.
+         let registry = CommandRegistry::build_default();
+         let query = Some(tcl_dialect::model::SurfaceQuery::core(

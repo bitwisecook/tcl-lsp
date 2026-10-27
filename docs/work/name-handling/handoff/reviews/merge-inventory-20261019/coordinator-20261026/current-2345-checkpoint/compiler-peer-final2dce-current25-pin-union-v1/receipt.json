@@ -1,0 +1,500 @@
+{
+  "utc": "2026-10-26T23:32:20.134121+00:00",
+  "base": "2dce84f283d72e700f28b102eb446ea3000e987e",
+  "manifest_sha256": "3b5f4ddcfff1d2d9e71d87bd233b58694d9446e0912aecfd0d0945f70fc5da39",
+  "patch_sha256": "824db0e535c52792f0fae60d34e2dcad57c96a0ea5632b1e75b8917a4f2cb3ee",
+  "verdict": "CLEAR bounded complete metadata-only actual-source union",
+  "file_checks": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "before_sha256": "a5b74de79834aa971d88713e9e4dfb333fe1d5b6393f823292203e84237b4373",
+      "after_sha256": "640a09fdc2af4ba6d301b061692290a6fac50f874f91d520c140fe78f3129693",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "before_sha256": "443f466b5a4bebe98a26113ef463c4553c07f619fd36074a0054be3781601c59",
+      "after_sha256": "f7b5f24d34ec0cf0bdffd79331384bcc7519adec3ac30d0a3a889296948651d3",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "before_sha256": "73db193b74c2fe27297da40cc96ab6822d1aa6553b880b0d16dd6e3dfc17a0ca",
+      "after_sha256": "0bf8fb32f273281cca010857e9a34527eaea395af67a949937810982a3ebc92c",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "before_sha256": "dee9fd9d1b184bfaf2ac1fbd1d279b77238d38fd78a70df933144818c007041e",
+      "after_sha256": "c8ac002463bd6a7abba7041b5453ccef416506616f1610e4150d326780f22232",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "before_sha256": "f5e1f85cd0a6a364becf8f1519f6722d47256a24b95d36a712a680f3500ff294",
+      "after_sha256": "531a3e3d52b50f2e674ac405440891b5d55b5553b3157321f7b15d50109b9fa1",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "before_sha256": "116bc47dc05a73f11ecb7059745c7eb46de298dae3ba2cdb80730a40aa3d3ecf",
+      "after_sha256": "3cd4cf3e38c1f4f820485fc7797bc0112edaf248427e2b0fc16604b3989bacfb",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "before_sha256": "d884b0ab3b066273070900c9fec90712816f80c55ca4b5e20f381183b9ca8b00",
+      "after_sha256": "d46f5fd229204ab38e044885f1a4f57a77067548825e43eeb9f2886165f488b1",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "before_sha256": "63f675b005ee158489122f1df9b00298889c51868ff375743cea8d2c3e16ab7f",
+      "after_sha256": "8ddf41656fca4ae38ad02624e50ecba5c6b28a0b072f767aba7637f7d79bc57e",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "before_sha256": "5f5814dbbfa71e1ff6f15229dced5f276c572b727e682a6159a0e2248a84c070",
+      "after_sha256": "579bbb02ad251c2eda6c7b7dbb47b4dbc81003f53131651b495454faa580fe53",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py",
+      "before_sha256": "732c92f46b143ed8493fc8af68a7db78864356d3e94379d66c8191697c28c7a0",
+      "after_sha256": "555cecefbf25a1d0f2bc4fe13578d16e47f148ac7a6ba69917f301e87146246a",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "before_sha256": "1e11fc1601c72a09903045cb20f6e0a3929440b31da8633a27e4615dcb792d49",
+      "after_sha256": "b04794baa574e7b350e8a3596981c93b09888d406bb7b140b02a263544fd6052",
+      "actual_base_git": true,
+      "F_R_F0": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py",
+      "before_sha256": "5ecf600ae1b7efce644514bf8d701b92fad44861bd1a9a3e3b39838872cca85d",
+      "after_sha256": "c554784c23d85e4facc5899ce61453206b1ab95ecaefdf293fa287408e277a45",
+      "actual_base_git": true,
+      "F_R_F0": true
+    }
+  ],
+  "json_checks": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "live_map_blocks": 1,
+      "whole_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "live_map_blocks": 2,
+      "whole_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "live_map_blocks": 1,
+      "whole_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "live_map_blocks": 1,
+      "whole_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "live_map_blocks": 1,
+      "whole_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "live_map_blocks": 1,
+      "whole_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "live_map_blocks": 1,
+      "whole_byte_inverse": true
+    }
+  ],
+  "existing_pin_refreshes": [
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "before": "578d811a84076a9f3e251e7a21a347ed2c6a7a9cf73fa0a02d8d5f8df3a5b295",
+      "after": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3",
+      "after": "e01a15481bc6744cec7a5cb5cefabd48b8dcc85ea618e7ae4b73ca18c5662d8c"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "before": "578d811a84076a9f3e251e7a21a347ed2c6a7a9cf73fa0a02d8d5f8df3a5b295",
+      "after": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "before": "578d811a84076a9f3e251e7a21a347ed2c6a7a9cf73fa0a02d8d5f8df3a5b295",
+      "after": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3",
+      "after": "e01a15481bc6744cec7a5cb5cefabd48b8dcc85ea618e7ae4b73ca18c5662d8c"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/frame.rs",
+      "before": "a15990b2eac29f58d779d17bed73cd050f33ddee7b4126a849e8db2b7f9d8622",
+      "after": "8f65cbe133cba80c225ae49e8a1bbae7dffb46d55e50dfc7ae1be9c261d7dd5b"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/interp.rs",
+      "before": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
+      "after": "02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/value_ops.rs",
+      "before": "713864ec45d6b5e22c4caa4ccb21cf6d55eaca028b2fdaedc53e6d58925235bf",
+      "after": "a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/builtins.rs",
+      "before": "c0dd46465d168fed6a24945fe4d881ca0cb4b0c663ef9909ad33943dfec1e823",
+      "after": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3",
+      "after": "e01a15481bc6744cec7a5cb5cefabd48b8dcc85ea618e7ae4b73ca18c5662d8c"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "before": "578d811a84076a9f3e251e7a21a347ed2c6a7a9cf73fa0a02d8d5f8df3a5b295",
+      "after": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/interp.rs",
+      "before": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
+      "after": "02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/value_ops.rs",
+      "before": "713864ec45d6b5e22c4caa4ccb21cf6d55eaca028b2fdaedc53e6d58925235bf",
+      "after": "a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/builtins.rs",
+      "before": "c0dd46465d168fed6a24945fe4d881ca0cb4b0c663ef9909ad33943dfec1e823",
+      "after": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3",
+      "after": "e01a15481bc6744cec7a5cb5cefabd48b8dcc85ea618e7ae4b73ca18c5662d8c"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/interp.rs",
+      "before": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
+      "after": "02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/frame.rs",
+      "before": "a15990b2eac29f58d779d17bed73cd050f33ddee7b4126a849e8db2b7f9d8622",
+      "after": "8f65cbe133cba80c225ae49e8a1bbae7dffb46d55e50dfc7ae1be9c261d7dd5b"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/value_ops.rs",
+      "before": "713864ec45d6b5e22c4caa4ccb21cf6d55eaca028b2fdaedc53e6d58925235bf",
+      "after": "a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/builtins.rs",
+      "before": "c0dd46465d168fed6a24945fe4d881ca0cb4b0c663ef9909ad33943dfec1e823",
+      "after": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b"
+    }
+  ],
+  "approved_missing_exact_three_interp_leaf_additions": [
+    {
+      "json": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/interp/cached_increment.rs",
+      "after": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/interp/cached_increment.rs",
+      "after": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "location": [
+        "source_pins"
+      ],
+      "source": "runtime/rust/src/interp/cached_increment.rs",
+      "after": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56"
+    }
+  ],
+  "existing_Runtime3_actual_current8sources3functions": true,
+  "retained_existing_lease_total": 8,
+  "whole_current_JSON_census": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "prospective_sha256": "640a09fdc2af4ba6d301b061692290a6fac50f874f91d520c140fe78f3129693",
+      "changed": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-catch-diagnostic1.json",
+      "prospective_sha256": "b354a76d54d0510b4bb27e2802c66ffa3d56d2270062a908ba2ae937d3a6edeb",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-closed-consumer-controls.json",
+      "prospective_sha256": "604f45e34d9ad26129fc058ddb306aa9cabaa99b16d09f537d938ff2410c40fb",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-inlining-readonly13.json",
+      "prospective_sha256": "fcbacd7fb71957c35ceca130bc3099a41e939c4e797e7be7888da73456559af9",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+      "prospective_sha256": "ca5d211bb57853197df3ee31a1ac0c2fe68bec047da8e78efbf31295017c3168",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "prospective_sha256": "f7b5f24d34ec0cf0bdffd79331384bcc7519adec3ac30d0a3a889296948651d3",
+      "changed": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "prospective_sha256": "279bd4949e4e615ffff582e0f820d1e228456d8df4c84d3a08b67165d31bdb80",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-inputs.json",
+      "prospective_sha256": "682576528999248485edd1e75f925316c5006a751736aeb60c0082c12518e9c0",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-selectors.json",
+      "prospective_sha256": "d4a45ac4eb52a5743b0cb8a5a8256a7f73214f45627c05e25055f2f58bef95d2",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-readflow-supplemental1.json",
+      "prospective_sha256": "58273fd8585042a099da73aa67b9e83c91d790607225d88c05da6c324746a9a3",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-sh21-supplemental2.json",
+      "prospective_sha256": "8d4eb5f02a0324659b689e0678d0ff6a83c4ff443be54c920255da6b2b7c6ccb",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-source-read-ancestry3.json",
+      "prospective_sha256": "ed061f196bbab53c2e9994bb74370325fec6df87099f2f83d6cc18107b4d8d08",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "prospective_sha256": "0bf8fb32f273281cca010857e9a34527eaea395af67a949937810982a3ebc92c",
+      "changed": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "prospective_sha256": "c8ac002463bd6a7abba7041b5453ccef416506616f1610e4150d326780f22232",
+      "changed": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "prospective_sha256": "f2aefee1b0646cb12b85420fdae9f491b0250f1dead0a5cffbf8a7b730d13aa9",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "prospective_sha256": "531a3e3d52b50f2e674ac405440891b5d55b5553b3157321f7b15d50109b9fa1",
+      "changed": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+      "prospective_sha256": "4e84830b70665558b2b8cac495fd68f1a1ede3d3cd8957b96d968e38fc688c91",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-inputs.json",
+      "prospective_sha256": "f827e35658f69998f195f38125dfd48af60254a587bfcb02d213b86c459edca5",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-protocol-provenance.json",
+      "prospective_sha256": "1675f6f2816aed92ad8751b1ba07b1e159d91a33b78fca255f2167cb1e2b7ed1",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-a26-failed-originals.log.json",
+      "prospective_sha256": "88dd41eae670e31bd0f08d857f3fc35f2ccf53164d0127096f5a30c08e675ab5",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-baseline-supplement-roster.json",
+      "prospective_sha256": "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-other-failures-roster.json",
+      "prospective_sha256": "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/source-point-complete-text-corpus2.json",
+      "prospective_sha256": "c0b8f8ea7c655e5cb495cd725433e84a4418c6208a4f28d3edf7efbd3e0c7818",
+      "changed": false
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "prospective_sha256": "3cd4cf3e38c1f4f820485fc7797bc0112edaf248427e2b0fc16604b3989bacfb",
+      "changed": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "prospective_sha256": "d46f5fd229204ab38e044885f1a4f57a77067548825e43eeb9f2886165f488b1",
+      "changed": true
+    }
+  ],
+  "live_maps": 20,
+  "live_records": 558,
+  "unique_actual_Git_sources": 373,
+  "driver_checks": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "scalars": 1,
+      "exact_actual_whole_JSON_hashes_or_one_explicit_current_report_source_pin": true,
+      "whole_AST_and_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "scalars": 2,
+      "exact_actual_whole_JSON_hashes_or_one_explicit_current_report_source_pin": true,
+      "whole_AST_and_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py",
+      "scalars": 1,
+      "exact_actual_whole_JSON_hashes_or_one_explicit_current_report_source_pin": true,
+      "whole_AST_and_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "scalars": 1,
+      "exact_actual_whole_JSON_hashes_or_one_explicit_current_report_source_pin": true,
+      "whole_AST_and_byte_inverse": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py",
+      "scalars": 1,
+      "exact_actual_whole_JSON_hashes_or_one_explicit_current_report_source_pin": true,
+      "whole_AST_and_byte_inverse": true
+    }
+  ],
+  "author_runtime_guard_report_sha256": "ecca4e6852879159240330c65fbbb51dd44a04e3c100d538f4a3f0496b583c5e",
+  "author_prospective_V16_sha256": "019506f0866504bafaf82b28cc2f7ad29c0451e0e043c2500fb5fca9e9042813",
+  "limits": [
+    "Independent exact Git/hash/in-memory F-R-F0/whole JSON+driver inverse/AST/source-pin census only. No product/native/guest/Rust/build/semantic/performance execution or acceptance.",
+    "Author11 guard/PASS V16 supplementary reports source-bound and reviewed; they are not new independent runtime outcomes.",
+    "Historical arrays/keys/order, selectors/counts/env/budgets/guards are whole-byte/AST restored; no outcome repair or unsupported eligibility from metadata."
+  ]
+}

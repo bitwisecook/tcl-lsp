@@ -1,0 +1,9 @@
+{
+  "current_driver": true,
+  "exact_F0_both_hunk_coordinates": true,
+  "forward_reverse_exact": true,
+  "entire_old_driver_AST_erasure": true,
+  "actual_no_child_controls_sha256": "0fada1763108c68d63228a1be32722cf3d3034aeebb89259ec25af5500fd3ffa",
+  "actual_children": "UNRUN",
+  "scope": "No old166 selector/loop/budget/env/build changes. Shared fresh owned runtime-lib ELF and remaining20MiB/2400/3600 budgets,180s child+205s admission reserve; old FAIL/ABORT do not mask final failure. Source integration and final current pins are prerequisites."
+}

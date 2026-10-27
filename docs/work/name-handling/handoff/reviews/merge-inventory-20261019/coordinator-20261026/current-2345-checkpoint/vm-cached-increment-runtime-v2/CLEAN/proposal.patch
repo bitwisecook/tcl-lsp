@@ -1,0 +1,548 @@
+--- a/runtime/rust/src/codegen_native.rs
++++ b/runtime/rust/src/codegen_native.rs
+@@ -32,6 +32,9 @@
+ //! code uses them to choose a native fast path; the slow edge it takes
+ //! otherwise is one of the runtime operators below, which raises Tcl's own
+ //! error if the value is not numeric at all.
++
++#[path = "codegen_native/cached_increment.rs"]
++mod cached_increment;
+ 
+ use core::ptr;
+ 
+--- a/runtime/rust/src/interp.rs
++++ b/runtime/rust/src/interp.rs
+@@ -56,6 +56,7 @@
+ mod byte_store_retirement_tests;
+ #[cfg(test)]
+ mod c_api_error_tests;
++mod cached_increment;
+ mod captured_rmw;
+ #[cfg(test)]
+ mod command_publication_tests;
+--- a/runtime/rust/src/frame.rs
++++ b/runtime/rust/src/frame.rs
+@@ -743,6 +743,28 @@
+ }
+ 
+ impl VarTable {
++    pub(crate) fn cached_increment_scalar_matches(
++        &self,
++        name: &[u8],
++        expected: *mut TclObj,
++    ) -> bool {
++        let Some(slot) = self.slots.get(name) else {
++            return false;
++        };
++        let Some(cell) = self.cells.get(*slot) else {
++            return false;
++        };
++        let Ok(contents) = cell.contents.try_borrow() else {
++            return false;
++        };
++        contents.check_owned_value_role().is_ok()
++            && contents.operation_refs == 0
++            && contents.native_alias_refs == 0
++            && contents.rmw_refs == 0
++            && !contents.constant
++            && matches!(contents.var.as_ref(), Some(Var::Scalar(pointer)) if *pointer == expected)
++    }
++
+     pub(crate) fn prepare_original_alias(
+         &mut self,
+         name: &[u8],
+@@ -1755,6 +1777,15 @@
+ }
+ 
+ impl FrameStack {
++    pub(crate) fn cached_increment_is_root(&self) -> bool {
++        self.active_level == 0
++            && self.frames.len() == 1
++            && self
++                .frames
++                .first()
++                .is_some_and(|frame| !frame.is_proc && frame.oo_variable_resolver.is_none())
++    }
++
+     pub(crate) fn recycle_jim_storage(
+         &mut self,
+         storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,
+--- a/runtime/rust/src/builtins.rs
++++ b/runtime/rust/src/builtins.rs
+@@ -437,11 +437,32 @@
+         Ok(arguments) => arguments,
+         Err(error) => return interp.report_cmd_error(error),
+     };
+-    let code = incr_original(interp, argv, &arguments);
++    let code = incr_original(interp, argv, &arguments, None);
+     arguments.finish(code)
+ }
+ 
+-fn incr_original(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
++pub(crate) fn incr_with_cached_sum(
++    interp: &mut Interp,
++    argv: &[*mut TclObj],
++    hint: (i64, i64),
++) -> Code {
++    if argv.len() < 2 || argv.len() > 3 {
++        return interp.wrong_args(b"incr varName ?increment?");
++    }
++    let arguments = match OriginalArguments::enter(interp, argv) {
++        Ok(arguments) => arguments,
++        Err(error) => return interp.report_cmd_error(error),
++    };
++    let code = incr_original(interp, argv, &arguments, Some(hint));
++    arguments.finish(code)
++}
++
++fn incr_original(
++    interp: &mut Interp,
++    argv: &[*mut TclObj],
++    arguments: &OriginalArguments,
++    cached_sum: Option<(i64, i64)>,
++) -> Code {
+     let legacy_amount = if let Some(protocol) = interp
+         .native_invocation_dialect()
+         .native_legacy_increment_protocol()
+@@ -465,7 +486,17 @@
+         return interp.report_cmd_error(error);
+     }
+     if interp.native_c_variable_name_protocol().is_some() {
+-        return interp.increment_original_c_variable(argv[1], argv.get(2).copied(), legacy_amount);
++        return match cached_sum {
++            Some(hint) => interp.increment_original_c_variable_with_sum(
++                argv[1],
++                argv.get(2).copied(),
++                legacy_amount,
++                Some(hint),
++            ),
++            None => {
++                interp.increment_original_c_variable(argv[1], argv.get(2).copied(), legacy_amount)
++            }
++        };
+     }
+     if let Some(amount) = legacy_amount {
+         if interp
+--- a/runtime/rust/src/interp/captured_rmw.rs
++++ b/runtime/rust/src/interp/captured_rmw.rs
+@@ -13,6 +13,7 @@
+ use tcl_registry::native_rmw::{NativeRmwOperation, NativeRmwReadFailure, NativeRmwReadPolicy};
+ 
+ struct IncrementTarget<'a> {
++    cached_sum: Option<(i64, i64)>,
+     name: &'a [u8],
+     root: &'a [u8],
+     element: Option<&'a [u8]>,
+@@ -65,6 +66,7 @@
+         let home = self.trace_identity(base);
+         self.increment_retained_receiver(
+             IncrementTarget {
++                cached_sum: None,
+                 name,
+                 root: base,
+                 element,
+@@ -83,6 +85,16 @@
+         original: *mut TclObj,
+         amount: Option<*mut TclObj>,
+         legacy: Option<tcl_cmd_core::native_increment::PreparedLegacyIncrementAmount>,
++    ) -> Code {
++        self.increment_original_c_variable_with_sum(original, amount, legacy, None)
++    }
++
++    pub(crate) fn increment_original_c_variable_with_sum(
++        &mut self,
++        original: *mut TclObj,
++        amount: Option<*mut TclObj>,
++        legacy: Option<tcl_cmd_core::native_increment::PreparedLegacyIncrementAmount>,
++        cached_sum: Option<(i64, i64)>,
+     ) -> Code {
+         use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
+         let mut originals = vec![original];
+@@ -121,6 +133,7 @@
+             };
+             let code = self.increment_retained_receiver(
+                 IncrementTarget {
++                    cached_sum,
+                     name: &captured.root,
+                     root: &captured.root,
+                     element: captured.element.as_deref(),
+@@ -238,6 +251,7 @@
+         }
+         self.increment_retained_receiver(
+             IncrementTarget {
++                cached_sum: None,
+                 name: &captured.root,
+                 root: &captured.root,
+                 element: captured.element.as_deref(),
+@@ -366,7 +380,9 @@
+             .native_scalar_getter_protocol()
+             .is_some_and(|protocol| protocol.supports_number_getter())
+         {
+-            let objects = match crate::value_ops::RuntimeIncrementObjects::selected(self) {
++            let objects = match crate::value_ops::RuntimeIncrementObjects::selected(self)
++                .map(|objects| objects.with_cached_sum(target.cached_sum))
++            {
+                 Ok(objects) => objects,
+                 Err(error) => return self.report_cmd_error(error),
+             };
+--- a/runtime/rust/src/value_ops.rs
++++ b/runtime/rust/src/value_ops.rs
+@@ -558,10 +558,16 @@
+ 
+ /// Selected modern C integer update operations on original physical objects.
+ pub(crate) struct RuntimeIncrementObjects {
++    cached_sum: Option<(i64, i64)>,
+     dialect: tcl_registry::InvocationDialect,
+     context: IncrementContext,
+ }
+ impl RuntimeIncrementObjects {
++    pub(crate) fn with_cached_sum(mut self, cached_sum: Option<(i64, i64)>) -> Self {
++        self.cached_sum = cached_sum;
++        self
++    }
++
+     pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+         let context = IncrementContext::selected(interp)?;
+         let dialect = interp.native_invocation_dialect();
+@@ -569,7 +575,11 @@
+             .native_scalar_getter_protocol()
+             .filter(|protocol| protocol.supports_number_getter())
+             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+-        Ok(Self { dialect, context })
++        Ok(Self {
++            dialect,
++            context,
++            cached_sum: None,
++        })
+     }
+ }
+ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrementObjects {
+@@ -629,6 +639,14 @@
+     }
+     fn add(&self, current: Number, amount: Number) -> Result<Number, tcl_cmd_core::CmdError> {
+         self.context.check()?;
++        let cached = self.cached_sum.filter(|&(old, sum)| {
++            matches!((&current, &amount), (Number::Int(actual), Number::Int(1))
++                if *actual == old && actual.checked_add(1) == Some(sum))
++        });
++        if let Some((_, sum)) = cached {
++            self.context.check()?;
++            return Ok(Number::Int(sum));
++        }
+         let result = tcl_cmd_core::native_increment::add_integer_numbers(
+             current,
+             amount,
+--- /dev/null
++++ b/runtime/rust/src/codegen_native/cached_increment.rs
+@@ -0,0 +1,201 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! A synchronous optional arithmetic hint inside the original increment kernel.
++
++use super::{CodegenOperation, TclObj};
++use crate::codegen_abi::{TCL_INVOKE_ABI_NULL_OUT, TCL_INVOKE_ABI_NULL_WORD};
++
++/// Try one current cached integer receiver without changing a declined input.
++/// Zero leaves output untouched; one ran the original command and writes its
++/// owned result (or null on guest error). Negative host statuses are terminal.
++///
++/// # Safety
++/// Name bytes and output must be valid; both object pointers must remain live
++/// under the caller's existing owned references for the complete call.
++#[no_mangle]
++pub unsafe extern "C" fn tcl_codegen_try_cached_incr(
++    name_ptr: *const u8,
++    name_len: i32,
++    expected: *mut TclObj,
++    delta: *mut TclObj,
++    old: i64,
++    sum: i64,
++    out: *mut *mut TclObj,
++) -> i32 {
++    if out.is_null() {
++        return TCL_INVOKE_ABI_NULL_OUT;
++    }
++    if expected.is_null() || delta.is_null() || name_ptr.is_null() || name_len < 0 {
++        return TCL_INVOKE_ABI_NULL_WORD;
++    }
++    let mut operation = match CodegenOperation::enter() {
++        Ok(operation) => operation,
++        Err(status) => return status,
++    };
++    // SAFETY: the caller retains the readable original name range.
++    let name = unsafe { super::input_bytes(name_ptr, name_len) };
++    if !operation
++        .interpreter
++        .cached_increment_name_matches(name, expected, delta, old, sum)
++    {
++        return match operation.ensure_current() {
++            Ok(()) => 0,
++            Err(status) => status,
++        };
++    }
++    // SAFETY: same existing boxed operands remain owned throughout the command.
++    let code = unsafe { run_cached_command(&mut operation.interpreter, name, delta, (old, sum)) };
++    operation.ensure_current().map_or_else(
++        |status| status,
++        |()| {
++            let result = if code == crate::interp::Code::Ok {
++                let result = operation.interpreter.result_obj();
++                // SAFETY: the same original command result is live and owned.
++                unsafe { crate::obj::incr_ref_count(result) };
++                result
++            } else {
++                core::ptr::null_mut()
++            };
++            // SAFETY: caller provides a writable result slot.
++            unsafe { out.write(result) };
++            1
++        },
++    )
++}
++
++unsafe fn run_cached_command(
++    interp: &mut crate::interp::Interp,
++    name: &[u8],
++    delta: *mut TclObj,
++    hint: (i64, i64),
++) -> crate::interp::Code {
++    let head_obj = crate::obj::new_string_bytes(b"incr");
++    let name_obj = crate::obj::new_string_bytes(name);
++    let mut argv = vec![head_obj, name_obj];
++    argv.extend_from_slice(&[delta]);
++    // SAFETY: identical original command words stay live for the whole call.
++    let borrowed = unsafe { super::BorrowedArgv::retain(&argv) };
++    let code = crate::builtins::incr_with_cached_sum(interp, &argv, hint);
++    drop(borrowed);
++    code
++}
++
++#[cfg(all(test, have_tommath, not(target_arch = "wasm32")))]
++mod tests {
++    use super::*;
++    use crate::interp::{Code, Interp};
++    use crate::obj::{self, Owned};
++
++    struct Installed;
++    impl Drop for Installed {
++        fn drop(&mut self) {
++            crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
++        }
++    }
++    fn native() -> Interp {
++        Interp::with_native_core(
++            crate::interp::default_host(),
++            crate::environment::profile_for_dialect("tcl9.0"),
++            tcl_registry::special_vars::NativeBootstrapInputs::default(),
++        )
++        .unwrap()
++    }
++    fn install(interp: &mut Interp) -> Installed {
++        crate::codegen_abi::tcl_runtime_set_current_interp(interp);
++        Installed
++    }
++    unsafe fn attempt(
++        expected: *mut TclObj,
++        delta: *mut TclObj,
++        old: i64,
++        sum: i64,
++        out: &mut *mut TclObj,
++    ) -> i32 {
++        // SAFETY: tests retain live owned operands, name bytes and output.
++        unsafe { tcl_codegen_try_cached_incr(b"a".as_ptr(), 1, expected, delta, old, sum, out) }
++    }
++
++    #[test]
++    fn cached_increment_runs_original_cow_and_keeps_the_held_input() {
++        let mut interp = native();
++        let expected = Owned::fresh(obj::new_wide_int_obj(1));
++        let delta = Owned::fresh(obj::new_wide_int_obj(1));
++        interp.var_set(b"a", expected.as_ptr()).unwrap();
++        let _installed = install(&mut interp);
++        let mut out = core::ptr::null_mut();
++        assert_eq!(
++            unsafe { attempt(expected.as_ptr(), delta.as_ptr(), 1, 2, &mut out) },
++            1
++        );
++        assert!(!out.is_null());
++        let result = unsafe { Owned::from_raw(out) };
++        assert_eq!(crate::interp::obj_bytes(result.as_ptr()), b"2");
++        assert_eq!(obj::wide_of(expected.as_ptr()), 1);
++        assert_ne!(interp.var_get(b"a"), Some(expected.as_ptr()));
++        assert_eq!(interp.native_execution_refusal(), None);
++    }
++
++    #[test]
++    fn cached_increment_decline_preserves_input_and_runs_fallback_once() {
++        let mut interp = native();
++        let expected = Owned::fresh(obj::new_string_bytes(b"1"));
++        let delta = Owned::fresh(obj::new_wide_int_obj(1));
++        interp.var_set(b"a", expected.as_ptr()).unwrap();
++        let _installed = install(&mut interp);
++        let mut out = expected.as_ptr();
++        assert_eq!(
++            unsafe { attempt(expected.as_ptr(), delta.as_ptr(), 1, 2, &mut out) },
++            0
++        );
++        assert_eq!(out, expected.as_ptr());
++        assert!(obj::native_scalar_cache(expected.as_ptr())
++            .unwrap()
++            .is_none());
++        assert_eq!(interp.var_get(b"a"), Some(expected.as_ptr()));
++        let result =
++            unsafe { super::super::tcl_codegen_var_incr(b"a".as_ptr(), 1, delta.as_ptr()) };
++        assert!(!result.is_null());
++        let result = unsafe { Owned::from_raw(result) };
++        assert_eq!(crate::interp::obj_bytes(result.as_ptr()), b"2");
++        assert_eq!(crate::interp::obj_bytes(expected.as_ptr()), b"1");
++    }
++
++    #[test]
++    fn cached_increment_hint_never_replaces_reached_operands_or_trace_fallback() {
++        let mut interp = native();
++        let expected = Owned::fresh(obj::new_wide_int_obj(1));
++        let delta = Owned::fresh(obj::new_wide_int_obj(1));
++        interp.var_set(b"a", expected.as_ptr()).unwrap();
++        let _installed = install(&mut interp);
++        // Deliberately stale private arithmetic data cannot donate a value.
++        assert_eq!(
++            unsafe { run_cached_command(&mut interp, b"a", delta.as_ptr(), (9, 10)) },
++            Code::Ok
++        );
++        assert_eq!(crate::interp::obj_bytes(interp.result_obj()), b"2");
++        assert_eq!(
++            interp.eval_str(
++                b"set calls 0; proc w {args} {incr ::calls}; trace add variable a write w"
++            ),
++            Code::Ok
++        );
++        let current = Owned::retain(interp.var_get(b"a").unwrap());
++        let mut out = current.as_ptr();
++        assert_eq!(
++            unsafe { attempt(current.as_ptr(), delta.as_ptr(), 2, 3, &mut out) },
++            0
++        );
++        assert_eq!(out, current.as_ptr());
++        let result =
++            unsafe { super::super::tcl_codegen_var_incr(b"a".as_ptr(), 1, delta.as_ptr()) };
++        assert!(!result.is_null());
++        let result = unsafe { Owned::from_raw(result) };
++        assert_eq!(crate::interp::obj_bytes(result.as_ptr()), b"3");
++        assert_eq!(
++            crate::interp::obj_bytes(interp.var_get(b"calls").unwrap()),
++            b"1"
++        );
++    }
++}
+--- /dev/null
++++ b/runtime/rust/src/interp/cached_increment.rs
+@@ -0,0 +1,107 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Pure eligibility before the original named increment enters any effects.
++
++use super::Interp;
++use crate::obj::{self, TclObj};
++use tcl_syntax::{number::Number, scalar_getter::NativeScalarGetterProtocol};
++
++impl Interp {
++    pub(crate) fn cached_increment_name_matches(
++        &self,
++        name: &[u8],
++        expected: *mut TclObj,
++        delta: *mut TclObj,
++        old: i64,
++        sum: i64,
++    ) -> bool {
++        if old.checked_add(1) != Some(sum)
++            || self.pending_delete.get()
++            || self.current_ns.get() != crate::namespace::GLOBAL
++            || !self
++                .frames
++                .try_borrow()
++                .is_ok_and(|frames| frames.cached_increment_is_root())
++            || !self
++                .observed_names
++                .try_borrow()
++                .is_ok_and(|names| names.is_none())
++            || !self
++                .native_error_cells
++                .try_borrow()
++                .is_ok_and(|cells| cells.is_empty())
++            || self.native_precision_cell.get().is_some()
++        {
++            return false;
++        }
++        let Some(names) = self.native_c_variable_name_protocol() else {
++            return false;
++        };
++        if names.version() != tcl_dialect::TclVersion::V9_0 {
++            return false;
++        }
++        let recipe = tcl_syntax::naming::NativeNameProtocol::C(names.version());
++        let projected = recipe.variable_root_input(name);
++        if projected.selected() != name
++            || projected.qualification() != tcl_syntax::naming::NativeNameQualification::Unqualified
++            || names.parsed_array_parts(name).is_some()
++        {
++            return false;
++        }
++        let quiet = self.traces.try_borrow().is_ok_and(|traces| {
++            traces.traces.is_empty()
++                && traces.cmd_traces.is_empty()
++                && traces.step_active.is_empty()
++                && traces.firing_exec_traces.is_empty()
++                && traces.firing_cmd_traces.is_empty()
++                && traces.exec_firing == 0
++                && (traces.env.is_none() || name != b"env")
++        });
++        if !quiet {
++            return false;
++        }
++        let Some(protocol) = self
++            .native_invocation_dialect()
++            .native_scalar_getter_protocol()
++        else {
++            return false;
++        };
++        if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V9_0)
++            || !cached_int_matches(expected, old, protocol)
++            || !cached_int_matches(delta, 1, protocol)
++        {
++            return false;
++        }
++        self.namespaces.try_borrow().is_ok_and(|namespaces| {
++            namespaces
++                .original_variable_table_at(crate::namespace::GLOBAL)
++                .map(|table| table.cached_increment_scalar_matches(name, expected))
++                == Some(true)
++        })
++    }
++}
++
++fn cached_int_matches(
++    value: *mut TclObj,
++    expected: i64,
++    protocol: NativeScalarGetterProtocol,
++) -> bool {
++    if obj::check_native_liveness(value).is_err() {
++        return false;
++    }
++    if obj::native_scalar_descriptor_origin(value)
++        .is_some_and(|origin| Some(origin) != protocol.tcl_version())
++    {
++        return false;
++    }
++    let Ok(Some(cache)) = obj::native_scalar_cache(value) else {
++        return false;
++    };
++    let Some(conversion) = protocol.increment_number_preflight(Some(&cache), None, false) else {
++        return false;
++    };
++    conversion.cache().is_none()
++        && matches!(conversion.outcome(), Ok(Number::Int(actual)) if *actual == expected)
++}

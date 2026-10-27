@@ -1,0 +1,40 @@
+{
+  "before_commit": "a8e0cbe0a446f85996a434b5a6cb252285904c17",
+  "path": "docs/work/name-handling/validation-tools/runtime-baseline-supplement.py",
+  "before_sha256": "5a3e66ed647d7ad2d85400a23153c7f68d2ca3c798bf97a0a8235021ab7e8aab",
+  "after_sha256": "fe92da8d8bd94fdf1907dcab2bec67676ce26a909ca70e7f0a9c78f64e8262bf",
+  "patch_sha256": "f837aa4d1efb5ea50bfeebffa31df7f94b8ba06c28e75376b3f024627471df45",
+  "source_pins": {
+    "runtime/rust/src/codegen_native.rs": "775bf7c7a737f45c403c8ce6159668fbc4a22dd79e2e6a29c19a9f1d6d31df82",
+    "runtime/rust/src/interp.rs": "02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063",
+    "runtime/rust/src/frame.rs": "8f65cbe133cba80c225ae49e8a1bbae7dffb46d55e50dfc7ae1be9c261d7dd5b",
+    "runtime/rust/src/builtins.rs": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b",
+    "runtime/rust/src/interp/captured_rmw.rs": "c41b40d02846b8655487cd2d10b3c4e720ab0a60d6259c83c5612dad4719dd9e",
+    "runtime/rust/src/value_ops.rs": "a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c",
+    "runtime/rust/src/codegen_native/cached_increment.rs": "0a6b4bfff493fdd6c29a952bdafaba17ac4d0e2b872d5031f1ff09009e4067fb",
+    "runtime/rust/src/interp/cached_increment.rs": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56"
+  },
+  "controls": {
+    "codegen_native::cached_increment::tests::cached_increment_runs_original_cow_and_keeps_the_held_input": {
+      "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+      "indent": "    ",
+      "sha256": "610af366847d37c6b1ec275f037a8bb28bf097679fd9aef377c624a02ed3fc17"
+    },
+    "codegen_native::cached_increment::tests::cached_increment_decline_preserves_input_and_runs_fallback_once": {
+      "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+      "indent": "    ",
+      "sha256": "a549c75319308d88a20202d5bba28226c110bf3fe41a231b10ad198736c16749"
+    },
+    "codegen_native::cached_increment::tests::cached_increment_hint_never_replaces_reached_operands_or_trace_fallback": {
+      "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+      "indent": "    ",
+      "sha256": "31947bca9828c2f3318cb517b06a93ef5bab09750ed5715837a58fec286f1019"
+    }
+  },
+  "dependency_runtime_source_master": "91bf8039e3a6e0db9c674a60d23dcc67d6b0462dd21a49d338d87f92987d5b70",
+  "old166_helpers_constants": "Exact oldhelper/constant AST; run/main additive phase/report/status/exception only",
+  "scope": "WORK-only3 after unchanged166, SAME fresh owned runtime-lib ELF/env/shared20MiB log cap/2400s suite/3600s absolute/180s child+205s reserve; no Cargo/rebuild/reset. Closed old FAIL/ABORT allowed but all old errors/final125 preserved. RuntimeV2 source integration+Root final current source union prerequisite; actual children UNRUN.",
+  "actual_children": "UNRUN",
+  "source_proof_sha256": "d7c60de7f59bdbb753eddac146c99eacba180399b27bdb8a450063056cbda9d4",
+  "author_no_child_controls_sha256": "0fada1763108c68d63228a1be32722cf3d3034aeebb89259ec25af5500fd3ffa"
+}

@@ -1,0 +1,47 @@
+{
+  "base": "abbbbdc4f4810107ef631c2a1af05e4974998f7f",
+  "files": [
+    {
+      "path": "runtime/rust/src/codegen_native.rs",
+      "before_sha256": "fb0a7241be1222ff7bd7ecafb4eb3183e8a31f3afe3f75a277750f8968b46c20",
+      "after_sha256": "26bbbcbd733854f729d53de9852b6f718998e9083160a242f414f6f318754cc2"
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "before_sha256": "4f6441356bd9ec7030c22efb553a08e5e9654617ccbbcc394b8ebcfa5636f87a",
+      "after_sha256": "ead2adc3d91f6fd0ddc566a03f46877c32e5aef6d63afacf1d8b31cfc1ca7f2d"
+    },
+    {
+      "path": "runtime/rust/src/frame.rs",
+      "before_sha256": "e897a023275c79cb322677fb6f87320e0e12868d7c4bcec586d528dd49c0df12",
+      "after_sha256": "70731f507547db9d1f6fa6d83026959e91088349c33c290a660b812fb0e41de2"
+    },
+    {
+      "path": "runtime/rust/src/builtins.rs",
+      "before_sha256": "ce92ec50ec9380e4b1ac6fd94311e2a2559e2a8544bfb9289a3d00cf7d032e37",
+      "after_sha256": "858a05efe5f3dc85a5380f4c77cf4b34399e4921eeac69b89368a7b64502ada1"
+    },
+    {
+      "path": "runtime/rust/src/interp/captured_rmw.rs",
+      "before_sha256": "6f271eb1589ecb8d1fbef2a541b470f8909f33fa3bba8440324bdb7d6a6e24c5",
+      "after_sha256": "c41b40d02846b8655487cd2d10b3c4e720ab0a60d6259c83c5612dad4719dd9e"
+    },
+    {
+      "path": "runtime/rust/src/value_ops.rs",
+      "before_sha256": "21910c78edf32ed58a6736303b48a0de28bcba6425bf2f4647fc08df76389e6e",
+      "after_sha256": "ad1e2a5e7f32aa54b9e6eca7a28c50116ba4e35de198ed399cb1a3cda0a7ee3a"
+    },
+    {
+      "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+      "before_sha256": null,
+      "after_sha256": "0a6b4bfff493fdd6c29a952bdafaba17ac4d0e2b872d5031f1ff09009e4067fb"
+    },
+    {
+      "path": "runtime/rust/src/interp/cached_increment.rs",
+      "before_sha256": null,
+      "after_sha256": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56"
+    }
+  ],
+  "status": "Frozen source candidate; Rust/Clippy/controls UNRUN; independent semantic/type peers required",
+  "patch_sha256": "7dc7eb9115b7047c20dc2ed36c597ded883a1892f9cd62fb973ab33a1e8c93fd"
+}

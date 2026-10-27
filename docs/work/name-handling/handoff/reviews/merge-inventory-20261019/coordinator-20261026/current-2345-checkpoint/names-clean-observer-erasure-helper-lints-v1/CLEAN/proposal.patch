@@ -1,0 +1,38 @@
+--- a/rust/tcl-compiler/src/command_binding/original_callback_lookup.rs
++++ b/rust/tcl-compiler/src/command_binding/original_callback_lookup.rs
+@@ -383,12 +383,9 @@
+     ) -> Option<OriginalCallbackPrefix> {
+         let bindings = bindings(source, dialect, registry);
+         let binding = bindings.invocation_at_source("", 0);
+-        let Some(mut tokens) = binding.original_recorded_command_tokens() else {
+-            return None;
+-        };
++        let mut tokens = binding.original_recorded_command_tokens()?;
+         tokens.source_binding = Some(binding.clone());
+-        let result = binding.original_callback_prefix(&tokens, written, registry);
+-        result
++        binding.original_callback_prefix(&tokens, written, registry)
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/command_binding/command_presence.rs
++++ b/rust/tcl-compiler/src/command_binding/command_presence.rs
+@@ -735,7 +735,7 @@
+     fn point_in(source: &str, head: &str, profile: &str) -> SourceInvocationBinding {
+         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+         let selected = registry.profile().unwrap();
+-        let result = super::super::SourceCommandBindings::analyse_with_options(
++        super::super::SourceCommandBindings::analyse_with_options(
+             source,
+             tcl_lexer::LexerConfig::for_profile(Some(selected)),
+             registry,
+@@ -760,8 +760,7 @@
+             } else {
+                 u32::try_from(source.rfind(head).unwrap()).unwrap()
+             },
+-        );
+-        result
++        )
+     }
+ 
+     #[test]

@@ -1,0 +1,35 @@
+{
+  "status": "STATIC_CLEAR",
+  "master_sha256": "6e0471b5c7fe0f6de091841aa8f58a6cb43982f05a18c623bf3c56fce36e4ec5",
+  "lane_manifest_sha256": "8c26b6ea551bca435ad89d7c86730331178591a097df9d134e46fe325275c1c0",
+  "patch_sha256": "774c96edde456da3838d4fcec05db338cbbcf7e590261e5b0924b1b1c676cec2",
+  "rows": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_callback_lookup.rs",
+      "currentC": "c95b8cedaca92a4e907d58e364c2e0c8fbfe390f",
+      "before": "6f7dedc076dd40c6cc60d600151b5a246159a9f30da51a3190ea4b98eed89d0a",
+      "after": "dd597582529b9f700234a15b66556d32df02cecdec39e74c0e16785b6803a2e8",
+      "wholemodule_literal_inverse": "PASS",
+      "fmt2024": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/command_presence.rs",
+      "currentC": "c95b8cedaca92a4e907d58e364c2e0c8fbfe390f",
+      "before": "49339dc75685922103d6862528605519dbcd829494d8a1cc392aecfa18b9a65c",
+      "after": "17793dfeb66ef91c18dd5776d5e0bf6ca22b77f90766d0498e7c60db38b8b176",
+      "wholemodule_literal_inverse": "PASS",
+      "fmt2024": "PASS"
+    }
+  ],
+  "checks": [
+    "Actual currentC preimages and exact unchanged WORK diagnostic witnesses",
+    "Only cfgtest helpers, Option return type and same pure OptionNone residual; same three query/evaluation ordering",
+    "Callback Prefix return is owned; source tokens/binding owners remain caller locals through samecall then sameLIFOdrop",
+    "Presence returned SourceInvocationBinding is owned; receiver analysis temporary drops at same tail boundary relative to only borrowed/noDrop otherlocals",
+    "Wholeoldmodules reconstructed exactly by three explicit literal edit inverses; isolatedF-R and rustfmt2024PASS",
+    "ActualCa8d stderr names exact3changedexpressions; no assertion/fixture/allow/API/protocol/query additions"
+  ],
+  "unrun": [
+    "Rust/Clippy/preppr; no measuredzero-warning claim"
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "utc": "2026-10-26T23:20:20.587046+00:00",
+  "verdict": "CLEAR bounded cached arithmetic hint inside unchanged original increment kernel",
+  "manifest_sha256": "91bf8039e3a6e0db9c674a60d23dcc67d6b0462dd21a49d338d87f92987d5b70",
+  "checks": [
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/codegen_native.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/interp.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/frame.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/builtins.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/interp/captured_rmw.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/value_ops.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+      "new_actual_absence": true,
+      "after_hash_fmt2021": true
+    },
+    {
+      "lane": "WORK",
+      "path": "runtime/rust/src/interp/cached_increment.rs",
+      "new_actual_absence": true,
+      "after_hash_fmt2021": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/codegen_native.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/interp.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/frame.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/builtins.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/interp/captured_rmw.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/value_ops.rs",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "fmt2021": true,
+      "whole_old_kernel_None_path_erasure": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+      "new_actual_absence": true,
+      "after_hash_fmt2021": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "runtime/rust/src/interp/cached_increment.rs",
+      "new_actual_absence": true,
+      "after_hash_fmt2021": true
+    }
+  ],
+  "actual_old_contracts": [
+    {
+      "lane": "WORK",
+      "cmd_var_sha256": "fce729b0f5a670539a604e3f465583b9300637809c776361e1128f93699d4d29",
+      "existing_VarIncr_installed_builtin_contract": true
+    },
+    {
+      "lane": "CLEAN",
+      "cmd_var_sha256": "6bac9c140b5d4d6b1468c750b6bf129f5c09dd11e59f2a13b517f8357c9c2194",
+      "existing_VarIncr_installed_builtin_contract": true
+    }
+  ],
+  "reasoning": [
+    "No-match checks consume only held cell/cache/context fields, reject non-C9/root/simple/scalar/current/no-alias/no-observer cases, and touch neither output nor operands. Existing ephemeral CodegenOperation entry/drop can use stack/allocation; zero-allocation is not claimed.",
+    "Matched path preserves original head/name allocations, retained BorrowedArgv and OriginalArguments; the same native name/amount/receiver capture, const/read traces/COW/getters/error/store/write traces/result and currentness execute in original order.",
+    "The only replacement is checked mathematical Int old+1 at the reached add, revalidated against actual reached Int current and actual Int amount1; overflow, Float/Big, stale hints and changed reached operands use the old arithmetic with no replay. Context is checked before/after just as required.",
+    "Existing tcl_codegen_var_incr already invokes installed_incr, exactly builtins::incr, under its admitted Native VarIncr instruction contract. New code inherits that contract rather than gaining command-selection permission from a quiet name check. The compiler half must use only that same existing operation.",
+    "Zero decline leaves out untouched; entered command returns owned original result or null guest-error; negative host/currentness statuses are terminal and cannot be counted as guest failure/fallback permission. Borrowed originals stay live through the whole call and no Native +1 is added by preflight."
+  ],
+  "limits": [
+    "Actual Rust/Clippy/runtime/WASM and all3 new controls UNRUN. No observed performance/framing acceptance, C8/Jim/unsupported extension or semantic entry authority.",
+    "Mechanical source erasure/format checks are not a Rust typecheck; combined runtime/compiler producer must pass real gates and retain all original controls."
+  ],
+  "supplementary_LSP_partial_audit": "/workspace/naming-proof-storage/lsp-peer-cached-increment-v1-mechanical.json"
+}

@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-26T23:29:01.261834+00:00",
+  "source": "b970fc2c91e467e443b72f0237ae70d9064e2075",
+  "approved_existing_maps": [
+    "irules-preflight-roster.json",
+    "spectcl-fold-roster.json",
+    "wasm-real-link-roster.json"
+  ],
+  "parent": "runtime/rust/src/interp.rs",
+  "child": "runtime/rust/src/interp/cached_increment.rs",
+  "new_keys": 3,
+  "route": "Existing selected parent now directly declares/calls the reviewed private cached-increment child; preserve all selectors/env/assertions/budgets.",
+  "no_code_gen_native_JSON_fanout": "No current JSON owns that parent. Reviewed Runtime3 protocol exact inline eight source hashes and three function hashes cover its selected tests; future compiler importer requires separate WASM ABI parent/leaf coupling review.",
+  "runtime_validation_accepted": false
+}

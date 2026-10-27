@@ -1,0 +1,30 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -1497,6 +1497,13 @@
+ }
+ 
+ impl SourceInvocationBinding {
++    /// Passive process-local address only; this supplies no source or lookup authority.
++    pub(crate) fn source_cut_trace_dispatch_origin(&self) -> Option<*const SourceOriginId> {
++        self.dispatch_site
++            .as_ref()
++            .map(|site| Arc::as_ptr(&site.source))
++    }
++
+     pub(crate) fn has_original_source_layout_owner(&self) -> bool {
+         self.lookup_state.is_some()
+             || self.compiler_lookup_state.is_some()
+--- a/rust/tcl-compiler/src/realm/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/realm/source_transition_advice.rs
+@@ -41,10 +41,7 @@
+ ) {
+     cut_value_refuses(trace, "value.represented-refusal", true);
+     if trace && crate::registry_invocation::source_cut_trace_admitted() {
+-        let origin = binding
+-            .dispatch_site
+-            .as_ref()
+-            .map(|site| Arc::as_ptr(&site.source));
++        let origin = binding.source_cut_trace_dispatch_origin();
+         eprintln!(
+             "SOURCE_CUT_VALUE_REFUSED origin={origin:?} data={:p} bytes={} offset={offset}",
+             image.bytes().as_ptr(),

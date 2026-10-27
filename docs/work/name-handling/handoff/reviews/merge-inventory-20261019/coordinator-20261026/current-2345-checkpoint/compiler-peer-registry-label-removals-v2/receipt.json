@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-26T23:39:05.102090+00:00",
+  "verdict": "CLEAR exact registry2 ordinary process-label removal subset",
+  "full_manifest_sha256": "6593612cd89e806d331e52a6a62f15ecf085928cbd98d2d3ced311078e103138",
+  "full_patch_sha256": "44324c472605e3dd1874ca2fd1359aa3870098f3b3dedf4c9710e16479be81f6",
+  "checks": [
+    {
+      "path": "rust/tcl-registry/src/native_procedure.rs",
+      "fixed_current_blob_mode_exact": true,
+      "removed_ordinary_labels": 1,
+      "F_R_F0": true,
+      "zero_added_lines_or_code_deletions": true,
+      "Rust_token_literal_docs_remaining_comments_equal": true,
+      "no_line_column_macro": true,
+      "fmt2024": true
+    },
+    {
+      "path": "rust/tcl-registry/src/resolved_invocation.rs",
+      "fixed_current_blob_mode_exact": true,
+      "removed_ordinary_labels": 68,
+      "F_R_F0": true,
+      "zero_added_lines_or_code_deletions": true,
+      "Rust_token_literal_docs_remaining_comments_equal": true,
+      "no_line_column_macro": true,
+      "fmt2024": true
+    }
+  ],
+  "scope": "CLEAN85da only, not WORK or paired: only native_procedure.rs and resolved_invocation.rs69 ordinary label comments plus their empty separator lines; Runtime8 subset has its separate peer. No compiler/VM interpreter edits or assertion/purpose/Native/role/layout behavior change. Root authorized process/provenance-label retirement; normative docs, code, all literals and remaining comments preserved.",
+  "limits": [
+    "Actual Rust/Clippy UNRUN; source line numbers and resulting debug/panic locations can shift. This is not binary-byte equality or a functional efficacy/old assertion waiver.",
+    "Current source/function SHA guards must be refreshed honestly by Root before subsequent validation; no source-pin exemption."
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "lanes": {
+    "WORK": {
+      "manifest_sha256": "7e978a06fcfff4f6b8d6f4be6f77bd001e6608b167f57fabf453fd4c5a118178",
+      "base": "8e3b69a946e98c302a7c46fd01f1a756c8252a28",
+      "patch_sha256": "d743b9155e6b5363dc19b605531f0c06909d60533a22ba7812caabe1af407bb6",
+      "files": [
+        {
+          "path": "runtime/rust/src/codegen_native.rs",
+          "before_sha256": "e83aca55c3cae508f4c73ddf1cbdd87b537d2633f147b1c92cb58a1d6a91a128",
+          "after_sha256": "775bf7c7a737f45c403c8ce6159668fbc4a22dd79e2e6a29c19a9f1d6d31df82"
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "before_sha256": "a30a2be8b38df4a40946d3b868d857988f820e41628b725d3e8f3ee5fbd46944",
+          "after_sha256": "02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063"
+        },
+        {
+          "path": "runtime/rust/src/frame.rs",
+          "before_sha256": "a15990b2eac29f58d779d17bed73cd050f33ddee7b4126a849e8db2b7f9d8622",
+          "after_sha256": "8f65cbe133cba80c225ae49e8a1bbae7dffb46d55e50dfc7ae1be9c261d7dd5b"
+        },
+        {
+          "path": "runtime/rust/src/builtins.rs",
+          "before_sha256": "c0dd46465d168fed6a24945fe4d881ca0cb4b0c663ef9909ad33943dfec1e823",
+          "after_sha256": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b"
+        },
+        {
+          "path": "runtime/rust/src/interp/captured_rmw.rs",
+          "before_sha256": "6f271eb1589ecb8d1fbef2a541b470f8909f33fa3bba8440324bdb7d6a6e24c5",
+          "after_sha256": "c41b40d02846b8655487cd2d10b3c4e720ab0a60d6259c83c5612dad4719dd9e"
+        },
+        {
+          "path": "runtime/rust/src/value_ops.rs",
+          "before_sha256": "713864ec45d6b5e22c4caa4ccb21cf6d55eaca028b2fdaedc53e6d58925235bf",
+          "after_sha256": "a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c"
+        },
+        {
+          "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+          "before_sha256": null,
+          "after_sha256": "0a6b4bfff493fdd6c29a952bdafaba17ac4d0e2b872d5031f1ff09009e4067fb"
+        },
+        {
+          "path": "runtime/rust/src/interp/cached_increment.rs",
+          "before_sha256": null,
+          "after_sha256": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56"
+        }
+      ],
+      "F0": true,
+      "forward_reverse": true,
+      "rustfmt2021": true
+    },
+    "CLEAN": {
+      "manifest_sha256": "b8720d9939dd2981d7f0d846dd8f2c71e6a4a2146a3db740dd645a7ecf640754",
+      "base": "abbbbdc4f4810107ef631c2a1af05e4974998f7f",
+      "patch_sha256": "7dc7eb9115b7047c20dc2ed36c597ded883a1892f9cd62fb973ab33a1e8c93fd",
+      "files": [
+        {
+          "path": "runtime/rust/src/codegen_native.rs",
+          "before_sha256": "fb0a7241be1222ff7bd7ecafb4eb3183e8a31f3afe3f75a277750f8968b46c20",
+          "after_sha256": "26bbbcbd733854f729d53de9852b6f718998e9083160a242f414f6f318754cc2"
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "before_sha256": "4f6441356bd9ec7030c22efb553a08e5e9654617ccbbcc394b8ebcfa5636f87a",
+          "after_sha256": "ead2adc3d91f6fd0ddc566a03f46877c32e5aef6d63afacf1d8b31cfc1ca7f2d"
+        },
+        {
+          "path": "runtime/rust/src/frame.rs",
+          "before_sha256": "e897a023275c79cb322677fb6f87320e0e12868d7c4bcec586d528dd49c0df12",
+          "after_sha256": "70731f507547db9d1f6fa6d83026959e91088349c33c290a660b812fb0e41de2"
+        },
+        {
+          "path": "runtime/rust/src/builtins.rs",
+          "before_sha256": "ce92ec50ec9380e4b1ac6fd94311e2a2559e2a8544bfb9289a3d00cf7d032e37",
+          "after_sha256": "858a05efe5f3dc85a5380f4c77cf4b34399e4921eeac69b89368a7b64502ada1"
+        },
+        {
+          "path": "runtime/rust/src/interp/captured_rmw.rs",
+          "before_sha256": "6f271eb1589ecb8d1fbef2a541b470f8909f33fa3bba8440324bdb7d6a6e24c5",
+          "after_sha256": "c41b40d02846b8655487cd2d10b3c4e720ab0a60d6259c83c5612dad4719dd9e"
+        },
+        {
+          "path": "runtime/rust/src/value_ops.rs",
+          "before_sha256": "21910c78edf32ed58a6736303b48a0de28bcba6425bf2f4647fc08df76389e6e",
+          "after_sha256": "ad1e2a5e7f32aa54b9e6eca7a28c50116ba4e35de198ed399cb1a3cda0a7ee3a"
+        },
+        {
+          "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+          "before_sha256": null,
+          "after_sha256": "0a6b4bfff493fdd6c29a952bdafaba17ac4d0e2b872d5031f1ff09009e4067fb"
+        },
+        {
+          "path": "runtime/rust/src/interp/cached_increment.rs",
+          "before_sha256": null,
+          "after_sha256": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56"
+        }
+      ],
+      "F0": true,
+      "forward_reverse": true,
+      "rustfmt2021": true
+    }
+  },
+  "checks": "Actual Git before images/new absence; exact old/new hunk coordinates; independent forward/reverse; all after hashes; rustfmt2021. No Cargo/build/test child.",
+  "API": "name_ptr,len,expected_borrowed,delta_borrowed,old,sum,out_owned_ptr -> i32;0 pure no-match/out untouched;1 entered/out owned result or null;negative existing host/invalid status terminal.",
+  "effects": "Original head/name allocation, argv pins and boxed delta retained; same OriginalArguments, original name/amount capture, retained receiver kernel, const/readtrace/COW/current and delta getters/store/writetrace/result/currentness. Hint may only substitute mathematical checked Int addition for actual reached old and implicit1; other reached operands use original arithmetic without replay.",
+  "scope": "Current committed CLEAN carry plus Option.filter/flat-iflet successor to V1; V1 stays frozen. Decline enters/drops the existing ephemeral CodegenOperation and may use Rust stack/allocation; no Native getter/retain/error publication on a quiet no-match. C9/root/simple existing scalar only. No public trait/input struct change, Native capability token, cross-call guard, TLS hint, static compiler observer assumption or Native+1 in preflight. Ordinary env unrelated to this exact global non-env non-link scalar is allowed; actual env cell declines.",
+  "controls": [
+    "cached_increment_runs_original_cow_and_keeps_the_held_input",
+    "cached_increment_decline_preserves_input_and_runs_fallback_once",
+    "cached_increment_hint_never_replaces_reached_operands_or_trace_fallback"
+  ],
+  "unrun": "Actual Rust/Clippy/runtime/WASM and full framing golden remain unrun; fresh String honestly declines; no performance claim."
+}

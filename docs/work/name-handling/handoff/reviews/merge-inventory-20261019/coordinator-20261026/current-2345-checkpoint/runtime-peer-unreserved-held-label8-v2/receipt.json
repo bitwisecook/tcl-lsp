@@ -1,0 +1,89 @@
+{
+  "utc": "2026-10-26T23:33:16.022807+00:00",
+  "status": "STATIC_RUNTIME8_CLEAR",
+  "packet_manifest_sha256": "6593612cd89e806d331e52a6a62f15ecf085928cbd98d2d3ced311078e103138",
+  "patch_sha256": "44324c472605e3dd1874ca2fd1359aa3870098f3b3dedf4c9710e16479be81f6",
+  "files": [
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "before_sha256": "ea84f3a536faa273766a0730a44fbbad034adad2f231fd784392875a532fb0e8",
+      "after_sha256": "6f4adde2b37689e85d3654dca0b78c42adcbbde014031425ec384bc60717ae70",
+      "removed_ordinary_labels": 12,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    },
+    {
+      "path": "runtime/rust/src/cmd_var.rs",
+      "before_sha256": "6bac9c140b5d4d6b1468c750b6bf129f5c09dd11e59f2a13b517f8357c9c2194",
+      "after_sha256": "1c70c55c8c088a62d6b62fbe4fd8a974bb787922e2d0795d7975c31611319de6",
+      "removed_ordinary_labels": 3,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    },
+    {
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "before_sha256": "4e8d3f5ad1ca439010f79e8844eb7eaf2d185e60c05fb4be747de6ef9990e48a",
+      "after_sha256": "22dd0dd35705fa88ae6116b1192a0f694145a592d7e8dff37c79077090e26474",
+      "removed_ordinary_labels": 10,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    },
+    {
+      "path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "before_sha256": "23222cec9e838ccb9abd95d4a904748089051e4299f53b0379dfdfcd41cc102e",
+      "after_sha256": "e01f7ea83bce5aee60b211e5677d051bb140e0412ae0daa9a57de256069099b7",
+      "removed_ordinary_labels": 9,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    },
+    {
+      "path": "runtime/rust/src/interp/native_script.rs",
+      "before_sha256": "06b296260ce77c0baa3ae197f98314ede5ada96507f56d8f83d23282269c0fd7",
+      "after_sha256": "2773e792cac142c18b3fd9e5a951baa627407268b99ef7a6ef1d8834fa76d8c9",
+      "removed_ordinary_labels": 7,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    },
+    {
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "before_sha256": "8563e40cd9300d281cbfa55f44327a00a67344c6b7a0df33f689cfead4dbb5af",
+      "after_sha256": "07c9e01416d9e095a5a9810d9989775ca9322292ea3466213deb05bf78f750d8",
+      "removed_ordinary_labels": 6,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    },
+    {
+      "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "before_sha256": "f56c28b6aa289a885705574aaaba48de5ae8fd859e81ea495476b27419861393",
+      "after_sha256": "7435e5a1d435d641bb8ec0a7dfaeabdc7b9a35cf4f47ce15487efb8cee1f3320",
+      "removed_ordinary_labels": 13,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    },
+    {
+      "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+      "before_sha256": "195b0baa1852d441ba5a6c1358a53e9f6959f5cf5af4e8149754a59a40c0fe78",
+      "after_sha256": "b2e279788a698cd860bf4bc2cad166cd83d5549fac79c8cb04194e494e335933",
+      "removed_ordinary_labels": 3,
+      "current_git": true,
+      "noncomment_tokens_and_literals_equal": true,
+      "no_insert_or_replacement": true,
+      "rustfmt2021": true
+    }
+  ],
+  "qualification": "Only CLEAN eight runtime files reviewed (actual current85da Git); no WORK applicability claim. Two registry files require their own owner peer. Ordinary proof-ID comments and adjacent blank whitespace only; actual test code/assertions/embedded script literal bytes and durable explanatory comments remain. No active Runtime ownership hold on these eight; runtime/rust/src/interp.rs excluded. Final current source/function pins must reflect new bytes; no actual Rust execution or coverage result inferred."
+}

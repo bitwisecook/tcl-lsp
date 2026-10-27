@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-26T23:29:14.176304+00:00",
+  "verdict": "CLEAR separate fixed runtime3 controls after unchanged166",
+  "manifest_sha256": "68549a0bdf45849d7844726b2607ee7034847343d3fd66945c9507a9b9c250de",
+  "fixed_current_driver_preimage": true,
+  "F_R_F0": true,
+  "entire_old166_driver_AST_erasure": true,
+  "conditional_RuntimeV2_all8_sources_actual_afterimages": true,
+  "three_actual_function_hashes_unique": true,
+  "pure_actual_helper_controls": {
+    "helper": 12,
+    "prior_admission": 7,
+    "source_negative": 11,
+    "exception": 2,
+    "extra_owner_closure_ELF": 2
+  },
+  "mock_sha256": "0fada1763108c68d63228a1be32722cf3d3034aeebb89259ec25af5500fd3ffa",
+  "reasoning": [
+    "Exactly3 new selectors follow all unchanged166 closed outcomes, use the same fresh owned lib ELF/environment/source/tool guards and remaining aggregate CAP/suite2400/absolute3600; no new Cargo/build/reset, no changed old selection/filter identity.",
+    "Each child receives full180 with205 reserve, rechecked after ELF hash; insufficient reserve, changed/missing ELF/list/source or prior unsettled case leaves honestUNRUN. Existing FAIL/ABORT can continue only after closure and still force nonzero final status; incomplete/timeouts stop and preserve old125/100 outcomes.",
+    "Original terminal parser remains authoritative; no later PASS masks original FAIL. Exceptions preserve existing completed new rows and report remainingUNRUN. All8 sources and exact3 fn bodies bind to reviewed RuntimeV2 conditional afterimages, requiring Root actual integration/final current pin union before dispatch."
+  ],
+  "limits": [
+    "Pure mock/source/AST/F-R checks only; actual children/Rust/native/runtime/performance UNRUN. No admission or entry authority arises from protocol metadata."
+  ]
+}

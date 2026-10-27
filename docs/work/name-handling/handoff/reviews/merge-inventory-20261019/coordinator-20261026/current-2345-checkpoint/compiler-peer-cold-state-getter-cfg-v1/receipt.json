@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-26T23:40:42.379444+00:00",
+  "verdict": "CLEAR exact private test-getter effective-cfg alignment",
+  "manifest_sha256": "ba8f498da399ea0d42a842870e62500e000d1c3b5d837452046ee7cd6f4bd986",
+  "checks": [
+    {
+      "lane": "WORK",
+      "current_fixed_Git": true,
+      "F_R_F0": true,
+      "whole_module_one_attribute_inverse": true,
+      "fmt2021": true,
+      "exhaustive_actual3_census_and_effective_caller_cfg": true
+    },
+    {
+      "lane": "CLEAN",
+      "current_fixed_Git": true,
+      "F_R_F0": true,
+      "whole_module_one_attribute_inverse": true,
+      "fmt2021": true,
+      "exhaustive_actual3_census_and_effective_caller_cfg": true
+    }
+  ],
+  "reasoning": "The sole getter definition and both actual callers are the exhaustive runtime-src census. Both callers are under expr module cfg(have_tommath), with their additional cfg(test) scope, so all(test,have_tommath) is their existing effective domain. The method body, all test bodies/assertions, production state/layout/Clone/Eq/drop/error semantics and MSRV remain byte-identical; no allow or functionality is removed from a compiled caller.",
+  "limits": [
+    "Actual NoTom/fullTom Rust/Clippy retries UNRUN; source/cfg proof only, no runtime/error ownership efficacy inferred."
+  ]
+}

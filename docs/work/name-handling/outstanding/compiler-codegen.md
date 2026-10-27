@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-26T23:39:42Z
+Last updated: 2026-10-27T00:04:44Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+00:04 UTC e8db strict40420651309 CLOSED FAILURE, exact-source FULLAUTH23 fe629a13; one actual diagnostic retained in ccg-stricte8db-40420651309-actual-v1, routing current cause separately. Strict provider/dependency seals remain unavailable by protocol. CurrentCa8d fullCI40419028855 still active: bounded00:03 API56jobs34closed/18running/4queued; heavy/all5Rust shards and3E2E partitions running, API3/smoke terminal outcomes UNOBSERVED. New WASM/WASI server failures need actual cause qualification, no broad compileblock inferred. Root owns baseline selection/outcome join; current seven listing receipts bdccf504 and exact API3 selection470c952f authenticate selection only. N17 closed-input/getter/COW/free receipt and numeric compiler half remain off-tree, no authority or current-gate donation; paired C waits final reviewed cleanup HEAD.
 
 23:39 UTC sole current strict e8db run40420651309/job121913947722 QUEUED; noactualoutcome/artifact inferred. CurrentCa8d fullCI40419028855 sourcea8d34817fa7fac497c6669aea3e419e54ae5b351 active: lastbounded56jobs14closed/19running/23queued. Actual3closed failures: rust-check CLEANtesthelper3Clippyprimaries routedNames; runtimeNoTom cold_state retained_command_error deadcode routedRuntime (fullTomjobstepUNRUN); WASMold25PASS+Broad8=6P2F NativeAdd/framingonly, oracleplansPASS. PreserveallhealthyCI, Rootownsbaselinejoin. Strict934c FULLAUTH23checks cec22a0d onlyE0616 WORKdiagnostic dispatch_site access, LSPprivacyrepairalreadyRootintegrated; actualCfullCIfilehasnoprivateobserveraccess, so no broadCcompileblock inferred. Final2dce current25union3b5f4ddc/824db0e5 independently7328fa79/V16PASS019506f0/all12RuntimeguardsPASS, Rootpush/POST e8db complete. N17MAP sameoriginSubst500..515 ->set488..516 firstopaque; ShapeSubstitutedGeneric preserved. Audit actual frozenargument byteowner+canonical StringAccess AND original duplicate/free inputclosure beforecommandfree templatewalk; no spelling-only guard deletion/Normalretag. RANGE Stringtrim222..248/assembledword genuineowner separateOPEN. Numericcompiler6fileWORKdraft/offtreeunbuilt stillheld pendingpairedC/fullinverse; RuntimeV2 boundedtypee4dea+semanticcd214 integratedseparately, newRuntime3sourcephase169current no compilerimport yet. No auditadmission/currentzeroPTFclaim.
 

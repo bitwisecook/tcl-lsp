@@ -1,0 +1,41 @@
+{
+  "status": "COMPOSED_PROPOSED_OFF_TREE",
+  "lane": "WORK",
+  "base_commit": "7f5f6d6bc3cf8f1989f83ef724a1794d4f0f0410",
+  "scope": "Exact composition of the separately reviewed Eglot output correction and corrected comment-only delta-gate explanation. Both edit experiment_333.el from the same original bytes; hunks compose in either order. No text beyond the two frozen component proposals is introduced. test_issue333.el carries only the comment correction.",
+  "composition": {
+    "components": [
+      {
+        "packet": "/workspace/naming-proof-storage/eglot-output-work-e8dbe-v2",
+        "patch_sha256": "2fb899d1753f94ee4ea4b273ee5c0470fbf7025ea5dda142dda3512c0af9cb18"
+      },
+      {
+        "packet": "/workspace/naming-proof-storage/eglot-comment-work-e8dbe-v3",
+        "patch_sha256": "606815c54f30d8e4acc4ea45dcd5c5f6b38cff26487b56d87e6a4aa2ad28c480"
+      }
+    ],
+    "application_orders_checked": [
+      "output then comments",
+      "comments then output"
+    ],
+    "result_byte_identical": true
+  },
+  "files": [
+    {
+      "path": "scripts/eglot_test/experiment_333.el",
+      "mode": "100644",
+      "before_sha256": "e58fa6841a333146b3a90b29209d329b74401f107ef294d53b84d3cfe09816a3",
+      "after_sha256": "90d1feabf60595caf42d7f05b964425f5dbc2c081dfae762a0c11e67fb9dc2ca",
+      "before_bytes": 9295,
+      "after_bytes": 8862
+    },
+    {
+      "path": "scripts/eglot_test/test_issue333.el",
+      "mode": "100644",
+      "before_sha256": "1b27033057a0c9138044252cb0f84150251005c5b236e681bc4ee51cdf05be05",
+      "after_sha256": "3b7ffe758ecbeaf0a291b5c6a6098920fa453d0e3d397d072cf72e65faa20d09",
+      "before_bytes": 32941,
+      "after_bytes": 32789
+    }
+  ]
+}

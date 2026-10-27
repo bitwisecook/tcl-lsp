@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-26T23:24:15.418367+00:00",
+  "manifest_sha256": "5b5a076818ff130946856d2f7105048eb085219a93a9428b40942a58c0a58cd4",
+  "checks": {
+    "actual_current_beforeimages_and_hashes": true,
+    "F_R_F0": true,
+    "fmt2": true,
+    "entire2module_projection_expansion_inverse": true,
+    "same_single_Arc_as_ptr_no_ref_or_clone": true,
+    "getter_invoked_only_inside_old_admitted_log_branch": true,
+    "field_visibility_unchanged": true
+  },
+  "unrun": [
+    "Rust/Clippy",
+    "actual next source observer"
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "status": "CLEAR_PAIRED_EGLOT_REPORTING_AND_COMMENT_CORRECTION",
+  "utc": "2026-10-26T23:44:09.982248+00:00",
+  "combined_patch_sha256": "5fa1a533a0cea27cb7ae594ad515477b9f94ee3725646c94fef8bbc0e96170bd",
+  "lanes": [
+    {
+      "lane": "WORK",
+      "packet": "/workspace/naming-proof-storage/eglot-combined-work-e8dbe-v1",
+      "manifest_sha256": "5a5ab30fca0f707e14d033e97cd84567137de2139f38e4850795e5f63d284e5e",
+      "patch_sha256": "5fa1a533a0cea27cb7ae594ad515477b9f94ee3725646c94fef8bbc0e96170bd",
+      "packet_base": "7f5f6d6bc3cf8f1989f83ef724a1794d4f0f0410",
+      "current_head": "7f5f6d6bc3cf8f1989f83ef724a1794d4f0f0410",
+      "current_preimages_modes_exact_hunks_afterhashes": true,
+      "both_composition_orders_equal_combined_after": true,
+      "files": [
+        {
+          "path": "scripts/eglot_test/experiment_333.el",
+          "mode": "100644",
+          "before_sha256": "e58fa6841a333146b3a90b29209d329b74401f107ef294d53b84d3cfe09816a3",
+          "after_sha256": "90d1feabf60595caf42d7f05b964425f5dbc2c081dfae762a0c11e67fb9dc2ca",
+          "before_bytes": 9295,
+          "after_bytes": 8862
+        },
+        {
+          "path": "scripts/eglot_test/test_issue333.el",
+          "mode": "100644",
+          "before_sha256": "1b27033057a0c9138044252cb0f84150251005c5b236e681bc4ee51cdf05be05",
+          "after_sha256": "3b7ffe758ecbeaf0a291b5c6a6098920fa453d0e3d397d072cf72e65faa20d09",
+          "before_bytes": 32941,
+          "after_bytes": 32789
+        }
+      ],
+      "all_test_issue333_executable_forms_exact": true,
+      "all_experiment_collection_report_stress_forms_and_exit_exact": true
+    },
+    {
+      "lane": "CLEAN",
+      "packet": "/workspace/naming-proof-storage/eglot-combined-clean-c95b8-v1",
+      "manifest_sha256": "b9bce0dcc37c717acdbf0b20471a7066a041e82c0ed0f6666cf14ac2d3e3b407",
+      "patch_sha256": "5fa1a533a0cea27cb7ae594ad515477b9f94ee3725646c94fef8bbc0e96170bd",
+      "packet_base": "7c2c26443b5af6d02352da28f8c57c8cfaaedd1e",
+      "current_head": "e3b9950810ca92764b716935b9886ccdba7d8be3",
+      "current_preimages_modes_exact_hunks_afterhashes": true,
+      "both_composition_orders_equal_combined_after": true,
+      "files": [
+        {
+          "path": "scripts/eglot_test/experiment_333.el",
+          "mode": "100644",
+          "before_sha256": "e58fa6841a333146b3a90b29209d329b74401f107ef294d53b84d3cfe09816a3",
+          "after_sha256": "90d1feabf60595caf42d7f05b964425f5dbc2c081dfae762a0c11e67fb9dc2ca",
+          "before_bytes": 9295,
+          "after_bytes": 8862
+        },
+        {
+          "path": "scripts/eglot_test/test_issue333.el",
+          "mode": "100644",
+          "before_sha256": "1b27033057a0c9138044252cb0f84150251005c5b236e681bc4ee51cdf05be05",
+          "after_sha256": "3b7ffe758ecbeaf0a291b5c6a6098920fa453d0e3d397d072cf72e65faa20d09",
+          "before_bytes": 32941,
+          "after_bytes": 32789
+        }
+      ],
+      "all_test_issue333_executable_forms_exact": true,
+      "all_experiment_collection_report_stress_forms_and_exit_exact": true
+    }
+  ],
+  "semantic_assessment": {
+    "experiment": "Only top-level heading literal and final pure causal classification/report expression change. Collection functions, generated Tcl/stress fixtures, both OFF/ON run bindings, all timings/means, per-arm accumulation reports, both stress arms and stress numbers, order, parameters and kill-emacs0 remain exact. The removed duplicated RESULT accumulation numbers remain printed in unchanged per-arm reports.",
+    "causality": "The harness variable is inert (only its defvar remains in helpers), and README explicitly says server ignores the obsolete option. Different observed accumulations between two runs with no effective configuration contrast cannot establish compat causality. New measurement-only notice corrects that claim; it does not claim an experimental result or benchmark acceptance.",
+    "delta_gate": "Corrected comment explicitly preserves current t333-main delta gate and nonzero exit on failure. Complete test_issue333 executable forms, actual delta assertions, any-fail computation, #333 xfail markers and all exit codes remain exact. No failure is waived by a scheduling narrative.",
+    "scope": "Reporting text is observable behavior, so apply reviewed WORK change first and carry explicit counterpart to release. No production/editor provider, selector, assertion or gate changes."
+  },
+  "gate_authority": "Root explicitly corrected earlier overbroad interpretation: AGENTS make test-emacs mandate applies to editors/emacs. These scripts/eglot_test-only report/comment edits do not add a mandatory Emacs run or hosted workflow. Existing required checks and unchanged upstream #333 policy remain; no new gate or waiver is invented.",
+  "mechanical_method": "Read-only exact current Git preimage/mode checks and in-memory complete unified hunk reconstruction; both component application orders equal combined afterimages. Conservative static Elisp delimiter/string/atom reader verifies complete form equivalence apart from two specified report forms. This is not an Emacs evaluator/byte compiler.",
+  "unrun": [
+    "Emacs script execution",
+    "make test-emacs",
+    "all general shipping gates"
+  ],
+  "canonical_mutations": "None. Only peer evidence written. Emacs hosted workflow/owner draft is HOLD_INCOMPLETE_OFF_TREE_DO_NOT_INTEGRATE at emacs-candidate-validation-work-v1/HOLD.json.",
+  "supersedes": "Earlier combined52033 and split ae743 comment diagnostic-only gate prose are not cleared; only exact combined manifests/hashes named here are cleared."
+}

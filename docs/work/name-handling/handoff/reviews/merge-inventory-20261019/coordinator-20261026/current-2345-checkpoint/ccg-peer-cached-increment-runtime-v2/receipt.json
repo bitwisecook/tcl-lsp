@@ -1,0 +1,21 @@
+{
+  "status": "STATIC_BOUNDED_TYPE_TRANSPORT_DROP_CLEAR",
+  "packet_manifest_sha256": "91bf8039e3a6e0db9c674a60d23dcc67d6b0462dd21a49d338d87f92987d5b70",
+  "independent_mechanics_sha256": "15973ccea9e8a0ff8f53e561a943336fcd140abce5a908894da92dc90894f22a",
+  "checks": [
+    "All16afterimages and actualcurrent WORK/CLEAN Git preimages/createabsence authenticated",
+    "Isolated paired forward/reverse exact and Rustfmt2021 skip_children checks passed",
+    "Exact7args: nameptr,len,borrowed expected,borrowed actual delta,oldi64,sumi64,outOwnedResult pointer; WASM32 outslot4bytes fits existing scratch8..12",
+    "No borrow guard crosses the synchronous match predicate; all RefCell views expire before fallback or enteredcommand",
+    "Head/name/boxed delta BorrowedArgv pins and drop sequence equal existing run_named_cell_command; returned success adds same single ownedresult reference as oldvar_incr",
+    "Private Copy optional numeric tuple threads through oldarguments/capturedRMW/kernel; no new Native object retain or storedcrosscalltoken",
+    "OriginalArguments/COW/receiver probe/delta probe/store/result/currentness order retained; runtime arithmetic accepts suppliedsum only against actualreached Integers/default1/checkedresult",
+    "Source ordinary0decline leavesout unchanged; source firstHostrefusal returnsnegative without secondbody; GuestError writesnull under entered1",
+    "V1 nested-if prospective warning resolved by V2 Option.filter+flat iflet, compatible with declaredRuntimeMSRV1.85"
+  ],
+  "qualifications": [
+    "Compiler independent full semantic peer remains required; this is bounded type/transport/ownership review",
+    "No Rust/Clippy/native unit/WASM execution performed; new3controls remainUNRUN",
+    "No measured framing/golden closure, conversion-effect waiver or public NativeProcEntry/Completion change accepted"
+  ]
+}

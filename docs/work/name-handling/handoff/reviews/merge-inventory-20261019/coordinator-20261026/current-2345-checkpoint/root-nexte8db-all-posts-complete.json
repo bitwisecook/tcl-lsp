@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-26T23:34:23.647271+00:00",
+  "source": "e8dbe095901b6e2deb424f8c891316859f2fcf64",
+  "requests": [
+    {
+      "old_run": "40418479110",
+      "mode": "release-rust-check-diagnostics",
+      "receipt": "DISPATCHED release-rust-check-diagnostics e8dbe095901b6e2deb424f8c891316859f2fcf64\n"
+    },
+    {
+      "old_run": "40418487481",
+      "mode": "source-point-corpus2-diagnostics",
+      "receipt": "DISPATCHED source-point-corpus2-diagnostics e8dbe095901b6e2deb424f8c891316859f2fcf64\n"
+    },
+    {
+      "old_run": "40418495099",
+      "mode": "lsp-startup-diagnostics",
+      "receipt": "DISPATCHED lsp-startup-diagnostics e8dbe095901b6e2deb424f8c891316859f2fcf64\n"
+    },
+    {
+      "old_run": "40406165907",
+      "mode": "runtime-fulltom-diagnostics",
+      "receipt": "DISPATCHED runtime-fulltom-diagnostics e8dbe095901b6e2deb424f8c891316859f2fcf64\n"
+    }
+  ],
+  "old_healthy_jobs_preserved": true,
+  "source_unfrozen_after_all_posts": true,
+  "actual_outcomes": "PENDING"
+}

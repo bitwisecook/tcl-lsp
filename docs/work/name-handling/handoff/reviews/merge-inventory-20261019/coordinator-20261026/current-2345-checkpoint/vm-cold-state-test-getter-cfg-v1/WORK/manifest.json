@@ -1,0 +1,25 @@
+{
+  "base": "e8dbe095901b6e2deb424f8c891316859f2fcf64",
+  "files": [
+    {
+      "path": "runtime/rust/src/expr_error/cold_state.rs",
+      "before_sha256": "f33099643571e9a9310b2af989f159bd5ec4c480cdbd13ef46a6b35dec94c0e1",
+      "after_sha256": "94a4bec3c1a1a73f4b4fa927beda34b8671fa2673ea294fcd3ec7db50d65c321",
+      "before_file": "/workspace/naming-proof-storage/vm-cold-state-test-getter-cfg-v1/WORK/before/runtime/rust/src/expr_error/cold_state.rs",
+      "after_file": "/workspace/naming-proof-storage/vm-cold-state-test-getter-cfg-v1/WORK/after/runtime/rust/src/expr_error/cold_state.rs",
+      "mode": "100644"
+    }
+  ],
+  "patch_sha256": "191060f1aa93bc6d09e89f9f06aaf20a4cb241faac95ef5e4ebd105445b01782",
+  "caller_census": [
+    "e8dbe095901b6e2deb424f8c891316859f2fcf64:runtime/rust/src/expr.rs:1819:                .retained_command_error()",
+    "e8dbe095901b6e2deb424f8c891316859f2fcf64:runtime/rust/src/expr_error/cold_state.rs:39:    pub(crate) fn retained_command_error(&self) -> Option<&tcl_cmd_core::CmdError> {",
+    "e8dbe095901b6e2deb424f8c891316859f2fcf64:runtime/rust/src/expr_float_tests.rs:23:            .retained_command_error()"
+  ],
+  "caller_cfg_source_pins": {
+    "runtime/rust/src/lib.rs": "078afbea5078288188fb63ec1823e1d2c1c009284902643f128c510346400bd9",
+    "runtime/rust/src/expr.rs": "9b94590b4bfb1b53dda8dbfac66a1d9db4ceabf07c517859c7c634c279a96ff1",
+    "runtime/rust/src/expr_float_tests.rs": "d5673e4e485c2446907fc2bb54b101fb48571dbcd4fd5433411e4f832c6ccd86"
+  },
+  "scope": "Private test-only getter exists exactly where its two existing callers compile: outer expr module have_tommath and nested test/float_error tests. No assertions/test functions/production fields or semantics changed; no allow/MSRV/publicAPI change. Actual NoTom/fullTom retry UNRUN."
+}

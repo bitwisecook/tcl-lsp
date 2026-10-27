@@ -1,0 +1,17 @@
+{
+  "lanes": {
+    "WORK": {
+      "manifest_sha256": "f2d9ffa4dea372a4ae3c68b000d300fd0bb40e0bf2afd77de1bb518a2c82f816",
+      "base": "e8dbe095901b6e2deb424f8c891316859f2fcf64",
+      "patch_sha256": "191060f1aa93bc6d09e89f9f06aaf20a4cb241faac95ef5e4ebd105445b01782"
+    },
+    "CLEAN": {
+      "manifest_sha256": "02fb828a232af625c62a4816a32b4737b104cf5479079a13ff1b3e6c8f9bb754",
+      "base": "85da3befa98c5f96edab7ec9607de110a7ae9600",
+      "patch_sha256": "191060f1aa93bc6d09e89f9f06aaf20a4cb241faac95ef5e4ebd105445b01782"
+    }
+  },
+  "inverse": "One attribute replacement; full oldmodule byte inverse exact",
+  "rustfmt": "1.99.1 edition2021 skip_children=true",
+  "actual": "UNRUN"
+}

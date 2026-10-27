@@ -1,0 +1,7 @@
+{
+  "CLEAN_directory": "/workspace/naming-proof-storage/names-clean-observer-erasure-helper-lints-v1/CLEAN",
+  "CLEAN_manifest_sha256": "8c26b6ea551bca435ad89d7c86730331178591a097df9d134e46fe325275c1c0",
+  "patch_sha256": "774c96edde456da3838d4fcec05db338cbbcf7e590261e5b0924b1b1c676cec2",
+  "WORK_change": "NONE, diagnostics require original bindings",
+  "actual_Clippy": "UNRUN"
+}

@@ -1,0 +1,9 @@
+# Eglot comment/report correction — CLEAR
+
+**CLEAR for the paired combined patch** `5fa1a533a0cea27cb7ae594ad515477b9f94ee3725646c94fef8bbc0e96170bd`, exact WORK manifest `5a5ab30fca0f707e14d033e97cd84567137de2139f38e4850795e5f63d284e5e` and CLEAN manifest `b9bce0dcc37c717acdbf0b20471a7066a041e82c0ed0f6666cf14ac2d3e3b407`. Current preimages/modes, every hunk, after hashes and both component composition orders independently verified; paired afterimages are identical. Root applies reporting behavior on WORK first, then carries the reviewed counterpart.
+
+The experiment changes only its heading and final pure reporting/classification expression. Complete collection functions, fixtures, both measured runs, every timing/mean/accumulation metric, both stress arms and stress output, ordering and exit0 remain exact. Accumulation values removed from the duplicated final RESULT line remain printed by unchanged per-arm reports. The option is inert; observed variation between these runs cannot prove compat causality. The new measurement-only notice fixes that unsupported claim without hiding measurements.
+
+The corrected harness comment now explicitly preserves its existing delta gate and failing exit status. All test executable forms, delta assertions, any-fail logic, #333 xfail markers and exit codes remain exact. Older diagnostic-only gate prose remains rejected. No scheduling narrative waives an actual failure.
+
+No Emacs, byte compiler, scripts, builds or repository tests were run. Root corrected the earlier scope interpretation: AGENTS requires make test-emacs for editors/emacs changes, so these script-only comment/report edits do not create an additional mandatory Emacs gate. Existing required host checks and release gates remain. The drafted extra hosted transport is held incomplete and must not be integrated. No canonical source/index changes were made.

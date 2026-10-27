@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-26T23:25:28.932866+00:00",
+  "verdict": "CLEAR minimal private-field owner projection repair",
+  "manifest_sha256": "5b5a076818ff130946856d2f7105048eb085219a93a9428b40942a58c0a58cd4",
+  "checks": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "actual_current_fixed_Git": true,
+      "F_R_F0": true,
+      "fmt2024": true,
+      "entire_module_projection_erasure_or_expansion": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "actual_current_fixed_Git": true,
+      "F_R_F0": true,
+      "fmt2024": true,
+      "entire_module_projection_erasure_or_expansion": true
+    }
+  ],
+  "reasoning": "SourceInvocationBinding.dispatch_site remains private Option<CommandAllocationSite>; its existing site.source is Arc<SourceOriginId>, so Arc::as_ptr yields exactly Option<*const SourceOriginId>. New crate-private shared-borrow projection runs only at the unchanged admitted log branch, returning a process-local address without clone/retain/deref or source/lookup/currentness authority. Binding borrow holds the existing owner throughout formatting. Entire both modules restore the old projection byte-for-byte; no field visibility widening, semantic lookup/query/selection/guard/cap/output change.",
+  "limits": [
+    "Actual Rust/Clippy/diagnostic coordinates UNRUN. Prior witness review missed the sibling private-field access; this static API correction is not a claimed typecheck or semantic efficacy result."
+  ]
+}

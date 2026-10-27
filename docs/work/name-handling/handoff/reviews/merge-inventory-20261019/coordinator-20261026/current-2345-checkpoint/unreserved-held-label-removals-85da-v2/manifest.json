@@ -1,0 +1,253 @@
+{
+  "status": "OFF_TREE_REMOVE_UNRESERVED_OBSOLETE_COMMENT_LABELS",
+  "base_commit": "85da3befa98c5f96edab7ec9607de110a7ae9600",
+  "scope": "Remove only standalone ordinary Rust source comments that are unresolved naming.* development labels. Scope is limited to files their owners reported unreserved. Keep all code, tests, assertions, source-analysis semantics and fixtures. No canonical edits.",
+  "counts": {
+    "files": 10,
+    "removed_label_comments": 132,
+    "added_lines": 0,
+    "rustfmt_afterimages": "1.99.1, edition 2021 for runtime and 2024 for workspace sources, skip_children=true",
+    "noncomment_tokens_and_literals": "Pygments RustLexer equality for each full source file"
+  },
+  "files": [
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "mode": "100644",
+      "git_blob": "5b4d72a36f817ed5cbfe2710a050767608f879b6",
+      "before_sha256": "ea84f3a536faa273766a0730a44fbbad034adad2f231fd784392875a532fb0e8",
+      "removed_label_comments": 12,
+      "deleted_lines": [
+        952,
+        2789,
+        9775,
+        9832,
+        10354,
+        10954,
+        11025,
+        11051,
+        11865,
+        11899,
+        11937,
+        12002
+      ],
+      "after_sha256": "6f4adde2b37689e85d3654dca0b78c42adcbbde014031425ec384bc60717ae70"
+    },
+    {
+      "path": "runtime/rust/src/cmd_var.rs",
+      "mode": "100644",
+      "git_blob": "ef28189e4aa27cacbbc9f9b8820ea26214b794c2",
+      "before_sha256": "6bac9c140b5d4d6b1468c750b6bf129f5c09dd11e59f2a13b517f8357c9c2194",
+      "removed_label_comments": 3,
+      "deleted_lines": [
+        1048,
+        1144,
+        1211
+      ],
+      "after_sha256": "1c70c55c8c088a62d6b62fbe4fd8a974bb787922e2d0795d7975c31611319de6"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "mode": "100644",
+      "git_blob": "88e8729eac8eec2c82e676a8c2091e183552c215",
+      "before_sha256": "4e8d3f5ad1ca439010f79e8844eb7eaf2d185e60c05fb4be747de6ef9990e48a",
+      "removed_label_comments": 10,
+      "deleted_lines": [
+        1416,
+        1466,
+        1576,
+        1640,
+        1823,
+        1901,
+        1953,
+        2005,
+        2056,
+        2085
+      ],
+      "after_sha256": "22dd0dd35705fa88ae6116b1192a0f694145a592d7e8dff37c79077090e26474"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_return_instruction.rs",
+      "mode": "100644",
+      "git_blob": "c085cf594e5eac0b0200de2a2b40a134cb45373d",
+      "before_sha256": "23222cec9e838ccb9abd95d4a904748089051e4299f53b0379dfdfcd41cc102e",
+      "removed_label_comments": 9,
+      "deleted_lines": [
+        1041,
+        1102,
+        1208,
+        1289,
+        1364,
+        1411,
+        1480,
+        1582,
+        1663
+      ],
+      "after_sha256": "e01f7ea83bce5aee60b211e5677d051bb140e0412ae0daa9a57de256069099b7"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_script.rs",
+      "mode": "100644",
+      "git_blob": "b18bad9f66bde2909add05377414152a432bf903",
+      "before_sha256": "06b296260ce77c0baa3ae197f98314ede5ada96507f56d8f83d23282269c0fd7",
+      "removed_label_comments": 7,
+      "deleted_lines": [
+        410,
+        453,
+        549,
+        727,
+        773,
+        810,
+        833
+      ],
+      "after_sha256": "2773e792cac142c18b3fd9e5a951baa627407268b99ef7a6ef1d8834fa76d8c9"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "mode": "100644",
+      "git_blob": "c0c791c7e9619827b24c153b1e7f5770cd7642ca",
+      "before_sha256": "8563e40cd9300d281cbfa55f44327a00a67344c6b7a0df33f689cfead4dbb5af",
+      "removed_label_comments": 6,
+      "deleted_lines": [
+        3373,
+        3429,
+        3535,
+        3595,
+        5400,
+        5463
+      ],
+      "after_sha256": "07c9e01416d9e095a5a9810d9989775ca9322292ea3466213deb05bf78f750d8"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_variable_teardown.rs",
+      "mode": "100644",
+      "git_blob": "dfae4b483a58c55fa1893e5f171b4fdf6c189133",
+      "before_sha256": "f56c28b6aa289a885705574aaaba48de5ae8fd859e81ea495476b27419861393",
+      "removed_label_comments": 13,
+      "deleted_lines": [
+        181,
+        449,
+        487,
+        501,
+        514,
+        526,
+        540,
+        572,
+        665,
+        679,
+        693,
+        695,
+        710
+      ],
+      "after_sha256": "7435e5a1d435d641bb8ec0a7dfaeabdc7b9a35cf4f47ce15487efb8cee1f3320"
+    },
+    {
+      "path": "runtime/rust/src/interp/stock_ensembles/retirement_tests.rs",
+      "mode": "100644",
+      "git_blob": "1ba15ee8c17cfb8fe7f3d8f0ff37b41518b5c6c9",
+      "before_sha256": "195b0baa1852d441ba5a6c1358a53e9f6959f5cf5af4e8149754a59a40c0fe78",
+      "removed_label_comments": 3,
+      "deleted_lines": [
+        152,
+        205,
+        242
+      ],
+      "after_sha256": "b2e279788a698cd860bf4bc2cad166cd83d5549fac79c8cb04194e494e335933"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_procedure.rs",
+      "mode": "100644",
+      "git_blob": "5eaadb04b984bea02f63fc2d9a4f068ed84ceb21",
+      "before_sha256": "0bffbcb683e0277d6dbbfad9a42c192ef93d3c8e1fa4eac2c1cc7ec13bf1817a",
+      "removed_label_comments": 1,
+      "deleted_lines": [
+        1480
+      ],
+      "after_sha256": "3c25ec09f1ca371420bbdc9ba7d45b42a465294a75b6922f62193858616469ec"
+    },
+    {
+      "path": "rust/tcl-registry/src/resolved_invocation.rs",
+      "mode": "100644",
+      "git_blob": "52863a8e48dc084c0acb6a5bda891e4817c5d1ca",
+      "before_sha256": "132fb15d5a4d6393910d5ebb65a46c0a3555ed7c753a952e806c015e6fff762a",
+      "removed_label_comments": 68,
+      "deleted_lines": [
+        731,
+        3063,
+        3541,
+        3750,
+        3837,
+        3947,
+        3964,
+        4218,
+        4488,
+        4523,
+        4620,
+        4677,
+        4736,
+        4813,
+        4939,
+        5119,
+        5214,
+        5230,
+        5359,
+        5490,
+        5560,
+        5581,
+        5617,
+        5844,
+        5978,
+        6013,
+        6093,
+        6975,
+        7019,
+        7049,
+        7122,
+        7165,
+        7233,
+        7323,
+        7379,
+        7477,
+        7541,
+        7646,
+        7705,
+        7755,
+        7797,
+        7865,
+        7921,
+        7974,
+        7996,
+        8436,
+        8476,
+        8545,
+        8822,
+        8909,
+        8983,
+        9064,
+        9138,
+        9196,
+        9407,
+        11436,
+        11509,
+        11585,
+        11699,
+        11817,
+        11861,
+        11904,
+        11966,
+        12064,
+        12145,
+        12652,
+        12687,
+        12714
+      ],
+      "after_sha256": "f356f3c244f7ffedec44fab0e2c04314d01f744ba7187720ba852716f86f00fe"
+    }
+  ],
+  "holds_excluded": [
+    "runtime/rust/src/interp.rs (Runtime V2 active)",
+    "runtime/rust/tests/data/native_original_index_range635/software_controls.rs (required fixture provenance)",
+    "runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs (required fixture provenance)",
+    "all active compiler/nativeemit and LSP-owned paths"
+  ],
+  "limits": "No Cargo build/tests/dispatch. No public API or native/runtime behavior changes. The source-location macro scan is exact Rust macro syntax; no line!(), column!(), or file!() call occurs in this packet."
+}

@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-26T23:23:59.035699+00:00",
+  "base": "a8e0cbe0a446f85996a434b5a6cb252285904c17",
+  "lane": "WORK-only; CLEAN observer absent and unchanged",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "578d811a84076a9f3e251e7a21a347ed2c6a7a9cf73fa0a02d8d5f8df3a5b295",
+      "after_sha256": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "44f6eae7648de64989b89aa95239e0a02e1f9593c45d2d624f6963331aa521f3",
+      "after_sha256": "e01a15481bc6744cec7a5cb5cefabd48b8dcc85ea618e7ae4b73ca18c5662d8c"
+    }
+  ],
+  "patch_sha256": "710bcffcdbd0f12b756b0ad51f287880860803b63b25df581fb0edc01667e182",
+  "scope": "Repair actual934c E0616 by moving identical borrowed private dispatch-site address projection into its defining SourceInvocationBinding impl. Crate-private diagnostic method only, no field visibility widening, semantic getter/lookup/new owner/query, output/cap/predicate/order or permission change. Actual Rust/Clippy unrun."
+}

@@ -1,0 +1,283 @@
+{
+  "utc": "2026-10-26T23:51:38.244441+00:00",
+  "files": [
+    {
+      "path": "vm-cached-increment-runtime-v2/manifest.json",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment-runtime-v2/manifest.json",
+      "sha256": "91bf8039e3a6e0db9c674a60d23dcc67d6b0462dd21a49d338d87f92987d5b70",
+      "bytes": 4938
+    },
+    {
+      "path": "vm-cached-increment-runtime-v2/source-proof.json",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment-runtime-v2/source-proof.json",
+      "sha256": "5da1ab9f4d4675c296259c1c7345ec4adb2b93101fa38bb2a3398d93b6839189",
+      "bytes": 6458
+    },
+    {
+      "path": "vm-cached-increment-runtime-v2/CLEAN/proposal.patch",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment-runtime-v2/CLEAN/proposal.patch",
+      "sha256": "7dc7eb9115b7047c20dc2ed36c597ded883a1892f9cd62fb973ab33a1e8c93fd",
+      "bytes": 20156
+    },
+    {
+      "path": "vm-cached-increment-runtime-v2/CLEAN/manifest.json",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment-runtime-v2/CLEAN/manifest.json",
+      "sha256": "b8720d9939dd2981d7f0d846dd8f2c71e6a4a2146a3db740dd645a7ecf640754",
+      "bytes": 2108
+    },
+    {
+      "path": "vm-cached-increment-runtime-v2/WORK/proposal.patch",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment-runtime-v2/WORK/proposal.patch",
+      "sha256": "d743b9155e6b5363dc19b605531f0c06909d60533a22ba7812caabe1af407bb6",
+      "bytes": 20283
+    },
+    {
+      "path": "vm-cached-increment-runtime-v2/WORK/manifest.json",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment-runtime-v2/WORK/manifest.json",
+      "sha256": "7e978a06fcfff4f6b8d6f4be6f77bd001e6608b167f57fabf453fd4c5a118178",
+      "bytes": 2108
+    },
+    {
+      "path": "compiler-peer-cached-increment-runtime-v2/receipt.json",
+      "source": "/workspace/naming-proof-storage/compiler-peer-cached-increment-runtime-v2/receipt.json",
+      "sha256": "cd214adb962ce89cd5ab110c6d78b7b407d0e2c8df0b204e23bea2c5fd1a0df0",
+      "bytes": 5810
+    },
+    {
+      "path": "ccg-peer-cached-increment-runtime-v2/receipt.json",
+      "source": "/workspace/naming-proof-storage/ccg-peer-cached-increment-runtime-v2/receipt.json",
+      "sha256": "e4dea09f955ce336b8bc551ba1a45cb8353c7a5b596f6d294fe4f137c78ffbd1",
+      "bytes": 1868
+    },
+    {
+      "path": "vm-cached-increment3-runtime-protocol-work-v1/proposal.patch",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment3-runtime-protocol-work-v1/proposal.patch",
+      "sha256": "f837aa4d1efb5ea50bfeebffa31df7f94b8ba06c28e75376b3f024627471df45",
+      "bytes": 13090
+    },
+    {
+      "path": "vm-cached-increment3-runtime-protocol-work-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment3-runtime-protocol-work-v1/manifest.json",
+      "sha256": "68549a0bdf45849d7844726b2607ee7034847343d3fd66945c9507a9b9c250de",
+      "bytes": 3026
+    },
+    {
+      "path": "vm-cached-increment3-runtime-protocol-work-v1/source-proof.json",
+      "source": "/workspace/naming-proof-storage/vm-cached-increment3-runtime-protocol-work-v1/source-proof.json",
+      "sha256": "d7c60de7f59bdbb753eddac146c99eacba180399b27bdb8a450063056cbda9d4",
+      "bytes": 554
+    },
+    {
+      "path": "compiler-peer-cached-increment3-protocol-v1/receipt.json",
+      "source": "/workspace/naming-proof-storage/compiler-peer-cached-increment3-protocol-v1/receipt.json",
+      "sha256": "9a1a3e0b8159c6ccdf91f6ecd651843b7d682a7cb822cce1f9ab40f5b4405461",
+      "bytes": 1783
+    },
+    {
+      "path": "lsp-source-cut-observer-private-access-work-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/lsp-source-cut-observer-private-access-work-v1/manifest.json",
+      "sha256": "5b5a076818ff130946856d2f7105048eb085219a93a9428b40942a58c0a58cd4",
+      "bytes": 1121
+    },
+    {
+      "path": "lsp-source-cut-observer-private-access-work-v1/author-proof.json",
+      "source": "/workspace/naming-proof-storage/lsp-source-cut-observer-private-access-work-v1/author-proof.json",
+      "sha256": "9639c498602ddcdcd5e4d50684a469d83dfd8518ac7eabbb160e18399fff9014",
+      "bytes": 528
+    },
+    {
+      "path": "lsp-source-cut-observer-private-access-work-v1/WORK/proposal.patch",
+      "source": "/workspace/naming-proof-storage/lsp-source-cut-observer-private-access-work-v1/WORK/proposal.patch",
+      "sha256": "710bcffcdbd0f12b756b0ad51f287880860803b63b25df581fb0edc01667e182",
+      "bytes": 1249
+    },
+    {
+      "path": "compiler-peer-sourcecut-private-access-v1/receipt.json",
+      "source": "/workspace/naming-proof-storage/compiler-peer-sourcecut-private-access-v1/receipt.json",
+      "sha256": "40f10fdb5eef26f017b588c5f8b0bfc8817c3a321001dbb5f6052cdcb9617e38",
+      "bytes": 1506
+    },
+    {
+      "path": "ccg-final2dce-current25-pin-union-work-v1/proposal.patch",
+      "source": "/workspace/naming-proof-storage/ccg-final2dce-current25-pin-union-work-v1/proposal.patch",
+      "sha256": "824db0e535c52792f0fae60d34e2dcad57c96a0ea5632b1e75b8917a4f2cb3ee",
+      "bytes": 24229
+    },
+    {
+      "path": "ccg-final2dce-current25-pin-union-work-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/ccg-final2dce-current25-pin-union-work-v1/manifest.json",
+      "sha256": "3b5f4ddcfff1d2d9e71d87bd233b58694d9446e0912aecfd0d0945f70fc5da39",
+      "bytes": 35697
+    },
+    {
+      "path": "compiler-peer-final2dce-current25-pin-union-v1/receipt.json",
+      "source": "/workspace/naming-proof-storage/compiler-peer-final2dce-current25-pin-union-v1/receipt.json",
+      "sha256": "7328fa794d186f0a6d9cf3d98e48e3716ad4c286ceb4e79257fcaddcce302de1",
+      "bytes": 21411
+    },
+    {
+      "path": "vm-cold-state-test-getter-cfg-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/vm-cold-state-test-getter-cfg-v1/manifest.json",
+      "sha256": "ba8f498da399ea0d42a842870e62500e000d1c3b5d837452046ee7cd6f4bd986",
+      "bytes": 695
+    },
+    {
+      "path": "vm-cold-state-test-getter-cfg-v1/CLEAN/proposal.patch",
+      "source": "/workspace/naming-proof-storage/vm-cold-state-test-getter-cfg-v1/CLEAN/proposal.patch",
+      "sha256": "191060f1aa93bc6d09e89f9f06aaf20a4cb241faac95ef5e4ebd105445b01782",
+      "bytes": 383
+    },
+    {
+      "path": "vm-cold-state-test-getter-cfg-v1/CLEAN/manifest.json",
+      "source": "/workspace/naming-proof-storage/vm-cold-state-test-getter-cfg-v1/CLEAN/manifest.json",
+      "sha256": "02fb828a232af625c62a4816a32b4737b104cf5479079a13ff1b3e6c8f9bb754",
+      "bytes": 1811
+    },
+    {
+      "path": "vm-cold-state-test-getter-cfg-v1/WORK/proposal.patch",
+      "source": "/workspace/naming-proof-storage/vm-cold-state-test-getter-cfg-v1/WORK/proposal.patch",
+      "sha256": "191060f1aa93bc6d09e89f9f06aaf20a4cb241faac95ef5e4ebd105445b01782",
+      "bytes": 383
+    },
+    {
+      "path": "vm-cold-state-test-getter-cfg-v1/WORK/manifest.json",
+      "source": "/workspace/naming-proof-storage/vm-cold-state-test-getter-cfg-v1/WORK/manifest.json",
+      "sha256": "f2d9ffa4dea372a4ae3c68b000d300fd0bb40e0bf2afd77de1bb518a2c82f816",
+      "bytes": 1809
+    },
+    {
+      "path": "compiler-peer-cold-state-getter-cfg-v1/receipt.json",
+      "source": "/workspace/naming-proof-storage/compiler-peer-cold-state-getter-cfg-v1/receipt.json",
+      "sha256": "71523bea2e6e8afc2acdfb3ab32c11b200e26deb48921fb45a5b756fc23e3aba",
+      "bytes": 1281
+    },
+    {
+      "path": "names-clean-observer-erasure-helper-lints-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/names-clean-observer-erasure-helper-lints-v1/manifest.json",
+      "sha256": "6e0471b5c7fe0f6de091841aa8f58a6cb43982f05a18c623bf3c56fce36e4ec5",
+      "bytes": 383
+    },
+    {
+      "path": "names-clean-observer-erasure-helper-lints-v1/CLEAN/proposal.patch",
+      "source": "/workspace/naming-proof-storage/names-clean-observer-erasure-helper-lints-v1/CLEAN/proposal.patch",
+      "sha256": "774c96edde456da3838d4fcec05db338cbbcf7e590261e5b0924b1b1c676cec2",
+      "bytes": 1598
+    },
+    {
+      "path": "names-clean-observer-erasure-helper-lints-v1/CLEAN/manifest.json",
+      "source": "/workspace/naming-proof-storage/names-clean-observer-erasure-helper-lints-v1/CLEAN/manifest.json",
+      "sha256": "8c26b6ea551bca435ad89d7c86730331178591a097df9d134e46fe325275c1c0",
+      "bytes": 2494
+    },
+    {
+      "path": "ccg-peer-clean-helper-lint3-v1/receipt.json",
+      "source": "/workspace/naming-proof-storage/ccg-peer-clean-helper-lint3-v1/receipt.json",
+      "sha256": "ce52ee2494a82adb793a4bbc68ecc62e05b3be5d5b2a303f28f54dbadc8e4e48",
+      "bytes": 1901
+    },
+    {
+      "path": "unreserved-held-label-removals-85da-v2/proposal.patch",
+      "source": "/workspace/naming-proof-storage/unreserved-held-label-removals-85da-v2/proposal.patch",
+      "sha256": "44324c472605e3dd1874ca2fd1359aa3870098f3b3dedf4c9710e16479be81f6",
+      "bytes": 54861
+    },
+    {
+      "path": "unreserved-held-label-removals-85da-v2/manifest.json",
+      "source": "/workspace/naming-proof-storage/unreserved-held-label-removals-85da-v2/manifest.json",
+      "sha256": "6593612cd89e806d331e52a6a62f15ecf085928cbd98d2d3ced311078e103138",
+      "bytes": 7239
+    },
+    {
+      "path": "runtime-peer-unreserved-held-label8-v2/receipt.json",
+      "source": "/workspace/naming-proof-storage/runtime-peer-unreserved-held-label8-v2/receipt.json",
+      "sha256": "00eb95cf3d9938cbc76ba557b37e280cc19c9050cc5d1ad0a15e4dce57098161",
+      "bytes": 4308
+    },
+    {
+      "path": "compiler-peer-registry-label-removals-v2/receipt.json",
+      "source": "/workspace/naming-proof-storage/compiler-peer-registry-label-removals-v2/receipt.json",
+      "sha256": "44ec97f7e7ac5a7f5ca452e8bea504c2282bf25fdb5d68553f78065a639b244e",
+      "bytes": 1768
+    },
+    {
+      "path": "lsp-held-label-replacements-85da-v3/proposal.patch",
+      "source": "/workspace/naming-proof-storage/lsp-held-label-replacements-85da-v3/proposal.patch",
+      "sha256": "7d8229b67eb2a1444ca7376bae4546b0a5a148419720be83ab621e4bf4df33d6",
+      "bytes": 20489
+    },
+    {
+      "path": "lsp-held-label-replacements-85da-v3/manifest.json",
+      "source": "/workspace/naming-proof-storage/lsp-held-label-replacements-85da-v3/manifest.json",
+      "sha256": "5f3f843bbf5b09aa7a12ed3d23a47d4046397c670fa526c4548c1827c170398a",
+      "bytes": 2296
+    },
+    {
+      "path": "eglot-combined-work-e8dbe-v1/proposal.patch",
+      "source": "/workspace/naming-proof-storage/eglot-combined-work-e8dbe-v1/proposal.patch",
+      "sha256": "5fa1a533a0cea27cb7ae594ad515477b9f94ee3725646c94fef8bbc0e96170bd",
+      "bytes": 3390
+    },
+    {
+      "path": "eglot-combined-work-e8dbe-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/eglot-combined-work-e8dbe-v1/manifest.json",
+      "sha256": "5a5ab30fca0f707e14d033e97cd84567137de2139f38e4850795e5f63d284e5e",
+      "bytes": 1699
+    },
+    {
+      "path": "eglot-combined-clean-c95b8-v1/proposal.patch",
+      "source": "/workspace/naming-proof-storage/eglot-combined-clean-c95b8-v1/proposal.patch",
+      "sha256": "5fa1a533a0cea27cb7ae594ad515477b9f94ee3725646c94fef8bbc0e96170bd",
+      "bytes": 3390
+    },
+    {
+      "path": "eglot-combined-clean-c95b8-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/eglot-combined-clean-c95b8-v1/manifest.json",
+      "sha256": "b9bce0dcc37c717acdbf0b20471a7066a041e82c0ed0f6666cf14ac2d3e3b407",
+      "bytes": 1700
+    },
+    {
+      "path": "peer-eglot-reporting-scope-current-v1/receipt.json",
+      "source": "/workspace/naming-proof-storage/peer-eglot-reporting-scope-current-v1/receipt.json",
+      "sha256": "0c5f8b5dd0ccf5ab5a5172b3801bb87b09eec2360ae5dfdaa91c0b0371a633f6",
+      "bytes": 5609
+    },
+    {
+      "path": "peer-eglot-reporting-scope-current-v1/REPORT.md",
+      "source": "/workspace/naming-proof-storage/peer-eglot-reporting-scope-current-v1/REPORT.md",
+      "sha256": "dc187511db54ae9e49ff374a6f98630e3e456d8ffbd5865d9cccc0ee34d96d99",
+      "bytes": 1882
+    },
+    {
+      "path": "peer-eglot-reporting-scope-current-v1/manifest.json",
+      "source": "/workspace/naming-proof-storage/peer-eglot-reporting-scope-current-v1/manifest.json",
+      "sha256": "9053b77f0849b4838cd1a2cdd3ce18ea57dcb23995e406addf1c21459ac2f743",
+      "bytes": 387
+    },
+    {
+      "path": "root-b970-cached-increment-child-scope-approval.json",
+      "source": "/workspace/naming-proof-storage/root-b970-cached-increment-child-scope-approval.json",
+      "sha256": "8aea2a1440b595e7ebff807ccda83a00e261e230ad358596874eeb146c058f9b",
+      "bytes": 822
+    },
+    {
+      "path": "root-final2dce-union-json-ast-audit.json",
+      "source": "/workspace/naming-proof-storage/root-final2dce-union-json-ast-audit.json",
+      "sha256": "ead8231d72e399d852fbe63d5e81573a7e206f429c7189a073bd931bd1c79734",
+      "bytes": 1473
+    },
+    {
+      "path": "root-nexte8db-source-preflight-v16.json",
+      "source": "/workspace/naming-proof-storage/root-nexte8db-source-preflight-v16.json",
+      "sha256": "9b7add77a47b2d06c7c9b4a3310fb81802b797a8c98b2b4770a7e092054621c4",
+      "bytes": 22829
+    },
+    {
+      "path": "root-nexte8db-all-posts-complete.json",
+      "source": "/workspace/naming-proof-storage/root-nexte8db-all-posts-complete.json",
+      "sha256": "9042efd74b9d9466c21861f5ea327834a46360dab9011aa999dcc84d4e4e7681",
+      "bytes": 1009
+    }
+  ],
+  "bytes": 315812,
+  "scope": "Small reviewed source/validation protocol receipts only, WORK-only durable copies; no binary/ZIP payload and no release acceptance."
+}
