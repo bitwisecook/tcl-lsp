@@ -743,26 +743,24 @@ pub struct VarTable {
 }
 
 impl VarTable {
-    pub(crate) fn cached_increment_scalar_matches(
+    pub(crate) fn cached_increment_scalar_identity(
         &self,
         name: &[u8],
         expected: *mut TclObj,
-    ) -> bool {
-        let Some(slot) = self.slots.get(name) else {
-            return false;
-        };
-        let Some(cell) = self.cells.get(*slot) else {
-            return false;
-        };
-        let Ok(contents) = cell.contents.try_borrow() else {
-            return false;
-        };
-        contents.check_owned_value_role().is_ok()
-            && contents.operation_refs == 0
-            && contents.native_alias_refs == 0
-            && contents.rmw_refs == 0
-            && !contents.constant
-            && matches!(contents.var.as_ref(), Some(Var::Scalar(pointer)) if *pointer == expected)
+    ) -> Option<VarId> {
+        let slot = self.slots.get(name)?;
+        let cell = self.cells.get(*slot)?;
+        let contents = cell.contents.try_borrow().ok()?;
+        if contents.check_owned_value_role().is_err()
+            || contents.operation_refs != 0
+            || contents.native_alias_refs != 0
+            || contents.rmw_refs != 0
+            || contents.constant
+            || !matches!(contents.var.as_ref(), Some(Var::Scalar(pointer)) if *pointer == expected)
+        {
+            return None;
+        }
+        contents.binding_id
     }
 
     pub(crate) fn prepare_original_alias(

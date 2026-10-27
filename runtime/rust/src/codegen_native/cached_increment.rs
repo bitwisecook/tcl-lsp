@@ -117,6 +117,37 @@ mod tests {
         unsafe { tcl_codegen_try_cached_incr(b"a".as_ptr(), 1, expected, delta, old, sum, out) }
     }
 
+    fn assert_hidden_callback_declines(interp: &mut Interp, delta: *mut TclObj) {
+        for name in [b"errorInfo".as_slice(), b"errorCode".as_slice()] {
+            let expected = Owned::fresh(obj::new_wide_int_obj(1));
+            interp.var_set(name, expected.as_ptr()).unwrap();
+            assert!(matches!(
+                obj::native_scalar_cache(expected.as_ptr()).unwrap(),
+                Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                    tcl_syntax::number::Number::Int(1)
+                ))
+            ));
+            let mut out = expected.as_ptr();
+            assert_eq!(
+                unsafe {
+                    tcl_codegen_try_cached_incr(
+                        name.as_ptr(),
+                        name.len() as i32,
+                        expected.as_ptr(),
+                        delta,
+                        1,
+                        2,
+                        &mut out,
+                    )
+                },
+                0
+            );
+            assert_eq!(out, expected.as_ptr());
+            assert_eq!(obj::wide_of(expected.as_ptr()), 1);
+            assert_eq!(interp.native_execution_refusal(), None);
+        }
+    }
+
     #[test]
     fn cached_increment_runs_original_cow_and_keeps_the_held_input() {
         let mut interp = native();
@@ -135,6 +166,7 @@ mod tests {
         assert_eq!(obj::wide_of(expected.as_ptr()), 1);
         assert_ne!(interp.var_get(b"a"), Some(expected.as_ptr()));
         assert_eq!(interp.native_execution_refusal(), None);
+        assert_hidden_callback_declines(&mut interp, delta.as_ptr());
     }
 
     #[test]
