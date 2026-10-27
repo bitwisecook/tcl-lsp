@@ -62,6 +62,7 @@ use super::types::{
     MetaclassProvenance, ProcDef,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
+use crate::registry_invocation::{load_trace_flag, load_trace_option};
 use tcl_dialect::model::SpecSurface;
 
 struct ResolvedProcedureReportingName {
@@ -11741,14 +11742,17 @@ impl Analyser {
                 },
             )
         });
-        let original_project_source_load = (current_interpreter_scope
-            && self.interp_path_stack.is_empty()
-            && self.safe_interp_stack.is_empty())
+        let original_project_source_load = (load_trace_flag(
+            "eligible.scope", None, current_interpreter_scope,
+        ) && load_trace_flag("eligible.interpreter-stack", None, self.interp_path_stack.is_empty())
+            && load_trace_flag("eligible.safe-stack", None, self.safe_interp_stack.is_empty()))
         .then(|| {
-            crate::registry_invocation::source_structure::capture_original_project_source_load_at(
-                &self.source,
-                &self.result,
-                cmd_tok.span.start(),
+            load_trace_option("capture", None,
+                crate::registry_invocation::source_structure::capture_original_project_source_load_at(
+                    &self.source,
+                    &self.result,
+                    cmd_tok.span.start(),
+                ),
             )
         })
         .flatten()
@@ -11771,8 +11775,13 @@ impl Analyser {
             return;
         }
         let st = arg_tokens[file_idx];
-        let original_project_source_load = original_project_source_load
-            .filter(|load| load.path_word().is_some_and(|path| path.span() == st.span));
+        let original_project_source_load = original_project_source_load.filter(|load| {
+            load_trace_flag(
+                "path-span",
+                None,
+                load.path_word().is_some_and(|path| path.span() == st.span),
+            )
+        });
         let path = &args[file_idx];
         let is_single = arg_single.get(file_idx).copied().unwrap_or(false);
         // A dynamic path — a bare `$var` or a concatenation like

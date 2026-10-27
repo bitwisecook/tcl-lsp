@@ -12,6 +12,7 @@ pub use frontier::{
 
 use super::{OriginalRegistryWords, source_registry_words_at};
 use crate::analyser::{AnalysisResult, ResolvedAnalysisInput};
+use crate::registry_invocation::{load_trace_flag, load_trace_option};
 
 /// One original source-load path under a retained current-interpreter schema.
 /// This is project association advice, without file existence, working-directory
@@ -188,36 +189,62 @@ pub(crate) fn capture_original_project_source_load_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<OriginalProjectSourceLoad> {
-    let input = analysis.resolved_input.as_ref()?;
+    let input = load_trace_option("input", Some(offset), analysis.resolved_input.as_ref())?;
     let image = tcl_lexer::SourceImage::document(source);
-    if !analysis.matches_original_source_image(&image, input.lexer_config()) {
+    if !load_trace_flag(
+        "image",
+        Some(offset),
+        analysis.matches_original_source_image(&image, input.lexer_config()),
+    ) {
         return None;
     }
-    let words = source_registry_words_at(source, analysis, offset)?;
+    let words = load_trace_option(
+        "words",
+        Some(offset),
+        source_registry_words_at(source, analysis, offset),
+    )?;
     let context = input.context_registry();
-    let path_at = words.with_source_schema(&context, |schema| {
-        if schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current {
-            return None;
-        }
-        let transitions = schema.state_transitions();
-        let mut paths = transitions
-            .facts()
-            .iter()
-            .filter_map(|fact| match &fact.transition {
-                tcl_registry::StateTransition::Package(
-                    tcl_registry::model::binding::PackageTransition::SourceLoad { path },
-                ) => path.argument_index(),
-                _ => None,
-            });
-        let first = paths.next()?;
-        paths.all(|path| path == first).then_some(first)
-    })??;
+    let path_at = load_trace_option(
+        "schema",
+        Some(offset),
+        words.with_source_schema(&context, |schema| {
+            if load_trace_flag(
+                "schema.not-current-interpreter",
+                Some(offset),
+                schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current,
+            ) {
+                return None;
+            }
+            let transitions = schema.state_transitions();
+            let mut paths = transitions
+                .facts()
+                .iter()
+                .filter_map(|fact| match &fact.transition {
+                    tcl_registry::StateTransition::Package(
+                        tcl_registry::model::binding::PackageTransition::SourceLoad { path },
+                    ) => path.argument_index(),
+                    _ => None,
+                });
+            let first = load_trace_option("path.first", Some(offset), paths.next())?;
+            load_trace_flag(
+                "path.unanimity",
+                Some(offset),
+                paths.all(|path| path == first),
+            )
+            .then_some(first)
+        }),
+    )??;
     let load = OriginalProjectSourceLoad {
         input: input.clone(),
         words,
         path_at,
     };
-    load.matches_source(&image, input).then_some(load)
+    load_trace_flag(
+        "final-source",
+        Some(offset),
+        load.matches_source(&image, input),
+    )
+    .then_some(load)
 }
 
 #[cfg(test)]
