@@ -177,6 +177,66 @@ macro_rules! n17_live_some {
     }};
 }
 
+/// One checked original fold whose selected implementation has not run.
+/// It carries the same canonical facts, retained argv and execution policy
+/// the ordinary fold would pass; evaluating it is the holder's decision and
+/// grants no execution or Native authority.
+#[derive(Debug, Clone)]
+pub struct SelectedConstFold {
+    /// Canonical facts of the selected invocation.
+    pub facts: tcl_registry::InvocationFacts,
+    /// Complete retained argv values, the command word(s) included.
+    pub values: Vec<String>,
+    /// Actual execution policy selected at invocation ingress.
+    pub dialect: tcl_registry::InvocationDialect,
+}
+
+impl SelectedConstFold {
+    /// The implementation's arguments: the retained argv after the command
+    /// (and subcommand) words.
+    #[must_use]
+    pub fn arguments(&self) -> Option<Vec<&str>> {
+        Some(
+            self.values
+                .get(self.facts.argument_offset..)?
+                .iter()
+                .map(String::as_str)
+                .collect(),
+        )
+    }
+
+    fn run_with(&self, spec: &CommandSpec) -> Option<String> {
+        let arguments = self.arguments()?;
+        n17_live_trace!(
+            "hook-call command={} argc={}",
+            self.facts.canonical_command,
+            arguments.len()
+        );
+        let answer = if spec.subcommands.is_empty() {
+            spec.run_const_fold_in(&arguments, self.dialect)
+        } else {
+            n17_live_some!(
+                spec.subcommand(n17_live_some!(
+                    self.facts.subcommand.canonical_name(),
+                    "fold-subcommand-name"
+                )?),
+                "fold-subcommand"
+            )?
+            .run_const_fold_in(&arguments, self.dialect)
+        };
+        n17_live_trace!("hook-return present={}", answer.is_some());
+        answer
+    }
+}
+
+enum RetainedFold<'r> {
+    Answered(String),
+    Selected {
+        spec: &'r CommandSpec,
+        request: SelectedConstFold,
+    },
+}
+
 #[cfg(debug_assertions)]
 fn trace_execution_refusal(
     binding: &crate::command_binding::SourceInvocationBinding,
@@ -201,7 +261,7 @@ fn trace_execution_refusal(
     );
 }
 
-impl ConstSubstCtx<'_> {
+impl<'a> ConstSubstCtx<'a> {
     /// Fold one original substitution using its retained execution identity and
     /// effective argv. Every nested result comes from the same complete source
     /// inventory; textual command trust is not used by this entry point.
@@ -214,6 +274,21 @@ impl ConstSubstCtx<'_> {
         self.fold_retained_at_depth(call, calls, 0, context)
     }
 
+    /// Select the same original substitution's fold without running the
+    /// selected outer implementation; nested argument folds still run here.
+    /// A frame-fact answer is not a request and selects nothing.
+    pub(crate) fn select_retained_call_with_metadata_context(
+        &self,
+        call: &crate::word_subst::LiftedCall,
+        calls: &[crate::word_subst::LiftedCall],
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) -> Option<SelectedConstFold> {
+        match self.select_retained_at_depth(call, calls, 0, context)? {
+            RetainedFold::Answered(_) => None,
+            RetainedFold::Selected { request, .. } => Some(request),
+        }
+    }
+
     fn fold_retained_at_depth(
         &self,
         call: &crate::word_subst::LiftedCall,
@@ -221,6 +296,19 @@ impl ConstSubstCtx<'_> {
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<String> {
+        match self.select_retained_at_depth(call, calls, depth, context)? {
+            RetainedFold::Answered(value) => Some(value),
+            RetainedFold::Selected { spec, request } => request.run_with(spec),
+        }
+    }
+
+    fn select_retained_at_depth(
+        &self,
+        call: &crate::word_subst::LiftedCall,
+        calls: &[crate::word_subst::LiftedCall],
+        depth: u32,
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) -> Option<RetainedFold<'a>> {
         n17_live_trace!("fold-entry span={:?} depth={depth}", call.span);
         if depth > MAX_CONST_SUBST_DEPTH {
             n17_live_trace!("decline=fold-depth");
@@ -285,31 +373,20 @@ impl ConstSubstCtx<'_> {
         if let Some(class) = self.defining_class
             && let Some(value) = oo_context_fact_fold(spec, &args, class)
         {
-            return Some(value);
+            return Some(RetainedFold::Answered(value));
         }
-        let arguments = n17_live_some!(
+        n17_live_some!(
             arg_refs.get(invocation.facts.argument_offset..),
             "fold-offset"
         )?;
-        n17_live_trace!(
-            "hook-call command={} argc={}",
-            invocation.facts.canonical_command,
-            arguments.len()
-        );
-        let answer = if spec.subcommands.is_empty() {
-            spec.run_const_fold_in(arguments, dialect)
-        } else {
-            n17_live_some!(
-                spec.subcommand(n17_live_some!(
-                    invocation.facts.subcommand.canonical_name(),
-                    "fold-subcommand-name"
-                )?),
-                "fold-subcommand"
-            )?
-            .run_const_fold_in(arguments, dialect)
-        };
-        n17_live_trace!("hook-return present={}", answer.is_some());
-        answer
+        Some(RetainedFold::Selected {
+            spec,
+            request: SelectedConstFold {
+                facts: *invocation.facts,
+                values: args,
+                dialect,
+            },
+        })
     }
 
     /// Original argument values whose evaluation has independently closed

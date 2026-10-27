@@ -268,6 +268,26 @@ mod controls {
     }
 
     #[test]
+    fn zz_probe_compiler_role_temporary() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = fixture(SOURCE, registry);
+        let dialect =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for fu in unit.functions().chain(unit.all_body_function_units().skip(1)) {
+            eprintln!("PROBE fu name={} body={:?} exec={:?}", fu.name, fu.body_id, fu.sccp.executable_blocks);
+            for (block, ssa) in &fu.ssa.blocks {
+                eprintln!("PROBE  block {block:?} entry={:?}", ssa.entry_versions);
+                for st in &ssa.statements {
+                    eprintln!("PROBE   stmt {:?} defs={:?} uses={:?}", st.statement, st.defs, st.uses);
+                }
+            }
+        }
+        let solved = crate::taint_interproc::solve_interprocedural_taints(&unit, registry, Some(dialect));
+        eprintln!("PROBE top_taints={:?}", solved.top_taints);
+        eprintln!("PROBE proc_taints={:?}", solved.proc_taints);
+    }
+
+    #[test]
     fn authored_formal_ordinals_keep_defaults_rest_and_missing_grammar_unavailable() {
         use tcl_syntax::formal_params::FormalByteArgumentBinding as Binding;
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();

@@ -16,6 +16,11 @@ use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::{CommandTokens, Statement, WordExpr};
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
 
+mod application;
+pub use application::{
+    MAX_APPLICATION_SOURCE_BYTES, SelectedApplicationFold, select_application_folds,
+};
+
 /// Maximum accepted UTF-8 source bytes.
 pub const MAX_CLOSED_SOURCE_BYTES: usize = 256;
 /// Existing shared source-walk stack budget required by the owning worker.

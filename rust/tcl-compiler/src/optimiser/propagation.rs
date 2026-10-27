@@ -1485,7 +1485,7 @@ fn walk_oo_statement(
     }
 }
 
-fn retained_substitution_calls(
+pub(crate) fn retained_substitution_calls(
     tokens: &CommandTokens,
     module: &crate::ir::Module,
     registry: &CommandRegistry,
@@ -1531,7 +1531,7 @@ fn retained_substitution_calls(
     )
 }
 
-fn retained_call_at(
+pub(crate) fn retained_call_at(
     calls: &[crate::word_subst::LiftedCall],
     start: u32,
 ) -> Option<&crate::word_subst::LiftedCall> {

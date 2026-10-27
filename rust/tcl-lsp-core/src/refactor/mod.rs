@@ -360,10 +360,18 @@ impl<'a> FrameWalk<'a> {
         source: &str,
         command: &SegmentedCommand,
     ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
+        self.structure_of_tokens(&self.tokens(source, command))
+    }
+
+    /// Structure of tokens already stamped for this walk's actual owner.
+    pub(crate) fn structure_of_tokens(
+        &self,
+        tokens: &tcl_compiler::ir::CommandTokens,
+    ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
         tcl_compiler::registry_invocation::original_structured_invocation_with_metadata_context(
             self.nesting,
             self.metadata_context()?,
-            &self.tokens(source, command),
+            tokens,
         )
     }
 

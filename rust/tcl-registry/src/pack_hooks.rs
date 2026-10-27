@@ -940,6 +940,13 @@ pub trait PackHookHost {
     /// Answer one hook invocation.
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer;
 
+    /// Dispatch every request through this receiver before consulting the shared
+    /// slot cache. An owning receiver uses this to check its one-shot request;
+    /// opting out of caching grants no execution or closed-consumer authority.
+    fn requires_uncached_dispatch(&self) -> bool {
+        false
+    }
+
     /// Whether `slot`'s hook can run on this host now: `false` once it is
     /// quarantined or its pack poisoned. A state of the host, never a
     /// verdict on any call's inputs.
@@ -1367,6 +1374,47 @@ fn ensure_host_with_installer(
     HOST.with(|slot| slot.borrow().clone())
 }
 
+/// Compare the actual current thread-local receiver without invoking the
+/// global lazy installer, a callback or a Native operation. Identity alone
+/// grants no closed-consumer permission and does not validate hook inputs.
+#[must_use]
+pub fn current_host_is(expected: &Rc<dyn PackHookHost>) -> bool {
+    HOST.try_with(|slot| {
+        slot.try_borrow().is_ok_and(|held| {
+            held.as_ref()
+                .is_some_and(|actual| Rc::ptr_eq(actual, expected))
+        })
+    })
+    .unwrap_or(false)
+}
+
+/// Retire only this exact current receiver. A changed/borrowed TLS slot is left
+/// untouched. The removed Rc is dropped after the TLS borrow ends.
+#[must_use]
+pub fn clear_current_host_if(expected: &Rc<dyn PackHookHost>) -> bool {
+    let removed = HOST
+        .try_with(|slot| {
+            let mut held = slot.try_borrow_mut().ok()?;
+            if !held
+                .as_ref()
+                .is_some_and(|actual| Rc::ptr_eq(actual, expected))
+            {
+                return None;
+            }
+            held.take()
+        })
+        .ok()
+        .flatten();
+    let Some(removed) = removed else {
+        return false;
+    };
+    clear_cache();
+    GENERATION.with(|current| current.set(EvaluatorGeneration::NO_HOST));
+    FROM_PLAN.with(|current| current.set(false));
+    drop(removed);
+    true
+}
+
 /// Whether this thread has a host installed.
 #[must_use]
 pub fn has_host() -> bool {
@@ -1647,6 +1695,9 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         n17_live_trace!("decline=dispatch-no-receiver slot={slot:?}");
         return HookAnswer::Abstain;
     };
+    if host.requires_uncached_dispatch() {
+        return host.invoke(slot, call);
+    }
     let mode = cache_mode(slot);
     let key = (mode != CacheMode::None)
         .then(|| shape_key(slot, call, mode))
@@ -2247,6 +2298,87 @@ mod tests {
             self.calls.set(self.calls.get() + 1);
             HookAnswer::Roles(vec![(0, ArgRole::VarWrite)])
         }
+    }
+
+    #[test]
+    fn owning_receiver_runs_before_shared_cache_and_ignores_global_slot_mode() {
+        struct UncachedHost(Cell<usize>);
+        impl PackHookHost for UncachedHost {
+            fn invoke(&self, _slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+                self.0.set(self.0.get() + 1);
+                HookAnswer::Fold(call.words[0].value.to_owned())
+            }
+            fn requires_uncached_dispatch(&self) -> bool {
+                true
+            }
+        }
+        std::thread::spawn(|| {
+            let slot = allocate(HookFamily::ConstFold, &HookInputs::parse(&["words"])).unwrap();
+            let fold = const_fold_fn(slot).unwrap();
+            install_host(Rc::new(FixedHost(HookAnswer::Fold("ordinary".into()))));
+            assert_eq!(fold(&["input"]), Some("ordinary".into()));
+            assert_eq!(fold(&["input"]), Some("ordinary".into()));
+            assert_eq!(cache_stats().hits, 1);
+            let actual = Rc::new(UncachedHost(Cell::new(0)));
+            install_host(actual.clone());
+            let words = literal_words(&["input"]);
+            let call = call_of(&words, None);
+            let key = shape_key(slot, &call, CacheMode::Content).unwrap();
+            SHAPE_CACHE.with(|cache| {
+                cache.borrow_mut().entries.insert(
+                    key,
+                    CacheEntry {
+                        content: CallContent::of(&call, CacheMode::Content),
+                        answer: HookAnswer::Fold("stale".into()),
+                    },
+                );
+            });
+            assert_eq!(fold(&["input"]), Some("input".into()));
+            std::thread::spawn(move || {
+                CACHE_MODE[slot.family.index()][usize::from(slot.index)]
+                    .store(CacheMode::Shape.as_u8(), Ordering::Relaxed);
+            })
+            .join()
+            .unwrap();
+            assert_eq!(fold(&["different"]), Some("different".into()));
+            assert_eq!(actual.0.get(), 2);
+            assert_eq!(cache_stats().hits, 0);
+            assert_eq!(cache_stats().misses, 0);
+            clear_host();
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn current_receiver_identity_refuses_generation_aba_and_preserves_foreign_host() {
+        std::thread::spawn(|| {
+            let first: Rc<dyn PackHookHost> = Rc::new(FixedHost(HookAnswer::Abstain));
+            let second: Rc<dyn PackHookHost> = Rc::new(FixedHost(HookAnswer::Abstain));
+            assert!(!current_host_is(&first));
+            install_host(Rc::clone(&first));
+            let first_generation = GENERATION.with(Cell::get);
+            assert!(current_host_is(&first));
+            install_host(Rc::clone(&second));
+            // Reproduce the observable equal-generation state after wrap;
+            // equality must never substitute for the actual Rc relation.
+            GENERATION.with(|generation| generation.set(first_generation));
+            assert!(!current_host_is(&first));
+            assert!(!clear_current_host_if(&first));
+            assert!(current_host_is(&second));
+            assert_eq!(GENERATION.with(Cell::get), first_generation);
+            HOST.with(|slot| {
+                let _borrowed = slot.borrow_mut();
+                assert!(!current_host_is(&second));
+                assert!(!clear_current_host_if(&second));
+            });
+            assert!(current_host_is(&second));
+            assert!(clear_current_host_if(&second));
+            assert!(!current_host_is(&second));
+            assert_eq!(GENERATION.with(Cell::get), EvaluatorGeneration::NO_HOST);
+        })
+        .join()
+        .unwrap();
     }
 
     #[test]

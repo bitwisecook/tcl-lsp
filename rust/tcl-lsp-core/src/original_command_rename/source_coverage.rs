@@ -420,6 +420,7 @@ impl<'a> SourceCut<'a> {
             command,
             &CommandSubject {
                 words: &words,
+                tokens: &tokens,
                 input: &input,
                 reference: reference.as_ref(),
             },
@@ -429,6 +430,7 @@ impl<'a> SourceCut<'a> {
 }
 struct CommandSubject<'a> {
     words: &'a [tcl_lexer::NativeWord],
+    tokens: &'a tcl_compiler::ir::CommandTokens,
     input: &'a SignatureSourceNameInput,
     reference: Option<&'a SourceCommandReference>,
 }
@@ -514,7 +516,7 @@ fn collect_command_regions<'a>(
     )? {
         return output.nested(task, walk, nested, Purpose::ResultWord);
     }
-    if let Some(selected) = walk.structure(document.source, command) {
+    if let Some(selected) = walk.structure_of_tokens(subject.tokens) {
         reject_selected_command_link_coverage(&selected, offset)?;
         output.nested(
             task,
