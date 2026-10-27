@@ -211,7 +211,7 @@ fn check_exhaustive_report_fields(a: &AnalysisResult) {
 // predicates. Every non-AUTH/non-test operator remains the original expression.
 macro_rules! report_owner_difference {
     ($left:ident, $right:ident, command_realm) => {
-        traced_command_realms_differ(&$left.command_realm, &$right.command_realm)
+        traced_command_realms_differ($left.command_realm.as_ref(), $right.command_realm.as_ref())
     };
     ($left:ident, $right:ident, $field:ident) => {
         $left.$field != $right.$field
@@ -220,16 +220,16 @@ macro_rules! report_owner_difference {
 
 #[cfg(not(test))]
 fn traced_command_realms_differ(
-    left: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
-    right: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    left: Option<&std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    right: Option<&std::sync::Arc<crate::realm::CommandBindingRealm>>,
 ) -> bool {
     left != right
 }
 
 #[cfg(test)]
 fn traced_command_realms_differ(
-    left: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
-    right: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    left: Option<&std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    right: Option<&std::sync::Arc<crate::realm::CommandBindingRealm>>,
 ) -> bool {
     if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_none() {
         return left != right;
