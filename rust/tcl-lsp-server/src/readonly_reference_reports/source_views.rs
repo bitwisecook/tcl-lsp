@@ -3264,6 +3264,8 @@ impl Backend {
 impl Backend {
     async fn trace_host_navigation_stage(&self, stage: &str) {
         if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+            #[cfg(test)]
+            eprintln!("HOST_NAV_STAGE uri=* stage={stage}");
             self.client
                 .log_message(
                     tower_lsp_server::ls_types::MessageType::LOG,
@@ -3275,6 +3277,8 @@ impl Backend {
 
     pub(crate) async fn trace_host_navigation(&self, uri: &Uri, stage: &str, detail: &str) {
         if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+            #[cfg(test)]
+            eprintln!("HOST_NAV_STAGE uri={} stage={stage} {detail}", uri.as_str());
             self.client
                 .log_message(
                     tower_lsp_server::ls_types::MessageType::LOG,

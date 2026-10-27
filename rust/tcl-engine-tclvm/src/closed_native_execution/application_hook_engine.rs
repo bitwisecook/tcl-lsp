@@ -29,10 +29,10 @@ pub struct PrivateApplicationHookHost {
     abi: NativeCIntegerAbi,
 }
 
-/// Restrictive construction plumbing for the private application evaluator.
-/// No caller Host, Write, VM, CompileService or callback enters construction.
-/// This creates no closed-consumer permission; the joined application backend
-/// independently owns and validates the entire source/evaluator footprint.
+/// A private hook engine for an owned application evaluator, on a native
+/// core with memory-only I/O. No caller `Host`, `Write`, VM, `CompileService`
+/// or callback enters construction, and the result grants no closed-consumer
+/// permission.
 ///
 /// # Errors
 /// Refuses unsupported native profiles, unavailable bootstrap, nonquiet private

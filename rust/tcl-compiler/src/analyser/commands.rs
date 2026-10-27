@@ -6046,7 +6046,10 @@ impl Analyser {
             return;
         }
         // Genuine user-class setter syntax joins its source constructor.
-        if let Some((variable, class_q)) = self.class_from_constructor_subst(site_offset) {
+        if let Some((variable, class_q)) = self
+            .class_from_constructor_subst(site_offset)
+            .or_else(|| self.jim_class_from_constructor_subst(site_offset))
+        {
             self.result.instance_classes.insert(variable, class_q);
             return;
         }

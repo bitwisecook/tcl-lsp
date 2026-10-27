@@ -2845,6 +2845,40 @@ impl Analyser {
         }
     }
 
+    /// Class presentation for a setter whose single substitution is a selected
+    /// authored Jim class call naming one of its definer grammar's
+    /// manufacturers (`set p [Point new]`). Conditional source metadata only:
+    /// no allocation, successful construction or receiver lifetime.
+    pub(super) fn jim_class_from_constructor_subst(
+        &self,
+        site_offset: u32,
+    ) -> Option<(String, String)> {
+        use crate::registry_invocation::source_structure as structure;
+        let construction =
+            structure::source_handle_construction_at(&self.source, &self.result, site_offset)?;
+        let offset = construction.construction().words.first()?.span().start();
+        let call = structure::source_authored_jim_call_at(&self.source, &self.result, offset)?;
+        let member = call.original_words().get(1)?.bytes();
+        let context = self.result.resolved_input.as_ref()?.context_registry();
+        let grammar = context
+            .context()
+            .resolve_spec(context.commands(), call.class().factory().command())?
+            .definition_body?;
+        (grammar.family == tcl_registry::definer::DefinerFamily::JimClass
+            && std::str::from_utf8(member)
+                .ok()
+                .and_then(|member| grammar.manufacturer(member))
+                .is_some_and(|manufacturer| manufacturer.names_instance_at.is_none()))
+        .then_some(())?;
+        let class = call.metadata(&self.result)?;
+        Some((
+            std::str::from_utf8(construction.variable_bytes())
+                .ok()?
+                .to_owned(),
+            class.qualified_name.clone(),
+        ))
+    }
+
     /// Handle `CLASS member …` where `CLASS` is a `JimClass` class and `member`
     /// is one of its definer's own members (`CLASS method NAME ARGS BODY`),
     /// recording the member on the class and walking its body with the class

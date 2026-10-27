@@ -268,51 +268,6 @@ mod controls {
     }
 
     #[test]
-    fn zz_probe_compiler_role_temporary() {
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let dialect =
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-        let which = std::env::var("ZZ_CASE").unwrap_or_default();
-        for (label, source) in [
-            ("may", SOURCE),
-            ("empty-proc", "proc f {} {}\nset a [read $fd]\neval $a\n"),
-            ("return-proc", "proc f {x} {return $x}\nset a [read $fd]\neval $a\n"),
-            ("no-proc", "set a [read $fd]\neval $a\n"),
-        ] {
-            if !which.is_empty() && which != label {
-                continue;
-            }
-            for mode in ["standalone", "dialect"] {
-                let unit = if mode == "standalone" {
-                    fixture(source, registry)
-                } else {
-                    CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6")
-                };
-                let warnings = crate::taint::find_taint_warnings_for_cu(&unit, registry, Some(dialect));
-                eprintln!(
-                    "PROBE case={label} mode={mode} warnings={:?}",
-                    warnings.iter().map(|w| (w.code, w.sink_command.clone())).collect::<Vec<_>>()
-                );
-            }
-        }
-        if which.starts_with("jim") {
-            tcl_spectcl::core_surfaces::ensure();
-            let source = match which.as_str() {
-                "jim-loop" => "loop i 0 3 { not_a_command_anywhere $i }\n",
-                "jim-static" => "proc counter {} {{n 0}} { not_a_command_anywhere $n }\ncounter\n",
-                "jim-plain" => "proc counter {} { not_a_command_anywhere }\ncounter\n",
-                _ => "class Point {x 0}\nset p [Point new {x 5}]\nputs [$p get x]\n",
-            };
-            let result = crate::analyser::Analyser::new().analyse(source, "jimtcl");
-            eprintln!(
-                "PROBE jim diagnostics={:?} instances={:?}",
-                result.diagnostics.iter().map(|d| (d.code, d.span)).collect::<Vec<_>>(),
-                result.instance_classes
-            );
-        }
-    }
-
-    #[test]
     fn authored_formal_ordinals_keep_defaults_rest_and_missing_grammar_unavailable() {
         use tcl_syntax::formal_params::FormalByteArgumentBinding as Binding;
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
