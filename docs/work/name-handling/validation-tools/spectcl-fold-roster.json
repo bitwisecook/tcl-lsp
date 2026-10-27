@@ -81,7 +81,7 @@
     "runtime/rust/src/interp/native_children.rs": "2878cfc001c34588f2ca51464e37ed70e042c8e5905e4b4c1052891d741028f3",
     "rust/tcl-runtime-api/src/native_compiler_pass.rs": "c4ce7a785e01be9baf83cbbb1b55a757f6b92c1962bef9e8bfe37afcc0f62d51",
     "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "eb0d93173f3a83fd2e47c6f6efcd4bd7f64d34e88b234a72fba234b7173d2593",
-    "rust/tcl-vm/src/interp.rs": "ec0ac79f3109eddc3991419cf1d44fd005c4b3667a64e3a3dd3ad001ccecbea9",
+    "rust/tcl-vm/src/interp.rs": "b61bf04867c6ab4586fd5aa31bcf3c30d1619adeeeda4ae2f0292718fe8ceae4",
     "rust/tcl-vm/src/interp/native_operation_currency.rs": "39aa834484dbb86a04ae985527eca7fd483b212deb5d1113e642e90b88c3ba3a",
     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "6fe1d3d8060c465b867e3bb3611c9e10a4cd799f861aad966455cba5531be328",
     "runtime/rust/src/interp/native_unicode_getter.rs": "aac92cba1a508994749f8acafea03a1851d304f841d7f2d71714842895a0bd87",
@@ -118,7 +118,11 @@
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77",
     "rust/tcl-compiler/src/command_binding/conditional_source.rs": "d1bf6c102561f9fd72379b2f8d9603146e23485211300234af94bb56b9f87f26",
     "rust/tcl-compiler/src/analyser/handlers.rs": "dc47162b521f5342fdbf8c0d960c9f51987b24b563e7c6765020dc16e467ca4e",
-    "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs": "33dda3c71f7a4ec2fdee556e464445daa527ca2ba8657815cf3dbb7c81131cba"
+    "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs": "33dda3c71f7a4ec2fdee556e464445daa527ca2ba8657815cf3dbb7c81131cba",
+    "rust/tcl-vm/src/compiled.rs": "ebf121d4d11f4d492128c7724eb462b921c0e57b7ae7befbe5432093d8525ae5",
+    "rust/tcl-vm/src/literal_pool.rs": "08cf7fea78923a6521074e7cbf72d7941c01e38eeef61bf9f906a6acb72bca12",
+    "rust/tcl-vm/src/interp/logical_eval_source.rs": "e871f3900cab98d0b34c00ddfba6ece24e297475b4714d8379370a23e0a53296",
+    "rust/tcl-vm/src/interp/logical_eval_source/tests.rs": "6efaabe82985aebfb85baca30c88ec36e39f52e5548b6fb0bcd849072f525ae2"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",
@@ -166,5 +170,79 @@
     "listing_seconds": 180,
     "test_seconds": 180,
     "cleanup_seconds": 25
-  }
+  },
+  "logical_eval_controls": [
+    "interp::logical_eval_source::tests::logical_eval_uses_fresh_words_without_native_pool_cache_or_layout",
+    "interp::logical_eval_source::tests::logical_eval_requires_each_actual_provider_and_physical_core",
+    "interp::logical_eval_source::tests::logical_eval_does_not_borrow_other_purposes_or_native_dispatch",
+    "interp::logical_eval_source::tests::logical_eval_policy_withdrawal_prevents_fresh_word_execution",
+    "interp::logical_eval_source::tests::logical_eval_keeps_data_inert_and_retains_partial_prefix_order",
+    "interp::logical_eval_source::tests::logical_eval_fresh_word_plan_rejects_private_allocations_and_keeps_words_distinct",
+    "interp::logical_eval_source::tests::logical_eval_refuses_a_required_compiled_local_layout"
+  ],
+  "logical_eval_budget": {
+    "listing_seconds": 180,
+    "test_seconds": 180,
+    "cleanup_seconds": 25,
+    "preserved_full_corpus_seconds": 805,
+    "preserved_full_corpus_capture_bytes": 524288
+  },
+  "logical_eval_functions": [
+    {
+      "selector": "interp::logical_eval_source::tests::logical_eval_uses_fresh_words_without_native_pool_cache_or_layout",
+      "path": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs",
+      "function_sha256": "d5c99c887ec350acb7379d621091f8f8a54b7cf0c080899241c194ee7996edaf",
+      "first_line": 66,
+      "last_line": 87,
+      "execution": "UNRUN"
+    },
+    {
+      "selector": "interp::logical_eval_source::tests::logical_eval_requires_each_actual_provider_and_physical_core",
+      "path": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs",
+      "function_sha256": "31e3a9326bed3ee08b5e4798d1c464efa48ad95b38270f91d21ffb95b34936b8",
+      "first_line": 90,
+      "last_line": 133,
+      "execution": "UNRUN"
+    },
+    {
+      "selector": "interp::logical_eval_source::tests::logical_eval_does_not_borrow_other_purposes_or_native_dispatch",
+      "path": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs",
+      "function_sha256": "a3722df4958738d3da91469f8b69d9e0fdee0de78b06ac4403a5366396b7cf9f",
+      "first_line": 136,
+      "last_line": 160,
+      "execution": "UNRUN"
+    },
+    {
+      "selector": "interp::logical_eval_source::tests::logical_eval_policy_withdrawal_prevents_fresh_word_execution",
+      "path": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs",
+      "function_sha256": "17f18fc59ddc8693e43e2bd0ce7ca72dbeea68acc01f11354dd8c81764753f84",
+      "first_line": 163,
+      "last_line": 178,
+      "execution": "UNRUN"
+    },
+    {
+      "selector": "interp::logical_eval_source::tests::logical_eval_keeps_data_inert_and_retains_partial_prefix_order",
+      "path": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs",
+      "function_sha256": "a28c840979dfc23b82f29940fabd450f891f4dc49bb6001ac36754fa572dc605",
+      "first_line": 181,
+      "last_line": 206,
+      "execution": "UNRUN"
+    },
+    {
+      "selector": "interp::logical_eval_source::tests::logical_eval_fresh_word_plan_rejects_private_allocations_and_keeps_words_distinct",
+      "path": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs",
+      "function_sha256": "d132f2d527cf53ab0e3f7ac16fbd4b4c837aa29843002d76b04c90525dffdf1f",
+      "first_line": 209,
+      "last_line": 258,
+      "execution": "UNRUN"
+    },
+    {
+      "selector": "interp::logical_eval_source::tests::logical_eval_refuses_a_required_compiled_local_layout",
+      "path": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs",
+      "function_sha256": "01fa0af72c3bda74e41ff42f9ec325fc6a3998df77d5b573c09d218ed8bd249d",
+      "first_line": 261,
+      "last_line": 287,
+      "execution": "UNRUN"
+    }
+  ]
 }

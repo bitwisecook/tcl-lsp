@@ -139,6 +139,10 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
         require(available >= seconds + 25, "full corpus cleanup reserve unavailable")
     if prefix.startswith(("string-first-gates-", "native-string-effect-", "ordinary-entry-")):
         require(available >= seconds + 25, "string replay cleanup reserve unavailable")
+    if prefix.startswith(("logical-eval-", "list-logical-eval-")):
+        require(available >= seconds + 25 + 805 + (180 if prefix.startswith("list-logical-eval-") else 0), "logical Eval full child and full600 reserves unavailable")
+        require(budget > 512 * 1024, "logical Eval future full600 capture reserve unavailable")
+        budget -= 512 * 1024
     seconds = min(seconds, available)
     return owner.run(
         argv,
@@ -441,6 +445,90 @@ def ordinary_entry_append(artifacts, environment, budget, processes, outcomes, o
     return budget
 
 
+LOGICAL_EVAL_SELECTORS = ['interp::logical_eval_source::tests::logical_eval_uses_fresh_words_without_native_pool_cache_or_layout', 'interp::logical_eval_source::tests::logical_eval_requires_each_actual_provider_and_physical_core', 'interp::logical_eval_source::tests::logical_eval_does_not_borrow_other_purposes_or_native_dispatch', 'interp::logical_eval_source::tests::logical_eval_policy_withdrawal_prevents_fresh_word_execution', 'interp::logical_eval_source::tests::logical_eval_keeps_data_inert_and_retains_partial_prefix_order', 'interp::logical_eval_source::tests::logical_eval_fresh_word_plan_rejects_private_allocations_and_keeps_words_distinct', 'interp::logical_eval_source::tests::logical_eval_refuses_a_required_compiled_local_layout']
+LOGICAL_EVAL_PATHS = ['rust/tcl-vm/src/interp.rs', 'rust/tcl-vm/src/compiled.rs', 'rust/tcl-vm/src/literal_pool.rs', 'rust/tcl-vm/src/interp/logical_eval_source.rs', 'rust/tcl-vm/src/interp/logical_eval_source/tests.rs']
+
+
+def logical_eval_source_guards():
+    require(source() == before, "logical Eval source endpoint drift")
+    require(roster["logical_eval_controls"] == LOGICAL_EVAL_SELECTORS, "logical Eval selectors changed")
+    require([guard["selector"] for guard in roster["logical_eval_functions"]] == LOGICAL_EVAL_SELECTORS, "logical Eval function roster changed")
+    for path in LOGICAL_EVAL_PATHS:
+        require(sha(root / path) == roster["source_pins"][path], "logical Eval source pin mismatch")
+    for guard in roster["logical_eval_functions"]:
+        body = (root / guard["path"]).read_bytes().splitlines(keepends=True)
+        require(hashlib.sha256(b"".join(body[guard["first_line"]-1:guard["last_line"]])).hexdigest()
+                == guard["function_sha256"], "logical Eval function pin mismatch")
+
+
+def logical_eval_append(artifacts, environment, budget, processes, outcomes, outcome):
+    global remaining
+    require(budget == remaining, "same remaining aggregate log budget for logical Eval control")
+    logical_eval_source_guards()
+    selector = outcome["selector"]
+    require(len(roster["logical_eval_controls"]) == 7 and selector in roster["logical_eval_controls"], "exact actual logical Eval selectors")
+    require(roster["logical_eval_budget"] == {
+        "listing_seconds": 180, "test_seconds": 180, "cleanup_seconds": 25,
+        "preserved_full_corpus_seconds": 805,
+        "preserved_full_corpus_capture_bytes": 512 * 1024,
+    }, "bounded separate logical Eval control admission")
+    for name in ["SPECTCL_CORPUS_TMP", "SPECTCL_CORPUS_DIFF", "SPECTCL_CORPUS_BLESS"]:
+        require(name not in environment, "logical Eval control keeps actual samples-only non-bless mode")
+    selected = [artifact for artifact in artifacts if artifact["target"] == "tcl_vm"]
+    require(len(selected) == 1, "one original fresh logical Eval control executable")
+    artifact = selected[0]
+    event = artifact["cargo_event"]
+    require(event["fresh"] is False and event["profile"]["test"] is True
+            and event["target"]["name"] == "tcl_vm"
+            and event["target"]["kind"] == ["lib"]
+            and event["manifest_path"] == str(root / "rust/tcl-vm/Cargo.toml") and artifact["strict_Rust_0w"] is True,
+            "same genuine current integration-test ELF for logical Eval control")
+    executable = Path(artifact["path"])
+    require(sha(executable) == artifact["sha256"], "logical Eval control ELF changed before listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable before logical Eval control")
+    require(deadline - time.time() >= 1190, "full 180+180+25 reservation unavailable")
+    listing = execute([str(executable), "--list", "--format", "terse", "--exact", selector],
+                      "list-logical-eval-" + str(roster["logical_eval_controls"].index(selector)), executable, 180, environment, budget)
+    processes.append(listing)
+    budget -= listing["retained_bytes"]
+    remaining = budget
+    require(lifecycle(listing) and listing["exit_code"] == 0, "logical Eval control listing unclosed")
+    listed = []
+    for line in (out / ("list-logical-eval-" + str(roster["logical_eval_controls"].index(selector)) + ".stdout")).read_text().splitlines():
+        if line.endswith(": test"):
+            listed.append(line.removesuffix(": test"))
+        else:
+            require(not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
+                    "unexpected logical Eval control listing")
+    require(listed == [selector], "exact logical Eval control selector missing, duplicate or ignored")
+    require(sha(executable) == artifact["sha256"], "logical Eval control ELF changed after listing")
+    require(deadline - time.time() >= 1010, "full 180+25 reservation unavailable after listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable after native string listing")
+    outcome["state"] = "RUNNING"
+    save(out / "logical-eval-outcomes.json", outcomes)
+    prefix = "logical-eval-" + str(roster["logical_eval_controls"].index(selector)).zfill(2)
+    receipt = execute([str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+                      prefix, executable, 180, environment, budget)
+    processes.append(receipt)
+    budget -= receipt["retained_bytes"]
+    remaining = budget
+    outcome.update(exit_code=receipt["exit_code"], receipt=prefix + ".process.json",
+                   stdout=prefix + ".stdout", stderr=prefix + ".stderr")
+    require(lifecycle(receipt), "logical Eval control lifecycle/capture stop")
+    stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+    try:
+        outcome["state"] = original_result(stdout, receipt["exit_code"])
+    except RuntimeError:
+        outcome["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+        save(out / "logical-eval-outcomes.json", outcomes)
+        raise
+    logical_eval_source_guards()
+    require(sha(executable) == artifact["sha256"], "logical Eval control ELF changed after execution")
+    save(out / "logical-eval-outcomes.json", outcomes)
+    return budget
+
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -522,6 +610,7 @@ native_string_effect_rows = [{
     "group": "separate_native_string_effect", "target": "tcl_vm",
     "selector": 'exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives', "state": "UNRUN",
 }]
+logical_eval_rows = [{"group": "separate_logical_eval", "target": "tcl_vm", "selector": selector, "state": "UNRUN"} for selector in roster["logical_eval_controls"]]
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -909,9 +998,15 @@ try:
         remaining = ordinary_entry_append(artifacts, env, remaining, processes, ordinary_entry_rows, observer_row)
     status = 2
     remaining = string_first_gates_append(artifacts, env, remaining, processes, string_first_gate_rows[0])
+    for logical_row in logical_eval_rows:
+        if deadline - time.time() < 1190 or remaining <= 1024 * 1024:
+            logical_row["unrun_reason"] = "shared full180 listing+180 test+25 cleanup and unchanged full180 listing+600+25 reserve unavailable"
+            continue
+        status = 2
+        remaining = logical_eval_append(artifacts, env, remaining, processes, logical_eval_rows, logical_row)
     status = 2
     remaining = full_corpus_append(artifacts, env, remaining, processes, full_corpus_rows[0])
-    status = 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows + native_string_effect_rows + ordinary_entry_rows) else 1
+    status = 2 if any(row["state"] not in ["PASS", "FAIL"] for row in logical_eval_rows) else 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows + native_string_effect_rows + ordinary_entry_rows + logical_eval_rows) else 1
 except (
     RuntimeError,
     OSError,
@@ -926,6 +1021,12 @@ except (
     error = repr(failure)
     print("SPECTCL DIAGNOSTIC STOP " + error, file=sys.stderr, flush=True)
 finally:
+    for logical_row in logical_eval_rows:
+        if logical_row["state"] == "RUNNING":
+            logical_row["state"] = "INCOMPLETE"
+        if logical_row["state"] in ["UNRUN", "INCOMPLETE"]:
+            logical_row.setdefault("unrun_reason", error)
+    save(out / "logical-eval-outcomes.json", logical_eval_rows)
     for observer_row in ordinary_entry_rows:
         if observer_row["state"] == "RUNNING":
             observer_row["state"] = "INCOMPLETE"
@@ -1004,6 +1105,8 @@ finally:
             "supplemental_outcomes": supplemental_rows,
             "required_separate_hostile_tests": 1,
             "separate_hostile_outcomes": hostile_rows,
+            "required_separate_logical_eval_tests": 7,
+            "separate_logical_eval_outcomes": logical_eval_rows,
             "required_separate_native_index_tests": 3,
             "separate_native_index_outcomes": native_index_rows,
             "required_separate_native_string_effect_tests": 1,
