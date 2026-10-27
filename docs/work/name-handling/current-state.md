@@ -2,7 +2,7 @@
 
 **USER PAUSED — 27 October 2026, 20:38 UTC (Europe/London).** Implementation, builds, dispatches and automatic reminders are stopped. Resume only after a new user instruction. The authoritative checkpoint is [pause-handoff-20261027.md](pause-handoff-20261027.md). No gate was waived or newly passed during checkpointing.
 
-Canonical WORK product `b41de429f`; release product `015885917`. Both are committed locally. This checkpoint changes state documents only. All release gates remain open.
+Canonical WORK product `b41de429f`; release product `015885917`. Both product tips are committed and pushed. Documentation checkpoint `2d4c39f53` is pushed; the [publication receipt](handoff/reviews/merge-inventory-20261019/coordinator-20261027/paused-checkpoint/publication.json) records transport confirmation. This checkpoint changes state documents only. All release gates remain open.
 
 ## Scope
 

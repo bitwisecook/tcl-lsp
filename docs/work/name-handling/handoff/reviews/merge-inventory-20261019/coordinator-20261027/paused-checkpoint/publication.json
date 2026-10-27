@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-27T20:40:58.486380+00:00",
+  "status": "PAUSED_CHECKPOINT_NORMAL_PUSH_CONFIRMED",
+  "work_checkpoint_commit": "2d4c39f5367ef402dc6ed711243d278c946a0b62",
+  "work_product_commit": "b41de429f886145f348381daf949fd6944357d4a",
+  "release_commit": "0158859174cc4eca280dd5fa578e2a6a2f038d2a",
+  "work_push": "d0f936c58 -> 2d4c39f53",
+  "release_push": "adf6853db -> 015885917",
+  "fresh_depth1_fetches": true,
+  "force_push": false,
+  "new_product_fixes_during_pause": false,
+  "no_new_test_or_gate_admission": true,
+  "paused": true,
+  "next_report_utc": null,
+  "reminders_armed": false,
+  "pr_opened": false
+}
