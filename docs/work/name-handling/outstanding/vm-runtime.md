@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T05:46:09Z
+Last updated: 2026-10-27T06:41:17Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T06:41:17Z: NEW exactfb5e7187 SOLE Spec40462316500/job122049560312 andiRules40462322615/job122049580452 APIin_progress; noarchivesdownloaded/claims. Runtimeproductincludesfirststagefile730cc+newfile7protocolc106/00ef, newfilecontrolsactualUNRUN. CombinedartifactverifierV3 manifest271bba/scriptac007695 strongScopeeded2e69 cleared72actualAST/nochildcases, RAWunchangedbase+V3superset only(nofakeV2projection). Source572all3fullauthindex3280 retained:LogicalEval7/full600ownedPASS591.794, MAP/RANGE0/0;WASMold25PASS/8sixPtwoF;iRulesnew3FAIL71vectorsincl8b64passedbefore39Breset. Proceduredesign e41 reviewonly: actualschedule_native_command calls compiler_dialect beforeGeneric choice; plainalone no waiver. PreserveactualC9 literalpool/registration beforeoldenter_proc framebind, genuine2stage ownedplan required, noCodeauthored/preflighterasure/pointretag/Evalreuse. Freshdisk2.477GB, guardedintake2GiB+ZIP+24MiB.
 
 Current 2026-10-27T05:46:09Z: ALL3 source572 ownedcaptures FULLAUTH. SpecnewLogicalEval7 ALLPASS strongV2actual16197fb5/568checks, old16+VM1+ordinary4PASS/full600OWNPASS591.794s aggregate9c4b7e7e(25packs1516commands24hooks19090/19090/319diag87opts); LENGTH1/1 MAP/RANGE0/0 overallFAIL. WASM44208ebd old25PASS Broad8 6P2F exactzerochangesa6eb533e. iRules5f052015 oldbootstrapFAIL CLI2/initScopePASS new3FAIL; bounded unchangedpurefile controlflowfd9518a9 confirms71vectorsincl8b64passed beforelater39Breset, no wholecasePASS. Resetactualhandoffe892 typedProcedureBody/EnteredSource nominalbeforeenter_proc, no Eval reuse/pointretag/preflighterase. Firststage logicalfileSOURCE730cc bothpeers1d441+a28def nowRootpairedintegrated9143/be17; actualnew7UNRUN. Newfile7 protocolV2c10663f4 pendingScope, sameSpecVMELF oldEval7→newfile7→full600,5genuinesourceguards NOTLiveSession,7fn,1190/1010+805+512KiB/UNRUN2/noCargoreset. No activeownedcapture/localbuild/canonicalwrites; bodydesignnextonlygenuineownedproducer/currency.
 

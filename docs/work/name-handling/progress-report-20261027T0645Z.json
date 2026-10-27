@@ -1,0 +1,86 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-27T06:45:00.827866+00:00",
+  "scheduled_report_utc": "2026-10-27T06:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-27T07:15:00+00:00",
+  "change_since_previous_report": [
+    "0615reportautomatic/localcheckpoint completed; actualpublication pending sourcepush/finalcurrentmetadata. Next0645draft refreshed beforedue.",
+    "OldCa8dE2E3 complete841sourcequalified outcomes joinedRootactualZIP/member/listing/prelisting/846uniqueincl5ignored: latestbaseline24624=>6896PASS1469FAIL16043UNOBSERVED216not-in-available-selection acrossHeavy/Rust3/Rust5/E2E3. Exactoldsourceonly, no currentreleasegateverdict; Rust2emptyledger7924stillunobserved.",
+    "Current2766corpus FULLAUTHcore8c890+fullGit951d verifies actualdebugtrue/AUTH=1: text6/702 firstfieldoriginal_argument_syntax unavailable, generated42/42PASS. Exacttypehasnestednominalanalysisowner plusstrictparent/site/words/config; Namespairedpurpose-onlyownertransport3cee strongpeerpending, no globalEq/cache/factory change, efficacyUNRUN.",
+    "Currentc2d/Cebea normalprep FULLAUTH7c3c setup/build/previousborrowfix/canonicalPASS, LSP13PASS1FAILsameCodeLensunavailable, gateFAIL2/generateddiffempty. AllfullGit/18ownedclosures/seals; thisdoesnotvalidatelaterCcleanuporRuntimeSourcefixes.",
+    "File7protocolV2c106/00ef resumedandclearedafterRootexplicitwakeup(reviewhadqueuedwhileFINALidle),50independentASTcontrols/completeoldinverse/current5sources7functions/sameVMELF/budgets. Root2before/after/pathsetPASS integratedWORK282e1ca355c4b5cd257c4312ca6a6cc023bab733; Codegenfinalsourceunionfreezingthere,13intendedjoinsapproved7file+6rangeowner, actualnewfile7RustUNRUN.",
+    "Diskheadroom additionalbaselineRAWinventoryEVIDENCE gzip9e8849 saves~25MBwithcompletebyte/hashroundtrip+restorepointers; baselinenamedauthority/outcomesunchanged, actualsource/testinput/provider/executable/ZIPuntouched. Currentfuturebaselinejoinhelpersreadretainedderivedgzip; rawbaselinecanberestoredexactlywhenneeded.",
+    "OldCa8d all58jobsterminal at05:59; Rust2andE2E1/2 APIcancelledbyexternalCI/nocauseinferred/nofromRoot. E2E1smallsoleartifactnowintakeafterguardedheadroom; E2E2pendingguard. E2E3b55a completejoined6896PASS1469FAIL16043UNKNOWN216notselected; no currentP2Fverdict.",
+    "Purpose-onlynestedargument-syntaxownerrepair3cee/Compiler474a Root6actualpreimages/afterimages/pathsetsPASS appliedWORKca93a91e41e596dc68ea29dfc53117ebbd16529b first/C9288a20999f5d17a7ea7106ed94e39634bb00a1c. Actualsyntax/binding/outputowner/input/lexicaljoins reauthenticated; parent/site/words/config andother56fieldsremainstrict, globalEq/Hash/Salsa/permissions unchanged. ActualcorpusgainUNRUN; final282eSourcepinsnowhistoricalmustrebindcurrentca93.",
+    "0615nextcurrentSourcepinscriticalpath: Codegenold282epacketsealedjustbeforeNamesclear, deliberatelyheld/no adoption aftersourcechange; exactfour cause3 windowcoordinates+3linesverifiedsameactualbody/name/SHA preserved, nowcomposecurrentca93 with3newhash/nested/controlfnguards. No newselector/env/budget/Nativegrant. LSPdocstringproductionadapterNEXTcohort.",
+    "Additional~29MBlosslessarchiveof23cold>48h historicalguard/census/metadataoutputs e8deb3 (39.2MBoriginal); eachgzipfullroundtrip+restorationpointer. Currentfree~2.2006GB06:14, no actualsource/input/provider/executable/ZIPdeleted. Remainingheadroomguards stillmandatory.",
+    "KnownreleasequalitybugfoundbyLSPbody_spanaudit: docstringbody edit discardsalready-authenticatedNativeWord.content_span andusesrawmetadata start; narrowproductioncanonicalspanadapterpriority NEXT, alloriginaledit/foreign/computedguards/tests unchanged. SourceCutnominalSurveybodyprojectionV2draft2dcc earlyCompilerpeer, notapplyready.",
+    "SourcecleanupRootappliedOO4 338499/8251 after74preimages/after/pathset/66wholebytes\u2192C50e5; info3 6ecee/1532 after128preimages/after/pathset/122wholebytes\u2192C217de118d65e5ebd5e6447dd18e00592c13d6169. All138comparisons/engine/order/scripts preservedbyreconstructedfactories+completeconsumerinverses; source21of51/30remaining/all9groups, actualRustUNRUN.",
+    "Combinedfile7artifactverifierV3271bba strongScopeeded2 reviewed72actualASTcontrols, unchangedbaseprecondition/oldEval7loopbyteexact/newfile7purpose-only ownstreams/ELF/list/fn/source/order/clock/caps; actualcombinedartifactUNRUN,no fakeV2/projection orwholeNativegrant.",
+    "Knownunsafe docstring edit concretecanonicalcontentadapterda77 strongCompilere5ae withmatchedC86oracle063c original+correctedVALUE, rawbracewrongargs. RootqueuesNEXTaftercurrentca93snapshotPOSTs; no assertion/body-spanrepresentation/Native/identity/currency change.",
+    "Currentca93/C928nestedargumentownerrepaircommittedandPUSHED; finalmetadataold282eheldafteradvance, Codegencomposesexactca93 directdefiner3top+inline+nested(14\u219215sources)/same5controls/166count approval422c. All18intendedjoins(file7+range6+syntax5) requireRootV16 beforePOST; no additionalSourcecohortchanges.",
+    "Finalca93metadata88e1/independentCompiler9903+Rootall25preimages/wholeinverse PASS adoptedWORKfb5e7187e4cd05d7a55e879845399807f2a38ab1; V16 PASS13startup/30runners/22wholeguards. Pfb5e/Cd554 normalPUSH confirmed. No semantic green claimed; affected focusedPOSTs afterterminalguards.",
+    "New reversibleobsoletefrozenAELFarchive peer2aa9: four>89h singlelink binaries eachgzip/fullrestoreSHA/currenthash/stat/noLIVEcargo-rustc/accessiblyknownuse verified thenRootunlinked;2.479GBfree. ExistingexhaustiveallUIDhelperHOLDunchanged; foreignserviceuseunknown explicitlyretained/Unixopenreferencessurvive. Archivespreserved/noactualsource/currentELF/ZIPdeletion.",
+    "All8exactfb5ePOSTscompleted0639 beforeP0615docspublication76f8c01bc332c9947c400aaf6408543070229716; fullsourcequalified IDs root-fb5e-focused-wave-discovery-v1.json, allLIVE and soleowners assigned. No activeCIcancelled.",
+    "NEXTdocstringda77/e5ae Rootcurrent4preimages+patchcheck integratedWORK8188 first/C95a, sameauthenticatingquery nowretainscanonicalcontentSpan. MAY2160/LSP1e8 Rootpaired20currentpreimages/patchesPASS integratedWORKdd60 first, Ccarryinprogress; no runtimewarning/clean-call/all140 efficacyclaim.",
+    "C-onlyfixturecleanup18f2/Scopec21 Root163currentpreimages/after/pathsets/156completeoriginalbyteimagesPASS integratedC306be;29of51families sourceintegrated,22remaining. Allassertions/Tclscripts/rowparsers retained; no actualRustclaim.",
+    "MAYCcarrycompleted0fe6e7ff0 afterWORKdd60 first; all20currentpreimages/patches/afterimages verified. FreezeNEXTsourceWORKdd60/C0fe6 forCodegencoupledmetadatarefresh; SourceCutdistinctfuturecohort. Current8fb5erunsremainunmodified/live.",
+    "WORKdd60d2ee6b8120e2cace9e6d0be939d28a9ca57c/CLEAN0fe6e7ff07ce42643d9c30104d1381146d7a217c bothnormalPUSHconfirmedfreshdepth1workfetch. Next0715report/checkpoint reminder alreadyarmed6148; current0645timer54333 remainslive."
+  ],
+  "committed": [
+    "d111b4799ea8d7de83766a50c00b5dfa30d24b0f"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Refresh only actual source dependencies and current source pins; push reviewed WORK-first fixes and release carries, then rerun compiler/strict/Core/corpus/WASM/Spec after predecessor termination.",
+    "Authenticate focused runtime and remaining fullCI terminal artifacts; fix exact current source causes preserving public behavior and fail-closed guards.",
+    "Complete section F, current origin/rust zero pass-to-fail, accepted Tcl performance, all required tests, docs/comments/generated/package/prep-pr and squash-ready PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2449874944,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

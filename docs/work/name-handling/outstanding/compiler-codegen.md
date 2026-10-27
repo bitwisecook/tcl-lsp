@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T05:37:28Z
+Last updated: 2026-10-27T06:24:58Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Final ca93 metadata packet 88e1d1df sealed off-tree; Compiler independent peer active, author V16/current function checks running. Exact approved file/range/argument-definer joins only; default166 remains166 with15-source/5-function descriptor. Root owns adoption/dispatch. Ca8d all58 jobs terminal; final E2E1/2 cancelled archives captured once, partial ledger authentication pending/no completion donation. N17 DATA/flow remain no capability; concrete owned backend/compiler/evaluator/cache/literal closure is next priority, original MAP/RANGE failures retained.
 
 Current572 strict CLOSED FULLAUTH22 4742842b: zero actual Rust/Clippy primaries, x5094/4PASS, original make FAIL2 at unchanged WORK proofchecker2235 structural obligations. No proof-ledger refresh/waiver or newer-source admission. Tinyf3c38df/214f strong1033/authorV16PASS; canonical adoption and dispatch remain Root-owned. NEXT file-stage source9143 current; seven production joins approved per read-only f99915 census, final union waits actual file7 protocol/head. Ca8d Rust2 APICANCELLED05:29:47 solearchive fa98a100 contains cappedstderr+EMPTY terminal/no summary: all7924selected outcomesUNOBSERVED/no owned-group closure. Rust5 exact5214=4605P609F, completeledger62811eee suppliedRoot; remaining2E2E APIactive/no heartbeat at05:35. N17 DATA V246cc/ee553 staticDATAclearb6c31fcb only,8testsUNRUN/no Backend/CU/NativeNormal grant; actual optimiser-time closed application consumer/backend/evaluator/emitted alias closure still in progress, no runtime replay/counter donation and MAP/RANGE remain actualFAIL.
 

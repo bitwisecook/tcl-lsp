@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-27T06:16:12.853681+00:00",
+  "source": "ca93a91e41e596dc68ea29dfc53117ebbd16529b",
+  "census": "/workspace/naming-proof-storage/ccg-report-argument-syntax-definer-census-v1.json",
+  "census_sha256": "9b1e7d16119974f59c20c128ca0877a6a428bfc283e01c554453b31277929d2e",
+  "source_definer": "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs",
+  "exact_top_parents": [
+    "compiler-logical-declared-read3.json",
+    "compiler-native35-supplemental3.json",
+    "source-point-complete-text-corpus2.json"
+  ],
+  "exact_inline_parent": "compiler-original58-diagnostics.py source_point_report_source_pins",
+  "exact_nested_parent": "default166 separate_authored_body_availability_controls source_pins (14->15 sources), same5functions/166count",
+  "approved_exact_additions": 5,
+  "actual_route": "Existing availability-report field dispatch invokes authenticated_argument_syntax_report_eq in this defining source; strengthened existing fifth control exercises own/foreign/missing/config/site/words/parent invariants.",
+  "constraints": [
+    "No other map/runtime/globalEq/Hash/Salsa/cache fanout",
+    "No assertion/functionselector/count/env/budget change",
+    "All current source/hash/function descriptors and old JSON/driver inverse plus independent strong peer required"
+  ]
+}

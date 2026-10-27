@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-27T05:59:50.019796+00:00",
+  "free_before": 2156331008,
+  "free_after": 2181353472,
+  "records": [
+    {
+      "utc": "2026-10-27T05:59:49.545691+00:00",
+      "original": "/workspace/naming-proof-storage/baseline-heavy-provenance-correction-v2/selected-inventory-baseline-provenance-checked.jsonl",
+      "original_bytes": 10388636,
+      "original_sha256": "d3c20112fec34e64c9906f4925dbce59bd07396b73210000a9e7840c63263e3e",
+      "original_mode": 384,
+      "original_mtime_ns": 1792939355532797328,
+      "archive": "/workspace/naming-proof-storage/baseline-heavy-provenance-correction-v2/selected-inventory-baseline-provenance-checked.jsonl.gz",
+      "archive_bytes": 652244,
+      "archive_sha256": "c428a83d17e2979c003b43b4070e92f63241ec27e9beeb79ed26b60c9f52cf39",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Baseline inventory evidence only, original bytes preserved with checked gzip and restoration pointer; canonical baseline hashes and outcomes unchanged. No test input/provider/source/executable deleted.; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    },
+    {
+      "utc": "2026-10-27T05:59:49.813243+00:00",
+      "original": "/workspace/naming-proof-storage/baseline-named-inventory-40187433105/selected-inventory.jsonl",
+      "original_bytes": 9894136,
+      "original_sha256": "566c58b90da045b560253ba57394de5fd698085efee895bacbe77d44c2540def",
+      "original_mode": 384,
+      "original_mtime_ns": 1792930765071328649,
+      "archive": "/workspace/naming-proof-storage/baseline-named-inventory-40187433105/selected-inventory.jsonl.gz",
+      "archive_bytes": 650330,
+      "archive_sha256": "0645b02b06ff27b27bfa5255e1505dd1c2f97b21110f1e4c38c8aa8e24462b9a",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Baseline inventory evidence only, original bytes preserved with checked gzip and restoration pointer; canonical baseline hashes and outcomes unchanged. No test input/provider/source/executable deleted.; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    },
+    {
+      "utc": "2026-10-27T05:59:50.016478+00:00",
+      "original": "/workspace/naming-proof-storage/baseline-named-inventory-40187433105/named-baseline.json",
+      "original_bytes": 6667392,
+      "original_sha256": "8a70ae0fd67ae8efc99fc1d9d4e6f02f9eb86b209dbcccc3d8d55c31c4dc582a",
+      "original_mode": 384,
+      "original_mtime_ns": 1792930662683693119,
+      "archive": "/workspace/naming-proof-storage/baseline-named-inventory-40187433105/named-baseline.json.gz",
+      "archive_bytes": 613185,
+      "archive_sha256": "7db541394d26b8f55df82738fe940bd0800487918c6bcbad35eced931fcb535f",
+      "restore": "Use gzip.open(archive, rb) to stream into an exclusive-create original path; verify original_bytes and original_sha256 before use, then restore mode/mtime. Keep the archive and pointer.",
+      "scope": "Baseline inventory evidence only, original bytes preserved with checked gzip and restoration pointer; canonical baseline hashes and outcomes unchanged. No test input/provider/source/executable deleted.; exact original bytes retained losslessly. No source/test/executable/current capture removed."
+    }
+  ],
+  "all_decompressed_bytes_and_hashes_checked": true
+}
