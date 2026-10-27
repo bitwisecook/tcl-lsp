@@ -2,11 +2,10 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Actual private-host engine construction, before bootstrap or hook parsing.
+//! Private hook engines whose memory host is built before bootstrap.
 //!
-//! This is a private constructor slice, not a closed-consumer admission. Its
-//! eventual application owner must retain the host and check its state around
-//! each fold; compiler, literal, nested-code and retirement checks remain.
+//! Constructing one grants no closed-consumer admission. Its owner retains the
+//! host for the engine's whole life and checks it around every evaluation.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -20,9 +19,8 @@ use tcl_vm::Vm;
 use super::{MemoryHost, MemoryWriter};
 use crate::TclVmEngine;
 
-/// Opaque retained actual memory-host owner. It exposes no VM, values, Host,
-/// compiler or closed-consumer scope. The application retains it through the
-/// evaluator's final retirement and checks it around every selected fold.
+/// The retained memory host of one private engine. It exposes no VM, value,
+/// `Host`, compiler or closed-consumer scope.
 pub struct PrivateApplicationHookHost {
     host: Rc<MemoryHost>,
     numeric: NumericErrorState,
@@ -86,8 +84,8 @@ pub fn private_application_hook_engine(
 }
 
 impl PrivateApplicationHookHost {
-    /// Check the retained actual memory I/O and numerical context without
-    /// clearing errors, replacing the Host or manufacturing a fresh snapshot.
+    /// Check the retained memory I/O and numeric context without clearing
+    /// errors, replacing the host or taking a fresh snapshot.
     ///
     /// # Errors
     /// Refuses busy/nonquiet sinks or changed/unavailable numerical state/ABI.

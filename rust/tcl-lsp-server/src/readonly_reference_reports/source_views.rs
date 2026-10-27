@@ -2483,6 +2483,12 @@ impl Backend {
             .original_source_view_edges(Arc::clone(parent), &state.unknown)
             .await?
         else {
+            self.trace_host_navigation(
+                &parent.draft.physical.uri,
+                "frontier.edges-unavailable",
+                "",
+            )
+            .await;
             return Ok(OriginalSourceViewFrontierStep::Pending);
         };
         state.unknown.retain(|debt| {
@@ -2549,7 +2555,25 @@ impl Backend {
                     // coverage keeps the actual conditional body's obligations.
                     state.conditional_obligations = true;
                 }
-                _ => {
+                frontier => {
+                    let detail = format!(
+                        "frontier={} load={}",
+                        match frontier {
+                            None => "none",
+                            Some(SourceFrontier::CurrentCut(_)) => "current-cut-mismatch",
+                            Some(SourceFrontier::ConditionalAssociation(_)) => {
+                                "association-mismatch"
+                            }
+                            Some(SourceFrontier::Unknown) => "unknown",
+                        },
+                        edge.original_project_source_load.is_some(),
+                    );
+                    self.trace_host_navigation(
+                        &parent.draft.physical.uri,
+                        "frontier.unknown-edge",
+                        &detail,
+                    )
+                    .await;
                     unknown = true;
                     let debt = OriginalSourceViewDebt {
                         owner: Arc::clone(parent),
@@ -2594,6 +2618,8 @@ impl Backend {
             OriginalSourceViewFrontierStep::Cut(edge) => edge,
         };
         let Some(child) = self.source_view_child(&parent, &edge).await? else {
+            self.trace_host_navigation(&parent.draft.physical.uri, "visit.child-unavailable", "")
+                .await;
             return Ok(false);
         };
         let Some(SourceFrontier::CurrentCut(cut)) = edge.original_source_frontier.as_deref() else {
