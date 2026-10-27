@@ -16,6 +16,7 @@ impl SourceInvocationBinding {
             self.original_analysis_owner.as_ref()?,
             other.original_analysis_owner.as_ref()?,
         ) {
+            trace_availability_binding_refusal("analysis_owners");
             return None;
         }
         // Every other typed field remains exact. A future field must fail this
@@ -23,7 +24,10 @@ impl SourceInvocationBinding {
         macro_rules! same_fields {
             ($($field:ident),+ $(,)?) => {
                 let Self { original_analysis_owner: _, $($field: _),+ } = self;
-                $(if self.$field != other.$field { return None; })+
+                $(if self.$field != other.$field {
+                    trace_availability_binding_refusal(stringify!($field));
+                    return None;
+                })+
             };
         }
         same_fields!(
@@ -85,5 +89,13 @@ impl SourceInvocationBinding {
             unknown,
         );
         Some(())
+    }
+}
+
+fn trace_availability_binding_refusal(field: &'static str) {
+    if cfg!(debug_assertions) && std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        eprintln!(
+            "REPORT_CAPTURE stage=compare.availability_binding field={field} available=false"
+        );
     }
 }
