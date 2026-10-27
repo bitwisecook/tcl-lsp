@@ -2,11 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T08:04:22+00:00 (all owned fb5e captures closed; final1c07 metadata static clear; Layout21 protocol LSP/Scope-owned; OwnJim alias producer NEXT)
+Last updated: 2026-10-27T08:32:32+00:00 (7fd Layout21 controls active/main170 bootstrap active; tiny owner1 definer pin peer9e3b CLEAR; aliasV4Scope c33d staticclear; positiveclass custody draft)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Current state
+
+Sole current7fd captures: Layout21 run40473709174/job122086689147 and main17040473725146/job122086739904. Actual08:32UTC API: Layout bootstrapcomplete/controlsstep6active; main bootstrapstep5active. All current runtime outcomes PENDING; no borrowed fb5e acceptance, no healthy cancellation/replay/duplicate intake. Productdocs744b67 atop7fd does not change run source. Tiny currentEA76 owner1 directdefiner top key+derivedguard only ef37c235/6dca1a12 STATIC CLEAR9e3b06fa; nestedactualownerfn and full oldJSON/driverbyteAST inverses verified. Root alone integrates/dispatches.
+
+Alias NEXT pairedV4 4d63513a now Scope c33d3d3f STATICsourceclear, all14current paths/F-R/fmt and wholeold assertions/tokens/comments inverse; original caller-alias resolver unchanged, no positiveclass debt waiver. DraftV1/V2 superseded, V3 unsealed author-stop. Positive source-only stock-class custody draft is separate: exact actual analysisowner/baseline/source/normalcontinuation site, all13current actual stock helperallocationcards, exactrootplanwords. No reconstructed names, Native/Normal/frame/lookup grant; old member support/debt guard unchanged. Pairedcarry/inverse/newcontrols remain unfinished and unexecuted.
 
 Current metadata final1c07 V2 84d20e14/70b0c49e independent STATIC CLEAR0792a006, nested12actual lexicalfn supplement7b609001. All13 current/F-R/F0/modes,30existing source refreshes+17approved SourceCut joins,25currentmaps715records/413unique sources, wholeoldJSON/driverbyte+ASTinverse; actual MAY16/3/Primary6/4/Body15/5 owners checked. No native execution/efficacy inferred. LSP owns ONE composed default170 and existing Layout21 overlay: default old166→MAY3→owner1; Layout old17→MAY3→owner1 on SAME fresh compilerlib, same12000/CAP/400-220/ELFs/env/Cargo. Scope V2 HOLD missing3 execute-owner admissions; immutable successor needed. No competing centraldriver authoring here.
 

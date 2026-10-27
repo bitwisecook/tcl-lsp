@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T08:07:32Z
+Last updated: 2026-10-27T08:32:16Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T08:32:16Z: NEW SOLE7fd3d336 iRules40473746970/job122086812397 APIactive/teststep6/uploadpending. Includesheld69Bsource-prefix21fdd8; no identity/source/body inference untilactualrows. RootallPOSTscomplete, no currentSpec/full600rerun; priorfb5e315findex sourcequalified. Freshdisk2.253GB guard mandatorybeforeZIP2GiB+size+24MiB. Namespace-holder fixturepeer538e19b9 complete sourceonly; C1d881/4db currentmap+UPF/Jimfresh-targetplanningonly. Proceduredesigna941 Scopechallenge52419d0b includes callbackpermission+cache-before-reuse provider checks+PREframeadoptedartifact consumer; no implementationclear. Namespacegettercoverageuserpending/patchheld. No localbuild/POST/canonicalchanges.
 
 Current 2026-10-27T08:07:32Z: Resumed C1–C2 release triage current1c0719, exact33selectors/10targetsd881bf59 map; historicalJim9/26stale, fb5eJim52original45=36P9F/full52=40P12F. CompilerOwnJim2reserved3class/memberroutes; remainingstaticbody/read/loop/multiword/Tclnegative/dynamicreceiver leads notblanketclasscause. Actualstatic01 fallbackchildlookup_stablefalse (notmissingScripttraversal); static03 scope.catalogue-or-advicefalse at45, no guardrelaxation. OldCa8dUPF2(17hooks)/EDA13/format2PASSonly, NOTcurrentSpecselection. RootnexttargetproposalUPF2freshELF+Jimroster/gen/seed/metadata viaexistingownedmodes; no newCargo/build/POST authored. LSPownerconfirmscurrentdeliveredcrossworkerpacklifecycleOPEN. Compileraliasselector0318 parityread: Studiodynamiccatalogue/schema/draft/bothrenderers needexplicitnewvariantcommand/subroundtrip; authoringCompiler, no overlappingedit. Bothfb5ecaptures315f FULLclosed retained. AdmissionprefixScopef60d nowRootadopted/pushed; actual69BidentityNEXTunrun. NamespaceproposalHELDpublicgettercoverage/userdecision; proceduredesignlowerpriority.
 
