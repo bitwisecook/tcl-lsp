@@ -4228,6 +4228,33 @@ formals refuse; neither frame is retagged or made equal to another purpose.
 
 The static-read child view keeps a weak reference to the already validated positioned source owner. A differing known Procedure frame is accepted only after the same live producer recreates the full binding, including its lookup snapshot, and the existing header context or actual body ancestry owns that frame. The independently allocated original body snapshot retains its own frame/context; header and body frames are never equated. Unknown, retired, foreign or altered producer views refuse. Original operand roles, alias/residual checks and input/source guards remain mandatory; this view grants no physical read, Native or Normal completion.
 
+## Authored-body conditional taint analysis
+
+A current authored declaration body can carry a separate conditional taint view.
+The view borrows the actual compilation unit and function, current declaration
+card and semantic-value owner, and the complete matching SSA/CFG source-token
+inventory. Each retained command must belong to that same body source scope,
+original analysis attachment, full source image, configuration and registry.
+Foreign functions, changed source or topology, withdrawn metadata and different
+registry/profile owners refuse the view. The general function metadata query
+keeps its existing body refusal.
+
+This view classifies possible sinks through the body's retained source schema.
+It retains unknown dispatch and source applicability, and uses only the actual
+positioned SSA read in the conditional taint model. Missing symbolic reads or
+lattice values remain unknown. It supplies no executed read, represented runtime
+contents, sanitiser certainty, Normal completion, installed callable or Native
+entry. Original source warnings and their strict ownership checks remain
+independent of this view.
+
+Its distinct authored formal topology retains the unchanged declaration card
+and exact original roster. The shared formal parser and byte-binding owner must
+agree under both Tcl and Jim models before descriptive counts or conditional
+argument ordinals are available; duplicate, NUL, unsupported or disagreeing
+formals refuse. This does not select an engine grammar or create Native formal
+objects, caller links, activation slots or a published procedure. The generic
+Module formal provider keeps its Native and Logical purposes unchanged.
+
 ## Original Native procedure compiler formals
 
 The live `OriginalProcedureCompileRequest` and its compiler-pass entry issue

@@ -2696,6 +2696,9 @@ fn is_actual_formal_entry(
     ) {
         return false;
     }
+    if source.authored_body_formal(ssa, name) {
+        return true;
+    }
     if source.allows_nominal_metadata() {
         return true;
     }
@@ -3908,7 +3911,7 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
             &taints,
             exec,
             registry,
-            trace_taint_cu_ingress_context(TaintSourceContext::for_unit_function(registry, cu, fu)),
+            trace_taint_cu_ingress_context(TaintSourceContext::for_unit_may(registry, cu, fu)),
             &shadowed,
             (module_traces, &identities, Some(&cu.ir_module)),
         ));
@@ -5696,6 +5699,26 @@ fn retained_sink_candidates<H>(
     tokens: &CommandTokens,
     context: &SinkWarningContext<'_, H>,
 ) -> (Vec<RetainedSinkCandidate>, bool) {
+    if !context.source.has_authored_body() {
+        return ordinary_retained_sink_candidates(tokens, context);
+    }
+    let Some(selected) = context.source.authored_body_sink(tokens, context.registry) else {
+        return (Vec::new(), false);
+    };
+    (
+        vec![(
+            selected.command().to_owned(),
+            selected.effective().clone(),
+            Some(SourceWarningMetadata::Authored(Box::new(selected))),
+        )],
+        false,
+    )
+}
+
+fn ordinary_retained_sink_candidates<H>(
+    tokens: &CommandTokens,
+    context: &SinkWarningContext<'_, H>,
+) -> (Vec<RetainedSinkCandidate>, bool) {
     let mut candidates = Vec::new();
     if let Some(invocation) =
         crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
@@ -7222,7 +7245,9 @@ impl<'a> SourceWarningRead<'a> {
         if reference_root_with_config(reference, config) != Some(name) || !owns_word {
             return None;
         }
-        if let SourceWarningMetadata::Authored(selected) = self.metadata.invocation_metadata() {
+        if let SourceWarningMetadata::Authored(selected) = self.metadata.invocation_metadata()
+            && !selected.uses_symbolic_body_reads()
+        {
             let key = self
                 .point
                 .read_reference(site, reference)

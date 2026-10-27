@@ -292,6 +292,17 @@ fn formal_names_match(
                             && seen.insert(formal.name.as_bytes().to_vec())
                     })
         }
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Authored(
+            formals,
+        ) => {
+            report_names.len() == formals.parameters().len()
+                && report_names
+                    .iter()
+                    .zip(formals.parameters())
+                    .all(|(reported, formal)| {
+                        reported == &formal.name && seen.insert(formal.name.as_bytes().to_vec())
+                    })
+        }
     }
 }
 
@@ -307,6 +318,42 @@ fn source_formal_arity(
         .ok()?
         .unwrap_or(Arity::UNLIMITED);
     Some(Arity::new(min, max))
+}
+
+fn authored_formal_argument_taints(
+    formals: &crate::registry_invocation::AuthoredProcedureFormalTopology,
+    arguments: &[TaintLattice],
+) -> Option<Vec<(String, TaintLattice)>> {
+    use tcl_syntax::formal_params::FormalByteArgumentBinding as Binding;
+    let mut bound = vec![TaintLattice::clean(); formals.parameters().len()];
+    for binding in formals.bindings(arguments.len())? {
+        match binding {
+            Binding::Value {
+                parameter,
+                argument,
+            } => bound[parameter] = *arguments.get(argument)?,
+            Binding::Default { .. } => {}
+            Binding::Rest {
+                parameter,
+                start,
+                len,
+                ..
+            } => {
+                for value in arguments.get(start..start.checked_add(len)?)? {
+                    bound[parameter] = bound[parameter].join(*value);
+                }
+            }
+            Binding::CallerLink { parameter, .. } => bound[parameter] = TaintLattice::tainted(),
+        }
+    }
+    Some(
+        formals
+            .parameters()
+            .iter()
+            .map(|formal| formal.name.clone())
+            .zip(bound)
+            .collect(),
+    )
 }
 
 fn source_formal_argument_taints(
@@ -376,6 +423,11 @@ fn source_formal_argument_taints(
             if argument != args.len() {
                 return None;
             }
+        }
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Authored(
+            formals,
+        ) => {
+            return authored_formal_argument_taints(formals, args);
         }
     }
     Some(summary.params.iter().cloned().zip(bound).collect())
@@ -830,10 +882,8 @@ pub fn infer_proc_summary(
         fu,
         registry,
         interproc,
-        source: TaintSourceContext::for_unit_function(registry, cu, fu),
-        source_formals: cu
-            .ir_module
-            .original_source_formal_topology(body_id, registry),
+        source: TaintSourceContext::for_unit_may(registry, cu, fu),
+        source_formals: TaintSourceContext::formals_for_unit_body(cu, body_id, registry),
         known,
         summaries,
     }))
@@ -1192,7 +1242,7 @@ pub fn resolved_callees(
     let Some(fu) = fu else {
         return known.iter().copied().collect();
     };
-    let source = TaintSourceContext::for_unit_function(registry, cu, fu);
+    let source = TaintSourceContext::for_unit_may(registry, cu, fu);
     let mut out = std::collections::BTreeSet::new();
     for block_id in &fu.sccp.executable_blocks {
         let Some(block) = fu.cfg.blocks.get(block_id) else {
@@ -1579,7 +1629,7 @@ fn infer_current_summary(
     let proc = cu
         .original_procedure_for_body(qname)
         .expect("current original procedure body");
-    let source = TaintSourceContext::for_unit_function(registry, cu, fu);
+    let source = TaintSourceContext::for_unit_may(registry, cu, fu);
     if source.metadata_context().is_some() {
         Some(infer_fn(cu, qname, interproc, known, summaries))
     } else {
@@ -1590,9 +1640,7 @@ fn infer_current_summary(
             registry,
             interproc,
             source,
-            source_formals: cu
-                .ir_module
-                .original_source_formal_topology(qname, registry),
+            source_formals: TaintSourceContext::formals_for_unit_body(cu, qname, registry),
             known,
             summaries,
         }))
@@ -1614,8 +1662,7 @@ fn seed_taint_summaries(
             ProcTaintSummary::untainted_for_source(
                 &proc.qualified_name,
                 &proc.params,
-                cu.ir_module
-                    .original_source_formal_topology(**qname, registry),
+                TaintSourceContext::formals_for_unit_body(cu, **qname, registry),
             ),
         );
     }
@@ -1669,10 +1716,8 @@ fn assert_taint_summaries_converged(
                 fu,
                 registry,
                 interproc,
-                source: TaintSourceContext::for_unit_function(registry, cu, fu),
-                source_formals: cu
-                    .ir_module
-                    .original_source_formal_topology(**qname, registry),
+                source: TaintSourceContext::for_unit_may(registry, cu, fu),
+                source_formals: TaintSourceContext::formals_for_unit_body(cu, **qname, registry),
                 known,
                 summaries,
             });
@@ -2007,7 +2052,7 @@ fn solve_interprocedural_taints_with_context(
                 registry,
                 interproc,
                 true,
-                TaintSourceContext::for_unit_function(registry, cu, fu),
+                TaintSourceContext::for_unit_may(registry, cu, fu),
             )
         });
         let taints = run_propagation(
@@ -2016,7 +2061,7 @@ fn solve_interprocedural_taints_with_context(
             instance_classes,
             registry,
             interproc,
-            TaintSourceContext::for_unit_function(registry, cu, fu),
+            TaintSourceContext::for_unit_may(registry, cu, fu),
             Some(&entry),
             &summaries,
         );
@@ -2027,7 +2072,7 @@ fn solve_interprocedural_taints_with_context(
             instance_classes,
             registry,
             interproc,
-            TaintSourceContext::for_unit_function(registry, cu, fu),
+            TaintSourceContext::for_unit_may(registry, cu, fu),
             &known,
             &summaries,
         );

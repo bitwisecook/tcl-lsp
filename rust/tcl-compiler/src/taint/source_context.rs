@@ -11,6 +11,8 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 
+mod authored_body;
+
 /// Original invocation geometry retained by the diagnostic that selected a sink.
 /// It supplies source correspondence, independently of rendered sink labels,
 /// execution, runtime binding identity or permission to rewrite an evaluation.
@@ -85,6 +87,7 @@ pub(crate) struct TaintSourceContext<'a> {
     module: Option<&'a crate::ir::Module>,
     body_id: Option<crate::ir::ProcedureId>,
     module_owner: Option<&'a crate::command_binding::RetainedSourceModuleBindings>,
+    authored_body: Option<authored_body::AuthoredBodyTaintContext<'a>>,
 }
 
 impl<'a> TaintSourceContext<'a> {
@@ -120,6 +123,7 @@ impl<'a> TaintSourceContext<'a> {
             module: None,
             body_id: None,
             module_owner: None,
+            authored_body: None,
         }
     }
 
@@ -186,6 +190,75 @@ impl<'a> TaintSourceContext<'a> {
         }
     }
 
+    /// Current authored bodies select only their separate MAY diagnostic purpose.
+    /// Supplied/withdrawn contexts retain their general constructor's refusal.
+    pub(crate) fn for_unit_may(
+        registry: &CommandRegistry,
+        unit: &'a crate::compilation_unit::CompilationUnit,
+        function: &'a FunctionUnit,
+    ) -> Self {
+        let source = Self::for_unit_function(registry, unit, function);
+        if source.metadata.is_some() || source.standalone {
+            return source;
+        }
+        let Some(body) = authored_body::AuthoredBodyTaintContext::capture(unit, function, registry)
+        else {
+            return source;
+        };
+        Self {
+            authored_body: Some(body),
+            module: Some(&unit.ir_module),
+            module_owner: unit.ir_module.retained_source_bindings.as_deref(),
+            ..source
+        }
+    }
+
+    pub(super) fn authored_body_formal(self, ssa: &crate::ssa::SsaFunction, name: &str) -> bool {
+        self.authored_body
+            .is_some_and(|body| body.has_formal(ssa, name))
+    }
+
+    pub(super) const fn has_authored_body(self) -> bool {
+        self.authored_body.is_some()
+    }
+
+    pub(super) fn authored_body_sink(
+        self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::AuthoredSourceTaintInvocation> {
+        self.authored_body?.sink_invocation(tokens, registry)
+    }
+
+    pub(crate) fn formals_for_unit_body(
+        unit: &crate::compilation_unit::CompilationUnit,
+        body: crate::ir::ProcedureId,
+        registry: &CommandRegistry,
+    ) -> Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology> {
+        use crate::signature_scan::formal_parameters::SourceProcedureFormalTopology;
+        if unit
+            .ir_module
+            .original_authored_declaration_body_units
+            .contains_key(&body)
+        {
+            let function = unit.function_for_body(Some(body))?;
+            if Self::for_module_function(registry, &unit.ir_module, function)
+                .metadata
+                .is_some()
+            {
+                return unit
+                    .ir_module
+                    .original_source_formal_topology(body, registry);
+            }
+            return Some(SourceProcedureFormalTopology::Authored(
+                authored_body::AuthoredBodyTaintContext::capture(unit, function, registry)?
+                    .formals()?,
+            ));
+        }
+        unit.ir_module
+            .original_source_formal_topology(body, registry)
+    }
+
     pub(crate) fn for_module(registry: &CommandRegistry, module: &'a crate::ir::Module) -> Self {
         let module_owner = module
             .retained_source_bindings
@@ -200,6 +273,7 @@ impl<'a> TaintSourceContext<'a> {
             module: module_owner.map(|_| module),
             body_id: None,
             module_owner,
+            authored_body: None,
         }
     }
 
@@ -244,6 +318,7 @@ impl<'a> TaintSourceContext<'a> {
             module: None,
             body_id: None,
             module_owner: None,
+            authored_body: None,
         }
     }
 
