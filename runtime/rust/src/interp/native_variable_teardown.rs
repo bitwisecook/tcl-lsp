@@ -395,6 +395,12 @@ mod tests {
     }
 
     macro_rules! control {
+        ("native_array_operational_unset355", $case:literal) => {
+            table_control!("native_array_operational_unset355", $case)
+        };
+        ("native_array_unset_relookup356", $case:literal) => {
+            table_control!("native_array_unset_relookup356", $case)
+        };
         ("native_array_owner_teardown347", $case:literal) => {
             table_control!("native_array_owner_teardown347", $case)
         };
@@ -589,11 +595,11 @@ mod tests {
     #[test]
     fn original_array_unset_refills_match_six_native_source_results() {
         // These are ArrayUnset originals, independent of the Unset alias source.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_array_operational_unset355", "array-member-refill"),
             control!("native_array_operational_unset355", "array-root-refill"),
         ];
-        assert_eq!(compare_original_controls(CONTROLS), 12);
+        assert_eq!(compare_original_controls(controls), 12);
     }
 
     #[test]
@@ -601,11 +607,11 @@ mod tests {
         // C84/85 relookup each member name; C86+ keep the selected array.
         // All C releases relookup a whole root after its array callback.
         // These public values do not expose private header/table identity.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_array_unset_relookup356", "whole-root-relookup"),
             control!("native_array_unset_relookup356", "member-held-root"),
         ];
-        assert_eq!(compare_original_controls(CONTROLS), 12);
+        assert_eq!(compare_original_controls(controls), 12);
     }
 
     #[test]

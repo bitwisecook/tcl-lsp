@@ -1204,11 +1204,12 @@ mod tests {
 
     #[test]
     fn original_injection_public_completions_match_both_c9_releases() {
+        const INJECTION_CAPTURE_TABLE: &str = include_str!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/captures.tsv");
         macro_rules! original_case {
             ($directory:literal, $case:literal) => {
                 (include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/", $case, ".tcl")), [
-                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/9.0.4/", $case, "/stdout")),
-                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/9.1.0/", $case, "/stdout")),
+                    tcl_test_support::fixture_tables::text(INJECTION_CAPTURE_TABLE, concat!($directory, "/9.0.4/", $case, "/stdout")),
+                    tcl_test_support::fixture_tables::text(INJECTION_CAPTURE_TABLE, concat!($directory, "/9.1.0/", $case, "/stdout")),
                 ])
             };
         }

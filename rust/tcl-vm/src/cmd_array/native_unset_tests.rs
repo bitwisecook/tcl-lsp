@@ -4,58 +4,60 @@
 
 //! Complete original `ArrayUnset` public results across native releases.
 
-type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
+type OriginalControl = (&'static str, &'static [u8], [String; 6]);
 
-const CONTROLS: &[OriginalControl] = &[
+fn unset_controls() -> [OriginalControl; 4] {
+    [
     (
         "native_array_operational_unset355/array-member-refill",
         include_bytes!("../../../tcl-registry/tests/data/native_array_operational_unset355/array-member-refill.tcl").as_slice(),
         [
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/8.4.20/array-member-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/8.5.19/array-member-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/8.6.18/array-member-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/9.0.4/array-member-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/9.1.0/array-member-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/jim/array-member-refill/stdout")
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "8.4.20/array-member-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "8.5.19/array-member-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "8.6.18/array-member-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "9.0.4/array-member-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "9.1.0/array-member-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "jim/array-member-refill/stdout")
         ],
     ),
     (
         "native_array_operational_unset355/array-root-refill",
         include_bytes!("../../../tcl-registry/tests/data/native_array_operational_unset355/array-root-refill.tcl").as_slice(),
         [
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/8.4.20/array-root-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/8.5.19/array-root-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/8.6.18/array-root-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/9.0.4/array-root-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/9.1.0/array-root-refill/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/jim/array-root-refill/stdout")
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "8.4.20/array-root-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "8.5.19/array-root-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "8.6.18/array-root-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "9.0.4/array-root-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "9.1.0/array-root-refill/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_operational_unset355/captures.tsv"), "jim/array-root-refill/stdout")
         ],
     ),
     (
         "native_array_unset_relookup356/whole-root-relookup",
         include_bytes!("../../../tcl-registry/tests/data/native_array_unset_relookup356/whole-root-relookup.tcl").as_slice(),
         [
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/8.4.20/whole-root-relookup/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/8.5.19/whole-root-relookup/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/8.6.18/whole-root-relookup/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/9.0.4/whole-root-relookup/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/9.1.0/whole-root-relookup/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/jim/whole-root-relookup/stdout")
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "8.4.20/whole-root-relookup/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "8.5.19/whole-root-relookup/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "8.6.18/whole-root-relookup/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "9.0.4/whole-root-relookup/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "9.1.0/whole-root-relookup/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "jim/whole-root-relookup/stdout")
         ],
     ),
     (
         "native_array_unset_relookup356/member-held-root",
         include_bytes!("../../../tcl-registry/tests/data/native_array_unset_relookup356/member-held-root.tcl").as_slice(),
         [
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/8.4.20/member-held-root/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/8.5.19/member-held-root/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/8.6.18/member-held-root/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/9.0.4/member-held-root/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/9.1.0/member-held-root/stdout"),
-            include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/jim/member-held-root/stdout")
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "8.4.20/member-held-root/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "8.5.19/member-held-root/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "8.6.18/member-held-root/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "9.0.4/member-held-root/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "9.1.0/member-held-root/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_array_unset_relookup356/captures.tsv"), "jim/member-held-root/stdout")
         ],
     )
-];
+    ]
+}
 
 #[test]
 fn original_array_unset_matches_native_refills_and_release_selected_lookup() {
@@ -63,9 +65,9 @@ fn original_array_unset_matches_native_refills_and_release_selected_lookup() {
     // original-header or compiled activation equivalence follows from them.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in CONTROLS {
+    for (case, source, columns) in unset_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
