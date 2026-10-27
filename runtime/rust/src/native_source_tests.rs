@@ -283,8 +283,11 @@ fn original_jim_source_length_preserves_resident_bytes_and_child_source() {
             hex(&obj::bytes_of(info.filename.as_ptr()))
         )
         .unwrap();
-        let native = include_str!(
-            "../../../rust/tcl-registry/tests/data/native_source_list_length241/jim/stdout"
+        let native = tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../rust/tcl-registry/tests/data/native_source_list_length241/captures.tsv"
+            ),
+            "jim/stdout",
         );
         assert_eq!(
             observed.lines().collect::<Vec<_>>(),

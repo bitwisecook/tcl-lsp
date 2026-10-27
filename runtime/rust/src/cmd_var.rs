@@ -1141,18 +1141,30 @@ list $root $nsresult $rootdict(k)
     fn original_array_read_destruction_matches_six_native_source_results() {
         // Exact completion/value/trace-log observations only. Jim's original
         // unavailable trace setup is independent of C's entered callbacks.
+        const READ_CAPTURES: &str = include_str!(
+            "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/captures.tsv"
+        );
         macro_rules! provider {
             ($engine:literal, $version:literal) => {
-                ($engine, [
-                    include_str!(concat!(
-                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
-                        $version, "/variable_array_unset_live_member_read_trace_fires/stdout"
-                    )),
-                    include_str!(concat!(
-                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
-                        $version, "/variable_array_unset_active_member_read_guard_survives/stdout"
-                    )),
-                ])
+                (
+                    $engine,
+                    [
+                        tcl_test_support::fixture_tables::text(
+                            READ_CAPTURES,
+                            concat!(
+                                $version,
+                                "/variable_array_unset_live_member_read_trace_fires/stdout"
+                            ),
+                        ),
+                        tcl_test_support::fixture_tables::text(
+                            READ_CAPTURES,
+                            concat!(
+                                $version,
+                                "/variable_array_unset_active_member_read_guard_survives/stdout"
+                            ),
+                        ),
+                    ],
+                )
             };
         }
         let sources = [

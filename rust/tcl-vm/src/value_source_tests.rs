@@ -342,8 +342,10 @@ fn original_jim_source_length_preserves_resident_bytes_and_child_source() {
         hex(&info.filename.resident_string_bytes().unwrap())
     )
     .unwrap();
-    let native =
-        include_str!("../../tcl-registry/tests/data/native_source_list_length241/jim/stdout");
+    let native = tcl_test_support::fixture_tables::text(
+        include_str!("../../tcl-registry/tests/data/native_source_list_length241/captures.tsv"),
+        "jim/stdout",
+    );
     assert_eq!(
         observed.lines().collect::<Vec<_>>(),
         native
@@ -363,13 +365,14 @@ fn original_source_length_and_concat_channels_match_all_native_providers() {
             ))
         };
     }
+    const SOURCE_LENGTH_CAPTURES: &str =
+        include_str!("../../tcl-registry/tests/data/native_source_list_length241/captures.tsv");
     macro_rules! rows {
         ($provider:literal) => {
-            include_str!(concat!(
-                "../../tcl-registry/tests/data/native_source_list_length241/",
-                $provider,
-                "/stdout"
-            ))
+            tcl_test_support::fixture_tables::text(
+                SOURCE_LENGTH_CAPTURES,
+                concat!($provider, "/stdout"),
+            )
         };
     }
     let sources: [&[u8]; 3] = [

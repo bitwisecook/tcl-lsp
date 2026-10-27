@@ -18,23 +18,24 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
     )
 }
 
-type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
-const CONTROLS: &[OriginalControl] = &[
+type OriginalControl = (&'static str, &'static [u8], [String; 6]);
+fn command_key_controls() -> [OriginalControl; 3] {
+    [
     ("root-replacement", include_bytes!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/root-replacement.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.4.20/root-replacement/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.5.19/root-replacement/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.6.18/root-replacement/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/9.0.4/root-replacement/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/9.1.0/root-replacement/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/jim/root-replacement/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "8.4.20/root-replacement/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "8.5.19/root-replacement/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "8.6.18/root-replacement/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "9.0.4/root-replacement/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "9.1.0/root-replacement/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "jim/root-replacement/stdout"),
     ]),
     ("rename-and-fresh-publication", include_bytes!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/rename-and-fresh-publication.tcl").as_slice(), [
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.4.20/rename-and-fresh-publication/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.5.19/rename-and-fresh-publication/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.6.18/rename-and-fresh-publication/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/9.0.4/rename-and-fresh-publication/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/9.1.0/rename-and-fresh-publication/stdout"),
-        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/jim/rename-and-fresh-publication/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "8.4.20/rename-and-fresh-publication/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "8.5.19/rename-and-fresh-publication/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "8.6.18/rename-and-fresh-publication/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "9.0.4/rename-and-fresh-publication/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "9.1.0/rename-and-fresh-publication/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys340/captures.tsv"), "jim/rename-and-fresh-publication/stdout"),
     ]),
     ("namespace-replacement", include_bytes!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys341/namespace-replacement.tcl").as_slice(), [
         include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys341/8.4.20/namespace-replacement/stdout"),
@@ -43,17 +44,18 @@ const CONTROLS: &[OriginalControl] = &[
         include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys341/9.0.4/namespace-replacement/stdout"),
         include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys341/9.1.0/namespace-replacement/stdout"),
         include_str!("../../../../rust/tcl-registry/tests/data/native_jim_command_table_keys341/jim/namespace-replacement/stdout"),
-    ]),
- ];
+    ].map(str::to_owned)),
+    ]
+}
 
 #[test]
 fn original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources() {
     // Complete original public output does not establish private original key/header identity.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in CONTROLS {
+    for (case, source, columns) in command_key_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let mut interp = crate::interp::Interp::with_native_core(
                 crate::interp::default_host(),
                 crate::environment::profile_for_dialect(engine),
