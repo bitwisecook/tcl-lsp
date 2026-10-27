@@ -227,9 +227,3 @@ pub fn object_observation_rows(column: Column) -> Vec<String> {
         .map(str::to_owned)
         .collect()
 }
-
-/// Jim's independent original command-availability query and caught invocation.
-#[must_use]
-pub fn jim_availability() -> String {
-    Column::Object("jim/string-eacute/stdout").text()
-}
