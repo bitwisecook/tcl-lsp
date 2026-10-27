@@ -2858,6 +2858,14 @@ impl Analyser {
         })
     }
 
+    fn procedure_reporting_body_span(&self, body: Token, finite: bool) -> Span {
+        if finite {
+            tcl_lexer::word_span_at(&self.source, body.span)
+        } else {
+            body.span
+        }
+    }
+
     fn handle_proc_command_with_source_head(
         &mut self,
         cmd_name: &str,
@@ -2916,6 +2924,7 @@ impl Analyser {
             &ns_prefix,
             &resolved_name,
         );
+        let finite_reporting = finite_name.is_some();
         if let Some((name, _)) = finite_name {
             let (Some(full), Some(tail)) = (name.reported_full_name(), name.simple_name()) else {
                 return false;
@@ -2926,7 +2935,7 @@ impl Analyser {
         }
         let name_span = name_tok.span;
         let body_tok = arg_tokens[words.body];
-        let body_span = body_tok.span;
+        let body_span = self.procedure_reporting_body_span(body_tok, finite_reporting);
 
         // **W113** — proc name shadows a built-in command.
         self.emit_w113_proc_shadows_builtin(

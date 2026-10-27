@@ -229,6 +229,7 @@ impl FiniteForeachProcedureName {
                 .matches_original_source_image(&self.image, self.input.lexer_config())
             || analyser.declaration_namespace_scope(scope).as_ref() != Some(&self.namespace)
             || analyser.declaration_name_policy() != Some(self.value.policy())
+            || self.image.bytes() != analyser.source.as_bytes()
         {
             return None;
         }
@@ -459,6 +460,9 @@ impl FiniteForeachProcedures {
             );
         }
         let image = tcl_lexer::SourceImage::document(&analyser.source);
+        if realm.original_source_image() != Some(&image) {
+            return None;
+        }
         let names = values
             .into_iter()
             .map(|value| {
