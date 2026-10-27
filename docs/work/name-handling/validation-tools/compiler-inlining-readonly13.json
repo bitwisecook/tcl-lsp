@@ -244,7 +244,7 @@
     "rust/tcl-vm/src/command/native_procedure.rs": "4f5ef0993bf26fe8be3ebc2f6fe7040e9d23a4cdb0a481c2b1b30e206b1202a4",
     "rust/tcl-vm/src/interp.rs": "dd40caec31b684f2ef8fe418fc42810fac3f6bc3882fddbac6664b7ddf5ce896",
     "rust/tcl-compiler/src/compile_service/native_procedure_source.rs": "cd4903269a528ae70414e3974c3ec53682f77794d8d8ca42e87c4b1de8bc0978",
-    "rust/tcl-compiler/src/compile_service.rs": "9c8b354617f9beb8462f14705371bb38028df0dd2b01a712077f3a253fed0a93",
+    "rust/tcl-compiler/src/compile_service.rs": "d3e6c0b4db2ac15490aa173f2957cd21f7556bf8b05865696c9be349c3e6662a",
     "rust/tcl-compiler/src/lowering/mod.rs": "a4ce038783d4537cb4b707df38ea6e8008393c7b46e95b3aaa71310a5cfe4465",
     "rust/tcl-compiler/tests/support/native_compiled_fixture.rs": "61f4723e685504f970cc3c7e41f3a32b75d6e8b817af98bc15407f74a3039739",
     "rust/tcl-compiler/src/command_binding/materialized_footprint.rs": "5eccecc728a395f705f1b8860f37c476dca20d20f20cb804ba621a93b7266fc9",

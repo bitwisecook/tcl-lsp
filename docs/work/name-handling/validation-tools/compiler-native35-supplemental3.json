@@ -18,8 +18,8 @@
   "source_pins": {
     "rust/tcl-compiler/src/analyser/authenticated_report.rs": "42e61af9cd3d54b3647a2717c00c67569e1a4cd7240ca134e0bd7eabe0629863",
     "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8",
-    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "e7975d3056844a75252fe51ecffd60baab20d7360a0b6a88e0f4787161de3921",
-    "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs": "fe3fb9cbb66aff05830315474c92ef0bd4deaf45a42bc5133a43e32aea6cce1c",
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "e5177c2e193774638654c437a70e47fe148d7135ffb78943264f0889d1cf5f1b",
+    "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs": "b48cba530a350d555c146bc38a8bce5754fcb5c1021bbe324e1aa2424691c86d",
     "rust/tcl-compiler/src/registry_invocation/source_availability.rs": "27bee3b0e1c99fdcf32bcd39c12a60808baa5e47d55586fbf10b4573d95e23c4",
     "rust/tcl-compiler/src/command_binding/availability_report.rs": "fe77686d4decf12ed8b7c6f6531b475cd9a3a7f6481e195b3947470936d70b2c",
     "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs": "0b91c59fd92ada7061ac06e65888d37e54220ed607180b60fe90c8f1e3b244ac"
