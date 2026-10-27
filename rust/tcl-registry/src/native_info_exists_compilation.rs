@@ -195,34 +195,53 @@ mod tests {
             Err(NativeInfoExistsUnavailable::Version)
         );
     }
+    fn original_compiler_tables() -> [(TclVersion, String); 5] {
+        [
+            (
+                TclVersion::V8_4,
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "8.4.20.txt",
+                ),
+            ),
+            (
+                TclVersion::V8_5,
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "8.5.19.txt",
+                ),
+            ),
+            (
+                TclVersion::V8_6,
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "8.6.18.txt",
+                ),
+            ),
+            (
+                TclVersion::V9_0,
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "9.0.4.txt",
+                ),
+            ),
+            (
+                TclVersion::V9_1,
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "9.1.0.txt",
+                ),
+            ),
+        ]
+    }
+
     #[test]
     fn original_exists_selection_matches_60_native_compiler_opcode_windows() {
         use crate::native_compilation::{
             NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
             NativeCompilationSelection,
         };
-        let tables = [
-            (
-                TclVersion::V8_4,
-                include_str!("../tests/data/native_upvar_info_exists/8.4.20.txt"),
-            ),
-            (
-                TclVersion::V8_5,
-                include_str!("../tests/data/native_upvar_info_exists/8.5.19.txt"),
-            ),
-            (
-                TclVersion::V8_6,
-                include_str!("../tests/data/native_upvar_info_exists/8.6.18.txt"),
-            ),
-            (
-                TclVersion::V9_0,
-                include_str!("../tests/data/native_upvar_info_exists/9.0.4.txt"),
-            ),
-            (
-                TclVersion::V9_1,
-                include_str!("../tests/data/native_upvar_info_exists/9.1.0.txt"),
-            ),
-        ];
+        let tables = original_compiler_tables();
         let registry = crate::CommandRegistry::build_default();
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,

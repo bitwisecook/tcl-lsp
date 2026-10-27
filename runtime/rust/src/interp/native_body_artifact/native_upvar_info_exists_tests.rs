@@ -20,71 +20,55 @@
 use super::*;
 use std::cell::RefCell;
 include!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs");
-const TABLES: &[(&str, &str)] = &[
+fn original_tables() -> [(&'static str, String); 5] {
+    [
     (
         "tcl8.4",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "8.4.20.txt"),
     ),
     (
         "tcl8.5",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "8.5.19.txt"),
     ),
     (
         "tcl8.6",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "8.6.18.txt"),
     ),
     (
         "tcl9.0",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "9.0.4.txt"),
     ),
     (
         "tcl9.1",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "9.1.0.txt"),
     ),
-];
+    ]
+}
 include!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/cases.rs");
-const QUIET_TABLES: &[(&str, &str)] = &[
+fn original_quiet_tables() -> [(&'static str, String); 5] {
+    [
     (
         "tcl8.4",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "quiet/8.4.20.txt"),
     ),
     (
         "tcl8.5",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "quiet/8.5.19.txt"),
     ),
     (
         "tcl8.6",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "quiet/8.6.18.txt"),
     ),
     (
         "tcl9.0",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "quiet/9.0.4.txt"),
     ),
     (
         "tcl9.1",
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt"
-        ),
+        tcl_test_support::fixture_tables::text(include_str!("../../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv"), "quiet/9.1.0.txt"),
     ),
-];
+    ]
+}
 const SETUP: &str = "catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch {unset ::g};set ::log {}; proc tap {v} {lappend ::log $v;return $v};proc traceRead {n e op} {set ::g CREATED}; proc traceFail {n e op} {error TRACE}";
 fn unhex(value: &str) -> Vec<u8> {
     value
@@ -126,10 +110,10 @@ fn mark(_interp: &mut Interp, arguments: &[*mut TclObj]) -> Code {
     MARKS.with(|marks| marks.borrow_mut().push(bytes));
     Code::Ok
 }
-fn compare_native_tables(tables: &[(&str, &str)], cases: &[&str]) -> (usize, usize) {
+fn compare_native_tables(tables: &[(&str, String)], cases: &[&str]) -> (usize, usize) {
     let mut results = 0;
     let mut headers = 0;
-    for &(engine, table) in tables {
+    for &(engine, ref table) in tables {
         let mut interp = super::tests::interpreter(engine);
         interp.register_builtin(b"mark", mark);
         for row in table.lines().filter(|row| row.starts_with("R|")) {
@@ -205,10 +189,13 @@ fn compare_native_tables(tables: &[(&str, &str)], cases: &[&str]) -> (usize, usi
 
 #[test]
 fn original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers() {
-    assert_eq!(compare_native_tables(TABLES, CASES), (140, 20));
+    assert_eq!(compare_native_tables(&original_tables(), CASES), (140, 20));
 }
 
 #[test]
 fn original_exists_quiet_trace_semantics_preserve_15_native_result_windows() {
-    assert_eq!(compare_native_tables(QUIET_TABLES, QUIET_CASES), (15, 0));
+    assert_eq!(
+        compare_native_tables(&original_quiet_tables(), QUIET_CASES),
+        (15, 0)
+    );
 }

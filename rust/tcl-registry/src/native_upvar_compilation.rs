@@ -245,30 +245,49 @@ mod tests {
             );
         }
     }
-    #[test]
-    fn original_upvar_selection_matches_native_compiler_opcode_presence() {
-        let tables = [
+    fn original_compiler_tables() -> [(TclVersion, String); 5] {
+        [
             (
                 TclVersion::V8_4,
-                include_str!("../tests/data/native_upvar_info_exists/8.4.20.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "8.4.20.txt",
+                ),
             ),
             (
                 TclVersion::V8_5,
-                include_str!("../tests/data/native_upvar_info_exists/8.5.19.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "8.5.19.txt",
+                ),
             ),
             (
                 TclVersion::V8_6,
-                include_str!("../tests/data/native_upvar_info_exists/8.6.18.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "8.6.18.txt",
+                ),
             ),
             (
                 TclVersion::V9_0,
-                include_str!("../tests/data/native_upvar_info_exists/9.0.4.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "9.0.4.txt",
+                ),
             ),
             (
                 TclVersion::V9_1,
-                include_str!("../tests/data/native_upvar_info_exists/9.1.0.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../tests/data/native_upvar_info_exists/captures.tsv"),
+                    "9.1.0.txt",
+                ),
             ),
-        ];
+        ]
+    }
+
+    #[test]
+    fn original_upvar_selection_matches_native_compiler_opcode_presence() {
+        let tables = original_compiler_tables();
         let registry = crate::CommandRegistry::build_default();
         let mut checked = 0;
         for (version, table) in tables {
