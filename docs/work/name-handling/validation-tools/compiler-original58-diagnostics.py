@@ -162,6 +162,8 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-inherited-point-report3-",
             "diagnostic-cached-increment-compiler3-",
             "diagnostic-primary-procedure-value4-",
+            "diagnostic-authored-body-taint2-",
+            "diagnostic-command-availability-report3-",
             "diagnostic-taint-coroinject1-",
             "diagnostic-finite-foreach4-",
             "list-",
@@ -200,6 +202,8 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-inherited-point-report3-",
             "diagnostic-cached-increment-compiler3-",
             "diagnostic-primary-procedure-value4-",
+            "diagnostic-authored-body-taint2-",
+            "diagnostic-command-availability-report3-",
             "diagnostic-taint-coroinject1-",
             "diagnostic-finite-foreach4-",
         )
@@ -239,6 +243,8 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-inherited-point-report3-",
             "diagnostic-cached-increment-compiler3-",
             "diagnostic-primary-procedure-value4-",
+            "diagnostic-authored-body-taint2-",
+            "diagnostic-command-availability-report3-",
             "diagnostic-taint-coroinject1-",
             "diagnostic-finite-foreach4-",
         )
@@ -3784,6 +3790,216 @@ def run_coroinject_diagnostic() -> None:
         )
 
 
+def run_authored_body_availability_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows + named_child_rows + restored_child_rows + native_string_rows + native_formal_rows + analyser_layout_rows + own_jim_member_rows + advice_catalogue_rows + native_eligibility_rows + own_jim_alias_rows + source_point_memo_rows + analyser_layout_diagnostic_rows + source_point_report_rows + inherited_report_rows + cached_increment_compiler_rows + primary_procedure_value_rows + coroinject_rows
+        ),
+        "authored body availability controls cannot precede existing report-repeat closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    for source_path, expected in body_availability_validation["source_pins"].items():
+        require(sha(root / source_path) == expected,
+                "authored body availability source drift: " + source_path)
+    for function in body_availability_validation["functions"]:
+        text = (root / function["path"]).read_text()
+        marker = "fn " + function["name"] + "("
+        matches = list(re.finditer(r"(?m)^\s*" + re.escape(marker), text))
+        require(len(matches) == 1, "authored body availability function absent/ambiguous")
+        begin = text.index(marker, matches[0].start())
+        opening = text.index("{", begin)
+        level, end = 1, opening + 1
+        while level and end < len(text):
+            level += (text[end] == "{") - (text[end] == "}")
+            end += 1
+        require(level == 0 and hashlib.sha256(text[begin:end].encode()).hexdigest() == function["sha256"],
+                "authored body availability actual function body differs")
+    for index, row in enumerate(body_availability_rows):
+        require(deadline - time.time() >= 180 + 180 + 40,
+                "insufficient full authored-body-availability list/test/cleanup budget")
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        current_roster = json.loads((out / ("roster-" + target_name + ".json")).read_text())
+        require(row["selector"] in current_roster["selected"],
+                "authored body availability selector missing from same fresh owned target inventory")
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "authored body availability current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "authored body availability requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "authored body availability artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "authored-body-availability5"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        require(deadline - time.time() >= 180 + 40,
+                "insufficient full authored body availability test/cleanup budget after listing")
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "authored-body-availability-outcomes.json", body_availability_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "authored-body-availability-outcomes.json", body_availability_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "authored-body-availability-outcomes.json", body_availability_rows)
+            raise
+        save(out / "authored-body-availability-outcomes.json", body_availability_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 def run_primary_procedure_value_controls() -> None:
     global remaining
     require(
@@ -5990,7 +6206,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "b6f429f7234f7d5554207362bce5a764203af48edd7a4dafdecdb80b6cfca1b9",
+    == "ddcb881d09eb277ac1a1de024ab3c89b4c305d6ea66236dd59401a51538fab39",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -6190,6 +6406,9 @@ primary_procedure_value_validation = logical_validation["separate_primary_proced
 require(primary_procedure_value_validation == {'schema': 'primary-procedure-value4-v1', 'expected_selected': 4, 'source_pins': {'rust/tcl-compiler/src/command_binding.rs': '003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2', 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs': '2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30', 'rust/tcl-compiler/src/command_binding/retained_source.rs': 'b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77', 'rust/tcl-compiler/src/realm/source_transition_advice.rs': '549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574', 'rust/tcl-compiler/src/registry_invocation.rs': 'fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac', 'rust/tcl-compiler/src/registry_invocation/source_structure.rs': 'dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca'}, 'functions': [{'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'primary_declaration_values_keep_the_final_record_and_command_refusal', 'sha256': 'ebd07c9e125c3f1ef14a6155901f55bdfdca5dddc1562c24ac5ebb37ac4f2aeb'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'sha256': '94559dac6fb3a1718597f928e85db453db088622b09bb54854db70bb942f9497'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'sha256': '27abb4ce686fd9a2d9ebeca1f10b4dbb12380886f7de20c601c122130a7d7af4'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_changed_input_source_and_selected_operands', 'sha256': '538719e632940b1d0d32f2e114222ef9f57c7f73b8ffd64197ff541ba9cc3488'}], 'rows': [{'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'env': {}}]}, "exact primary procedure value4 roster/source/functions")
 primary_procedure_value_rows = [dict(row, state="UNRUN") for row in primary_procedure_value_validation["rows"]]
 
+body_availability_validation = logical_validation["separate_authored_body_availability_controls"]
+require(body_availability_validation == {'schema': 'separate-authored-body-taint2-command-availability-report3-v1', 'expected_selected': 5, 'qualification_expected_selected': 2, 'availability_expected_selected': 3, 'source_pins': {'rust/tcl-compiler/src/taint/source_context.rs': '655b387a37347dbbf0849704adec8326dd22ca34e350dd0b650edd896f336fbd', 'rust/tcl-compiler/src/taint/source_context/authored_body_qualification.rs': '04aed1384f5fa6e6112d54f5425dcf209f182d8474c0d3cdee98594b289d243c', 'rust/tcl-compiler/src/command_binding.rs': '2ce3c658805b113a5ad44aeb56e3d21e882649ec14e9f0a0ebced7832cf1e6b8', 'rust/tcl-compiler/src/registry_invocation/source_availability.rs': '27bee3b0e1c99fdcf32bcd39c12a60808baa5e47d55586fbf10b4573d95e23c4', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '42e61af9cd3d54b3647a2717c00c67569e1a4cd7240ca134e0bd7eabe0629863', 'rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs': 'fe3fb9cbb66aff05830315474c92ef0bd4deaf45a42bc5133a43e32aea6cce1c', 'rust/tcl-compiler/src/command_binding/availability_report.rs': '9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688', 'rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs': '6bbe921f372b047b98cc613e5d158713093edaada4e218226aa578361638a0e4', 'rust/tcl-compiler/src/ssa.rs': '8df79291dc78a1f140fbe6b1df8c63fadc88ab795038fdb9f7b536c00fce9cd0', 'rust/tcl-compiler/src/compilation_unit.rs': '646b630dd2ddcfb3574363e90d0b8a9a8e0b608ee856640e9db034ab719d0d6f', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': 'e7975d3056844a75252fe51ecffd60baab20d7360a0b6a88e0f4787161de3921', 'rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs': '534351cbdedfd719022c272d67d500b2bc2a7693c623289390ac5c881aa1a6a5', 'rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs': 'a3c57c58c8e918b75958cf3546be72d50462b5057667f0928d07c348570087c9', 'rust/tcl-compiler/tests/taint.rs': '0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d'}, 'functions': [{'path': 'rust/tcl-compiler/src/taint/source_context/authored_body_qualification.rs', 'name': 'sinking_helper_fixture_retains_its_actual_authored_body_and_current_cfg', 'sha256': 'c4b2da547b16ffa06387a91a8fa9569e1ce42f04f7a7b65c1343c99f5de3d31a'}, {'path': 'rust/tcl-compiler/src/taint/source_context/authored_body_qualification.rs', 'name': 'sinking_helper_fixture_body_guard_refuses_foreign_stale_and_changed_cfg', 'sha256': '52c278a9d219779647e08c9fef0201e573b6b6bd67024ec702eb85bb85e4ed1f'}, {'path': 'rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs', 'name': 'availability_report_joins_actual_owners_without_changing_runtime_eq', 'sha256': '1f710a70b8a7002ada276af59fb0e3548b928ed7008493d683be6cc0ab7055ca'}, {'path': 'rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs', 'name': 'availability_report_refuses_foreign_missing_and_corrupt_subjects', 'sha256': '6c3a4e0a92c5a911c5006fbece1cf4216cf7d3982814c0292d9a48b4d4e4857c'}, {'path': 'rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs', 'name': 'availability_report_preserves_every_other_binding_facet', 'sha256': '453448e5d1ca95d7ba7ff228f3a0ad07ce73c2d9e1af5237f63d7906f60accf6'}], 'rows': [{'group': 'diagnostic-authored-body-taint2', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'taint::source_context::authored_body_qualification::sinking_helper_fixture_retains_its_actual_authored_body_and_current_cfg', 'env': {}}, {'group': 'diagnostic-authored-body-taint2', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'taint::source_context::authored_body_qualification::sinking_helper_fixture_body_guard_refuses_foreign_stale_and_changed_cfg', 'env': {}}, {'group': 'diagnostic-command-availability-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'registry_invocation::source_availability::report_tests::availability_report_joins_actual_owners_without_changing_runtime_eq', 'env': {}}, {'group': 'diagnostic-command-availability-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'registry_invocation::source_availability::report_tests::availability_report_refuses_foreign_missing_and_corrupt_subjects', 'env': {}}, {'group': 'diagnostic-command-availability-report3', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'registry_invocation::source_availability::report_tests::availability_report_preserves_every_other_binding_facet', 'env': {}}]}, "exact separate authored body availability descriptor")
+body_availability_rows = [dict(row, state="UNRUN") for row in body_availability_validation["rows"]]
 source_point_memo_validation = logical_validation["separate_source_point_memo_controls"]
 require(source_point_memo_validation["schema"] == "source-point-memo8-v1" and source_point_memo_validation["expected_selected"] == 8 and source_point_memo_validation["source"] in logical_validation["source_pins"] and source_point_memo_validation["required_absent_environment"] == "TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS" and source_point_memo_validation["rows"] == [{'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_matches_complete_input_and_independent_builder_clones', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_keeps_supplied_metadata_generation_and_missing_tag', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_bounds_history_and_refuses_oversized_sources', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::authored_source_memo_distinguishes_channel_config_entry_frame_and_registry', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_live_lease_keeps_snapshot_acyclic_and_shares_while_live', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_retirement_drops_parent_payload_but_retains_only_history_origin', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_rejects_foreign_and_changed_context_keys', 'env': {}}, {'group': 'diagnostic-source-point-memo8', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {}}], "exact separate memo8 roster")
 source_point_memo_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in source_point_memo_validation["rows"]]
@@ -7230,6 +7449,8 @@ try:
     require(len(primary_procedure_value_rows) == 4 and all(row["state"] in ["PASS", "FAIL"] for row in primary_procedure_value_rows), "primary procedure value4 incomplete")
     run_coroinject_diagnostic()
     require(len(coroinject_rows) == 1 and all(row["state"] in ["PASS", "FAIL"] for row in coroinject_rows), "coroinject diagnostic incomplete")
+    run_authored_body_availability_controls()
+    require(len(body_availability_rows) == 5 and all(row["state"] in ["PASS", "FAIL"] for row in body_availability_rows), "authored body availability controls incomplete")
     run_source_point_corpus_controls()
     require(len(source_point_corpus_rows) == 2 and all(row["state"] in ["PASS", "FAIL"] for row in source_point_corpus_rows), "complete text corpus2 incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
@@ -7242,6 +7463,8 @@ try:
     if any(row["state"] != "PASS" for row in primary_procedure_value_rows):
         status = 1
     if any(row["state"] != "PASS" for row in coroinject_rows):
+        status = 1
+    if any(row["state"] != "PASS" for row in body_availability_rows):
         status = 1
     if any(row["state"] != "PASS" for row in source_point_corpus_rows):
         status = 1
@@ -7344,6 +7567,7 @@ finally:
     save(out / "inherited-point-report-outcomes.json", inherited_report_rows)
     save(out / "primary-procedure-value-outcomes.json", primary_procedure_value_rows)
     save(out / "coroinject-diagnostic-outcomes.json", coroinject_rows)
+    save(out / "authored-body-availability-outcomes.json", body_availability_rows)
     save(out / "source-point-corpus-outcomes.json", source_point_corpus_rows)
     save(out / "analyser-layout-firstguard-outcomes.json", analyser_layout_diagnostic_rows)
     save(out / "outcomes.json", rows)
@@ -7474,6 +7698,12 @@ finally:
             "coroinject_diagnostic1_outcomes": coroinject_rows,
             "coroinject_diagnostic1_roster": coroinject_validation,
             "coroinject_diagnostic1_closed": sum(row["state"] in ["PASS", "FAIL"] for row in coroinject_rows),
+            "required_authored_body_taint_qualification_controls": 2,
+            "authored_body_taint2_outcomes": body_availability_rows[:2],
+            "required_command_availability_report_controls": 3,
+            "command_availability_report3_outcomes": body_availability_rows[2:],
+            "authored_body_availability5_roster": body_availability_validation,
+            "authored_body_availability5_closed": sum(row["state"] in ["PASS", "FAIL"] for row in body_availability_rows),
             "required_primary_procedure_value_controls": 4,
             "primary_procedure_value4_outcomes": primary_procedure_value_rows,
             "primary_procedure_value4_roster": primary_procedure_value_validation,
