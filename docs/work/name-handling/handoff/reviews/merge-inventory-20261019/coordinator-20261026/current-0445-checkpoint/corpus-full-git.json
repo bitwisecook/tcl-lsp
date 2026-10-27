@@ -1,0 +1,11 @@
+{
+  "source": "ff67bd5d1295db8edbe205cce6219e81aa30d770",
+  "source_before_after_equal": true,
+  "exact_main_root_membership": 126878,
+  "all_uploaded_git_content_sha256_matches": 126878,
+  "unique_blob_sha256_hashes": 79551,
+  "unique_blob_bytes_hashed": 9634602841,
+  "symlink_records_verified": 0,
+  "git_nul_listing_sha256": "94e0a6de9f1c12476d89c4b52529acb971d0aa4369236e2b44834229dcc4af62",
+  "qualification": "Exact immutable Git membership/content and source-map symlink metadata only; no execution/provider/semantic/performance claim."
+}

@@ -1,0 +1,314 @@
+{
+  "source": "ff67bd5d1295db8edbe205cce6219e81aa30d770",
+  "run": 40445781514,
+  "job": 121996618306,
+  "artifact": 12709440778,
+  "api_zip_digest": "231c2db390fa8fbcc09b007c86cf542b300e7d96499a3398de0337398a8a11bf",
+  "safe_unique_crc_members": 54,
+  "source_provider_dependency_tool_before_after_equal": true,
+  "all122_source_and_fixture_pins_match_Git_and_upload": true,
+  "fresh_strict_0w_compiler_lib_elf": "ed0cf2482a39f13c70762f344d61b566d71b6a736197370ca6c9d44faa49cc97",
+  "actual_test_function_lists_and_same_elf_verified": true,
+  "owned_closed_processes": 7,
+  "exact_shared_cap": true,
+  "all_process_budgets_within_shared_absolute_deadline": true,
+  "shared_absolute_deadline_epoch": 1793076235.0,
+  "minimum_free_bytes": 73470640128,
+  "report_rows": [
+    {
+      "selector": "command_binding::source_analysis_cache::tests::source_point_cache_complete_original_corpus_old_and_mixed_reports_equal",
+      "state": "FAIL",
+      "completed_input_mode_markers": 2,
+      "observed_equal_pairs": 6,
+      "required_markers": 234,
+      "required_equal_pairs": 702,
+      "first_failure": "assertion `left == right` failed: complete corpus label=samples/for_screenshots/20-folding.tcl mixed=false pair=old-old",
+      "left": "  left: Unavailable(CompleteFieldCorrespondenceUnavailable)",
+      "decoded_stderr_sha256": "a7e72d662d75470946e715a6c93eabb8af9f23103cb66288053bea8aab4d966b",
+      "complete_corpus_accepted": false,
+      "verified_trace_observation": {
+        "state": "OBSERVED",
+        "rows": 1376,
+        "first_rows": [
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.input available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.realm available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.realm-owner available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.retained-module available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.positioned-module available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.module-owner available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.image available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.origin available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.prepared available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.retained available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.positioned available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.source-origin available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.input available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.bodies available=true"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.analysis-context refuses=false"
+          },
+          {
+            "context": {
+              "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.source-region refuses=false"
+          }
+        ],
+        "first_negative_by_stage": {
+          "compare.diagnostic_subject_detail": {
+            "context": {
+              "input": "samples/for_screenshots/20-folding.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=compare.diagnostic_subject_detail ordinal=0 left=CommandAvailability right=CommandAvailability code_left=W002 code_right=W002 available=false"
+          },
+          "compare.diagnostic_subject": {
+            "context": {
+              "input": "samples/for_screenshots/20-folding.tcl",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=compare.diagnostic_subject available=false"
+          }
+        },
+        "first_compare_refusal": {
+          "context": {
+            "input": "samples/for_screenshots/20-folding.tcl",
+            "source_context": "dialect=tcl8.6 original=true"
+          },
+          "row": "REPORT_CAPTURE stage=compare.diagnostic_subject_detail ordinal=0 left=CommandAvailability right=CommandAvailability code_left=W002 code_right=W002 available=false"
+        }
+      },
+      "diagnostic_subject_ordinal": 0,
+      "diagnostic_subject_variant": "CommandAvailability",
+      "diagnostic_code": "W002"
+    },
+    {
+      "selector": "command_binding::source_analysis_cache::tests::source_point_cache_original_generated_old_and_mixed_reports_equal",
+      "state": "PASS",
+      "completed_input_mode_markers": 14,
+      "observed_equal_pairs": 42,
+      "required_markers": 14,
+      "required_equal_pairs": 42,
+      "first_failure": null,
+      "left": null,
+      "decoded_stderr_sha256": "4bc114fc8e0187ef924c0e65d695483b3f85210f1f70bd3976ce5e8980bc4f7f",
+      "complete_corpus_accepted": true,
+      "verified_trace_observation": {
+        "state": "OBSERVED",
+        "rows": 6713,
+        "first_rows": [
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.input available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.realm available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.realm-owner available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.retained-module available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.positioned-module available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.module-owner available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.image available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.origin available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.prepared available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.retained available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.positioned available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.source-origin available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=bodies.input available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.bodies available=true"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.analysis-context refuses=false"
+          },
+          {
+            "context": {
+              "input": "calls:10",
+              "source_context": "dialect=tcl8.6 original=true"
+            },
+            "row": "REPORT_CAPTURE stage=capture.source-region refuses=false"
+          }
+        ],
+        "first_negative_by_stage": {},
+        "first_compare_refusal": null
+      },
+      "diagnostic_subject_ordinal": null,
+      "diagnostic_subject_variant": null,
+      "diagnostic_code": null
+    }
+  ],
+  "full702_plus42_accepted": false,
+  "native_byte_packset_obligations": "Separate; not part of archived117 text roster.",
+  "performance_accepted": false,
+  "qualification": "Text failure is old-old W002 CommandAvailability ordinal0 before that input reaches mixed mode. Generated7 all14markers/42pairs PASS including procs41/upvar. Text remains Unavailable, not Different or measured cache-regression attribution. Full Git membership/content supplement separate; sourcepin122 and full uploaded before/after seals verified here."
+}

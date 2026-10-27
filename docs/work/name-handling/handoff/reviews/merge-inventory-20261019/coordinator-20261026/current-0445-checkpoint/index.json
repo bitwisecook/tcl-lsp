@@ -1,0 +1,102 @@
+{
+  "utc": "2026-10-27T04:28:28.210065+00:00",
+  "scope": "Small immutable receipt copies; source-qualified outcomes only, no release or audit admission",
+  "records": [
+    {
+      "copy": "strict-ff67.json",
+      "source": "/workspace/naming-proof-storage/ccg-strictff67-40445772183-actual-v1/assessment.json",
+      "sha256": "8d2d1d8ee99828e144bc9bd376f1c9bb4bec97a6779edf5d2946d38bc829e474",
+      "bytes": 3961
+    },
+    {
+      "copy": "corpus-ff67.json",
+      "source": "/workspace/naming-proof-storage/names-corpus2-40445781514-actual-v1/authentication.json",
+      "sha256": "1a8cd59b5c60921dc0232a973e864f60d258976154fa8ac18b60e16cce2aaf2b",
+      "bytes": 12523
+    },
+    {
+      "copy": "corpus-full-git.json",
+      "source": "/workspace/naming-proof-storage/names-corpus2-40445781514-actual-v1/full-git-content-authentication.json",
+      "sha256": "12b828ba6743394448a48f357883c4871eb8316bee1ad1e79c4d8b02bddb73b3",
+      "bytes": 547
+    },
+    {
+      "copy": "prep-667.json",
+      "source": "/workspace/naming-proof-storage/names-prep-pr-40445944580-actual-v1/authentication.json",
+      "sha256": "5e7964ff02b4c46f82c35233618c504b609eef7a21f9036606a4e01350658813",
+      "bytes": 6320
+    },
+    {
+      "copy": "lsp-ff67-index.json",
+      "source": "/workspace/naming-proof-storage/lsp-ff67bd-host-wave-evidence-index-v1/index-v1.json",
+      "sha256": "c8aceb5a48e5a0729969e4cab5e667c92e2be0192cf3cb4b2dd9c88d6dbc60cf",
+      "bytes": 2345
+    },
+    {
+      "copy": "compiler-layout-jim-index.json",
+      "source": "/workspace/naming-proof-storage/compiler-currentff67-layout-jim-closed-v1/index.json",
+      "sha256": "a5d026fc7859b1c78ac521ba0bccc1b2eaf0b4dae466811eb50d0ba7520fea87",
+      "bytes": 2385
+    },
+    {
+      "copy": "runtime-ff67-index.json",
+      "source": "/workspace/naming-proof-storage/vm-ff67-owned-captures-fullauth-index.json",
+      "sha256": "a7585422330480aacd35e1265da337f7a7887202d2d3682a52ba9340ccde9697",
+      "bytes": 1664
+    },
+    {
+      "copy": "tk-shadow-peer.json",
+      "source": "/workspace/naming-proof-storage/peer-lsp-tk-shadow-procedure-control-v1/receipt.json",
+      "sha256": "652dac795e9198145013115929e6ebc9342cf97ce2684b6248b7ffaa1cd4fad8",
+      "bytes": 805
+    },
+    {
+      "copy": "tk-shadow-root-precheck.json",
+      "source": "/workspace/naming-proof-storage/root-tk-shadow-control-precheck-v1.json",
+      "sha256": "9984e777be84585fe96fb023f32511003025c5af8b4e06ef41f04b6136de252a",
+      "bytes": 266
+    },
+    {
+      "copy": "release-process-pointers.json",
+      "source": "/workspace/naming-proof-storage/root-release7b3-highsignal-process-pointers-v1.json",
+      "sha256": "0f242f5399febc4b4fa4ea6c48fe8ff69bf5d847961acd5c94d668eafd45b723",
+      "bytes": 306
+    },
+    {
+      "copy": "dict-root-precheck.json",
+      "source": "/workspace/naming-proof-storage/root-dict-fixture-v2-precheck.json",
+      "sha256": "edd299ec56304d30c1ce6631cc3fb3cd4fb18e37e143f877c915f460803712ee",
+      "bytes": 354
+    },
+    {
+      "copy": "dict-peer.json",
+      "source": "/workspace/naming-proof-storage/peer-names-dict-lifetime-merge-v2/receipt.json",
+      "sha256": "9a8c9b2093904a83bf08cb699ca2f4ccd78514c785e7ea0d6f383043f71e23e4",
+      "bytes": 1510
+    },
+    {
+      "copy": "info-root-review.json",
+      "source": "/workspace/naming-proof-storage/root-info-fixture-merge-independent-review-v1.json",
+      "sha256": "2682f8b191f326957673250cc3cc952918abe4a64700ea1e6818b1475c91b1a2",
+      "bytes": 1138
+    },
+    {
+      "copy": "logical7-peer-v2.json",
+      "source": "/workspace/naming-proof-storage/peer-vm-logical-eval7-spectcl-protocol-v2/receipt.json",
+      "sha256": "7257038cbdc47e411c4eff477ba74b62084ee6ba429ac3b8a04d46f7e4eac442",
+      "bytes": 1885
+    },
+    {
+      "copy": "logical7-root-postcheck.json",
+      "source": "/workspace/naming-proof-storage/root-logical-eval7-protocol-v2-postcheck.json",
+      "sha256": "0f810c58d07235acde93b53f7bee6a6ca4a1038cf1cf12b5009540d606241fef",
+      "bytes": 683
+    },
+    {
+      "copy": "logical-dependencies-approval.json",
+      "source": "/workspace/naming-proof-storage/root-logical-eval-source-dependencies-approval-20261027.json",
+      "sha256": "babeca2d89983b2960c2e8d0f1afd30fe0e05bc6bbcc300a16e2ceb142e35606",
+      "bytes": 1177
+    }
+  ]
+}

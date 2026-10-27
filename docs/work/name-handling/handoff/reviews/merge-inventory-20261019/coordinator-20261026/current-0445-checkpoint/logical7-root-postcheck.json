@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-27T04:33:07.995799+00:00",
+  "source": "07e6e7cebf2ec4a03acc363fef56ce3baf4cfe51",
+  "result": "PASS_PARENT_PREIMAGES_COMMITTED_AFTERIMAGES_AND_REPLAY_PATHSET",
+  "files": 2,
+  "master_sha256": "d91582252fd8bb0d7e564ccdd29b9a7bdf9434923c3073a66abc421a639b7a07",
+  "peer_sha256": "7257038cbdc47e411c4eff477ba74b62084ee6ba429ac3b8a04d46f7e4eac442",
+  "root_sequence_correction": "Initial separate precheck KeyError on adapter manifest_sha256 key; apply helper still ran and independently guarded every preimage, patch hash, afterimage/pathset. This complete independent parent replay then passed. No false pre-apply Root precheck claim.",
+  "actualRust": "UNRUN"
+}

@@ -1,0 +1,33 @@
+{
+  "source": "ff67bd5d1295db8edbe205cce6219e81aa30d770",
+  "status": "BOTH_SOLE_CAPTURES_FULLAUTH_SEPARATE_FAILURES_RETAINED",
+  "receipts": [
+    {
+      "path": "/workspace/naming-proof-storage/vm-wasm-actual-40445800418/assessment-original25-and-broad8.json",
+      "sha256": "5b144caf1f0d244804c776b9ec547c440b82879953e73a1a191fb313d2f1f984"
+    },
+    {
+      "path": "/workspace/naming-proof-storage/vm-wasm-actual-40445800418/broad8-actual-individual-terminal-join.json",
+      "sha256": "a26298858c1dcb75fff6ed74a76fdeabd95510aa576bc9106fd92f3ae9f900ad"
+    },
+    {
+      "path": "/workspace/naming-proof-storage/vm-spectcl-actual-40445805494/assessment/identity-seals-processes.json",
+      "sha256": "6ae18d0369c294863a703a82ea9033e97404a965815c403eecd3089631e17ae3"
+    },
+    {
+      "path": "/workspace/naming-proof-storage/vm-spectcl-actual-40445805494/outcome-boundary-authentication.json",
+      "sha256": "6b7f831198beba8b4024cd0359eee4d87ff01d82fb11a8e56c17694fb21fde5b"
+    },
+    {
+      "path": "/workspace/naming-proof-storage/vm-spectcl-actual-40445805494/actual-n17-current-selected-and-transitions.json",
+      "sha256": "d52564a9748bdc1baabf6cccbe375283232dbcf07824663c6c12665290352ff5"
+    }
+  ],
+  "wasm": "Original25PASS; Broad8sixPASS/twoFAIL; zero identity/status changes vs bd80; no framing/golden closure",
+  "spec": "Old16/VM1/ordinary4PASS; LENGTH1/1 MAP0/0 RANGE0/0; full600INCOMPLETE600.493953/-2 no terminal aggregate",
+  "limits": [
+    "Different source; no unchanged-input or causal claim.",
+    "LogicalEvalV2 not in sourceff67 and seven new controls UNRUN.",
+    "No replay/cancel/duplicate archive/local Cargo."
+  ]
+}

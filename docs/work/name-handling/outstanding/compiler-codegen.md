@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T03:57:40Z
+Last updated: 2026-10-27T04:42:00Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current1932 strict CLOSED FULLAUTH22 2eb8a31b: zero actual Rust/Clippy primaries, top-level and standalone runtime checks reached, x5094/4PASS; original make rust-check FAIL2 at check-name-resolution-proofs.py (2235 structural errors,973 census digest changes plus stale evidence/test-comment obligations). No proof-ledger refresh/waiver or later-stage admission. Finald266 V2 0b3cb9a2/6fb8d674 independent peer pending:10 intended approved joins,7 actually new (Spec3 already canonical),8 existing source refreshes, authorV16 PASS13/30/22 b662eeca and actual12/Numeric14/3 guards PASS. Ca8d four API in_progress at04:28 with in-step liveness UNOBSERVED, preserved/no cancellation. Actual-app owned-consumer design4b3deb47 direction conditionally sound only; implementation/fullnested/evaluator closure still pending, MAP/RANGE remain FAIL.
 
 Currentff67 strict40445772183/job121996588920 CLOSED FULLAUTH23 8d2d1d8e: one default_trait_access at new source_availability/report_tests.rs108; noRustE, priorSourceStructure lint cleared, downstreamstrictUNRUN. Names65594003/Compilera5cce2f7 same-type explicitdefault repair Rootready; tinyrecipe prepared for166nested14source+actualaffectedfinalfnSHA+mirroredliteral, no newkeys, awaitactualnextHEAD. Final1bd8 dfdefc82/1a170c76/9839 peer adoptedff67 fullysourcequalified. Ca8d last03:40actual54/58complete4running preserved. Realappclosedconsumerdesign1b7fb stillScope-reviewonly, optionalNativeissuerparked/noSourceNormalworldgrant orMAP/RANGEgain.
 

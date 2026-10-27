@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-27T04:30:05.674019+00:00",
+  "census": "/workspace/naming-proof-storage/ccg-logical-eval-current-parent-census-v1.json",
+  "census_sha256": "3ee72ad1d91d9cb5e51eea0d39c92de65d59996af3895aa1a948bc8b07dbe0bc",
+  "source": "dd4855329e0b2b1baaac9ca67f34cf1e714748ef",
+  "approved_existing_maps": [
+    "readonly13",
+    "iRules",
+    "Spec"
+  ],
+  "production_paths_add_only_if_absent": [
+    "rust/tcl-vm/src/interp/logical_eval_source.rs",
+    "rust/tcl-vm/src/interp/compiled.rs",
+    "rust/tcl-vm/src/literal_pool.rs"
+  ],
+  "actual_dependency": "Existing interp::eval path invokes logical_eval_source_unit; leaf constructs compiled provenance and PlainSourceOperands::LogicalEval; literal_pool consumes that operand provenance. Each map must pin only this observed production closure.",
+  "new_test_leaf": "rust/tcl-vm/src/interp/logical_eval_source/tests.rs only Spec7 descriptor",
+  "constraints": [
+    "No new maps or unsupported fanout",
+    "No semantic, runtime, Native, budget, row or assertion grant",
+    "Whole old JSON/driver inverse and exact changed-source hashes required",
+    "Final root HEAD freeze and independent review required"
+  ]
+}

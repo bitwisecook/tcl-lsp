@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-27T04:34:14.704458+00:00",
+  "status": "CLEAR_CLEAN_ONLY_COMPLETE_BYTE_AND_CONSUMER_INVERSES",
+  "head": "d74b78f9e4a3fff318f54acc3ece4344d56b22d3",
+  "master_sha256": "de4cf2577b87fc65e9faccf0149222334631ff7e0e11d11725fbbe4fbcc64a62",
+  "manifest_sha256": "3fcda93ab21fb15d2c3af3248e67fdab68f3bed19d7f7205ee27199fde25d9b0",
+  "patch_sha256": "ce04ac080e7bdb9fde8cf62fdc34b7af5ee5e9b3d7b796c9863f73379893d8c6",
+  "all_preimages_afterimages_pathset": 70,
+  "original_whole_images_byte_equal": 42,
+  "shared_identical_outputs": 16,
+  "verbatim_moved_outputs_and_six_scripts": 26,
+  "consumers": {
+    "runtime/rust/src/cmd_info/native_jim_inventory_tests.rs": {
+      "complete_byte_inverse": true,
+      "same_include_count": 245,
+      "changed_include_paths": 42,
+      "edition_fmt": "2021"
+    },
+    "rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs": {
+      "complete_byte_inverse": true,
+      "same_include_count": 245,
+      "changed_include_paths": 42,
+      "edition_fmt": "2024"
+    }
+  },
+  "only_two_Rust_consumers_confirmed": true,
+  "actual_Rust": "UNRUN",
+  "runtime_or_gate_admission": false
+}

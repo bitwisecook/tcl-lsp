@@ -2,11 +2,29 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T04:10:28.813624+00:00 (ff67 own3active;166/finiteflag protocols Scopeclear; final1bb0V2 currentpeer clear; LogicalEvalV2 boundedpeer active)
+Last updated: 2026-10-27T04:43:54.774078+00:00 (owned compiler166/1932 Layout FULLAUTH closed; qualification2 PASS/report3 FAIL; finite canonical-owner NEXT peer; d266metadata clear)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
-## Resume
+## Current state
+
+All owned current captures are terminal and source-qualified: index8beac2869baa32b15c35fb01855886568a5cb7cc879d6968e6da082cac3169d5 at /workspace/naming-proof-storage/compiler-currentff67-main1932-layout-closed-v1/index.json. No healthy cancellation/replay or duplicate archives. Names owns corpus/prep; Codegen strict/framing; Runtime VM/Spec/WASM; LSP hosted scopes.
+
+Compiler166 run40445776674/job121996602001 atff67: API12710511239, ZIP12,588,427B/c462137f538fc6156d5758b4aac20606b09ff280342534d471e550e265554d64; boundary07ae66a4d9d0b5ae6b9b86d5eb8002fde78086f85a42d5672d40708da7c5b5c8. Actual166 observations155PASS9FAIL2UNRUN; original135132P3F remains finiteforeach1+OwnJim2.347ownedclosed/9freshELFs/zero build warnings. Full ff67 Git-content audit shared only after exact four source-before/after objects equal prior same-source Layout full audit. Every ZIP member/API/CRC/source/provider/dependency/tool/testfn/Cargo/ELFseal/process/count/transport authenticated. No uploaded ELF payload/physical mode snapshot and no release/performance acceptance.
+
+Actual qualification2 BOTH PASS: exact original do_eval body/card/currentSSA+CFG/source/owner controls and foreign/stale/topology/profile/withdrawal refusal. This now permits the authorized distinct analysis-only authored-body taint design; general bodyIdSome and Native admission remain closed. No missing-dialect/blanket constructor claim. New W002 report3 ALL FAIL later: own matches_analysis(a/b) and outputcontext factory passed; authenticated_availability_report_eq None at report_tests54/65, direct binding is_some false94. Names received exact cases and owns bounded field-firstfalse, no comparator relaxation. Coroinject diagnosticFAIL: root.owner/layout/config true then root.registry=false; scalar.root_scope false. No registry/profile constructor repair inferred. Memo8/custody3/numeric3/primary4 actualPASS; shared main corpus2 honestlyUNRUN at unchanged fullbudget admission.
+
+1932 Layout run40448626056/job122005806919: API12710520486, ZIP11,541,272B/77028f11cf3d20aa04d002c9f0894c33ce05d320023edce7ac530e68627a51b2; boundary94b557a6ebeff2b9f1568c49600230fa77dc5ff2764f90c77eda5fe4a168179a. Acceptance11=10P1F, finite4=1P3F, alias/member2FAIL;39ownedclosed/2fresh. All fullGit126896records/79569blobs/9,634,746,235B/0symlinks PASS. Finite4 actual captured firstfalse analyser.finite.name-shape after prior input/policy/selected-call/literal-binding/scope/variable/list/body/procedure/name stages true. Captured rowenv flag1 is not complete inherited environment proof: missing/filter provenance remains UNOBSERVED for absolute first-refusal; captured-stream group fact stays qualified. Guard remains.
+
+Finite canonical-variable NEXT repair a667efaa5195511e132145ab85e552722683a151a47c67eb8c0ad0be9517a3c4 at compiler-finite-foreach-variable-correspondence-paired-v1: existing segmenter canonicalizes $name to ${name}, old reconstructed text expected $name. Use existing value_shapes::whole_word_scalar_var_name with actual lexer config and exact localvariable bytes. Var/single-token/walk/read/depth/owner/source guards, all five existing selectors and assertions unchanged. Paired current d266/C1f6c/F-R/fmt/predicateinverse PASS, LSP strongpeer pending, actual gainUNRUN. No spelling alternative fallback, no Native/quietness permission or added mode.
+
+Latest metadata d266V2 exact0b3cb9a2/6fb8d674 independentclear ae204a54c67017d40242c29b041e30a88973bb8b85246033ca423feb812465f3:10files/eight hashrecords/seven actual missingkeys (LogicalEval5+facade2), plusthree approved Spec LogicalEval memberships already canonical =ten intended routes. Whole oldJSON/driver byte+AST inverses,25JSON/24maps/655records/396currentcontents, actualLogicalEval5/7, facade2routes and supplementary authorV16/Runtime12 PASS. No row/env/budget/history change. Root alone integrates/dispatches; earlier1bb0/48fa/1bd8 historical.
+
+Cut.input observation facade9ff200/080663 source staticclear d3a4de9e2db5cd43242e0c08449f61b95db669a4263f1a0d62a54c03a65387dc: old APIs unchanged, same exact outer+recorded-head query expansion plusstaticstage writes, whole2module inverse/current/fmt. No getter/query/lookup/env/quota/purpose grant. Some carries lastattemptedstage, only same None logger interprets refusal; written-input grouped, no innerleaf claim. Actualrow/RustUNRUN.
+
+LogicalEval minimalV2fe655f2d boundedclear218f3d4e plusScopeb20f integrated: actualLogicalC84/physicalC9 fourprovider+pin/currentpolicy/freshword purpose, explicit requiredcompiledlayout refusal, originalcompilerdoor kept. No NativeDirect/UpLevel/cache/persistent lifetime widening; actual seven controls/B64 gainUNRUN. OwnJim measured earlier UnknownEarlierMutation comes from retained first class Point54B in consumer/procedure declaration; classfactory clean, guard retained. Static NativeAdd negative still preserves unchanged staticunit/expectedvector; no entry donation or honestreason removal.
+
+## Historical evidence (preserved; current state above)
 
 **Newff67 owned active3:** exactff67bd5d1295db8edbe205cce6219e81aa30d770 compiler166 run40445776674/job121996602001, Layout15+diag2 run40445786370/job121996635325, Jim52 run40445795573/job121996664787. Solecaptures retained, nohealthy cancellation/replay. Qualification2/W0023 genuinely selected by new166; actual outcomes pending, no prior-source transfer. Coroinject1 enters sameexistingtaintELF; current166 stillbefore finiteobserver2e36.
 
@@ -563,10 +581,12 @@ Current original six failures remain:
 
 ## Next actions
 
-1. Root's next coherent compiler/Jim/startup/strict/runtime/Heavy wave must validate newer taint/registry/Format/Nativepoint/API/security fixes; no improvement inferred from static reviews or superseded UNRUN artifacts. Own new original65 authentication immediately on assignment.
-2. After actual cause evidence, continue original six compiler failures and broad common source-ingress correctness. RBS/catch productive edits remain held as above; Codegen owns Native store/SCCP/WASM paths, Names owns Jim/selected-roster/wrapper source producers, LSP owns Context/startup/futures and current union composition. Coordinate shared spans before source authoring.
-3. Route frozen Server5 to independent source/type/owner/cancel/drop peer, then let LSP compose exact current intervals. No blanket boxing or new allows, no actual lint closure by subtraction.
-4. Preserve every new failure, failed seal, original assertion and unknown case explicitly; no PR/release-green claim until root's full gates pass.
+1. Capture and authenticate compiler166 ff67 through terminal; decode qualification2/newW0023/coroinject1 first, then full source/provider/tool/ELF/process/cap/transport ledger. Keep original135 vs corrected-purpose controls/repeats distinct.
+2. Capture new1932 Layout existing4 firstNone without guessing constructor/list/policy. Keep acceptance11/finite4/alias/member labels and source/ELF identity separate; missingtrace is UNOBSERVED. No replay of healthy runs.
+3. Only after genuine one-fixture custody measurement, implement distinct authored-body analysis MAY context with actual current module/body/card/CFG/SSA joins and foreign/stale/topology/profile/withdrawn refusals. General top-level/bodyIdSome/Native/Salsa contracts stay strict.
+4. Preserve actual OwnJim earlier-class debt and audit genuine source association/effect producer rather than waiving the guard. Keep staticNativeAdd decline-producer audit separate from Codegen framing and unchanged static negative/assertions.
+5. Coordinate Names actual W002 field attribution and current three controls; no blanket owner projection, fabricated reportpair, ordinaryEq/cutoff change or claim of complete corpus parity.
+6. Root alone canonical integration/push/dispatch; all full correctness/lint/resource/perf/public behavioral gates remain open until actual required outcomes pass.
 
 ## Lossless history
 

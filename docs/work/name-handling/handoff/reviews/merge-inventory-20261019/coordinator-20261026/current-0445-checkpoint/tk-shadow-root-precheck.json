@@ -1,0 +1,12 @@
+{
+  "WORK": {
+    "head": "9bd624f7b6bd4fc7c06f9901f4c9457f7c0aa88f",
+    "files": 2,
+    "all_preimages_and_afterimages": true
+  },
+  "CLEAN": {
+    "head": "f551ccd83a6e30f38b7cc03d09af34a9446adbf5",
+    "files": 2,
+    "all_preimages_and_afterimages": true
+  }
+}

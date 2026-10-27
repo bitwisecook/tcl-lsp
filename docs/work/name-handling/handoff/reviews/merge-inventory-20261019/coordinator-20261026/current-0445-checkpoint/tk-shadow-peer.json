@@ -1,0 +1,16 @@
+{
+  "status": "CLEAR_AUTHORIZED_NEW_SHADOW_PREMISE_SOURCE_MECHANICAL",
+  "utc": "2026-10-27T04:20:32.489792+00:00",
+  "master_sha256": "8df86c759aff8a4199af996f81e7d78fcbecea7f53702e90adc36cbcf05caf12",
+  "WORK_patch_sha256": "1a13919a43b4fe3aef7e1d54d60ec04b9fae9a1e5266053f256217a211bcbab4",
+  "CLEAN_patch_sha256": "b22553a16142b9aa80c991f67a603d71466d444d22bb6148b6044389e6ae999e",
+  "files": {
+    "REPORT.md": "1a86b5c0190d4cd926b6e8338dd7c67c1ef89624bc2aa60104c967c4f9c62b4a",
+    "review.json": "c07b57d30f9cd5232620ea2abf45d9078402a89f9fe2b417679121e32c02c4c8",
+    "review.py": "d69f58c17d7b498aada50994dd36670ad7484da3fb5774b6f616292e96521ed7"
+  },
+  "actual_new_Rust_control": "UNRUN",
+  "actual_Tk_load_or_availability_grant": false,
+  "canonical_mutations": false,
+  "gates_waived": false
+}

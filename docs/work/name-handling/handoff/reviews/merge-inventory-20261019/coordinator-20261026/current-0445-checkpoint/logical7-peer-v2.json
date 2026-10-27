@@ -1,0 +1,16 @@
+{
+  "disposition": "CLEAR_BOUNDED_WORK_ONLY_PROTOCOL",
+  "master_sha256": "d91582252fd8bb0d7e564ccdd29b9a7bdf9434923c3073a66abc421a639b7a07",
+  "patch_sha256": "7683db0970e4ca06319ef9118b209b1a43bfc797253573cee68c65d3a356d68d",
+  "current_WORK_head": "dd4855329e0b2b1baaac9ca67f34cf1e714748ef",
+  "review_sha256": "1c54c02f6dd7ba3e8a8e6b2da1e212415dea7d6069e51273e1edb524ed971347",
+  "script_sha256": "9f87d3e2fdd7e090a8e93d5846330a5f2854807c6eda82eb5857d8de14eb4a09",
+  "mechanical": "Both current Git preimages/modes and all exact actual hunks match; whole old driver AST and original roster bytes inverse exact. Current five sources and seven actual function extents/hashes verified.",
+  "semantic": "Same existing genuine fresh tcl_vm lib-test ELF and environment; seven fixed controls after original firstgate before unchanged full corpus. New immediate list1190/test1010 preserves old listing180+test600+cleanup25. New-only cap subtracts512KiB, actual retained bytes alone deducted from shared20MiB. Saturation fails lifecycle and cannot reach old phase; normal use preserves strict old capture admission. Unavailable scheduler leaves UNRUN; UNRUN/INCOMPLETE=>2; old/new FAIL=>1; exceptions remain2; final seals unchanged. No new Cargo, deadline/reset/floor/test assertion changes.",
+  "independent_mock_cases": 44,
+  "mock_scope": "Actual source guards/helper/execute/scheduler/aggregate/original exception AST, current Git source images; external owned executor/clock/ELF and external old phase calls mocked as recorded. Worstcase new180+180 followed by old180+600 completes; no real children.",
+  "actual_Rust_tests": "UNRUN",
+  "root_prerequisite": "Recheck exact current preimages and refresh coupled metadata/source maps before freeze/dispatch. No Native/public success/release-gate claim.",
+  "prior_V1_hold": "fc368be6 RETAINED; V2 only",
+  "canonical_mutation": false
+}

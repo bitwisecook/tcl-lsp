@@ -1,0 +1,14 @@
+{
+  "disposition": "CLEAR_BOUNDED_CLEAN_ONLY",
+  "master_sha256": "f939490f1aa50d91d26ac1408380772cde116f1305e6c16f3af7f933deaa9a04",
+  "patch_sha256": "4010a39eb6cdc9b01e2a445771f38a6e5f3951bea6105d249ed1aa0441d10693",
+  "current_CLEAN_head": "7b3b758410d36eb610a0ea22203fd5930ff41b0e",
+  "review_sha256": "df5849c872526d1807ce5a28a42304d37875492a006923c498a56eaf4805d5a0",
+  "review_script_sha256": "8b9ae323e035a7f04a1bd1eb9dedecd7ef1acec98cb5c47cefc01399f33d124d",
+  "scope": "14 paths; all12 original complete byte records independently match Git, ten distinct output provenance channels; two distinct349-byte/noLF original input keys and execution-to-own-snapshot guards preserve non-tautological original cross-family equality. Whole old consumer token/comment/formatted byte inverse and full text-loader selection/refusal/hex/UTF8 order/messages inverse pass. No production/Native/source-permission changes.",
+  "type_lifetime_review": "Vec<u8>/String are owned ordinary fixture data; borrowed .as_slice() temporaries live through assert_eq, named snapshot owns bytes through later comparisons, existing execution still takes retained canonical source; no borrowed decoded value escapes. Existing text consumers keep same return type. Four old parser tests exact; two meaningful new binary and UTF8 negative controls reviewed.",
+  "actual_Rust_or_typecheck": "UNRUN",
+  "canonical_mutation": false,
+  "release_gates_waived": false,
+  "prior_V1_tautology_hold": "RETAINED; this receipt binds V2 only"
+}
