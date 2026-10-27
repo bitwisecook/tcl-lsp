@@ -503,21 +503,11 @@ impl RetainedSourceModuleBindings {
         id: crate::ir::ProcedureId,
         body: &'a Procedure,
     ) -> Option<InheritedEmptyInstalledReportCustody<'a>> {
-        let Some(positioned) = self.positioned_for_module(module, registry) else {
-            return None;
-        };
-        let Some(input) = module.source_metadata_input.as_ref() else {
-            return None;
-        };
-        let Some(point) = positioned.original_inherited_source_entry() else {
-            return None;
-        };
-        let Some(root) = positioned.source_origin() else {
-            return None;
-        };
-        let Some(allocation) = module.installed_procedure_body_units.get(&id) else {
-            return None;
-        };
+        let positioned = self.positioned_for_module(module, registry)?;
+        let input = module.source_metadata_input.as_ref()?;
+        let point = positioned.original_inherited_source_entry()?;
+        let root = positioned.source_origin()?;
+        let allocation = module.installed_procedure_body_units.get(&id)?;
         if point.conditional_region().is_some()
             || module.source_entry.source_point_entry.as_ref() != Some(point)
             || point.input() != input
@@ -541,9 +531,7 @@ impl RetainedSourceModuleBindings {
         {
             return None;
         }
-        let Some(source) = body.body.executed_source.as_ref() else {
-            return None;
-        };
+        let source = body.body.executed_source.as_ref()?;
         if !source.text.bytes().is_empty() {
             return None;
         }
