@@ -73,6 +73,7 @@ impl OriginalSourcePointAdviceGraph {
         let mut graph = self.graph.clone();
         // Parent cells/path/imports retain their original producers. They do
         // not become child declarations or a borrowed containing script body.
+        graph.stock_source_effects.clear();
         graph.procedure_declarations.clear();
         graph.class_declarations.clear();
         graph.procedure_body = None;

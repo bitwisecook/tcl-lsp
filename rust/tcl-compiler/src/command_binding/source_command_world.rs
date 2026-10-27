@@ -743,6 +743,67 @@ impl OriginalSourceCommandWorld {
         entries.next().is_none().then(|| entry.scope.clone())
     }
 
+    pub(super) fn jim_stock_source_effects(
+        &self,
+        bindings: &super::SourceCommandBindings,
+        point_index: usize,
+        owner: &Arc<super::OriginalSourceAnalysisOwner>,
+    ) -> Vec<super::jim_stock_class::OriginalJimStockSourceEffects> {
+        let Some(point) = bindings.points.get(point_index) else {
+            return Vec::new();
+        };
+        let state = &point.state;
+        if !std::ptr::eq(self, state.original_command_world.as_ref()) {
+            return Vec::new();
+        }
+        if self.unavailable || state.has_opaque_domain() || state.unclosed_command_world {
+            return Vec::new();
+        }
+        self.publications
+            .iter()
+            .filter_map(|publication| {
+                let SignatureSourceNameInput::OriginalValue(value) = &publication.input else {
+                    return None;
+                };
+                let name = value.jim_stock_name()?;
+                name.matches_class_continuation(point).then_some(())?;
+                let publications = self.complete_jim_stock_publications(state, name)?;
+                name.source_class_effects(owner, bindings, point_index, publications)
+            })
+            .collect()
+    }
+    fn complete_jim_stock_publications(
+        &self,
+        state: &ModuleCommandBindings,
+        dispatcher: &super::jim_stock_class::OriginalJimStockName,
+    ) -> Option<Vec<Arc<OriginalCommandPublication>>> {
+        let mut publications = Vec::new();
+        for helper in tcl_registry::definer::SourceJimStockClassRecipe.publications() {
+            let mut matches = self.publications.iter().filter(|publication| {
+                let SignatureSourceNameInput::OriginalValue(value) = &publication.input else {
+                    return false;
+                };
+                value
+                    .jim_stock_name()
+                    .is_some_and(|name| dispatcher.same_source_class_helper(name, *helper))
+            });
+            let publication = matches.next()?;
+            matches.next().is_none().then_some(())?;
+            let key =
+                state.original_command_key_for_slot(publication.slot(), publication.policy())?;
+            let bindings = state.original_bindings_for_key(&key)?;
+            let super::MayBinding::Target(target) = bindings.first()? else {
+                return None;
+            };
+            (bindings.len() == 1
+                && publication
+                    .has_implementation_allocation(target.implementation_allocation.as_ref()?))
+            .then_some(())?;
+            publications.push(Arc::clone(publication));
+        }
+        Some(publications)
+    }
+
     pub(super) fn publish_jim_stock_helper(
         &mut self,
         state: &ModuleCommandBindings,
