@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-27T02:45:00.705395+00:00
+Last updated: 2026-10-27T03:15:00.825780+00:00
 
 ## Resume
 
@@ -13,17 +13,13 @@ Last updated: 2026-10-27T02:45:00.705395+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed. Current checkpoints run every30 minutes; preserve actual report and push timestamps. The current cycle below records the next deadline.
 
-### Current cycle and routing (02:45 UTC)
+### Current cycle and routing (03:15 UTC)
 
-- 0215officialreportactual02:16:04.749/source626039, publishedWORK6094a4fb51ec39c9d4d845a5d785c0dee7cb2799 at02:18:03.831 afterfreshdepth1fetch/normalpush. Timer0245session9350armed. AllF/zeroPTF/green/performanceopen; no PR/admissions.
-- 32da strictFULLAUTHfcc4c4b9 confirmsreceiverfixcompiled/NoRustE. Actual8Clippy findings: handlers117lines/map_unwrap_or2Compiler-owned andretained_source6questionmarksNames-owned. LaterstrictstagesUNRUN; nozeroWarningsclaim. Pairednarrowrepairsunderstrongpeer. Compiler16032da40436746857 solecaptureactive, no inferredteststatus.
-- CurrentC2b74 fixtureaudit31c39070:ZEROtestreadpaths missing; historical2514keep→2509present+5READMEabsent. All51recommendedtablefamilies stillpresent/1317files and9mergegroupsremain. Review208wiringisOPTIONAL,inventory173listedunasserted172absentfromrelease, retainedJimtable10casesnowasserted/20otherresultcasesnotclaimed. No tests/assertionschanged, trackingmandatory208citationtobecorrectedwithreview.
-- Source-provenLSPavoidablecopyfixa823 strong77554 appliedWORK9cf844a03:privategetterborrowsactualheldArc andArc::clone replacesdeepAnalysisResultclone. Worker/2attempts/currency/publication/assertsunchanged; Ccarryalsoapplied. No latency/RSS/120s attributionoracceptedperformancepair.
-- Fixed3protocolV2 master503e4d5a strongScopea397 sourcecleared98+19mockchecks; coroinjectoldselectorV2master52234eef strongScopea243 sourcecleared22mocks. BothofftreeRootintegrationpending; no actualchildren, no Nativegrants/oldoutcome-erasure.
-- N17V4draftheldactualinstalledcompilerrequestidentitygap in publiccallback. Runtime-issuedscopedrequestrelation mustbindactualcurrentcompiler/interpreter/gen/ordinarycurrencybeforeprivatecanonicalanalysis token; no futureprepareborrowing, no Normalfromknownbytes. SourcepatchUNFROZEN/noefficacy.
-- OldCa8dfullCI54of58completeat02:20:Rust2/Rust5/E2E1/E2E2healthy/preserved. CompleteHeavy+Rust3sourcequalifiedbaseline2955P677F20776UNOBSERVED216notinavailable; no later-source transfer, allreleasegatesopen.
-- Arcsourcefixa823/77554appliedWORK9cf844a03/C4e34391b2; Names6questionmark1d2d/9b708 appliedWORKa5efd8/Caef12e; Compiler2V2b6b4/ba594 appliedWORKcc2f/Caf4d93382. Originalguards/loops/read/depth/lazy/drop/owner/assertions preserved, sourceRustretryUNRUN.
-- Work-only fixed3protocolV2503e/a397 integrated436d33238 andcoroinjectV25223/a243 integratedfbbf5782, actualdiagnosticchildrenUNRUN/defaultnow161. No VMNativepermission/testassertionschanges.
-- Finalcc2f current25 union644e7dd0/a9ad096e independentCompiler c21283+RootfullinversePASS14files/13top+1nested/eightwholeJSON+oneexactliteral/zeroadditions. BothArcparentmapsalreadyincludedgetterleaf, no newkeys. Applied/pushedWORKbd808725f/Caf4d93382 afterfreshdepth1fetch, actualV16PASS13/30/22. NewtargetedPOSTs active/nohealthycancels, exactprep+irulesfixed3nextafterpredecessorguards.
-- Allbd80POSTs complete by02:42: seven targetedmodesstrict/corpus/Layout/Core/Jim/WASM/Spec plus exactcandidateAf4dprep40439704916 and fixed3irulesmode afteractual2c31predecessor40409883883terminal. Compiler161replacement HELDhealthyold32dacomplier16040436746857. No healthycancel/no runtime169replay. Currentactualoutcomespending.
-- Fixturecleanup first3hex tables2f05db9d from20TSVs preservingallbytes/keys/newlines/empty/NA/sourcepaths and27includechanges underScopepeer, noactualtests. ThinTry3dedupea80b andVM15dedupe3449 off-tree exactidenticalexistingtargets, Rootpeer nextafterPOSTfreeze; no Cfixturesdeletedyet/51notclaimedcomplete.
+- 0245officialreporton-time02:45:00.705/source37cf8b247, publishedWORK790bd0317cf9476c5f485884c8ba4bc0b2e40ee0 at02:50:39.284 afterfreshdepth1fetch. Next0315reminder73253; localautomaticwriter/checkpointbeingarmed, publisherRootonly.
+- bd80strictFULLAUTH1de52fb0 confirmsall8priorlintsCLEARED/NoRustE, one source_structure.rs5839too_many_lines109/100 left; laterstagesUNRUN. NarrowLSPhelperrepairassigned. AllgateF/currentzeroPTF/green/performanceOPEN.
+- bd80corpusFULLAUTH0ca312ff/56f1cb69: generated7ALLPASS42/42, exactprocs41bothmodes/upvar10+30 scopedgain; text117fails6/702 atW002CommandAvailabilityordinal0/fullsubjectavailablefalse. Namesgenuineowner/fullfieldreportcorrespondencerepairofftree; no globallyrelaxedEq orparity/perfacceptance.
+- bd80CoreFULLAUTH7fce old8ALLPASS/Source4same2P2F/Tk3twoPoneF. Exactunchangedcontrolorderproves29BchildgeometryPASSEDbefore41BsuffixCompleteProgrampurposeNone. Regionpurpose7f279/e277 selectsactualConditionalRegionbeforeonesolequery, Rootintegrationpending; TkNoneassertfailure-onlydetail47/752 pending. Namespacecardissuerfirstpredicateunobserved, boundedexistingcaptureobservabilitynext/no Sourcegrant. StartupFULLAUTHe21f scan30FAIL/ContextCOMPLETE/cold112.109ms.
+- Compiler16032da provisional153PASS5FAIL2UNRUN across160observations, original135132P3F. Memo8/custody3/numeric3/primary4ALLPASS, corpus2budgetUNRUN. Boundary5fcc closed335processes/9targets/158tests/fullGitstillrunning. Bd80Layout11tenPoneF/finite4onePthreeF/aliasFAILunboundleafUNOBSERVED/memberFAILclassEarlierMutationOBSERVED; Jim52fortyPtwelveF. Fullsource/processauthpending,no later-source transfer.
+- CLEAN-onlyfixturecleanup actualfirst18duplicatesapplied73b4Try3 +VM15carrypendingpoll; Rootbyte/OID/allliteralinclude/currentmode/actualedition/fullmoduleinverse mechanicalauditPASS. First3tableV3 master2b34/evidence0b8f all20originalbytes/27calls/28paths exact, actualRust/parser4/producttestsUNRUN, Rootintegrationpending. Optional208reviewcitationnotmandatory; Step2/51conversioncompletionnotclaimed.
+- N17measuredownerb166/Scopebf6d isactualtcl9.1source-onlyanalyse_shared→build_for_profile withNO NativeEntry/callback. OptionalVMrequestV4PARKED803682/nointegration; usergenuineclosedconsumergoalremains. Appsourcecarrieralonecannotclosegenericnormal/worlddebt; CodegentracingactualownedappconsumerwithoutHookVMdonation/Nativegrants/guardweakening.
+- Allbd80ninePOSTscomplete(specific7+prepAf4d+fixed3irules), compiler161wasHELDhealthy32da160nowterminal; replacementrequiresfreshguard. RuntimeWASM/Spec/fixed3active/soleauthowners, oldCa8dfullCI4healthyjobskept. No PR/merge/tag/release.

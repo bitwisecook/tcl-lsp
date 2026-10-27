@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-27T03:15:00.915709+00:00",
+  "scheduled_report_utc": "2026-10-27T03:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-27T03:45:00+00:00",
+  "change_since_previous_report": [
+    "0245officialreporton-time02:45:00.705/source37cf8b247, publishedWORK790bd0317cf9476c5f485884c8ba4bc0b2e40ee0 at02:50:39.284 afterfreshdepth1fetch. Next0315reminder73253; localautomaticwriter/checkpointbeingarmed, publisherRootonly.",
+    "bd80strictFULLAUTH1de52fb0 confirmsall8priorlintsCLEARED/NoRustE, one source_structure.rs5839too_many_lines109/100 left; laterstagesUNRUN. NarrowLSPhelperrepairassigned. AllgateF/currentzeroPTF/green/performanceOPEN.",
+    "bd80corpusFULLAUTH0ca312ff/56f1cb69: generated7ALLPASS42/42, exactprocs41bothmodes/upvar10+30 scopedgain; text117fails6/702 atW002CommandAvailabilityordinal0/fullsubjectavailablefalse. Namesgenuineowner/fullfieldreportcorrespondencerepairofftree; no globallyrelaxedEq orparity/perfacceptance.",
+    "bd80CoreFULLAUTH7fce old8ALLPASS/Source4same2P2F/Tk3twoPoneF. Exactunchangedcontrolorderproves29BchildgeometryPASSEDbefore41BsuffixCompleteProgrampurposeNone. Regionpurpose7f279/e277 selectsactualConditionalRegionbeforeonesolequery, Rootintegrationpending; TkNoneassertfailure-onlydetail47/752 pending. Namespacecardissuerfirstpredicateunobserved, boundedexistingcaptureobservabilitynext/no Sourcegrant. StartupFULLAUTHe21f scan30FAIL/ContextCOMPLETE/cold112.109ms.",
+    "Compiler16032da provisional153PASS5FAIL2UNRUN across160observations, original135132P3F. Memo8/custody3/numeric3/primary4ALLPASS, corpus2budgetUNRUN. Boundary5fcc closed335processes/9targets/158tests/fullGitstillrunning. Bd80Layout11tenPoneF/finite4onePthreeF/aliasFAILunboundleafUNOBSERVED/memberFAILclassEarlierMutationOBSERVED; Jim52fortyPtwelveF. Fullsource/processauthpending,no later-source transfer.",
+    "CLEAN-onlyfixturecleanup actualfirst18duplicatesapplied73b4Try3 +VM15carrypendingpoll; Rootbyte/OID/allliteralinclude/currentmode/actualedition/fullmoduleinverse mechanicalauditPASS. First3tableV3 master2b34/evidence0b8f all20originalbytes/27calls/28paths exact, actualRust/parser4/producttestsUNRUN, Rootintegrationpending. Optional208reviewcitationnotmandatory; Step2/51conversioncompletionnotclaimed.",
+    "N17measuredownerb166/Scopebf6d isactualtcl9.1source-onlyanalyse_shared\u2192build_for_profile withNO NativeEntry/callback. OptionalVMrequestV4PARKED803682/nointegration; usergenuineclosedconsumergoalremains. Appsourcecarrieralonecannotclosegenericnormal/worlddebt; CodegentracingactualownedappconsumerwithoutHookVMdonation/Nativegrants/guardweakening.",
+    "Allbd80ninePOSTscomplete(specific7+prepAf4d+fixed3irules), compiler161wasHELDhealthy32da160nowterminal; replacementrequiresfreshguard. RuntimeWASM/Spec/fixed3active/soleauthowners, oldCa8dfullCI4healthyjobskept. No PR/merge/tag/release."
+  ],
+  "committed": [
+    "37cf8b24733e832041feb7ac1014d149ea1d5746"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Refresh only actual source dependencies and current source pins; push reviewed WORK-first fixes and release carries, then rerun compiler/strict/Core/corpus/WASM/Spec after predecessor termination.",
+    "Authenticate focused runtime and remaining fullCI terminal artifacts; fix exact current source causes preserving public behavior and fail-closed guards.",
+    "Complete section F, current origin/rust zero pass-to-fail, accepted Tcl performance, all required tests, docs/comments/generated/package/prep-pr and squash-ready PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2211434496,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

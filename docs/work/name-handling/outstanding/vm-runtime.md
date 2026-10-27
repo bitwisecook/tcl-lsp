@@ -1,10 +1,14 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T02:14:30Z
+Last updated: 2026-10-27T02:49:47Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T02:49:47Z: ROOT PARKED optionalVM issuer561273db (ROOT-PARKED803682e5): actualsource-onlyMAP hasnoNativeEntry/callback, so no measuredgain/nointegration/strongclearance; syntheticworldboundaryqualified, Rust/API4VM2UNRUN. Sole currentbd80 captures ACTIVE WASM40439296106/job121975478155,Spec40439301503/job121975497756, NEWfixed3iRules40439911896/job121977524107. Allhealthy/no duplicate/download/cancel; authenticate source/providers/deps/tools/ELF/function/process/caps onterminal. Fixed3protocolV2 integrated stronga397; noactualnew3results yet. Next releaseunblock determined fromactualWASMNativeAdd/framing or functional9/preflight/fixed3 causes; no generalVMparity/purpose/Native permission widening.
+
+Current 2026-10-27T02:45:43Z: Root integrated fixed3 V2 stronga397 asWORK436d; actualnew3 stillUNRUN, current iRules predecessor2c31 fullyterminal. Solebd80 WASM40439296106/job121975478155 andSpec40439301503/job121975497756 healthybuilds, captures pending actualterminal; no duplicate/retry/cancel. New authorized actual source-compiler request issuer draft paired7paths: existingtrustedbackendowner only, genuineVM installedRc/generation, exact originalcallbackentryaddress/fullsourceallocation+bytes/channel/ns/profile/kind/mode, originalordinaryweakcurrency plusseparatenonwraprequest/reentryepoch+weakcalllifetime. GeneralcapturesNone, explicitcallbackreturn/error/unwindretirement/cachemetadata clearing; foreignowner samepublicIDs failsgenuineenv. Compiler consumer/rewrites remainseparateheld, no Native/purpose/effect/frame permission. DraftAPI+VMcontrols authored, staticproof/Scope+Codegen crosspeer next; Rust/testsUNRUN/no canonical edits.
 
 Current 2026-10-27T02:14:30Z: Fixed3 iRules WORK protocol V2 master503e4d5a STRONG STATIC CLEAR Scopea397aefb; normalized2file ready adapter1724f268 sentRoot (manifest93c7a7c0/patch545f401f). Existingdriver lifecycle/helpers/wholeinverse exact, settled-original token+current-attempt returned durable timeout closure prevents priorchild/unknownexception admission;98 author and19 independentpeer no-child cases, actualnew3UNRUN. No VM/test/semantics/Cargo/env/budget changes; finalmetadata carry/apply Root-only. Currentf990 WASM0b289+Spec4c7d FULLAUTH buildblockedE0599/allcohortsUNRUN, receiptindexe4d26379; old68ff focused169 b9e/new3PASS sourcequalified/no replay/globalFAIL retained. N17 actualsubst-backend context design source-only: generalentry procedureNone/root/observer absence cannot certify ambientcompiler/cache; reached post-getter producer identified, exactconsumer join awaitingCodegen.
 

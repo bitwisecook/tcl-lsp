@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T02:22:09Z
+Last updated: 2026-10-27T03:05:24Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+03:05 UTC finalcc2f644e/a9ad source union independentlyCLEARc212 adopted; discovering bd80 strict actual result now. Source-only MAP owner dispositionb166 decisive: optionalNativeV4 parked, no entry/HookVM/Normal donation. Actual app-owned closedconsumer must satisfy real owned execution/effect contract and world-lookup edge, not parser+source bool. LSP nextconditional_source directleaf census e309 shows4missing joins Core2/Taint2/hostNav/Spec, Root approval pending. OldCa8d lastactual54/58closed4running, no cancel/duplicate.
 
 Current32da strict40436741343/job121967104544 CLOSED FULLAUTH24 fcc4c4b9: noRustE, E0599 receiver repaired; eight currentClippyprimaries handlers117/100+map_unwrap_or(Compiler) andretained_source question_mark6(LSP). LaterstagesUNRUN/no green. Finald0cf6505/59b0 independentfc487 adopted/pushed32da; no newkeys. Ca8d actual02:20 remains54completed/4running Rust2/5+E2E1/2; healthy preserved. N17V4 fourpath pairedUNFROZEN draft rustfmtparseonly: discovered manualpublicCompileService callback cannot prove installedsameprovider, ScopeconfirmsrequiredactualVMscopedrequest. Runtime minimalexistingpass-owner/weakscope/currentepoch+compileridentityproducer proposed; no issuer/APIcodeclearance orMAPgain. V2/V3 held.
 

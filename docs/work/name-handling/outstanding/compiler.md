@@ -2,11 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T02:25:55.835549+00:00 (current32da compiler160 active; ownhandler2/Names6/Arc peers clear; coroinject1 protocol Scope clear)
+Last updated: 2026-10-27T03:02:26.493663+00:00 (32da compiler160/bd80 Layout+Jim terminal; source-qualified counts; full audit in progress)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Latest terminal actual observations (full boundary audit pending):** 32da compiler160 run40436746857/job121967122216 original135=132PASS/3FAIL; all160=153PASS/5FAIL/2UNRUN. Memo8/custody3/numeric3/PRIMARY4 allPASS; corpus2 UNRUN shared-budget admission. bd80 Layout run40439277673/job121975418434 original11=10PASS/1FAIL; finite4=1PASS/3FAIL at initial capture; separate aliasFAIL/firstleafUNOBSERVED and optional memberFAIL/firstleafOBSERVED. bd80 Jim52 run40439290103/job121975459569 total40PASS/12FAIL, original45=36PASS/9FAIL. All3 sole ZIP API size/SHA/CRC verified; original assertions and source/ELF provenance remain separate. Raw full Git/boundary authentication in progress. No new coroinject run in32da; replacement default161 held until prior healthy run terminated.
+
+**Authored-body taint qualification source-ready:** paired90b8bbda0ff644aaf4103bfc50a18ab288e6360dde7dd1bc4a03aa7aecf5c3ae, LSPstrongc92be703450e3004a3695dea17441069b40d468bcd41083bfbd0bfd3fe8c6493. Exact original do_eval fixture retained; two test-only controls measure actual module/body/card/currentSSA/CFG/token ownership and foreign/stale/topology/profile/withdrawn refusal. General bodyIdSome Taint refusal and Native admission unchanged. New controls/setup UNRUN; no causal closure of140 taint failures or production authored-body context implemented yet.
 
 **Current32da actual compile frontier:** compiler160 run40436746857/job121967122216 exact32da8abbccc299b62d2e783b113610b07f82eb9c is sole this-role capture, still active; no terminal/test/ELF inference. Strict32da Codegen FULLAUTHfcc4c4b9 confirms receiver compiled/no RustE, then2owned Proc-dispatch Clippy primaries117/100+map_unwrap_or plusNames6 questionmark. Broader Layout/Jim are held byRoot until frontier closure.
 
