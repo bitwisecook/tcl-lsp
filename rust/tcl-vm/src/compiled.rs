@@ -38,6 +38,8 @@ pub(crate) enum CompilerProvenance {
     NativeDirect(u64),
     /// Authored uplevel source words, without native compilation or cache authority.
     LogicalUpLevel(u64),
+    /// Logical Eval source words, without native compilation or cache authority.
+    LogicalEval(u64),
     CurrentService(u64),
     AdmittedForeign(u64),
 }
@@ -48,6 +50,7 @@ impl CompilerProvenance {
             Self::NativeScript => 0,
             Self::NativeDirect(generation)
             | Self::LogicalUpLevel(generation)
+            | Self::LogicalEval(generation)
             | Self::CurrentService(generation)
             | Self::AdmittedForeign(generation) => generation,
         }

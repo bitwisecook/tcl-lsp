@@ -62,6 +62,8 @@ use tcl_syntax::naming::{NamePolicyProtocol, NativeCommandVisibilityFailure};
 use variable_trace_outcomes::VariableTraceOutcome;
 
 mod authored_math;
+mod logical_eval_source;
+pub(crate) use logical_eval_source::LogicalEvalSourceEntry;
 mod logical_uplevel_source;
 pub(crate) use logical_uplevel_source::LogicalUpLevelSourceEntry;
 mod authored_package;
@@ -28220,6 +28222,14 @@ impl Vm {
         let unit = if let Some(unit) =
             self.logical_uplevel_source_unit(&asm, &module.source_namespace, evaluation, purpose)?
         {
+            unit
+        } else if let Some(unit) = self.logical_eval_source_unit(
+            &asm,
+            &module.source_namespace,
+            strings,
+            evaluation,
+            purpose,
+        )? {
             unit
         } else {
             self.direct_source_unit(
