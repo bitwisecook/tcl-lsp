@@ -112,6 +112,21 @@ impl OriginalAuthoredJimProcedureMember {
                         own_member_obligation_trace_tag(obligation),
                         None::<()>,
                     );
+                    #[cfg(debug_assertions)]
+                    if matches!(
+                        obligation,
+                        SourceCommandTransitionObligation::UnknownEarlierMutation
+                    ) {
+                        self.recipe.consumer.trace_jim_member_earlier("consumer");
+                        self.recipe
+                            .class
+                            .factory()
+                            .trace_jim_member_earlier("class.factory");
+                        self.recipe
+                            .procedure
+                            .declaration
+                            .trace_jim_member_earlier("procedure.declaration");
+                    }
                 }
                 supported
             })

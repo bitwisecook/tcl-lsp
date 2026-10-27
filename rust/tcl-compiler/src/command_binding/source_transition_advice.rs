@@ -493,7 +493,74 @@ pub struct OriginalSourceCommandTransitionAdvice {
         Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
     catalogue_body: Option<OriginalSourceCatalogueBody>,
 }
+#[cfg(debug_assertions)]
+fn trace_jim_member_earlier_operation(
+    contributor: &str,
+    contributor_site: u32,
+    index: usize,
+    total: usize,
+    operation: &[NativeWord],
+) {
+    let stage = "jim.own_member.earlier_operation";
+    if !crate::registry_invocation::source_structure::jim_source_trace_row(stage) {
+        return;
+    }
+    let Some(head) = operation.first() else {
+        eprintln!(
+            "JIM_SOURCE_OWNER stage={stage} contributor={contributor} contributor_site={contributor_site} index={index} total={total} words=0 state=NO_HEAD"
+        );
+        return;
+    };
+    let source = head.image().bytes();
+    let written = head.written_bytes();
+    eprintln!(
+        "JIM_SOURCE_OWNER stage={stage} contributor={contributor} contributor_site={contributor_site} index={index} total={total} words={} source_data={:p} source_len={} source_complete={} source_prefix={:?} start={} end={} head_len={} head_complete={} head_prefix={:?}",
+        operation.len(),
+        source.as_ptr(),
+        source.len(),
+        source.len() <= 64,
+        &source[..source.len().min(64)],
+        head.span().start(),
+        head.span().end(),
+        written.len(),
+        written.len() <= 32,
+        &written[..written.len().min(32)],
+    );
+}
+
 impl OriginalSourceCommandTransitionAdvice {
+    /// Failure-only held fields; no lookup, analysis or applicability grant.
+    #[cfg(debug_assertions)]
+    pub(super) fn trace_jim_member_earlier(&self, contributor: &str) {
+        let stage = "jim.own_member.earlier_summary";
+        if !crate::registry_invocation::source_structure::jim_source_trace_row(stage) {
+            return;
+        }
+        let debt = self.obligations.iter().any(|obligation| {
+            matches!(
+                obligation,
+                SourceCommandTransitionObligation::UnknownEarlierMutation
+            )
+        });
+        let count = self.uncertain_operations.len();
+        eprintln!(
+            "JIM_SOURCE_OWNER stage={stage} contributor={contributor} contributor_source={:p} contributor_site={} earlier_debt_present={debt} earlier_count={count} shown={} complete={}",
+            Arc::as_ptr(&self.site.source),
+            self.site.offset,
+            count.min(4),
+            count <= 4,
+        );
+        for (index, operation) in self.uncertain_operations.iter().take(4).enumerate() {
+            trace_jim_member_earlier_operation(
+                contributor,
+                self.site.offset,
+                index,
+                count,
+                operation,
+            );
+        }
+    }
+
     /// Actual lexical source occurrence; not a fabricated dispatch point.
     #[must_use]
     pub const fn site(&self) -> &super::CommandAllocationSite {
