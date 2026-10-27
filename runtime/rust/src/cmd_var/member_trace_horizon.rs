@@ -7,15 +7,13 @@ use crate::{counters, interp::Interp};
 fn original_array_member_trace_horizons_match_six_native_source_results() {
     // Compare all original completions and complete public log values. Jim's
     // original unavailable trace API is retained as its own guest error.
+    const CAPTURES: &str = include_str!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/captures.tsv");
     macro_rules! provider {
         ($engine:literal, $version:literal) => {
             ($engine, [
-                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $version,
-                    "/variable_array_unset_root_changes_original_member_trace_via_alias/stdout")),
-                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $version,
-                    "/variable_array_unset_first_member_changes_later_member_trace_via_alias/stdout")),
-                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $version,
-                    "/variable_array_unset_captured_member_prefixes_ignore_recreated_root/stdout")),
+                tcl_test_support::fixture_tables::text(CAPTURES, concat!($version, "/variable_array_unset_root_changes_original_member_trace_via_alias/stdout")),
+                tcl_test_support::fixture_tables::text(CAPTURES, concat!($version, "/variable_array_unset_first_member_changes_later_member_trace_via_alias/stdout")),
+                tcl_test_support::fixture_tables::text(CAPTURES, concat!($version, "/variable_array_unset_captured_member_prefixes_ignore_recreated_root/stdout")),
             ])
         };
     }

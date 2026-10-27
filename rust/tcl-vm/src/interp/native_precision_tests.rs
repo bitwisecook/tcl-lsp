@@ -8,26 +8,25 @@
 fn original_precision_unset_matches_all_six_native_sources() {
     // Exact public results only; these rows do not observe hidden cell
     // identities or establish a pointer-equivalence claim.
+    const CAPTURES: &str =
+        include_str!("../../../tcl-registry/tests/data/native_precision_unset319/captures.tsv");
     macro_rules! provider {
         ($engine:literal, $version:literal) => {
             (
                 $engine,
                 [
-                    include_str!(concat!(
-                        "../../../tcl-registry/tests/data/native_precision_unset319/",
-                        $version,
-                        "/root/stdout"
-                    )),
-                    include_str!(concat!(
-                        "../../../tcl-registry/tests/data/native_precision_unset319/",
-                        $version,
-                        "/linked/stdout"
-                    )),
-                    include_str!(concat!(
-                        "../../../tcl-registry/tests/data/native_precision_unset319/",
-                        $version,
-                        "/unrelated/stdout"
-                    )),
+                    tcl_test_support::fixture_tables::text(
+                        CAPTURES,
+                        concat!($version, "/root/stdout"),
+                    ),
+                    tcl_test_support::fixture_tables::text(
+                        CAPTURES,
+                        concat!($version, "/linked/stdout"),
+                    ),
+                    tcl_test_support::fixture_tables::text(
+                        CAPTURES,
+                        concat!($version, "/unrelated/stdout"),
+                    ),
                 ],
             )
         };

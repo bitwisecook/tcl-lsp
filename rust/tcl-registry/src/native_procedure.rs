@@ -1610,29 +1610,15 @@ mod recompilation_ownership_tests {
     use super::*;
     use tcl_dialect::TclVersion;
 
+    const CAPTURES: &str =
+        include_str!("../../tcl-vm/tests/data/native_procedure_recompile/captures.tsv");
     macro_rules! engine_cases {
         ($engine:literal) => {
             [
-                include_str!(concat!(
-                    "../../tcl-vm/tests/data/native_procedure_recompile/",
-                    $engine,
-                    "-0.txt"
-                )),
-                include_str!(concat!(
-                    "../../tcl-vm/tests/data/native_procedure_recompile/",
-                    $engine,
-                    "-1.txt"
-                )),
-                include_str!(concat!(
-                    "../../tcl-vm/tests/data/native_procedure_recompile/",
-                    $engine,
-                    "-2.txt"
-                )),
-                include_str!(concat!(
-                    "../../tcl-vm/tests/data/native_procedure_recompile/",
-                    $engine,
-                    "-3.txt"
-                )),
+                tcl_test_support::fixture_tables::text(CAPTURES, concat!($engine, "-0.txt")),
+                tcl_test_support::fixture_tables::text(CAPTURES, concat!($engine, "-1.txt")),
+                tcl_test_support::fixture_tables::text(CAPTURES, concat!($engine, "-2.txt")),
+                tcl_test_support::fixture_tables::text(CAPTURES, concat!($engine, "-3.txt")),
             ]
         };
     }
