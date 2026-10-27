@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T00:04:44Z
+Last updated: 2026-10-27T00:31:06Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current e8db strict FULLAUTH23 fe629a13: ONE field_comparison106/100 lint, Names combined helper/witness successor under strongpeer; no RustE and no downstream standalone PASS inferred. Ca8d currentCI active (latest57jobs43closed/14running); heavy/all5Rustshards+3E2E partitions still active, API3/smoke outcomes UNOBSERVED. SevenRust+threeE2E selected listings captured once; exact lens/Tk partition1 and push partition2 selections d2252028, no terminal donation. Browser/WASI actual rename refusals routedLSP; multi-folder10P4F, extensionpartition2 five real failures before shutdown143/partialunknown. Numericcompiler paired06a07d31 independently staticCLEAR Compiler4f176/Runtimec18bef/emitter5d8026; actualnewtests/WASM/goldens/perf UNRUN. Rootapproved exact5WASM importerkernel keys; focused3 plan can reuse existing compiler+runtimeAPI freshELFs with noCargo change. N17V1 held888f due missing actualsubstcode cache invalidation; immutableV2 01c72647 records exactvalue/sharedalias cache retirement+poolnumericwithdrawal beforefirstread, allGeneric/reentry/footprintguards unchanged, no Normal retag; independentsemanticreview active, no integration/efficacy claim. FinalC cleanup80096 pairedonce; no canonical writes bythisrole.
 
 00:04 UTC e8db strict40420651309 CLOSED FAILURE, exact-source FULLAUTH23 fe629a13; one actual diagnostic retained in ccg-stricte8db-40420651309-actual-v1, routing current cause separately. Strict provider/dependency seals remain unavailable by protocol. CurrentCa8d fullCI40419028855 still active: bounded00:03 API56jobs34closed/18running/4queued; heavy/all5Rust shards and3E2E partitions running, API3/smoke terminal outcomes UNOBSERVED. New WASM/WASI server failures need actual cause qualification, no broad compileblock inferred. Root owns baseline selection/outcome join; current seven listing receipts bdccf504 and exact API3 selection470c952f authenticate selection only. N17 closed-input/getter/COW/free receipt and numeric compiler half remain off-tree, no authority or current-gate donation; paired C waits final reviewed cleanup HEAD.
 
