@@ -1719,10 +1719,11 @@ fn docstring_actions(
         }
         let edit = match docstring_style {
             crate::formatting::DocstringStyle::Body => {
-                if !original_literal_procedure_body(source, analysis, proc_def) {
+                let Some(content) = original_literal_procedure_body(source, analysis, proc_def)
+                else {
                     continue;
-                }
-                body_docstring_edit(source, line_index, proc_def)
+                };
+                body_docstring_edit(source, line_index, content)
             }
             // `Preceding` (and unreachable `None`, filtered above).
             _ => preceding_docstring_edit(decl.line),
@@ -1760,29 +1761,24 @@ fn original_literal_procedure_body(
     source: &str,
     analysis: &AnalysisResult,
     proc_def: &tcl_compiler::analyser::ProcDef,
-) -> bool {
-    let Some(config) = analysis.body_lexer_config else {
-        return false;
-    };
+) -> Option<tcl_lexer::Span> {
+    let config = analysis.body_lexer_config?;
     let image = tcl_lexer::SourceImage::document(source);
-    let Some(input) = analysis.retained_command_realm().and_then(|realm| {
+    let input = analysis.retained_command_realm().and_then(|realm| {
         realm.original_written_name_input_at_span_in_source(&image, proc_def.body_span, config)
-    }) else {
-        return false;
-    };
-    let Some(key) = input.original_word_key() else {
-        return false;
-    };
+    })?;
+    let key = input.original_word_key()?;
     let word = key.original_word();
-    word.image() == &image
+    (word.image() == &image
         && word.config() == config
         && word.group().kind == tcl_lexer::WordKind::Braced
         && !word.group().expand
         && word
             .tokens()
             .first()
-            .is_some_and(|token| token.span == proc_def.body_span)
-        && word.content_span().is_ok()
+            .is_some_and(|token| token.span == proc_def.body_span))
+    .then_some(())?;
+    word.content_span().ok()
 }
 
 /// Where + how to insert a generated docstring stub, and the indent its
@@ -1823,16 +1819,15 @@ fn preceding_docstring_edit(decl_line: u32) -> DocstringInsertion {
 fn body_docstring_edit(
     source: &str,
     line_index: &LineIndex,
-    proc_def: &tcl_compiler::analyser::ProcDef,
+    content: tcl_lexer::Span,
 ) -> DocstringInsertion {
-    let body_start = proc_def.body_span.start();
+    let body_start = content.start();
     let body_start_idx = body_start as usize;
-    let body_end_idx = (proc_def.body_span.end() as usize).min(source.len());
+    let body_end_idx = content.end() as usize;
     let body_text = source.get(body_start_idx..body_end_idx).unwrap_or("");
-    // The opening `{` sits at `body_start`; the rest of that line is body
-    // text too (a K&R `proc … {` puts nothing else there, but a
-    // single-line proc does), so skip it and read the indent off the first
-    // genuinely-new line instead.
+    // The authenticated content starts after its genuine opening delimiter.
+    // Read indentation from the first new content line; a single-line body
+    // uses the formatter's default below.
     let indent = body_text
         .lines()
         .skip(1)
@@ -4620,6 +4615,10 @@ mod original_docstring_tests {
             crate::formatting::DocstringStyle::Body,
         );
         assert_eq!(found.len(), 1);
+        assert_eq!(found[0].edits[0].range.start_line, 0);
+        assert_eq!(found[0].edits[0].range.start_character, 16);
+        assert_eq!(found[0].edits[0].range.end_line, 0);
+        assert_eq!(found[0].edits[0].range.end_character, 16);
         assert!(found[0].edits[0].new_text.contains("value"));
         let computed = "set script {return value}\nproc computed {} $script\n";
         let analysis = Analyser::new().analyse(computed, "tcl8.6");
