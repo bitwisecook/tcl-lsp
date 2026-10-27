@@ -81,7 +81,7 @@
     "runtime/rust/src/interp/native_children.rs": "2878cfc001c34588f2ca51464e37ed70e042c8e5905e4b4c1052891d741028f3",
     "rust/tcl-runtime-api/src/native_compiler_pass.rs": "c4ce7a785e01be9baf83cbbb1b55a757f6b92c1962bef9e8bfe37afcc0f62d51",
     "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "eb0d93173f3a83fd2e47c6f6efcd4bd7f64d34e88b234a72fba234b7173d2593",
-    "rust/tcl-vm/src/interp.rs": "b61bf04867c6ab4586fd5aa31bcf3c30d1619adeeeda4ae2f0292718fe8ceae4",
+    "rust/tcl-vm/src/interp.rs": "dd40caec31b684f2ef8fe418fc42810fac3f6bc3882fddbac6664b7ddf5ce896",
     "rust/tcl-vm/src/interp/native_operation_currency.rs": "39aa834484dbb86a04ae985527eca7fd483b212deb5d1113e642e90b88c3ba3a",
     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "6fe1d3d8060c465b867e3bb3611c9e10a4cd799f861aad966455cba5531be328",
     "runtime/rust/src/interp/native_unicode_getter.rs": "aac92cba1a508994749f8acafea03a1851d304f841d7f2d71714842895a0bd87",
@@ -122,7 +122,11 @@
     "rust/tcl-vm/src/compiled.rs": "ebf121d4d11f4d492128c7724eb462b921c0e57b7ae7befbe5432093d8525ae5",
     "rust/tcl-vm/src/literal_pool.rs": "08cf7fea78923a6521074e7cbf72d7941c01e38eeef61bf9f906a6acb72bca12",
     "rust/tcl-vm/src/interp/logical_eval_source.rs": "e871f3900cab98d0b34c00ddfba6ece24e297475b4714d8379370a23e0a53296",
-    "rust/tcl-vm/src/interp/logical_eval_source/tests.rs": "6efaabe82985aebfb85baca30c88ec36e39f52e5548b6fb0bcd849072f525ae2"
+    "rust/tcl-vm/src/interp/logical_eval_source/tests.rs": "6efaabe82985aebfb85baca30c88ec36e39f52e5548b6fb0bcd849072f525ae2",
+    "rust/tcl-registry/src/source_file.rs": "744243474fecf235c83795356befef72bc7aaecf1b4c939badcb191665b7d864",
+    "rust/tcl-vm/src/interp/logical_file_source.rs": "c130f2ab9c2afab3c5fbbfd5a73c8386552d5df504da2418e62352f692df479b",
+    "rust/tcl-vm/src/command/native_encoding_source.rs": "b2006b375e09e82598b8e6853c213fe6269b9b4e624f756acd5b7b3ee816b1ff",
+    "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs": "d0feea7ca90fc3f020abeb265e03296568edbb5d46ed083acc31c6177bcf477d"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",
@@ -244,5 +248,72 @@
       "last_line": 287,
       "execution": "UNRUN"
     }
-  ]
+  ],
+  "logical_file_controls": [
+    "command::native_encoding_source::logical_file_tests::logical_file_provider_is_explicit_and_does_not_select_native_grammar",
+    "command::native_encoding_source::logical_file_tests::logical_file_ascii_kernel_reads_once_and_closes_the_actual_handle",
+    "command::native_encoding_source::logical_file_tests::logical_file_high_bytes_refuse_before_conversion_or_open",
+    "command::native_encoding_source::logical_file_tests::logical_file_ascii_empty_dash_and_nul_keep_original_filename_kernel",
+    "command::native_encoding_source::logical_file_tests::logical_file_provider_withdrawal_and_restore_cannot_revive_entry",
+    "command::native_encoding_source::logical_file_tests::logical_file_read_header_withdrawal_keeps_first_error_and_closes_once",
+    "command::native_encoding_source::logical_file_tests::logical_file_nonresident_integer_keeps_the_single_original_string_stage"
+  ],
+  "logical_file_functions": [
+    {
+      "selector": "command::native_encoding_source::logical_file_tests::logical_file_provider_is_explicit_and_does_not_select_native_grammar",
+      "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
+      "function_sha256": "95bdd0c9bcef6380f11d672695f4dcc947155247b1bf40e43d703486c7649813",
+      "first_line": 46,
+      "last_line": 82
+    },
+    {
+      "selector": "command::native_encoding_source::logical_file_tests::logical_file_ascii_kernel_reads_once_and_closes_the_actual_handle",
+      "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
+      "function_sha256": "8d192b1d730565de73be6d55d72f60b9a59d3fda3a53a0404cfaef6c62b07c49",
+      "first_line": 85,
+      "last_line": 114
+    },
+    {
+      "selector": "command::native_encoding_source::logical_file_tests::logical_file_high_bytes_refuse_before_conversion_or_open",
+      "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
+      "function_sha256": "017705ba0735ff2ba29d7425de85afb50eefa2800e7855b713591eb9d4d790e3",
+      "first_line": 117,
+      "last_line": 150
+    },
+    {
+      "selector": "command::native_encoding_source::logical_file_tests::logical_file_ascii_empty_dash_and_nul_keep_original_filename_kernel",
+      "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
+      "function_sha256": "ea80b604c9a716007f876b029abc1b57a14da6bfed23f03f6ddfa6874e37a62e",
+      "first_line": 153,
+      "last_line": 184
+    },
+    {
+      "selector": "command::native_encoding_source::logical_file_tests::logical_file_provider_withdrawal_and_restore_cannot_revive_entry",
+      "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
+      "function_sha256": "417ba55a295de5255e54b9fb0b2837776cbb6ca94c9f1799ef6e3c80557f3a74",
+      "first_line": 187,
+      "last_line": 202
+    },
+    {
+      "selector": "command::native_encoding_source::logical_file_tests::logical_file_read_header_withdrawal_keeps_first_error_and_closes_once",
+      "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
+      "function_sha256": "f005327bec90e8c1ba1bf92030866aa1749c80bc5c0336429997921b5fb7d93f",
+      "first_line": 205,
+      "last_line": 241
+    },
+    {
+      "selector": "command::native_encoding_source::logical_file_tests::logical_file_nonresident_integer_keeps_the_single_original_string_stage",
+      "path": "rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs",
+      "function_sha256": "6e59e9e7b6aaec390db3dacb5485e953872ef016476d4117e3658f35e35302ed",
+      "first_line": 244,
+      "last_line": 277
+    }
+  ],
+  "logical_file_budget": {
+    "listing_seconds": 180,
+    "test_seconds": 180,
+    "cleanup_seconds": 25,
+    "preserved_full_corpus_seconds": 805,
+    "preserved_full_corpus_capture_bytes": 524288
+  }
 }

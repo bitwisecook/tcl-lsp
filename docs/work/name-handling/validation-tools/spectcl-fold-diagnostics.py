@@ -139,8 +139,8 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
         require(available >= seconds + 25, "full corpus cleanup reserve unavailable")
     if prefix.startswith(("string-first-gates-", "native-string-effect-", "ordinary-entry-")):
         require(available >= seconds + 25, "string replay cleanup reserve unavailable")
-    if prefix.startswith(("logical-eval-", "list-logical-eval-")):
-        require(available >= seconds + 25 + 805 + (180 if prefix.startswith("list-logical-eval-") else 0), "logical Eval full child and full600 reserves unavailable")
+    if prefix.startswith(("logical-eval-", "list-logical-eval-", "logical-file-", "list-logical-file-")):
+        require(available >= seconds + 25 + 805 + (180 if prefix.startswith(("list-logical-eval-", "list-logical-file-")) else 0), "logical Eval full child and full600 reserves unavailable")
         require(budget > 512 * 1024, "logical Eval future full600 capture reserve unavailable")
         budget -= 512 * 1024
     seconds = min(seconds, available)
@@ -529,6 +529,91 @@ def logical_eval_append(artifacts, environment, budget, processes, outcomes, out
 
 
 
+LOGICAL_FILE_SELECTORS = ['command::native_encoding_source::logical_file_tests::logical_file_provider_is_explicit_and_does_not_select_native_grammar', 'command::native_encoding_source::logical_file_tests::logical_file_ascii_kernel_reads_once_and_closes_the_actual_handle', 'command::native_encoding_source::logical_file_tests::logical_file_high_bytes_refuse_before_conversion_or_open', 'command::native_encoding_source::logical_file_tests::logical_file_ascii_empty_dash_and_nul_keep_original_filename_kernel', 'command::native_encoding_source::logical_file_tests::logical_file_provider_withdrawal_and_restore_cannot_revive_entry', 'command::native_encoding_source::logical_file_tests::logical_file_read_header_withdrawal_keeps_first_error_and_closes_once', 'command::native_encoding_source::logical_file_tests::logical_file_nonresident_integer_keeps_the_single_original_string_stage']
+LOGICAL_FILE_PATHS = ['rust/tcl-registry/src/source_file.rs', 'rust/tcl-vm/src/interp.rs', 'rust/tcl-vm/src/interp/logical_file_source.rs', 'rust/tcl-vm/src/command/native_encoding_source.rs', 'rust/tcl-vm/src/command/native_encoding_source/logical_file_tests.rs']
+
+
+def logical_file_source_guards():
+    require(source() == before, "logical file source endpoint drift")
+    require(roster["logical_file_controls"] == LOGICAL_FILE_SELECTORS, "logical file selectors changed")
+    require([guard["selector"] for guard in roster["logical_file_functions"]] == LOGICAL_FILE_SELECTORS, "logical file function roster changed")
+    for path in LOGICAL_FILE_PATHS:
+        require(sha(root / path) == roster["source_pins"][path], "logical file source pin mismatch")
+    for guard in roster["logical_file_functions"]:
+        body = (root / guard["path"]).read_bytes().splitlines(keepends=True)
+        require(hashlib.sha256(b"".join(body[guard["first_line"]-1:guard["last_line"]])).hexdigest()
+                == guard["function_sha256"], "logical file function pin mismatch")
+
+
+
+def logical_file_append(artifacts, environment, budget, processes, outcomes, outcome):
+    global remaining
+    require(budget == remaining, "same remaining aggregate log budget for logical file control")
+    logical_file_source_guards()
+    selector = outcome["selector"]
+    require(len(roster["logical_file_controls"]) == 7 and selector in roster["logical_file_controls"], "exact actual logical file selectors")
+    require(roster["logical_file_budget"] == {
+        "listing_seconds": 180, "test_seconds": 180, "cleanup_seconds": 25,
+        "preserved_full_corpus_seconds": 805,
+        "preserved_full_corpus_capture_bytes": 512 * 1024,
+    }, "bounded separate logical file control admission")
+    for name in ["SPECTCL_CORPUS_TMP", "SPECTCL_CORPUS_DIFF", "SPECTCL_CORPUS_BLESS"]:
+        require(name not in environment, "logical file control keeps actual samples-only non-bless mode")
+    selected = [artifact for artifact in artifacts if artifact["target"] == "tcl_vm"]
+    require(len(selected) == 1, "one original fresh logical file control executable")
+    artifact = selected[0]
+    event = artifact["cargo_event"]
+    require(event["fresh"] is False and event["profile"]["test"] is True
+            and event["target"]["name"] == "tcl_vm"
+            and event["target"]["kind"] == ["lib"]
+            and event["manifest_path"] == str(root / "rust/tcl-vm/Cargo.toml") and artifact["strict_Rust_0w"] is True,
+            "same genuine current integration-test ELF for logical file control")
+    executable = Path(artifact["path"])
+    require(sha(executable) == artifact["sha256"], "logical file control ELF changed before listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable before logical file control")
+    require(deadline - time.time() >= 1190, "full 180+180+25 reservation unavailable")
+    listing = execute([str(executable), "--list", "--format", "terse", "--exact", selector],
+                      "list-logical-file-" + str(roster["logical_file_controls"].index(selector)), executable, 180, environment, budget)
+    processes.append(listing)
+    budget -= listing["retained_bytes"]
+    remaining = budget
+    require(lifecycle(listing) and listing["exit_code"] == 0, "logical file control listing unclosed")
+    listed = []
+    for line in (out / ("list-logical-file-" + str(roster["logical_file_controls"].index(selector)) + ".stdout")).read_text().splitlines():
+        if line.endswith(": test"):
+            listed.append(line.removesuffix(": test"))
+        else:
+            require(not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
+                    "unexpected logical file control listing")
+    require(listed == [selector], "exact logical file control selector missing, duplicate or ignored")
+    require(sha(executable) == artifact["sha256"], "logical file control ELF changed after listing")
+    require(deadline - time.time() >= 1010, "full 180+25 reservation unavailable after listing")
+    require(budget > 512 * 1024, "shared remaining capture unavailable after native string listing")
+    outcome["state"] = "RUNNING"
+    save(out / "logical-file-outcomes.json", outcomes)
+    prefix = "logical-file-" + str(roster["logical_file_controls"].index(selector)).zfill(2)
+    receipt = execute([str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+                      prefix, executable, 180, environment, budget)
+    processes.append(receipt)
+    budget -= receipt["retained_bytes"]
+    remaining = budget
+    outcome.update(exit_code=receipt["exit_code"], receipt=prefix + ".process.json",
+                   stdout=prefix + ".stdout", stderr=prefix + ".stderr")
+    require(lifecycle(receipt), "logical file control lifecycle/capture stop")
+    stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+    try:
+        outcome["state"] = original_result(stdout, receipt["exit_code"])
+    except RuntimeError:
+        outcome["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+        save(out / "logical-file-outcomes.json", outcomes)
+        raise
+    logical_file_source_guards()
+    require(sha(executable) == artifact["sha256"], "logical file control ELF changed after execution")
+    save(out / "logical-file-outcomes.json", outcomes)
+    return budget
+
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -611,6 +696,7 @@ native_string_effect_rows = [{
     "selector": 'exec::native_string_result_effect_tests::actual_native_template_append_preserves_cow_and_original_header_alternatives', "state": "UNRUN",
 }]
 logical_eval_rows = [{"group": "separate_logical_eval", "target": "tcl_vm", "selector": selector, "state": "UNRUN"} for selector in roster["logical_eval_controls"]]
+logical_file_rows = [{"group": "separate_logical_file", "target": "tcl_vm", "selector": selector, "state": "UNRUN"} for selector in roster["logical_file_controls"]]
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -1004,9 +1090,15 @@ try:
             continue
         status = 2
         remaining = logical_eval_append(artifacts, env, remaining, processes, logical_eval_rows, logical_row)
+    for file_row in logical_file_rows:
+        if deadline - time.time() < 1190 or remaining <= 1024 * 1024:
+            file_row["unrun_reason"] = "shared full child/cleanup and unchanged full corpus listing/test/capture reservation unavailable"
+            continue
+        status = 2
+        remaining = logical_file_append(artifacts, env, remaining, processes, logical_file_rows, file_row)
     status = 2
     remaining = full_corpus_append(artifacts, env, remaining, processes, full_corpus_rows[0])
-    status = 2 if any(row["state"] not in ["PASS", "FAIL"] for row in logical_eval_rows) else 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows + native_string_effect_rows + ordinary_entry_rows + logical_eval_rows) else 1
+    status = 2 if any(row["state"] not in ["PASS", "FAIL"] for row in logical_eval_rows + logical_file_rows) else 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows + native_string_effect_rows + ordinary_entry_rows + logical_eval_rows + logical_file_rows) else 1
 except (
     RuntimeError,
     OSError,
@@ -1021,6 +1113,12 @@ except (
     error = repr(failure)
     print("SPECTCL DIAGNOSTIC STOP " + error, file=sys.stderr, flush=True)
 finally:
+    for file_row in logical_file_rows:
+        if file_row["state"] == "RUNNING":
+            file_row["state"] = "INCOMPLETE"
+        if file_row["state"] in ["UNRUN", "INCOMPLETE"]:
+            file_row.setdefault("unrun_reason", error)
+    save(out / "logical-file-outcomes.json", logical_file_rows)
     for logical_row in logical_eval_rows:
         if logical_row["state"] == "RUNNING":
             logical_row["state"] = "INCOMPLETE"
@@ -1105,6 +1203,8 @@ finally:
             "supplemental_outcomes": supplemental_rows,
             "required_separate_hostile_tests": 1,
             "separate_hostile_outcomes": hostile_rows,
+            "required_separate_logical_file_tests": 7,
+            "separate_logical_file_outcomes": logical_file_rows,
             "required_separate_logical_eval_tests": 7,
             "separate_logical_eval_outcomes": logical_eval_rows,
             "required_separate_native_index_tests": 3,
