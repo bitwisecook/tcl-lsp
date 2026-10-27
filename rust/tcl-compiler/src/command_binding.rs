@@ -27046,3 +27046,71 @@ mod compiled_range_selection_tests {
         assert_eq!(full_filter(&bindings, &words, 0), [1, 2]);
     }
 }
+
+// Report-bound diagnostic mirror; the ordinary PartialEq implementation stays exact.
+#[cfg(test)]
+impl SourceCommandBindings {
+    pub(crate) fn exact_eq_for_report_trace(&self, other: &Self) -> bool {
+        macro_rules! same_fields {
+            ($($field:ident),+ $(,)?) => { $(
+                let same = self.$field == other.$field;
+                if !same {
+                    let field = stringify!($field);
+                    eprintln!("REPORT_CAPTURE stage=compare.owner.command_realm.bindings field={field} refuses=true");
+                    return false;
+                }
+            )+ };
+        }
+        same_fields!(
+            analyser_source_settings,
+            conditional_source,
+            declaration_preview_depth,
+            logical_conditional_source_control,
+            lexer_config,
+            declaration_layouts,
+            pre_handler_failures,
+            unrepresented_entries,
+            root_origin,
+            original_argument_syntax_commands,
+            origin_points,
+            implicit_math_invocations,
+            invocation_reads,
+            normal_variable_continuations,
+            original_variable_invocations,
+            invocation_normal_results,
+            conditional_procedure_results,
+            object_callback_effects,
+            rhs_read_store_observations,
+            definition_method_references,
+            expression_preparations,
+            conditional_expression_evaluations,
+            origin_variable_accesses,
+            implicit_fixed_math_invocations,
+            fixed_math_diagnostic_presence,
+            entered_scripts,
+            entered_words,
+            points,
+            dispatch_points,
+            final_state,
+            deferred,
+            rule_declarations,
+            deferred_outcomes,
+            future_bodies,
+            active_calls,
+            active_variable_observers,
+            called_implementations,
+            phases,
+            lifecycle_coverage,
+            variable_accesses,
+            compilation_failures,
+            compilation_boundaries,
+            compilation_provider_required,
+            compilation_sources,
+            compiled_children,
+            expression_syntax_children,
+            compiler_invocations,
+            runtime_coverage,
+        );
+        true
+    }
+}

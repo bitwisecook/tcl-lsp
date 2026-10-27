@@ -207,10 +207,51 @@ fn check_exhaustive_report_fields(a: &AnalysisResult) {
     } = a;
 }
 
+// The diagnostic route reproduces Option/Arc identity and complete owner
+// predicates. Every non-AUTH/non-test operator remains the original expression.
+macro_rules! report_owner_difference {
+    ($left:ident, $right:ident, command_realm) => {
+        traced_command_realms_differ(&$left.command_realm, &$right.command_realm)
+    };
+    ($left:ident, $right:ident, $field:ident) => {
+        $left.$field != $right.$field
+    };
+}
+
+#[cfg(not(test))]
+fn traced_command_realms_differ(
+    left: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    right: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+) -> bool {
+    left != right
+}
+
+#[cfg(test)]
+fn traced_command_realms_differ(
+    left: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    right: &Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+) -> bool {
+    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_none() {
+        return left != right;
+    }
+    match (left, right) {
+        (None, None) => false,
+        (Some(left), Some(right)) => {
+            !std::sync::Arc::ptr_eq(left, right) && !left.exact_eq_for_report_trace(right)
+        }
+        _ => {
+            eprintln!(
+                "REPORT_CAPTURE stage=compare.owner.command_realm.component field=presence refuses=true"
+            );
+            true
+        }
+    }
+}
+
 fn report_owners_are_exact(a: &AnalysisResult, b: &AnalysisResult) -> bool {
     macro_rules! require_exact_owners {
         ($($field:ident),* $(,)?) => { $(
-            if super::trace_capture_gate(a.$field != b.$field, concat!("compare.owner.", stringify!($field))) {
+            if super::trace_capture_gate(report_owner_difference!(a, b, $field), concat!("compare.owner.", stringify!($field))) {
                 return false;
             }
         )* };

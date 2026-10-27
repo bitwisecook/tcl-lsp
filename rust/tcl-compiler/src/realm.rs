@@ -2059,3 +2059,32 @@ mod descriptor_index_tests {
         }
     }
 }
+
+// Called only by the existing AUTH-gated report mirror, never ordinary equality.
+#[cfg(test)]
+impl CommandBindingRealm {
+    pub(crate) fn exact_eq_for_report_trace(&self, other: &Self) -> bool {
+        let same = self.bindings.exact_eq_for_report_trace(&other.bindings);
+        if !same {
+            eprintln!(
+                "REPORT_CAPTURE stage=compare.owner.command_realm.component field=bindings refuses=true"
+            );
+            return false;
+        }
+        let same = self.specs == other.specs;
+        if !same {
+            eprintln!(
+                "REPORT_CAPTURE stage=compare.owner.command_realm.component field=specs refuses=true"
+            );
+            return false;
+        }
+        let same = self.source_input == other.source_input;
+        if !same {
+            eprintln!(
+                "REPORT_CAPTURE stage=compare.owner.command_realm.component field=source_input refuses=true"
+            );
+            return false;
+        }
+        true
+    }
+}
