@@ -9,6 +9,13 @@
 /// malformed records, invalid hex and non-UTF-8 text are fixture failures.
 #[must_use]
 pub fn text(table: &str, key: &str) -> String {
+    String::from_utf8(bytes(table, key)).unwrap_or_else(|_| panic!("fixture text must be UTF-8"))
+}
+
+/// Decode one complete original byte image without imposing UTF-8.
+/// Original family/release/path keys remain separate observation channels.
+#[must_use]
+pub fn bytes(table: &str, key: &str) -> Vec<u8> {
     let mut selected = table
         .lines()
         .filter(|line| !line.starts_with('#'))
@@ -16,8 +23,7 @@ pub fn text(table: &str, key: &str) -> String {
         .filter(|(path, _)| *path == key);
     let (_, hex) = selected.next().expect("fixture key missing");
     assert!(selected.next().is_none(), "duplicate fixture key");
-    String::from_utf8(crate::encoding_utf8::decode_hex(hex))
-        .unwrap_or_else(|_| panic!("fixture text must be UTF-8"))
+    crate::encoding_utf8::decode_hex(hex)
 }
 
 #[cfg(test)]
@@ -47,5 +53,15 @@ mod tests {
     #[should_panic(expected = "fixture record delimiter")]
     fn malformed_record_refuses() {
         let _ = super::text("broken\n", "absent");
+    }
+    #[test]
+    fn byte_channel_retains_nul_invalid_utf8_and_newline() {
+        assert_eq!(super::bytes("raw\t00ff0a\n", "raw"), [0, 255, 10]);
+    }
+
+    #[test]
+    #[should_panic(expected = "fixture text must be UTF-8")]
+    fn text_channel_refuses_invalid_utf8() {
+        let _ = super::text("raw\tff\n", "raw");
     }
 }

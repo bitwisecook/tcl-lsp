@@ -1782,9 +1782,7 @@ mod native_rmw_fixture_tests {
                 {
                     assert_eq!(
                         source.as_slice(),
-                        include_bytes!(
-                            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/request/original-source.tcl"
-                        )
+                        tcl_test_support::fixture_tables::bytes(include_str!("../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"), "native_dict_write_error_lifetime226/request/original-source.tcl").as_slice()
                     );
                     bounded_results += 1;
                     DictionaryResultWindow::CompletionAndCallerReadStatus
@@ -1826,25 +1824,40 @@ mod native_rmw_fixture_tests {
         // Current-build private counters and public bytes are separate evidence.
         // These live-header/value assertions test the VM's safe ownership policy;
         // they do not reproduce or certify native freed-object content.
-        let baseline = include_bytes!(
-            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/baseline-current-case9.stdout"
+        let baseline = tcl_test_support::fixture_tables::bytes(
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+            ),
+            "native_dict_write_error_lifetime226/baseline-current-case9.stdout",
         );
-        let observed = include_bytes!(
-            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case9.stdout"
+        let observed = tcl_test_support::fixture_tables::bytes(
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+            ),
+            "native_dict_write_error_lifetime226/observed-case9.stdout",
         );
         assert_eq!(baseline, observed);
         assert_eq!(
-            include_str!(
-                "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case9.stderr"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+                ),
+                "native_dict_write_error_lifetime226/observed-case9.stderr"
             ),
             "DICT_RELEASE_OBSERVER|errors=1|refcount_before_release=1|same_cell=1|defined_scalar=1|final_free=1\n"
         );
         for negative in [
-            include_str!(
-                "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case0.stderr"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+                ),
+                "native_dict_write_error_lifetime226/observed-case0.stderr",
             ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/observed-case19.stderr"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+                ),
+                "native_dict_write_error_lifetime226/observed-case19.stderr",
             ),
         ] {
             assert_eq!(
@@ -1853,8 +1866,9 @@ mod native_rmw_fixture_tests {
             );
         }
         let source = include_bytes!(
-            "../../tcl-registry/tests/data/native_dict_write_error_lifetime226/request/original-source.tcl"
+            "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/original-source.tcl"
         );
+        assert_eq!(source.as_slice(), tcl_test_support::fixture_tables::bytes(include_str!("../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"), "native_dict_write_error_lifetime226/request/original-source.tcl").as_slice());
         let profile = tcl_registry::model::ingress::resolve_environment("tcl8.5").unit_profile();
         let mut vm = crate::native_fixture::interpreter(profile);
         let completion = vm.try_eval_source_bytes(source).unwrap();
@@ -1884,25 +1898,40 @@ mod native_rmw_fixture_tests {
         // The native counter window is independent of the VM's safe policy.
         // Neither native freed contents nor original compiled frame ownership
         // are reconstructed from this software header/member control.
-        let baseline = include_bytes!(
-            "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case9.stdout"
+        let baseline = tcl_test_support::fixture_tables::bytes(
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+            ),
+            "native_dict_update_write_error_lifetime398/8.6.18/baseline-case9.stdout",
         );
-        let observed = include_bytes!(
-            "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stdout"
+        let observed = tcl_test_support::fixture_tables::bytes(
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+            ),
+            "native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stdout",
         );
         assert_eq!(baseline, observed);
         assert_eq!(
-            include_str!(
-                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stderr"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+                ),
+                "native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stderr"
             ),
             "DICT_RELEASE_OBSERVER|errors=1|refcount_before_release=1|same_cell=1|defined_scalar=1|final_free=1\n",
         );
         for control in [
-            include_str!(
-                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case0.stderr"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+                ),
+                "native_dict_update_write_error_lifetime398/8.6.18/observed-case0.stderr",
             ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case19.stderr"
+            tcl_test_support::fixture_tables::text(
+                include_str!(
+                    "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+                ),
+                "native_dict_update_write_error_lifetime398/8.6.18/observed-case19.stderr",
             ),
         ] {
             assert_eq!(
@@ -1913,7 +1942,14 @@ mod native_rmw_fixture_tests {
         let source = include_bytes!(
             "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/original-source.tcl"
         );
-        assert_eq!(source.as_slice(), include_bytes!("../../tcl-registry/tests/data/native_dict_write_error_lifetime226/request/original-source.tcl").as_slice());
+        let original_source = tcl_test_support::fixture_tables::bytes(
+            include_str!(
+                "../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"
+            ),
+            "native_dict_update_write_error_lifetime398/request/original-source.tcl",
+        );
+        assert_eq!(source.as_slice(), original_source.as_slice());
+        assert_eq!(original_source.as_slice(), tcl_test_support::fixture_tables::bytes(include_str!("../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/captures.tsv"), "native_dict_write_error_lifetime226/request/original-source.tcl").as_slice());
         let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
         let mut vm = crate::native_fixture::interpreter(profile);
         let completion = vm.try_eval_source_bytes(source).unwrap();
