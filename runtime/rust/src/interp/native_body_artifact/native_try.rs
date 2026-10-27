@@ -713,15 +713,21 @@ mod tests {
         for (profile, observations) in [
             (
                 "tcl8.6",
-                include_str!("../../../tests/data/native_compiled_try/8.6.18.tsv"),
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.6.18.tsv"
+                ),
             ),
             (
                 "tcl9.0",
-                include_str!("../../../tests/data/native_compiled_try/9.0.4.tsv"),
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.0.4.tsv"
+                ),
             ),
             (
                 "tcl9.1",
-                include_str!("../../../tests/data/native_compiled_try/9.1.0.tsv"),
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.1.0.tsv"
+                ),
             ),
         ] {
             assert_eq!(observations.lines().count(), 41);
