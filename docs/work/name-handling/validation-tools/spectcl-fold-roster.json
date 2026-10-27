@@ -93,7 +93,7 @@
     "runtime/rust/src/interp/native_operation_currency.rs": "dd5c9c73e87e39b2b28ab4570f4c38d42da39fcac8e070492c6f57dc71c613a5",
     "runtime/rust/src/obj.rs": "1acc6e6ea079c6a2d5689f5d59667bead93a47edd6b29a21ef896015140baa69",
     "rust/tcl-compiler/src/command_binding/native_string_access/append_value.rs": "ff8097aca9daffb02d1557956498f71e6b3b49209b451546f4113c989c33d821",
-    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "63d7dbdd31aa3861c0f5cfcdb555950fbaf387ff47538eb837d67456d282cd7c",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "974fbe12d5a4d1a618e7fe8d2ea44761d1e4843149bae50fcacfe18937d428b4",
     "rust/tcl-compiler/src/var_resolve/original_name_contents.rs": "6fa39c54f9461ca6b22d4ac772f58208b793b376b62890779158afb2e0a2d517",
     "rust/tcl-syntax/src/native_object_append.rs": "ab8da3e07f30a14ac5d2024e7437ce1990baf101f97178c6375538d939f14290",
     "runtime/rust/src/builtins.rs": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b",
