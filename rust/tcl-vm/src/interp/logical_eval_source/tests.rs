@@ -285,3 +285,67 @@ fn logical_eval_refuses_a_required_compiled_local_layout() {
         .is_err()
     );
 }
+
+fn harness_simulation() -> crate::Vm {
+    let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+    let mut vm = crate::Vm::with_native_core(
+        Box::new(std::io::sink()),
+        Rc::new(crate::host_native::NativeHost::new()),
+        host,
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .expect("C9 core");
+    let profile = tcl_dialect::DialectProfile::irules();
+    vm.set_dialect_profile(profile);
+    assert!(vm.set_command_surface_profile(host));
+    vm.set_compiler(Box::new(
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+    ));
+    assert!(vm.set_native_engine_profile(host));
+    assert!(vm.set_logical_eval_object_provider(LogicalEvalObjectProvider::Tcl84CoreSimulation));
+    assert!(vm.set_logical_source_word_provider(LogicalSourceWordProvider::Tcl84CoreSimulation));
+    assert!(vm.set_logical_expression_parse_provider(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+    ));
+    assert!(vm.set_logical_quote_provider(
+        tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
+    ));
+    assert!(vm.set_logical_numeric_provider(
+        tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+    ));
+    assert!(vm.set_logical_name_provider(
+        tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
+    ));
+    assert!(vm.set_logical_compiled_variable_provider(tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
+    assert!(vm.set_logical_source_file_provider(Some(
+        tcl_registry::source_file::LogicalSourceFileProvider::Tcl84CoreSimulation,
+    )));
+    assert!(vm.set_logical_math_function_provider(Some(
+        tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider::Tcl84Core,
+    )));
+    vm
+}
+
+#[test]
+fn zz_probe_expression_command_substitution() {
+    for script in [
+        "expr {[llength [info commands ::nope]]}",
+        "set y [llength [info commands ::nope]]",
+        "proc p {} { if {[llength [info commands ::nope]]} {return yes}; return no }; p",
+        "proc q {} { if {[llength [::orig_info commands ::nope]]} {return yes}; return no }; q",
+        "proc r {} { while {[llength [::orig_info commands ::nope]]} {return yes}; return no }; r",
+        "proc s {} { expr {[llength [::orig_info commands ::nope]]} }; s",
+        "proc t {} { set y [llength [::orig_info commands ::nope]]; return $y }; t",
+        "namespace eval ::tmm { proc u {} { if {[llength [::orig_info commands ::nope]]} {return yes}; return no } }; ::tmm::u",
+    ] {
+        for harness in [false, true] {
+            let mut vm = if harness { harness_simulation() } else { simulation(None).0 };
+            vm.eval_source("rename info ::orig_info; proc info args {uplevel 1 [linsert $args 0 ::orig_info]}").unwrap();
+            let result = vm.eval_source(script);
+            eprintln!(
+                "ZZPROBE harness={harness} {script:?} => {:?}",
+                result.as_ref().map(|c| (c.code, String::from_utf8_lossy(&c.result.string_bytes()).into_owned())),
+            );
+        }
+    }
+}

@@ -72,6 +72,7 @@ pub mod emit;
 pub mod host;
 mod intern;
 pub mod pack_eval;
+pub mod private_application;
 pub mod program;
 pub mod sandbox;
 

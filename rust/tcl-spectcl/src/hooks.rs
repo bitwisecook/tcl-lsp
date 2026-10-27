@@ -62,6 +62,12 @@
 //! pack file (`docs/design/compiler/registry-consumer-contracts.md` § *Ruling
 //! — trust gates execution, not authority*).
 
+mod owned_evaluator;
+pub use owned_evaluator::{
+    OwnedApplicationFold, OwnedApplicationFolds, OwnedEvaluatorTelemetry,
+    fold_owned_application_source,
+};
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;

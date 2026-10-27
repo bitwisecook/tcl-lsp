@@ -184,7 +184,7 @@ macro_rules! n17_live_some {
 #[derive(Debug, Clone)]
 pub struct SelectedConstFold {
     /// Canonical facts of the selected invocation.
-    pub facts: tcl_registry::InvocationFacts,
+    pub facts: Box<tcl_registry::InvocationFacts>,
     /// Complete retained argv values, the command word(s) included.
     pub values: Vec<String>,
     /// Actual execution policy selected at invocation ingress.
@@ -382,7 +382,7 @@ impl<'a> ConstSubstCtx<'a> {
         Some(RetainedFold::Selected {
             spec,
             request: SelectedConstFold {
-                facts: *invocation.facts,
+                facts: invocation.facts,
                 values: args,
                 dialect,
             },

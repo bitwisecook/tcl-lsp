@@ -138,8 +138,8 @@ mod tests {
         let profile = profile();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let source = "set s abc\nputs [string length $s]\n";
-        let selected = select_application_folds(source, &registry, profile)
-            .expect("top-level source selects");
+        let selected =
+            select_application_folds(source, &registry, profile).expect("top-level source selects");
         let [fold] = selected.as_slice() else {
             panic!("one selected fold: {selected:?}");
         };
@@ -154,12 +154,8 @@ mod tests {
         let profile = profile();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         assert_eq!(
-            select_application_folds(
-                "proc p {} {string length abc}\np\n",
-                &registry,
-                profile
-            )
-            .unwrap_err(),
+            select_application_folds("proc p {} {string length abc}\np\n", &registry, profile)
+                .unwrap_err(),
             ClosedSourceRefusal::Source
         );
         let long = format!("set s {}\n", "x".repeat(MAX_APPLICATION_SOURCE_BYTES));

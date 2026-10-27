@@ -509,6 +509,23 @@ pub fn profile_store_with_overlay(
     with_family_core_surface(store, &environment.definition)
 }
 
+/// [`profile_store_with_overlay`] built for one owner alone: the same layers,
+/// `extend` and core surface, with no shared cache read, published or pruned,
+/// so `extend` always runs and the returned handle is the only one.
+#[must_use]
+pub fn private_profile_store_with_overlay(
+    profile: &'static DialectProfile,
+    overlay: u64,
+    extend: impl FnOnce(&mut CommandRegistry),
+) -> Arc<CommandRegistry> {
+    let environment = crate::model::ingress::resolve_environment(profile.name);
+    let store = Arc::new(crate::cache::build_profile_store(profile, overlay, extend));
+    let (Some(core), Some(profile)) = (environment.definition.core, store.profile()) else {
+        return store;
+    };
+    crate::cache::private_registry_with_core_surface(store, profile, overlay, core.family)
+}
+
 /// The per-context registry for `environment`, assembled on first use and
 /// cached by `(identity, keyed-versions hash)` — the un-overlaid (pack
 /// overlay `0`) generation, which always builds.

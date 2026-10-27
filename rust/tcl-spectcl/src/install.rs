@@ -136,6 +136,16 @@ fn install_into(
     context: &tcl_registry::model::ResolvedContext,
 ) {
     let plan = hooks::plan_for(packs);
+    install_into_with_plan(registry, packs, context, &plan, None);
+}
+
+fn install_into_with_plan(
+    registry: &mut CommandRegistry,
+    packs: &PackSet,
+    context: &tcl_registry::model::ResolvedContext,
+    plan: &hooks::HookPlan,
+    mut installed_rows: Option<&mut Vec<InstalledHookOrigin>>,
+) {
     for pack in &packs.packs {
         // Ambient-package declarations go in unfiltered: they are a claim
         // about the *runtime* this dialect models, not about a command, so
@@ -164,7 +174,7 @@ fn install_into(
             if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)
             {
-                let specialised = hooks::specialise(command, &plan);
+                let specialised = hooks::specialise(command, plan);
                 // Invariant I6. An override replaces the shipped spec
                 // wholesale, so without this a four-line workspace pack could
                 // strip `exec`'s TAINT_SINK and silence taint diagnostics
@@ -187,7 +197,18 @@ fn install_into(
                 // Which pack it came from: a site specialised on it stamps
                 // these facts, and a VM admits the site only while it holds
                 // the same ones (`PackSet::fact_stamps`).
-                registry.insert_pack_origin(installed, pack_origin(pack, command));
+                let origin = pack_origin(pack, command);
+                if let Some(rows) = installed_rows.as_mut() {
+                    rows.push(InstalledHookOrigin {
+                        original: command.spec,
+                        installed,
+                        file: command.file.clone(),
+                        pack: pack.name.clone(),
+                        provenance,
+                        origin: origin.clone(),
+                    });
+                }
+                registry.insert_pack_origin(installed, origin);
                 // The body a `-package-source` backing named, as the load read
                 // it: the compiler has no file to go to.
                 if let Some(text) = &command.reference_text {
@@ -195,6 +216,88 @@ fn install_into(
                 }
             }
         }
+    }
+}
+
+/// Registry and source allocations produced together by the actual installer.
+/// This retains provenance only; it grants no Native execution permission.
+pub(crate) struct OwnedHookRegistry {
+    registry: Arc<CommandRegistry>,
+    plan: Arc<hooks::HookPlan>,
+    profile: &'static DialectProfile,
+    installed: Vec<InstalledHookOrigin>,
+}
+
+struct InstalledHookOrigin {
+    original: &'static CommandSpec,
+    installed: &'static CommandSpec,
+    file: std::path::PathBuf,
+    pack: String,
+    provenance: tcl_dialect::model::Provenance,
+    origin: PackOrigin,
+}
+
+impl OwnedHookRegistry {
+    pub(crate) fn registry(&self) -> &Arc<CommandRegistry> {
+        &self.registry
+    }
+
+    pub(crate) fn plan(&self) -> &Arc<hooks::HookPlan> {
+        &self.plan
+    }
+
+    pub(crate) fn profile(&self) -> &'static DialectProfile {
+        self.profile
+    }
+
+    /// Whether this installer published `selected`.
+    pub(crate) fn installs(&self, selected: &CommandSpec) -> bool {
+        self.installed
+            .iter()
+            .any(|row| std::ptr::eq(selected, row.installed))
+    }
+
+    pub(crate) fn owns_binding(
+        &self,
+        selected: &CommandSpec,
+        original: &CommandSpec,
+        file: &std::path::Path,
+        pack: &str,
+    ) -> bool {
+        self.installed
+            .iter()
+            .filter(|row| {
+                std::ptr::eq(selected, row.installed)
+                    && std::ptr::eq(original, row.original)
+                    && row.file == file
+                    && row.pack == pack
+                    && hooks::hook_bodies_run(row.provenance)
+                    && self.registry.pack_origin(selected) == Some(&row.origin)
+            })
+            .count()
+            == 1
+    }
+}
+
+/// Build a private reader and capture the exact allocations the installer
+/// publishes. The shared overlay cache cannot substitute a same-content load.
+pub(crate) fn owned_hook_registry(
+    profile: &'static DialectProfile,
+    packs: &PackSet,
+) -> OwnedHookRegistry {
+    crate::core_surfaces::ensure();
+    let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
+    let plan = hooks::plan_for(packs);
+    let mut installed = Vec::new();
+    let registry =
+        tcl_registry::model::private_profile_store_with_overlay(profile, packs.key, |registry| {
+            install_into_with_plan(registry, packs, context, &plan, Some(&mut installed));
+        });
+    OwnedHookRegistry {
+        registry,
+        plan,
+        profile,
+        installed,
     }
 }
 
@@ -313,6 +416,42 @@ mod tests {
             origin: Origin::DotDir,
             dependency_tier: None,
         }])
+    }
+
+    #[test]
+    fn private_registry_retains_actual_installed_and_source_allocations() {
+        let _cache = cache_guard();
+        let dir = tmpdir("private-lineage");
+        let packs = pack_set(
+            &dir,
+            "owner.tclspec",
+            "speclib owner 1 {command owned_fold {const_fold -inputs {words} {words ctx} {fold 1}}}",
+        );
+        let profile = crate::environment::profile_for_dialect("tcl9.1");
+        let first = owned_hook_registry(profile, &packs);
+        let second = owned_hook_registry(profile, &packs);
+        assert!(!first.plan().is_empty());
+        assert!(Arc::ptr_eq(first.plan(), second.plan()));
+        assert!(!Arc::ptr_eq(first.registry(), second.registry()));
+        let row = &first.installed[0];
+        let selected = first.registry().get("owned_fold").unwrap();
+        let foreign = second.registry().get("owned_fold").unwrap();
+        assert!(first.owns_binding(selected, row.original, &row.file, &row.pack));
+        assert!(!first.owns_binding(foreign, row.original, &row.file, &row.pack));
+        let duplicate_source = Box::leak(Box::new(row.original.clone()));
+        assert!(!first.owns_binding(selected, duplicate_source, &row.file, &row.pack));
+        assert!(!first.owns_binding(
+            selected,
+            row.original,
+            Path::new("foreign.tclspec"),
+            &row.pack
+        ));
+        assert!(!first.owns_binding(selected, row.original, &row.file, "foreign"));
+        assert!(
+            std::ptr::fn_addr_eq(selected.const_fold.unwrap(), foreign.const_fold.unwrap()),
+            "equal stable thunks do not make installed allocations interchangeable"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

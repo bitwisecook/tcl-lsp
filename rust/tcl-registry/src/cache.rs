@@ -253,14 +253,7 @@ pub fn registry_for_profile_with_overlay(
         return Arc::clone(r);
     }
 
-    let mut registry = CommandRegistry::build_default();
-    for &layer in profile.base_layers {
-        registry.load_surface(layer);
-    }
-    extend(&mut registry);
-    registry.set_profile(profile);
-    registry.set_overlay(overlay);
-    let handle = Arc::new(registry);
+    let handle = Arc::new(build_profile_store(profile, overlay, extend));
 
     prune_overlays(&mut guard, overlay);
     guard.insert(key, Arc::clone(&handle));
@@ -268,6 +261,22 @@ pub fn registry_for_profile_with_overlay(
         OVERLAY_EPOCH.fetch_add(1, Ordering::AcqRel);
     }
     handle
+}
+
+/// `profile`'s own layers and `extend`'s commands, at `overlay`.
+pub(crate) fn build_profile_store(
+    profile: &'static DialectProfile,
+    overlay: u64,
+    extend: impl FnOnce(&mut CommandRegistry),
+) -> CommandRegistry {
+    let mut registry = CommandRegistry::build_default();
+    for &layer in profile.base_layers {
+        registry.load_surface(layer);
+    }
+    extend(&mut registry);
+    registry.set_profile(profile);
+    registry.set_overlay(overlay);
+    registry
 }
 
 /// Drop indexed overlays past [`OVERLAY_LIMIT`], keeping every un-overlaid
@@ -431,6 +440,27 @@ pub(crate) fn registry_with_core_surface(
     let derived = Arc::new(unoverlaid.with_core_surface(&specs, &base));
     guard.insert(key, Arc::clone(&derived));
     derived
+}
+
+/// [`registry_with_core_surface`] for a store no cache holds: the derived
+/// store is neither read from nor published to the shared table.
+#[must_use]
+pub(crate) fn private_registry_with_core_surface(
+    base: Arc<CommandRegistry>,
+    profile: &'static DialectProfile,
+    overlay: u64,
+    family: Family,
+) -> Arc<CommandRegistry> {
+    let (_, specs) = core_surface_for(family);
+    if specs.is_empty() {
+        return base;
+    }
+    let unoverlaid = if overlay == 0 {
+        Arc::clone(&base)
+    } else {
+        registry_handle_for_profile(profile)
+    };
+    Arc::new(unoverlaid.with_core_surface(&specs, &base))
 }
 
 /// Every command a safe interpreter hides, sorted.

@@ -270,21 +270,46 @@ mod controls {
     #[test]
     fn zz_probe_compiler_role_temporary() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let unit = fixture(SOURCE, registry);
         let dialect =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-        for fu in unit.functions().chain(unit.all_body_function_units().skip(1)) {
-            eprintln!("PROBE fu name={} body={:?} exec={:?}", fu.name, fu.body_id, fu.sccp.executable_blocks);
-            for (block, ssa) in &fu.ssa.blocks {
-                eprintln!("PROBE  block {block:?} entry={:?}", ssa.entry_versions);
-                for st in &ssa.statements {
-                    eprintln!("PROBE   stmt {:?} defs={:?} uses={:?}", st.statement, st.defs, st.uses);
-                }
+        let which = std::env::var("ZZ_CASE").unwrap_or_default();
+        for (label, source) in [
+            ("may", SOURCE),
+            ("empty-proc", "proc f {} {}\nset a [read $fd]\neval $a\n"),
+            ("return-proc", "proc f {x} {return $x}\nset a [read $fd]\neval $a\n"),
+            ("no-proc", "set a [read $fd]\neval $a\n"),
+        ] {
+            if !which.is_empty() && which != label {
+                continue;
+            }
+            for mode in ["standalone", "dialect"] {
+                let unit = if mode == "standalone" {
+                    fixture(source, registry)
+                } else {
+                    CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6")
+                };
+                let warnings = crate::taint::find_taint_warnings_for_cu(&unit, registry, Some(dialect));
+                eprintln!(
+                    "PROBE case={label} mode={mode} warnings={:?}",
+                    warnings.iter().map(|w| (w.code, w.sink_command.clone())).collect::<Vec<_>>()
+                );
             }
         }
-        let solved = crate::taint_interproc::solve_interprocedural_taints(&unit, registry, Some(dialect));
-        eprintln!("PROBE top_taints={:?}", solved.top_taints);
-        eprintln!("PROBE proc_taints={:?}", solved.proc_taints);
+        if which.starts_with("jim") {
+            tcl_spectcl::core_surfaces::ensure();
+            let source = match which.as_str() {
+                "jim-loop" => "loop i 0 3 { not_a_command_anywhere $i }\n",
+                "jim-static" => "proc counter {} {{n 0}} { not_a_command_anywhere $n }\ncounter\n",
+                "jim-plain" => "proc counter {} { not_a_command_anywhere }\ncounter\n",
+                _ => "class Point {x 0}\nset p [Point new {x 5}]\nputs [$p get x]\n",
+            };
+            let result = crate::analyser::Analyser::new().analyse(source, "jimtcl");
+            eprintln!(
+                "PROBE jim diagnostics={:?} instances={:?}",
+                result.diagnostics.iter().map(|d| (d.code, d.span)).collect::<Vec<_>>(),
+                result.instance_classes
+            );
+        }
     }
 
     #[test]
