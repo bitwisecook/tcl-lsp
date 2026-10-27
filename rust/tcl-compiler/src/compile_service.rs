@@ -105,13 +105,16 @@ fn report_native_admission_input(
     function: &tcl_bytecode::FunctionAsm,
     entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
     profile: &'static DialectProfile,
-    source_len: usize,
+    source: (&[u8], Option<tcl_lexer::SourceChannel>),
 ) {
     if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1") {
         return;
     }
+    let (bytes, channel) = source;
+    let source_len = bytes.len();
+    let source_prefix = &bytes[..source_len.min(96)];
     eprintln!(
-        "\nZZ_NATIVE_ADMISSION_INPUT kind={kind} source_len={source_len} entry={} profile_matches={:?} physical_point={} logical_policy={} closed={:?} frame={:?} current_namespace={:?} namespaces={:?} preflight={:?} instructions={} procedure_body={}",
+        "\nZZ_NATIVE_ADMISSION_INPUT kind={kind} source_len={source_len} entry={} profile_matches={:?} physical_point={} logical_policy={} closed={:?} frame={:?} current_namespace={:?} namespaces={:?} preflight={:?} instructions={} procedure_body={} source_channel={channel:?} source_prefix={source_prefix:?} source_complete={}",
         entry.is_some(),
         entry.map(|entry| entry.profile == profile.cache_key()),
         entry.is_some_and(|entry| entry.execution_point.is_some()),
@@ -123,6 +126,7 @@ fn report_native_admission_input(
         function.native_compilation_preflight,
         function.instructions.len(),
         function.proc_body_src.is_some(),
+        source_len <= 96,
     );
 }
 
@@ -468,7 +472,7 @@ impl BytecodeCompileService {
             &module.top_level,
             policy.entry,
             module.profile,
-            target.source.len(),
+            (target.source.as_bytes(), None),
         );
         validate_native_function(&module.top_level)?;
         Ok(module)
@@ -639,7 +643,7 @@ impl BytecodeCompileService {
             &module.top_level_body,
             native_entry,
             profile,
-            target.source.len(),
+            (target.source.as_bytes(), None),
         );
         validate_native_function(&module.top_level_body)?;
         Ok(module)
@@ -689,7 +693,7 @@ impl BytecodeCompileService {
             &module.top_level,
             entry,
             profile,
-            target.source.len(),
+            (target.source.bytes(), Some(target.source.channel())),
         );
         validate_native_function(&module.top_level)?;
         Ok(module)
@@ -753,7 +757,7 @@ impl BytecodeCompileService {
             &module.top_level_body,
             entry,
             profile,
-            target.source.len(),
+            (target.source.bytes(), Some(target.source.channel())),
         );
         validate_native_function(&module.top_level_body)?;
         Ok(module)
