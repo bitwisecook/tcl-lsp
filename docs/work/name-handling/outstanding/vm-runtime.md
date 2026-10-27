@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T07:04:48Z
+Last updated: 2026-10-27T07:16:17Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T07:16:17Z: fb5e iRules40462322615 FULLAUTH RAW7e391a8b+cause3eba8a07b/50streams11matched durableprocesses. OriginalbootstrapFAIL CLI2/initScopePASS; new3allFAIL. SCF changed samecall failure grammar→NativePreflightRequired, nearest actual69B script_bytes/frameProcedure/noProcBody/ctxrefusaltrue cfgNone; sourceidentity/file-read/body-unproven, no parsedSCFclaim. Pure71publishedvectorsincl8b64 still bounded prefix closure1a1e4e44 beforeactualreset594, wholefile572→fb5e exact; caseFAIL/laterstagesincomplete. Spec40462316500 still APIactive/uploadpending; RAW+V3 next. Namespace proposal heldScopec555/publicgettercoverage gap V2df107; no typedtry_to_str Native refusal carrier, no catch/API grant. Strict7Rootpairedintegrated79b3/b556 actualRustunrun.
 
 Current 2026-10-27T07:04:48Z: Strict7 d600 static Compiler62aec clear, Root paired integrated79b3/Cb556; oldfb5e Spec/iRules active captures remain pre-fix and upload pending. Namespace representative caller-boundary proposal ddd7 HELD independent Scope/Compiler+Root coverage judgment: same old scripts/assertions, genuine existing original_operand_unicode, separate standalone typed refusal, pinned C86/C90 oracle037a. No production/VM outcome claim. Procedure design a941 only; genuine generic consumer/emission/adoption/activation proof open. Historical preflight manual-function representative routed Compiler; compound result projection distinct. RAW envelope then combined V3 mandatory for current Spec.
 

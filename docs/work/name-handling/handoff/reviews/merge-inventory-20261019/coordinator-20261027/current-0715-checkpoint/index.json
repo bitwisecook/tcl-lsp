@@ -141,6 +141,13 @@
       "bytes": 547,
       "sha256": "34fc82f9c40fd30b669ae6acb0abfc08792f5537e73623d05c6defe8aac69918",
       "qualification": "Actual fullGit content supplement; formalrows parserFAIL/generatedUNRUN remain"
+    },
+    {
+      "copy": "layout-jim-fb5e-index.json",
+      "original": "/workspace/naming-proof-storage/compiler-currentfb5e-layout-jim-closed-v1/index.json",
+      "bytes": 1729,
+      "sha256": "e5e1cc3c5d4ef08b63af2a7abdf865931ea62ec2ba747e1ba7ecd3425377cf48",
+      "qualification": "Actual later group completion, received after0715checkpoint; no main166 or release admission"
     }
   ],
   "gate_changes": []

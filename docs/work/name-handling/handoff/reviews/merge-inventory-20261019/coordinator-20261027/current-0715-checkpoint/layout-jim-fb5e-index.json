@@ -1,0 +1,56 @@
+{
+  "utc": "2026-10-27T07:14:39.222548+00:00",
+  "source": "fb5e7187e4cd05d7a55e879845399807f2a38ab1",
+  "layout": {
+    "boundary": "/workspace/naming-proof-storage/compiler-layout15-40462329606/boundary-assessment-v1.json",
+    "sha256": "4eb4cfc048ade03179890ccf504a20ad852b5c89be727f7d4fd6970ea9a5296a",
+    "counts": {
+      "PASS": 15,
+      "FAIL": 2
+    },
+    "phases": {
+      "jim_source_layout11_outcomes": {
+        "PASS": 11
+      },
+      "separate_own_jim_diagnostic_rows": {
+        "FAIL": 2
+      },
+      "separate_finite_foreach_control_rows": {
+        "PASS": 4
+      }
+    }
+  },
+  "jim": {
+    "boundary": "/workspace/naming-proof-storage/compiler-jim52-40462336253/boundary-assessment-v1.json",
+    "sha256": "4c2475e033b231c5c6ece7038f68a18cdd66fa9d03d8660d49ff6d8058981969",
+    "counts": {
+      "PASS": 40,
+      "FAIL": 12
+    },
+    "phases": {
+      "outcomes": {
+        "PASS": 7
+      },
+      "supplemental_outcomes": {
+        "PASS": 29,
+        "FAIL": 9
+      },
+      "diagnostic_static_outcomes": {
+        "PASS": 3,
+        "FAIL": 2
+      },
+      "static_alternatives_control_outcomes": {
+        "PASS": 1
+      },
+      "raw_method_diagnostic_outcomes": {
+        "FAIL": 1
+      }
+    }
+  },
+  "all_Git_source_sha256": "34fc82f9c40fd30b669ae6acb0abfc08792f5537e73623d05c6defe8aac69918",
+  "layout_shared_Git_sha256": "6c3f7cea0d3eb79fe7804dc7de52199ce57dc8a7ff1f006921d6f69258da36f7",
+  "limits": [
+    "Main compiler166 still separately owned/healthy; no status borrowed from these runs.",
+    "No uploaded ELF payload or physical source file-mode snapshot; fresh Cargo before/after/driver/process/terminal seals authenticated. No broad shipping/performance acceptance."
+  ]
+}
