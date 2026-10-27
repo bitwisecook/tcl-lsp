@@ -5835,6 +5835,27 @@ mod tests {
         }
     }
 
+    fn assert_source_cut_captured_and_expanded_origins_refused(
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let captured = last_logical_schema(
+            "interp alias {} pick {} list {CAPTURE $literal}; pick written",
+            input,
+        )
+        .unwrap();
+        assert!(matches!(
+            captured.origins().get(1),
+            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(0))
+        ));
+        assert!(!super::super::source_cut_declaration_origins(&captured));
+        let expanded = last_logical_schema("list {*}{ONE TWO}", input).unwrap();
+        assert!(matches!(
+            expanded.origins().get(1),
+            Some(crate::registry_invocation::InvocationWordOrigin::ExpandedElement { .. })
+        ));
+        assert!(!super::super::source_cut_declaration_origins(&expanded));
+    }
+
     #[test]
     fn source_cut_head_origins_keep_written_operands_and_refuse_captured_or_expanded() {
         let input = logical_schema_input(
@@ -5931,22 +5952,7 @@ mod tests {
             .is_none()
         );
 
-        let captured = last_logical_schema(
-            "interp alias {} pick {} list {CAPTURE $literal}; pick written",
-            &input,
-        )
-        .unwrap();
-        assert!(matches!(
-            captured.origins().get(1),
-            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(0))
-        ));
-        assert!(!super::super::source_cut_declaration_origins(&captured));
-        let expanded = last_logical_schema("list {*}{ONE TWO}", &input).unwrap();
-        assert!(matches!(
-            expanded.origins().get(1),
-            Some(crate::registry_invocation::InvocationWordOrigin::ExpandedElement { .. })
-        ));
-        assert!(!super::super::source_cut_declaration_origins(&expanded));
+        assert_source_cut_captured_and_expanded_origins_refused(&input);
     }
 
     #[test]
