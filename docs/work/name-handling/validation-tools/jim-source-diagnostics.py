@@ -341,7 +341,7 @@ out.mkdir(parents=True)
 resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 require(
     sha(BASE / "jim-source-roster.json")
-    == "0a7ac7d7e8d9b6b41ecd34240d6d2f8609bd1dc3f2ca57c403212b369712d99b",
+    == "8dcff1a0daa228b3ff24eeeb78faca6da781dab36fd19bb165941340d196bc0d",
     "exact original seven roster pin",
 )
 roster = json.loads((BASE / "jim-source-roster.json").read_text())

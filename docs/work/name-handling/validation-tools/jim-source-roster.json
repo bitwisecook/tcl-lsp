@@ -114,7 +114,7 @@
     "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
     "rust/tcl-compiler/src/analyser/commands.rs": "1aeb34f0e1e1805dba5ddac1add605e81f383717e14f94cef54411a1380b1a53",
-    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "cfb0a93f5801ea18173d9b65e6ed488466ab512f133a7971016055dadef6e0b1",
+    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "e1a61e348127f9ca44e13d724cabf5bf5ba0d3fd3203404b320b217effe9bd78",
     "rust/tcl-compiler/src/analyser/state.rs": "31159fd04fe9189d70eddd886988819be5d78d0a267e588d8d53306d137a9180"
   },
   "jim_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",

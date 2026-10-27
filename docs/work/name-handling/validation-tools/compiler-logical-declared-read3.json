@@ -76,7 +76,7 @@
     "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
     "rust/tcl-compiler/src/analyser/commands.rs": "1aeb34f0e1e1805dba5ddac1add605e81f383717e14f94cef54411a1380b1a53",
-    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "cfb0a93f5801ea18173d9b65e6ed488466ab512f133a7971016055dadef6e0b1",
+    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "e1a61e348127f9ca44e13d724cabf5bf5ba0d3fd3203404b320b217effe9bd78",
     "rust/tcl-compiler/src/analyser/state.rs": "31159fd04fe9189d70eddd886988819be5d78d0a267e588d8d53306d137a9180",
     "rust/tcl-compiler/src/realm/source_transition_advice.rs": "75fdf97572790e889cf79eb26b84c8433e1d74ee0eaa6fe1509f1be0412b4573",
     "rust/tcl-compiler/src/registry_invocation.rs": "9c0f60a40589ac344ef7109c24b965d4a1437a51ead56f8742be2d4b67145735",
@@ -845,7 +845,7 @@
       "rust/tcl-compiler/src/analyser/authenticated_report.rs": "42e61af9cd3d54b3647a2717c00c67569e1a4cd7240ca134e0bd7eabe0629863",
       "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs": "fe3fb9cbb66aff05830315474c92ef0bd4deaf45a42bc5133a43e32aea6cce1c",
       "rust/tcl-compiler/src/command_binding/availability_report.rs": "9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688",
-      "rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs": "6bbe921f372b047b98cc613e5d158713093edaada4e218226aa578361638a0e4",
+      "rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs": "529a3804f96f0f29626c2c657986c30e80f2f08d9e8fd64dad7b5ea846393f6f",
       "rust/tcl-compiler/src/ssa.rs": "8df79291dc78a1f140fbe6b1df8c63fadc88ab795038fdb9f7b536c00fce9cd0",
       "rust/tcl-compiler/src/compilation_unit.rs": "646b630dd2ddcfb3574363e90d0b8a9a8e0b608ee856640e9db034ab719d0d6f",
       "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "e7975d3056844a75252fe51ecffd60baab20d7360a0b6a88e0f4787161de3921",
@@ -877,7 +877,7 @@
       {
         "path": "rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs",
         "name": "availability_report_preserves_every_other_binding_facet",
-        "sha256": "453448e5d1ca95d7ba7ff228f3a0ad07ce73c2d9e1af5237f63d7906f60accf6"
+        "sha256": "ec37f55df567adfdcb5239bf1acdf6019ac46c6ca9f1927a64d899258f13e296"
       }
     ],
     "rows": [
