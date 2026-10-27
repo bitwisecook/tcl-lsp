@@ -989,20 +989,23 @@ impl Backend {
             &admissions,
             None,
             |state| {
-                if documents.iter().any(|document| {
-                    !document.matches_current_snapshot(
+                let current = documents.iter().all(|document| {
+                    document.matches_current_snapshot(
                         state.uri_generations,
                         state.open,
                         state.db,
                         state.files,
                         state.published,
                     )
-                }) {
-                    return None;
-                }
-                Some(())
+                });
+                trace_coarse_transaction_check("final.document_snapshot", current, &admissions)
+                    .then_some(())
             },
-            |_, ()| publish(),
+            |_, ()| {
+                let published = publish();
+                trace_coarse_transaction_check("final.publish", published.is_some(), &admissions);
+                published
+            },
         )
         .await
     }
@@ -2128,6 +2131,13 @@ fn trace_coarse_transaction_check(
     accepted
 }
 
+/// Observe the leading currency conjuncts of one final readonly snapshot check.
+fn trace_coarse_document_snapshot(rows: &[(&str, bool)]) {
+    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
+        eprintln!("COARSE_SOURCE document_snapshot {rows:?}");
+    }
+}
+
 /// Identity-only diagnosis of the actual reached coarse-source rejection.
 /// This reads no source/provider/analysis state and never changes admission.
 pub(super) fn trace_coarse_source_check(stage: &str, accepted: bool) -> bool {
@@ -2338,6 +2348,18 @@ impl ReadonlySourceDocument {
         files: &std::collections::HashMap<Uri, tcl_lsp_db::SourceFile>,
         published: &std::collections::HashMap<Uri, super::PublishedSourcePath>,
     ) -> bool {
+        trace_coarse_document_snapshot(&[
+            ("open", self.publication.matches_open_documents(open)),
+            (
+                "uri_generation",
+                uri_generations.get(&self.uri).copied().unwrap_or_default()
+                    == self.publication.uri_generation,
+            ),
+            (
+                "database_revision",
+                tcl_lsp_db::database_revision(db) == self.database_revision,
+            ),
+        ]);
         self.publication.matches_open_documents(open)
             && uri_generations.get(&self.uri).copied().unwrap_or_default()
                 == self.publication.uri_generation

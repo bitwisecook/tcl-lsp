@@ -1,12 +1,23 @@
 # Outstanding work: compiler agent
 
-## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+## Resume — compiler role, 2026-10-27 resume (post container restart)
 
-USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+Local WORK executions (filtered, one target at a time; not hosted, not gate acceptance). Logs and per-selector JSON: scratchpad `res-*.json`, `res2-*.json`, `subset-*.txt`.
 
-Pointer lint master495f1207 / Scope7f04c55f is reviewed and UNAPPLIED. Alias and positive stock-class repairs plus old false-field initializer are already committed; all efficacy retries remain UNRUN. Main170/Layout21 latest buildstop means191UNRUN, not semantic failures. Preserve parent consumer census and genuine class/alias ownership; join next source-pin cohort.
+- cfg-test build of tcl-compiler compiles; the E0063 buildstop is closed.
+- Layout21 composition (11 + alias/member 2 + finite 4 + MAY3 + SourceCut owner1): 20 PASS / 1 FAIL. Only FAIL: `taint::source_context::authored_body::controls::original_sinking_helper_uses_only_current_authored_may_schema` (final T100 assertion; every earlier body/card/sink/formal assertion passes). Repeated on post-restart source: same.
+- Stock-class V2 negatives (2) and Jim caller-alias selector (registry) PASS; own_jim alias/member and rooted-Jim layout now PASS.
+- main170 unique compiler-lib identities 131/132 PASS (only the MAY row above); registry 11/11 PASS. Integration `taint`: `dangerous_sinks::eval_sink` now PASS; interprocedural `tainted_argument_into_sinking_helper_warns`, `helper_sanitiser_suppresses_taint`, `tainted_variadic_args_into_sinking_helper_warns` FAIL. optimiser / var_escape_residual2 / bpf_tcl_ir UNRUN (restart).
+- Jim52: before fix 42 PASS / 10 FAIL; with the Jim instance-typing change 43 PASS / 9 FAIL (`an_object_is_typed_by_its_class_and_its_member_set_is_open` fixed). Lib subsets jim / instance_class / analyser::oo / constructor (419 tests) identical per selector with and without the change.
 
-The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
+Root causes found (traces with existing ZZ_PROBE_* / TCL_LSP_TRACE_* switches):
+1. MAY and interprocedural taint: a standalone `CompilationUnit::build_for` world has no InvocationDialect; `proc`, `read` and `set` each complete with route Unknown and mark the command world opaque, so the call `do_eval $data` never resolves to the authored body and no formal entry taint flows. Under a dialect-supplied build the world stays closed but `read $fd` (undefined `fd`) is a proved Tcl error, so the sink is unreachable (C Tcl agrees). Design decision needed; no grant applied.
+2. Jim loop body: the back-edge from a missing command marks the body entry opaque, but jimsh 0.84 has no initial `unknown` (the call errors and the loop aborts). command_binding.rs (compiler-names).
+3. Jim 4-word static proc leaves the world `unclosed`, so body heads and later callers are Unknown (W123 lost; also W307 on `$s` in JIM_PROGRAM). command_binding.rs (compiler-names).
+4. Jim `CLASS new` was retained only as an authored Jim call, never as a constructor receipt. Fixed in analyser/oo.rs `jim_class_from_constructor_subst` (registry grammar manufacturer, no name matching); the one-line call site is in analyser/commands.rs (compiler-names file, routed to root).
+
+Stale pins: compiler-jim-source-layout11.json `source_transition_advice.rs` and `analyser/commands.rs`; jim-source-roster.json `analyser/oo.rs` and `analyser/commands.rs`; compiler-original58-inputs.json `analyser/commands.rs`; compiler-original58-diagnostics.py embedded pins for authored_body.rs, field_comparison.rs, command_binding.rs, source_command_world.rs, source_point_entry.rs, source_transition_advice.rs, authored_source_structure.rs. The oo.rs/commands.rs entries come from the Jim instance-typing change.
+
 
 
 Area: compiler/source ownership, correctness and delegated Server changes.

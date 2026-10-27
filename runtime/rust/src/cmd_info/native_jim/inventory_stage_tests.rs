@@ -342,6 +342,8 @@ fn zz_probe_jim_pattern_conversion() {
     let mut interp = native_jim();
     let context = interp.native_jim_object_context().unwrap();
     assert_eq!(interp.eval_str(b"proc 42::target {} {}; set 42::v 1"), Code::Ok);
+    let anchor = Owned::fresh(obj::new_string_bytes(b"anchor"));
+    NAMESPACE.with(|state| state.set(anchor.as_ptr()));
     for script in [&b"string first"[..], b"string length", b"string match"] {
         let pattern = Owned::fresh(obj::alloc_typed(&PATTERN, 0));
         crate::native_source::bind_context(pattern.as_ptr(), &context).unwrap();
@@ -378,7 +380,7 @@ fn zz_probe_jim_pattern_conversion() {
         let result = interp.result_obj();
         eprintln!(
             "ZZJIM info {:?} code={code:?} observed={:?} type={:?} result={:?} refusal={:?}",
-            String::from_utf8_lossy(obj::bytes_of(member.as_ptr())),
+            obj::bytes_of(member.as_ptr()),
             OBSERVED.with(|state| state.borrow().clone()),
             String::from_utf8_lossy(&type_name(pattern.as_ptr())),
             interp.native_string_bytes(&result).map(|b| String::from_utf8_lossy(&b).into_owned()),

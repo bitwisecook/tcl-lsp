@@ -497,3 +497,25 @@ fn c91_catch_reset_releases_the_original_global_syntax_message() {
         "END_CATCH publishes the private COW header"
     );
 }
+
+#[test]
+fn zz_probe_expression_result_storage() {
+    for (version, body) in [
+        ("8.4.20", &b"expr {1+2}"[..]),
+        ("8.4.20", b"expr {false || (1+2)}"),
+        ("8.4.20", b"set r [expr {1+2}]"),
+        ("8.5.19", b"set before 1; expr {false || (1+2)}"),
+        ("8.5.19", b"expr {1+2}"),
+        ("8.6.18", b"expr {1+2}"),
+    ] {
+        let mut interp = interpreter(profile(version));
+        let _definition = define(&mut interp, body);
+        let (code, _original) = call(&mut interp, b"3");
+        eprintln!(
+            "ZZEXPR {version} {:?} code={code:?} storage={} refusal={:?}",
+            String::from_utf8_lossy(body),
+            storage(interp.result_obj()),
+            interp.native_access_refusal()
+        );
+    }
+}
