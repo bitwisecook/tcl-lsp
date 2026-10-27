@@ -28,7 +28,7 @@
     "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
     "rust/tcl-lsp-core/src/hover/original_registry.rs": "06eaf05e019d71bf011d5b5f5f0685b9c85706333ab9b7736bbd9346f76895b1",
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
-    "rust/tcl-compiler/src/command_binding/retained_source.rs": "484175eea591f78a386ca728523db0d3d34588d3bdeb7756df2c1e8939875430"
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",

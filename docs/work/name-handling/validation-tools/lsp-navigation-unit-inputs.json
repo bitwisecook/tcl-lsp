@@ -15,10 +15,10 @@
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-lsp-core/src/original_source_views.rs": "fef876c2faf2288a7e6c804b16c400b59cecfe5211f0a357d4fff2527020dab0",
     "rust/tcl-lsp-server/Cargo.toml": "612e4f1e263b52fcbfd927bfdec99fde4dc0142ddf9939deabdbde80a6d8f913",
-    "rust/tcl-lsp-server/src/lib.rs": "a0bac39d11d784f76652792db274e6fb4bdb7814c4f8b624e78aa3b34068f4bb",
+    "rust/tcl-lsp-server/src/lib.rs": "241a2bc14139c9a59de39483ec89233241abdc9835f9761feedfb3a0b3dda84b",
     "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "b631df8e34385799e895b6007223397e4281dd570c2ac3490433b924de8f1300",
     "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
-    "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "f19fcd73127acecacc3f493e83d9f4022b2142f414e7d4b08d45cdffe5ead2bc"
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "8ee714bd17cf7e9911bb2254dbd5858387dfc0d98e98546f790f80aa20644f2c"
   },
   "target": "tcl_lsp_server",
   "scan_retention_controls": [

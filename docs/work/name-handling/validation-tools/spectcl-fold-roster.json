@@ -115,7 +115,7 @@
     "rust/tcl-compiler/src/command_binding/source_world_observer.rs": "3fe6ee60e64313df76df23caf2bfe18ad9ff1053a5138bfc839411f22dcc329a",
     "runtime/rust/src/interp/cached_increment.rs": "5461b65a2bfe339ae5d0baad136583ad6d7d19f62a58fa6a771902a5af770162",
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
-    "rust/tcl-compiler/src/command_binding/retained_source.rs": "484175eea591f78a386ca728523db0d3d34588d3bdeb7756df2c1e8939875430"
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",

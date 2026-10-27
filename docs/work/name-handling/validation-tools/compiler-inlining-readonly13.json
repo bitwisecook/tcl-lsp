@@ -234,7 +234,7 @@
     "rust/tcl-compiler/tests/support/analysis_body_identity.rs": "2f7baea078affa320ee2b78ed12801e4c6687e58e063717c42d37b9c07d7fe3f",
     "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
     "rust/tcl-compiler/src/compilation_unit.rs": "646b630dd2ddcfb3574363e90d0b8a9a8e0b608ee856640e9db034ab719d0d6f",
-    "rust/tcl-compiler/src/command_binding/retained_source.rs": "484175eea591f78a386ca728523db0d3d34588d3bdeb7756df2c1e8939875430",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77",
     "rust/tcl-compiler/src/var_escape/api.rs": "ffa9d5332e81068811d625e96a5f8e25b7f2890f8c9bf964f8545d1e8ce7970e",
     "rust/tcl-compiler/src/inlining/mod.rs": "88bd42ee7dc222ea4871784944cee511d490776821a4c94f6f2bdfc1fa32672c",
     "rust/tcl-runtime-api/src/lib.rs": "9daf2ba3e1927a246d9c028236028b2af023bb1b897711bf4836ba9167537d3b",
