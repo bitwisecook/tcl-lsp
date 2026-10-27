@@ -183,6 +183,8 @@ enum Purpose {
     ShiftedFrame,
 }
 struct Task<'a> {
+    body_layout:
+        Option<std::sync::Arc<tcl_compiler::registry_invocation::OriginalSourceCutBodyLayout<'a>>>,
     document: OriginalDeclarationDocument<'a>,
     commands: Vec<SegmentedCommand>,
     purpose: Purpose,
@@ -197,6 +199,7 @@ impl<'a> Task<'a> {
         purpose: Purpose,
     ) -> Self {
         Self {
+            body_layout: None,
             document,
             commands: commands.to_vec(),
             purpose,
@@ -214,6 +217,7 @@ impl<'a> Task<'a> {
         let source = coverage_region(document.source, start, end)?;
         let offset = u32::try_from(start).map_err(|_| OriginalCommandRenameRefusal::StaleSource)?;
         Ok(Self {
+            body_layout: None,
             document,
             commands: walk.segment_nested(source, offset),
             purpose,
@@ -222,7 +226,33 @@ impl<'a> Task<'a> {
             depth,
         })
     }
-    fn key(&self) -> (usize, usize, Purpose, usize, usize) {
+    fn tokens(
+        &self,
+        walk: &crate::refactor::FrameWalk<'a>,
+        command: &SegmentedCommand,
+    ) -> Result<tcl_compiler::ir::CommandTokens, OriginalCommandRenameRefusal> {
+        let mut tokens = walk.tokens(self.document.source, command);
+        if let Some(layout) = &self.body_layout {
+            let offset = command
+                .argv
+                .first()
+                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?
+                .span
+                .start();
+            require_coverage(
+                layout.stamp_original_tokens(
+                    self.document.source,
+                    self.document.analysis,
+                    &mut tokens,
+                ),
+                offset,
+                "cut.body-layout",
+            )?;
+        }
+        Ok(tokens)
+    }
+
+    fn key(&self) -> (usize, usize, Purpose, usize, usize, usize) {
         (
             std::ptr::from_ref(self.document.analysis).addr(),
             self.document
@@ -230,6 +260,9 @@ impl<'a> Task<'a> {
                 .original_source_region()
                 .map_or(0, |region| std::ptr::from_ref(region).addr()),
             self.purpose,
+            self.body_layout
+                .as_ref()
+                .map_or(0, |layout| std::sync::Arc::as_ptr(layout).addr()),
             self.start,
             self.end,
         )
@@ -308,7 +341,7 @@ impl<'a> SourceCut<'a> {
             .span
             .start();
         let words = needed(walk.native_words(document.source, command))?;
-        let tokens = walk.tokens(document.source, command);
+        let tokens = task.tokens(walk, command)?;
         let binding = needed(tokens.source_binding.as_ref())?;
         let input = needed(binding.original_head_name_input(&tokens))?;
         let lookup = needed(binding.original_command_lookup(&tokens, &input))?;
@@ -419,12 +452,15 @@ fn queue_cut_declaration<'a>(
         .start();
     reject_selected_command_link_coverage(receipt.invocation(), offset)?;
     let body = receipt.body().content_span();
-    output.nested(
-        task,
+    let layout = require_coverage(receipt.into_body_layout(survey), offset, "cut.body-world")?;
+    let mut nested = Task::nested(
+        task.document,
         walk,
-        vec![(body.start() as usize, body.end() as usize, task.depth + 1)],
+        (body.start() as usize, body.end() as usize, task.depth + 1),
         Purpose::ProcedureBody,
     )?;
+    nested.body_layout = Some(std::sync::Arc::new(layout));
+    output.pending.push(nested);
     Ok(true)
 }
 
@@ -704,6 +740,72 @@ mod tests {
             ).is_err());
         });
     }
+    fn assert_source_cut_body_layout(
+        source: &str,
+        analysis: &AnalysisResult,
+        ordinary: &AnalysisResult,
+        command: &SegmentedCommand,
+        survey: &OriginalSingleSourceCutSurvey<'_>,
+        receipt: tcl_compiler::registry_invocation::OriginalSourceCutProcedureDeclaration<'_>,
+    ) {
+        let content = receipt.body().content_span();
+        let layout = receipt
+            .into_body_layout(survey)
+            .expect("same cut conditional body owner");
+        let walk = crate::refactor::FrameWalk::new(source, analysis).unwrap();
+        let commands = walk.segment_nested(&source[content.as_range()], content.start());
+        let mut stronger = walk.tokens(source, &commands[0]);
+        let retained = stronger.source_binding.as_mut().unwrap();
+        retained.may_use_live_dispatch = true;
+        retained.evaluated_argument_values = vec![Some("retained argument fact".to_owned())];
+        let retained = stronger.source_binding.clone();
+        assert!(
+            layout
+                .stamp_original_tokens(source, analysis, &mut stronger)
+                .is_some()
+        );
+        assert_eq!(stronger.source_binding, retained);
+        let mut tokens = walk.tokens(source, &commands[0]);
+        assert!(
+            layout
+                .stamp_original_tokens(source, analysis, &mut tokens)
+                .is_some()
+        );
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.unknown);
+        assert!(binding.targets.is_empty());
+        assert!(!binding.unobserved_native_dispatch());
+        let input = binding
+            .original_head_name_input(&tokens)
+            .expect("same complete body vector, no entered invocation");
+        assert!(binding.original_command_lookup(&tokens, &input).is_some());
+        let mut outside = walk.tokens(source, command);
+        assert!(
+            layout
+                .stamp_original_tokens(source, analysis, &mut outside)
+                .is_none()
+        );
+        let mut stale = tokens.clone();
+        assert!(
+            layout
+                .stamp_original_tokens(&format!("{source}\n# changed"), analysis, &mut stale)
+                .is_none()
+        );
+        let mut foreign = tokens.clone();
+        assert!(
+            layout
+                .stamp_original_tokens(source, ordinary, &mut foreign)
+                .is_none()
+        );
+        let equal_foreign = analysis.clone();
+        let mut foreign = tokens;
+        assert!(
+            layout
+                .stamp_original_tokens(source, &equal_foreign, &mut foreign)
+                .is_none()
+        );
+    }
+
     fn assert_source_cut_declaration_geometry(
         fixture: &Fixture,
         survey: &OriginalSingleSourceCutSurvey<'_>,
@@ -760,6 +862,7 @@ mod tests {
             assert!(tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
                 source, &foreign, command, survey,
             ).is_none());
+            assert_source_cut_body_layout(source, analysis, ordinary, command, survey, receipt);
         }
         let prefix_walk = crate::refactor::FrameWalk::new(fixture.source, &fixture.prefix).unwrap();
         let prefix_commands = prefix_walk.segment_document(fixture.source);

@@ -323,6 +323,8 @@ pub use native_string_access::SourceNativeStringAccess;
 mod numeric_operand_cache;
 mod object_instance;
 pub(crate) mod original_name_value;
+pub(crate) use conditional_source::OriginalSourceCutBodyEntryProjection;
+pub(crate) use declaration_preview::OriginalSourceCutBodyRows;
 pub(crate) use original_name_value::OriginalBodyWrittenWordOwner;
 pub(crate) mod original_variable_compilation;
 mod package_target_survey;

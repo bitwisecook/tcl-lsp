@@ -255,6 +255,77 @@ impl PartialEq for OriginalSourceConditionalOutcome {
 }
 impl Eq for OriginalSourceConditionalOutcome {}
 
+/// Two genuine owners for conditional body syntax: the exact incoming source
+/// entry and the completed caller world from the very same single-cut outcome.
+/// Neither owner becomes an entered procedure frame or a Native body receipt.
+pub(crate) struct OriginalSourceCutBodyEntryProjection {
+    world: super::super::OriginalCompletedCommandWorld,
+    owner: Arc<super::super::OriginalSourceAnalysisOwner>,
+    baseline: Arc<super::super::BindingBaseline>,
+    entry: OriginalSourcePointEntry,
+    config: tcl_lexer::LexerConfig,
+    realm: tcl_dialect::model::InvocationRealm,
+}
+
+impl OriginalSourceCutBodyEntryProjection {
+    pub(in crate::command_binding) fn matches_analysis_owner(
+        &self,
+        actual: &Arc<super::super::OriginalSourceAnalysisOwner>,
+    ) -> bool {
+        Arc::ptr_eq(&self.owner, actual)
+    }
+
+    pub(in crate::command_binding) fn completed_world(
+        &self,
+    ) -> &super::super::OriginalCompletedCommandWorld {
+        &self.world
+    }
+
+    /// Project only after the full nominal entry/owner/frame correspondence.
+    /// The resulting snapshot remains private to conditional syntax retention.
+    pub(in crate::command_binding) fn snapshot(
+        &self,
+        parent: &super::super::declaration_layout::DeclarationLayoutObservation,
+        site: &crate::command_binding::CommandAllocationSite,
+        namespace: &SourceNamespaceKey,
+    ) -> Option<super::super::SourceLookupSnapshot> {
+        let original = &parent.snapshot.state;
+        let completed = self.world.source_cut_body_state();
+        if parent.config != self.config
+            || parent.snapshot.realm != self.realm
+            || original.baseline.as_ref() != self.baseline.as_ref()
+            || original.baseline.source_point_entry.as_ref() != Some(&self.entry)
+            || !Arc::ptr_eq(&site.source, &self.owner.source)
+            || original
+                .current_source_origin
+                .as_ref()
+                .is_none_or(|origin| !Arc::ptr_eq(origin, &self.owner.source))
+            || !parent.entry.owns_source(&site.source, site.offset)
+            || !parent
+                .entry
+                .owns_original_context(&original.source_variables)
+            || original.variable_frame != *parent.entry.frame()
+            || !completed.namespaces.contains(namespace)
+            || completed.baseline.metadata_context.source_analysis_input()
+                != Some(self.entry.input())
+            || completed.baseline.registry_snapshot != self.baseline.registry_snapshot
+            || completed.baseline.dialect != self.baseline.dialect
+            || completed.baseline.execution_name_policy != self.baseline.execution_name_policy
+            || completed.baseline.invocation_realm != self.realm
+        {
+            return None;
+        }
+        // This is the sole checked metadata projection. The two owners above
+        // stay distinct: completed command/observer state, genuine conditional
+        // source metadata. No Native/physical entry is copied from the root.
+        let mut state = (**completed).clone();
+        state.baseline = Arc::clone(&self.baseline);
+        Some(super::super::SourceLookupSnapshot::in_realm(
+            state, self.realm,
+        ))
+    }
+}
+
 /// Exact finite source survey for one resolved whole-input load cut. This
 /// borrows three genuine analysis owners, without physical load or Native entry.
 pub struct OriginalSingleSourceCutSurvey<'a> {
@@ -265,9 +336,64 @@ pub struct OriginalSingleSourceCutSurvey<'a> {
     point: &'a OriginalSourcePointEntry,
     prefix_commands: &'a [crate::segmenter::SegmentedCommand],
     region: &'a OriginalSourceConditionalRegion,
+    body_world: std::sync::OnceLock<Option<super::super::OriginalCompletedCommandWorld>>,
 }
 
 impl<'a> OriginalSingleSourceCutSurvey<'a> {
+    /// Memoize only this same outcome's authenticated whole-root Normal world.
+    pub(crate) fn completed_body_world(
+        &self,
+    ) -> Option<&super::super::OriginalCompletedCommandWorld> {
+        self.body_world
+            .get_or_init(|| self.outcome.original_completed_command_world(self.prefix))
+            .as_ref()
+    }
+
+    pub(crate) fn conditional_body_projection(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> Option<OriginalSourceCutBodyEntryProjection> {
+        let entry =
+            if std::ptr::eq(analysis, self.child) && self.point.matches_child_analysis(analysis) {
+                self.point
+            } else if std::ptr::eq(analysis, self.suffix)
+                && self.region.matches_region_analysis(analysis)
+                && self.region.matches_dependencies(self.prefix, self.child)
+            {
+                &self.region.0.point
+            } else {
+                return None;
+            };
+        self.outcome
+            .matches_prefix_analysis(self.prefix)
+            .then_some(())?;
+        let bindings = analysis.retained_command_realm()?.source_bindings_ref();
+        let owner = bindings.original_analysis_owner()?;
+        let baseline = &bindings.final_state.baseline;
+        if bindings.original_inherited_source_entry() != Some(entry)
+            || baseline.source_point_entry.as_ref() != Some(entry)
+            || baseline.metadata_context.source_analysis_input() != Some(entry.input())
+            || baseline.native_entry.is_some()
+            || baseline.hosted_execution_context.is_some()
+            || baseline.compiled_variable_provider.is_some()
+            || baseline.unknown_entry
+            || baseline.native_compilation
+                != tcl_registry::native_compilation::NativeCompilationContext::default()
+            || owner.metadata != baseline.metadata_context
+            || owner.config != entry.input().lexer_config()
+        {
+            return None;
+        }
+        Some(OriginalSourceCutBodyEntryProjection {
+            world: self.completed_body_world()?.clone(),
+            owner: Arc::clone(owner),
+            baseline: Arc::clone(baseline),
+            entry: entry.clone(),
+            config: entry.input().lexer_config(),
+            realm: baseline.invocation_realm,
+        })
+    }
+
     /// Original prefix commands, including the source operation exactly once.
     #[must_use]
     pub const fn prefix_commands(&self) -> &'a [crate::segmenter::SegmentedCommand] {
@@ -474,6 +600,7 @@ impl OriginalSourceConditionalOutcome {
             point,
             prefix_commands: frame.commands.get(..frame.next)?,
             region,
+            body_world: std::sync::OnceLock::new(),
         })
     }
 
@@ -979,6 +1106,47 @@ mod controls {
             u32::try_from(source.find(text).unwrap()).unwrap(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn source_cut_body_projection_refuses_equal_but_foreign_analysis_owner() {
+        let source = "source child.tcl; proc run {} {return VALUE}";
+        let parent = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let load = source_load(source, &parent, "source child");
+        let point = load.source_point_entry(&parent).unwrap();
+        let child = crate::analyser::Analyser::new()
+            .analyse_with_source_point_entry("proc helper {} {return VALUE}", "tcl8.6", &point)
+            .unwrap();
+        let regions = load
+            .conditional_continuation(&parent, &child)
+            .unwrap()
+            .source_regions(&parent, &child)
+            .unwrap();
+        let suffix = crate::analyser::Analyser::new()
+            .analyse_source_region(&regions.regions()[0], &parent, &child)
+            .unwrap();
+        let outcome = regions.normal_outcome().unwrap();
+        let survey = outcome
+            .single_source_cut_survey(&parent, &[&child, &suffix])
+            .unwrap();
+        let projection = survey.conditional_body_projection(&child).unwrap();
+        let owner = child
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref()
+            .original_analysis_owner()
+            .unwrap();
+        assert!(projection.matches_analysis_owner(owner));
+        let equal_foreign = Arc::new((**owner).clone());
+        assert!(Arc::ptr_eq(&owner.source, &equal_foreign.source));
+        assert_eq!(owner.metadata, equal_foreign.metadata);
+        assert_eq!(owner.config, equal_foreign.config);
+        assert!(!projection.matches_analysis_owner(&equal_foreign));
+        let foreign_projection = OriginalSourceCutBodyEntryProjection {
+            owner: equal_foreign,
+            ..projection
+        };
+        assert!(!foreign_projection.matches_analysis_owner(owner));
     }
 
     #[test]

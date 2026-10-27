@@ -4035,6 +4035,26 @@ permission, Native body/frame, operation Normal fact or edit authority. The
 ordinary `Written(0)` route and the separate namespace/load-card owner gap are
 unchanged.
 
+The same survey can retain a separate conditional body-layout carrier from its
+exact declaration and complete original body plan. Its private projection joins
+the actual child point or issued region, original analysis owner, full incoming
+baseline, source/configuration, namespace and frame to the same outcome's
+completed caller world. A matching input value alone cannot replace that nominal
+entry relationship. The completed world supplies modeled after-load command and
+observer state; the incoming conditional metadata stays separately authenticated.
+This is no actual or future procedure-entry lookup, physical frame, operation
+Normal or Native receipt.
+
+The compiler reuses the existing guarded declaration-body recipe without an
+alternate after refusal. It retains syntax layouts only, requires every original
+body command/vector and current source allocation to remain represented, and
+refuses opaque truncation, foreign owners or incomplete plans. The consumer keeps
+that body owner in its pending purpose and deduplication key before the same head
+query. An independently retained point keeps its original refusal; only missing
+source geometry receives an explicitly unknown binding, with no targets,
+lookup-state, dispatch, compiler, effect or Normal inventory. All later lookup,
+link, selected-identity, source-word and physical edit/currency guards remain.
+
 ### Authored result-completion source coverage
 
 An exact current AuthoredSimulation invocation can retain source coverage for
