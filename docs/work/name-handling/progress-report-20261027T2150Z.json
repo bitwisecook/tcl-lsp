@@ -1,0 +1,59 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-27T21:50:18.317093+00:00",
+  "scheduled_report_utc": "2026-10-27T21:48:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "User resumed implementation at 21:05Z. Fresh container: /workspace absent; WORK /home/user/tcl-lsp, release shallow clone /home/user/release/tcl-lsp. Remote tips matched the pause checkpoint (no concurrent pushes).",
+    "Paused-checkpoint archive and all 210 member hashes verified.",
+    "Applied after beforeimage/peer checks: pointer lint (WORK+release), release-only require_coverage compatibility, Names ref_option borrowing; plus new missing_fields_in_debug and assert_ne fixes found by clippy. WORK 527c653a8/111d0604c, release 531d338/a8ea94c.",
+    "Release prep-pr-candidate-validation 40586145473 on release 531d338: SUCCESS (exact make prep-pr). Not a final gate: later release commits and remaining cleanup are unvalidated.",
+    "WORK strict 40586168243 on 527c653a8: FAIL, sole workspace error clippy assert!(a != b) at source_advice.rs:270, fixed in 111d0604c; strict 40588176868 on 111d0604c in progress.",
+    "Five roles (lsp, compiler, compiler-names, compiler-codegen, vm-runtime) restarted in parallel; WIP snapshot 10b1125d5 holds their unreviewed edits."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "strict 40588176868 (WORK 111d0604c)",
+    "role implementation",
+    "release cleanup 44/51 (upvar/exists, encoding, ensemblemap in progress, uncommitted)"
+  ],
+  "next_report_utc": "2026-10-27T22:19:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

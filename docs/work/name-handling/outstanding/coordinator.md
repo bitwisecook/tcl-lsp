@@ -1,8 +1,18 @@
 # Outstanding work: coordinator
 
-Last updated: 2026-10-27T20:38:21.853504+00:00
+Last updated: 2026-10-27T21:50Z
 
 ## Resume
+
+RESUMED 21:05Z in a fresh container. WORK `/home/user/tcl-lsp` (`work`), release shallow clone `/home/user/release/tcl-lsp` (`release/lsp-naming`). Packets restored and verified in the session scratchpad from the paused-checkpoint archive; /workspace and naming-proof-storage are absent.
+
+- Done: pointer lint, release compatibility, Names ref_option, missing_fields_in_debug, assert_ne (WORK 527c653a8/111d0604c, release 531d338/a8ea94c). Release prep 40586145473 SUCCESS on 531d338; strict 40588176868 on 111d0604c running.
+- Running: five roles. WIP snapshot 10b1125d5 holds unreviewed role edits.
+- Next: coherent pin refresh across stale rosters on a reviewed cohort, then compiler Layout21/main170, corpus2, LSP startup/host and iRules dispatches; release cleanup commits family by family; 30-minute reports (trigger re-armed each cycle).
+- Namespace121 question remains unanswered; all recorded decisions binding.
+
+## Resume (pause snapshot)
+
 
 USER PAUSED. No implementation, build, dispatch, archive intake or recurring reminder is authorised until the user resumes. This turn only preserves state and commits it. Read [pause-handoff-20261027.md](../pause-handoff-20261027.md) for exact source tips, all current results, reviewed/unapplied packets, incomplete source drafts, unanswered decision and first actions.
 

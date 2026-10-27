@@ -1,6 +1,6 @@
 # Outstanding work by agent
 
-**USER PAUSED (2026-10-27T20:38:21.853504+00:00).** No implementation, builds, dispatches or reminders until a new resume instruction. Read [the authoritative current checkpoint](../pause-handoff-20261027.md) before older instructions below. No PR is open; source cleanup44/51 and all final gates remain outstanding.
+**RESUMED 2026-10-27T21:05Z.** Five roles running; root is sole Git publisher/dispatcher. Each file's top Resume overlay is replaced by its role as it reports. Source cleanup 44/51 and all final gates remain outstanding; no PR.
 
 One file per implementation agent, each maintained by that agent. Each lists what the agent considers it must still complete, what it is doing now, what is blocked and on whom, and what it finished since its last update with evidence. They are agent-reported, not validation: validated results live in [../current-state.md](../current-state.md).
 

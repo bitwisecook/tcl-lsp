@@ -1,8 +1,8 @@
 # Current LSP naming migration state
 
-**USER PAUSED — 27 October 2026, 20:38 UTC (Europe/London).** Implementation, builds, dispatches and automatic reminders are stopped. Resume only after a new user instruction. The authoritative checkpoint is [pause-handoff-20261027.md](pause-handoff-20261027.md). No gate was waived or newly passed during checkpointing.
+**RESUMED — 27 October 2026, 21:05 UTC.** Updated 21:50 UTC. The user resumed implementation; five roles (lsp, compiler, compiler-names, compiler-codegen, vm-runtime) run in parallel and root remains sole Git publisher/dispatcher. The [pause checkpoint](pause-handoff-20261027.md) remains the authority for obligations; its "/workspace" paths do not exist in this container: WORK is `/home/user/tcl-lsp`, release is a shallow clone at `/home/user/release/tcl-lsp`, packets are restored from the verified archive (210/210 hashes). All release gates remain open; no PR.
 
-Canonical WORK product `b41de429f`; release product `015885917`. Both product tips are committed and pushed. Documentation checkpoint `2d4c39f53` is pushed; the [publication receipt](handoff/reviews/merge-inventory-20261019/coordinator-20261027/paused-checkpoint/publication.json) records transport confirmation. This checkpoint changes state documents only. All release gates remain open.
+WORK `111d0604c` (reviewed lint/compat repairs) then WIP snapshot `10b1125d5` (unreviewed role edits, may not compile); release `a8ea94c`. Applied since pause: pointer lint `&raw const` (WORK+release, after `f0f37270`), release-only `require_coverage` compatibility (after `7bf53248`), Names `ref_option` (`Option<&Arc<_>>`, WORK only), new `missing_fields_in_debug` (`finish_non_exhaustive`) and `assert_ne!` fixes (both). Release [prep 40586145473](https://github.com/bitwisecook/tcl-lsp/actions/runs/40586145473) on `531d338`: exact `make prep-pr` SUCCESS. WORK [strict 40586168243](https://github.com/bitwisecook/tcl-lsp/actions/runs/40586168243) on `527c653a8`: FAIL, sole workspace error the `assert!(a != b)` lint, fixed in `111d0604c`; [strict 40588176868](https://github.com/bitwisecook/tcl-lsp/actions/runs/40588176868) on `111d0604c` in progress. Source pins in nine rosters are stale and await a coherent refresh.
 
 ## Scope
 
@@ -64,7 +64,7 @@ Release preparation plan: [clean LSP PR plan](lsp-release-pr-plan.md). All funct
 
 ## Agent work in progress (agent-reported, not validated)
 
-Pause observed 2026-10-27T20:38:21.853504+00:00. No role is currently running. Owner report timestamps are preserved; coordinator overlays do not make stale reports fresh.
+Resumed 2026-10-27T21:20Z: lsp, compiler, compiler-names, compiler-codegen and vm-runtime running; rows below are the pause snapshot until each role reports. Owner report timestamps are preserved; coordinator overlays do not make stale reports fresh.
 
 | Role | Current paused handoff | Resume file |
 | --- | --- | --- |
