@@ -27,6 +27,11 @@ use crate::ir::{Module, Procedure, TopLevelKind};
 use crate::var_resolve::VariableExecutionFrame;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
+/// Borrowed report-only evidence; it supplies no source or execution permission.
+pub(crate) struct InheritedEmptyInstalledReportCustody<'a> {
+    _body: &'a Procedure,
+}
+
 /// Immutable command-effect projection of the interpretation used by lowering.
 /// Changing any original input withdraws reuse and reaches the same source owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -472,6 +477,92 @@ impl RetainedSourceModuleBindings {
                     }))
         });
         matching.next().is_some() && matching.next().is_none()
+    }
+
+    /// Issue custody only for an empty installed body in this exact inherited child.
+    /// The current singleton card and retained summary remain independently required.
+    pub(crate) fn inherited_empty_installed_report_custody<'a>(
+        &'a self,
+        module: &'a Module,
+        registry: &CommandRegistry,
+        id: crate::ir::ProcedureId,
+        body: &'a Procedure,
+    ) -> Option<InheritedEmptyInstalledReportCustody<'a>> {
+        let Some(positioned) = self.positioned_for_module(module, registry) else {
+            return None;
+        };
+        let Some(input) = module.source_metadata_input.as_ref() else {
+            return None;
+        };
+        let Some(point) = positioned.original_inherited_source_entry() else {
+            return None;
+        };
+        let Some(root) = positioned.source_origin() else {
+            return None;
+        };
+        let Some(allocation) = module.installed_procedure_body_units.get(&id) else {
+            return None;
+        };
+        if point.conditional_region().is_some()
+            || module.source_entry.source_point_entry.as_ref() != Some(point)
+            || point.input() != input
+            || module.source_entry.native_entry.is_some()
+            || input.has_hosted_source_name_context()
+            || !positioned
+                .original_analysis_owner()
+                .is_some_and(|owner| owner.matches(positioned, input))
+            || !matches!(root.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+                if parent == &point.source_origin() && source == &module.source)
+            || !module.procedure_ids.owns(id)
+            || body.body_kind != crate::ir::ProcedureBodyKind::Installed
+            || !module
+                .body_units
+                .get(&id)
+                .is_some_and(|held| std::ptr::eq(held, body))
+            || body.declaration_site.as_ref() != Some(&allocation.site)
+            || !Arc::ptr_eq(&allocation.site.source, root)
+            || !body.span.is_empty()
+            || !self.matches_installed_procedure_summary(id, body)
+        {
+            return None;
+        }
+        let Some(source) = body.body.executed_source.as_ref() else {
+            return None;
+        };
+        if !source.text.bytes().is_empty() {
+            return None;
+        }
+        let cards = positioned.installed_procedure_body_units();
+        let mut matching = cards.iter().filter(|card| {
+            &card.allocation == allocation
+                && card.allocation.command == body.name
+                && &card.source == source.as_ref()
+                && Arc::ptr_eq(&card.source.origin, &source.origin)
+                && body.body.namespace_context.as_deref() == Some(&card.namespace_key)
+                && body.body_offset == card.source.base()
+                && body.body_source.as_deref() == card.source.try_text().ok()
+                && body.span.start() == card.source.base()
+                && body
+                    .span
+                    .end()
+                    .checked_sub(body.span.start())
+                    .and_then(|length| usize::try_from(length).ok())
+                    == Some(card.source.text.len())
+                && card
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .eq(body.params.iter().map(String::as_str))
+                && body.params_raw
+                    == tcl_syntax::list::join_list(card.parameters.iter().map(|parameter| {
+                        tcl_syntax::list::join_list(
+                            std::iter::once(parameter.name.as_str())
+                                .chain(parameter.default.as_deref()),
+                        )
+                    }))
+        });
+        (matching.next().is_some() && matching.next().is_none())
+            .then_some(InheritedEmptyInstalledReportCustody { _body: body })
     }
 
     /// Reborrow the selected source `ParamList` topology for one procedure

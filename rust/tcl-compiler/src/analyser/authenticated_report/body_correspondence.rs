@@ -539,7 +539,16 @@ impl ReportBodyInventory {
                 .is_some_and(|actual| Arc::ptr_eq(actual, source))
             && held.body.namespace_context.as_deref() == Some(namespace)
             && body.site.as_ref() == Some(&allocation.site)
-            && allocation.matches_source_declaration_image(&module.source, allocation.site.offset)
+            && (allocation
+                .matches_source_declaration_image(&module.source, allocation.site.offset)
+                || module
+                    .retained_source_bindings
+                    .as_ref()
+                    .is_some_and(|retained| {
+                        retained
+                            .inherited_empty_installed_report_custody(module, registry, id, held)
+                            .is_some()
+                    }))
             && Arc::ptr_eq(&allocation.site.source, root)
             && Arc::ptr_eq(&source.origin, root)
             && source.text.bytes().is_empty()

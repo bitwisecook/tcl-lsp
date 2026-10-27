@@ -211,3 +211,118 @@ fn inherited_report_custody_refuses_changed_header_source_namespace_and_allocati
         .offset += 1;
     assert!(!accepted(retained, &changed, registry, id));
 }
+
+fn empty_installed_accepted(unit: &CompilationUnit, id: ProcedureId) -> bool {
+    let module = &unit.ir_module;
+    let registry = module
+        .source_metadata_input
+        .as_ref()
+        .unwrap()
+        .borrowed_context_registry()
+        .commands();
+    module
+        .retained_source_bindings
+        .as_ref()
+        .unwrap()
+        .inherited_empty_installed_report_custody(
+            module,
+            registry,
+            id,
+            module.body_units.get(&id).unwrap(),
+        )
+        .is_some()
+}
+
+#[test]
+fn inherited_empty_installed_report_custody_requires_current_resident_card() {
+    let unit = inherited_unit("source child.tcl", "proc p {arg {default value}} {}; p 1");
+    let module = &unit.ir_module;
+    let id = *module.installed_procedure_body_units.keys().next().unwrap();
+    assert!(empty_installed_accepted(&unit, id));
+    let registry = module
+        .source_metadata_input
+        .as_ref()
+        .unwrap()
+        .borrowed_context_registry()
+        .commands();
+    let retained = module.retained_source_bindings.as_ref().unwrap();
+    let body = module.body_units.get(&id).unwrap();
+    let allocation = module.installed_procedure_body_units.get(&id).unwrap();
+    assert!(!allocation.matches_source_declaration_image(&module.source, allocation.site.offset));
+    assert!(module.source_entry.native_entry.is_none());
+    let detached = body.clone();
+    assert!(
+        retained
+            .inherited_empty_installed_report_custody(module, registry, id, &detached)
+            .is_none()
+    );
+    let foreign = inherited_unit("source child.tcl", "proc p {arg {default value}} {}; p 1");
+    assert!(
+        foreign
+            .ir_module
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .inherited_empty_installed_report_custody(module, registry, id, body)
+            .is_none()
+    );
+    let mut changed = module.clone();
+    changed.source_entry.source_point_entry = None;
+    assert!(
+        retained
+            .inherited_empty_installed_report_custody(
+                &changed,
+                registry,
+                id,
+                changed.body_units.get(&id).unwrap()
+            )
+            .is_none()
+    );
+    let mut changed = module.clone();
+    changed.installed_procedure_body_units.remove(&id);
+    assert!(
+        retained
+            .inherited_empty_installed_report_custody(
+                &changed,
+                registry,
+                id,
+                changed.body_units.get(&id).unwrap()
+            )
+            .is_none()
+    );
+}
+
+#[test]
+fn inherited_empty_installed_report_custody_refuses_nonempty_and_retired() {
+    let nonempty = inherited_unit("source child.tcl", "proc p {} {return 1}; p");
+    let id = *nonempty
+        .ir_module
+        .installed_procedure_body_units
+        .keys()
+        .next()
+        .unwrap();
+    assert!(!empty_installed_accepted(&nonempty, id));
+    let retired = inherited_unit("source child.tcl", "proc p {} {}; rename p {}");
+    assert!(retired.ir_module.installed_procedure_body_units.is_empty());
+    let module = &retired.ir_module;
+    let id = first_allocated(module);
+    let registry = module
+        .source_metadata_input
+        .as_ref()
+        .unwrap()
+        .borrowed_context_registry()
+        .commands();
+    assert!(
+        module
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .inherited_empty_installed_report_custody(
+                module,
+                registry,
+                id,
+                module.body_units.get(&id).unwrap()
+            )
+            .is_none()
+    );
+}
