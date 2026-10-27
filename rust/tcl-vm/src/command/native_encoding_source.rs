@@ -2,6 +2,7 @@
 //! Original encoding-name and source stages under the actual Name operation.
 
 use super::{Value, Vm, completion_from_cmd_error, completion_from_tcl_error, native_wrong_args};
+use crate::interp::LogicalSourceFileEntry;
 use crate::interp::native_name_consumers::OriginalNameConsumerScope;
 use std::rc::Rc;
 use tcl_cmd_core::{
@@ -99,11 +100,16 @@ struct SourceOps<'a> {
     args: &'a [Value],
     encoding_at: Option<usize>,
     reached: Vec<usize>,
+    logical: Option<&'a LogicalSourceFileEntry<'a>>,
 }
 impl OriginalSourceFileOps for SourceOps<'_> {
     fn original_bytes(&mut self, index: usize) -> Result<Rc<[u8]>, CmdError> {
         self.reached.push(index);
-        self.names.read(self.vm, &self.args[index])
+        let bytes = self.names.read(self.vm, &self.args[index])?;
+        if let Some(entry) = self.logical {
+            entry.admit_original_bytes(self.vm, index, &self.args[index], &bytes)?;
+        }
+        Ok(bytes)
     }
     fn external_filename_bytes(
         &mut self,
@@ -176,6 +182,9 @@ impl OriginalSourceFileOps for SourceOps<'_> {
         for &index in &self.reached {
             self.names.current_for_value(self.vm, &self.args[index])?;
         }
+        if let Some(entry) = self.logical {
+            entry.check(self.vm)?;
+        }
         Ok(())
     }
 }
@@ -202,13 +211,27 @@ pub(super) fn source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> Completion<Value> {
     let dialect = vm.native_invocation_dialect();
-    let Some(grammar) = dialect.source_file_grammar() else {
+    let native_grammar = dialect.source_file_grammar();
+    let logical = if native_grammar.is_none() {
+        match vm.logical_source_file_entry(names, args) {
+            Ok(entry) => entry,
+            Err(error) => return completion_from_cmd_error(vm, error),
+        }
+    } else {
+        None
+    };
+    let Some(grammar) =
+        native_grammar.or_else(|| logical.as_ref().map(LogicalSourceFileEntry::grammar))
+    else {
         return completion_from_cmd_error(
             vm,
             ValueError::CommandProtocolUnavailable("native source grammar").into(),
         );
     };
-    let Some(protocol) = dialect.native_source_file_protocol() else {
+    let Some(protocol) = dialect
+        .native_source_file_protocol()
+        .or_else(|| logical.as_ref().map(LogicalSourceFileEntry::protocol))
+    else {
         return completion_from_cmd_error(
             vm,
             ValueError::CommandProtocolUnavailable("native source file protocol").into(),
@@ -235,6 +258,7 @@ fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> 
             args,
             encoding_at: selected.encoding_at,
             reached: Vec::new(),
+            logical: logical.as_ref(),
         },
         protocol,
         selected.path_at,
@@ -288,3 +312,6 @@ fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> 
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod logical_file_tests;

@@ -72,6 +72,55 @@ impl SourceFileGrammar {
     }
 }
 
+/// Explicit host installation of an authored file-source syntax recipe.
+/// This supplies no physical getter, filesystem or compiled-body permission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogicalSourceFileProvider {
+    /// Logical F5 Tcl8.4 filename-only source handling.
+    Tcl84CoreSimulation,
+}
+
+/// Pure selected file syntax and channel default, without operation authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LogicalSourceFileRecipe {
+    grammar: SourceFileGrammar,
+    protocol: tcl_cmd_core::encoding::NativeSourceFileProtocol,
+}
+
+impl LogicalSourceFileRecipe {
+    /// Selected logical argument grammar.
+    #[must_use]
+    pub const fn grammar(self) -> SourceFileGrammar {
+        self.grammar
+    }
+    /// Selected logical channel default, without conversion or file authority.
+    #[must_use]
+    pub const fn protocol(self) -> tcl_cmd_core::encoding::NativeSourceFileProtocol {
+        self.protocol
+    }
+}
+
+impl InvocationDialect {
+    /// Describe an explicitly supplied logical file recipe independently of native selection.
+    #[must_use]
+    pub fn logical_source_file_recipe(
+        self,
+        provider: LogicalSourceFileProvider,
+    ) -> Option<LogicalSourceFileRecipe> {
+        match provider {
+            LogicalSourceFileProvider::Tcl84CoreSimulation => {
+                self.authored_f5_tcl84_core()?;
+                Some(LogicalSourceFileRecipe {
+                    grammar: SourceFileGrammar::Filename,
+                    protocol: tcl_cmd_core::encoding::NativeSourceFileProtocol::CSystem(
+                        TclVersion::V8_4,
+                    ),
+                })
+            }
+        }
+    }
+}
+
 /// Selected actual file read operands, before any filesystem operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SourceFileOperands {
