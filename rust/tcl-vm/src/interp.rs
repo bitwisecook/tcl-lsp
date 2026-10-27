@@ -62,6 +62,8 @@ use tcl_syntax::naming::{NamePolicyProtocol, NativeCommandVisibilityFailure};
 use variable_trace_outcomes::VariableTraceOutcome;
 
 mod authored_math;
+mod logical_file_source;
+pub(crate) use logical_file_source::LogicalSourceFileEntry;
 mod logical_eval_source;
 pub(crate) use logical_eval_source::LogicalEvalSourceEntry;
 mod logical_uplevel_source;
@@ -1340,6 +1342,7 @@ struct LogicalProviders {
     /// or hardware result receipt; native policy remains independently selected.
     quote: Option<tcl_registry::invocation_words::LogicalExpressionQuoteProvider>,
     source_words: Option<tcl_registry::invocation_words::LogicalSourceWordProvider>,
+    source_file: Option<tcl_registry::source_file::LogicalSourceFileProvider>,
     eval_object: Option<tcl_registry::native_eval_object::LogicalEvalObjectProvider>,
     expression_parse: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     numeric: Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
@@ -8043,6 +8046,7 @@ impl Vm {
         child.logical_providers.quote = self.logical_providers.quote;
         child.logical_providers.expression_parse = self.logical_providers.expression_parse;
         child.logical_providers.source_words = self.logical_providers.source_words;
+        child.logical_providers.source_file = self.logical_providers.source_file;
         child.logical_providers.eval_object = self.logical_providers.eval_object;
         child.logical_providers.numeric = self.logical_providers.numeric;
         child.logical_providers.math_functions = self.logical_providers.math_functions;

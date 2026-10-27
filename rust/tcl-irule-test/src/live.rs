@@ -344,6 +344,9 @@ impl LiveSession {
         assert!(vm.set_logical_compiled_variable_provider(
             tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
         ));
+        assert!(vm.set_logical_source_file_provider(Some(
+            tcl_registry::source_file::LogicalSourceFileProvider::Tcl84CoreSimulation,
+        )));
         assert!(vm.set_logical_math_function_provider(Some(
             tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider::Tcl84Core,
         )));
