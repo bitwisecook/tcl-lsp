@@ -1067,7 +1067,7 @@ impl AuthoredSourceTaintInvocation {
             .collect::<Vec<_>>();
         let invocation = ResolvedStatementInvocation {
             dialect,
-            facts,
+            facts: Box::new(facts),
             arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
             evaluated_arguments: evaluated_words
                 .iter()
