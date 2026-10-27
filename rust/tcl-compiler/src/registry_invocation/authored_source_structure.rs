@@ -952,6 +952,7 @@ mod standalone_script_source_variable_tests {
             source,
             tokens: tokens.clone(),
             conditional: Some(candidate),
+            symbolic_body_reads: false,
         };
         assert_eq!(selected.command(), "eval");
         assert!(!selected.has_closed_scalar_read_context());
