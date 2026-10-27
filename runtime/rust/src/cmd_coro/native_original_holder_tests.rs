@@ -27,34 +27,34 @@ fn original_coroutine_holder_lifecycle_matches_all_native_public_results() {
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let cases = [
         ("distinct-original-relative-resumptions", include_bytes!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/distinct-original-relative-resumptions.tcl").as_slice(), [
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.4.20/distinct-original-relative-resumptions/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.5.19/distinct-original-relative-resumptions/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.6.18/distinct-original-relative-resumptions/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.0.4/distinct-original-relative-resumptions/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.1.0/distinct-original-relative-resumptions/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/jim/distinct-original-relative-resumptions/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.4.20/distinct-original-relative-resumptions/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.5.19/distinct-original-relative-resumptions/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.6.18/distinct-original-relative-resumptions/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "9.0.4/distinct-original-relative-resumptions/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "9.1.0/distinct-original-relative-resumptions/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "jim/distinct-original-relative-resumptions/stdout"),
         ]),
         ("original-relative-deletion-preserves-other-holder", include_bytes!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/original-relative-deletion-preserves-other-holder.tcl").as_slice(), [
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.4.20/original-relative-deletion-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.5.19/original-relative-deletion-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.6.18/original-relative-deletion-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.0.4/original-relative-deletion-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.1.0/original-relative-deletion-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/jim/original-relative-deletion-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.4.20/original-relative-deletion-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.5.19/original-relative-deletion-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.6.18/original-relative-deletion-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "9.0.4/original-relative-deletion-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "9.1.0/original-relative-deletion-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "jim/original-relative-deletion-preserves-other-holder/stdout"),
         ]),
         ("original-relative-rename-preserves-other-holder", include_bytes!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/original-relative-rename-preserves-other-holder.tcl").as_slice(), [
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.4.20/original-relative-rename-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.5.19/original-relative-rename-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.6.18/original-relative-rename-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.0.4/original-relative-rename-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.1.0/original-relative-rename-preserves-other-holder/stdout"),
-            include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/jim/original-relative-rename-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.4.20/original-relative-rename-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.5.19/original-relative-rename-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "8.6.18/original-relative-rename-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "9.0.4/original-relative-rename-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "9.1.0/original-relative-rename-preserves-other-holder/stdout"),
+            tcl_test_support::fixture_tables::text(include_str!("../../../../rust/tcl-registry/tests/data/native_coroutine_original_holder250/captures.tsv"), "jim/original-relative-rename-preserves-other-holder/stdout"),
         ]),
     ];
     let mut comparisons = 0;
     for (case, source, rows) in cases {
         for (engine, rows) in providers.iter().zip(rows) {
-            let (expected_code, expected_result) = original_result(rows);
+            let (expected_code, expected_result) = original_result(&rows);
             let mut interp = Interp::with_native_core(
                 crate::interp::default_host(),
                 crate::environment::profile_for_dialect(engine),
