@@ -379,10 +379,10 @@ impl ReportBodyInventory {
                 ReportBodyRole::Definition(_) => "definition",
             };
             eprintln!(
-                "REPORT_BODY_CANDIDATE id={id:?} role={role} kind={:?} declaration={:?} site={:?} allocated={} native={} logical={} authored={} hosted={}",
+                "REPORT_BODY_CANDIDATE id={id:?} role={role} kind={:?} declaration={:?} site-offset={:?} allocated={} native={} logical={} authored={} hosted={}",
                 body.body_kind,
                 body.span,
-                body.declaration_site,
+                body.declaration_site.as_ref().map(|site| site.offset),
                 module.original_declaration_body_units.contains_key(&id),
                 module
                     .original_native_declaration_body_units
