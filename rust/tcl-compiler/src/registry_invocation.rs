@@ -1632,12 +1632,9 @@ pub(crate) fn source_cut_refuses(stage: &'static str, refused: bool) -> bool {
 
 /// Observe an already-computed source-load predicate with the existing shared quota.
 pub(crate) fn load_trace_flag(stage: &'static str, offset: Option<u32>, value: bool) -> bool {
-    #[cfg(debug_assertions)]
     if source_cut_trace_admitted() {
         eprintln!("SOURCE_LOAD_ISSUER stage={stage} offset={offset:?} value={value}");
     }
-    #[cfg(not(debug_assertions))]
-    let _ = (stage, offset);
     value
 }
 
@@ -1647,15 +1644,12 @@ pub(crate) fn load_trace_option<T>(
     offset: Option<u32>,
     value: Option<T>,
 ) -> Option<T> {
-    #[cfg(debug_assertions)]
     if source_cut_trace_admitted() {
         eprintln!(
             "SOURCE_LOAD_ISSUER stage={stage} offset={offset:?} present={}",
             value.is_some()
         );
     }
-    #[cfg(not(debug_assertions))]
-    let _ = (stage, offset);
     value
 }
 
