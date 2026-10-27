@@ -669,5 +669,78 @@
       }
     ],
     "scope": "Three separately labelled report-only inherited body custody controls after existing report repeat and before unchanged corpus2. Same fresh compilerlib, source/provider/deps/tool/process/ELF/CAP/floor/deadline; old150 outcomes preserved. Default153 are observations including existing repeats, not a unique-identity claim."
+  },
+  "separate_cached_increment_compiler_controls": {
+    "schema": "cached-increment-compiler3-v1",
+    "expected_selected": 3,
+    "scope": "Actual Box/I64 default-increment compiler controls plus exact shared ABI signature; no String/framing/performance acceptance",
+    "source_pins": {
+      "rust/tcl-runtime-api/src/codegen_abi.rs": "38964bdbf11697809803503f5edbb0580172e53223169232e33938054c499f4a",
+      "rust/tcl-compiler/src/native_lowering/ir.rs": "38f91ace67308397540241604ab2abc2e1668ac484ca02b4ee1ce887971feac9",
+      "rust/tcl-compiler/src/native_lowering/cells.rs": "6de9adb276fd5dd6f39382258197f834e8f3d7331e1349287e3b8bd67e124f70",
+      "rust/tcl-compiler/src/native_lowering/lower.rs": "344bccf58ad295f755ae761012d025af3442413ae13342dd067098720044bb21",
+      "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "3049fb49874034ea19fb96b705b98efc529bf00afe69d5efee928a62b0ec47a6",
+      "rust/tcl-compiler/src/native_lowering/tests.rs": "309939303aab1b8622c33b39cea9492bb1d83e5a287b590509cccceda67f5f27",
+      "runtime/rust/src/codegen_native.rs": "775bf7c7a737f45c403c8ce6159668fbc4a22dd79e2e6a29c19a9f1d6d31df82",
+      "runtime/rust/src/codegen_native/cached_increment.rs": "0a6b4bfff493fdd6c29a952bdafaba17ac4d0e2b872d5031f1ff09009e4067fb",
+      "runtime/rust/src/interp.rs": "02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063",
+      "runtime/rust/src/interp/cached_increment.rs": "353e9f70ec51261823ebfb1a9518f41420cfab792857adc4556e32e3f82c0e56",
+      "runtime/rust/src/frame.rs": "8f65cbe133cba80c225ae49e8a1bbae7dffb46d55e50dfc7ae1be9c261d7dd5b",
+      "runtime/rust/src/builtins.rs": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b",
+      "runtime/rust/src/value_ops.rs": "a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c",
+      "runtime/rust/src/interp/captured_rmw.rs": "c41b40d02846b8655487cd2d10b3c4e720ab0a60d6259c83c5612dad4719dd9e"
+    },
+    "functions": [
+      {
+        "selector": "native_lowering::tests::a_live_boxed_integer_increment_keeps_its_original_trace_barrier",
+        "path": "rust/tcl-compiler/src/native_lowering/tests.rs",
+        "name": "a_live_boxed_integer_increment_keeps_its_original_trace_barrier",
+        "sha256": "87fd4a8d57a0b431e7f3b78e83b4997d1de538ab1de8bae0f1b9dfd9cfbf5aff"
+      },
+      {
+        "selector": "native_lowering::tests::cached_increment_candidates_do_not_erase_string_or_explicit_amount_effects",
+        "path": "rust/tcl-compiler/src/native_lowering/tests.rs",
+        "name": "cached_increment_candidates_do_not_erase_string_or_explicit_amount_effects",
+        "sha256": "f0eda5ebba09cfca09542de6df6f931b860f1b7b55d07b9bc3c47f359d3520d8"
+      },
+      {
+        "selector": "codegen_abi::tests::cached_increment_keeps_borrowed_operands_and_separate_status_transport",
+        "path": "rust/tcl-runtime-api/src/codegen_abi.rs",
+        "name": "cached_increment_keeps_borrowed_operands_and_separate_status_transport",
+        "sha256": "ecaeb70d0e33bd54e9f4af5f4394e0cdd145ef42902e6acd31ef60f47692e4cd"
+      }
+    ],
+    "rows": [
+      {
+        "group": "diagnostic-cached-increment-compiler3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "native_lowering::tests::a_live_boxed_integer_increment_keeps_its_original_trace_barrier",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-cached-increment-compiler3",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "native_lowering::tests::cached_increment_candidates_do_not_erase_string_or_explicit_amount_effects",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-cached-increment-compiler3",
+        "package": "tcl-runtime-api",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_runtime_api",
+        "selector": "codegen_abi::tests::cached_increment_keeps_borrowed_operands_and_separate_status_transport",
+        "env": {}
+      }
+    ]
   }
 }
