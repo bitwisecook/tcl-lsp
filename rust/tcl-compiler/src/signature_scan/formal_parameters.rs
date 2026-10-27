@@ -402,6 +402,8 @@ pub enum SourceProcedureFormalTopology {
     Native(SignatureSourceFormalParameters),
     /// Authored Logical `ParamList` selected by its retained Logical declaration.
     Logical(LogicalProcedureFormalTopology),
+    /// Authored body source roster; no Native formals, binding or activation.
+    Authored(crate::registry_invocation::AuthoredProcedureFormalTopology),
 }
 
 impl SourceProcedureFormalTopology {
@@ -411,6 +413,7 @@ impl SourceProcedureFormalTopology {
         match self {
             Self::Native(formals) => formals.parameters().len(),
             Self::Logical(formals) => formals.parameters().len(),
+            Self::Authored(formals) => formals.parameters().len(),
         }
     }
 
@@ -426,6 +429,7 @@ impl SourceProcedureFormalTopology {
         match self {
             Self::Native(formals) => formals.argument_count_shape(),
             Self::Logical(formals) => formals.argument_count_shape(),
+            Self::Authored(formals) => formals.argument_count_shape(),
         }
     }
 }

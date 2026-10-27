@@ -508,6 +508,7 @@ pub(crate) struct AuthoredSourceTaintInvocation {
     source: AuthoredSourceStructuredInvocation,
     tokens: CommandTokens,
     conditional: Option<crate::command_binding::OriginalCatalogueSourceCandidate>,
+    symbolic_body_reads: bool,
 }
 
 impl AuthoredSourceTaintInvocation {
@@ -533,6 +534,7 @@ impl AuthoredSourceTaintInvocation {
             source,
             tokens: tokens.clone(),
             conditional,
+            symbolic_body_reads: false,
         })
     }
 
@@ -1002,5 +1004,72 @@ mod standalone_script_source_variable_tests {
         assert!(
             original_possible_sink_structure(point.source_tokens().unwrap(), registry).is_none()
         );
+    }
+}
+
+impl AuthoredSourceTaintInvocation {
+    /// Possible syntax inside its original authored body; no actual handler,
+    /// successful completion, sanitiser or Native value follows.
+    pub(crate) fn capture_authored_body(
+        tokens: &CommandTokens,
+        scope: &super::OriginalAuthoredSourceBodyScope,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        let original_words = scope.original_words(tokens, registry)?;
+        if original_words.iter().any(|word| word.group().expand) {
+            return None;
+        }
+        let facts = scope.with_source_schema(tokens, registry, |schema| {
+            let facts = schema.facts();
+            (facts.arity_accepts_frozen_arguments() != Some(false)).then_some(facts)
+        })?;
+        let effective =
+            super::compose_original_effective_words(tokens, &facts.canonical_command, &[])?;
+        let dialect = scope.original_word_dialect();
+        let evaluated_words = effective
+            .words
+            .iter()
+            .skip(1)
+            .map(|word| {
+                super::effective_invocation_word(
+                    word,
+                    scope.config().escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&scope.config()),
+                )
+            })
+            .collect::<Vec<_>>();
+        let invocation = ResolvedStatementInvocation {
+            dialect,
+            facts,
+            arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
+            evaluated_arguments: evaluated_words
+                .iter()
+                .map(|word| match word {
+                    super::EffectiveInvocationWord::Literal(value) => Some(value.clone()),
+                    _ => None,
+                })
+                .collect(),
+            evaluated_words,
+            effective,
+            authored_case_body_selection: None,
+        };
+        Some(Self {
+            source: AuthoredSourceStructuredInvocation {
+                invocation,
+                config: scope.config(),
+                unknown_residual: true,
+                registry: registry.snapshot(),
+                realm: scope.source_realm(),
+                namespace: scope.namespace().clone(),
+                original_words,
+            },
+            tokens: tokens.clone(),
+            conditional: None,
+            symbolic_body_reads: true,
+        })
+    }
+
+    pub(crate) fn uses_symbolic_body_reads(&self) -> bool {
+        self.symbolic_body_reads
     }
 }

@@ -43,8 +43,8 @@ pub(crate) use authored_body_scope::{
 };
 pub(crate) use source_scoped_body::original_written_script_body_span;
 mod authored_source_bodies;
-pub use authored_source_bodies::OriginalAuthoredProcedureBody;
 pub(crate) use authored_source_bodies::original_authored_procedure_body;
+pub use authored_source_bodies::{AuthoredProcedureFormalTopology, OriginalAuthoredProcedureBody};
 mod source_definition;
 pub(crate) use source_definition::{
     original_logical_source_definition_layout,

@@ -565,3 +565,86 @@ mod tests {
         assert_bytecode_keeps_authored_bodies_unpublished(&registry, source);
     }
 }
+
+/// Original authored source formals; no Native formal objects or activation.
+#[derive(Clone)]
+pub struct AuthoredProcedureFormalTopology {
+    card: Arc<OriginalAuthoredProcedureBody>,
+}
+
+impl std::fmt::Debug for AuthoredProcedureFormalTopology {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AuthoredProcedureFormalTopology")
+            .field("site", &self.card.site.offset)
+            .field("parameter_count", &self.card.parameters.len())
+            .finish_non_exhaustive()
+    }
+}
+impl PartialEq for AuthoredProcedureFormalTopology {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.card, &other.card)
+    }
+}
+impl Eq for AuthoredProcedureFormalTopology {}
+impl std::hash::Hash for AuthoredProcedureFormalTopology {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&Arc::as_ptr(&self.card), state);
+    }
+}
+
+impl AuthoredProcedureFormalTopology {
+    /// Complete original roster, independently of any current formal slots.
+    #[must_use]
+    pub fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        &self.card.parameters
+    }
+
+    /// Descriptive source count after both formal grammars agreed at capture.
+    #[must_use]
+    pub fn argument_count_shape(&self) -> tcl_syntax::formal_params::FormalArgumentCountShape {
+        tcl_syntax::formal_params::formal_argument_count_shape(
+            self.card
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+            tcl_dialect::ParameterGrammar::Tcl,
+        )
+    }
+
+    /// Conditional ordinals shared by both grammars, never an activation.
+    pub(crate) fn bindings(
+        &self,
+        arguments: usize,
+    ) -> Option<Vec<tcl_syntax::formal_params::FormalByteArgumentBinding>> {
+        crate::signature_scan::formal_count::logical_formal_argument_bindings(
+            &self.card.parameters_text,
+            &self.card.parameters,
+            arguments,
+        )
+    }
+}
+
+impl OriginalAuthoredProcedureBody {
+    /// Retain all original header/body applicability and the exact source roster.
+    /// Grammar disagreement stays unavailable; no engine grammar is selected.
+    pub(crate) fn original_taint_formals(
+        self: &Arc<Self>,
+        module: &Module,
+        procedure: &Procedure,
+    ) -> Option<AuthoredProcedureFormalTopology> {
+        self.matches_procedure(module, procedure).then_some(())?;
+        let common =
+            crate::signature_scan::formal_count::SourceFormalCountProjection::from_logical_formals(
+                &self.parameters_text,
+                &self.parameters,
+            );
+        if common.origin() == crate::signature_scan::formal_count::SourceFormalCountOrigin::Unknown
+        {
+            return None;
+        }
+        Some(AuthoredProcedureFormalTopology {
+            card: Arc::clone(self),
+        })
+    }
+}
