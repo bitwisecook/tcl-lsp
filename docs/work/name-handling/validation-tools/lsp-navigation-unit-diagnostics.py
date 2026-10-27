@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "1e3502ad342a50a3a2cc83e2e2df7480ce3c02e5f29849530acd8978fb28b91f"
+ROSTER_SHA = "be732fcf111764d768b6488627ca0aabab87eca56bbc6d74f96197aee3acb884"
 SCAN_RETENTION_CONTROLS = ('workspace_scan_task_window_controls::completed_scan_outputs_are_drained_before_refilling_the_window', 'workspace_scan_task_window_controls::dropped_scan_window_releases_pending_and_completed_outputs', 'workspace_scan_task_window_controls::scan_window_preserves_worker_failure_and_other_outputs')
 POSITIVE_REFERENCE_CONTROLS = ('readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_all_live_views_without_unrelated_completion', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_selected_and_dependent_unknown_mutation', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_refuse_foreign_publication_and_changed_input', 'readonly_reference_reports::source_views::completed_world_owner_controls::positive_references_keep_unrelated_child_physical_lease')
 COARSE_PRODUCER_CONTROLS = ('readonly_reference_reports::coarse_semantic_source_tests::coarse_receipt_uses_actual_producer_generations_without_renewal',)
@@ -227,6 +227,35 @@ def run_coarse_producer_controls(roster, executable, artifact, out, cases):
         save(out / "coarse-producer-cases.json", cases)
 
 
+def run_maintained_lens_smoke(roster, executable, artifact, out, cases):
+    expected = {'schema': 'maintained-native-lens-smoke1-v1', 'target': 'smoke', 'kind': ['test'], 'selector': 'diagnostics_delivery_smoke::code_lens_resolve_returns_show_references_command', 'expected_selected': 1, 'existing_trace_build_overlay': {'TCL_LSP_TRACE_COARSE_SOURCE': '1'}, 'source_pins': {'rust/tcl-lsp-server/tests/smoke/diagnostics_delivery_smoke.rs': 'ed8058b0b6efa54fed36dabc66dad6ce6cc058d8185cec62f3849c361d840d07', 'rust/tcl-lsp-server/tests/smoke.rs': 'b5ef8d69520283ccc3f7c89eafc959920f51ff84a417dfdbd8d568b6d8de78e4'}}
+    require(roster.get("maintained_lens_smoke") == expected, "exact maintained smoke roster mismatch")
+    for path, digest in expected["source_pins"].items():
+        require(sha(root / path) == digest, "maintained smoke source drift")
+    require(environment.get("TCL_LSP_TRACE_COARSE_SOURCE") == "1", "existing build trace overlay absent")
+    require(time.time() + 180 + 180 + 40 <= float(os.environ["DIAGNOSTIC_DEADLINE_EPOCH"]),
+            "insufficient full smoke list/test/cleanup budget")
+    require(remaining > 512 * 1024, "insufficient log budget before smoke list")
+    require(sha(executable) == artifact["sha256"], "smoke ELF changed before list")
+    selector = expected["selector"]
+    prefix = "maintained-lens-smoke-1"
+    listed = execute([str(executable), selector, "--exact", "--list", "--format", "terse"],
+                     prefix + "-list", executable, 180)
+    require(listed["exit_code"] == 0 and (out / (prefix + "-list.stdout")).read_text().splitlines()
+            == [selector + ": test"], "exact maintained smoke selector missing/ambiguous")
+    require(time.time() + 180 + 40 <= float(os.environ["DIAGNOSTIC_DEADLINE_EPOCH"]),
+            "insufficient full smoke test/cleanup budget after list")
+    require(remaining > 512 * 1024 and sha(executable) == artifact["sha256"],
+            "smoke remaining log/ELF refusal after list")
+    receipt = execute([str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+                      prefix, executable, 180)
+    result = original_result((out / (prefix + ".stdout")).read_text(), receipt["exit_code"])
+    cases.append({"selector": selector, "result": result, "exit_code": receipt["exit_code"],
+                  "same_fresh_smoke_sha256": artifact["sha256"]})
+    save(out / "maintained-lens-smoke-cases.json", cases)
+    require(sha(executable) == artifact["sha256"], "smoke ELF changed after test")
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -258,6 +287,8 @@ providers = []
 dependency_roots = []
 tools = {}
 artifact = None
+smoke_artifact = None
+maintained_lens_smoke_cases = []
 error = None
 status = 2
 environment = os.environ.copy()
@@ -317,6 +348,7 @@ try:
     )
     require(environment.get("RUSTFLAGS") == "-Dwarnings", "strict warnings required")
     environment["RUSTC"] = str(tools["rustc"])
+    environment["TCL_LSP_TRACE_COARSE_SOURCE"] = "1"
     sysroot = Path(
         subprocess.check_output(
             [str(tools["rustc"]), "--print", "sysroot"], text=True
@@ -335,6 +367,7 @@ try:
         out / "job.json",
         {
             "requested_sha": args.sha,
+            "diagnostic_only_existing_trace_build_overlay": {"TCL_LSP_TRACE_COARSE_SOURCE": "1"},
             "job": {
                 n: environment.get(n)
                 for n in [
@@ -390,6 +423,8 @@ try:
             "-p",
             "tcl-lsp-server",
             "--lib",
+            "--test",
+            "smoke",
             "--no-run",
             "--message-format=json-render-diagnostics",
             "-j",
@@ -450,6 +485,26 @@ try:
         "cargo_event": selected[0],
     }
     save(out / "server-artifact.json", artifact)
+    smoke_events = [row for row in rows
+                    if row.get("reason") == "compiler-artifact"
+                    and row.get("target", {}).get("name") == "smoke"
+                    and row.get("target", {}).get("kind") == ["test"]
+                    and row.get("manifest_path") == str(root / "rust/tcl-lsp-server/Cargo.toml")
+                    and row.get("profile", {}).get("test") is True
+                    and row.get("executable")]
+    require(len(smoke_events) == 1 and smoke_events[0].get("fresh") is False
+            and str(smoke_events[0].get("profile", {}).get("opt_level")) == "3",
+            "fresh same-invocation smoke event absent/ambiguous")
+    smoke_executable = Path(smoke_events[0]["executable"]).resolve()
+    require(smoke_executable != executable and smoke_executable.is_relative_to(target)
+            and smoke_executable.is_file(), "distinct fresh smoke ELF absent")
+    with smoke_executable.open("rb") as stream:
+        require(stream.read(4) == b"\x7fELF", "native smoke ELF required")
+    smoke_artifact = {"path": str(smoke_executable), "sha256": sha(smoke_executable),
+                      "cargo_event": smoke_events[0],
+                      "diagnostic_only_existing_trace_build_overlay": {"TCL_LSP_TRACE_COARSE_SOURCE": "1"}}
+    save(out / "maintained-lens-smoke-artifact.json", smoke_artifact)
+
     require(
         source() == originals["source"]
         and files(providers) == originals["providers"]
@@ -514,6 +569,11 @@ try:
         and all(case["result"] == "PASS" for case in coarse_producer_cases)
         else 1
     )
+    prior_maintained_lens_status = status
+    status = 2
+    run_maintained_lens_smoke(roster, smoke_executable, smoke_artifact, out, maintained_lens_smoke_cases)
+    status = (0 if prior_maintained_lens_status == 0 and len(maintained_lens_smoke_cases) == 1
+              and all(case["result"] == "PASS" for case in maintained_lens_smoke_cases) else 1)
 except (
     RuntimeError,
     OSError,
@@ -554,6 +614,9 @@ finally:
         and Path(artifact["path"]).is_file()
         and sha(artifact["path"]) == artifact["sha256"]
     )
+    seals["smoke_artifact"] = (smoke_artifact is not None
+        and Path(smoke_artifact["path"]).is_file()
+        and sha(smoke_artifact["path"]) == smoke_artifact["sha256"])
     if not all(seals.values()):
         status = 2
     save(
@@ -569,6 +632,9 @@ finally:
             "positive_reference_cases": positive_reference_cases,
             "separate_positive_reference_total": len(positive_reference_cases),
             "coarse_producer_cases": coarse_producer_cases,
+            "maintained_lens_smoke_cases": maintained_lens_smoke_cases,
+            "separate_maintained_lens_smoke_total": len(maintained_lens_smoke_cases),
+            "existing_trace_build_overlay_diagnostic_only": True,
             "separate_coarse_producer_total": len(coarse_producer_cases),
             "separate_supplemental_total": len(cases),
             "processes": processes,

@@ -1,7 +1,7 @@
 {
   "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
   "schema": 1,
-  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance. Separately labelled three bounded scan-window lifetime controls on the same fresh server libtest; no new build or budget. Separately labelled four positive-reference dependency/publication/lease controls use the same fresh server libtest after old navigation and scan controls, unchanged shared limits. Separately labelled one actual coarse producer-generation control follows all old eight controls on the same fresh server libtest with unchanged shared limits.",
+  "scope": "Separate exact new public pending-index navigation unit only, no original startup or host acceptance. Separately labelled three bounded scan-window lifetime controls on the same fresh server libtest; no new build or budget. Separately labelled four positive-reference dependency/publication/lease controls use the same fresh server libtest after old navigation and scan controls, unchanged shared limits. Separately labelled one actual coarse producer-generation control follows all old eight controls on the same fresh server libtest with unchanged shared limits. Diagnostic-only existing COARSE build overlay and same-invocation fresh smoke integration ELF; exact maintained lens smoke follows unchanged old nine controls, same shared limits. No normal shipping/performance admission.",
   "selectors": [
     "tests::public_navigation_waits_for_live_index_before_source_view_routing"
   ],
@@ -18,7 +18,9 @@
     "rust/tcl-lsp-server/src/lib.rs": "241a2bc14139c9a59de39483ec89233241abdc9835f9761feedfb3a0b3dda84b",
     "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "b631df8e34385799e895b6007223397e4281dd570c2ac3490433b924de8f1300",
     "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
-    "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "8ee714bd17cf7e9911bb2254dbd5858387dfc0d98e98546f790f80aa20644f2c"
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "8ee714bd17cf7e9911bb2254dbd5858387dfc0d98e98546f790f80aa20644f2c",
+    "rust/tcl-lsp-server/tests/smoke/diagnostics_delivery_smoke.rs": "ed8058b0b6efa54fed36dabc66dad6ce6cc058d8185cec62f3849c361d840d07",
+    "rust/tcl-lsp-server/tests/smoke.rs": "b5ef8d69520283ccc3f7c89eafc959920f51ff84a417dfdbd8d568b6d8de78e4"
   },
   "target": "tcl_lsp_server",
   "scan_retention_controls": [
@@ -34,5 +36,21 @@
   ],
   "coarse_producer_controls": [
     "readonly_reference_reports::coarse_semantic_source_tests::coarse_receipt_uses_actual_producer_generations_without_renewal"
-  ]
+  ],
+  "maintained_lens_smoke": {
+    "schema": "maintained-native-lens-smoke1-v1",
+    "target": "smoke",
+    "kind": [
+      "test"
+    ],
+    "selector": "diagnostics_delivery_smoke::code_lens_resolve_returns_show_references_command",
+    "expected_selected": 1,
+    "existing_trace_build_overlay": {
+      "TCL_LSP_TRACE_COARSE_SOURCE": "1"
+    },
+    "source_pins": {
+      "rust/tcl-lsp-server/tests/smoke/diagnostics_delivery_smoke.rs": "ed8058b0b6efa54fed36dabc66dad6ce6cc058d8185cec62f3849c361d840d07",
+      "rust/tcl-lsp-server/tests/smoke.rs": "b5ef8d69520283ccc3f7c89eafc959920f51ff84a417dfdbd8d568b6d8de78e4"
+    }
+  }
 }

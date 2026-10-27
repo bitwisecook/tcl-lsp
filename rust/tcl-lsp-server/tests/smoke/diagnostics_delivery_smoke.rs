@@ -82,6 +82,33 @@ where
 /// the response itself ends the wait.
 const RESPONSE_BACKSTOP: Duration = Duration::from_mins(1);
 
+/// Bounded existing host-stage notifications from this diagnostic build only.
+fn trace_lens_host_stage(body: &str, rows: &mut usize) {
+    const LIMIT: usize = 32;
+    if option_env!("TCL_LSP_TRACE_COARSE_SOURCE") != Some("1") || *rows >= LIMIT {
+        return;
+    }
+    let Ok(frame) = serde_json::from_str::<serde_json::Value>(body) else {
+        return;
+    };
+    if frame["method"] != "window/logMessage" {
+        return;
+    }
+    let Some(message) = frame["params"]["message"].as_str() else {
+        return;
+    };
+    if !message.starts_with("HOST_NAV_STAGE ") {
+        return;
+    }
+    *rows += 1;
+    if *rows == LIMIT {
+        eprintln!("LENS_HOST_NAV quota=32 further_stages=UNOBSERVED");
+    } else {
+        let bounded = message.chars().take(1024).collect::<String>();
+        eprintln!("LENS_HOST_NAV {bounded}");
+    }
+}
+
 /// The response frame carrying `id`, skipping the notifications ahead of it.
 ///
 /// Same principle as [`drain_until`]: JSON-RPC promises exactly one response
@@ -96,6 +123,7 @@ where
     R: tokio::io::AsyncRead + Unpin,
 {
     let deadline = tokio::time::Instant::now() + RESPONSE_BACKSTOP;
+    let mut host_trace_rows = 0;
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
@@ -103,7 +131,7 @@ where
         }
         match tokio::time::timeout(remaining, read_frame(reader)).await {
             Ok(body) if body.contains(id) => return Some(body),
-            Ok(_) => {}
+            Ok(body) => trace_lens_host_stage(&body, &mut host_trace_rows),
             Err(_) => return None,
         }
     }
