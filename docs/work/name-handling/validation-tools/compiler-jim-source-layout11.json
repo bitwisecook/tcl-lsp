@@ -286,5 +286,76 @@
     "optional_admission": "Positive needs full180list+180test+40cleanup actual remaining time/log budget; otherwise explicit UNRUN, no coverage gain.",
     "guaranteed_prefetch_reservation_seconds": 10560,
     "optional_not_in_guaranteed_reservation": true
+  },
+  "separate_finite_foreach_controls": {
+    "schema": "finite-foreach-source-controls4-v1",
+    "expected_selected": 4,
+    "source_path": "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
+    "source_sha256": "affdcdbf339d2dcd0d192463bbb7a4a0f151e633b05628ee4207cef3ded51584",
+    "source_peer_sha256": "a677716ee4a58a8e62190533c42d39270e5112c7a1938c7370423300944b40cf",
+    "rows": [
+      {
+        "group": "diagnostic-finite-foreach4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "analyser::handlers::finite_foreach_source::controls::literal_jim_iterations_keep_readonly_list_lineage_and_source_names",
+        "expected_selected": 1,
+        "env": {},
+        "list_seconds": 180,
+        "budget_seconds": 180,
+        "cleanup_reservation_seconds": 40,
+        "function_sha256": "230ddec1a7b61d541dd590ecf550b512cc2f51c0fcde38803fb7bf7f171a34df"
+      },
+      {
+        "group": "diagnostic-finite-foreach4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "analyser::handlers::finite_foreach_source::controls::iteration_names_refuse_equal_foreign_owner_changed_source_and_namespace",
+        "expected_selected": 1,
+        "env": {},
+        "list_seconds": 180,
+        "budget_seconds": 180,
+        "cleanup_reservation_seconds": 40,
+        "function_sha256": "b43488e1777affd2738ba8435fa64cde6fe217d3f6ca1920370fa86a84f88597"
+      },
+      {
+        "group": "diagnostic-finite-foreach4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "analyser::handlers::finite_foreach_source::controls::iteration_plan_refuses_mutation_multiple_bindings_expansion_and_name_prefixes",
+        "expected_selected": 1,
+        "env": {},
+        "list_seconds": 180,
+        "budget_seconds": 180,
+        "cleanup_reservation_seconds": 40,
+        "function_sha256": "87d5cd7290c288777c7bb7461a6b076660930e260e9b4f92fec81b99bc25f4b8"
+      },
+      {
+        "group": "diagnostic-finite-foreach4",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "analyser::handlers::finite_foreach_source::controls::reporting_scope_restores_after_unwind_and_preserves_body_depth_refusal",
+        "expected_selected": 1,
+        "env": {},
+        "list_seconds": 180,
+        "budget_seconds": 180,
+        "cleanup_reservation_seconds": 40,
+        "function_sha256": "f8ef81486603413dc297790c35a01f6acc26e1952f739b857ef44d9c3898b5ce"
+      }
+    ],
+    "scope": "Separate four controls after unchanged Layout11 and existing alias/member diagnostics. Same fresh compiler-lib ELF/default env/shared caps/deadline; no old failing original selector repeat.",
+    "admission": "Additional full1600s group reserve required before any child; each row retains full180list+180test+40cleanup. Not guaranteed by existing12000 envelope; insufficient admission remains UNRUN and overall2, never coverage gain."
   }
 }

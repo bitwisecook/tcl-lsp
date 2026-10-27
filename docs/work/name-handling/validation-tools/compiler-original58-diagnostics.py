@@ -160,6 +160,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-jim-source-layout11-",
             "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
+            "diagnostic-finite-foreach4-",
             "list-",
             "select-",
         )
@@ -194,6 +195,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-jim-source-layout11-",
             "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
+            "diagnostic-finite-foreach4-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -229,6 +231,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-jim-source-layout11-",
             "diagnostic-layout-own-jim-",
             "diagnostic-inherited-point-report3-",
+            "diagnostic-finite-foreach4-",
         )
     ):
         require(
@@ -4466,6 +4469,219 @@ def run_jim_source_layout_controls() -> None:
 
 
 
+def finite_foreach_source_guard():
+    path = root / finite_foreach_validation["source_path"]
+    require(sha(path) == finite_foreach_validation["source_sha256"],
+            "finite foreach control module changed")
+    text = path.read_text()
+    for row in finite_foreach_rows:
+        name = row["selector"].rsplit("::", 1)[1]
+        matches = re.findall(r"(?ms)^    fn " + re.escape(name) + r"\(\) \{.*?^    \}", text)
+        require(len(matches) == 1 and hashlib.sha256(matches[0].encode()).hexdigest()
+                == row["function_sha256"], "finite foreach exact function changed")
+
+
+def run_finite_foreach_controls() -> None:
+    global remaining
+    if deadline - time.time() < 4 * (180 + 180 + 40) or remaining <= 512 * 1024:
+        for row in finite_foreach_rows:
+            row["admission"] = "UNRUN_INSUFFICIENT_FULL_GROUP_BUDGET"
+        return
+    for row in finite_foreach_rows:
+        row["admission"] = "ADMITTED_FULL_GROUP_LIST_TEST_CLEANUP"
+    finite_foreach_source_guard()
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    require(len(finite_foreach_rows) == 4, "exact finite foreach4 count required")
+    for pinned_path, pinned_digest in finite_foreach_validation["source_pins"].items():
+        require(sha(root / pinned_path) == pinned_digest,
+                "finite foreach4 direct source pin drift: " + pinned_path)
+    for spec in finite_foreach_validation["build_targets"]:
+        inventory = json.loads((out / ("roster-" + spec["name"] + ".json")).read_text())
+        selectors = [row["selector"] for row in finite_foreach_rows
+                     if row["package"] == spec["package"] and row["target"] == spec["name"]]
+        require(len(selectors) == spec["expected_selected"]
+                and set(selectors).issubset(inventory["selected"]),
+                "finite foreach4 controls absent from matching fresh target inventory")
+    require(deadline - time.time() >= 4 * (180 + 180 + 40),
+            "insufficient shared time for ALL finite foreach4 list/test/cleanup budgets")
+    for index, row in enumerate(finite_foreach_rows):
+        require(deadline - time.time() >= 180 + 180 + 40,
+                "insufficient shared time for full finite foreach4 list/test/cleanup budgets")
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "Jim source layout11 current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "Jim source layout11 requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "Jim source layout11 artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "finite-foreach4"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "finite-foreach-outcomes.json", finite_foreach_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "finite-foreach-outcomes.json", finite_foreach_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "finite-foreach-outcomes.json", finite_foreach_rows)
+            raise
+        save(out / "finite-foreach-outcomes.json", finite_foreach_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
 def observe_layout_jim_trace(encoded, repeat_stage, row):
     trace = {"tail": bytearray(), "line": 0, "discard": False,
              "quota": False, "unclassified_oversized_line": False, "rows": []}
@@ -5375,8 +5591,10 @@ jim_layout_validation = None
 jim_layout_rows = []
 layout_jim_diagnostic_rows = []
 layout11_acceptance_exit = None
+finite_foreach_validation = None
+finite_foreach_rows = []
 if args.jim_source_layout_only:
-    require(sha(BASE / "compiler-jim-source-layout11.json") == "ca5d211bb57853197df3ee31a1ac0c2fe68bec047da8e78efbf31295017c3168",
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "88135d385992c9a7717eb85a1b5724dcf6a8bc770ca3ec2585d202565716fc96",
             "exact Layout11 roster/direct source pins required")
     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
     require(jim_layout_validation["expected_selected"] == 11
@@ -5401,6 +5619,22 @@ if args.jim_source_layout_only:
         layout_jim_diagnostic_rows.append({**row, "state": "UNRUN",
             "admission": "NOT_ATTEMPTED", "jim_trace_observation": "UNOBSERVED",
             "first_refusal_observation": "UNOBSERVED"})
+    finite_foreach_validation = jim_layout_validation["separate_finite_foreach_controls"]
+    require(finite_foreach_validation["expected_selected"] == 4
+            and len(finite_foreach_validation["rows"]) == 4
+            and len({row["selector"] for row in finite_foreach_validation["rows"]}) == 4,
+            "exact finite foreach4 roster required")
+    finite_foreach_validation = {**finite_foreach_validation,
+        "source_pins": jim_layout_validation["source_pins"],
+        "build_targets": [{"package": "tcl-compiler", "kind": ["lib"],
+                           "name": "tcl_compiler", "expected_selected": 4}]}
+    for row in finite_foreach_validation["rows"]:
+        require(row["package"] == "tcl-compiler" and row["kind"] == ["lib"]
+                and row["target"] == "tcl_compiler" and row["expected_selected"] == 1
+                and row["env"] == {} and row["list_seconds"] == row["budget_seconds"] == 180
+                and row["cleanup_reservation_seconds"] == 40,
+                "finite foreach exact target/env/budget mismatch")
+        finite_foreach_rows.append({**row, "state": "UNRUN", "admission": "NOT_ATTEMPTED"})
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -6082,6 +6316,11 @@ try:
                 status = max(status, 1)
             elif row["state"] not in ["PASS", "FAIL"] and not row["optional"]:
                 status = 2
+        run_finite_foreach_controls()
+        if any(row["state"] not in ["PASS", "FAIL"] for row in finite_foreach_rows):
+            status = 2
+        elif any(row["state"] == "FAIL" for row in finite_foreach_rows):
+            status = max(status, 1)
         raise _DedicatedLayoutComplete()
     require(
         all(row["state"] in ["PASS", "FAIL"] for row in original65_rows),
@@ -6455,6 +6694,9 @@ finally:
             "jim_source_layout11_roster": jim_layout_validation,
             "layout11_acceptance_exit": layout11_acceptance_exit,
             "separate_own_jim_diagnostic_rows": layout_jim_diagnostic_rows,
+            "separate_finite_foreach_control_rows": finite_foreach_rows,
+            "required_finite_foreach_controls": 4,
+            "finite_foreach_not_guaranteed_by_12000_envelope": True,
             "required_alias_diagnostic_count": 1,
             "optional_positive_diagnostic_count": 1,
             "optional_positive_not_guaranteed_by_12000_envelope": True,
