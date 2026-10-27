@@ -430,8 +430,10 @@ impl FiniteForeachProcedures {
         );
         let name_token = *finite_some!("name-token", declaration.arg_tokens().get(positions.name));
         if name_token.kind != TokenType::Var
-            || finite_some!("name-text", declaration.args().get(positions.name))
-                != &format!("${variable}")
+            || crate::value_shapes::whole_word_scalar_var_name(
+                finite_some!("name-text", declaration.args().get(positions.name)),
+                analyser.file_lexer_config(),
+            ) != Some(variable.as_str())
             || !declaration
                 .arg_single_token()
                 .get(positions.name)
