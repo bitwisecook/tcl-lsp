@@ -53,7 +53,7 @@
     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca",
     "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
-    "rust/tcl-compiler/src/command_binding/retained_source.rs": "da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "484175eea591f78a386ca728523db0d3d34588d3bdeb7756df2c1e8939875430",
     "rust/tcl-compiler/src/command_binding.rs": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2"
   }
 }

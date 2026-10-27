@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "2a104a3f4b864fbad61eaee766cf7cb85062a15c8f8592f549a01b4ecbd15cf3"
+ROSTER_SHA = "b431f8e9150c1b34fd9e0470eccb203fb5511465837a8e0b754fe0b5fc5227a7"
 RESULT_COMPLETION_CONTROLS = ('original_command_rename::tests::authored_result_completion_coverage_retains_nested_call_without_normal_grant', 'original_command_rename::tests::authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs', 'original_command_rename::tests::authored_result_completion_never_skips_nested_name_write_or_opaque_channel')
 SOURCE_LOAD_CONTROLS = ('original_command_rename::source_coverage::tests::single_cut_source_coverage_surveys_actual_child_and_issued_suffix', 'original_command_rename::source_coverage::tests::source_coverage_refuses_missing_child_reference_and_foreign_membership', 'original_command_rename::source_coverage::tests::source_coverage_keeps_selected_owner_and_opaque_body_refusals', 'original_command_rename::source_coverage::tests::source_coverage_never_omits_extra_cuts_or_namespace_frames')
 TK_PREREQUISITE_CONTROLS = ('hover::original_registry::tests::tk_source_hover_keeps_declared_prerequisite_and_unresolved_availability', 'hover::original_registry::tests::tk_source_prerequisite_refuses_stale_source_and_foreign_input', 'hover::original_registry::tests::declared_prerequisite_uses_required_package_not_owning_package')
