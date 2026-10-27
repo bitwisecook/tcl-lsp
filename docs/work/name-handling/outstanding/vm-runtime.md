@@ -1,10 +1,14 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T01:14:49Z
+Last updated: 2026-10-27T01:38:09Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T01:38:09Z: ALL3 current68ff solecaptures FULLAUTH. FocusedRuntime169 b9e043c4 closes cached3 ALLPASS samefreshELFb2838c4c/full8source+3fn/process/caps, originalCOW1 andhiddenerrorcell negatives plusunchangedStringdecline/hinttrace preserved; original1660190fc/131bdeb andactualfocusb2c89 proveexact3subtotal/no2713replay. Old128join8003aa45 ZEROCHANGES48P80F; CFIincomplete/globalFAIL remains, no framing/FreshString/fullgateclaim. WASM33 f662412c andSpeca43f50d1 BUILD-BLOCKED2E0308finiteforeachusize/u32, allchildrenUNRUN/sourceproviderdeps/process/allZIPseals pass; Compilerrepair442c ownsnextsource. Work-onlyfixed3 iRules diagnosticPLAN6b9ec611 sentRoot: samealreadybuilt/listedirulelib, separateafter-originalstop cohort onlywithownedclosedcleanup/reserves, preservesoldFAIL/UNRUN/exit2; no sourceauthoring untilRootscope. SCFd6d401 staysheldunused; intendedpublicSCFsuccesscoverage retained/no userask.
+
+Current 2026-10-27T01:20:26Z: SOLE68ff source68fff733 focusedRuntime169 run40431348423/job121949526004, WASM33 run40431343430/job121949508769, Spec run40431353668/job121949542282 discovered/APIbound/allhealthy inactualexecution; noartifactquery/download/outcome yet. Corrected runtime mode uses existing RUNTIME_FULLTOM_FOCUSED=1 branch; actualselected3/filter/env willbe authenticated, no2713rawreplay or mandatoryfullgatewaiver. Hidden-cell98840 applied+allsource/functionpins current; new3positive/negativebehavior stillUNRUN untilnewartifact. SCF d6d401 technicalreview/coverageuserchoice/externalownershipHELD; productaudit16b269/oldasserttail+guestnegative preserved. Ca8dHeavy12 classification943828 remains9outerpreflight+3distinctguardfamilies, exact9ProcDef/purposewitness stillneeded.
 
 Current 2026-10-27T01:14:49Z: Root requested held SCF caller-boundary alternative; pairedproposal d6d40147 prepared and Compiler technicalpeer pending. Explicit user coveragechoice/externalownership remainsHELD: oldpublic loadpositive changes tocheckedhostpurpose with exactsame retainedsource script/publicsettlement, alloldparser/resultassertiontail exact and separate freshguest exactsourcegrammarrefusal negative. Productaudit16b269b2 distinguishes generatedexternalSCFbefore-init scripts from actualCLI embeddedordinaryeval; no CLI9preflight fix or persistentbodypermission claim. Allproductionhelpers/VM unchanged, sourcechecks0c9e5fc3; actualRustUNRUN. Runtime3 refinedrerun remainspriority whenassigned; no currentoutcome donated.
 

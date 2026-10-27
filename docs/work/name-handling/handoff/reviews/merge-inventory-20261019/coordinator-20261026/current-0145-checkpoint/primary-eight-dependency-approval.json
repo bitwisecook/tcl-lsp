@@ -1,0 +1,49 @@
+{
+  "utc": "2026-10-27T01:37:58.175863+00:00",
+  "scope": "Root approves exactly eight actual primary operand producer dependencies, no broader fanout",
+  "basis_work": "43667db29",
+  "census_sha256": "360ed5f9b47e792b90f28e0c2e08170d8820d2839161f3e40924ad2a7fdaa69d",
+  "keys": [
+    {
+      "parent": "autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "route": "RegistryInvocation -> Realm PRIMARY -> final held procedure_declaration_values"
+    },
+    {
+      "parent": "compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "route": "RegistryInvocation -> Realm PRIMARY -> final held procedure_declaration_values"
+    },
+    {
+      "parent": "lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "route": "RegistryInvocation -> Realm PRIMARY -> final held procedure_declaration_values"
+    },
+    {
+      "parent": "spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "route": "RegistryInvocation -> Realm PRIMARY -> final held procedure_declaration_values"
+    },
+    {
+      "parent": "autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "route": "Realm authenticates original analysis attachment on the same retained source owner"
+    },
+    {
+      "parent": "lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "route": "Realm authenticates original analysis attachment on the same retained source owner"
+    },
+    {
+      "parent": "spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "route": "Realm authenticates original analysis attachment on the same retained source owner"
+    },
+    {
+      "parent": "lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "route": "Defines original analysis owner/attachment fields and nominal value receipt reexport consumed by Realm and Registry"
+    }
+  ],
+  "validation": "Source dependency scope approval only; no runtime efficacy, gate or assertion approval"
+}

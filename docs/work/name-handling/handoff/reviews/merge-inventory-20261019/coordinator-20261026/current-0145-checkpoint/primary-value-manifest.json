@@ -1,0 +1,146 @@
+{
+  "utc": "2026-10-27T01:03:18.444827+00:00",
+  "status": "IMMUTABLE_PAIRED_SOURCE_AND_CONTRACT_PROPOSAL_STRONG_PEER_REQUIRED_NOT_FOR_CANONICAL_APPLY",
+  "lanes": [
+    {
+      "lane": "WORK",
+      "base": "452546fb137a7cdc9dd4bf1121f35999239dbff6",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "before_sha256": "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412",
+          "after_sha256": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "before_sha256": "0a3069f741604e5c42a530e129c49e0c582bbbc6503df0bf7508a77ce6e95c82",
+          "after_sha256": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+          "before_sha256": "e01a15481bc6744cec7a5cb5cefabd48b8dcc85ea618e7ae4b73ca18c5662d8c",
+          "after_sha256": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "before_sha256": "94b7f054d3ea4a34706363781aa49eeede33f7404df968731b5584509fdf0cd8",
+          "after_sha256": "fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "before_sha256": "4133a2a93b919503a2513e428a989ed670ee3418ecbec1dd5d04eaaffa517b9e",
+          "after_sha256": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca",
+          "mode": "100644"
+        },
+        {
+          "path": "docs/design/contracts/name-handling.md",
+          "before_sha256": "21fd7ee1617ee72c5ee2c70ed288a2f19e8222fdfc38e3268951325d7dfeb82f",
+          "after_sha256": "a41f20af24dbb9734d34b9047595148562d6a9cd5bd4e2b1cfd9a8d996cd518e",
+          "mode": "100644"
+        },
+        {
+          "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+          "before_sha256": "56a7e036ebcc65666d5f428c3de08c83f7bc6f2a2b7f6e97576bdb95b31590b1",
+          "after_sha256": "6765a6efb9b6d41e966aea158e7a33671913adbebb8c330275102d266f9fd175",
+          "mode": "100644"
+        }
+      ],
+      "patch_sha256": "c94f3bec56146a2a875c07a6e71e00033ca970ed59424274dd2c9b28bb534188"
+    },
+    {
+      "lane": "CLEAN",
+      "base": "d0513062cb79720b46979c8ab109a8b28a2727e4",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "before_sha256": "f078e0f4e06bc4efc5caed5924bad461c2f9a14d6a878c9a3defc4ac64f013db",
+          "after_sha256": "f15d3f2cebf718179568fe5a5fec66930febed2756820266b07d9f36907e7b0a",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "before_sha256": "e80dc446c24602a405f1c1de6f2bfbf221c07ada04960d3e1fb24c0cd8514ee6",
+          "after_sha256": "cdafa26094233fb4a0d71bb8ba60c5dd273e906b52fc533f0312b4d0b5f90b06",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+          "before_sha256": "1b8e2d36778605acfa498f02a998246cb0a28ee668741fe5ce339052d069ca92",
+          "after_sha256": "f0e1018905e05c51c1a8f5ef4f57504a1d0b8ca476c6cc5dcf4f7f1f5ffaabcb",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "before_sha256": "b377ccda691a3ce65c04bf46cce935baddc0fe1b455853277171fdeb1d0ee348",
+          "after_sha256": "5f44751d2b14b02426d57e5ef3f85373a428acfdcd2ed7814f372bec55bc1a3f",
+          "mode": "100644"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "before_sha256": "3a6acedcf9720616676b873e993ce12ab02f8e28ce18bb2e2bb2ab9f4ef599b5",
+          "after_sha256": "9a2e0c0fb1d1a798c722e8d1f19c427a45b904d5a001089ba610ef1aae2e4cb6",
+          "mode": "100644"
+        },
+        {
+          "path": "docs/design/contracts/name-handling.md",
+          "before_sha256": "07d5f9e5559a481cf621c47354ffbab3d495a7f371f6ecb489836d3e4b0755ea",
+          "after_sha256": "4349897aa5cbf1f071d10ceaee331fefc0b6766b81d38e94d99dd7f192e371f5",
+          "mode": "100644"
+        },
+        {
+          "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+          "before_sha256": "c088c8dcb601d6975cc9f413ab32bacaef0d0c7529dfd205162d31d22e99689e",
+          "after_sha256": "6b012aec2fafdf37b0110f730cb3ea5ffae69ccdb15d35d40a384841e159226c",
+          "mode": "100644"
+        }
+      ],
+      "patch_sha256": "7a13da8b35876adb42306ea5f234c460b3cac850c870954c2e590affb0c60c68"
+    }
+  ],
+  "measured_basis": {
+    "source": "e8dbe095901b6e2deb424f8c891316859f2fcf64",
+    "core_assessment_sha256": "5b2d657e421542636a5252523e2dc5484b05c2f421c5cf59cd3a16643df6dd45",
+    "exact_positive_origin_image_site_join_sha256": "694e464266a3daab4a2749bdc5ba0e421eb3dd7cd6c1621e09f6d8f377c50ad7",
+    "fact": "Positive child local procedure Some/all four invocation-advice retain predicates false. Final merged row not previously observed; new genuine primary issuer queries it once and refuses absence/conflict/barrier."
+  },
+  "scope": "Primary declaration operand values from the FINAL same-held-tape genuine record, distinct from command lookup/value fallback helpers. Opaque type exposes only old complete head correspondence; all actual current owner/site/fullinput/config/context/native-word/origin/schema/debt joins retained. No lexical predicate widening, fabricatedSome, new source point, second analysis, Native/Normal/command/edit permission. Namespace/card unchanged.",
+  "checks": {
+    "mechanical_proof_sha256": "9d840de72dc13eb8c2c057aa23fe19da414248c9e781948d26d18c8a21187152",
+    "legacy_command_value_and_shared_helpers_BYTEexact": true,
+    "all14_current_and_full_old_module_docs_inverses_F_R_F0": true,
+    "original_SourceLoad4_geometry_file_unchanged": true,
+    "private_headpair_tests_only_add_actual_full_input_argument_all_old_assertions_unchanged": true,
+    "WORK_only_existing_COARSE_shared64_identity_observation_CLEAN_erased": true
+  },
+  "new_controls": [
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal",
+      "expected": 1,
+      "state": "UNRUN"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records",
+      "expected": 1,
+      "state": "UNRUN"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner",
+      "expected": 1,
+      "state": "UNRUN"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands",
+      "expected": 1,
+      "state": "UNRUN"
+    }
+  ],
+  "unrun": [
+    "Rust/Clippy/new4controls/original SourceLoad4 outcome",
+    "full planner/rename/browser efficacy"
+  ],
+  "protocol": "No roster/selector/budget/Cargo/env edits included. Existing SourceLoad4 exercises productive factory; four new compiler unit controls need separately approved same-fresh-ELF scheduling or actual complete CI outcomes. Final current source pin union required."
+}

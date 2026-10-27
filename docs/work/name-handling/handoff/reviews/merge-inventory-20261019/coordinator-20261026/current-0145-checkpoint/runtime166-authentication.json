@@ -1,0 +1,481 @@
+{
+  "utc": "2026-10-27T01:33:45.992020+00:00",
+  "source": "68fff733fcefe23feeab25c624c08d950cc35fdc",
+  "run": 40431348423,
+  "job": 121949526004,
+  "verdict": "FULLAUTH_166_OBSERVATIONS_CLOSED_ALL_NEW35_CONTROLS_PASS_OLD80FAIL_CFI_INCOMPLETE_RETAINED",
+  "zip_sha256": "02d06db136de7bb7a57b000b184edddbbd9a7a88b10aa97ef8e71b484c13a0ca",
+  "envelope_sha256": "7792199219066f9a796faad27f60b29b8d2ebc793fa752ad256de48383df7642",
+  "original131_receipt_sha256": "bdeb176eab1b8ea3d4aad9122c7fac64c23812247c3f96fc6848465ba88a90d8",
+  "reported_observations": 166,
+  "supplement_owned_births": 163,
+  "selected_fresh_same_ELF": "b2838c4cc25bcb2076bd4f124833e6047ea2538cb6067d8cf637526bfd8d64d0",
+  "added35": [
+    {
+      "group": "proc_stack",
+      "selector": "interp::tests::unbounded_proc_recursion_errors_instead_of_crashing",
+      "status": "PASS",
+      "seconds": 1.648287163,
+      "stdout_sha256": "c72396156ad676549975f7979f3d1b9e4eea16270ee954d9e0521ada859190ea",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "attestation3",
+      "selector": "interp::tests::every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them",
+      "status": "PASS",
+      "seconds": 1.553556977,
+      "stdout_sha256": "91e3167eb9f872cf08e28e0ed6136ff4145eaafd594b696cd94474d731c3bc41",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "attestation3",
+      "selector": "interp::tests::engine_owned_ensemble_attestation_requires_original_workers_and_configuration",
+      "status": "PASS",
+      "seconds": 1.613862305,
+      "stdout_sha256": "eedeacb11951b5ae529ce93df70e413fb5cff33266737e421f50cebe37dafee0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "attestation3",
+      "selector": "interp::tests::a_public_ensemble_copy_cannot_acquire_engine_intrinsic_attestation",
+      "status": "PASS",
+      "seconds": 1.597572058,
+      "stdout_sha256": "496507b266670d2815cc7091152d2eb76e23a2535842bb336c969cfd3fd7aa73",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::guarded_future_body_preserves_real_publication_and_runs_primitive_add",
+      "status": "PASS",
+      "seconds": 1.629237475,
+      "stdout_sha256": "c39be2eb79088ae6ec4d4836f0d14313f0a1b08151d965d8a0004c1f296c3220",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::future_recipe_keeps_number_trace_and_replacement_fallbacks",
+      "status": "PASS",
+      "seconds": 1.73532657,
+      "stdout_sha256": "9648f2ce5604cb6b920b952486f7d8404da49e480d695d7b8bacf427e477b62c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::shared_original_recompile_cannot_copy_the_future_recipe",
+      "status": "PASS",
+      "seconds": 0.995316786,
+      "stdout_sha256": "6b5b65c808d6332b486b781a88243dfcb2bb904ad6a2c28d431f858eaee80de2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::reached_numeric_context_change_is_terminal_without_body_replay",
+      "status": "PASS",
+      "seconds": 1.533117171,
+      "stdout_sha256": "5d25795852e687f3605ca6a9726b0712e98ef313149f3ae75d10bd8d8cf7b81c",
+      "stderr_sha256": "4ba129f9a2f6ac9a5498be2eef558d758ef88950e26f0e9e5b47cff6bc72d13e"
+    },
+    {
+      "group": "aot5",
+      "selector": "interp::native_body_artifact::native_i64_add::tests::duplicate_original_formals_follow_original_first_slot_without_a_native_strategy",
+      "status": "PASS",
+      "seconds": 1.501866215,
+      "stdout_sha256": "ec4421c68cde42243280ef6abd62a551fb1ca4813ae03ade07212da4ae862c94",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "constructor3",
+      "selector": "capi::collections::tests::generic_collection_preserves_first_refusal_before_original_updater",
+      "status": "PASS",
+      "seconds": 2.706763581,
+      "stdout_sha256": "6f94f0f879ede45bc9b15b2d71007deb42ea7559a25a3efd87cdaefa832540bf",
+      "stderr_sha256": "6a6df76418536a4093c57dd0ae3fc31a995c3cadb6424a97b9d0874a3acc744c"
+    },
+    {
+      "group": "constructor3",
+      "selector": "capi::collections::tests::generic_actual_c_profile_without_refusal_enters_collection_updater",
+      "status": "PASS",
+      "seconds": 2.691746012,
+      "stdout_sha256": "d8dee92c68f6ec50cc14ff5c10a9a704e12a668d133ab1dc6ff56ff4ac90ddec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "constructor3",
+      "selector": "interp::tests::native_math_function_commands_follow_constructor_surface",
+      "status": "PASS",
+      "seconds": 5.949823375,
+      "stdout_sha256": "42cd31457fce3fa1cad4bd1f9ffbe1ab57c69aa921e394913005c0001cd210c8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "ordinary_entry3",
+      "selector": "interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_self_removing_trace_cannot_capture_absence_while_firing",
+      "status": "PASS",
+      "seconds": 1.503655159,
+      "stdout_sha256": "3cd3fd3638a9b5ee2b2ca03da4a27f0dda846425eaff2d003365b2f27be9ee11",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "ordinary_entry3",
+      "selector": "interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_trace_registration_removal_and_state_retirement_stale_observation",
+      "status": "PASS",
+      "seconds": 1.623074919,
+      "stdout_sha256": "b16832c466f5e34ae29a11e0577e1314c41a5ec13f386f06920f0b4b3a8f8047",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "ordinary_entry3",
+      "selector": "interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_limit_mutation_refuses_old_and_new_ordinary_entry_observations",
+      "status": "PASS",
+      "seconds": 1.547006836,
+      "stdout_sha256": "9f39d4dee3ec61c4c8ff99585d882b6f79c913f08c4ed4530324f8709ab54dc6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "headroom2",
+      "selector": "codegen_abi::tests::the_native_path_holds_one_activation_per_level_and_refuses_at_the_bound",
+      "status": "PASS",
+      "seconds": 1.58278889,
+      "stdout_sha256": "09af7125cbab6fea1df155b0a33f7ac01c7a7f56323ca05c2b19fcbd650e9023",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "headroom2",
+      "selector": "codegen_abi::original_frame_owner::tests::generated_entry_probe_uses_held_owner_and_keeps_refusal_terminal",
+      "status": "PASS",
+      "seconds": 1.390918508,
+      "stdout_sha256": "4a490a5eb62f8e72c54df99e458c8d59537d1476e54a09765f82d55856bdb074",
+      "stderr_sha256": "b144de0f22d71e69330c58bffd7920ca5973d1f3d709bbb5657441e235c7afb3"
+    },
+    {
+      "group": "allocation2",
+      "selector": "interp::native_error_headers::c9_error_root_generation_tests::allocation_lease_cannot_certify_a_retired_error_header",
+      "status": "PASS",
+      "seconds": 0.317832263,
+      "stdout_sha256": "b1a6779849f23acfe66ea3f6b1d72e77cbd7ddcab0f47d1058ce1fbade91dbba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "allocation2",
+      "selector": "interp::native_error_headers::c9_error_root_generation_tests::c9_next_entry_publishes_original_error_headers_without_stringifying_code",
+      "status": "PASS",
+      "seconds": 1.537149089,
+      "stdout_sha256": "3a6333c9c6995c166b6b71acfd046a41370bf54da80168bc829a910f80b0bd30",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::tests::bytes_to_str_falls_back_on_invalid_utf8",
+      "status": "PASS",
+      "seconds": 2.61430411,
+      "stdout_sha256": "686526d419eebed531d2ec0a648e86e328bf0d80144a5d620a5799272d6bfb48",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::tests::unicode_door_refuses_invalid_utf8_without_replacing_bytes",
+      "status": "PASS",
+      "seconds": 0.317347853,
+      "stdout_sha256": "919dda7650bf22c1848964913cc502b3ac653d1eca0b9ad14a9c8aa4c7bcdbfe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::tests::bytes_to_str_preserves_valid_utf8",
+      "status": "PASS",
+      "seconds": 0.317783679,
+      "stdout_sha256": "a18d21186520733c70ead05a15a4efdacee2d3fbc4bfbf70406e8a70f32bfaa1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_reached_native_unicode_view_preserves_the_original_invalid_byte_observation",
+      "status": "PASS",
+      "seconds": 2.588793593,
+      "stdout_sha256": "6e11b7699464992290564d69ebbe6de80a9e0cc43e3e78306d20ea75a307b0c7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_foreign_or_unpaired_native_cache_cannot_borrow_a_generic_ascii_view",
+      "status": "PASS",
+      "seconds": 2.683914618,
+      "stdout_sha256": "1ae6de710487e54b3fecef893043975d52338da377e49195bd90ff4c7cae3e53",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::well_formed_native_utf16_is_a_lossless_host_view",
+      "status": "PASS",
+      "seconds": 1.362376822,
+      "stdout_sha256": "53e6c96406758c2a59372f1013480e4c9801416e7450699d810c728f58a53064",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_stale_entered_operation_cannot_consume_an_existing_unicode_cache",
+      "status": "PASS",
+      "seconds": 1.357383786,
+      "stdout_sha256": "83bef743454aae1c9433145ec95b4e241a0b15844bfda31af29228954e2a6a55",
+      "stderr_sha256": "4ba129f9a2f6ac9a5498be2eef558d758ef88950e26f0e9e5b47cff6bc72d13e"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::generic_or_profile_only_construction_cannot_issue_a_native_getter",
+      "status": "PASS",
+      "seconds": 4.848134251,
+      "stdout_sha256": "6b6e5e28e072e1dd09140d0a32fff84f4c25f833de67e94f45d280e54f0ae5be",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::getter_callbacks_cannot_refresh_the_original_constructor_entry",
+      "status": "PASS",
+      "seconds": 1.370069981,
+      "stdout_sha256": "4c4b81f44bc8dd6b1711702582f4359c3ab095f03a498ed848ce7ae28b0b3b48",
+      "stderr_sha256": "4ba129f9a2f6ac9a5498be2eef558d758ef88950e26f0e9e5b47cff6bc72d13e"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_retired_original_object_cannot_reenter_under_a_retained_allocation_lease",
+      "status": "PASS",
+      "seconds": 1.36839425,
+      "stdout_sha256": "4f8bc7eeedc7b3067b41752569b67f8e97b6e181366cb0589483081456c5b809",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "native_getter11",
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::original_free_callback_cannot_publish_a_stale_unicode_view",
+      "status": "PASS",
+      "seconds": 1.420709056,
+      "stdout_sha256": "7a4516df425f61fdfb979c2fbc6a7a56c50a012ba57d065b6631766c770c197f",
+      "stderr_sha256": "4ba129f9a2f6ac9a5498be2eef558d758ef88950e26f0e9e5b47cff6bc72d13e"
+    },
+    {
+      "group": "jim_library3",
+      "selector": "interp::tests::native_jim_core_keeps_only_constructor_empty_roles",
+      "status": "PASS",
+      "seconds": 0.501697086,
+      "stdout_sha256": "84b7b8d11161d445169e5ae1725ef08fe2aebd02b3c8b80cd782753bc5971a3a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "jim_library3",
+      "selector": "builtins::native_jim_library_tests::namespace_source_selection_is_separate_from_core_and_preserves_a_replacement",
+      "status": "PASS",
+      "seconds": 0.502654018,
+      "stdout_sha256": "9c890d5f68e4b1f689c23fd96de135025c0b63b5d12c4a4e9e1e44b5ca082f71",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "jim_library3",
+      "selector": "builtins::native_jim_library_tests::selected_namespace_formal_conversion_retains_original_source_filename_and_line",
+      "status": "PASS",
+      "seconds": 0.501086383,
+      "stdout_sha256": "f85cd2f126958833ee27c9c741bc54503405c72fccf9eed3de362908039b87cc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "cold_state2",
+      "selector": "expr_error::cold_state::tests::empty_cold_storage_preserves_flattened_debug_equality_and_guest_bytes",
+      "status": "PASS",
+      "seconds": 0.316920349,
+      "stdout_sha256": "31ac29f67b536e21e2b17f17d60803acfbd960886f45de5a3ffa68407e89e2b0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "cold_state2",
+      "selector": "expr_error::cold_state::tests::cloned_cold_state_retains_complete_typed_refusal_and_public_fields",
+      "status": "PASS",
+      "seconds": 0.317140362,
+      "stdout_sha256": "63e30d3da1bbda70598e7a63563f862c074b5742b8a6cd83b334dd6232551bb6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "function_Git_joins": [
+    {
+      "selector": "capi::collections::tests::generic_collection_preserves_first_refusal_before_original_updater",
+      "indent": "",
+      "path": "runtime/rust/src/capi/collections/tests.rs",
+      "sha256": "9e5e8a9e51bf614d23ae63fc41645ead6046647acc962f64a93e2d5a0d870d7f"
+    },
+    {
+      "selector": "capi::collections::tests::generic_actual_c_profile_without_refusal_enters_collection_updater",
+      "indent": "",
+      "path": "runtime/rust/src/capi/collections/tests.rs",
+      "sha256": "7252f705670996d66c2dd22001072342b999a166c77a29f279b2313256ad9578"
+    },
+    {
+      "selector": "interp::tests::native_math_function_commands_follow_constructor_surface",
+      "indent": "    ",
+      "path": "runtime/rust/src/interp.rs",
+      "sha256": "1fa06df1dca2dfec30633f0adafad1e732e0d1d49937d0abbb1e1e06be77d43f"
+    },
+    {
+      "selector": "interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_self_removing_trace_cannot_capture_absence_while_firing",
+      "indent": "    ",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs",
+      "sha256": "ec1d5758c770b9435a7f8adaaa24e2d6df9b4d748f36813b84d332de0cb4eeb0"
+    },
+    {
+      "selector": "interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_trace_registration_removal_and_state_retirement_stale_observation",
+      "indent": "    ",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs",
+      "sha256": "16f574b54a282c88fa7475c970853dcae97c2e14cbdbf34dc36704f78676d140"
+    },
+    {
+      "selector": "interp::native_body_artifact::native_compiler_pass::ordinary_entry_observer_tests::actual_limit_mutation_refuses_old_and_new_ordinary_entry_observations",
+      "indent": "    ",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs",
+      "sha256": "fbf59d42138ae91e839b5d63749cae4c4a25a7114923c4259bf4df037e9f8787"
+    },
+    {
+      "selector": "codegen_abi::tests::the_native_path_holds_one_activation_per_level_and_refuses_at_the_bound",
+      "indent": "    ",
+      "path": "runtime/rust/src/codegen_abi.rs",
+      "sha256": "476121576749ba5d7f043960e07e55b38890e9f10ad3149d91eeee9a6a24ab38"
+    },
+    {
+      "selector": "codegen_abi::original_frame_owner::tests::generated_entry_probe_uses_held_owner_and_keeps_refusal_terminal",
+      "indent": "    ",
+      "path": "runtime/rust/src/codegen_abi/original_frame_owner.rs",
+      "sha256": "b97c66f78d1dd8ba73047eb9fc3d123d53d84dc6892677d58ce16d798665f058"
+    },
+    {
+      "selector": "interp::native_error_headers::c9_error_root_generation_tests::allocation_lease_cannot_certify_a_retired_error_header",
+      "indent": "    ",
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "sha256": "1be29b6978e2e26504dfda142fc2bb239b0e9970ce720d909347f89a6b10dc7d"
+    },
+    {
+      "selector": "interp::native_error_headers::c9_error_root_generation_tests::c9_next_entry_publishes_original_error_headers_without_stringifying_code",
+      "indent": "    ",
+      "path": "runtime/rust/src/interp/native_error_headers.rs",
+      "sha256": "c88f9e164039b22db42eaed37827d7351e4ad047120bfb78bbeac681d557e26b"
+    },
+    {
+      "selector": "value_ops::tests::bytes_to_str_falls_back_on_invalid_utf8",
+      "indent": "    ",
+      "path": "runtime/rust/src/value_ops.rs",
+      "sha256": "9d81a03feb4597f41d8b46e9a71104f8ef0e3cb0202bfcb2d73fb73325ccf1e6"
+    },
+    {
+      "selector": "value_ops::tests::unicode_door_refuses_invalid_utf8_without_replacing_bytes",
+      "indent": "    ",
+      "path": "runtime/rust/src/value_ops.rs",
+      "sha256": "a9e2e68d614d1e71bea2960912a81f20f16446b627e8748594fd28acb3979818"
+    },
+    {
+      "selector": "value_ops::tests::bytes_to_str_preserves_valid_utf8",
+      "indent": "    ",
+      "path": "runtime/rust/src/value_ops.rs",
+      "sha256": "35cbbb3a00e750471c87700f434f3700b71506757ac46dfe87d8dfbc0a44277c"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_reached_native_unicode_view_preserves_the_original_invalid_byte_observation",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "7d305226ae2895e0322b6db969307859cb57d1296efc61c14828cc142fb50905"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_foreign_or_unpaired_native_cache_cannot_borrow_a_generic_ascii_view",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "eceae5e9ebcb02c3ade5cd882e8f0b1f5da2965d823bb0330ca811f64b349fe6"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::well_formed_native_utf16_is_a_lossless_host_view",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "b9bd8d58bc40c056509bf712de996261cf3affa1402d1d3014e8bde523aaa8d3"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_stale_entered_operation_cannot_consume_an_existing_unicode_cache",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "14699f70f53c7da99c8ab9517e40fb41a07b2470d047b0cfa822b61383d37313"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::generic_or_profile_only_construction_cannot_issue_a_native_getter",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "f41f99322f7e6463ce22ca51569e3d295afd7106ea8baa5db19076594a5c7cd5"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::getter_callbacks_cannot_refresh_the_original_constructor_entry",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "d569802620983e2393da2ff36676af33fc6c8bcf313cff3715a92f04cb39f639"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::a_retired_original_object_cannot_reenter_under_a_retained_allocation_lease",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "d0ea3c54522aa6a67b7b464752c24460c61378cc11b9e9bc0544322270a8421d"
+    },
+    {
+      "selector": "value_ops::native_coercion_tests::native_unicode_getter_entry_tests::original_free_callback_cannot_publish_a_stale_unicode_view",
+      "indent": "",
+      "path": "runtime/rust/src/value_ops/native_unicode_getter_entry_tests.rs",
+      "sha256": "47ab02fc1538d6d2ddecf4a180a82ee3baee505d8cb3d0c53de50b9dacb13553"
+    },
+    {
+      "selector": "interp::tests::native_jim_core_keeps_only_constructor_empty_roles",
+      "indent": "    ",
+      "path": "runtime/rust/src/interp.rs",
+      "sha256": "89ded4d4524d471334b5f23413830c0c1167cad32a6338408b92a9564ba60a99"
+    },
+    {
+      "selector": "builtins::native_jim_library_tests::namespace_source_selection_is_separate_from_core_and_preserves_a_replacement",
+      "indent": "",
+      "path": "runtime/rust/src/builtins/native_jim_library_tests.rs",
+      "sha256": "5f53c1d8399a2abfb069c8c031b83d82af5b53f83050cd9305e68717f8003d82"
+    },
+    {
+      "selector": "builtins::native_jim_library_tests::selected_namespace_formal_conversion_retains_original_source_filename_and_line",
+      "indent": "",
+      "path": "runtime/rust/src/builtins/native_jim_library_tests.rs",
+      "sha256": "c7625c6197b4ae9ece80d0233b82e7b77cba20b835bd699787688afa0387a363"
+    },
+    {
+      "selector": "expr_error::cold_state::tests::empty_cold_storage_preserves_flattened_debug_equality_and_guest_bytes",
+      "indent": "    ",
+      "path": "runtime/rust/src/expr_error/cold_state.rs",
+      "sha256": "46151b5bdcc0762056b87f2234ca780e1bdfb533e73d3bda3f2052a740e14148"
+    },
+    {
+      "selector": "expr_error::cold_state::tests::cloned_cold_state_retains_complete_typed_refusal_and_public_fields",
+      "indent": "    ",
+      "path": "runtime/rust/src/expr_error/cold_state.rs",
+      "sha256": "ceec69dcb1bd85036cf5ee377d14ccc5adf0cdaf836705631133610f19a37830"
+    }
+  ],
+  "aggregate_retained_bytes": 642505,
+  "old_counts": {
+    "baseline14": {
+      "PASS": 14
+    },
+    "stack_abort1": {
+      "PASS": 1
+    },
+    "other103": {
+      "FAIL": 79,
+      "PASS": 24
+    },
+    "prune_controls7": {
+      "PASS": 6,
+      "FAIL": 1
+    },
+    "targeted_prune_controls3": {
+      "PASS": 3
+    }
+  },
+  "CFI_incomplete": true,
+  "whole_runtime_gate": false,
+  "limits": [
+    "166 are protocol observations, not merged distinct test identities.",
+    "Getter11 includes the restored exact NativeCore invalid-byte positive, old strict RawString/valid UTF8 controls and eight genuine entry/callback/free/retired controls.",
+    "API3 unit tests remain separate fullCI obligation.",
+    "Actual79 other failures plus1prune failure and incomplete CFI preserve global failure; no release/globalruntime waiver."
+  ]
+}

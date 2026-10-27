@@ -2,7 +2,11 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-27T00:30:49.895071+00:00
+Last updated: 2026-10-27T01:23:00.363218+00:00
+
+Resume 2026-10-27T01:23:00.363218+00:00: Current68ff corpus40431304858 terminalFAIL capturedONCE artifact12701739476 ZIP2f697d4f (32CRC). CoreFULLAUTH1e117f08: source/provider/deps/tools beforeafter+119fixturepins+2failurefiles, fetch/buildownedclosed/sharedCAP/absolute/floor sealed. TWOE0308 inCompiler-owned finiteforeach entry_depth422 andlookuphandlers2843 usize/u32; both117+7controlsUNRUN/noELF/zero702+42/noAUTHtextvariant/noemptyInstalledefficacy. Compiler+Root routedactualsamearchive(no duplicate). FullGitNUL/content read-only supplemental running. Exactprep40431359084/job121949559349 candidate d051 remainsactive noarchive/outcome. No extra source repair/metadata/build/dispatch byNames.
+
+Resume 2026-10-27T01:15:47.569277+00:00: NEW exact68fff733 source/ candidate d0513062 solely discovered byhead+workflow_dispatch+actualjob names: corpus40431304858/job121949382221 andprep40431359084/job121949559349 bothactive, noarchive/nooutcome. Report-only emptyInstalledV2 72012cf0 strongCompiler3e2b85f6 integratedWORKcb953/C249; combinedsubject+lintfb930/a3fe included. All117+7/3pairs/strictguards untouched, actual newcustody efficacy/textheldvariant/corpus parity UNOBSERVED untilnewterminalauth. Onlyterminal+fresh2GiBfloor/reserve downloads once/noELFextract. Allpriorcapturesclosed/qualified, no resulttransfer.
 
 Resume 2026-10-27T00:30:49.895071+00:00: Combined subject-held witness + actual Clippy extraction fb9301ac strongCompiler a3fe578c APPLIED WORKd4b72f70; Rust/actualvariant trace stillUNRUN. Root-approved separate empty Installed inherited REPORT-ONLY custody paired proposal1be83a02 now Compiler strongpeer pending: exact sealed point/fullinput/currentanalysis/root/resident installedid+allocation+retainedsummary, emptyspan/source, unique current installed card/full source/formals/default/ns; meaningful own/detached/foreign/missingpoint/missingmap/nonempty/retired controls UNRUN. Current6preimages/F-R/F0/fmt/whitespace PASS; whole retained_source erasure/alloldtestprefix inverse43dad150, method85lines. Generic matcher/iterator/old allocated helper/Native/pub/Eq/cutoffs unchanged. No metadata/canonical/build/dispatch edits. e8db fullauth74cc/e3e still text6/702+generated24/42 old-oldUnavailable; no parity/performance acceptance. All captures closed.
 

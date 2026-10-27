@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T01:04:05Z
+Last updated: 2026-10-27T01:43:43Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+01:43 UTC restored after environment restart; current source W43667db29/C7d448332d pushed. Primary4 protocol52da3f/57b13 under Scope peer; final25 recipe ready, exact eight approved primary joins bound to approval8009f862, nested6source/4actualfunction audit added. Hold seal for protocol and post0145 exactHEAD. Current68ff Runtime FULLAUTHb9e043c4 cached3 ALLPASS; old128 unchanged48P80F/CFI incomplete/globalFAIL, no framing or freshString gain. Strict68ff one doc lint and finite-depth E0308 repairs integrated, retries unrun. OldCa8d fullCI five jobs last observed running01:31; no duplicate capture/cancellation or outcome donation. N17 remains held/off-tree.
+
+01:31 UTC current68ff strict40431291897/job121949341158 CLOSED FULLAUTH23 9edc3e27, exactly1ABI-doc missingbackticks, noRustE anddownstreamstandaloneUNRUN. Paired2char docrepair620a4906/4e34038e strongc356fd7a readyRoot. Current68ff WASM/Spec buildblockedfinite-depth E0308, Compiler442cfe2b/LSPpeer ownsrepair; no cached-ABI blame/all33+Spec childrenUNRUN. OldCa8d fullCI actual01:31 remains53completed/5running: Rust2/3/5 andE2E1/2; API3/smoke terminaloutcomesUNOBSERVED. ArtifactindexonlyHeavy terminal remains, complete326P30F06277eb6. Rust1APIclippedselectedonly; Rust4partial1520ok551failed12ignored thencapture_validfalse/110/shutdown, no completeacceptance/baselineauto-merge. Final4525metadataf5f76/7dc8 strong06604b40, Rootpush68ff/all10POSTsdone01:14. N17V2hold/noMAPgain; LSP NEXT actual4mapcensus360ed5f9 records missingSourceAdvice4/retainedSource3+hostNavparent1 forRootapproval, stagedsourceexcluded. No canonicalwrites/currentzeroPTFclaim.
 
 01:04 UTC final4525 current25 union FROZEN f5f76db3/7dc8cbf4 onPa8a successor452546fb/Cd0513062, Compiler independentpeer active; authorV16PASS532de7df13/30/22, actual12Runtimeguards PASScbb02240, nestedNumeric14+3PASS35d8d149. Exact9finite+5WASM approvedjoins, oldChild10/currentrecursive descriptors, newhidden-cell3source/currentpositivefn guards, Cold2 inlinecurrentNoTom94a4. Routinefinite descriptor source_path→source+soleconsumer fixes realV16schema withoutwaiver. Olda8apacketsheld/superseded. Numericcompiler06a07d31 all3staticpeersclear/integrated; numeric3sameexistingELFs default156protocolbbf816/48c60c8c integrated, noCargo/env/budget change. Runtime measured e8db rawnew3=2P1F quietCOW0expected1; focused169UNRUN after2700 cap; reviewed per-cell98840/ba07 nowcurrentRootsource but actualrerunUNRUN. N17V1HOLD888f missingactualsubstcodecache invalidation; V2 01c72647 independentsemanticreviewheldseparate/nointegration. CurrentCa8d Heavy complete356=326P30F receipt06277eb6; Rootbaselinejoin299P12F24097unknown216notinAVAILABLE (sourcea8d only). Other Rust/E2E terminalartifacts absent at01:03 boundedAPI, API3/smoke outcomesUNOBSERVED. ActiveCI preserved; nooutcome/gate/Nativecoverage donation.
 

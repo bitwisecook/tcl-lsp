@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-27T01:22:54.531212+00:00",
+  "lanes": [
+    {
+      "lane": "WORK",
+      "manifest_sha256": "6d778b31b1b88033a2799a71952ae50a5a0b210e5787ac8a97b29183e42600fc",
+      "patch_sha256": "e3cf24c15b50ec8eac482be565de55cc55d56629d8aa8299fc9b4e9ed567e8b2"
+    },
+    {
+      "lane": "CLEAN",
+      "manifest_sha256": "d51d60b135bb36c7b01a59df6aa2c8900a713602fbd8090c8eb37d5cd1157118",
+      "patch_sha256": "e3cf24c15b50ec8eac482be565de55cc55d56629d8aa8299fc9b4e9ed567e8b2"
+    }
+  ],
+  "actual_failure": "Authentic68ff corpus2 E0308 at leaf422 and handlers2843: expected usize found actual Analyser.body_depth u32. No children/ELF; Names owns archive.",
+  "correction": "Stored entry_depth and lookup parameter become u32, matching their sole original producer/caller. Literal1 checked_add keeps exact old guarded semantics; replay index remains usize.",
+  "checks": "BothcurrentGit/F-R/F0/fmt; exact two-token wholefile inverse and actual state.rs u32 API read; all old/new assertions byteidentical.",
+  "Rust_retry": "UNRUN"
+}

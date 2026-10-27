@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-27T01:42:51.554463+00:00",
+  "source": "68fff733fcefe23feeab25c624c08d950cc35fdc",
+  "run": 40431333383,
+  "complete": true,
+  "assessments": [
+    {
+      "kind": "core2",
+      "path": "/workspace/naming-proof-storage/lsp-hosted-core2-40431333383-actual-v1/assessment-v1.json",
+      "sha256": "a2aa7d26ba806ac6b5fd6088ccc1845fdb84d4e5cce57aad63924db9ec359fa7",
+      "job": 121949475423,
+      "artifact": 12702860420,
+      "codes": [
+        "E0308",
+        "E0308"
+      ],
+      "tests": "ALL UNRUN"
+    },
+    {
+      "kind": "startup",
+      "path": "/workspace/naming-proof-storage/lsp-hosted-startup40431333383-actual-v1/assessment-v1.json",
+      "sha256": "7d3b36a61dfd47b633864af24ca0196ac80deb16d466f068c7d84744ac57cdaf",
+      "job": 121949475689,
+      "artifact": 12702815661,
+      "codes": [
+        "E0308",
+        "E0308"
+      ],
+      "tests": "ALL UNRUN"
+    }
+  ],
+  "scope": "Both exact assigned jobs failed native compilation with actual E0308 finite-depth annotations. No selected ELF/runtime/startup/old8/Source4/Tk3 outcome. Primarya232 is outside this source. No source transfer."
+}

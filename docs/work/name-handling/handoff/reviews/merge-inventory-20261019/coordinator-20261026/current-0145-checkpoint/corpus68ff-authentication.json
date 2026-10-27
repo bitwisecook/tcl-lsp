@@ -1,0 +1,105 @@
+{
+  "source": "68fff733fcefe23feeab25c624c08d950cc35fdc",
+  "run": 40431304858,
+  "job": 121949382221,
+  "artifact": 12701739476,
+  "zip_sha256": "2f697d4f20de1363ef16793cff67b018a918d299d65deff48bec29bdd4ee1f27",
+  "api_digest_matched": true,
+  "safe_unique_crc_members": 32,
+  "critical_source_fixture_and_failure_file_git_matches": 121,
+  "source_provider_dependency_tool_seals": true,
+  "all_owned_processes_closed": true,
+  "processes": 2,
+  "fetch_exit": 0,
+  "build_exit": 101,
+  "build_errors": [
+    {
+      "code": "E0308",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "byte_end": 14642,
+          "byte_start": 14623,
+          "column_end": 45,
+          "column_start": 26,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
+          "is_primary": true,
+          "label": "expected `usize`, found `u32`",
+          "line_end": 422,
+          "line_start": 422,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 45,
+              "highlight_start": 26,
+              "text": "            entry_depth: analyser.body_depth,"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "E0308",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "byte_end": 120759,
+          "byte_start": 120744,
+          "column_end": 28,
+          "column_start": 13,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "is_primary": true,
+          "label": "expected `usize`, found `u32`",
+          "line_end": 2843,
+          "line_start": 2843,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 28,
+              "highlight_start": 13,
+              "text": "            self.body_depth,"
+            }
+          ]
+        },
+        {
+          "byte_end": 120659,
+          "byte_start": 120653,
+          "column_end": 65,
+          "column_start": 59,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "is_primary": false,
+          "label": "arguments to this method are incorrect",
+          "line_end": 2839,
+          "line_start": 2839,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 65,
+              "highlight_start": 59,
+              "text": "        let finite_name = match self.finite_foreach_names.lookup("
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "text117_state": "UNRUN",
+  "generated7_state": "UNRUN",
+  "actual_typed_pairs": 0,
+  "expected_complete_pairs": {
+    "text": 702,
+    "generated": 42
+  },
+  "elf_issued": false,
+  "actual_AUTH_trace": "UNOBSERVED: both controls UNRUN at buildstop",
+  "exact_shared_CAP_and_absolute_bounds": true,
+  "full_report_parity_accepted": false,
+  "performance_accepted": false,
+  "provider_limitations": "Provider/dependency/tool before-after byte equality and exact uploaded source pins verified; no test ELF or semantic execution occurred."
+}

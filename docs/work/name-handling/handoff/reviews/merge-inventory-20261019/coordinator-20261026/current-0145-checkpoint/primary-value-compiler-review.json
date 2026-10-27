@@ -1,0 +1,93 @@
+{
+  "utc": "2026-10-27T01:20:59.440023+00:00",
+  "verdict": "CLEAR bounded independent static PRIMARY declaration operand-value source/contract review; NEXT only",
+  "manifest_sha256": "a232b6374f8b2e0df9a7c4eece87e802717eb177de6dfbde5cd79d90bee5c55f",
+  "independent_mechanical_sha256": "98ad5937b5256b7cd758a8761931de8f4b07987bfa9be55361d66d3ccad5b928",
+  "current_Git_modes": [
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/name-handling.md",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/name-handling.md",
+      "current_Git_mode_hash": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "current_Git_mode_hash": true
+    }
+  ],
+  "actual_private_source_procedure_type_sha256": "82ab7c4936d88216a74483cf61c95b49c0b182f08b36616f527dd484acb8443c",
+  "actual_Copy_shape_api_sha256": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
+  "reasoning": [
+    "New private opaque carrier comes only from final same-held-tape conditional_procedure_declarations Some row after the registry-barrier check. Missing/conflicted records refuse. It uses actual current realm attachment/binding owner Arc, source-origin/site Arc+offset, full input/config/context and exact complete NativeWord vector; it does not manufacture a local preview or fall back from terminal command Refused.",
+    "Carrier retains original declaration advice Arc/debts and original authored shape, exposes only existing full head-correspondence. Reborrow requires same full input/config and recomputed registered shape, complete Written original vector plus same written effective operands, then existing selected descriptor/argument-offset/head checks. No advice/RegistryWords unwrap or new command/value/Native/frame/completion/edit permission is exposed.",
+    "Productive factory still independently owns source-cut survey, actual right selected words/body, full static4/native vector/source-image/context/shape/body-original-commands gates. Its resolved-head branch alone queries the new issuer once; ordinary Written0 returns without a new query. A returned head pair authenticates source word correspondence only, never current execution or a general lookup selection.",
+    "Entire old command/value/shared getter region is BYTEexact in both lanes: Refused remains terminal everywhere else. Actual declaration field is pub(super) in the child type and accessed legally by its parent/descendant controls; new type re-export is crate-private. Actual AuthoredSourceProcedureArguments is Copy/Eq. Tuple inputs borrow existing analysis/realm, and returned head pair owns immutable receipts; no mutable frame/callback/await or borrow crossing effect is introduced.",
+    "All14 current/fixed Git/modes/hash/patch F-R-F0, ten pinned Rustfmt2024 images and full original module/docs inverses independently checked. Original SourceLoad4 source/assertions untouched; four old private head tests only gain actual required full-input argument. New4 are genuine same-source fixtures with command-refusal/Arc retention and absence/conflict/barrier/foreign/input/source/operand/shape refusals.",
+    "Shipping contracts state the same purpose and obligations; namespace/load-card ownership gap remains separate. Existing WORK coarse/shared64 logger only observes reached new gates, CLEAN has no new trace dependency. Quota absence is not causal evidence."
+  ],
+  "limits": [
+    "Actual Rust/Clippy/new4/original SourceLoad4/planner/rename/browser efficacy UNRUN. Whether final actual merged row is Some/unbarred at the failing product site remains unobserved until this new issuer runs; source clearance does not close that assertion.",
+    "This is NEXT, excluded from current68ff/4525 wave. Root integration/current source dependency union and separately authorized finite test transport required.",
+    "No global/runtime Eq, Salsa/cache policy or selection eligibility relaxed; no new user-policy choice or external source publication authorized."
+  ]
+}

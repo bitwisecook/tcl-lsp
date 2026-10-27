@@ -1,0 +1,92 @@
+{
+  "utc": "2026-10-27T01:35:32.335478+00:00",
+  "verdict": "FULLAUTH_FOCUSED169_CACHED3_ALLPASS_OLD80FAIL_CFI_INCOMPLETE_RETAINED",
+  "source": "68fff733fcefe23feeab25c624c08d950cc35fdc",
+  "run": 40431348423,
+  "job": 121949526004,
+  "zip_sha256": "02d06db136de7bb7a57b000b184edddbbd9a7a88b10aa97ef8e71b484c13a0ca",
+  "original166_receipt_sha256": "0190fc2ed6ee25ee13f30a1e3d78ed918433ce08fc625bbe5d3d7c79981845b7",
+  "original131_receipt_sha256": "bdeb176eab1b8ea3d4aad9122c7fac64c23812247c3f96fc6848465ba88a90d8",
+  "envelope_sha256": "7792199219066f9a796faad27f60b29b8d2ebc793fa752ad256de48383df7642",
+  "same_fresh_ELF": "b2838c4cc25bcb2076bd4f124833e6047ea2538cb6067d8cf637526bfd8d64d0",
+  "cache3": [
+    {
+      "selector": "codegen_native::cached_increment::tests::cached_increment_runs_original_cow_and_keeps_the_held_input",
+      "status": "PASS",
+      "seconds": 1.484834971,
+      "function_source_pin": {
+        "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+        "indent": "    ",
+        "sha256": "340f10d9cfd526f11300945021b501363024e37d4250276f75c47da10850f995"
+      },
+      "stdout_sha256": "290ab51f80359c14ca3e000bd9b9d2476d8829450b2594979c7b47bdd8a67a57",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "same_ELF_owned_closed": true
+    },
+    {
+      "selector": "codegen_native::cached_increment::tests::cached_increment_decline_preserves_input_and_runs_fallback_once",
+      "status": "PASS",
+      "seconds": 1.52681018,
+      "function_source_pin": {
+        "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+        "indent": "    ",
+        "sha256": "a549c75319308d88a20202d5bba28226c110bf3fe41a231b10ad198736c16749"
+      },
+      "stdout_sha256": "b51a542bd625fc76e911d2e5c4b8690cc4c7fc1ec839615175900a7778c433d2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "same_ELF_owned_closed": true
+    },
+    {
+      "selector": "codegen_native::cached_increment::tests::cached_increment_hint_never_replaces_reached_operands_or_trace_fallback",
+      "status": "PASS",
+      "seconds": 1.505896209,
+      "function_source_pin": {
+        "path": "runtime/rust/src/codegen_native/cached_increment.rs",
+        "indent": "    ",
+        "sha256": "31947bca9828c2f3318cb517b06a93ef5bab09750ed5715837a58fec286f1019"
+      },
+      "stdout_sha256": "b06a2940b11ec24b449bd184018f4a56f38d87b2f7558ef370d129ed8fce29ac",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "same_ELF_owned_closed": true
+    }
+  ],
+  "all8_actual_source_pins": {
+    "runtime/rust/src/codegen_native.rs": "775bf7c7a737f45c403c8ce6159668fbc4a22dd79e2e6a29c19a9f1d6d31df82",
+    "runtime/rust/src/interp.rs": "02ac5bff0ffc50e2c1c3f4b14dc870766fca1fb152dba8252ac8888919561063",
+    "runtime/rust/src/frame.rs": "05390eb0fc9bee1a924ece80b18595126f9d71bf00fdfe40bc24273393647669",
+    "runtime/rust/src/builtins.rs": "fcad424982b3b522fe57a917105803a28bf89ceb650043af72e7566a8046542b",
+    "runtime/rust/src/interp/captured_rmw.rs": "c41b40d02846b8655487cd2d10b3c4e720ab0a60d6259c83c5612dad4719dd9e",
+    "runtime/rust/src/value_ops.rs": "a9db71610e0de9bdda246cce5102370afd3c968a58636c719746ac635285a85c",
+    "runtime/rust/src/codegen_native/cached_increment.rs": "f60681fc007bbad829a6574f555f51265306c5aa04e3f91558afc74d7b2de837",
+    "runtime/rust/src/interp/cached_increment.rs": "5461b65a2bfe339ae5d0baad136583ad6d7d19f62a58fa6a771902a5af770162"
+  },
+  "aggregate_retained_bytes": 643205,
+  "reported_observations": 169,
+  "whole_runtime_gate": false,
+  "old_counts": {
+    "baseline14": {
+      "PASS": 14
+    },
+    "stack_abort1": {
+      "PASS": 1
+    },
+    "other103": {
+      "FAIL": 79,
+      "PASS": 24
+    },
+    "prune_controls7": {
+      "PASS": 6,
+      "FAIL": 1
+    },
+    "targeted_prune_controls3": {
+      "PASS": 3
+    }
+  },
+  "CFI_incomplete": true,
+  "limits": [
+    "169 are protocol observations, not deduplicated test identities.",
+    "COW positive includes both hidden error-cell exclusions under unchanged genuine NativeCore; fresh-String decline and trace/hint controls are distinct.",
+    "No framing/FreshString/WASM/Spec/mandatory full-runtime gate acceptance donated by these unit tests.",
+    "Original80 failures and incomplete CFI remain required failures; no mandatory-suite waiver."
+  ]
+}

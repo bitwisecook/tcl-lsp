@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-27T01:45:00.272266+00:00",
+  "scheduled_report_utc": "2026-10-27T01:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-27T02:15:00+00:00",
+  "change_since_previous_report": [
+    "0115 official cycle ran01:15:00.089, A snapshot cdaf058a/publishedWork61f799 at01:16:56; all10 current68ff POSTs preceded checkpoint. Next0145 reminder64094.",
+    "Current68ff strict bounded23 FULLAUTH9edc has exactly one ABI doc_markdown warning. Two-character reviewed fix620a/c356 applied WORKd2c70/C4bb67; no code changes, efficacy unrun.",
+    "Current68ff corpus FULLAUTH1e117/56c94, WASM f662 and Spec a43f all build stopped on same two E0308 depth mismatches; corpus702/42 and all WASM33/Spec test phases UNRUN. Narrow two type annotations usize to actual u32 reviewed89100 applied WORK9aa4/C77d0; no casts/assert/guard changes.",
+    "Primary operand value cohort a232 with strong Compiler5f55 applied WORK43667/C7d448. Only genuine current declaration record joins issue value proof; generic command/shared helpers byte-exact/Refused terminal, old SourceLoad4/geometry assertions unchanged. New4 controls and efficacy unrun; exact route pins/protocol next.",
+    "Focused current68ff runtime169 FULLAUTHb9e043c: all3 cached-increment controls PASS including original positive1 plus hidden error-cell negatives, same fresh ELF/providers/process custody. Original128 exact prior join ZEROCHANGES48PASS80FAIL; CFI incomplete/globalFAIL retained. No broad2713 replay or other gate donation.",
+    "Ca8d fullCI remains healthy with53completed/5running at01:31 (Rust2/3/5,E2E1/2). Heavy complete356=326PASS30FAIL and baseline Heavy-only299PASS12FAIL/24097UNOBSERVED216notinAVAILABLE remain; all12 iRules functional regressions unwaived because only timing waived.",
+    "Runtime fixed3 existing pure/SCF/word-boolean diagnostic plan6b9ec6 must run only after bootstrap failure child reaped/drained and empty process scans with current same ELF/env/reserve guards. Independent protocol review pending. Existing publicSCF positive preserved; private-host coverage alternative held, no external file takeover.",
+    "N17MAP V2 compiled-cache lifetime/effect proof remains held. RANGE separate. No new semantic permission or assertion relaxation. Release process comments cleaned with genuine fixture provenance retained; final docs/generated/prep/fullgreen/performance gates still open.",
+    "Fresh depth1 fetch and normal pushes completed01:41: WORK43667db29f94315d5f47565b5a85c3107dad8c56 /release7d448332d5fec0c5b4f6ef3a1b40bc54483313b3, remote verified; shallow clone retained. No PR/merge/tag. Current source metadata/protocol pending before validation.",
+    "Current68ff Core/startup FULLAUTHa2aa7d26/7d3b36a6/index3d23: exactsame2depthE0308/noELF, allold8/Source4/Tk3/startupUNRUN. Compiler156/Jim52 terminalbuild101same2errors/noELF/allUNRUN, fullGit auth pending. Old execution statuses not transferred."
+  ],
+  "committed": [
+    "cdaf058a5e50cb03d2865cfc544f7a45d365f110"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Refresh only actual source dependencies and current source pins; push reviewed WORK-first fixes and release carries, then rerun compiler/strict/Core/corpus/WASM/Spec after predecessor termination.",
+    "Authenticate focused runtime and remaining fullCI terminal artifacts; fix exact current source causes preserving public behavior and fail-closed guards.",
+    "Complete section F, current origin/rust zero pass-to-fail, accepted Tcl performance, all required tests, docs/comments/generated/package/prep-pr and squash-ready PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2281873408,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

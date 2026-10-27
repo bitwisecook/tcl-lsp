@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-27T01:37:07.301267+00:00",
+  "prior_source": "cee0771530e6a7cd4d81543627e238fa516fa64b",
+  "current_source": "68fff733fcefe23feeab25c624c08d950cc35fdc",
+  "prior_receipt_sha256": "9173906c738cb502919b54a6d3aadd40a8d3c9d8a330bf5be34ba526e84dcdfd",
+  "current_receipt_sha256": "bdeb176eab1b8ea3d4aad9122c7fac64c23812247c3f96fc6848465ba88a90d8",
+  "matched_exact_identity_count": 128,
+  "changes": [],
+  "counts": {
+    "PASS": 48,
+    "FAIL": 80
+  },
+  "scope": "Exact old128 protocol identity/status join only; zerochanges, no aggregation with new3 or broad2713 inventory, no mandatoryfullgate waiver."
+}

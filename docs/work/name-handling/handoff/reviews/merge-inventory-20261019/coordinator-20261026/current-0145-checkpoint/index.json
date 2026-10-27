@@ -1,0 +1,96 @@
+{
+  "utc": "2026-10-27T01:38:52.546808+00:00",
+  "scope": "Small source-qualified records only; full artifact authority remains original paths/GitHub. No release admission.",
+  "files": [
+    {
+      "name": "strict68ff-assessment.json",
+      "original": "/workspace/naming-proof-storage/ccg-strict68ff-40431291897-actual-v1/assessment.json",
+      "sha256": "9edc3e27d7b44cf486e0027ced1cd24e0bcf57ecd050f14e8c020da585d5e02d",
+      "bytes": 3921
+    },
+    {
+      "name": "runtime169-focused-authentication.json",
+      "original": "/workspace/naming-proof-storage/vm-runtime169-focused-actual-40431348423/focused169-cached3-boundary-authentication.json",
+      "sha256": "b9e043c48bdfea45bf30e48e6fb5370bc9fb5aa0ad00904c5285ee00089a080f",
+      "bytes": 4409
+    },
+    {
+      "name": "runtime166-authentication.json",
+      "original": "/workspace/naming-proof-storage/vm-runtime169-focused-actual-40431348423/all166-boundary-authentication.json",
+      "sha256": "0190fc2ed6ee25ee13f30a1e3d78ed918433ce08fc625bbe5d3d7c79981845b7",
+      "bytes": 24215
+    },
+    {
+      "name": "runtime128-outcome-join.json",
+      "original": "/workspace/naming-proof-storage/vm-runtime169-focused-actual-40431348423/prior128-identity-outcome-join.json",
+      "sha256": "8003aa45d77f79d02d8d1d6d7d93b56ae3b53733f09b8a398355efbdaaa75ef9",
+      "bytes": 624
+    },
+    {
+      "name": "corpus68ff-authentication.json",
+      "original": "/workspace/naming-proof-storage/names-corpus2-40431304858-actual-v1/authentication.json",
+      "sha256": "1e117f08fee94b614947292575c3ecddd3489663271aa8bb0abc976225d7a376",
+      "bytes": 3273
+    },
+    {
+      "name": "corpus68ff-git-authentication.json",
+      "original": "/workspace/naming-proof-storage/names-corpus2-40431304858-actual-v1/full-git-content-authentication.json",
+      "sha256": "56c94df9cbc5c918019fd7e7118b3f0e690f50694227cccf04089425f6ce7408",
+      "bytes": 547
+    },
+    {
+      "name": "primary-eight-dependency-approval.json",
+      "original": "/workspace/naming-proof-storage/root-primary-eight-source-dependencies-approval-20261027.json",
+      "sha256": "8009f862af51ab8a9062100826366d6c1fe391e973ae1be69957d01cc96e14b2",
+      "bytes": 2325
+    },
+    {
+      "name": "lsp68ff-wave-index.json",
+      "original": "/workspace/naming-proof-storage/lsp-68fff7-host-wave-evidence-index-v1/index-v1.json",
+      "sha256": "3d23ca6d28d20fd81c8e45cf5afc673d5e2a096c1aafc38e41388dd1872e444e",
+      "bytes": 1137
+    },
+    {
+      "name": "primary-value-manifest.json",
+      "original": "/workspace/naming-proof-storage/lsp-primary-procedure-value-projection-v1/manifest.json",
+      "sha256": "a232b6374f8b2e0df9a7c4eece87e802717eb177de6dfbde5cd79d90bee5c55f",
+      "bytes": 7691
+    },
+    {
+      "name": "primary-value-compiler-review.json",
+      "original": "/workspace/naming-proof-storage/compiler-peer-primary-procedure-values-v1/receipt.json",
+      "sha256": "5f55c4b402fa962130dfa68d7fb5b173b419e22a71bb3b3da4f9b31a804e161e",
+      "bytes": 5652
+    },
+    {
+      "name": "depth-type-manifest.json",
+      "original": "/workspace/naming-proof-storage/compiler-finite-foreach-depth-type-v1/manifest.json",
+      "sha256": "442cfe2ba0a47d6dea074bac9a2f4de9012b33027d806aa70e2ea6086b354904",
+      "bytes": 1044
+    },
+    {
+      "name": "runtime-fixed3-plan-review.json",
+      "original": "/workspace/naming-proof-storage/peer-vm-irules-three-cause-plan-v2/receipt.json",
+      "sha256": "dc6e672049e70e3c4fb948967ff8bda7197d73187ea70f5a1fb02f3724050e6a",
+      "bytes": 2081
+    },
+    {
+      "name": "fullCI-ca8d-jobs-0131.json",
+      "original": "/workspace/naming-proof-storage/ccg-fullcleana8d-40419028855-initial-v1/jobs-20261027T0131Z.json",
+      "sha256": "f742398298399685ecf04f41a28071b54c76614400cf7d099b675178e1aa5741",
+      "bytes": 193315
+    },
+    {
+      "name": "fullCI-ca8d-artifacts-0131.json",
+      "original": "/workspace/naming-proof-storage/ccg-fullcleana8d-40419028855-initial-v1/artifacts-20261027T0131Z.json",
+      "sha256": "3a79044c7bb92e2f8945d45dafae76174f691e6eb88ddb41a55a7ce7e7988eac",
+      "bytes": 31151
+    },
+    {
+      "name": "fullCI-ca8d-heavy-baseline-join.json",
+      "original": "/workspace/naming-proof-storage/root-cleana8d-baseline-heavy-available-join-v1/summary.json",
+      "sha256": "53c7849094452961e772a4a96ea66d6978a792b318a83bb2ec9a3d07b4d8c45b",
+      "bytes": 1120
+    }
+  ]
+}

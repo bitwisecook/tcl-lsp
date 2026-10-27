@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-27T00:55:04.778899+00:00",
+  "source": "a8d34817fa7fac497c6669aea3e419e54ae5b351",
+  "run": 40419028855,
+  "baseline_source": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "baseline_PASS": 24624,
+  "counts": {
+    "UNOBSERVED_TERMINAL": 24097,
+    "NOT_IN_AVAILABLE_SELECTION": 216,
+    "PASS": 299,
+    "FAIL": 12
+  },
+  "current_heavy_actual": {
+    "ok": 326,
+    "failed": 30
+  },
+  "receipt_sha256": "06277eb66eaa56deda50ea45e56e8ad3e1b480d1e51ef68319a35e7b2da43534",
+  "join_raw_sha256": "4db54b4cbd73fca10b77d549bf3c17b4460ab025cd99840009190d94b21ee40b",
+  "limitations": [
+    "Current Ca8d source only; no later-source donation",
+    "API Git source + selected ledger + owned lifecycle; terminal protocol contains no full source endpoint/provider/dependency/tool seals",
+    "No shipping/full mandatory-suite or zero-PTF admission"
+  ],
+  "release_gate_admission": false,
+  "scope": "Only exact sourcequalified complete current Heavy ledger joined. Otherselected outcomes remainUNOBSERVED; absence remainsnotinAVAILABLEselection. No earlierC47/otherfocused/later-source outcome transfer."
+}

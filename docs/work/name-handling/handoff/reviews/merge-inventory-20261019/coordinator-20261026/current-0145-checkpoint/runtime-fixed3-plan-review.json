@@ -1,0 +1,32 @@
+{
+  "status": "PLAN_CLEAR_FOR_BOUNDED_OFFTREE_IMPLEMENTATION_WITH_EXPLICIT_FAILCLOSED_CONDITIONS_NOT_IMPLEMENTATION_AUTHORIZATION",
+  "utc": "2026-10-27T01:42:09.582458+00:00",
+  "plan_sha256": "6b9ec611cb0e1685d588f4fbae7dd0241d5edebc74c32a63aabce865678113f6",
+  "current_WORK": "43667db29f94315d5f47565b5a85c3107dad8c56",
+  "all9_plan_source_pins_current": {
+    "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py": true,
+    "docs/work/name-handling/validation-tools/irules-preflight-roster.json": true,
+    "rust/tcl-irule-test/src/live.rs": true,
+    "rust/tcl-irule-test/src/pure_functions.rs": true,
+    "rust/tcl-vm/src/literal_pool.rs": true,
+    "rust/tcl-vm/src/exec.rs": true,
+    "rust/tcl-vm/src/compiled.rs": true,
+    "rust/tcl-vm/src/command/native_encoding_source.rs": true,
+    "rust/tcl-registry/src/invocation_words.rs": true
+  },
+  "owner_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "fixed3_already_in_existing_full_roster": true,
+  "actual_existing_after_bootstrap_failure_reachability": "Harness listing sealed before bootstrap; bootstrap lifecycle stop skips CLI/init; proposed after-try/except phase reachable with authenticated harness.",
+  "critical_conditions": [
+    "Do not modify lifecycle or original failure/exit2/outcomes.",
+    "Separate stopped-selector cleanup admission; never use complete=false as original acceptance.",
+    "Reject pending/unknown execute attempt; processes[] alone is insufficient after arbitrary exception.",
+    "Require exact durable receipt birth/WNOWAIT/reap/drain/group-empty/two scans; reject interrupt/exception/uncertain cleanup.",
+    "Same source/providers/deps/tools/ELFs/list/env/flag and immediate205/full180/shared cap/floor/absolute deadline.",
+    "Exact source/function/driver inverse and actual-helper finite controls before Root integration."
+  ],
+  "report_sha256": "fb544e179a1caa2b77ee4e745a88020b67a00b017f9ea820afd6ab4a920dd769",
+  "implementation_reviewed": false,
+  "canonical_mutations": false,
+  "native_or_process_tests_run": false
+}
