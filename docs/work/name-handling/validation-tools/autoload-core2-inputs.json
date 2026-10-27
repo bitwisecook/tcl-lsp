@@ -32,7 +32,8 @@
     "rust/tcl-compiler/src/command_binding/conditional_source.rs": "d1bf6c102561f9fd72379b2f8d9603146e23485211300234af94bb56b9f87f26",
     "rust/tcl-compiler/src/analyser/handlers.rs": "a392e87a30c2c35ba2ddbbb704ec6d5aaae5838e27b836e647186a1f1ef49efe",
     "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs": "33dda3c71f7a4ec2fdee556e464445daa527ca2ba8657815cf3dbb7c81131cba",
-    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "974fbe12d5a4d1a618e7fe8d2ea44761d1e4843149bae50fcacfe18937d428b4"
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "974fbe12d5a4d1a618e7fe8d2ea44761d1e4843149bae50fcacfe18937d428b4",
+    "rust/tcl-lsp-core/src/code_actions.rs": "c5d684813a57a072a3320200f33a3c0ef0a9b0b8d6f0b5f6a850a4e330d30981"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",
@@ -64,5 +65,8 @@
     "hover::original_registry::tests::tk_source_hover_keeps_declared_prerequisite_and_unresolved_availability",
     "hover::original_registry::tests::tk_source_prerequisite_refuses_stale_source_and_foreign_input",
     "hover::original_registry::tests::declared_prerequisite_uses_required_package_not_owning_package"
+  ],
+  "body_docstring_control_selectors": [
+    "code_actions::original_docstring_tests::original_body_docstring_requires_its_braced_word_and_rejects_computed_body"
   ]
 }
