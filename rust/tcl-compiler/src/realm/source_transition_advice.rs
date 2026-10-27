@@ -1845,9 +1845,14 @@ impl super::CommandBindingRealm {
                 config,
             ),
         )?;
-        let prepared = self.source_advice.get_or_prepare(context, || {
+        let purpose = if self.bindings.has_conditional_source_region() {
+            crate::command_binding::OriginalSourceCataloguePurpose::ConditionalRegion
+        } else {
+            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram
+        };
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
             self.bindings
-                .original_source_transition_advice_tape(context)
+                .original_source_transition_advice_tape_for(context, purpose)
         });
         let tape = cut_value_stage(true, "declaration-values.tape", prepared.as_ref().as_ref())?;
         tape.procedure_declaration_values(owner, input, offset, &original, binding)
