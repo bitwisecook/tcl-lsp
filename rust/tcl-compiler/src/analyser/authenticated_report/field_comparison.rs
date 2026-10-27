@@ -34,7 +34,7 @@ fn subjects(
             _ => None,
         },
         DiagnosticSubject::CommandAvailability(a) => match b {
-            DiagnosticSubject::CommandAvailability(b) if a == b => Some(true),
+            DiagnosticSubject::CommandAvailability(b) => a.authenticated_report_eq(b, output),
             _ => None,
         },
         DiagnosticSubject::DeclaredSource(a) => match b {

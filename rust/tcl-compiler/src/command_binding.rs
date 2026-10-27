@@ -333,6 +333,7 @@ mod package_target_survey;
 pub(crate) use package_target_survey::OriginalPackageIndexSourceModel;
 mod conditional_source;
 pub(crate) use conditional_source::OriginalSourceFiniteCut;
+mod availability_report;
 mod source_analysis_cache;
 mod source_analysis_entry;
 mod source_execution_control;
