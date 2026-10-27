@@ -546,3 +546,6 @@ mod original_standalone_unit_tests {
         assert!(unit.ir_module.source_metadata_input.is_some());
     }
 }
+
+#[cfg(test)]
+mod authored_body_qualification;
