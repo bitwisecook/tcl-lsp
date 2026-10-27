@@ -77,7 +77,6 @@ fn logical_file_provider_is_explicit_and_does_not_select_native_grammar() {
         entry.grammar().select_original(3, Some(b"-encoding")),
         tcl_registry::source_file::SourceFileSelection::Invalid
     ));
-    drop(entry);
     names.finish(&mut vm).unwrap();
 }
 
@@ -109,7 +108,6 @@ fn logical_file_ascii_kernel_reads_once_and_closes_the_actual_handle() {
         ["filesystem", "open", "read", "close"]
     );
     drop(ops);
-    drop(entry);
     names.finish(&mut vm).unwrap();
 }
 
@@ -144,7 +142,6 @@ fn logical_file_high_bytes_refuse_before_conversion_or_open() {
         assert!(format!("{error:?}").contains("logical source filename byte correspondence"));
         assert!(stages.events.borrow().is_empty());
         drop(ops);
-        drop(entry);
         let _ = names.finish(&mut vm);
     }
 }
@@ -178,7 +175,6 @@ fn logical_file_ascii_empty_dash_and_nul_keep_original_filename_kernel() {
         assert_eq!(stages.events.borrow().contains(&"open"), opens);
         assert_eq!(prepared.is_ok(), bytes.starts_with(b"/source.tcl\0"));
         drop(ops);
-        drop(entry);
         names.finish(&mut vm).unwrap();
     }
 }
@@ -197,7 +193,6 @@ fn logical_file_provider_withdrawal_and_restore_cannot_revive_entry() {
     install(&mut vm);
     assert!(entry.check(&mut vm).is_err());
     assert!(stages.events.borrow().is_empty());
-    drop(entry);
     assert!(names.finish(&mut vm).is_err());
 }
 
@@ -236,7 +231,6 @@ fn logical_file_read_header_withdrawal_keeps_first_error_and_closes_once() {
         .clone()
         .expect("original header refusal");
     assert_eq!(names.operation_scope().check_native(&mut vm), Err(first));
-    drop(entry);
     assert!(names.finish(&mut vm).is_err());
 }
 
@@ -272,6 +266,5 @@ fn logical_file_nonresident_integer_keeps_the_single_original_string_stage() {
         1
     );
     drop(ops);
-    drop(entry);
     names.finish(&mut vm).unwrap();
 }
