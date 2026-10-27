@@ -27,6 +27,21 @@ use crate::ir::{Module, Procedure, TopLevelKind};
 use crate::var_resolve::VariableExecutionFrame;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
+impl SourceCommandBindings {
+    /// Match only this collector's genuine original analysis-owner attachment.
+    pub(crate) fn owns_original_analysis_attachment(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> bool {
+        tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_analysis_owner.as_ref())
+            .zip(self.original_analysis_owner.as_ref())
+            .is_some_and(|(actual, original)| Arc::ptr_eq(actual, original))
+    }
+}
+
 /// Borrowed report-only evidence; it supplies no source or execution permission.
 pub(crate) struct InheritedEmptyInstalledReportCustody<'a> {
     _body: &'a Procedure,
