@@ -1,10 +1,14 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T01:38:09Z
+Last updated: 2026-10-27T02:14:30Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T02:14:30Z: Fixed3 iRules WORK protocol V2 master503e4d5a STRONG STATIC CLEAR Scopea397aefb; normalized2file ready adapter1724f268 sentRoot (manifest93c7a7c0/patch545f401f). Existingdriver lifecycle/helpers/wholeinverse exact, settled-original token+current-attempt returned durable timeout closure prevents priorchild/unknownexception admission;98 author and19 independentpeer no-child cases, actualnew3UNRUN. No VM/test/semantics/Cargo/env/budget changes; finalmetadata carry/apply Root-only. Currentf990 WASM0b289+Spec4c7d FULLAUTH buildblockedE0599/allcohortsUNRUN, receiptindexe4d26379; old68ff focused169 b9e/new3PASS sourcequalified/no replay/globalFAIL retained. N17 actualsubst-backend context design source-only: generalentry procedureNone/root/observer absence cannot certify ambientcompiler/cache; reached post-getter producer identified, exactconsumer join awaitingCodegen.
+
+Current 2026-10-27T02:03:37Z: f990 WASM40435173629 FULLAUTH0b289b6c and Spec40435180045 FULLAUTH4c7d852b both BUILD-BLOCKED same E0599 missing owns_original_analysis_attachment; all cohorts UNRUN/no testELF. Full source/providers/deps/tools/allZIP/process/caps sealed; Compiler receiver repair66df next, no outcome donation. Completed focused169 b9e/newcached3 ALLPASS retains old128 zerochanges48P80F/CFIincomplete/globalFAIL, no replay. Root-approved fixed3 iRules protocol now frozen off-tree with97 actual-helper no-child checks/full old driver inverse; current-attempt durable timeout-only safe continuation, original lifecycle/error/status sticky, strong Scope peer pending. Public SCF success retained; logicalEval/body capability remains held before actual purpose facet. No canonical edits/builds/duplicate captures.
 
 Current 2026-10-27T01:38:09Z: ALL3 current68ff solecaptures FULLAUTH. FocusedRuntime169 b9e043c4 closes cached3 ALLPASS samefreshELFb2838c4c/full8source+3fn/process/caps, originalCOW1 andhiddenerrorcell negatives plusunchangedStringdecline/hinttrace preserved; original1660190fc/131bdeb andactualfocusb2c89 proveexact3subtotal/no2713replay. Old128join8003aa45 ZEROCHANGES48P80F; CFIincomplete/globalFAIL remains, no framing/FreshString/fullgateclaim. WASM33 f662412c andSpeca43f50d1 BUILD-BLOCKED2E0308finiteforeachusize/u32, allchildrenUNRUN/sourceproviderdeps/process/allZIPseals pass; Compilerrepair442c ownsnextsource. Work-onlyfixed3 iRules diagnosticPLAN6b9ec611 sentRoot: samealreadybuilt/listedirulelib, separateafter-originalstop cohort onlywithownedclosedcleanup/reserves, preservesoldFAIL/UNRUN/exit2; no sourceauthoring untilRootscope. SCFd6d401 staysheldunused; intendedpublicSCFsuccesscoverage retained/no userask.
 

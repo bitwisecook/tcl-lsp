@@ -1,0 +1,355 @@
+{
+  "status": "CLEAR_EXACT_PRIMARY4_PROTOCOL_STATIC_AND_FINITE_MOCKS_ONLY",
+  "utc": "2026-10-27T01:45:42.127666+00:00",
+  "manifest_sha256": "52da3fbd526de7d10e809a5c88fbdcb126fe1cf772346887ace3949427629ead",
+  "patch_sha256": "57b13a382678c499117f20f716b7649113f0407f99ad09c5c09d45bd7fe42d4d",
+  "current_head": "a7f5f742b2dc176a3f1e9f03ff369d78bab8e43f",
+  "files": [
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "before_sha256": "37f9870ef3d317d36d0ff56a9b68ea7c75a3707fcd7f9f2da813aa159ee22a36",
+      "after_sha256": "0bf5385f13fbe5c8acb07ea80b80b312e9fd3072a4613194d3f5e457cf880a16",
+      "mode": "100644",
+      "current_preimage_and_hunks_exact": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "before_sha256": "1bfd89a037139f413ad583ef6d85e5031f1dca68d4e6ce50489534d17fdf8429",
+      "after_sha256": "5f2208f116121e101194a973c3393e101e3a4387ee148f3d779a3698549b8aec",
+      "mode": "100644",
+      "current_preimage_and_hunks_exact": true
+    }
+  ],
+  "entire_old_driver_AST_inverse": true,
+  "all_old_helpers_AST_unchanged_except_execute_three_prefixes": true,
+  "old_JSON_equal_except_nested_primary_and_exact5_global_pin_refresh_additions": true,
+  "global_pin_changes": {
+    "rust/tcl-compiler/src/command_binding.rs": [
+      "71af444dc0f5c2d023bf7f3ea0d624a2b30c7f02df3e855dcee8f7925241d412",
+      "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2"
+    ],
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": [
+      "0a3069f741604e5c42a530e129c49e0c582bbbc6503df0bf7508a77ce6e95c82",
+      "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    ],
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": [
+      null,
+      "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574"
+    ],
+    "rust/tcl-compiler/src/registry_invocation.rs": [
+      null,
+      "fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac"
+    ],
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": [
+      null,
+      "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca"
+    ]
+  },
+  "all6_nested_source_pins_current": true,
+  "actual_complete_Rust_function_SHA_checks": [
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal",
+      "whole_actual_Rust_function_sha256": "ebd07c9e125c3f1ef14a6155901f55bdfdca5dddc1562c24ac5ebb37ac4f2aeb"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records",
+      "whole_actual_Rust_function_sha256": "94559dac6fb3a1718597f928e85db453db088622b09bb54854db70bb942f9497"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner",
+      "whole_actual_Rust_function_sha256": "27abb4ce686fd9a2d9ebeca1f10b4dbb12380886f7de20c601c122130a7d7af4"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands",
+      "whole_actual_Rust_function_sha256": "538719e632940b1d0d32f2e114222ef9f57c7f73b8ffd64197ff541ba9cc3488"
+    }
+  ],
+  "no_child_finite_controls": [
+    {
+      "mode": "pass",
+      "aggregate_status": 0,
+      "owner_calls": 8,
+      "states": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "error": null
+    },
+    {
+      "mode": "old_fail",
+      "aggregate_status": 1,
+      "owner_calls": 8,
+      "states": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "error": null
+    },
+    {
+      "mode": "test_fail",
+      "aggregate_status": 1,
+      "owner_calls": 8,
+      "states": [
+        "PASS",
+        "FAIL",
+        "PASS",
+        "PASS"
+      ],
+      "error": null
+    },
+    {
+      "mode": "budget399",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "insufficient full primary-procedure-value list/test/cleanup budget"
+    },
+    {
+      "mode": "budget400",
+      "aggregate_status": 0,
+      "owner_calls": 8,
+      "states": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "error": null
+    },
+    {
+      "mode": "postlistbudget",
+      "aggregate_status": 2,
+      "owner_calls": 1,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "insufficient full primary procedure value test/cleanup budget after listing"
+    },
+    {
+      "mode": "cap512k",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "insufficient log budget before original test"
+    },
+    {
+      "mode": "old_incomplete",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "primary procedure value controls cannot precede existing report-repeat closure"
+    },
+    {
+      "mode": "source",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "primary procedure value source drift: rust/tcl-compiler/src/command_binding.rs"
+    },
+    {
+      "mode": "function",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "primary procedure value actual function body differs"
+    },
+    {
+      "mode": "seal",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "pre-logical-body-entry source/provider/tool/dependency drift"
+    },
+    {
+      "mode": "roster",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "primary procedure value selector missing from same fresh owned target inventory"
+    },
+    {
+      "mode": "ambiguous_artifact",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "primary procedure value current built artifact absent/ambiguous"
+    },
+    {
+      "mode": "artifact",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "primary procedure value artifact changed before listing"
+    },
+    {
+      "mode": "profile",
+      "aggregate_status": 2,
+      "owner_calls": 0,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "primary procedure value requires existing fresh strict debug-assertion test profile"
+    },
+    {
+      "mode": "listcount",
+      "aggregate_status": 2,
+      "owner_calls": 1,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "original exact selector list mismatch"
+    },
+    {
+      "mode": "liststop",
+      "aggregate_status": 2,
+      "owner_calls": 1,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "original exact selector list failed or unclosed"
+    },
+    {
+      "mode": "signal",
+      "aggregate_status": 2,
+      "owner_calls": 1,
+      "states": [
+        "UNRUN",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "original exact selector list failed or unclosed"
+    },
+    {
+      "mode": "transportmissing",
+      "aggregate_status": 2,
+      "owner_calls": 2,
+      "states": [
+        "RUNNING",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "completed test transport summary missing"
+    },
+    {
+      "mode": "transportbytes",
+      "aggregate_status": 2,
+      "owner_calls": 2,
+      "states": [
+        "RUNNING",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "transport child status or layered byte census mismatch"
+    },
+    {
+      "mode": "badterminal",
+      "aggregate_status": 2,
+      "owner_calls": 2,
+      "states": [
+        "PROTOCOL_FAILURE",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "original test terminal missing/ambiguous"
+    },
+    {
+      "mode": "test_artifact_changed",
+      "aggregate_status": 2,
+      "owner_calls": 2,
+      "states": [
+        "RUNNING",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "selected Rust test artifact changed during transport"
+    },
+    {
+      "mode": "exception_after_first",
+      "aggregate_status": 2,
+      "owner_calls": 3,
+      "states": [
+        "PASS",
+        "UNRUN",
+        "UNRUN",
+        "UNRUN"
+      ],
+      "error": "mock owner refusal after first complete row"
+    }
+  ],
+  "actual_default_phase_and_status_tail_executed_under_mock": true,
+  "order": "Default only after Numeric3 all existing old statesPASS/FAIL, before unchanged corpus2; no dedicated-mode execution change",
+  "budgets": "400 per-row before list,220 before test, actual execute180 each plus unchangedcleanup20; sharedCAP/floor/deadline/env/artifact/owner; no group1600 guarantee",
+  "prerequisite": "Root/Codegen own final8 crossmap source-key joins/derived guards and final current-source union before dispatch. This peer checks nested6 exact guards, not unprovided final union.",
+  "not_run": [
+    "Cargo",
+    "native new4 controls",
+    "workflow"
+  ],
+  "canonical_mutations": false
+}

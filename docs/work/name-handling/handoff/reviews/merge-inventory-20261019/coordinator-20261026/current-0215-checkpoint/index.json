@@ -1,0 +1,108 @@
+{
+  "utc": "2026-10-27T01:56:31.129537+00:00",
+  "scope": "Small source-qualified receipts only; no release acceptance or artifacts",
+  "files": [
+    {
+      "name": "final-pin-root-audit.json",
+      "original": "/workspace/naming-proof-storage/root-final645f-union-json-ast-audit.json",
+      "sha256": "622c1c61b93182d45ef3d3c68125621ba50bb0b41ed5ca10218a780cec01e7fb",
+      "bytes": 566
+    },
+    {
+      "name": "final-pin-compiler-review.json",
+      "original": "/workspace/naming-proof-storage/compiler-peer-final645f-current25-pin-union-v1/receipt.json",
+      "sha256": "6b1f6b1801b9f827e21ce402e144bb524a7f1d5546f1f1d8d79b0df5ad3d9b68",
+      "bytes": 8596
+    },
+    {
+      "name": "primary4-protocol-review.json",
+      "original": "/workspace/naming-proof-storage/peer-lsp-primary-value4-protocol-v1/receipt.json",
+      "sha256": "3ff4cab2b6fd350f42768e05ccee083b9c2727e6a077c0786c41c8f2be3ae7d5",
+      "bytes": 10021
+    },
+    {
+      "name": "nextf990-source-preflight.json",
+      "original": "/workspace/naming-proof-storage/root-nextf990-source-preflight-v16.json",
+      "sha256": "c6cb6b10c17424275dc374258ada18b1c1868d707bdce9282420aa79785ed73e",
+      "bytes": 23389
+    },
+    {
+      "name": "nextf990-dispatch-complete.json",
+      "original": "/workspace/naming-proof-storage/root-nextf990-eight-posts-complete.json",
+      "sha256": "185f165f6fe4b31875b9fe3aeab108d89662cf39869a5f3245f0fc33023aea92",
+      "bytes": 779
+    },
+    {
+      "name": "ca8d-rust3-authentication.json",
+      "original": "/workspace/naming-proof-storage/ccg-fullcleana8d-40419028855-initial-v1/rust3-terminal-authentication.json",
+      "sha256": "76a886bd5f5173d271aa5dbe003617f2672cadaed2e278ba29e9b6f89433824d",
+      "bytes": 3457
+    },
+    {
+      "name": "ca8d-heavy-rust3-baseline-summary.json",
+      "original": "/workspace/naming-proof-storage/root-cleana8d-baseline-heavy-rust3-available-join-v1/summary.json",
+      "sha256": "313db5ab4914f370103e65706d3a0d8cf5d8d516031c8793f65cd584e8a32470",
+      "bytes": 3389
+    },
+    {
+      "name": "compiler68ff-buildstops-index.json",
+      "original": "/workspace/naming-proof-storage/compiler-current68ff-build-stops/final-authentication-index.json",
+      "sha256": "c2ea236c2a0ac659586c66762709f1ee93afb8c253bb8482147eb8bdf40717e4",
+      "bytes": 1148
+    },
+    {
+      "name": "receiver-fix-compiler-review.json",
+      "original": "/workspace/naming-proof-storage/compiler-peer-primary-value-receiver-v1/receipt.json",
+      "sha256": "66df18bab708bd12a3860fa3d161953b604614b1fe9f48c9570570fca5ef935d",
+      "bytes": 2702
+    },
+    {
+      "name": "receiver-metadata-compiler-review.json",
+      "original": "/workspace/naming-proof-storage/compiler-peer-finald0cf-current25-pin-union-v1/receipt.json",
+      "sha256": "fc48793bffecd5a9629dac159eb1b344a9ebb66f4670ed7ea2b72726780c5263",
+      "bytes": 4587
+    },
+    {
+      "name": "receiver-metadata-root-audit.json",
+      "original": "/workspace/naming-proof-storage/root-finald0cf-union-json-ast-audit.json",
+      "sha256": "be9ff4c44974f5dbef9d35ad63f9486e0194f5312d8f5cec4b19ae4cbcaa976b",
+      "bytes": 605
+    },
+    {
+      "name": "next32da-source-preflight.json",
+      "original": "/workspace/naming-proof-storage/root-next32da-source-preflight-v16.json",
+      "sha256": "f768a502444587d5dbb1412d53abdb6af8754c7e16ddc48e47260731cbb614b7",
+      "bytes": 23389
+    },
+    {
+      "name": "compiler-f990-buildstops-index.json",
+      "original": "/workspace/naming-proof-storage/compiler-currentf990-build-stops/final-authentication-index.json",
+      "sha256": "ba5e3be1e6a298f3e9efe78add007db5c6e225568372d4a27a4c4fd583c01dbc",
+      "bytes": 1148
+    },
+    {
+      "name": "strictf990-assessment.json",
+      "original": "/workspace/naming-proof-storage/ccg-strictf990-40435098274-actual-v1/assessment.json",
+      "sha256": "767f549566d0a5593d30ca3f8995a4b1ad642f3065fdc50f470306288f3e056f",
+      "bytes": 4347
+    },
+    {
+      "name": "lsp-f990-wave-index.json",
+      "original": "/workspace/naming-proof-storage/lsp-f990d8-host-wave-evidence-index-v1/index-v1.json",
+      "sha256": "fda2135223efc3b5fadb5da9a954ec7156d830a772148c0cfe6c7e6d79f40049",
+      "bytes": 1116
+    },
+    {
+      "name": "old-elf-reclaim-0.json",
+      "original": "/workspace/naming-proof-storage/root-frozen-old-two-elf-reclaim-20261027T0203-0.json",
+      "sha256": "d2b8e53435750335a98f9372c66f08a93c8e5e178c792c4d907c45b268f10952",
+      "bytes": 6977
+    },
+    {
+      "name": "old-elf-reclaim-1.json",
+      "original": "/workspace/naming-proof-storage/root-frozen-old-two-elf-reclaim-20261027T0203-1.json",
+      "sha256": "4b3bdbf0411bd37afce10095b9a5c1bc591e6c4a026ebc8cf53f23579f0c1c15",
+      "bytes": 5075
+    }
+  ]
+}

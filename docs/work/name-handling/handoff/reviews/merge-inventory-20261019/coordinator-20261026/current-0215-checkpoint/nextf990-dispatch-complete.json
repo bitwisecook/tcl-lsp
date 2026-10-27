@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-27T01:53:08.601214+00:00",
+  "source": "f990d87ddad61772bfc4a8500b921e6f231fe171",
+  "modes": [
+    "release-rust-check-diagnostics",
+    "compiler-original58-diagnostics",
+    "source-point-corpus2-diagnostics",
+    "jim-source-layout11-diagnostics",
+    "lsp-startup-diagnostics",
+    "jim-source-diagnostics",
+    "wasm-real-link-diagnostics",
+    "spectcl-fold-diagnostics"
+  ],
+  "no_healthy_cancellations": true,
+  "exact_prep": {
+    "candidate": "7d448332d5fec0c5b4f6ef3a1b40bc54483313b3",
+    "run": 40435292972,
+    "job": 121962408299,
+    "previous_run_terminal_confirmed": 40431359084
+  },
+  "runtime_focused": "not repeated this batch; no runtime kernel semantics changed",
+  "all_nine_posts_completed_utc": "2026-10-27T01:55:22.662850+00:00"
+}

@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-27T02:01:33.788871+00:00",
+  "complete": true,
+  "source": "f990d87ddad61772bfc4a8500b921e6f231fe171",
+  "run": 40435162458,
+  "assessments": [
+    {
+      "kind": "core2",
+      "path": "/workspace/naming-proof-storage/lsp-hosted-core2-40435162458-actual-v1/assessment-v1.json",
+      "sha256": "5e9146f3828d40c6278dcd2a743e80f24e09f8532abeff78dcc6126e48e95a8b",
+      "job": 121961987448,
+      "artifact": 12703414367,
+      "codes": [
+        "E0599"
+      ],
+      "tests": "ALL UNRUN"
+    },
+    {
+      "kind": "startup",
+      "path": "/workspace/naming-proof-storage/lsp-hosted-startup40435162458-actual-v1/assessment-v1.json",
+      "sha256": "a8d82e1901adf6cd345099f44910e1e5f1a1d9e4b8894a54a6849fc492d35378",
+      "job": 121961987616,
+      "artifact": 12704286458,
+      "codes": [
+        "E0599"
+      ],
+      "tests": "ALL UNRUN"
+    }
+  ],
+  "scope": "Both exact assigned jobs fully authenticated native build-only E0599 SourceCommandBindings missing method. No selected executable or Core8/Source4/Tk3/startup outcome. No namespace/final-declaration-record/gain inference."
+}

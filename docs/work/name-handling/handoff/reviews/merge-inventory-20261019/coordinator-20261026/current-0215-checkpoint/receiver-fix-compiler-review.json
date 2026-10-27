@@ -1,0 +1,45 @@
+{
+  "utc": "2026-10-27T02:01:43.023628+00:00",
+  "verdict": "CLEAR bounded receiver/type/source-attachment repair",
+  "manifest_sha256": "885305d0f65a55f69f1bec0e06b0a635add494c5dcc7946e35e7060c0f529a8c",
+  "patch_sha256": "e12e984647084737910af0b6b2aea5b67c16f3c10990dcb1fd2ed9870de7196a",
+  "checks": [
+    {
+      "lane": "WORK",
+      "base": "f990d87ddad61772bfc4a8500b921e6f231fe171",
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "before": "da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659",
+      "after": "484175eea591f78a386ca728523db0d3d34588d3bdeb7756df2c1e8939875430",
+      "actual_current_Git": true,
+      "mode": "100644",
+      "F_R_F0": true,
+      "whole_added_impl_erasure": true,
+      "exact_old_wrapper_predicate_one_receiver_projection_change": true,
+      "actual_parent_private_fields_and_caller_type": true,
+      "fmt2024": true
+    },
+    {
+      "lane": "CLEAN",
+      "base": "7d448332d5fec0c5b4f6ef3a1b40bc54483313b3",
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "before": "03f0365faf71d3773748c9232be5a528706ecdf50d37376feeddc0df7d1e9d0a",
+      "after": "54aaa5700f1e65dd9538d8a1f973ecc049a583bb53ac27485b5c7df926fc1036",
+      "actual_current_Git": true,
+      "mode": "100644",
+      "F_R_F0": true,
+      "whole_added_impl_erasure": true,
+      "exact_old_wrapper_predicate_one_receiver_projection_change": true,
+      "actual_parent_private_fields_and_caller_type": true,
+      "fmt2024": true
+    }
+  ],
+  "semantic_review": [
+    "Both real receivers hold the same nominal OriginalSourceAnalysisOwner Arc: retained wrapper projects positioned collector, Realm directly holds collector. New method compares the same token binding owner against collector owner. Missing either remains false; equal source text/semantic owner equality cannot replace Arc allocation identity.",
+    "Child command_binding::retained_source may read parent-private fields; existing SourceCommandBindings import and std::sync::Arc resolve. No receiver cast, field visibility change, new allocation/clone, query, analysis or owner renewal.",
+    "Existing RetainedSourceModuleBindings helper, PRIMARY caller/fullinput/currentness/token/source/shape/tape guards, command Refused and all assertion/function bytes outside added impl remain exact. Crate-private direct receiver method adds no Native/frame/normal/dispatch purpose."
+  ],
+  "prior_peer_limit": "Earlier PRIMARY source peer5f55 missed actual impl receiver placement; actual E0599 established the omission. This static repair is not an actual Rust retry.",
+  "unrun": [
+    "Rust/Clippy/PRIMARY4/current public SourceCut efficacy"
+  ]
+}

@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T01:43:43Z
+Last updated: 2026-10-27T01:59:39Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current f990 strict40435098274/job121961776873 CLOSED FULLAUTH23 767f5495: one actual E0599 realm/source_transition_advice.rs1805 owns_original_analysis_attachment missing on SourceCommandBindings; LSP/Root routed, downstream strict stages UNRUN/no provider-dependency seals. Final645f union beafb658/c79ce5c6 independentlyCLEAR6b1f6b18 and adopted Root f990; metadata no semantic result donation. Ca8d Rust3 complete selected ledger76a886bd:3916 selected=3228P688F, plus1qualifiedignored; exact API3 allPASS on Ca8d only. Four older CI jobs last observed running01:44, healthy preserved. N17 V2/V3 held; Scope auditing genuine selected substitution compiler/cache owner and actual observer receipt, no code/guards/assert changes.
 
 01:43 UTC restored after environment restart; current source W43667db29/C7d448332d pushed. Primary4 protocol52da3f/57b13 under Scope peer; final25 recipe ready, exact eight approved primary joins bound to approval8009f862, nested6source/4actualfunction audit added. Hold seal for protocol and post0145 exactHEAD. Current68ff Runtime FULLAUTHb9e043c4 cached3 ALLPASS; old128 unchanged48P80F/CFI incomplete/globalFAIL, no framing or freshString gain. Strict68ff one doc lint and finite-depth E0308 repairs integrated, retries unrun. OldCa8d fullCI five jobs last observed running01:31; no duplicate capture/cancellation or outcome donation. N17 remains held/off-tree.
 

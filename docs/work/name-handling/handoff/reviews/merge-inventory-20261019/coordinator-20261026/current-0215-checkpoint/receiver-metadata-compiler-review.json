@@ -1,0 +1,109 @@
+{
+  "utc": "2026-10-27T02:05:18.130485+00:00",
+  "verdict": "CLEAR bounded complete finald0cf current25 metadata union",
+  "base": "d0cf30731931a6f9914595f18b702609fd9463c5",
+  "manifest_sha256": "6505e36fb1cc7fd9ef4e773a6b448d5291f912a0b63a5f72f6d50c3b53c00aee",
+  "patch_sha256": "59b0cffcc9186688c59aed62a3cabfcdf8a4bc51e1ea7de385c0882b5b6a79ca",
+  "file_checks": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-inlining-readonly13.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    }
+  ],
+  "JSON_byte_inverses": [
+    "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+    "docs/work/name-handling/validation-tools/compiler-inlining-readonly13.json",
+    "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+    "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+    "docs/work/name-handling/validation-tools/spectcl-fold-roster.json"
+  ],
+  "top_level_existing_refreshes": 6,
+  "nested_primary_refreshes": 1,
+  "whole_current_JSON_census": {
+    "JSON": 25,
+    "maps": 22,
+    "records": 604,
+    "actual_unique_Git_source_contents": 382
+  },
+  "driver_checks": [
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "scalar_changes": 4
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "scalar_changes": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "scalar_changes": 1
+    }
+  ],
+  "canonical_field_accessor_unchanged": true,
+  "runtime3_actual8sources3functions_and_cold2_source": true,
+  "numeric_actual14sources3functions": true,
+  "author_V16_sha256": "c81d24266979be19ffb5cfe7b3f81aef89d52f6f80bf5dfc6324c0d915b6cc1a",
+  "author_12guard_report_sha256": "d844433f5ee8794cff37a7abb742d1a116fc7cb0411f1c1d14c7ca95db51927f",
+  "limits": [
+    "Independent fixed/currentGit/modes/sourcehash/in-memory F-R-F0/whole JSON+driver byte and AST inverses and live map/function census only. No product/native/guest/Rust/build/performance execution or gate acceptance.",
+    "All old selectors/counts/environments/budgets/history/guards restore exactly. No new keys; all prior8 PRIMARY dependency keys retained; all prior lease/registry/custody/observer keys retained.",
+    "Existing canonical finite source field/accessor remains unchanged; descriptor digest refresh follows actual u32 type repair. V16 and actual12 static source guards supplementary, no execution claim.",
+    "Fresh actual source/provider/deps/tool/function/ELF/process/lifecycle gates and accepted functional outcomes remain Root dispatch obligations. N17 excluded. PRIMARY source is integrated; this is metadata only."
+  ],
+  "independent_primary4_actual6sources4functions": true,
+  "exact_primary_descriptor_equality_literal_actual6source_map": true,
+  "driver_wholeJSON_hash_changes": 5,
+  "driver_existing_primary_source_scalar_changes": 1,
+  "approved_missing_keys": []
+}

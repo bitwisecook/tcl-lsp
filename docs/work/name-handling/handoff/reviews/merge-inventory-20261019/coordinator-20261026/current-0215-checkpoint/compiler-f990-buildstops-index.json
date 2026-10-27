@@ -1,0 +1,41 @@
+[
+  {
+    "case": "compiler160",
+    "receipt": "/workspace/naming-proof-storage/compiler-currentf990-build-stops/compiler160-full-authentication.json",
+    "sha256": "252e073cc0609fba4afef9c3fd118636c8de22d4cb923cda5c8c9a1f6c560e55",
+    "run": 40435105888,
+    "job": 121961801431,
+    "states": {
+      "observations": 160,
+      "PASS": 0,
+      "FAIL": 0,
+      "UNRUN": 160
+    }
+  },
+  {
+    "case": "jim52",
+    "receipt": "/workspace/naming-proof-storage/compiler-currentf990-build-stops/jim52-full-authentication.json",
+    "sha256": "f02f7558ddd95ab2b8330891f5f40c2124f4ce7858f8673beeadeb6c1300a47f",
+    "run": 40435167954,
+    "job": 121962004660,
+    "states": {
+      "observations": 52,
+      "PASS": 0,
+      "FAIL": 0,
+      "UNRUN": 52
+    }
+  },
+  {
+    "case": "layout15",
+    "receipt": "/workspace/naming-proof-storage/compiler-currentf990-build-stops/layout15-full-authentication.json",
+    "sha256": "cb992fb8b58730ae47b29dac37fedcc8a28fa572cde910d9476770f762aec393",
+    "run": 40435117170,
+    "job": 121961839977,
+    "states": {
+      "observations": 17,
+      "PASS": 0,
+      "FAIL": 0,
+      "UNRUN": 17
+    }
+  }
+]

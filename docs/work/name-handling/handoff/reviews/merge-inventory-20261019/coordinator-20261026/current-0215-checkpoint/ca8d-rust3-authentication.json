@@ -1,0 +1,105 @@
+{
+  "utc": "2026-10-27T01:45:43.328091+00:00",
+  "source": "a8d34817fa7fac497c6669aea3e419e54ae5b351",
+  "run": 40419028855,
+  "job": 121908598708,
+  "artifact_id": 12702438204,
+  "zip_sha256": "b7e8fa274508e346d53b8833aa57231aee09dd99e09f070733baffb382a1fe50",
+  "members": [
+    {
+      "name": "nextest-stderr.txt",
+      "size": 2097152,
+      "crc32": 2103584163,
+      "sha256": "148c29c903fa488cf13cab1e5b1b7e07e14e38cf7a458e8beba767165c6b4bc3"
+    },
+    {
+      "name": "summary.json",
+      "size": 623,
+      "crc32": 1166556729,
+      "sha256": "ff7d7c56c3955b4e77bc02e5503679d0c032622b52dd6362a6837f8c47073ea2"
+    },
+    {
+      "name": "terminal.jsonl",
+      "size": 1100287,
+      "crc32": 3670151675,
+      "sha256": "b7dd507f1ac86a781a495755e27339ba9c00631a624df3492bb3af1a9e604a27"
+    }
+  ],
+  "listing_sha256": "2ecdb8e9f4b8742519e3baa8acf4d0e79888f8d514a970e983cb1a6f11d27fd3",
+  "selected_nonignored": 3916,
+  "extra_ignored_rows": [
+    {
+      "binary_id": "tcl-lsp-db::file_analysis_corpus",
+      "test": "file_analysis_incremental_matches_full_over_corpus",
+      "status": "ignored",
+      "retry_count": null,
+      "exec_time": null,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    }
+  ],
+  "unique_terminal_rows": 3917,
+  "counts": {
+    "ok": 3228,
+    "failed": 688,
+    "ignored": 1
+  },
+  "exact_selected_nonignored_join": true,
+  "summary": {
+    "schema": "nextest-capture-v1",
+    "listing_sha256": "2ecdb8e9f4b8742519e3baa8acf4d0e79888f8d514a970e983cb1a6f11d27fd3",
+    "nextest_exit": 100,
+    "terminal_count": 3917,
+    "selected_count": 3916,
+    "started_unfinished": [],
+    "never_started": [],
+    "ignored_unreported": [],
+    "missing_terminal": [],
+    "capture_errors": [],
+    "stderr_truncated": true,
+    "lifecycle": {
+      "parent_pid": 23760,
+      "parent_start_ticks": 65414,
+      "owned_pgid": 23760,
+      "group_scan_attempts": 2,
+      "group_empty_before_parent_reap": true,
+      "cleanup_signals": [],
+      "last_live_members": [],
+      "last_scan_complete": true
+    }
+  },
+  "scope": "API source-qualified selected ledger and owned process closure; no full source/provider/dependency/tool seals in this CI terminal protocol; stderr capped explicitly",
+  "api3": [
+    {
+      "binary_id": "tcl-runtime-api",
+      "test": "native_compiler_pass::ordinary_entry_observation_tests::mutation_restore_retirement_and_exhaustion_keep_captured_hash_immutable",
+      "status": "ok",
+      "retry_count": null,
+      "exec_time": 0.013917803,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    },
+    {
+      "binary_id": "tcl-runtime-api",
+      "test": "native_compiler_pass::ordinary_entry_observation_tests::old_capture_foreign_owner_and_limits_never_supply_observer_absence",
+      "status": "ok",
+      "retry_count": null,
+      "exec_time": 0.00725382,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    },
+    {
+      "binary_id": "tcl-runtime-api",
+      "test": "native_procedure_compilation::ordinary_initialization_policy_tests::static_c_policy_releases_resolve_without_borrowing_foreign_or_conflicting_points",
+      "status": "ok",
+      "retry_count": null,
+      "exec_time": 0.011189001,
+      "output_encoded_bytes": 0,
+      "output_encoded_sha256": null,
+      "output_sample_base64": ""
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-27T01:48:05.234158+00:00",
+  "source": "645f503253e4f04f364fd018d4dbad32ad8eec98",
+  "result": "PASS",
+  "manifest_sha256": "beafb658e8942b38ac12aed09ccdc979f2991e9bb52bbc3793e94e1aee7a1e01",
+  "files": 15,
+  "current_source_refreshes": 23,
+  "approved_exact_missing_dependencies": 8,
+  "nested_scalar_refreshes": 2,
+  "all25_preimages_verified": true,
+  "inverse_restores_all_old_rows_env_budgets_fields_history": true,
+  "all_drivers_byte_and_AST_inverse": true,
+  "patch_pathset_prevalidated": true,
+  "runtime_or_release_acceptance": false
+}

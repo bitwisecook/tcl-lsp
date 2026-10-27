@@ -1,0 +1,223 @@
+{
+  "utc": "2026-10-27T01:50:02.060366+00:00",
+  "verdict": "CLEAR bounded complete final645f current25 metadata union",
+  "base": "645f503253e4f04f364fd018d4dbad32ad8eec98",
+  "manifest_sha256": "beafb658e8942b38ac12aed09ccdc979f2991e9bb52bbc3793e94e1aee7a1e01",
+  "patch_sha256": "c79ce5c66cefa7a277158ba1ab6876c3869a85a892ba2b6d009d12156329be07",
+  "file_checks": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py",
+      "fixed_current_Git": true,
+      "F_R_F0": true,
+      "mode": "100644"
+    }
+  ],
+  "JSON_byte_inverses": [
+    "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+    "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+    "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+    "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+    "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+    "docs/work/name-handling/validation-tools/jim-source-roster.json",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+    "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+    "docs/work/name-handling/validation-tools/wasm-real-link-roster.json"
+  ],
+  "approved_exact8_missing_keys": [
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "after": "da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "after": "da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding.rs",
+      "after": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    },
+    {
+      "json": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "trail": [
+        "source_pins"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "after": "da61f554644c992e25c61a692401bd5c40667a542eac2835a0d59b2ac217b659"
+    }
+  ],
+  "top_level_existing_refreshes": 23,
+  "nested_numeric_refreshes": 1,
+  "whole_current_JSON_census": {
+    "JSON": 25,
+    "maps": 22,
+    "records": 604,
+    "actual_unique_Git_source_contents": 382
+  },
+  "driver_checks": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "scalar_changes": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "scalar_changes": 3
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py",
+      "scalar_changes": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "scalar_changes": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "scalar_changes": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py",
+      "scalar_changes": 1
+    }
+  ],
+  "canonical_field_accessor_unchanged": true,
+  "runtime3_actual8sources3functions_and_cold2_source": true,
+  "numeric_actual14sources3functions": true,
+  "author_V16_sha256": "6c08b44eebccdb13dbc10c2aafad9214a2a0060197c7853199479a778c80823d",
+  "author_12guard_report_sha256": "0df7d513a7654b5bfa3a3f9a4545690dbf36a67be0c1b47ef7aa94d82983b5b8",
+  "limits": [
+    "Independent fixed/currentGit/modes/sourcehash/in-memory F-R-F0/whole JSON+driver byte and AST inverses and live map/function census only. No product/native/guest/Rust/build/performance execution or gate acceptance.",
+    "All old selectors/counts/environments/budgets/history/guards restore exactly. Only approved8 PRIMARY dependency keys added; all prior lease/registry/custody/observer keys retained.",
+    "Existing canonical finite source field/accessor remains unchanged; descriptor digest refresh follows actual u32 type repair. V16 and actual12 static source guards supplementary, no execution claim.",
+    "Fresh actual source/provider/deps/tool/function/ELF/process/lifecycle gates and accepted functional outcomes remain Root dispatch obligations. N17 excluded. PRIMARY source is integrated; this is metadata only."
+  ],
+  "independent_primary4_actual6sources4functions": true,
+  "driver_wholeJSON_hash_changes_only": 8
+}
