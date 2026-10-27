@@ -17,9 +17,10 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "640a09fdc2af4ba6d301b061692290a6fac50f874f91d520c140fe78f3129693"
+ROSTER_SHA = "54537a0b7e7da088535ec36d06823cda9141f08f7d122de6e5134e281ec1d317"
 RESULT_COMPLETION_CONTROLS = ('original_command_rename::tests::authored_result_completion_coverage_retains_nested_call_without_normal_grant', 'original_command_rename::tests::authored_result_completion_coverage_refuses_unknown_shadowed_error_and_observer_inputs', 'original_command_rename::tests::authored_result_completion_never_skips_nested_name_write_or_opaque_channel')
 SOURCE_LOAD_CONTROLS = ('original_command_rename::source_coverage::tests::single_cut_source_coverage_surveys_actual_child_and_issued_suffix', 'original_command_rename::source_coverage::tests::source_coverage_refuses_missing_child_reference_and_foreign_membership', 'original_command_rename::source_coverage::tests::source_coverage_keeps_selected_owner_and_opaque_body_refusals', 'original_command_rename::source_coverage::tests::source_coverage_never_omits_extra_cuts_or_namespace_frames')
+TK_PREREQUISITE_CONTROLS = ('hover::original_registry::tests::tk_source_hover_keeps_declared_prerequisite_and_unresolved_availability', 'hover::original_registry::tests::tk_source_prerequisite_refuses_stale_source_and_foreign_input', 'hover::original_registry::tests::declared_prerequisite_uses_required_package_not_owning_package')
 BASE = Path(__file__).resolve().parent
 
 
@@ -195,6 +196,37 @@ def run_source_load_controls(roster, executable, artifact, out, cases):
         save(out / "source-load-control-cases.json", cases)
 
 
+def validate_tk_prerequisite_controls(roster):
+    require(
+        roster.get("tk_prerequisite_control_selectors") == list(TK_PREREQUISITE_CONTROLS),
+        "exact bounded Tk prerequisite controls mismatch",
+    )
+
+
+def run_tk_prerequisite_controls(roster, executable, artifact, out, cases):
+    validate_tk_prerequisite_controls(roster)
+    for index, selector in enumerate(roster["tk_prerequisite_control_selectors"]):
+        require(sha(executable) == artifact["sha256"], "selected executable changed")
+        prefix = "tk-prerequisite-control-" + str(index + 1)
+        listed = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list", executable, 180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+                == [selector + ": test"],
+            "exact Tk prerequisite control missing/ambiguous",
+        )
+        receipt = execute(
+            [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix, executable, 180,
+        )
+        result = original_result((out / (prefix + ".stdout")).read_text(), receipt["exit_code"])
+        cases.append({"selector": selector, "result": result, "exit_code": receipt["exit_code"]})
+        save(out / "tk-prerequisite-control-cases.json", cases)
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -228,6 +260,7 @@ integration_cases = []
 quiet_store_cases = []
 result_completion_cases = []
 source_load_cases = []
+tk_prerequisite_cases = []
 error = None
 status = 2
 environment = os.environ.copy()
@@ -239,6 +272,7 @@ try:
     roster = json.loads(roster_path.read_text())
     validate_source_load_controls(roster)
     validate_result_completion_controls(roster)
+    validate_tk_prerequisite_controls(roster)
     require(
         roster["executor_sha256"] == EXECUTOR_SHA
         and len(roster["selectors"]) == 2
@@ -564,6 +598,16 @@ try:
         else 1
     )
 
+    prior_tk_prerequisite_status = status
+    status = 2
+    run_tk_prerequisite_controls(roster, executable, artifact, out, tk_prerequisite_cases)
+    status = (
+        0 if prior_tk_prerequisite_status == 0
+        and len(tk_prerequisite_cases) == 3
+        and all(case["result"] == "PASS" for case in tk_prerequisite_cases)
+        else 1
+    )
+
 except (
     RuntimeError,
     OSError,
@@ -626,6 +670,8 @@ finally:
             "result_completion_control_total": len(result_completion_cases),
             "source_load_control_cases": source_load_cases,
             "source_load_control_total": len(source_load_cases),
+            "tk_prerequisite_control_cases": tk_prerequisite_cases,
+            "tk_prerequisite_control_total": len(tk_prerequisite_cases),
             "minify_observation_qualification": "WORK coarse-instrumented build; BODY_SYNTAX runtime enabled only exact Default integration list/test rows; old2 runtime environment unchanged. No timing/performance acceptance or new source queries.",
             "integration_qualification": "Distinct fresh integration ELF, same single Cargo invocation and shared original process/phase/aggregate limits; old Core2 selectors remain separate and unchanged.",
             "processes": processes,
