@@ -326,9 +326,90 @@ mod tests {
         interp::{Code, Interp},
     };
 
-    type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
+    type OriginalControl<T = &'static str> = (&'static str, &'static [u8], [T; 6]);
+
+    macro_rules! table_control {
+        ($fixture:literal, $case:literal) => {
+            (
+                $case,
+                include_bytes!(concat!(
+                    "../../../../rust/tcl-registry/tests/data/",
+                    $fixture,
+                    "/",
+                    $case,
+                    ".tcl"
+                ))
+                .as_slice(),
+                [
+                    tcl_test_support::fixture_tables::text(
+                        include_str!(concat!(
+                            "../../../../rust/tcl-registry/tests/data/",
+                            $fixture,
+                            "/captures.tsv"
+                        )),
+                        concat!("8.4.20/", $case, "/stdout"),
+                    ),
+                    tcl_test_support::fixture_tables::text(
+                        include_str!(concat!(
+                            "../../../../rust/tcl-registry/tests/data/",
+                            $fixture,
+                            "/captures.tsv"
+                        )),
+                        concat!("8.5.19/", $case, "/stdout"),
+                    ),
+                    tcl_test_support::fixture_tables::text(
+                        include_str!(concat!(
+                            "../../../../rust/tcl-registry/tests/data/",
+                            $fixture,
+                            "/captures.tsv"
+                        )),
+                        concat!("8.6.18/", $case, "/stdout"),
+                    ),
+                    tcl_test_support::fixture_tables::text(
+                        include_str!(concat!(
+                            "../../../../rust/tcl-registry/tests/data/",
+                            $fixture,
+                            "/captures.tsv"
+                        )),
+                        concat!("9.0.4/", $case, "/stdout"),
+                    ),
+                    tcl_test_support::fixture_tables::text(
+                        include_str!(concat!(
+                            "../../../../rust/tcl-registry/tests/data/",
+                            $fixture,
+                            "/captures.tsv"
+                        )),
+                        concat!("9.1.0/", $case, "/stdout"),
+                    ),
+                    tcl_test_support::fixture_tables::text(
+                        include_str!(concat!(
+                            "../../../../rust/tcl-registry/tests/data/",
+                            $fixture,
+                            "/captures.tsv"
+                        )),
+                        concat!("jim/", $case, "/stdout"),
+                    ),
+                ],
+            )
+        };
+    }
 
     macro_rules! control {
+        ("native_array_owner_teardown347", $case:literal) => {
+            table_control!("native_array_owner_teardown347", $case)
+        };
+        ("native_array_frame_teardown348", $case:literal) => {
+            table_control!("native_array_frame_teardown348", $case)
+        };
+        ("native_array_frame_access349", $case:literal) => {
+            table_control!("native_array_frame_access349", $case)
+        };
+        ("native_array_undefined_member350", $case:literal) => {
+            table_control!("native_array_undefined_member350", $case)
+        };
+        ("native_variable_trace_refill351", $case:literal) => {
+            table_control!("native_variable_trace_refill351", $case)
+        };
         ($fixture:literal, $case:literal) => {
             (
                 $case,
@@ -388,19 +469,20 @@ mod tests {
         };
     }
 
-    fn compare_original_controls(controls: &[OriginalControl]) -> usize {
+    fn compare_original_controls<T: AsRef<str>>(controls: &[OriginalControl<T>]) -> usize {
         compare_controls_with(controls, |interp, source| interp.eval_str(source))
     }
 
-    fn compare_controls_with(
-        controls: &[OriginalControl],
+    fn compare_controls_with<T: AsRef<str>>(
+        controls: &[OriginalControl<T>],
         evaluate: impl Fn(&mut Interp, &[u8]) -> Code,
     ) -> usize {
         let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
         let mut comparisons = 0;
-        for &(case, source, outputs) in controls {
+        for (case, source, outputs) in controls {
             for (engine, stdout) in providers.iter().zip(outputs) {
                 let (expected_code, original) = stdout
+                    .as_ref()
                     .lines()
                     .find_map(|line| line.strip_prefix("ORIGINAL|"))
                     .unwrap()
@@ -446,14 +528,17 @@ mod tests {
     fn original_unset_alias_refills_match_six_native_source_results() {
         // Whole original script results retain the public refill and fresh trace.
         // Jim's unavailable trace command remains an independent guest outcome.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_variable_trace_refill351", "element-alias-refill"),
             control!("native_variable_trace_refill351", "scalar-alias-refill"),
         ];
-        assert_eq!(compare_original_controls(CONTROLS), 12);
+        assert_eq!(compare_original_controls(controls), 12);
     }
 
-    fn compare_byte_unset_refill(controls: &[OriginalControl], separate: bool) -> usize {
+    fn compare_byte_unset_refill<T: AsRef<str>>(
+        controls: &[OriginalControl<T>],
+        separate: bool,
+    ) -> usize {
         compare_controls_with(controls, |interp, source| {
             let marker = b"unset saved;";
             let starts: Vec<_> = source
@@ -483,22 +568,22 @@ mod tests {
         // This implementation control replaces one operation between unchanged
         // source prelude/tail. It asserts shared callback disposal chronology;
         // it does not claim a native C API or original operand/header comparison.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_variable_trace_refill351", "element-alias-refill"),
             control!("native_variable_trace_refill351", "scalar-alias-refill"),
         ];
-        assert_eq!(compare_byte_unset_refill(CONTROLS, false), 12);
+        assert_eq!(compare_byte_unset_refill(controls, false), 12);
     }
 
     #[test]
     fn direct_separate_member_unset_keeps_callback_refill_registrations() {
         // The byte root/key consumer shares physical disposal. The native proof
         // measures only its original alias script, not this Rust call interface.
-        const CONTROLS: &[OriginalControl] = &[control!(
+        let controls: &[OriginalControl<String>] = &[control!(
             "native_variable_trace_refill351",
             "element-alias-refill"
         )];
-        assert_eq!(compare_byte_unset_refill(CONTROLS, true), 6);
+        assert_eq!(compare_byte_unset_refill(controls, true), 6);
     }
 
     #[test]
@@ -527,11 +612,11 @@ mod tests {
     fn direct_varstore_byte_unset_keeps_callback_refill_registrations() {
         // This independently tests the Rust operational byte adapter. The native
         // proof measures its original script, not this VarStore call interface.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_variable_trace_refill351", "element-alias-refill"),
             control!("native_variable_trace_refill351", "scalar-alias-refill"),
         ];
-        let comparisons = compare_controls_with(CONTROLS, |interp, source| {
+        let comparisons = compare_controls_with(controls, |interp, source| {
             let marker = b"unset saved;";
             let start = source
                 .windows(marker.len())
@@ -557,11 +642,11 @@ mod tests {
     fn direct_noncurrent_varstore_byte_unset_keeps_callback_refill_registrations() {
         // A Rust-owned additional frame exercises addressed removal. This is a
         // software control, not a native C API/frame or generated-body proof.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_variable_trace_refill351", "element-alias-refill"),
             control!("native_variable_trace_refill351", "scalar-alias-refill"),
         ];
-        let comparisons = compare_controls_with(CONTROLS, |interp, source| {
+        let comparisons = compare_controls_with(controls, |interp, source| {
             let marker = b"unset saved;";
             let start = source
                 .windows(marker.len())
@@ -648,47 +733,47 @@ mod tests {
     fn original_undefined_member_callbacks_match_six_native_retirement_sources() {
         // Each original result retains array existence/member absence before
         // destruction and the public callback log. No native cell identity claim.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_array_undefined_member350", "explicit-unset"),
             control!("native_array_undefined_member350", "frame-exit"),
             control!("native_array_undefined_member350", "namespace-delete"),
         ];
-        assert_eq!(compare_original_controls(CONTROLS), 18);
+        assert_eq!(compare_original_controls(controls), 18);
     }
 
     #[test]
     fn original_namespace_array_teardown_matches_six_native_owner_sources() {
         // Three whole namespace results, including Jim's unavailable trace API.
         // The original public logs do not expose private namespace/member identity.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_array_owner_teardown347", "namespace-root"),
             control!("native_array_owner_teardown347", "namespace-recreated"),
             control!("native_array_owner_teardown347", "namespace-foreign"),
         ];
-        assert_eq!(compare_original_controls(CONTROLS), 18);
+        assert_eq!(compare_original_controls(controls), 18);
     }
 
     #[test]
     fn original_frame_alias_refusals_do_not_claim_teardown_chronology() {
         // The original C bad-level/inverted-alias errors occur before traces.
         // Jim's unavailable trace command is retained independently.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_array_owner_teardown347", "frame-root"),
             control!("native_array_owner_teardown347", "frame-members"),
             control!("native_array_frame_teardown348", "frame-root"),
             control!("native_array_frame_teardown348", "frame-members"),
         ];
-        assert_eq!(compare_original_controls(CONTROLS), 24);
+        assert_eq!(compare_original_controls(controls), 24);
     }
 
     #[test]
     fn original_frame_callbacks_observe_caller_without_donating_member_traces() {
         // Positive owner reads and whole callback/caller results are compared.
         // No receipt to an inaccessible departing C frame is fabricated.
-        const CONTROLS: &[OriginalControl] = &[
+        let controls: &[OriginalControl<String>] = &[
             control!("native_array_frame_access349", "frame-root-access"),
             control!("native_array_frame_access349", "frame-member-access"),
         ];
-        assert_eq!(compare_original_controls(CONTROLS), 12);
+        assert_eq!(compare_original_controls(controls), 12);
     }
 }
