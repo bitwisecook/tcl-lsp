@@ -766,15 +766,24 @@ mod tests {
         );
         assert_eq!(stronger.source_binding, retained);
         let mut tokens = walk.tokens(source, &commands[0]);
+        let before = tokens.source_binding.as_ref().unwrap().clone();
+        let had_original_head = before.original_head_name_input(&tokens).is_some();
         assert!(
             layout
                 .stamp_original_tokens(source, analysis, &mut tokens)
                 .is_some()
         );
         let binding = tokens.source_binding.as_ref().unwrap();
-        assert!(binding.unknown);
-        assert!(binding.targets.is_empty());
-        assert!(!binding.unobserved_native_dispatch());
+        if had_original_head {
+            assert_eq!(
+                binding, &before,
+                "an existing original head keeps its entire binding"
+            );
+        } else {
+            assert!(binding.unknown);
+            assert!(binding.targets.is_empty());
+            assert!(!binding.unobserved_native_dispatch());
+        }
         let input = binding
             .original_head_name_input(&tokens)
             .expect("same complete body vector, no entered invocation");
