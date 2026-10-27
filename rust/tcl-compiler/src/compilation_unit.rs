@@ -5571,8 +5571,6 @@ impl CompilationUnit {
         parent: &crate::ir::CommandTokens,
         argument: usize,
     ) -> Option<FunctionUnit> {
-        // naming.source.original-collection-body-owner
-
         let module = &self.ir_module;
         let input = self.conditional_original_body_input(registry, original_function)?;
         let script =
@@ -6040,8 +6038,6 @@ mod tests {
 
     #[test]
     fn function_consumers_keep_the_actual_generation_and_grammar() {
-        // naming.compiler.original-analysis-metadata-context
-
         let registry = Arc::new(CommandRegistry::build_default());
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let actual = Arc::new(
@@ -6267,8 +6263,6 @@ mod tests {
 
     #[test]
     fn module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results() {
-        // naming.source.retained-positioned-command-realm
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -6331,8 +6325,6 @@ mod tests {
 
     #[test]
     fn semantic_bundle_requires_retained_availability_and_source_grammar() {
-        // naming.compiler.original-analysis-metadata-context
-
         // These are source metadata and availability assertions, not Native entry facts.
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
@@ -6416,8 +6408,6 @@ mod tests {
 
     #[test]
     fn retained_deep_sidecars_keep_availability_and_refuse_missing_function_input() {
-        // naming.compiler.original-analysis-metadata-context
-
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let mut registry = baseline.commands().project_for_profile(profile);
@@ -6498,8 +6488,6 @@ mod tests {
 
     #[test]
     fn retained_deep_sidecars_require_the_module_source_owner() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Full source sidecars borrow Module scripts; no Native entry is established.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -6562,8 +6550,6 @@ mod tests {
 
     #[test]
     fn retained_memory_facts_require_matching_module_and_function_owners() {
-        // naming.compiler.original-analysis-metadata-context
-
         // This checks metadata admission and opaque memory obligations, not Native entry.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -6720,8 +6706,6 @@ mod tests {
 
     #[test]
     fn memoised_source_facts_retain_nested_bom_and_lexer_overlays() {
-        // naming.compiler.original-analysis-metadata-context
-
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let registry = current.commands();
@@ -6817,8 +6801,6 @@ mod tests {
 
     #[test]
     fn supplied_source_input_retains_axes_and_independent_logical_entry() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Source declarations and aliases are conditional authored facts, not Native entry.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -7028,8 +7010,6 @@ mod tests {
 
     #[test]
     fn supplied_source_producer_refuses_changed_profile_and_lexer_metadata() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Actual input is retained for reporting; unrelated producer options grant no facts.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -7101,8 +7081,6 @@ mod tests {
 
     #[test]
     fn supplied_hosted_source_entry_retains_advice_without_activation() {
-        // naming.compiler.original-analysis-metadata-context
-
         for environment in ["f5-irules", "f5-iapps"] {
             let environment = tcl_registry::model::ingress::resolve_environment(environment);
             let profile = environment.unit_profile();
@@ -9312,8 +9290,6 @@ mod original_receiver_method_facts_tests {
     use super::*;
 
     #[test]
-    // Implementation contract: naming.variable.original-entered-receiver-body-context
-
     fn original_method_facts_keep_counted_formals_without_class_label_variable_union() {
         let source = r"oo::class create C {variable state; method m {arg\uD800} {return ${arg\uD800}}}; oo::define C variable later";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -9336,8 +9312,6 @@ mod original_receiver_method_facts_tests {
     }
 
     #[test]
-    // Implementation contract: naming.variable.original-entered-receiver-body-context
-
     fn original_source_context_never_inherits_compatibility_instance_or_execution_fields() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let unit = CompilationUnit::build_for_dialect("set x 1", registry, false, "tcl8.6");
@@ -9427,8 +9401,6 @@ mod conditional_original_body_tests {
 
     #[test]
     fn conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant() {
-        // naming.source.original-collection-body-owner
-
         // Conditional original syntax/CFG only; no BIG-IP entry or worker claim.
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig {
@@ -9506,8 +9478,6 @@ mod conditional_original_body_tests {
 
     #[test]
     fn nested_original_children_share_the_actual_root_function_owner() {
-        // naming.source.original-collection-body-owner
-
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
         let (unit, context) = supplied(
@@ -9558,8 +9528,6 @@ mod conditional_original_body_tests {
 
     #[test]
     fn original_child_withdraws_missing_foreign_and_changed_complete_owners() {
-        // naming.source.original-collection-body-owner
-
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
         let source = "when HTTP_REQUEST {clientside {HTTP::collect}}";
@@ -9617,8 +9585,6 @@ mod conditional_original_body_tests {
 
     #[test]
     fn genuine_roster_retains_empty_classes_and_refuses_owner_donation() {
-        // naming.source.original-collection-body-owner
-
         // Descriptive class spelling only; no Native class allocation/constructor.
         let environment = tcl_registry::model::resolve_known_environment("tcl").unwrap();
         let config = tcl_lexer::LexerConfig {
@@ -9690,8 +9656,6 @@ mod conditional_original_body_tests {
 
     #[test]
     fn conditional_original_child_inherits_unknown_presence_and_refines_local_stores() {
-        // naming.source.original-collection-body-owner
-
         // Conditional source/lattice facts only; no provider or physical frame claim.
         let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
@@ -9748,8 +9712,6 @@ mod conditional_original_body_tests {
 
     #[test]
     fn conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation() {
-        // naming.source.original-collection-body-owner
-
         // Source entry/API control only; no entered caller, event or Native frame.
         let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
@@ -9842,8 +9804,6 @@ mod selected_class_roster_tests {
 
     #[test]
     fn genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers() {
-        // naming.source.original-collection-body-owner
-
         let context = context(true);
         for source in [
             "forge create Empty {}",
@@ -9901,8 +9861,6 @@ mod selected_class_roster_tests {
 
     #[test]
     fn selected_roster_preserves_changed_definition_and_captured_prefix_refusals() {
-        // naming.source.original-collection-body-owner
-
         let selected = context(true);
         for source in [
             "proc forge args {}; forge create Empty {}",
@@ -9929,8 +9887,6 @@ mod selected_class_roster_tests {
 
     #[test]
     fn class_source_producer_withdraws_foreign_missing_and_changed_full_owners() {
-        // naming.source.original-collection-body-owner
-
         let context = context(true);
         let source = "forge create Empty {}";
         let unit = unit(source, &context);
@@ -9968,8 +9924,6 @@ mod selected_class_roster_tests {
 
     #[test]
     fn retained_roster_projection_shares_empty_custom_and_selected_source_classes() {
-        // naming.source.original-collection-body-owner
-
         let context = context(true);
         for source in [
             "forge create Empty {}",
@@ -10002,8 +9956,6 @@ mod selected_class_roster_tests {
 
     #[test]
     fn retained_roster_projection_withdraws_changed_cu_module_input_and_store() {
-        // naming.source.original-collection-body-owner
-
         let context = context(true);
         let source = "forge create Empty {}";
         let original = unit(source, &context);

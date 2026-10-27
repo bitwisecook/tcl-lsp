@@ -34639,8 +34639,6 @@ mod native_oo_bootstrap_inventory_tests {
 
     #[test]
     fn original_oo_bootstrap_inventory_keeps_roles_methods_and_namespace_currency() {
-        // Implementation contract: naming.runtime.native-tcloo-class-capability
-
         for version in [
             tcl_dialect::TclVersion::V8_6,
             tcl_dialect::TclVersion::V9_0,

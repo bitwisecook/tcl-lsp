@@ -2324,8 +2324,6 @@ mod tests {
 
     #[tokio::test]
     async fn readonly_member_wire_retains_owner_and_partial_coverage() {
-        // naming.server.original-reference-and-lens-source-selection
-
         let backend = crate::tests::test_backend();
         let uri: Uri = "file:///readonly-member-wire.tcl".parse().unwrap();
         register_current(&backend, &uri, SOURCE).await;
@@ -2430,8 +2428,6 @@ mod tests {
 
     #[tokio::test]
     async fn readonly_member_wire_withdraws_missing_or_replaced_source_owners() {
-        // naming.server.original-reference-and-lens-source-selection
-
         let backend = crate::tests::test_backend();
         let uri: Uri = "file:///readonly-member-current.tcl".parse().unwrap();
         let foreign: Uri = "file:///readonly-member-foreign.tcl".parse().unwrap();
@@ -2476,8 +2472,6 @@ mod tests {
 
     #[tokio::test]
     async fn readonly_member_wire_rejects_equal_path_provider_republication() {
-        // naming.server.original-reference-and-lens-source-selection
-
         let mut backend = crate::tests::test_backend();
         let store = Arc::new(crate::vfs::MemoryStore::new());
         let uri: Uri = "file:///readonly-provider-aba.tcl".parse().unwrap();
@@ -2528,8 +2522,6 @@ mod tests {
 
     #[test]
     fn unavailable_member_wire_has_no_clickable_empty_census() {
-        // naming.server.original-reference-and-lens-source-selection
-
         for coverage in [
             ReadonlyReferenceCoverage::Partial,
             ReadonlyReferenceCoverage::Unavailable,

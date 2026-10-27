@@ -9185,8 +9185,6 @@ impl Interp {
         let native_precision = home
             .as_ref()
             .is_some_and(|home| self.native_precision_trace_at(home));
-        // naming.variable.original-undefined-array-member-retirement
-
         // The selected generation keeps original physical entries. Software
         // refusals stop later callbacks while its mandatory owners still retire.
         let elements = selected.search_keys().unwrap_or_default();
@@ -14485,8 +14483,6 @@ impl Interp {
         {
             return self.eval_generic_control_body(body);
         }
-        // naming.mathop-procedure-source-controls
-
         if !self.in_proc()
             && protocol
                 .compiles_source(tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody)
@@ -16285,8 +16281,6 @@ impl Interp {
         line: u32,
         filename: *mut TclObj,
     ) -> JimEvaluationScope {
-        // naming.source.jim-original-source-entry
-
         let script = self
             .cmd_frames
             .borrow()
@@ -21007,8 +21001,6 @@ mod tests {
 
     #[test]
     fn original_exposure_after_cleanup_follows_actual_generation_for_traces_and_imports() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Real software delete callback moves the token; no Native callback chronology is asserted.
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -21055,8 +21047,6 @@ mod tests {
 
     #[test]
     fn original_exposure_cleanup_preserves_host_and_context_first_causes_before_retargeting() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Fixed genuine callback controls check software currency, not external provider outcomes.
         for mode in [1, 2] {
             leak_free(|interpreter| {
@@ -21105,8 +21095,6 @@ mod tests {
 
     #[test]
     fn original_exposure_cleanup_declines_a_replacement_generation_at_the_requested_name() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // A real software delete callback recreates the requested slot with another token.
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -21175,8 +21163,6 @@ mod tests {
 
     #[test]
     fn original_failed_exposure_retires_incoming_binding_outside_table_borrow_after_first_cause() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Real extension client-data release on this software unavailable-slot route only.
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -21216,8 +21202,6 @@ mod tests {
     #[test]
     fn original_failed_exposure_retires_actual_ensemble_configuration_after_publication_first_cause(
     ) {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // A genuine owning configured role supplies its existing +1; no protective Native hold.
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -21387,8 +21371,6 @@ mod tests {
 
     #[test]
     fn original_publication_holder_refuses_delete_and_recreated_namespace() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual software namespace retirement without an interpreter epoch
         // change; no new native-provider timing or discard observation.
         leak_free(|interpreter| {
@@ -21457,8 +21439,6 @@ mod tests {
 
     #[test]
     fn original_publication_holder_refuses_initial_dead_or_absent_namespace() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         for absent in [false, true] {
             leak_free(|interpreter| {
                 interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
@@ -21489,8 +21469,6 @@ mod tests {
 
     #[test]
     fn original_publication_holder_preserves_retained_dying_and_permanent_root_tokens() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // The actual retained arena holder exercises the shared publication
         // seam. Independent original TclOO source comparisons retain OO scope.
         leak_free(|interpreter| {
@@ -21552,8 +21530,6 @@ mod tests {
 
     #[test]
     fn idle_original_delete_procedure_runs_before_publication_and_preserves_first_refusal() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual software object-command retirement, not a new native-provider
         // observation or an assertion about callback-recreated-slot discard.
         for mode in 0..3 {
@@ -21609,8 +21585,6 @@ mod tests {
 
     #[test]
     fn active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Public replacement runs deleteProc before returning; an active handle
         // retains only the command allocation (Tcl8.6.18 tclBasic.c:2414,3277).
         leak_free(|interpreter| {
@@ -21652,8 +21626,6 @@ mod tests {
 
     #[test]
     fn c_command_publication_preserves_pending_host_before_namespace_or_output_changes() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             interpreter
@@ -21705,10 +21677,6 @@ mod tests {
 
     #[test]
     fn c84_primitive_invalid_code_is_preserved_until_actual_script_propagation() {
-        // naming.numeric.original-capi-scalar-publication-width
-
-        // naming.numeric.seeded-wide-frontier
-
         // Software publication at the actual Runtime boundary, independently
         // of the public primitive fields and the original callback captures.
         use tcl_syntax::scalar_getter::{
@@ -21873,10 +21841,6 @@ mod tests {
 
     #[test]
     fn native_wrong_arguments_string_result_requires_the_structured_presenter() {
-        // naming.variable.original-upvar-and-exists-completion-and-name-windows
-
-        // naming.list.original-assign-objects-and-instructions
-
         // The original tables independently observe C84 upvar case11 and
         // C85 lassign case28 String results. This tests the shared presenter.
         use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
@@ -21920,8 +21884,6 @@ mod tests {
 
     #[test]
     fn unchanged_primitive_projection_preserves_the_original_string_result() {
-        // naming.compiler.introspection-source-and-effect-frontiers
-
         // Native case13 observes the selected integer-getter String result.
         // This separate owner control checks unchanged propagation identity.
         use tcl_syntax::scalar_getter::{
@@ -23690,8 +23652,6 @@ mod tests {
 
     #[test]
     fn backing_report_preserves_colon_components_from_actual_placed_slots() {
-        // naming.embedding.original-host-publication-and-fact-transport
-
         // Actual software table placement and diagnostic projection only; no Native dispatch or inverse-name claim.
         leak_free(|interp| {
             let holder = {

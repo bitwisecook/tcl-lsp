@@ -1467,10 +1467,6 @@ mod tests {
 
     #[test]
     fn original_command_rename_keeps_opaque_words_and_ignores_reporting_maps() {
-        // Implementation contract: naming.source.original-jim-text-evaluation
-
-        // Implementation contract: naming.editor.original-command-rename-plans
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             for name in ["helper", r"p\uD800"] {
                 let source =
@@ -1506,8 +1502,6 @@ mod tests {
 
     #[test]
     fn original_command_rename_declines_stale_duplicate_collision_and_readonly_links() {
-        // Implementation contract: naming.editor.original-command-rename-plans
-
         let source = "proc helper {argument} {return $argument}\nhelper value\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let identity = OriginalDeclarationIdentity::for_procedure(

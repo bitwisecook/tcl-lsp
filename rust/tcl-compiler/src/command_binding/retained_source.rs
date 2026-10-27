@@ -380,8 +380,6 @@ impl RetainedSourceModuleBindings {
         module: &Module,
         registry: &CommandRegistry,
     ) -> Option<&Arc<SourceCommandBindings>> {
-        // naming.source.retained-positioned-command-realm
-
         if !self.matches_module(module, registry)
             || module.registry_snapshot.as_ref()?.semantic_key() != self.registry
             || !self
@@ -641,8 +639,6 @@ impl RetainedSourceModuleBindings {
     /// original interpretation. This supplies source ownership independently of
     /// compiler visitation, Native handler admission and read/store receipts.
     pub(crate) fn owns_original_tokens(&self, tokens: &crate::ir::CommandTokens) -> bool {
-        // naming.source.original-direct-token-owner
-
         let Some(binding) = tokens.source_binding.as_ref() else {
             return false;
         };
@@ -1133,8 +1129,6 @@ mod tests {
 
     #[test]
     fn direct_original_source_tokens_do_not_require_compiler_visitation() {
-        // naming.source.original-direct-token-owner
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_known_environment(engine)
                 .expect("each fixture uses a known engine environment")
@@ -1239,8 +1233,6 @@ mod tests {
 
     #[test]
     fn original_source_token_owner_refuses_missing_and_changed_carriers() {
-        // naming.source.original-direct-token-owner
-
         let registry = CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let unit = crate::compilation_unit::CompilationUnit::build_for("set x 0", &registry, false);
@@ -1334,8 +1326,6 @@ mod tests {
 
     #[test]
     fn original_source_token_owner_joins_the_complete_retained_baseline() {
-        // naming.source.original-direct-token-owner
-
         let registry = CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let unit = crate::compilation_unit::CompilationUnit::build_for("set x 0", &registry, false);
@@ -1384,8 +1374,6 @@ mod tests {
 
     #[test]
     fn positioned_module_projection_shares_the_actual_producer_and_detaches_writes() {
-        // naming.source.retained-positioned-command-realm
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let module = lowered(registry);
         let retained = module.retained_source_bindings.as_ref().unwrap();
@@ -1420,8 +1408,6 @@ mod tests {
 
     #[test]
     fn positioned_module_projection_refuses_each_changed_original_input() {
-        // naming.source.retained-positioned-command-realm
-
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let original = lowered(registry);
         let retained = original.retained_source_bindings.as_ref().unwrap();

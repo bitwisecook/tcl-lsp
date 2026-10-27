@@ -3260,8 +3260,6 @@ mod tests {
 
     #[test]
     fn original_assignment_literals_keep_decoding_separate_from_execution_authority() {
-        // naming.compiler.original-analysis-metadata-context
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -3405,8 +3403,6 @@ mod tests {
 
     #[test]
     fn structural_assignments_require_actual_availability_and_grammar() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Availability selection retains a separate actual command-entry owner;
         // it does not assert successful native compilation or fixture execution.
         use std::sync::Arc;
@@ -3501,8 +3497,6 @@ mod tests {
 
     #[test]
     fn structural_assignments_need_unanimous_original_source_carriers() {
-        // naming.compiler.original-analysis-metadata-context
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let unit = retained_source_unit(
@@ -3567,8 +3561,6 @@ mod tests {
 
     #[test]
     fn assignment_source_metadata_retains_nested_lexer_overlays() {
-        // naming.compiler.original-analysis-metadata-context
-
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let config = tcl_lexer::LexerConfig {
@@ -3800,8 +3792,6 @@ mod tests {
 
     #[test]
     fn constructed_procedure_calls_require_the_original_native_trace_owner() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Real source compilation and original entry; no Native trace execution.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

@@ -1820,8 +1820,6 @@ pub(crate) fn original_substitution_purity_with_metadata_context(
         .as_ref()?
         .original_source_advice_purpose(tokens, context, registry)?
         == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
-    // naming.compiler.original-analysis-metadata-context
-
     if !context.matches_registry(registry) || tokens.synthetic.is_some() {
         return None;
     }
@@ -6830,8 +6828,6 @@ pub fn original_registry_invocation_assistance_with_metadata_context(
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
 ) -> Option<RegistryInvocationAssistance> {
-    // Implementation contract: naming.source.original-registry-header-advice
-
     tokens
         .source_binding
         .as_ref()?
@@ -6900,8 +6896,6 @@ pub fn original_incomplete_body_registry_invocation_assistance(
     realm: &crate::realm::CommandBindingRealm,
     tokens: &CommandTokens,
 ) -> Option<RegistryInvocationAssistance> {
-    // Implementation contract: naming.source.incomplete-body-header-metadata
-
     let advice = realm
         .source_bindings_ref()
         .incomplete_body_operand_layout_advice(tokens, registry)?;
@@ -8087,8 +8081,6 @@ fn receiver_source_trait_invocation<'a>(
     tokens: &CommandTokens,
     bindings: &crate::command_binding::SourceCommandBindings,
 ) -> Option<ReceiverTraitInvocation> {
-    // naming.tcloo.original-declared-receiver-caller-traits
-
     let binding = tokens.source_binding.as_ref()?;
     let site = binding.invocation_site()?;
     let entry = bindings.declared_receiver_body_entry_at(&site.source, site.offset)?;
@@ -8389,7 +8381,6 @@ pub(crate) fn logical_parameter_body_assistance(
 /// Source-only argument roles for one actual command inside a selected
 /// Logical lambda. The separate role facet never enters ordinary invocation
 /// advice or establishes lambda entry.
-// naming.compiler.logical-lambda-parameter-trait-source-roles
 pub(crate) fn logical_lambda_parameter_body_assistance(
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     realm: &crate::realm::CommandBindingRealm,
@@ -10134,8 +10125,6 @@ mod tests {
 
     #[test]
     fn logical_source_structure_uses_original_lookup_without_a_physical_frame() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Conditional source roles remain separate from Native handler and frame entry.
         let owner =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
@@ -10209,8 +10198,6 @@ mod tests {
 
     #[test]
     fn original_logical_case_roles_keep_selection_residuals_out_of_structured_ir() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Possible bodies are source advice; the unknown option/error branch
         // cannot borrow a definitive Switch or complete Native argument roles.
         let owner =
@@ -10291,8 +10278,6 @@ mod tests {
 
     #[test]
     fn original_logical_case_roles_refuse_missing_foreign_stale_and_replaced_owners() {
-        // naming.compiler.original-analysis-metadata-context
-
         let owner =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -10388,8 +10373,6 @@ mod tests {
 
     #[test]
     fn logical_source_structure_refuses_old_availability_stale_grammar_and_replacements() {
-        // naming.compiler.original-analysis-metadata-context
-
         let owner =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -10446,8 +10429,6 @@ mod tests {
 
     #[test]
     fn logical_source_shape_cannot_substitute_for_missing_native_entry() {
-        // naming.compiler.original-analysis-metadata-context
-
         let owner =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -10495,8 +10476,6 @@ mod tests {
 
     #[test]
     fn original_expression_context_keeps_logical_input_and_written_operands() {
-        // naming.compiler.original-analysis-metadata-context
-
         let owner =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -10564,8 +10543,6 @@ mod tests {
 
     #[test]
     fn original_expression_context_keeps_availability_and_terminal_point_refusals() {
-        // naming.compiler.original-analysis-metadata-context
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
         let mut registry = CommandRegistry::build_default();
@@ -10745,8 +10722,6 @@ mod tests {
     fn decoded_native_byte_words_preserve_cardinality_and_checked_text() {
         let bytes = EffectiveInvocationWord::from_bytes(&[0xff]);
         assert_eq!(bytes.literal_bytes(), Some([0xff].as_slice()));
-        // Implementation contract: naming.invocation.known-native-byte-values
-
         assert_eq!(
             bytes.as_registry_word(),
             InvocationWord::KnownBytes(&[0xff])
@@ -12495,8 +12470,6 @@ mod tests {
 
     #[test]
     fn original_metadata_context_keeps_actual_availability_and_generation() {
-        // naming.compiler.original-analysis-metadata-context
-
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = generation.commands();
         let old = tcl_registry::model::ingress::static_context_for("tcl8.4")
@@ -12534,8 +12507,6 @@ mod tests {
     }
     #[test]
     fn retained_script_metadata_keeps_actual_context_and_effective_ordinals() {
-        // naming.compiler.original-analysis-metadata-context
-
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
         for (source, argument, expected) in [
@@ -12594,8 +12565,6 @@ mod tests {
 
     #[test]
     fn original_body_metadata_keeps_supplied_availability_and_generation() {
-        // naming.compiler.original-analysis-metadata-context
-
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(generation.commands()));
@@ -12664,8 +12633,6 @@ mod tests {
 
     #[test]
     fn retained_invocation_context_keeps_availability_without_donating_handler_proof() {
-        // naming.compiler.original-analysis-metadata-context
-
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(generation.commands()));
@@ -12763,8 +12730,6 @@ mod tests {
 
     #[test]
     fn advisory_value_metadata_shares_supplied_availability_and_store_refusal() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Registry May candidates only; no actual assignment or returned object.
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
@@ -12823,8 +12788,6 @@ mod original_argument_slice_purpose_tests {
 
     #[test]
     fn original_argument_slices_keep_bom_values_and_selected_variable_geometry() {
-        // naming.source.original-configured-script-completeness
-
         // Lexical argument values/counts only; no handler or physical argv grant.
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
@@ -12880,8 +12843,6 @@ mod original_logical_body_topology_input_tests {
 
     #[test]
     fn original_logical_body_topology_requires_the_supplied_complete_input_at_same_registry() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Conditional source topology only; no Native body or compiler admission.
         let mut analyser = crate::analyser::Analyser::new();
         let input = analyser.prepare_analysis_input("tcl").unwrap();

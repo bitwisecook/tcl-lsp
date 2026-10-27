@@ -27848,8 +27848,6 @@ impl Backend {
         analysis: &Arc<AnalysisResult>,
         disabled: &HashSet<String>,
     ) -> Option<Vec<tcl_compiler::analyser::Diagnostic>> {
-        // naming.database.original-project-callback-projection
-
         if !cross_file_on {
             return None;
         }
@@ -40543,8 +40541,6 @@ mod tests {
     #[tokio::test]
     async fn original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal()
      {
-        // Implementation contract: naming.editor.original-declaration-document-participation
-
         let backend = test_backend();
         let base = Uri::from_str("file:///mixed-base.tcl").unwrap();
         let child = Uri::from_str("file:///mixed-child.tcl").unwrap();
@@ -40628,8 +40624,6 @@ mod tests {
 
     #[tokio::test]
     async fn original_implementation_queries_keep_workspace_method_and_class_owners() {
-        // Implementation contract: naming.consumer.original-type-and-implementation-navigation
-
         let backend = test_backend();
         let base = Uri::from_str("file:///original-implementation-base.tcl").unwrap();
         let child = Uri::from_str("file:///original-implementation-child.tcl").unwrap();
@@ -40675,8 +40669,6 @@ mod tests {
 
     #[tokio::test]
     async fn original_workspace_procedure_rename_requires_expression_edit_coverage() {
-        // Implementation contract: naming.core.original-math-rename-coverage
-
         let backend = test_backend();
         let provider = Uri::from_str("file:///original-math-rename-provider.tcl").unwrap();
         let consumer = Uri::from_str("file:///original-math-rename-consumer.tcl").unwrap();
@@ -40717,8 +40709,6 @@ mod tests {
 
     #[tokio::test]
     async fn original_workspace_references_and_lenses_share_owned_byte_declarations() {
-        // Implementation contract: naming.server.original-reference-and-lens-source-selection
-
         let backend = test_backend();
         let provider = Uri::from_str("file:///original-reference-provider.tcl").unwrap();
         let consumer = Uri::from_str("file:///original-reference-consumer.tcl").unwrap();
@@ -40794,8 +40784,6 @@ mod tests {
 
     #[tokio::test]
     async fn original_workspace_reference_misses_never_reparse_reporting_names() {
-        // Implementation contract: naming.server.original-reference-and-lens-source-selection
-
         let backend = test_backend();
         let provider = Uri::from_str("file:///original-reference-real.tcl").unwrap();
         let consumer = Uri::from_str("file:///original-reference-missing.tcl").unwrap();
@@ -40858,8 +40846,6 @@ mod tests {
 
     #[tokio::test]
     async fn original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source() {
-        // Contract: naming.consumer.original-type-hierarchy
-
         let backend = test_backend();
         let base = Uri::from_str("file:///original-hierarchy-base.tcl").unwrap();
         let child = Uri::from_str("file:///original-hierarchy-child.tcl").unwrap();
@@ -40928,8 +40914,6 @@ mod tests {
 
     #[tokio::test]
     async fn original_workspace_command_rename_uses_atomic_current_owners() {
-        // Implementation contract: naming.editor.original-command-rename-plans
-
         use std::ops::ControlFlow;
         let backend = test_backend();
         let first = Uri::from_str("file:///original-command-rename.tcl").unwrap();
@@ -41018,8 +41002,6 @@ p\uD800";
 
     #[tokio::test]
     async fn original_workspace_member_rename_uses_shared_roster_and_atomic_owner_guards() {
-        // Implementation contract: naming.editor.original-instance-member-rename-plans
-
         use std::ops::ControlFlow;
         let backend = test_backend();
         let owner = Uri::from_str("file:///original-member-owner.tcl").unwrap();
@@ -41183,8 +41165,6 @@ namespace exists n\uD800";
 
     #[tokio::test]
     async fn original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners() {
-        // Implementation contract: naming.editor.original-indexed-source-location
-
         let backend = test_backend();
         let first = Uri::from_str("file:///current-indexed-first.tcl").unwrap();
         let second = Uri::from_str("file:///current-indexed-second.tcl").unwrap();
@@ -41334,8 +41314,6 @@ info exists ::N::v\uD800";
 
     #[tokio::test]
     async fn original_namespace_rename_uses_typed_workspace_collisions_and_source_plans() {
-        // Implementation contract: naming.server.original-namespace-rename-plans
-
         let backend = test_backend();
         let first = Uri::from_str("file:///opaque-namespace-rename-first.tcl").unwrap();
         let second = Uri::from_str("file:///opaque-namespace-rename-second.tcl").unwrap();
@@ -41444,8 +41422,6 @@ namespace exists n\uD800";
 
     #[tokio::test]
     async fn original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity() {
-        // Implementation contract: naming.server.original-method-query
-
         let backend = test_backend();
         let provider = Uri::from_str("file:///opaque-method-provider.tcl").unwrap();
         let consumer = Uri::from_str("file:///opaque-method-consumer.tcl").unwrap();
@@ -41584,8 +41560,6 @@ namespace exists n\uD800";
 
     #[tokio::test]
     async fn original_method_queries_preserve_lexical_variable_provider_priority() {
-        // Implementation contract: naming.server.original-method-query
-
         let backend = test_backend();
         let provider = Uri::from_str("file:///variable-priority-method-provider.tcl").unwrap();
         let provider_source = "oo::class create C {self method m {} {}}\n";
@@ -41650,8 +41624,6 @@ namespace exists n\uD800";
     }
     #[tokio::test]
     async fn original_variable_queries_keep_opaque_slots_across_documents() {
-        // Implementation contract: naming.server.original-variable-symbol-query
-
         let backend = test_backend();
         let first = Uri::from_str("file:///opaque-variable-first.tcl").unwrap();
         let second = Uri::from_str("file:///opaque-variable-second.tcl").unwrap();
@@ -41739,8 +41711,6 @@ info exists ::N::v\uD800";
 
     #[tokio::test]
     async fn original_variable_rename_shares_source_plans_and_typed_workspace_collisions() {
-        // Implementation contract: naming.server.original-variable-rename-plans
-
         let backend = test_backend();
         let first = Uri::from_str("file:///original-variable-rename-first.tcl").unwrap();
         let second = Uri::from_str("file:///original-variable-rename-second.tcl").unwrap();
@@ -41808,10 +41778,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_package_procedures_use_shared_conditional_source_slots() {
-        // naming.source.original-procedure-publications
-
-        // naming.server.original-package-consumer-resolution
-
         let profile = tcl_lsp_core::profile_for_dialect("tcl8.6");
         let source = "proc original {value} {}; proc removed {} {}; rename original moved; rename removed {}";
         let names = defined_original_commands(source, profile);
@@ -41829,10 +41795,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_package_classes_use_shared_current_factory_slots() {
-        // naming.source.original-class-publications
-
-        // naming.server.original-package-consumer-resolution
-
         let profile = tcl_lsp_core::profile_for_dialect("tcl8.6");
         for (source, expected) in [
             (
@@ -41862,8 +41824,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_package_consumers_keep_constraints_and_dependency_preference() {
-        // Implementation contract: naming.server.original-package-consumer-resolution
-
         use tcl_lsp_core::package_resolver::{PackagePrefer, PackageRequirementAdvice};
         let store = vfs::MemoryStore::new();
         store.upsert(
@@ -43078,8 +43038,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_diagnostic_invalidation_keeps_opaque_dependencies_and_foreign_surfaces_separate() {
-        // Implementation contract: naming.editor.original-diagnostic-invalidation
-
         let library = Uri::from_str("file:///opaque-provider.tcl").unwrap();
         let caller = Uri::from_str("file:///opaque-caller.tcl").unwrap();
         let sibling = Uri::from_str("file:///opaque-sibling.tcl").unwrap();
@@ -43706,8 +43664,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn report_publication_retains_unavailable_generation_status() {
-        // naming.diagnostic.typed-subject-reporting
-
         // The publication adapter carries an explicit refused input, independently of message text.
         let mut analysis = AnalysisResult::default();
         analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
@@ -46414,10 +46370,6 @@ info exists ::N::v\uD800";
     /// held-target/capture/baked/suffix source signature subject and head span.
     #[tokio::test]
     async fn original_callback_push_and_pull_share_source_signature_advice() {
-        // naming.database.original-project-callback-projection
-
-        // naming.source.original-callback-procedure-target
-
         let backend = test_backend();
         let caller = Uri::from_str("file:///callback-main.tcl").unwrap();
         let provider = Uri::from_str("file:///callback-provider.tcl").unwrap();
@@ -46474,10 +46426,6 @@ info exists ::N::v\uD800";
     /// current registration image, without donating a callback execution claim.
     #[tokio::test]
     async fn original_callback_pull_uses_current_source_and_external_headers() {
-        // naming.database.original-project-callback-projection
-
-        // naming.source.original-callback-procedure-target
-
         let backend = test_backend();
         let caller = Uri::from_str("file:///callback-current.tcl").unwrap();
         let provider = Uri::from_str("file:///callback-current-provider.tcl").unwrap();
@@ -46544,10 +46492,6 @@ info exists ::N::v\uD800";
     /// project header on either push publication or the full pull surface.
     #[tokio::test]
     async fn original_callback_push_and_pull_keep_known_source_barriers() {
-        // naming.database.original-project-callback-projection
-
-        // naming.source.original-callback-procedure-target
-
         let backend = test_backend();
         let caller = Uri::from_str("file:///callback-deleted.tcl").unwrap();
         let provider = Uri::from_str("file:///callback-deleted-provider.tcl").unwrap();
@@ -46601,10 +46545,6 @@ info exists ::N::v\uD800";
     /// external signature projection. Readonly callback advice grants no edit.
     #[tokio::test]
     async fn original_callback_code_action_demands_current_source_header_projection() {
-        // naming.database.original-project-callback-projection
-
-        // naming.source.original-callback-procedure-target
-
         let executed: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
         let sink = Arc::clone(&executed);
         let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
@@ -46676,8 +46616,6 @@ info exists ::N::v\uD800";
     /// opt-in report-tail matches. Indexed source does not prove loading.
     #[tokio::test]
     async fn original_workspace_w123_preserves_native_absence_with_project_matching() {
-        // naming.consumer.original-workspace-diagnostic-refinement
-
         let backend = test_backend();
         let a = Uri::from_str("file:///a.tcl").unwrap();
         let decoy = Uri::from_str("file:///decoy.tcl").unwrap();
@@ -46719,10 +46657,6 @@ info exists ::N::v\uD800";
     /// dispatch. The exact slot label cannot supply that missing obligation.
     #[tokio::test]
     async fn original_workspace_math_source_candidate_keeps_dispatch_unresolved() {
-        // Implementation contract: naming.diagnostic.original-math-function-subject
-
-        // naming.consumer.original-workspace-diagnostic-refinement
-
         let backend = test_backend();
         let helper = Uri::from_str("file:///helper.tcl").unwrap();
         let vector = Uri::from_str("file:///vector.tcl").unwrap();
@@ -46770,10 +46704,6 @@ info exists ::N::v\uD800";
     /// expression's independently selected function-lookup purpose.
     #[tokio::test]
     async fn original_workspace_mathfunc_rejects_foreign_namespace_report_tails() {
-        // Implementation contract: naming.diagnostic.original-math-function-subject
-
-        // naming.consumer.original-workspace-diagnostic-refinement
-
         let backend = test_backend();
         let helper = Uri::from_str("file:///decoy.tcl").unwrap();
         let vector = Uri::from_str("file:///consumer.tcl").unwrap();
@@ -47488,8 +47418,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn retained_source_and_package_paths_consume_actual_plans() {
-        // naming.navigation.retained-path-source-inventory
-
         let source = "interp alias {} build {} file join /ROOT; source [build {literal$é.tcl}]";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let target = analysis
@@ -54043,8 +53971,6 @@ proc p {} {
 
     #[tokio::test]
     async fn a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears() {
-        // naming.compiler.original-analysis-metadata-context
-
         // Public source indexing and reporting hints, without Native allocation or execution.
         let root = unique_scratch_dir("factory-chain-withdrawal358");
         for (name, source) in [
@@ -57014,8 +56940,6 @@ proc p {} {
 
     #[tokio::test]
     async fn minify_document_command_compact_includes_symbol_map() {
-        // Implementation contract: naming.minifier.original-syntax-correspondence
-
         let backend = test_backend();
         let uri = Uri::from_str("file:///m.tcl").unwrap();
         backend.documents.lock("test").await.insert(
@@ -68280,8 +68204,6 @@ proc p {} {
 
     #[tokio::test]
     async fn original_hierarchy_and_lens_wire_data_require_retained_current_declarations() {
-        // Implementation contract: naming.consumer.original-declaration-wire-roundtrip
-
         let backend = test_backend();
         let uri = Uri::from_str("file:///original-wire.tcl").unwrap();
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}";
@@ -68394,8 +68316,6 @@ proc p {} {
 
     #[tokio::test]
     async fn incoming_calls_span_multiple_documents() {
-        // naming.core.logical-call-target-owner
-
         let backend = test_backend();
         let lib = Uri::from_str("file:///lib.tcl").unwrap();
         let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
@@ -68429,8 +68349,6 @@ proc p {} {
 
     #[tokio::test]
     async fn outgoing_calls_resolve_sibling_document_callee() {
-        // naming.core.logical-call-target-owner
-
         let backend = test_backend();
         let lib = Uri::from_str("file:///lib.tcl").unwrap();
         let main = Uri::from_str("file:///main.tcl").unwrap();
@@ -68503,8 +68421,6 @@ proc p {} {
 
     #[tokio::test]
     async fn logical_incoming_target_keeps_procedure_member_side_and_colon_name_separate() {
-        // naming.core.logical-call-target-owner
-
         let backend = test_backend();
         let provider_uri = Uri::from_str("file:///logical-provider.tcl").unwrap();
         let caller_uri = Uri::from_str("file:///logical-callers.tcl").unwrap();
@@ -68568,8 +68484,6 @@ proc p {} {
 
     #[tokio::test]
     async fn logical_incoming_source_owner_withdrawal_cannot_be_recovered_from_a_title() {
-        // naming.core.logical-call-target-owner
-
         let backend = test_backend();
         let provider_uri = Uri::from_str("file:///logical-owner.tcl").unwrap();
         let caller_uri = Uri::from_str("file:///logical-caller.tcl").unwrap();
@@ -68620,8 +68534,6 @@ proc p {} {
 
     #[tokio::test]
     async fn logical_namespace_rename_collision_uses_constructed_colon_holder() {
-        // naming.analysis.constructed-key-consumer-projections
-
         // Genuine current Logical documents; reporting keys grant no Native path.
         let backend = test_backend();
         let uri = Uri::from_str("file:///logical-colon-namespace.tcl").unwrap();
@@ -68691,8 +68603,6 @@ mod retained_class_family_receiver_tests {
 
     #[test]
     fn actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata() {
-        // naming.core.original-dispatch-region-context
-
         let itcl = analysis(&ITCL_GRAMMAR);
         let other = analysis(&OTHER_FAMILY);
         let nominal = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();

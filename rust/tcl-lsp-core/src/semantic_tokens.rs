@@ -3418,8 +3418,6 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        // naming.core.original-inlay-retained-context
-
         // Source descriptors retain their independently selected domain. Logical
         // advice uses the same original word/context owner as other source roles.
         let original = ctx.analysis.and_then(|analysis| {
@@ -3823,8 +3821,6 @@ fn insert_lexical_user_overrides(
     command: &tcl_compiler::segmenter::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    // naming.core.original-inlay-retained-context
-
     insert_object_method_overrides(
         ctx,
         command,
@@ -4045,8 +4041,6 @@ fn merge_list_quoted_command_overrides(
     produced: &crate::original_invocation::OriginalRegistryWords,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    // naming.source.original-produced-command-prefix
-
     let overlay = original::registry_overrides(ctx, seg, produced);
     for (span_start, override_kind) in overlay {
         overrides.entry(span_start).or_insert(override_kind);
@@ -6647,8 +6641,6 @@ mod tests {
 
     #[test]
     fn stub_var_arg_highlights_array_element() {
-        // naming.source.original-declared-command-word-contract
-
         // A `# tcl-lsp: stub` with a `:var` argument marks that position a
         // variable-name spot, so a literal array element passed there
         // highlights like `set arr(key) …` — even on the registry-only path,
@@ -6669,8 +6661,6 @@ mod tests {
 
     #[test]
     fn stub_var_read_arg_highlights_as_reference() {
-        // naming.source.original-declared-command-word-contract
-
         // A `# tcl-lsp: stub … :var_read` argument marks a read-position
         // variable name, so a literal array element there highlights as a plain
         // `Variable` reference (no `declaration` modifier).
@@ -8369,8 +8359,6 @@ mod tests {
     /// Body-role position), not special-cased to `package ifneeded`.
     #[test]
     fn list_quoted_apply_lambda_body_recurses() {
-        // naming.source.original-produced-command-prefix
-
         let registry = reg();
 
         // The exact reported repro: a pkgIndex.tcl-style entry.
@@ -8422,8 +8410,6 @@ mod tests {
     /// must never be split as if they were an apply lambda.
     #[test]
     fn list_quoted_apply_lambda_false_positive_guards() {
-        // naming.source.original-produced-command-prefix
-
         let registry = reg();
 
         // Ordinary data list: `list`'s own args stay whatever the default
@@ -9599,8 +9585,6 @@ mod tests {
 
     #[test]
     fn classify_command_head_picks_namespace_for_qualified() {
-        // naming.core.original-inlay-retained-context
-
         let rows = decode_words("::string equal A a\nunknown arg", &reg());
         assert!(
             rows.iter()
@@ -9615,8 +9599,6 @@ mod tests {
 
     #[test]
     fn classify_command_head_follows_the_effective_identity() {
-        // naming.core.original-inlay-retained-context
-
         let source =
             "interp alias {} each {} foreach\neach v {} {}\nproc foreach args {}\nforeach v {} {}";
         let rows = decode_words(source, &reg());
@@ -10543,8 +10525,6 @@ mod original_procedure_topology_colour_tests {
 
     #[test]
     fn original_procedure_colours_map_formal_roles_to_their_actual_expansion_children() {
-        // naming.source.original-procedure-argument-topology
-
         for source in [
             "proc target {fixed variable rest} {upvar 1 $variable local; set local 1}; target {*}{FIXED destination} ordinary",
             "proc target {fixed variable rest} {upvar 1 $variable local; set local 1}; interp alias {} alias {} target FIXED; alias {*}{destination} ordinary",
@@ -10711,8 +10691,6 @@ mod original_realm_consumer_tests {
 
     #[test]
     fn original_semantic_consumer_declines_missing_realm_without_nominal_recapture() {
-        // naming.core.original-command-source-schema
-
         let source = "set value 1; proc p {} {return $value}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let profile = analysis.resolved_profile().unwrap();
@@ -10826,8 +10804,6 @@ mod original_definition_vocabulary_tests {
     }
 
     #[test]
-    // naming.core.original-math-function-selection
-
     fn logical_math_default_library_uses_configured_source_catalogue() {
         let source = "expr {sqrt(4) + cbrt(8) + invented(0)}";
         let tokens = retained_tokens(source, "tcl");
@@ -10917,8 +10893,6 @@ mod original_definition_vocabulary_tests {
 
     #[test]
     fn original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies() {
-        // naming.core.original-command-source-schema
-
         let source = "oo::class create C {\nself self {method café {} {puts wrapper}}\nif 1 {method café {} {puts immediate}}\nmethod plain {} {method ordinary {} {puts inert}}\nproc p {} {method ordinary {} {puts inert}}\napply {{} {method ordinary {} {puts inert}}}\n}";
         let tokens = retained_tokens(source, "tcl8.6");
         for (offset, _) in source.match_indices("method café") {
@@ -10950,8 +10924,6 @@ mod original_definition_vocabulary_tests {
 
     #[test]
     fn original_definition_keyword_colours_preserve_whole_escaped_source_extent() {
-        // naming.core.original-command-source-schema
-
         let source = r"oo::class create C {metho\u0064 café {} {puts visible}}";
         let tokens = retained_tokens(source, "tcl8.6");
         let start = source.find("metho").unwrap();
@@ -10984,8 +10956,6 @@ mod original_definition_vocabulary_tests {
 
     #[test]
     fn original_definition_colours_keep_keyword_body_and_release_applicability_separate() {
-        // naming.core.original-command-source-schema
-
         for (source, dialect, keyword, body) in [
             (
                 "oo::class create C {method café $params {puts hidden}}",
@@ -11063,8 +11033,6 @@ mod selected_source_token_tests {
 
     #[test]
     fn original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data() {
-        // naming.core.original-inlay-retained-context
-
         let mut registry = CommandRegistry::build_default();
         let mut each = registry.get("foreach").unwrap().clone();
         each.name = "selected_each";
@@ -11124,8 +11092,6 @@ selected_each hidden $items {}";
 
     #[test]
     fn original_member_handle_advice_uses_the_genuine_factory_member_body() {
-        // naming.core.original-inlay-retained-context
-
         let source = "snit::type Engine {method run {} {}}
 snit::type Wrapper {constructor {} {install item using Engine $win.a; install unknown using $type instance; proc nested {} {install borrowed using Engine instance}}}
 set inert {install leaked using Engine instance}";
@@ -11189,8 +11155,6 @@ set inert {install leaked using Engine instance}";
 
     #[test]
     fn original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner() {
-        // naming.core.original-inlay-retained-context
-
         let source = "set x 1
 puts $x";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
@@ -11270,8 +11234,6 @@ mod configured_semantic_receiver_tests {
 
     #[test]
     fn actual_method_colours_do_not_promote_compound_or_escaped_variable_heads() {
-        // naming.core.original-inlay-retained-context
-
         let source = concat!(
             "oo::class create C {method longMethod {} {}}\n",
             "set p [C new]\n",
@@ -11323,8 +11285,6 @@ mod configured_semantic_receiver_tests {
 
     #[test]
     fn actual_implicit_self_colours_require_the_sole_original_variable_word() {
-        // naming.core.original-inlay-retained-context
-
         let source = concat!(
             "source_class C {\n",
             "method m {} {}\n",
@@ -11412,8 +11372,6 @@ mod configured_semantic_receiver_tests {
 
     #[test]
     fn actual_loop_collection_names_follow_the_retained_brace_configuration() {
-        // naming.core.original-inlay-retained-context
-
         let source = "foreach out ${a{b}c} {}";
         let collections = ObjectClassMap::from([(
             "a{b}c".to_owned(),
@@ -11481,8 +11439,6 @@ mod original_comment_token_tests {
 
     #[test]
     fn original_comment_tokens_share_real_phase_and_preserve_inline_comments() {
-        // naming.core.original-comment-source-context
-
         let source = "set data {\n# inert brace\n}\nset data \"quoted\n# inert quote\"\n# physical\nputs ok ;# tail\nheld-script {\n# selected body\nputs é ;# selected tail\n}\nunknown-script {\n# unavailable body\n}\n";
         let analysis = analysis(source);
         assert_eq!(
@@ -11509,8 +11465,6 @@ mod original_comment_token_tests {
 
     #[test]
     fn original_comment_tokens_refuse_foreign_source_or_missing_full_context() {
-        // naming.core.original-comment-source-context
-
         let source = "# retained\nheld-script {\n# owned\n}\n";
         let analysis = analysis(source);
         assert_eq!(comments(source, &analysis), vec!["# retained", "# owned"]);

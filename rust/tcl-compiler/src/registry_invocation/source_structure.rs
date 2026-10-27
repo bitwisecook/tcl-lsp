@@ -126,8 +126,6 @@ fn matching_document_image(
     source: &str,
     image: &tcl_lexer::SourceImage,
 ) -> Option<tcl_lexer::SourceImage> {
-    // naming.source.original-immutable-image-geometry
-
     (image.channel() == tcl_lexer::SourceChannel::Document && image.bytes() == source.as_bytes())
         .then(|| image.clone())
 }
@@ -141,8 +139,6 @@ pub fn source_declared_command_words(
     analysis: &AnalysisResult,
     segment: &crate::segmenter::SegmentedCommand,
 ) -> Option<crate::command_binding::OriginalDeclaredCommandWords> {
-    // naming.source.original-declared-command-word-contract
-
     let input = analysis.resolved_input.as_ref()?;
     let config = input.lexer_config();
     let realm = analysis.retained_command_realm()?;
@@ -517,8 +513,6 @@ impl OriginalRegistryWords {
         context: &tcl_registry::model::ContextRegistry,
         argument: usize,
     ) -> Option<OriginalLogicalStaticOperandPrefix<'_>> {
-        // naming.navigation.retained-path-source-inventory
-
         let OriginalRegistrySource::SourceTransitions(advice) = &self.source else {
             return None;
         };
@@ -614,8 +608,6 @@ impl OriginalRegistryWords {
         other: &Self,
         context: &tcl_registry::model::ContextRegistry,
     ) -> Option<OriginalSourceHeadCorrespondence> {
-        // naming.editor.original-method-candidates
-
         use crate::registry_invocation::InvocationWordOrigin;
         if self.image != other.image || self.config != other.config {
             return None;
@@ -996,8 +988,6 @@ fn selected_registry_words_with_context(
 ) -> Option<OriginalRegistryWords> {
     let mut selected =
         selected_registry_words_in_realm(source, config, realm, segment, context.commands())?;
-    // Implementation contract: naming.source.authored-registry-role-projection
-
     selected.context = Some(context.context().clone());
     selected.roles = selected
         .with_source_schema(context, |schema| {
@@ -1473,8 +1463,6 @@ pub fn original_procedure_arguments<'a>(
     analysis: &'a AnalysisResult,
     segment: &crate::segmenter::SegmentedCommand,
 ) -> Option<OriginalProcedureArguments<'a>> {
-    // naming.source.original-procedure-argument-topology
-
     let descriptor = original_procedure_source_descriptor(source, analysis, segment)?;
     let words = descriptor
         .arguments
@@ -1842,8 +1830,6 @@ fn original_definition_child_head(
         word: Some(original.first()?.clone()),
     })
 }
-
-// naming.source.original-generic-definition-child-registry-roles
 
 fn generic_definition_child_source_words(
     source: &str,
@@ -2225,8 +2211,6 @@ pub fn source_registry_words_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<OriginalRegistryWords> {
-    // naming.diagnostic.original-package-source-advice
-
     if let Some(region) = analysis.original_source_region.as_ref()
         && !region.owns_original_command_at(analysis, offset)
     {
@@ -2266,8 +2250,6 @@ pub fn original_logical_source_words_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<Vec<tcl_lexer::NativeWord>> {
-    // naming.core.original-package-source-action-context
-
     let config = analysis.body_lexer_config?;
     let image = tcl_lexer::SourceImage::document(source);
     analysis
@@ -2722,7 +2704,6 @@ pub fn source_configured_class_at(
 /// transition owner. This keeps alias/move lineage and the selected target
 /// schema attached to the original words; a report label cannot select it.
 #[must_use]
-// naming.source.original-configured-class-transition-roles
 pub fn source_configured_class_words_at(
     source: &str,
     analysis: &AnalysisResult,
@@ -2829,8 +2810,6 @@ pub fn original_package_require_insert_offset(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Option<u32> {
-    // naming.core.original-package-source-action-context
-
     use tcl_registry::source_navigation::SourcePackageReferenceKind as Kind;
     let config = analysis.body_lexer_config?;
     let image = tcl_lexer::SourceImage::document(source);
@@ -2942,8 +2921,6 @@ impl OriginalSourcePackageReference {
     /// Match fixed ASCII descriptor metadata under the original package purpose.
     #[must_use]
     pub fn matches_ascii(&self, metadata: &str) -> bool {
-        // naming.diagnostic.original-package-source-advice
-
         self.native_key.as_ref().map_or_else(
             || metadata.is_ascii() && self.literal == metadata.as_bytes(),
             |key| key.matches_ascii(metadata),
@@ -2992,8 +2969,6 @@ impl OriginalRegistryWords {
         &self,
         context: &tcl_registry::model::ContextRegistry,
     ) -> Option<OriginalSourcePackageReference> {
-        // naming.diagnostic.original-package-source-advice
-
         let reference = self.with_source_schema(context, selected_source_package_reference)??;
         let literal = self
             .arguments
@@ -3134,8 +3109,6 @@ pub(crate) fn original_logical_source_case_for_tokens(
     registry: &CommandRegistry,
     metadata: super::InvocationMetadataContext<'_>,
 ) -> Option<OriginalSourceCase> {
-    // naming.compiler.original-unknown-handler-source-context
-
     let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_input(
         tokens,
@@ -3761,8 +3734,6 @@ pub fn original_logical_registry_words_for_command(
     input: &crate::analyser::ResolvedAnalysisInput,
     command: &tcl_lexer::NativeScriptCommandWords,
 ) -> Option<OriginalRegistryWords> {
-    // naming.minifier.complete-logical-metadata
-
     let image = command.words.first()?.image();
     let source = image.try_text().ok()?;
     let config = input.lexer_config();
@@ -4284,8 +4255,6 @@ pub fn source_authored_command_prefix(
     analysis: &AnalysisResult,
     producer: &crate::segmenter::SegmentedCommand,
 ) -> Option<crate::command_binding::OriginalSourceAuthoredCommandPrefix> {
-    // naming.source.original-authored-command-prefix-data
-
     let input = analysis.resolved_input.as_ref()?;
     let config = input.lexer_config();
     let image = tcl_lexer::SourceImage::document(source);
@@ -4319,8 +4288,6 @@ pub fn source_produced_command_prefix_words(
     analysis: &AnalysisResult,
     producer: &crate::segmenter::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
-    // naming.source.original-produced-command-prefix
-
     let input = analysis.resolved_input.as_ref()?;
     analysis
         .matches_original_source_image(
@@ -4848,8 +4815,6 @@ mod tests {
 
     #[test]
     fn original_source_schema_keeps_named_selector_and_handler_argument_shape() {
-        // naming.source.original-registry-header-advice
-
         let source = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
@@ -4944,8 +4909,6 @@ mod tests {
 
     #[test]
     fn original_source_schema_withholds_dynamic_and_shadowed_selector_claims() {
-        // naming.source.original-registry-header-advice
-
         let dynamic = "namespace $selector [list tick]";
         let analysis = original_selector_analysis(dynamic);
         let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
@@ -4973,8 +4936,6 @@ mod tests {
 
     #[test]
     fn original_single_source_child_keeps_whole_operand_and_refuses_literal_brackets() {
-        // naming.core.original-inlay-retained-context
-
         for (source, expected) in [
             ("set x [list cb]", true),
             ("set x {[list cb]}", false),
@@ -5010,8 +4971,6 @@ mod tests {
 
     #[test]
     fn original_case_fold_child_keeps_declaration_realm_and_refuses_foreign_source_owners() {
-        // naming.compiler.original-unknown-handler-source-context
-
         // Original conditional child syntax, not a Native folded value or body entry.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -5156,8 +5115,6 @@ mod tests {
 
     #[test]
     fn original_logical_schema_matches_selected_descriptors_without_slot_label_equality() {
-        // naming.diagnostic.registry-source-ownership
-
         let input = logical_schema_input(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
         );
@@ -5202,8 +5159,6 @@ mod tests {
 
     #[test]
     fn original_logical_schema_keeps_same_store_availability_and_exact_source_owner() {
-        // naming.compiler.original-analysis-metadata-context
-
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut registry = baseline
             .commands()
@@ -5373,8 +5328,6 @@ mod tests {
 
     #[test]
     fn original_captured_word_projection_keeps_producer_geometry_and_origin() {
-        // naming.diagnostic.registry-source-ownership
-
         let source = "interp alias {} pick {} list {CAPTURE $literal}; pick written";
         let logical = logical_schema_input(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
@@ -5447,8 +5400,6 @@ mod tests {
 
     #[test]
     fn original_logical_payloads_keep_unicode_and_literal_sigils_without_native_names() {
-        // naming.diagnostic.registry-source-ownership
-
         let input = logical_schema_input(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
         );
@@ -5481,8 +5432,6 @@ mod tests {
 
     #[test]
     fn selected_captured_values_keep_the_original_declaration_producer() {
-        // naming.diagnostic.registry-source-ownership
-
         let source = "interp alias {} invoke {} apply {{a b} {return ok}}\ninvoke 1";
         for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let analysis = crate::analyser::Analyser::new().analyse(source, profile);
@@ -5545,10 +5494,6 @@ mod tests {
 
     #[test]
     fn original_scoped_words_keep_body_issuer_and_selected_subcommand_schema() {
-        // naming.source.original-scoped-command-schema
-
-        // naming.diagnostic.registry-source-ownership
-
         // Source advice only: no report package installation or safe-interpreter
         // aliases are asserted by this candidate schema test.
         let source = "::report::defstyle st {} {\n    top {bogus}\n}\n";
@@ -5597,12 +5542,8 @@ mod tests {
 
     #[test]
     fn original_source_static_values_keep_escapes_separate_from_frozen_runtime_values() {
-        // naming.core.original-inlay-retained-context
-
         // This verifies shared source-value capture; it asserts no executed
         // conversion, runtime handler identity or successful native invocation.
-        // naming.source.original-static-escape-values
-
         // SourceEscapes173 independently caught bare/quoted/braced values on
         // all five C releases and Jim. Ordinary ASCII hex projections establish
         // these values; this test claims no native getter or NUL representation.
@@ -5660,8 +5601,6 @@ mod tests {
 
     #[test]
     fn original_logical_source_schema_selects_its_positive_input_before_native_advice() {
-        // naming.minifier.complete-logical-metadata
-
         let source = "expr $left + $right\n";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -5727,8 +5666,6 @@ mod tests {
 
     #[test]
     fn original_vendor_source_schema_keeps_comment_trivia_out_of_word_identity() {
-        // naming.consumer.original-diagnostic-source-actions
-
         let source = "# proc html_encode is only a comment\nwhen HTTP_REQUEST {HTTP::respond 200 content ok}";
         let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
         let config = analysis.body_lexer_config.unwrap();
@@ -5774,10 +5711,6 @@ mod tests {
 
     #[test]
     fn original_standalone_source_context_keeps_conditional_bodies_and_alias_order() {
-        // Implementation contract: naming.source.original-editor-body-structure
-
-        // Implementation contract: naming.source.authored-command-transition-advice
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = "pick subject {default {puts before}}; interp alias {} pick {} switch; pick subject {default {puts after}}; interp alias {} pick {}; pick subject {default {puts deleted}}";
             let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
@@ -5814,10 +5747,6 @@ mod tests {
 
     #[test]
     fn original_standalone_selected_alias_roles_keep_source_purpose() {
-        // Implementation contract: naming.source.authored-registry-role-projection
-
-        // Implementation contract: naming.source.original-editor-body-structure
-
         for version in tcl_dialect::TclVersion::ALL {
             let source = "namespace eval ::A {}; interp alias {} ::pick {} ::switch; interp alias {} ::A::pick {} switch; ::pick subject {default {puts first}}; ::A::pick subject {default {puts second}}";
             let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
@@ -5865,8 +5794,6 @@ mod tests {
 
     #[test]
     fn original_standalone_source_context_keeps_nested_unknown_selector_source_only() {
-        // Implementation contract: naming.source.original-editor-body-structure
-
         let source = "set result [switch $kind {alpha {# physical comment\nputs child}}]";
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
@@ -5919,8 +5846,6 @@ mod tests {
 
     #[test]
     fn original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct() {
-        // naming.package.original-file-candidate-provenance
-
         let source = "package ifneeded P 1.0 {source actual.tcl}";
         for version in tcl_dialect::TclVersion::ALL {
             let analysis = crate::analyser::Analyser::new().analyse(source, version.dialect_name());
@@ -5987,8 +5912,6 @@ mod tests {
 
     #[test]
     fn original_deferred_source_schema_keeps_shadow_and_produced_script_boundaries() {
-        // naming.package.original-file-candidate-provenance
-
         for prefix in ["proc source args {return custom}\n", "rename source {}\n"] {
             let source = format!("{prefix}package ifneeded P 1.0 {{source actual.tcl}}");
             let analysis = crate::analyser::Analyser::new().analyse(&source, "tcl8.6");
@@ -6014,8 +5937,6 @@ mod tests {
 
     #[test]
     fn selected_source_roles_retain_procedure_grammar_under_the_actual_context() {
-        // naming.source.authored-registry-role-projection
-
         for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
             let source = "proc p {a b} {return}";
             let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
@@ -6070,8 +5991,6 @@ mod tests {
 
     #[test]
     fn original_source_structure_is_shared_and_owner_checked() {
-        // naming.core.original-command-source-schema
-
         let source = "set first 1\nset second 2\n";
         let mut analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         analysis.command_invocations.clear();
@@ -6118,8 +6037,6 @@ mod tests {
     }
     #[test]
     fn original_hosted_source_schema_keeps_controls_and_unknown_single_slots() {
-        // naming.core.original-command-source-schema
-
         let source = "call -debug Lib::helper $payload\npool $target\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
         let config = analysis.body_lexer_config.unwrap();
@@ -6155,8 +6072,6 @@ mod tests {
     }
     #[test]
     fn original_conditional_operand_keeps_its_static_word_and_list_lineage() {
-        // naming.core.original-command-source-schema
-
         let source = "unavailable\n::foreach {a b} {1 2} {}\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
@@ -6196,8 +6111,6 @@ mod original_procedure_argument_tests {
 
     #[test]
     fn original_procedure_arguments_keep_actual_formals_prefixes_and_child_anchors() {
-        // naming.source.original-procedure-argument-topology
-
         for source in [
             "proc target {captured written} {}; target {*}{FIXED VALUE}",
             "proc target {captured written} {}; interp alias {} alias {} target FIXED; alias {*}{VALUE}",
@@ -6263,8 +6176,6 @@ mod original_procedure_argument_tests {
 
     #[test]
     fn original_procedure_arguments_keep_missing_original_correspondence_terminal() {
-        // naming.source.original-procedure-argument-topology
-
         let source = "proc target {value} {}; target ONE";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
@@ -6305,8 +6216,6 @@ mod source_lookup_boundary_tests {
 
     #[test]
     fn original_source_lookup_facet_is_independent_of_advisory_body_roles() {
-        // Implementation contract: naming.source.closed-syntax-script-regions
-
         for (source, preserved) in [
             ("if {1} {puts quiet}\n", true),
             ("if [rename if saved] {puts data}\n", false),
@@ -6350,8 +6259,6 @@ mod source_word_dialect_tests {
 
     #[test]
     fn original_source_schema_uses_retained_word_dialect_for_file_grammar() {
-        // naming.core.original-document-link-selection
-
         for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
             let source = "source {a $b [c].tcl}";
             let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
@@ -6390,8 +6297,6 @@ mod source_word_dialect_tests {
     }
     #[test]
     fn original_package_source_point_keeps_whole_image_context_and_alias_grammar() {
-        // naming.diagnostic.original-package-source-advice
-
         let source = "interp alias {} need {} package require -exact csv\nneed 1";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("need 1").unwrap()).unwrap();
@@ -6427,8 +6332,6 @@ mod source_word_dialect_tests {
     }
     #[test]
     fn original_package_insertion_uses_root_commands_split_lines_and_full_input() {
-        // naming.core.original-package-source-action-context
-
         let sources = [
             (
                 r"#!/usr/bin/env tclsh
@@ -6485,8 +6388,6 @@ mod retained_image_geometry_tests {
 
     #[test]
     fn source_schema_geometry_reuses_the_whole_retained_image_and_keeps_currency() {
-        // naming.source.original-immutable-image-geometry
-
         let source = "set café 1\r\nset λ 2";
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -6536,8 +6437,6 @@ mod original_selected_command_purpose_tests {
 
     #[test]
     fn original_selected_commands_keep_the_parent_prologue_and_complete_vector_separate() {
-        // naming.source.original-configured-script-completeness
-
         // Original Document geometry and conditional source schema, not Native entry.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         for (source, bom, offset, head) in [
@@ -6787,8 +6686,6 @@ mod original_logical_operand_prefix_tests {
 
     #[test]
     fn logical_operand_prefix_retains_only_static_earlier_written_words() {
-        // naming.navigation.retained-path-source-inventory
-
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         for (source, argument, expected_prefix) in [
             ("set dir /ROOT; source [file join $dir leaf.tcl]", 0, 1),
