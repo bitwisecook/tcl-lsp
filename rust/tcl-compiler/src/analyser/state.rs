@@ -453,6 +453,7 @@ pub struct Analyser {
     /// Keyed on the path vector so snapshot/restore doesn't have to
     /// remap pointers.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+    pub(super) finite_foreach_names: super::handlers::FiniteForeachReportingState,
     pub(super) logical_const_string_provenance:
         HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
     pub(super) logical_interp_path_provenance:
@@ -1585,6 +1586,7 @@ impl Analyser {
             original_class_definition_body: None,
             file_path: None,
             const_strings: HashMap::new(),
+            finite_foreach_names: super::handlers::FiniteForeachReportingState::default(),
             logical_const_string_provenance: HashMap::new(),
             logical_interp_path_provenance: HashMap::new(),
             nondominating_consts: HashMap::new(),

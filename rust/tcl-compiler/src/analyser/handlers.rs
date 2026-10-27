@@ -37,6 +37,10 @@
 //! `switch`, `catch`/`try`, `interp alias`, `oo::objdefine`, and
 //! alias resolution.
 
+mod finite_foreach_source;
+
+pub(super) use finite_foreach_source::FiniteForeachReportingState;
+use finite_foreach_source::FiniteNameLookup;
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::surface_admits;
 use tcl_lexer::{Span, Token, TokenType};
@@ -2832,6 +2836,21 @@ impl Analyser {
 
         let raw_name = &args[words.name];
         let name_tok = arg_tokens[words.name];
+        let finite_name = match self.finite_foreach_names.lookup(
+            source_head,
+            name_tok,
+            scope_path,
+            self.body_depth,
+        ) {
+            FiniteNameLookup::Ordinary => None,
+            FiniteNameLookup::Refused => return false,
+            FiniteNameLookup::Candidate(receipt) => {
+                let Some(name) = receipt.reborrow(self, name_tok, scope_path) else {
+                    return false;
+                };
+                Some(name)
+            }
+        };
         // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
         // `wtype` a known constant) resolves the same way `rename`'s operands
         // already do (`tk/library/accessibility.tcl`'s
@@ -2839,14 +2858,18 @@ impl Analyser {
         // An unresolvable dynamic name falls back to the raw written text
         // unchanged — this only *improves* the resolvable case, the same
         // scope boundary `resolve_dynamic_word`'s other callers keep.
-        let resolved_name = self
-            .resolve_dynamic_word(
-                raw_name,
-                Some(name_tok),
-                arg_single.first().copied().unwrap_or(false),
-                scope_path,
-            )
-            .unwrap_or_else(|| raw_name.clone());
+        let resolved_name = finite_name
+            .as_ref()
+            .map(|(_, text)| text.clone())
+            .unwrap_or_else(|| {
+                self.resolve_dynamic_word(
+                    raw_name,
+                    Some(name_tok),
+                    arg_single.first().copied().unwrap_or(false),
+                    scope_path,
+                )
+                .unwrap_or_else(|| raw_name.clone())
+            });
         // Home the proc to the *command-resolution* namespace, not the purely
         // lexical one: a proc defined inside another proc's body homes to that
         // enclosing proc's **defining** namespace (the prefix of its qualified
@@ -2860,13 +2883,21 @@ impl Analyser {
         // `key_tail` inverts the construction — a `char`-pattern colon trim or
         // an `rsplit("::")` here would collapse a lone-colon name.
         let original_name = self.original_procedure_declaration_name(name_tok);
-        let (source_name, qualified, simple) = self.procedure_reporting_names(
+        let (mut source_name, mut qualified, mut simple) = self.procedure_reporting_names(
             original_name.as_ref(),
             name_tok,
             scope_path,
             &ns_prefix,
             &resolved_name,
         );
+        if let Some((name, _)) = finite_name {
+            let (Some(full), Some(tail)) = (name.reported_full_name(), name.simple_name()) else {
+                return false;
+            };
+            source_name = Some(name);
+            qualified = full;
+            simple = tail;
+        }
         let name_span = name_tok.span;
         let body_tok = arg_tokens[words.body];
         let body_span = body_tok.span;
@@ -5563,7 +5594,10 @@ impl Analyser {
         if installers.is_empty() {
             return;
         }
-        for element in &elements[1..] {
+        for (index, element) in elements.iter().enumerate().skip(1) {
+            let _reporting_iteration = self
+                .finite_foreach_names
+                .advance(var, body_tok, scope_path, index, element);
             self.set_const_string(var, element.clone(), body_tok.span, scope_path);
             for (seg, hook) in &installers {
                 let args = seg.args();
