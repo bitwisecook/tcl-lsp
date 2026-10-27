@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-27T07:32:37.555763+00:00",
+  "scope": "Post-group docs-only publication;30minute reminder unchanged",
+  "source_snapshot": "087100cf7371c83865d49ef4619470d70523ea78",
+  "published_snapshot": "086f551b1b2176a79e0ad41ceefe09cd4ac98089",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "concurrent_product_bytes_preserved": true,
+  "gate_admissions": []
+}
