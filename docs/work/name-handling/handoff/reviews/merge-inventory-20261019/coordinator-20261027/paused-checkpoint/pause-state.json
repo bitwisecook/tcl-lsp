@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-27T20:38:21.853504+00:00",
+  "paused": true,
+  "work_product_head": "b41de429f886145f348381daf949fd6944357d4a",
+  "release_product_head": "0158859174cc4eca280dd5fa578e2a6a2f038d2a",
+  "active_frozen_head": "8fe4dbf9c1fe4a9215b3b6af5a07f2ca57678fc8",
+  "live_subagents": 0,
+  "local_build_or_timer_processes_found": false,
+  "next_report_utc": null,
+  "next_cycle_armed": false,
+  "no_new_execution_or_admission": true,
+  "ready_packets_applied_during_pause": false,
+  "portable_packet_index": "handoff/reviews/merge-inventory-20261019/coordinator-20261027/paused-checkpoint/packet-index.json",
+  "pending_user_decision": "namespace semantic projection versus incidental generic getter coverage; unanswered",
+  "release_gates": "all open; no PR",
+  "checkpoint_publication": "pending commit/push; final Git tips and push results reported in chat"
+}

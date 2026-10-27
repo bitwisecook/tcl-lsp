@@ -1,5 +1,7 @@
 # Brief: validation and state-keeping agent
 
+**USER PAUSED (2026-10-27T20:38:21.853504+00:00).** No implementation, builds, dispatches or reminders until a new resume instruction. Read [the authoritative current checkpoint](pause-handoff-20261027.md) before older instructions below. No PR is open; source cleanup44/51 and all final gates remain outstanding.
+
 You own validation for the LSP naming migration on `bitwisecook/tcl-lsp`, branch `work`, and keep the record of outstanding validations current. Read `AGENTS.md` first, then `docs/work/name-handling/current-state.md`.
 
 ## Scope (user decisions)

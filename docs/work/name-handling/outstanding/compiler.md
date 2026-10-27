@@ -1,12 +1,29 @@
 # Outstanding work: compiler agent
 
+## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+
+Pointer lint master495f1207 / Scope7f04c55f is reviewed and UNAPPLIED. Alias and positive stock-class repairs plus old false-field initializer are already committed; all efficacy retries remain UNRUN. Main170/Layout21 latest buildstop means191UNRUN, not semantic failures. Preserve parent consumer census and genuine class/alias ownership; join next source-pin cohort.
+
+The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
+
+
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T08:32:32+00:00 (7fd Layout21 controls active/main170 bootstrap active; tiny owner1 definer pin peer9e3b CLEAR; aliasV4Scope c33d staticclear; positiveclass custody draft)
+Last updated: 2026-10-27T09:22:50+00:00 (all owned7fd captures closed/authenticated; alias and stock-class repairs sourceclear/adoptedWORK; fixturemode, pointerlint, beforehead and currentCmacro peers closed; actualretryUNRUN)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Current state
+
+Current bounded source peer queue is closed: test before-head correction a779/Compilerdb3aa56a; actual pointer lint495f/Scope7f04c55f; actual CLEAN missing-wrapper currentV2ce485910/Compilerf4590dd0. Cmacro V1 was held solely because Root already applied a779 at disjoint test spans; V2 keeps those bytes and exact same two Option/error producers. No production semantic/guard/assert change for these compatibility repairs, all Rust/branch/strict/Cprep retry outcomes still UNRUN. Positive stock-class V2 573aa825/Scope13a89363 Root adopted WORK26e501ab, CLEAN carry Root-owned; alias V4/Scope c33d separately adopted before it. No further product or metadata edits from this agent.
+
+ALL7fd owned runs terminal and fully capture-authenticated, no healthy owned job remains: main17040473725146/job122086739904 boundary2ab0e226 ALL170UNRUN; Layout2140473709174/job122086689147 boundary48e07b5f ALL21UNRUN. Combined index374549106c4ea808b70d25fdee555e35e97f173e9f63c94fc8a7a46ef0ee7975 plus fullGitjoin a2e6a29c under compiler-current7fd-both-buildstops-closed-v1. Each actualONE E0063 authored_source_structure.rs978 missing symbolic_body_reads, no warning/ELF, artifactsealFALSE deliberately retained/other4TRUE,2fetch/build processgroupsclosed,37ZIPmembers+API/hash/CRC/source/provider/deps/tools/25livepin+function sourceguards independently verified. Exact4rawsource maps e991a020 allow Names fullGit0d26/companion55540d9e share only (127000records/79671blobs/9,635,903,623B/0symlinks); no physicalmode/ELFpayload/runtime/gate/performance acceptance. Dedicated Layout new4 reside exactfinally sidecars; final.json retainsold17 arrays, so counted independently.
+
+Root-priority actual E0063 fixture repair compiler-authored-taint-old-fixture-mode-paired-v1 mastere767a8ee/LSPstrongda3ab83b is sourceclear: addONLY symbolic_body_reads:false to oldconditional ROOTfixture, matchingordinary capturefalse; genuine bodycapturetrue unchanged. Wholemodule1lineinverse/current4/F-R/fmt; alloldasserts/scripts/productionguards exact. Initialsource-censusmiss acknowledged; actualretryUNRUN.
+
+NEXT positiveOwnJim genuineproducer pairedV2 master573aa825662e722519c2831f3a16de386db896f198337de5cb8455a223071081 Scope13a89363 STATICsourceclear. ActualW15b33f/Cadf685 ninepaths/lane, maxchangedbody87/all18current/F-R/fmt/oldtests and12wholeoriginalRustpayload inverses. Reuses actualowner/fullinput/baseline/rootOrigin+actualnormalpoint/world andALL13current helperallocationcards; directissuer missing/duplicate/reordered/foreignowner/wrongpoint negatives. Existing member support/union andotheruncertainoperations unchanged. Private sourceSeed Eq strengthens nominalproof; sourcepoint/manualseeds empty/childgraph clears. No reconstructed names, Native/Normal/frame/effect-entry grant. AliasV4 separately Scopec33d sourceclear/Rootcurrent; new2privateguards require Rootexplicit/fullCI scheduling. All efficacy/RustUNRUN. V1held for unusedself/ifstyle/creator-control/docgate issues, fullyresolvedV2; no speculativeNativegrant.
 
 Sole current7fd captures: Layout21 run40473709174/job122086689147 and main17040473725146/job122086739904. Actual08:32UTC API: Layout bootstrapcomplete/controlsstep6active; main bootstrapstep5active. All current runtime outcomes PENDING; no borrowed fb5e acceptance, no healthy cancellation/replay/duplicate intake. Productdocs744b67 atop7fd does not change run source. Tiny currentEA76 owner1 directdefiner top key+derivedguard only ef37c235/6dca1a12 STATIC CLEAR9e3b06fa; nestedactualownerfn and full oldJSON/driverbyteAST inverses verified. Root alone integrates/dispatches.
 

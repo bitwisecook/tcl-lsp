@@ -1,10 +1,19 @@
 # Outstanding work: compiler-names agent
 
+## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+
+Current cleanup44/51; upvar V2 aea08787 / Scope c6e6b1f7 reviewed UNAPPLIED (would become45/51 only after adoption). Remaining six families then follow;86 prior-unread records require read-based disposition. Actual7fd ref_option is routed but no finished packet was found. Corpus buildstop leaves both phasesUNRUN; global Eq/cutoffs remain strict.
+
+The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
+
+
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-27 08:42:55 UTC
+Last updated: 2026-10-27 08:51:12 UTC
 
-Resume 2026-10-27 08:42:55 UTC: Sole7fd corpus40473732594/job122086765777 CLOSED coreFULLAUTHbd3000b7 (37CRC/API SHA10e8aa79,123pins/source-provider-dependency-tools equality,2ownedclosed/sharedbounds). One E0063 authored_source_structure.rs978 missing symbolic_body_reads; Compiler routed. Both corpus controls UNRUN/noELF/AUTH child not launched/0pairs, boundedSite+realmMirror efficacy UNOBSERVED. Full Git supplement read-only session57977 running; no duplicate ZIP. Previous fb5e RAW829d/fullGit34fc and102 typed Equal pairs are historical only. Root CLEAN cleanup now44/51 source-integrated,7remaining,all9 merge groups; actualRust UNRUN. Final7/read census da04ec35 indexes86 prior unread records with current table byte proofs; info315ccc1e binds actual51+51 loader IDs and retains extra inventory-c-map candidate (no deletion). Upvar fixture V2 aea08787/46cc9017 queued Scope after critical priorities; V1 held98-to113 length issue, V2 factories bounded and4inverses exact. Next action finish fullGit seal, then Root corrected corpus rerun assignment; no source/equality/owner relaxation.
+Resume 2026-10-27 08:42:55 UTC: Sole7fd corpus40473732594/job122086765777 CLOSED coreFULLAUTHbd3000b7 (37CRC/API SHA10e8aa79,123pins/source-provider-dependency-tools equality,2ownedclosed/sharedbounds). One E0063 authored_source_structure.rs978 missing symbolic_body_reads; Compiler routed. Both corpus controls UNRUN/noELF/AUTH child not launched/0pairs, boundedSite+realmMirror efficacy UNOBSERVED. Full Git supplement0d26bda0 CLOSED: all127000 uploaded Git contents match,79671unique blobs/9.635GB streamed; no duplicate ZIP. Previous fb5e RAW829d/fullGit34fc and102 typed Equal pairs are historical only. Root CLEAN cleanup now44/51 source-integrated,7remaining,all9 merge groups; actualRust UNRUN. Final7/read census da04ec35 indexes86 prior unread records with current table byte proofs; info315ccc1e binds actual51+51 loader IDs and retains extra inventory-c-map candidate (no deletion). Upvar fixture V2 aea08787/46cc9017 queued Scope after critical priorities; V1 held98-to113 length issue, V2 factories bounded and4inverses exact. Next action finish fullGit seal, then Root corrected corpus rerun assignment; no source/equality/owner relaxation.
 
 Resume 2026-10-27T03:47:48.429734+00:00: New ff67bd5d source includes the reviewed W002 repair. Sole corpus run40445781514/job121996618306 and exact prep run40445944580/job121997135569 (C667 candidate) are active; no artifact or new outcome. Previous bd80 corpus is fully authenticated: generated42/42 PASS; text6/702 then old-old W002 CommandAvailability ordinal0 unavailable. Previous Af4d prep FULLAUTH80516c5a: setup/canonical PASS, LSP13P1F (code lens References unavailable), gateFAIL2, final tree clean. Report51dc/3bdd applied by Root WORKb2e0/C667; new3 owner controls are Compiler166-owned, UNRUN until actual evidence. Current C667 exact afterimage census confirms first3 table families and7of9 Step2 groups (Try+sixVM) integrated, actual Rust/tests UNRUN. Objectvector4th table a179/283c strong-clear NEXT; dictionary merge6aece staged for Scope peer, C85/C86 channels stay distinct and all bytes preserved. WORK raw proofs unchanged. Remaining48of51 table families not complete; no parity/performance/gate PASS claim.
 

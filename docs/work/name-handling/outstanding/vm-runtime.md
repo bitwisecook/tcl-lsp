@@ -1,10 +1,23 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T08:32:16Z
+## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+
+Latest actual7fd iRules complete69B is helper-presence query in expression substitution; blocking and resumable consumer paths require genuine custody. No repair is applied. C.1–C.2 fresh targets/reload/compat remain. Namespace121 user coverage choice unanswered: proposal HELD, never assume approval. Quoted-NUL decision already implemented; do not reopen.
+
+The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
+
+
+Last updated: 2026-10-27T09:44:54Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T09:44:54Z: Sole7fd iRules40473746970 FULLAUTH RAW8ecb4ec0 +cause3f11ead9c; all50streams/11ownedprocesses/source/providers/deps/tools/ELF/CAP authenticated. OriginalbootstrapFAIL CLI2/initScopePASS; new3FAIL unchanged. Actual complete69B NativeValue source is expression cmdsub `llength [::tmm::_orig_info commands ::tmm::_logical_namespace_member]`, unique shim357 join0a6ded5c; notfile/procedure identity or permission. Distinct expression-command design09769e5b sentRoot/Scope/Compiler DESIGNONLY: real prepared source/config+reached Command span, both blocking/resumable consumers preserved, no Eval/File receipt reuse/Native bypass. Non-owning original currency and full compiler emission/adoption proofs OPEN before code. No pending own captures/newbuild/POST; namespacegettercoverage user-held, optionalVMrequest parked; C1triage d881/4db remains source-qualified.
+
+Current 2026-10-27T08:59:09Z: New7fd iRules40473746970/job122086812397 TERMINALAPI failure/uploadartifact12721172427 ready10377987B, RAWUNREAD dueRootallintakehold storage. No runtime/identity/outcome claim. APIonlymetadata sealed inownfolder/intake-held.json. NeedRootclearance+freshfree>=2183027459B(2GiB+ZIP+24MiB)beforeSOLEdownload, noELFextract. Source7fd3d336 includes69prefixobserver; actual69bytes remainunobserved. Allfb5e315fproofs sourcequalified; noSpec600rerun. OtherofftreeC1planning/namespacecoverage/proceduredesignqualified unchanged.
 
 Current 2026-10-27T08:32:16Z: NEW SOLE7fd3d336 iRules40473746970/job122086812397 APIactive/teststep6/uploadpending. Includesheld69Bsource-prefix21fdd8; no identity/source/body inference untilactualrows. RootallPOSTscomplete, no currentSpec/full600rerun; priorfb5e315findex sourcequalified. Freshdisk2.253GB guard mandatorybeforeZIP2GiB+size+24MiB. Namespace-holder fixturepeer538e19b9 complete sourceonly; C1d881/4db currentmap+UPF/Jimfresh-targetplanningonly. Proceduredesigna941 Scopechallenge52419d0b includes callbackpermission+cache-before-reuse provider checks+PREframeadoptedartifact consumer; no implementationclear. Namespacegettercoverageuserpending/patchheld. No localbuild/POST/canonicalchanges.
 

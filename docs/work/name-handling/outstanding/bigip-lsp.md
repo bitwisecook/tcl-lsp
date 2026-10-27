@@ -1,5 +1,14 @@
 # Outstanding work: bigip-lsp agent
 
+## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+
+External role; no duplicate or takeover. Prior owner header is stale and user has been notified. Preserve its implementation report and route generic compiler/LSP blockers to owners on resume. This coordinator pause entry is not a new external owner validation.
+
+The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
+
+
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
 Last updated: 2026-10-23T13:17Z

@@ -1,0 +1,1062 @@
+{
+  "utc": "2026-10-27T20:38:21.853504+00:00",
+  "status": "USER_PAUSED_PRESERVATION_ONLY_NO_PRODUCT_ADOPTION",
+  "archive": "resume-packets.tar.gz",
+  "archive_sha256": "7634793dc8140d3501b035fe9041f33273635d2c6623a13284a9f9725224e5c9",
+  "members": [
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/after/rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "bytes": 24769,
+      "sha256": "63191d12fb43d37303e46d81195ea4be72fd721ddbfc79a6a218411e23333d36"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/after/rust/tcl-engine-tclvm/src/closed_native_execution/application_hook_engine.rs",
+      "bytes": 6048,
+      "sha256": "af14369cf70ca56d39a20dac7199ae8e9e6ea46e0a8586c6f047837c2360bc3d"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/after/rust/tcl-engine-tclvm/src/lib.rs",
+      "bytes": 166181,
+      "sha256": "a20e50ec2122eb1a7c334746ccb456af50867f4468916deedb347f04853bffc6"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/after/rust/tcl-registry/src/pack_hooks.rs",
+      "bytes": 107616,
+      "sha256": "7439b1c5b276a7071f5718f7a36334c8375eb143f37dd4914c6b4165bdc1aaa5"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/after/rust/tcl-spectcl/Cargo.toml",
+      "bytes": 3404,
+      "sha256": "364b58f48c1f6052bfacba271fa9731de094b8445892e48e48722deb7e0c4571"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/after/rust/tcl-spectcl/src/hooks.rs",
+      "bytes": 38354,
+      "sha256": "9dc25abe626b149669f1ebefb1ce528eb6d81994c032127fa3d04f519899e6aa"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/after/rust/tcl-spectcl/src/hooks/owned_evaluator.rs",
+      "bytes": 15036,
+      "sha256": "51d28f04e63dc1c44dfc94927f6a8af8156505418021cd38df2cc43da7275630"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/before/rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "bytes": 24643,
+      "sha256": "21376983c0b5f8700ec7a0a60d92586bc8e5cb8e2b2ab6288fc3b29d8596644f"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/before/rust/tcl-engine-tclvm/src/lib.rs",
+      "bytes": 166070,
+      "sha256": "1967dcb4dad3dffb6765da1a0b553897ab2f17d52ef114b53b53d24baf2f774c"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/before/rust/tcl-registry/src/pack_hooks.rs",
+      "bytes": 104795,
+      "sha256": "f0702d3a33eb3441d37eaaddbe3a13436a8ea2ab8aefbf3bd0693247709efd3a"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/before/rust/tcl-spectcl/Cargo.toml",
+      "bytes": 3471,
+      "sha256": "371e52b96e972c3112b7c122a6c7bd00f359480ff7a83685161a46a9b194298d"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/before/rust/tcl-spectcl/src/hooks.rs",
+      "bytes": 38332,
+      "sha256": "567670ac5180161b4f6677eb29b900ef74ee7a30c161b7573942b8808e9f7471"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/manifest.json",
+      "bytes": 3997,
+      "sha256": "06c61f68d4c9c7f5418dad10e32aef94953691f437667a36b438da0b8b88361b"
+    },
+    {
+      "path": "ccg-application-evaluator-ownership-source-work-v2/proposal.patch",
+      "bytes": 27830,
+      "sha256": "fc71470f103d4a3240b88f8e0468919b69016ed78f9b7596d940bbbf6ad59538"
+    },
+    {
+      "path": "ccg-h5-current-concrete-producer-status.json",
+      "bytes": 1545,
+      "sha256": "1942042a8b2069a924e808b803cc0de23b8fe850316de23cbdc43a6bb1787065"
+    },
+    {
+      "path": "ccg-owned-application-compiler-draft-v1/after/rust/tcl-compiler/src/compile_service.rs",
+      "bytes": 157034,
+      "sha256": "c04a1abde0e96075daf5107e0cda62b750305b76a905cdb7f5dcbc9375246c28"
+    },
+    {
+      "path": "ccg-owned-application-compiler-draft-v1/after/rust/tcl-compiler/src/compile_service/owned_application.rs",
+      "bytes": 18328,
+      "sha256": "acd165737b364ebeea9eda7f732d721ea79625820283d1953cc828a2f4040152"
+    },
+    {
+      "path": "ccg-owned-application-current-preparation-draft-v1/after/rust/tcl-vm/src/interp/closed_native_execution.rs",
+      "bytes": 14279,
+      "sha256": "1d184a6b83e7016ce158a3a835f3c47e0b6e32054483b1cd0d120ba4597de28b"
+    },
+    {
+      "path": "ccg-owned-application-current-preparation-draft-v1/after/rust/tcl-vm/src/interp/closed_native_execution/owned_application.rs",
+      "bytes": 4165,
+      "sha256": "52d87788dc35ef48ca2bbdb4bac074cdb4a0eff037d103e216fb1f97dcf32703"
+    },
+    {
+      "path": "ccg-owned-application-current-preparation-draft-v1/after/rust/tcl-vm/src/lib.rs",
+      "bytes": 4478,
+      "sha256": "e1c82166a58c8a8490bae0290280f4f3f98036150caba94a871768a5417c865e"
+    },
+    {
+      "path": "ccg-owned-application-pack-loader-draft-v1/after/rust/tcl-spectcl/src/loader.rs",
+      "bytes": 524443,
+      "sha256": "d5d1a49a4454957f95f086877e03dd3a611808ddea5294314a8f436fdc6c4e03"
+    },
+    {
+      "path": "ccg-owned-application-pack-loader-draft-v1/after/rust/tcl-spectcl/src/loader/eval.rs",
+      "bytes": 102917,
+      "sha256": "a6a5fddff631e6c6abc6b376ab6529e3d990d12006b882e8327f3eecbf298750"
+    },
+    {
+      "path": "ccg-owned-application-pack-loader-draft-v1/after/rust/tcl-spectcl/src/pack.rs",
+      "bytes": 79055,
+      "sha256": "2ccc631d6416e636de4f7904d64f8a761f89ecc08e28d93ab2eb0c6eef57780f"
+    },
+    {
+      "path": "ccg-owned-application-plan-flow-draft-v1/after/rust/tcl-spectcl/src/hooks/owned_evaluator/application_plan.rs",
+      "bytes": 21639,
+      "sha256": "0bf715336454d9e9c6a1d5942ac2a983233674bbe47ef5ed9209296c60856cb7"
+    },
+    {
+      "path": "ccg-owned-application-plan-flow-draft-v1/after/rust/tcl-spectcl/src/hooks/owned_evaluator/application_value_flow.rs",
+      "bytes": 28293,
+      "sha256": "99a7b980724dcbf415f842c9d1ecd001799c7b689abcbeee0bb69fa9e3903319"
+    },
+    {
+      "path": "ccg-owned-application-vm-draft-v1/after/rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "bytes": 24869,
+      "sha256": "4ed8a00227cfde20ce2c79e030bb0339a56a742bb9e111039fc389e86f9721c4"
+    },
+    {
+      "path": "ccg-owned-application-vm-draft-v1/after/rust/tcl-engine-tclvm/src/closed_native_execution/application_hook_engine.rs",
+      "bytes": 6048,
+      "sha256": "af14369cf70ca56d39a20dac7199ae8e9e6ea46e0a8586c6f047837c2360bc3d"
+    },
+    {
+      "path": "ccg-owned-application-vm-draft-v1/after/rust/tcl-engine-tclvm/src/closed_native_execution/application_vm.rs",
+      "bytes": 7791,
+      "sha256": "5bf680bd10399976b676824648fd9f0b9c25fd0c07353e5825a200398315d9e8"
+    },
+    {
+      "path": "ccg-owned-application-vm-draft-v1/after/rust/tcl-engine-tclvm/src/lib.rs",
+      "bytes": 166284,
+      "sha256": "01900f55fa06163f39ab31d09733fd664e9667c971044665f3786670a87ec85e"
+    },
+    {
+      "path": "ccg-prep-2bf-40473763829-actual-v1/api-0.json",
+      "bytes": 12263,
+      "sha256": "f1ab309513e827a206a9d3670e2bf282823304293f6a4c8676da73c858ac30fd"
+    },
+    {
+      "path": "ccg-prep-2bf-40473763829-actual-v1/api-1.json",
+      "bytes": 21437,
+      "sha256": "24f5f6896647694e09e96ac64429918f8b9a3f50a1d30935bc7b03311ba2e29d"
+    },
+    {
+      "path": "ccg-prep-2bf-40473763829-actual-v1/api-2.json",
+      "bytes": 726,
+      "sha256": "943367ddc6e62ca79f1e1ce930682e2d5f15c8346781c55ddfa264883f642981"
+    },
+    {
+      "path": "ccg-prep-2bf-40473763829-actual-v1/authentication.json",
+      "bytes": 6198,
+      "sha256": "692c4969d98289652c9cef9ae8d0b407966b7916a011dee8b158cbe254a75779"
+    },
+    {
+      "path": "ccg-prep-2bf-40473763829-actual-v1/diagnostics.json",
+      "bytes": 350,
+      "sha256": "5e833466a5d5ce386782f48a6ef69d56cd3c8edb87b02cd2d5dbd8775f1ca9c3"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/after/rust/tcl-registry/src/pack_hooks.rs",
+      "bytes": 110181,
+      "sha256": "1ff1619793b6de18d50be86c0fa188faa6cbf01c26f767f342b3e4ea8f7b1a86"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/after/rust/tcl-spectcl/src/hooks/owned_evaluator.rs",
+      "bytes": 29103,
+      "sha256": "82789cf064ea87262791479002542b269f6eda9a627006eb3672982c194cd547"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/after/rust/tcl-spectcl/src/install.rs",
+      "bytes": 32286,
+      "sha256": "27e9b0dc5186ad6500fac2af760dfacd42fc00dd2cb339ab06c0b94e506ca366"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/before/rust/tcl-registry/src/pack_hooks.rs",
+      "bytes": 107616,
+      "sha256": "7439b1c5b276a7071f5718f7a36334c8375eb143f37dd4914c6b4165bdc1aaa5"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/before/rust/tcl-spectcl/src/hooks/owned_evaluator.rs",
+      "bytes": 15036,
+      "sha256": "51d28f04e63dc1c44dfc94927f6a8af8156505418021cd38df2cc43da7275630"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/before/rust/tcl-spectcl/src/install.rs",
+      "bytes": 27443,
+      "sha256": "84dba7b9f5f158acb5f6bc0e173c0c8f005e042a9855cb2f3c4f3cd6233bc1f0"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/manifest.json",
+      "bytes": 5134,
+      "sha256": "6c6362371f8dff07eeda4bb4cbcb03b1a0998f392e1a459fb606cdf94288c0aa"
+    },
+    {
+      "path": "ccg-private-request-dispatch-source-v3/proposal.patch",
+      "bytes": 35027,
+      "sha256": "0e570003e64b79944481663fb128fb7341e7a8865b39013fc02c20181f8428c5"
+    },
+    {
+      "path": "ccg-strict7fd-40473739842-actual-v1/api-0.json",
+      "bytes": 12263,
+      "sha256": "5f765fe2e114a090999d8b587200167989a4e1f6eb8f5b1ee3293a679381c10e"
+    },
+    {
+      "path": "ccg-strict7fd-40473739842-actual-v1/api-1.json",
+      "bytes": 21274,
+      "sha256": "f51998e2dcf747e81ab139aabe96f7f3867304f5eabc1777407988ec72dfb025"
+    },
+    {
+      "path": "ccg-strict7fd-40473739842-actual-v1/api-2.json",
+      "bytes": 773,
+      "sha256": "8d7dc0bc4aa56b9894d6742a3384c513d65af19ca4ebccd4a18a61a7c9595f58"
+    },
+    {
+      "path": "ccg-strict7fd-40473739842-actual-v1/assessment.json",
+      "bytes": 4044,
+      "sha256": "00b44c1e730e1c901832c9635fef3772abd309b6305fa19f2c833ca8db06b390"
+    },
+    {
+      "path": "ccg-strict7fd-40473739842-actual-v1/diagnostics.json",
+      "bytes": 432,
+      "sha256": "f37d649d5a3e91df57217d7fb7e0a3f04c9333af76b5749c6c811cca680d1af0"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/CLEAN/after.rs",
+      "bytes": 12479,
+      "sha256": "f0f372707c6e032622d3ce5b14c1b03f8c4c58970f09c3943874f2a9f9d6f499"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/CLEAN/before.rs",
+      "bytes": 12469,
+      "sha256": "ac6f22009cc9030daf96220076fbb95cfa4068e287d23b98c96ed1fbdd189eab"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/CLEAN/manifest.json",
+      "bytes": 550,
+      "sha256": "178760ecf53905dc5e8b98ba4a614321dc49241adfd03a6e16c9513a8110b177"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/CLEAN/proposal.patch",
+      "bytes": 456,
+      "sha256": "a7f35d5177c4751be088570da9a01a1fcefa7623ee2c9a368918f56872234f0f"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/WORK/after.rs",
+      "bytes": 12479,
+      "sha256": "f0f372707c6e032622d3ce5b14c1b03f8c4c58970f09c3943874f2a9f9d6f499"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/WORK/before.rs",
+      "bytes": 12469,
+      "sha256": "ac6f22009cc9030daf96220076fbb95cfa4068e287d23b98c96ed1fbdd189eab"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/WORK/manifest.json",
+      "bytes": 556,
+      "sha256": "27af3e51c45fea22531fdde8be9370a7ca6bd08dcb801db7a728f2ae9356b94d"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/WORK/proposal.patch",
+      "bytes": 456,
+      "sha256": "a7f35d5177c4751be088570da9a01a1fcefa7623ee2c9a368918f56872234f0f"
+    },
+    {
+      "path": "compiler-authored-body-pointer-lint-paired-v1/manifest.json",
+      "bytes": 1108,
+      "sha256": "495f1207bb2544448af48bb050363fa04b4b4287443686ab4deaddea9b122665"
+    },
+    {
+      "path": "compiler-current7fd-both-buildstops-closed-v1/index.json",
+      "bytes": 1978,
+      "sha256": "374549106c4ea808b70d25fdee555e35e97f173e9f63c94fc8a7a46ef0ee7975"
+    },
+    {
+      "path": "compiler-current7fd-both-buildstops-closed-v1/shared-full-git-join-v1.json",
+      "bytes": 2103,
+      "sha256": "a2e6a29ca75b9fad80f53730a6516139ec74880357c2af9b39c7e4f385ce160c"
+    },
+    {
+      "path": "compiler-peer-clean-sourcecut-option-v2/receipt.json",
+      "bytes": 1431,
+      "sha256": "f4590dd032c9246709c52d0ef7b521fa6982b4243d37cd0c890080368f5de01e"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/docs/design/contracts/name-handling.md",
+      "bytes": 295314,
+      "sha256": "55ec324397ff2b9caf62d803f1cd60a737b62ed73f520dd0628648530b573bd9"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/docs/design/contracts/shared-utility-contracts-rust.md",
+      "bytes": 1319170,
+      "sha256": "ae9ae055b657e18bcf2e9b92270393a3159f7deab86ae7ebaf46b0e90a8a1c2d"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/rust/tcl-compiler/src/command_binding/jim_stock_class.rs",
+      "bytes": 27736,
+      "sha256": "60304bded5db276454e424a9adcbc68afa75dfca6b2314e3414a7c651f878a85"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/rust/tcl-compiler/src/command_binding/jim_stock_class/source_advice.rs",
+      "bytes": 12790,
+      "sha256": "720e4ad2bc30284c037461d2b3126d1197b66fa355ddd4c100eca8eea557e2a6"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "bytes": 131530,
+      "sha256": "cc5c1e539ae7acdec73a5bbc965f4d1e617f347a205b91555592416250fdd87c"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "bytes": 53390,
+      "sha256": "b23e15187bb146c1e19485d271b85977f4e937b79963dbc017f7d298a5d49780"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "bytes": 205434,
+      "sha256": "464d3276e193bac8edf39122459171fa9a08e6efcf90d436a307be3215f93e83"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "bytes": 22666,
+      "sha256": "63089a9fd8c213b7218bd03a461836082e8f86cea20f2560a5441c4d085ed214"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/after/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "bytes": 32497,
+      "sha256": "2282ffa641c918d83a1832a15bab09681a79bc0aeeaad81f3da3dcd6c293e64e"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/docs/design/contracts/name-handling.md",
+      "bytes": 295314,
+      "sha256": "55ec324397ff2b9caf62d803f1cd60a737b62ed73f520dd0628648530b573bd9"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/docs/design/contracts/shared-utility-contracts-rust.md",
+      "bytes": 1319170,
+      "sha256": "ae9ae055b657e18bcf2e9b92270393a3159f7deab86ae7ebaf46b0e90a8a1c2d"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/rust/tcl-compiler/src/command_binding/jim_stock_class.rs",
+      "bytes": 27736,
+      "sha256": "60304bded5db276454e424a9adcbc68afa75dfca6b2314e3414a7c651f878a85"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/rust/tcl-compiler/src/command_binding/jim_stock_class/source_advice.rs",
+      "bytes": 12790,
+      "sha256": "720e4ad2bc30284c037461d2b3126d1197b66fa355ddd4c100eca8eea557e2a6"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "bytes": 131530,
+      "sha256": "cc5c1e539ae7acdec73a5bbc965f4d1e617f347a205b91555592416250fdd87c"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "bytes": 53390,
+      "sha256": "b23e15187bb146c1e19485d271b85977f4e937b79963dbc017f7d298a5d49780"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "bytes": 205434,
+      "sha256": "464d3276e193bac8edf39122459171fa9a08e6efcf90d436a307be3215f93e83"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "bytes": 22666,
+      "sha256": "63089a9fd8c213b7218bd03a461836082e8f86cea20f2560a5441c4d085ed214"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/apply-copy/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "bytes": 32497,
+      "sha256": "2282ffa641c918d83a1832a15bab09681a79bc0aeeaad81f3da3dcd6c293e64e"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/docs/design/contracts/name-handling.md",
+      "bytes": 294775,
+      "sha256": "abfcc88337c799292fca60f6d221ca62c9e6edbe1f808b57f87f50bcfeee754e"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/docs/design/contracts/shared-utility-contracts-rust.md",
+      "bytes": 1318611,
+      "sha256": "4d8067d4cf9e85060c4897e75408948af43daecc2e298b09900b421b8dd5b148"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/rust/tcl-compiler/src/command_binding/jim_stock_class.rs",
+      "bytes": 27636,
+      "sha256": "e9a95a793c79074b7765798df6a3113621e56eef5ac4407b2d0108acbecc4785"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "bytes": 128870,
+      "sha256": "1fd93a28ac6e23c1863953bfd26677d2f320cd567d7ba37a3563b92ac47b4cbf"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "bytes": 53336,
+      "sha256": "01a492309db4fcccb670e1122bac0152d6715d8df3b72fa19bcb62954307bf51"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "bytes": 204469,
+      "sha256": "cdafa26094233fb4a0d71bb8ba60c5dd273e906b52fc533f0312b4d0b5f90b06"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "bytes": 21028,
+      "sha256": "c6ab5d5febff999b782abe5e5a2b78207e43e6461b5a84a5b4ec93e2f8b86a27"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/before/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "bytes": 32453,
+      "sha256": "258fa41d0baf2f22c6661a4abc66890bc22aa2a31979261d126637097b576099"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/manifest.json",
+      "bytes": 8045,
+      "sha256": "cfc7411744704319382d0a1e665ac52d715e66e0ca68a7b7837931f5014e7fa6"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/CLEAN/proposal.patch",
+      "bytes": 28634,
+      "sha256": "835eb6f340afba3693b2a985fad4f290e953a2df61768dbeb477794502664f13"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/docs/design/contracts/name-handling.md",
+      "bytes": 303161,
+      "sha256": "ae104785c544ef21769c84493150adce76a59bf0caabdd01ed79c3448af194e6"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/docs/design/contracts/shared-utility-contracts-rust.md",
+      "bytes": 1321070,
+      "sha256": "f2c2b251a3ef81342f82bd8a1747e04a6d425a5eef3721deaf980ded4dc6000b"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/rust/tcl-compiler/src/command_binding/jim_stock_class.rs",
+      "bytes": 29787,
+      "sha256": "f9c08764b06c43a5bdf318d4a644d0302ad0ed6b8fb096f31ed63036c767e1d4"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/rust/tcl-compiler/src/command_binding/jim_stock_class/source_advice.rs",
+      "bytes": 12790,
+      "sha256": "720e4ad2bc30284c037461d2b3126d1197b66fa355ddd4c100eca8eea557e2a6"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "bytes": 141090,
+      "sha256": "74d06e43213023acdf746dcf6f237277eef9af97f2e9b01813faa2b77709c07f"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "bytes": 55929,
+      "sha256": "40e76ddfbf705236b7e93073f3df6201fb92c3a0f888daedffe848578e8aaa9c"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "bytes": 216070,
+      "sha256": "db60a46a4c5d55559bd909c6caf73560a9407384feca0cbf493d903e44152d4d"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "bytes": 29085,
+      "sha256": "8a4c741f735221237a61f44b3188d4a8c3bd6638c94f0593fbe7b0ff0aef9a68"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/after/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "bytes": 36226,
+      "sha256": "6af898b62efa833eba4d290f86688161084f522ad2cd4a13c68566e005d56c02"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/docs/design/contracts/name-handling.md",
+      "bytes": 302622,
+      "sha256": "f883701658fe9bb4f708cd5b0ea693db71d487fed83830e80dfa916363c046ec"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/docs/design/contracts/shared-utility-contracts-rust.md",
+      "bytes": 1320511,
+      "sha256": "76220c046b003d071dd6170794ec2ec7de2c61ec13b754b1c35fff0120b48dfe"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/rust/tcl-compiler/src/command_binding/jim_stock_class.rs",
+      "bytes": 29687,
+      "sha256": "c7399e73fbc095edc211491f8d8d0cbb2fe15889acf4a8301cb7ee6e274e9785"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "bytes": 138430,
+      "sha256": "39c4acc6b4ca7585f0a76b1257cd784db9ecc06033f7d46bd8a767ec244957f8"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "bytes": 55875,
+      "sha256": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "bytes": 215105,
+      "sha256": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "bytes": 27447,
+      "sha256": "e46653c83b0040f53c7894da04af56cebc67f74dd9fb4f1f37a2e920044d8351"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/apply-copy/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "bytes": 36182,
+      "sha256": "71ee7eb0dd995a61437f638a6f8865b6acc0c1c632761002afd3c0defa6b111e"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/docs/design/contracts/name-handling.md",
+      "bytes": 302622,
+      "sha256": "f883701658fe9bb4f708cd5b0ea693db71d487fed83830e80dfa916363c046ec"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/docs/design/contracts/shared-utility-contracts-rust.md",
+      "bytes": 1320511,
+      "sha256": "76220c046b003d071dd6170794ec2ec7de2c61ec13b754b1c35fff0120b48dfe"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/rust/tcl-compiler/src/command_binding/jim_stock_class.rs",
+      "bytes": 29687,
+      "sha256": "c7399e73fbc095edc211491f8d8d0cbb2fe15889acf4a8301cb7ee6e274e9785"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "bytes": 138430,
+      "sha256": "39c4acc6b4ca7585f0a76b1257cd784db9ecc06033f7d46bd8a767ec244957f8"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "bytes": 55875,
+      "sha256": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "bytes": 215105,
+      "sha256": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "bytes": 27447,
+      "sha256": "e46653c83b0040f53c7894da04af56cebc67f74dd9fb4f1f37a2e920044d8351"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/before/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "bytes": 36182,
+      "sha256": "71ee7eb0dd995a61437f638a6f8865b6acc0c1c632761002afd3c0defa6b111e"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/manifest.json",
+      "bytes": 8050,
+      "sha256": "6518883212d065a1424737d412f4dd2df377a3dd3e83b8f32ae3fddd9bcaad18"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/WORK/proposal.patch",
+      "bytes": 28634,
+      "sha256": "d9e45773a30e32724491a6e8db6373be486aa0c6836e382b2b0c25617ff69f23"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/manifest.json",
+      "bytes": 2925,
+      "sha256": "573aa825662e722519c2831f3a16de386db896f198337de5cb8455a223071081"
+    },
+    {
+      "path": "compiler-stock-class-advice-paired-v2/parent-consumer-census.json",
+      "bytes": 2846,
+      "sha256": "dc189cfadb3ba5deb3988d34ded813acbe4f9b44001fc9628fc82bd18cb7cc68"
+    },
+    {
+      "path": "lsp-7fd3d3-host-wave-evidence-index-v1/authenticated-four-startup-pending.json",
+      "bytes": 1668,
+      "sha256": "e8b6a735199f51e77f5d29b59b4616af1d71972d5b6503038e547664e954fd1d"
+    },
+    {
+      "path": "lsp-7fd3d3-host-wave-evidence-index-v1/index-v1.json",
+      "bytes": 4336,
+      "sha256": "848863afdef72c8cc700cff56fa8cc2de9b601f89ad10552ecf1139ea6c662b8"
+    },
+    {
+      "path": "lsp-7fd3d3-host-wave-evidence-index-v1/initial-api-40473682972.json",
+      "bytes": 43256,
+      "sha256": "1b426c9083724260b226c7189fe2e830710f218e2e8b0c576d4acbf98b98bc6c"
+    },
+    {
+      "path": "lsp-7fd3d3-host-wave-evidence-index-v1/initial-api-40473754427.json",
+      "bytes": 47408,
+      "sha256": "d0a5a8f8b9085d74081d62984e3627b80ab537ab030204d0c5bfabe68040acfa"
+    },
+    {
+      "path": "lsp-7fd3d3-host-wave-evidence-index-v1/pending.json",
+      "bytes": 904,
+      "sha256": "3b149feb86062202bdffbce0e706b6c63f265c54e16cd00273ba0dfb0e77112a"
+    },
+    {
+      "path": "lsp-clean-sourcecut-option-carry-v2/CLEAN/after/rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs",
+      "bytes": 44244,
+      "sha256": "7bf532480570a893d338c93fc897c6bc2cfbdd0507585e17f8a5ba010fa0ec41"
+    },
+    {
+      "path": "lsp-clean-sourcecut-option-carry-v2/CLEAN/before/rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs",
+      "bytes": 44371,
+      "sha256": "b8e97d5999f1514904b52dfaf0a2ea90f036bd0c22210a87567a15d26c21b9b5"
+    },
+    {
+      "path": "lsp-clean-sourcecut-option-carry-v2/CLEAN/proposal.patch",
+      "bytes": 1665,
+      "sha256": "22c9e8199d2380315346a1046960c0ee294888180effc9ca34b111ab421e56c8"
+    },
+    {
+      "path": "lsp-clean-sourcecut-option-carry-v2/author-carry-proof.json",
+      "bytes": 330,
+      "sha256": "e48bf263fe73a785369c7e7c58de3bb5587186ddd3b28dfcf645d8e758196b68"
+    },
+    {
+      "path": "lsp-clean-sourcecut-option-carry-v2/manifest.json",
+      "bytes": 2000,
+      "sha256": "ce4859109d7b5756b1cdea5076d8e60f7a3c76231d9663672efa2b9b2685a717"
+    },
+    {
+      "path": "lsp-host-browser40473754427-actual-v1/assessment-v1.json",
+      "bytes": 22983,
+      "sha256": "e9e54df72dac649b5e6e1d27e4ae0fcc9ca72ee9764b6d6e7c87178829f188e4"
+    },
+    {
+      "path": "lsp-host-browser40473754427-actual-v1/connector-metadata.json",
+      "bytes": 50577,
+      "sha256": "ec72b3d9c7b23a33ad24e75387252083b9ec6bcb7520c21417763dd5f9545bc8"
+    },
+    {
+      "path": "lsp-host-browser40473754427-actual-v1/preliminary-actual-frontier.json",
+      "bytes": 3859,
+      "sha256": "db7d89420d45d062769c97a3bc1cf2ecb9988fc6615c6fb63c23bf2c2646f38a"
+    },
+    {
+      "path": "lsp-host-browser40473754427-actual-v1/transport-receipt.json",
+      "bytes": 463,
+      "sha256": "b3cc75a22951f877d390f15805a589bdbc5ab8c7a1aae77f82d82336500f0910"
+    },
+    {
+      "path": "lsp-host-wasi40473754427-actual-v1/assessment-v1.json",
+      "bytes": 86174,
+      "sha256": "7609d0c88548ae43b015658020c56f93f47260eec05e70a816694adb9082d452"
+    },
+    {
+      "path": "lsp-host-wasi40473754427-actual-v1/connector-metadata.json",
+      "bytes": 50577,
+      "sha256": "ec72b3d9c7b23a33ad24e75387252083b9ec6bcb7520c21417763dd5f9545bc8"
+    },
+    {
+      "path": "lsp-host-wasi40473754427-actual-v1/preliminary-actual-frontier.json",
+      "bytes": 2094,
+      "sha256": "eae48bc4d93275d2c1d3291e4e3c0a278bc3950f88efa5e265e7295a17a9e42c"
+    },
+    {
+      "path": "lsp-host-wasi40473754427-actual-v1/transport-receipt.json",
+      "bytes": 457,
+      "sha256": "2685ff370f9336ba6c85acb381f83fdc5c7c31f7047d550a3f763b7ba16f1e0b"
+    },
+    {
+      "path": "lsp-hosted-core2-40473682972-actual-v1/assessment-v1.json",
+      "bytes": 48568,
+      "sha256": "899ffd9bbad5e8c5c9cf60ef1e696fb4e0e59fdfafd23cb8cb03d2ee9a881f4d"
+    },
+    {
+      "path": "lsp-hosted-core2-40473682972-actual-v1/connector-metadata.json",
+      "bytes": 46365,
+      "sha256": "de4351c63b587dc8b17854962ec61a6f70285a83d69ceb197d80cf6f37669392"
+    },
+    {
+      "path": "lsp-hosted-core2-40473682972-actual-v1/transport-receipt.json",
+      "bytes": 494,
+      "sha256": "5ebc811b1090b031f55078592c293fc7888e8e78dfd637498c320e471ca9be06"
+    },
+    {
+      "path": "lsp-hosted-startup40473682972-actual-v1/assessment-v1.json",
+      "bytes": 40508,
+      "sha256": "756bb7ee0d0090915954cce05201e86425df3a2ed32f788420195f6ea2b1fbc0"
+    },
+    {
+      "path": "lsp-hosted-startup40473682972-actual-v1/connector-metadata.json",
+      "bytes": 46365,
+      "sha256": "de4351c63b587dc8b17854962ec61a6f70285a83d69ceb197d80cf6f37669392"
+    },
+    {
+      "path": "lsp-hosted-startup40473682972-actual-v1/source-bindings.json",
+      "bytes": 5531,
+      "sha256": "ee8b80ea3a069aab0e5b231eb5eaca98ce0f333a5e5653f7d5c6ca088b0bc5ae"
+    },
+    {
+      "path": "lsp-hosted-startup40473682972-actual-v1/startup-envelope-author-negative-proof-v2.json",
+      "bytes": 823,
+      "sha256": "3f3f73afc31435bda0232106c99387d595ad5e06795b223adc2c161beb5ca171"
+    },
+    {
+      "path": "lsp-hosted-startup40473682972-actual-v1/startup-envelope-author-negative-proof-v3.json",
+      "bytes": 914,
+      "sha256": "c20f60de8c3e5b9713514111c31a20712349f1850809a0483899bebb6d889763"
+    },
+    {
+      "path": "lsp-hosted-startup40473682972-actual-v1/startup-envelope-author-negative-proof.json",
+      "bytes": 697,
+      "sha256": "01e2981857333b0045f0f46d3457c78343c358b8c0b9bde22c93f8be6879ed5c"
+    },
+    {
+      "path": "lsp-hosted-startup40473682972-actual-v1/transport-receipt.json",
+      "bytes": 497,
+      "sha256": "29af4cfdc8b5c45f860a544ad6e8891c4fee5e373179b5f0a344d3f826f11567"
+    },
+    {
+      "path": "lsp-hosted-unit-40473754427-actual-v1/assessment-v1.json",
+      "bytes": 50731,
+      "sha256": "acb21e311bc723fa1ab06c12814b30340c9196949d01d7d8808e946db2ba4961"
+    },
+    {
+      "path": "lsp-hosted-unit-40473754427-actual-v1/connector-metadata.json",
+      "bytes": 51954,
+      "sha256": "94ff74d7f42cec4b35f3ac1729b90fb5f977be06a1024e3607b4a54444fe03b0"
+    },
+    {
+      "path": "lsp-hosted-unit-40473754427-actual-v1/transport-receipt.json",
+      "bytes": 492,
+      "sha256": "4f2cafd90cc6d2809e5d9872fcd63d50665f15b086e099f5423799fafacb07f3"
+    },
+    {
+      "path": "names-clean-final-seven-read-census-v2/census.json",
+      "bytes": 268808,
+      "sha256": "da04ec352b29fa77073017a6874f62dec4581d275c9cbf310007d87ffda3e770"
+    },
+    {
+      "path": "names-clean-final-seven-read-census-v2/info-dynamic-path-closure.json",
+      "bytes": 33418,
+      "sha256": "315ccc1e4e187e41d128945e419152cd9c8e55a42999e12c8961fe47a61e3663"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/after/runtime/rust/src/interp/native_body_artifact/native_upvar_info_exists_tests.rs",
+      "bytes": 8130,
+      "sha256": "63d988542772c0e881ab8d08caf84b9751f69b5b9a49f75bde68917c3392f53d"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/after/rust/tcl-registry/src/native_info_exists_compilation.rs",
+      "bytes": 12599,
+      "sha256": "720b3ec042e26fb5d5f9564123845e431728dc2c2ce5af13530155a1ba5d6b6b"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/after/rust/tcl-registry/src/native_upvar_compilation.rs",
+      "bytes": 13875,
+      "sha256": "611601043f0835f6b8b26f9560b147f6f828fc5eb8e18d0fcd7308156917a3f9"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/after/rust/tcl-registry/tests/data/native_upvar_info_exists/captures.tsv",
+      "bytes": 16860,
+      "sha256": "b91db2eba9c6c07c35b73313162121d7dfb30b899103cc6a4b6674d13b9532e2"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/after/rust/tcl-vm/src/interp/native_upvar_info_exists_tests.rs",
+      "bytes": 9661,
+      "sha256": "7a1f341a93d882f455a572b628faad7adcf3155dc7de9a9fe4563e386cfd2646"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/runtime/rust/src/interp/native_body_artifact/native_upvar_info_exists_tests.rs",
+      "bytes": 7678,
+      "sha256": "21524c42310bdade443ddea9652ddd627762f5351a882095b7feb76c074cfbfd"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/src/native_info_exists_compilation.rs",
+      "bytes": 11917,
+      "sha256": "657667b00cfd5885e89b01c38bcfd588838c62ea40328fd43fd0f31a0e85a29d"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/src/native_upvar_compilation.rs",
+      "bytes": 13193,
+      "sha256": "e3d45f156459a37fc939bf7fb909b640b0b9cb544f8730e917fdcc159d8931e6"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt",
+      "bytes": 1251,
+      "sha256": "f346f6f2647489d68f259ebd6e3cd0bf11d459a267b63050b1c875e81443bda6"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt",
+      "bytes": 1641,
+      "sha256": "ff2a2f35c7525c61c9951424dd06c53c8d71d4e309fbb15ff29b5c446b8b9118"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt",
+      "bytes": 1505,
+      "sha256": "f29d0f4a6e8fd58a54d2864d742fdeb5698266e2a6335f5c4ee65ff5c388070b"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt",
+      "bytes": 1711,
+      "sha256": "93a44c635222267d858586ef1c020a5b5bd39c9ad574f0dd9bb51f5f2b23bebf"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt",
+      "bytes": 1711,
+      "sha256": "93a44c635222267d858586ef1c020a5b5bd39c9ad574f0dd9bb51f5f2b23bebf"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt",
+      "bytes": 54,
+      "sha256": "6c3522ff50acafbedaba5d68a989ac8acc726bd1b11f3dcc790b3502af303451"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt",
+      "bytes": 120,
+      "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt",
+      "bytes": 120,
+      "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt",
+      "bytes": 120,
+      "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt",
+      "bytes": 120,
+      "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/before/rust/tcl-vm/src/interp/native_upvar_info_exists_tests.rs",
+      "bytes": 7979,
+      "sha256": "3118331f8cf9cc361f988644a182c5ab1fdf4c1cdf78e0ef65c1a6a810282075"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/manifest.json",
+      "bytes": 11723,
+      "sha256": "7133052dc74be83b1b568a23233fa5e776dacd1026ad3c8a359b92cf4122f234"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/CLEAN/proposal.patch",
+      "bytes": 43781,
+      "sha256": "46cc90174fcd538d9d7bdf3e99162fe6e12f78e8f87b2cc3f803383357205339"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/length-path-companion.json",
+      "bytes": 1164,
+      "sha256": "9d35efc65277e339ab030a598ec70495799a77a32dc56dad5644bd30fb368814"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/manifest.json",
+      "bytes": 182,
+      "sha256": "aea08787efeca602f9bfdd7f6f3b8908db4943012f46daf0f35b802f2869cb04"
+    },
+    {
+      "path": "names-clean-fixture-table-upvar-exists-v2/old-path-to-table-record.json",
+      "bytes": 3109,
+      "sha256": "b1a0b3ca1ea88dd0f3d49ba9d35f9d84517874c6c32c451a2c741be2f0d9c656"
+    },
+    {
+      "path": "names-corpus2-40473732594-actual-v1/authentication.json",
+      "bytes": 1391,
+      "sha256": "bd3000b72464297b50f62af6b077e92230244607214a918e2b66dc5453b88476"
+    },
+    {
+      "path": "names-corpus2-40473732594-actual-v1/build-error.json",
+      "bytes": 1698,
+      "sha256": "16442b11daa94bcefa239a96fd8785ccadc66ab4c9c7f597b44e894fb52c08a4"
+    },
+    {
+      "path": "names-corpus2-40473732594-actual-v1/full-git-content-supplement.json",
+      "bytes": 547,
+      "sha256": "0d26bda08e058192da721d49698fec6fd87a2eae86b93ed68b2bd6feb25474f8"
+    },
+    {
+      "path": "names-corpus2-40473732594-actual-v1/source-map-join.json",
+      "bytes": 581,
+      "sha256": "55540d9edeff9facd1adb60ecc9b3696ebf80c2e6b72c287bc60cd6616a9309d"
+    },
+    {
+      "path": "peer-ccg-application-h5-initial-api-review/receipt.json",
+      "bytes": 5337,
+      "sha256": "30179ffe8fc3e7338d5b9b40d91425f5871dee4afa2fd1e86c3e2c584ec03c98"
+    },
+    {
+      "path": "peer-compiler-authored-body-pointer-lint-v1/receipt.json",
+      "bytes": 3097,
+      "sha256": "7f04c55fec9ff346f34585b407a1a6448fd0a3a13734276b880e03e28e1c1424"
+    },
+    {
+      "path": "peer-lsp-startup-7fd-current/challenge-v1.json",
+      "bytes": 679,
+      "sha256": "8bc2bc9128db37b764bc0700af7e4e9bad5891afa50190955b145e5d107fd6a2"
+    },
+    {
+      "path": "peer-lsp-startup-7fd-current/challenge-v1.py",
+      "bytes": 3633,
+      "sha256": "f3c61174d423105dacfed8033d3344139f614a16cf0c3ff77da412ece739a0b8"
+    },
+    {
+      "path": "peer-lsp-startup-7fd-current/proof-v3.json",
+      "bytes": 6460,
+      "sha256": "678bbfe03289e66bd298d1601802e3ca6ec1e55d85a79700180aeb07106ed090"
+    },
+    {
+      "path": "peer-lsp-startup-7fd-current/receipt-v3.json",
+      "bytes": 5087,
+      "sha256": "ea0cc4d30fa77448e3f722974b0319b927124794bd01cfaca795376d431c50f9"
+    },
+    {
+      "path": "peer-lsp-startup-7fd-current/review-v3.py",
+      "bytes": 11282,
+      "sha256": "e3a4e2f19dfee54d41ac8a4fd3f2fb8c603c1d947e4d7e170f41ca8bdb8782f7"
+    },
+    {
+      "path": "peer-names-upvar-exists-v2/receipt.json",
+      "bytes": 19930,
+      "sha256": "c6e6b1f7041358d437e53287aea1f9f691e9aa18d0802611bd3f1d9fed462dab"
+    },
+    {
+      "path": "peer-names-upvar-exists-v2/review.py",
+      "bytes": 11732,
+      "sha256": "74dbe119e2d15c9b1bb3fd4dac24fa8990c7e1c6161b6e1a7b2134d6a23da310"
+    },
+    {
+      "path": "peer-vm-namespace-result-projection-proposal-v1/receipt.json",
+      "bytes": 17339,
+      "sha256": "c55565269c733163c708106912d5e581628144f6c3df3338013e6e4597faa12c"
+    },
+    {
+      "path": "peer-vm-namespace-result-projection-proposal-v1/review.py",
+      "bytes": 6400,
+      "sha256": "3c2173313605faabdbcf5aecec285305023404310273ad5c2c037a1ab14698c1"
+    },
+    {
+      "path": "root-7fd3-focused-wave-discovery-v1.json",
+      "bytes": 2911,
+      "sha256": "c36e0bb967a8c54cc954011db8497dcff20ba83c59e3843715b8b2a1e634d3d5"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/actual-69-expression-source-join.json",
+      "bytes": 1788,
+      "sha256": "0a6ded5c20659edbb8fe8a67bce89017590501494e7313717cbace63fe691714"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/all-member-stream-sha256.json",
+      "bytes": 7275,
+      "sha256": "39a8a183ab8d5eb70a2784926e2907eb710868a75a2ab694cf3efdce1abdff67"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/api-artifacts-final.json",
+      "bytes": 711,
+      "sha256": "8182e5328f1b73e4016ee4d013494c776578028216e8b03d4a021a6feddfbf3f"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/api-jobs-final.json",
+      "bytes": 4463,
+      "sha256": "3d92100e0adc546be2b53c5111c9eb13a7851bf6239344620f0c0ae1d09f0848"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/api-jobs-initial.json",
+      "bytes": 4356,
+      "sha256": "4852884e6c5a0069f03c69f29fb3e59db74199c0b7a3d09116b4083f2f7cfff6"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/assessment/authentication.json",
+      "bytes": 19249,
+      "sha256": "8ecb4ec0321ca7510f10035288b673f06bf8b253f2bec6b2f2bcad8869af618e"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/cause3-and-reset-boundary-authentication.json",
+      "bytes": 13681,
+      "sha256": "f11ead9c5e004574dfb289b7c22da4de458c46b8527310d3acf6b69bd31341b1"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/connector-metadata.json",
+      "bytes": 5172,
+      "sha256": "f08f6e7d808b3cf567ad1e8496487decd7cd29f8106feff3ceb788db8117b129"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/expected.json",
+      "bytes": 146,
+      "sha256": "2ecf1b9c8c1306b580374e215b0217180a8a3062bf94639d175ff6e223577a27"
+    },
+    {
+      "path": "vm-irules-actual-40473746970/intake-held.json",
+      "bytes": 229,
+      "sha256": "d336ae97bc9211b261eb21c04adbf8ca9f9456235ce503020bcc1c8c88ecbfb4"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/CLEAN/after.rs",
+      "bytes": 135248,
+      "sha256": "5f46042e41afeea718d8df5237ba3657c7da8f3c63f3f92958e8d04d8ce611a4"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/CLEAN/before.rs",
+      "bytes": 133628,
+      "sha256": "91941fa25a71bfdca793f51ceab6b133d06ba7bb7bbde6d4cb74695d8adea667"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/CLEAN/manifest.json",
+      "bytes": 432,
+      "sha256": "1a27700f3ef6a9904000af71d450279fdd36fee3831693b075cded1439a8fe41"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/CLEAN/proposal.patch",
+      "bytes": 2455,
+      "sha256": "82e8119da1af6cfef8fdbb1847009f01953a235f5504c3a95d9f3a81965c2fce"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/WORK/after.rs",
+      "bytes": 135248,
+      "sha256": "5f46042e41afeea718d8df5237ba3657c7da8f3c63f3f92958e8d04d8ce611a4"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/WORK/before.rs",
+      "bytes": 133628,
+      "sha256": "91941fa25a71bfdca793f51ceab6b133d06ba7bb7bbde6d4cb74695d8adea667"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/WORK/manifest.json",
+      "bytes": 431,
+      "sha256": "8f65c5e5ae8cc211943d6ee87bde203102d8dffa6ecb06dd58b3085ce82d02c4"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/WORK/proposal.patch",
+      "bytes": 2455,
+      "sha256": "82e8119da1af6cfef8fdbb1847009f01953a235f5504c3a95d9f3a81965c2fce"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/master.json",
+      "bytes": 1633,
+      "sha256": "ddd7fa25afe335be72f7082f634c3dd92f9f45a84ba133308ee458c900d6da0d"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v1/whole-old-inverse-addendum.json",
+      "bytes": 330,
+      "sha256": "2a4ba9ab4ded695af79719399fadc9b9b7fa6f4feb966dc491b1e16b8fff954a"
+    },
+    {
+      "path": "vm-namespace-result-projection-proposal-v2.json",
+      "bytes": 1836,
+      "sha256": "df107f98ea56035bc919a41e018c236db33458b2cfc93847c62cc032bf305a2a"
+    }
+  ],
+  "missing_requested_paths": [],
+  "excluded": "Large original ZIPs, full-Git payloads and providers remain in /workspace/naming-proof-storage; no new archive authentication, test execution or gate admission. Draft sources remain unapplied.",
+  "work_product_head": "b41de429f886145f348381daf949fd6944357d4a",
+  "release_product_head": "0158859174cc4eca280dd5fa578e2a6a2f038d2a"
+}

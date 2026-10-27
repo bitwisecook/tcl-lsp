@@ -1,12 +1,27 @@
 # Outstanding work: compiler-codegen agent
 
+## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+
+Latest strict7fd two Clippy findings, exactCprep2bf two E0425; all owner captures closed. H5 compiler/VM/static-loader/preparation/plan-flow sources are preserved OFF-TREE drafts, incomplete/unbuilt, not capability. Resume genuine code/effect/owner/backend closure and optimiser fixture wiring with independent review; do not grant permission from source pins/opcode list.
+
+The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
+
+
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T08:06:12Z
+Last updated: 2026-10-27T09:14:03Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Exact7fd Strict FULLAUTH24 CLOSED00b44c1e RustE0/Clippy2; exact2bf Cprep FULLAUTH692c4969 CLOSED build2E0425 require_coverage242/455/alltestsUNRUN. All59CRC/10367candidateGitblobs182792900B independently streamed,18process phases/source/index clean, shareddeadline/cap/floor verified; sourceonly no newer product transfer. Both soleZIPs captured once within Rootreserved5.74MB/no extraction. N17H5 remains unbuilt; independentreview30179 found hidden nonverbatim PUSH and sticky limit edges, draftcorrected; separate actual installed-service opaque preparation avoids Foreign→CurrentService retag. Fullhook procedure/nestedcode and live backend/candidate/optimiser join stillhold, no capability/MAPgain.
+
+Current7fd strict FULLAUTH24 CLOSED00b44c1e: RustE0/two Clippy primaries field_comparison.rs222 ref_option (Names) and authored_body.rs115 rawpointer (Compiler), downstream gates UNRUN. Exact2bf Cprep soleZIP/API digest verified, raw2E0425 missing require_coverage Core source_coverage.rs242/455; alltestsUNRUN, full candidateGit/process authentication streaming. Root authorized only reserved5.74MB intake after disk recovery; no ELF/source extraction. H5 actual private compiler/VM/static-only loader drafts under independent review; sticky caught-limit issue corrected, nonverbatim PUSH evaluation lineage remains concrete hold. No capability/MAP/RANGE gain.
+
+Current7fd strict40473739842/job122086789954 API terminalFAIL08:34:30; exactCprep40473763829/job122086869234 candidate2bf62 API terminalFAIL08:48:02. Outcome cause/source qualification await sole ZIP authentication; Root storage hold forbids new payloads/extraction, API-only checked. Names corpus independently found E0063 missing symbolic_body_reads at authored_source_structure.rs978; Compiler owns repair, no strict-cause donation. N17 H1-H4 V3 sourceclear83ade remains scaffolding; H5 actual owned backend/compiler/emitted/getter/literal/candidate/retirement draft unbuilt, no capability or MAP/RANGE gain.
 
 Final1c07 SourceCut current25 union84d20e14/70b0 independentlySTATIC CLEAR0792a006, authorV16PASS13/30/22caf7 +12actualRuntimeguards/Numeric14/3PASS. Actual17 directSourceCut joins c2da and30existingrefreshes; Body15/PRIMARY6/MAY16 AST-owned literals preserveallrows/env/budgets. Root adoption/POST only; owner1/Layout overlays use exact AFTER images. EadeStrict FULLAUTHefdb Rust2FAIL/ClippyUNRUN; exactCprep d554 FULLAUTH6786 remains13P1F lens, all10623Gitblobs/18phaseclosures, no newer-source donation. N17 H1-H4 sourceV3 6c636/0e57 independent sourceCLEAR83ade only, actualwhole-backend/emitted/getter/cache/retirement H5 stillunbuilt/unadmitted; no Normal/CU/replaypermission or MAP/RANGE gain.
 

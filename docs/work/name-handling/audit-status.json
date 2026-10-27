@@ -1,7 +1,7 @@
 {
   "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
-  "current_head": "0597b94c5907470df67b0dd293bf35e2a89152c2",
-  "utc": "2026-10-17T17:48:34.728152+00:00",
+  "current_head": "b41de429f886145f348381daf949fd6944357d4a",
+  "utc": "2026-10-27T20:38:21.853504+00:00",
   "status": "USER_PAUSED",
   "counts": {
     "semantic_code_changes": 1799,
@@ -156,7 +156,7 @@
   },
   "source_role_closure_complete": true,
   "semantic_join_complete": true,
-  "validation_status": "USER_PAUSED_PARTIAL_LSP_CAPTURE_FAILED_NO_ACCEPTANCE",
+  "validation_status": "USER_PAUSED_RELEASE_GATES_OPEN_NO_NEW_ADMISSIONS",
   "limits": [
     "Confirmed required changes, not issue count, raw purpose rows, source files, source anchors, repair families, generic callers or elapsed days.",
     "Questions have been examined; unsupported/unknown provider or product requirements may establish additional work later. They are retained separately from the confirmed change count.",
@@ -166,7 +166,7 @@
     "No PR, issue closure or merge acceptance; #2286 stays open."
   ],
   "paused": true,
-  "pause_scope": "User stopped all implementation/test execution. Checkpoint only; no automatic report deadline or restart. VM/runtime naming work remains paused.",
+  "pause_scope": "All implementation/tests/dispatch/reminders paused by user; state preservation and Git checkpoint only.",
   "remaining_consumer_total": 1321,
   "remaining_semantic_change_total": 1799,
   "all_required_change_total": 2158,
@@ -1342,5 +1342,9 @@
       "continuation": "docs/work/name-handling/continue-prompt.md",
       "no_active_reports_or_tests": true
     }
-  }
+  },
+  "current_release_head": "0158859174cc4eca280dd5fa578e2a6a2f038d2a",
+  "current_baseline": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "resume_document": "pause-handoff-20261027.md",
+  "next_report_utc": null
 }
