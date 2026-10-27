@@ -1872,7 +1872,7 @@ impl Analyser {
             Hook::Uplevel => self.handle_uplevel_command(args, arg_tokens, scope_path),
             Hook::Foreach => {
                 self.handle_var_binding_command(cmd_tok, arg_tokens, scope_path);
-                self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path)
+                self.handle_foreach_command_at(cmd_tok, cmd_name, args, arg_tokens, scope_path)
             }
             Hook::Switch => self.handle_switch_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
