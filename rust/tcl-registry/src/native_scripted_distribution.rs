@@ -170,8 +170,9 @@ mod tests {
 
     #[test]
     fn original_namespace_info_library_matches_public_declaration() {
-        let captured = include_str!(
-            "../tests/data/native_jim_info_helper_forwarding258/jim/original-helper-formals-and-body/stdout"
+        let captured = tcl_test_support::fixture_tables::text(
+            include_str!("../tests/data/native_jim_info_helper_forwarding258/captures.tsv"),
+            "jim/original-helper-formals-and-body/stdout",
         );
         let fields: Vec<_> = captured
             .lines()

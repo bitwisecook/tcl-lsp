@@ -22,201 +22,231 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
 
 type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
 
-const CONTROLS: &[OriginalControl] = &[
+type OwnedOriginalControl = (&'static str, &'static [u8], [String; 6]);
+
+fn original_controls_0() -> [OwnedOriginalControl; 6] {
+    [
     ("native_jim_info_command_inventory254/original-all-option-current-namespace", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/original-all-option-current-namespace.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-all-option-current-namespace/stdout"),
     ]),
     ("native_jim_info_command_inventory254/original-all-option-qualified-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/original-all-option-qualified-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-all-option-qualified-pattern/stdout"),
     ]),
     ("native_jim_info_command_inventory254/original-abbreviated-all-option", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/original-abbreviated-all-option.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-abbreviated-all-option/stdout"),
     ]),
     ("native_jim_info_command_inventory254/original-option-without-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/original-option-without-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-option-without-pattern/stdout"),
     ]),
     ("native_jim_info_command_inventory254/original-pattern-and-extra-argument", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/original-pattern-and-extra-argument.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-pattern-and-extra-argument/stdout"),
     ]),
     ("native_jim_info_command_inventory254/original-absent-and-literal-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/original-absent-and-literal-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-absent-and-literal-pattern/stdout"),
     ]),
+
+    ]
+}
+
+fn original_controls_1() -> [OwnedOriginalControl; 6] {
+    [
     ("native_jim_rooted_info_command_inventory256/original-all-option-current-namespace", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/original-all-option-current-namespace.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.4.20/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.5.19/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.6.18/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.0.4/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.1.0/original-all-option-current-namespace/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.4.20/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.5.19/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.6.18/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.0.4/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.1.0/original-all-option-current-namespace/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-all-option-current-namespace/stdout"),
     ]),
     ("native_jim_rooted_info_command_inventory256/original-all-option-qualified-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/original-all-option-qualified-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.4.20/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.5.19/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.6.18/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.0.4/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.1.0/original-all-option-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.4.20/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.5.19/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.6.18/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.0.4/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.1.0/original-all-option-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-all-option-qualified-pattern/stdout"),
     ]),
     ("native_jim_rooted_info_command_inventory256/original-abbreviated-all-option", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/original-abbreviated-all-option.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.4.20/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.5.19/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.6.18/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.0.4/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.1.0/original-abbreviated-all-option/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.4.20/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.5.19/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.6.18/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.0.4/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.1.0/original-abbreviated-all-option/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-abbreviated-all-option/stdout"),
     ]),
     ("native_jim_rooted_info_command_inventory256/original-option-without-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/original-option-without-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-option-without-pattern/stdout"),
     ]),
     ("native_jim_rooted_info_command_inventory256/original-pattern-and-extra-argument", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/original-pattern-and-extra-argument.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.4.20/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.5.19/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/8.6.18/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.0.4/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/9.1.0/original-pattern-and-extra-argument/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.4.20/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.5.19/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/8.6.18/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.0.4/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "rooted/9.1.0/original-pattern-and-extra-argument/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-pattern-and-extra-argument/stdout"),
     ]),
     ("native_jim_rooted_info_command_inventory256/original-absent-and-literal-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/rooted/original-absent-and-literal-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/original-absent-and-literal-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/jim/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.4.20/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.5.19/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "8.6.18/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.0.4/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "9.1.0/original-absent-and-literal-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_command_inventory254/captures.tsv"), "jim/original-absent-and-literal-pattern/stdout"),
     ]),
+
+    ]
+}
+
+fn original_controls_2() -> [OwnedOriginalControl; 8] {
+    [
     ("native_jim_core_command_inventory257/root-exact-all-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/root-exact-all-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/root-exact-all-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/root-exact-all-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/root-exact-all-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/root-exact-all-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/root-exact-all-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/root-exact-all-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/root-exact-all-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/root-exact-all-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/root-exact-all-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/root-exact-all-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/root-exact-all-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/root-exact-all-pattern/stdout"),
     ]),
     ("native_jim_core_command_inventory257/root-plain-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/root-plain-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/root-plain-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/root-plain-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/root-plain-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/root-plain-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/root-plain-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/root-plain-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/root-plain-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/root-plain-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/root-plain-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/root-plain-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/root-plain-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/root-plain-pattern/stdout"),
     ]),
     ("native_jim_core_command_inventory257/root-all-qualified-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/root-all-qualified-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/root-all-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/root-all-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/root-all-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/root-all-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/root-all-qualified-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/root-all-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/root-all-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/root-all-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/root-all-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/root-all-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/root-all-qualified-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/root-all-qualified-pattern/stdout"),
     ]),
     ("native_jim_core_command_inventory257/root-option-without-pattern", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/root-option-without-pattern.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/root-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/root-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/root-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/root-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/root-option-without-pattern/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/root-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/root-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/root-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/root-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/root-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/root-option-without-pattern/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/root-option-without-pattern/stdout"),
     ]),
     ("native_jim_core_command_inventory257/root-original-option-arity", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/root-original-option-arity.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/root-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/root-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/root-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/root-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/root-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/root-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/root-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/root-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/root-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/root-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/root-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/root-original-option-arity/stdout"),
     ]),
     ("native_jim_core_command_inventory257/namespace-explicit-nons-all-patterns", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/namespace-explicit-nons-all-patterns.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/namespace-explicit-nons-all-patterns/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/namespace-explicit-nons-all-patterns/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/namespace-explicit-nons-all-patterns/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/namespace-explicit-nons-all-patterns/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/namespace-explicit-nons-all-patterns/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/namespace-explicit-nons-all-patterns/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/namespace-explicit-nons-all-patterns/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/namespace-explicit-nons-all-patterns/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/namespace-explicit-nons-all-patterns/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/namespace-explicit-nons-all-patterns/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/namespace-explicit-nons-all-patterns/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/namespace-explicit-nons-all-patterns/stdout"),
     ]),
     ("native_jim_core_command_inventory257/namespace-explicit-nons-absent-and-all", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/namespace-explicit-nons-absent-and-all.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/namespace-explicit-nons-absent-and-all/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/namespace-explicit-nons-absent-and-all/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/namespace-explicit-nons-absent-and-all/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/namespace-explicit-nons-absent-and-all/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/namespace-explicit-nons-absent-and-all/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/namespace-explicit-nons-absent-and-all/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/namespace-explicit-nons-absent-and-all/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/namespace-explicit-nons-absent-and-all/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/namespace-explicit-nons-absent-and-all/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/namespace-explicit-nons-absent-and-all/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/namespace-explicit-nons-absent-and-all/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/namespace-explicit-nons-absent-and-all/stdout"),
     ]),
     ("native_jim_core_command_inventory257/namespace-explicit-nons-original-option-arity", include_bytes!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/namespace-explicit-nons-original-option-arity.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/namespace-explicit-nons-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/namespace-explicit-nons-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/namespace-explicit-nons-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/namespace-explicit-nons-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/namespace-explicit-nons-original-option-arity/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/jim/namespace-explicit-nons-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.4.20/namespace-explicit-nons-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.5.19/namespace-explicit-nons-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "8.6.18/namespace-explicit-nons-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.0.4/namespace-explicit-nons-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "9.1.0/namespace-explicit-nons-original-option-arity/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_core_command_inventory257/captures.tsv"), "jim/namespace-explicit-nons-original-option-arity/stdout"),
     ]),
+
+    ]
+}
+
+fn original_controls_3() -> [OwnedOriginalControl; 3] {
+    [
     ("native_jim_info_helper_forwarding258/original-helper-formals-and-body", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/original-helper-formals-and-body.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.4.20/original-helper-formals-and-body/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.5.19/original-helper-formals-and-body/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.6.18/original-helper-formals-and-body/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.0.4/original-helper-formals-and-body/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.1.0/original-helper-formals-and-body/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/jim/original-helper-formals-and-body/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.4.20/original-helper-formals-and-body/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.5.19/original-helper-formals-and-body/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.6.18/original-helper-formals-and-body/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "9.0.4/original-helper-formals-and-body/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "9.1.0/original-helper-formals-and-body/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "jim/original-helper-formals-and-body/stdout"),
     ]),
     ("native_jim_info_helper_forwarding258/original-helper-replacement-caller-and-vector", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/original-helper-replacement-caller-and-vector.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.4.20/original-helper-replacement-caller-and-vector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.5.19/original-helper-replacement-caller-and-vector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.6.18/original-helper-replacement-caller-and-vector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.0.4/original-helper-replacement-caller-and-vector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.1.0/original-helper-replacement-caller-and-vector/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/jim/original-helper-replacement-caller-and-vector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.4.20/original-helper-replacement-caller-and-vector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.5.19/original-helper-replacement-caller-and-vector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.6.18/original-helper-replacement-caller-and-vector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "9.0.4/original-helper-replacement-caller-and-vector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "9.1.0/original-helper-replacement-caller-and-vector/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "jim/original-helper-replacement-caller-and-vector/stdout"),
     ]),
     ("native_jim_info_helper_forwarding258/original-root-qualified-pattern-forwards-current-helper", include_bytes!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/original-root-qualified-pattern-forwards-current-helper.tcl").as_slice(), [
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.4.20/original-root-qualified-pattern-forwards-current-helper/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.5.19/original-root-qualified-pattern-forwards-current-helper/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.6.18/original-root-qualified-pattern-forwards-current-helper/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.0.4/original-root-qualified-pattern-forwards-current-helper/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.1.0/original-root-qualified-pattern-forwards-current-helper/stdout"),
-        include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/jim/original-root-qualified-pattern-forwards-current-helper/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.4.20/original-root-qualified-pattern-forwards-current-helper/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.5.19/original-root-qualified-pattern-forwards-current-helper/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "8.6.18/original-root-qualified-pattern-forwards-current-helper/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "9.0.4/original-root-qualified-pattern-forwards-current-helper/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "9.1.0/original-root-qualified-pattern-forwards-current-helper/stdout"),
+        tcl_test_support::fixture_tables::text(include_str!("../../../tcl-registry/tests/data/native_jim_info_helper_forwarding258/captures.tsv"), "jim/original-root-qualified-pattern-forwards-current-helper/stdout"),
     ]),
-];
+    ]
+}
+
+fn original_controls() -> impl Iterator<Item = OwnedOriginalControl> {
+    original_controls_0()
+        .into_iter()
+        .chain(original_controls_1())
+        .chain(original_controls_2())
+        .chain(original_controls_3())
+}
 
 #[test]
 fn original_jim_inventory_and_current_helper_sources_match_all_native_columns() {
     // Complete public source results are independent of private table/cache identity.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;
-    for &(case, source, columns) in CONTROLS {
+    for (case, source, columns) in original_controls() {
         for (engine, column) in providers.iter().zip(columns) {
-            let (expected_code, expected_result) = original_result(column);
+            let (expected_code, expected_result) = original_result(&column);
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             vm.install_scripted_library(
