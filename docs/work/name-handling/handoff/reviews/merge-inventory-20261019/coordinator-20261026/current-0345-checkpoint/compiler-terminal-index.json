@@ -1,0 +1,167 @@
+{
+  "utc": "2026-10-27T03:09:51.574161+00:00",
+  "scope": "Scoped independent source/API/artifact/process/transport/terminal authentication; no broad release/performance admission",
+  "runs": [
+    {
+      "run": 40436746857,
+      "job": 121967122216,
+      "source": "32da8abbccc299b62d2e783b113610b07f82eb9c",
+      "zip_sha256": "21c406bb0a818c6d2cb90f10f037f9a4f64b2dafc089f5fffbf998afb05f3317",
+      "artifact": 12706003627,
+      "boundary_receipt": "/workspace/naming-proof-storage/compiler-original160-40436746857/boundary-assessment-v1.json",
+      "boundary_sha256": "5fcc7a02d8cd9f249a1cc4c296c170c3ad2d9da10f10ecc071073523640e7253",
+      "full_Git_receipt": "/workspace/naming-proof-storage/compiler-original160-40436746857/full-git-source.json",
+      "full_Git_sha256": "b1f197efa7f6be80a798870865fdd55c8f5b703b74d1e60482cb351290da4af0",
+      "all_source_records": 126848,
+      "owned_closed_processes": 335,
+      "fresh_Cargo_targets": 9,
+      "counts": {
+        "PASS": 153,
+        "FAIL": 5,
+        "UNRUN": 2
+      },
+      "phases": {
+        "outcomes": {
+          "PASS": 102
+        },
+        "logical_body_entry5_outcomes": {
+          "PASS": 5
+        },
+        "compact_codec1_outcomes": {
+          "PASS": 1
+        },
+        "original_child10_outcomes": {
+          "PASS": 10
+        },
+        "restored_child_owner1_outcomes": {
+          "PASS": 1
+        },
+        "native_string_effect3_outcomes": {
+          "PASS": 3
+        },
+        "native_formal_layout2_outcomes": {
+          "PASS": 2
+        },
+        "analyser_layout3_outcomes": {
+          "PASS": 2,
+          "FAIL": 1
+        },
+        "own_jim_member3_outcomes": {
+          "FAIL": 2,
+          "PASS": 1
+        },
+        "advice_catalogue3_outcomes": {
+          "PASS": 3
+        },
+        "native_eligibility2_outcomes": {
+          "PASS": 2
+        },
+        "own_jim_alias_firstguard1_outcomes": {
+          "FAIL": 1
+        },
+        "source_point_memo8_outcomes": {
+          "PASS": 8
+        },
+        "analyser_layout_firstguard3_outcomes": {
+          "PASS": 2,
+          "FAIL": 1
+        },
+        "source_point_report_firstguard1_outcomes": {
+          "PASS": 1
+        },
+        "inherited_point_report_custody3_outcomes": {
+          "PASS": 3
+        },
+        "cached_increment_compiler3_outcomes": {
+          "PASS": 3
+        },
+        "primary_procedure_value4_outcomes": {
+          "PASS": 4
+        },
+        "source_point_complete_text_corpus2_outcomes": {
+          "UNRUN": 2
+        }
+      }
+    },
+    {
+      "run": 40439277673,
+      "job": 121975418434,
+      "source": "bd808725f5d55c7810b0a55694d96e7d60472b2c",
+      "zip_sha256": "34dda7f7d27b4c60ddb9b86dc806952bcad4fc887172c09b5e8db889e9138e04",
+      "artifact": 12706425726,
+      "boundary_receipt": "/workspace/naming-proof-storage/compiler-layout15-40439277673/boundary-assessment-v1.json",
+      "boundary_sha256": "ce553f91e04b14340f2ee34f4277a6782d1070cde0169fed2f31bfa2f421e609",
+      "full_Git_receipt": "/workspace/naming-proof-storage/compiler-layout15-40439277673/full-git-source.json",
+      "full_Git_sha256": "56f1cb69be083ecc358d2cdb4a04a4d03499ea95ada512c430850c95bbfc21b9",
+      "all_source_records": 126869,
+      "owned_closed_processes": 39,
+      "fresh_Cargo_targets": 2,
+      "counts": {
+        "PASS": 11,
+        "FAIL": 6
+      },
+      "phases": {
+        "jim_source_layout11_outcomes": {
+          "PASS": 10,
+          "FAIL": 1
+        },
+        "separate_own_jim_diagnostic_rows": {
+          "FAIL": 2
+        },
+        "separate_finite_foreach_control_rows": {
+          "FAIL": 3,
+          "PASS": 1
+        }
+      }
+    },
+    {
+      "run": 40439290103,
+      "job": 121975459569,
+      "source": "bd808725f5d55c7810b0a55694d96e7d60472b2c",
+      "zip_sha256": "b70cfa10e1b5c6c227652e4a7169c3e6e948512ebbd3175d8d10e3a89ec2c32d",
+      "artifact": 12705997679,
+      "boundary_receipt": "/workspace/naming-proof-storage/compiler-jim52-40439290103/boundary-assessment-v1.json",
+      "boundary_sha256": "1903a7f09191d98a566c4c68891db16af4aa0778070a28adb727aaf14a23f2a7",
+      "full_Git_receipt": "/workspace/naming-proof-storage/compiler-layout15-40439277673/full-git-source.json",
+      "full_Git_sha256": "56f1cb69be083ecc358d2cdb4a04a4d03499ea95ada512c430850c95bbfc21b9",
+      "all_source_records": 126869,
+      "owned_closed_processes": 59,
+      "fresh_Cargo_targets": 3,
+      "counts": {
+        "PASS": 40,
+        "FAIL": 12
+      },
+      "phases": {
+        "outcomes": {
+          "PASS": 7
+        },
+        "supplemental_outcomes": {
+          "PASS": 29,
+          "FAIL": 9
+        },
+        "diagnostic_static_outcomes": {
+          "PASS": 3,
+          "FAIL": 2
+        },
+        "static_alternatives_control_outcomes": {
+          "PASS": 1
+        },
+        "raw_method_diagnostic_outcomes": {
+          "FAIL": 1
+        }
+      }
+    }
+  ],
+  "semantics": [
+    "Main160 original135=132PASS3FAIL; exact new custody3/numeric3/PRIMARY4 ALLPASS, memo8/reportrepeatPASS; corpus2UNRUN unchanged shared full-stage admission.",
+    "Main correctedNUL3PASS preserves user-approved replacement preconditions, not old NUL-effect-capability closure; numeric3 does not imply WASM framing/freshString gain.",
+    "Layout acceptance11=10PASS1FAIL separately from finite4=1PASS3FAIL and alias/member FAIL diagnostic repeats; alias firstleafUNOBSERVED, member observed UnknownEarlierMutation provenance separately.",
+    "Jim52=40PASS12FAIL; original45=36PASS9FAIL, diagnostic repeats distinct.",
+    "All original failed assertions remain failed."
+  ],
+  "limits": [
+    "No uploaded executable payload: fresh Cargo event + actual driver SHA beforeafter/owned process/test terminals, not independent ELF bytes rehash.",
+    "Source snapshots lack physical mode snapshots; exact Git membership and content SHA verified, no physical executable-bit equivalence.",
+    "Observed diagnostic stage alone does not establish an owner/causal correspondence; missing/overflow trace UNOBSERVED."
+  ]
+}

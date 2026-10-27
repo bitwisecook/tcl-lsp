@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-27T03:02:24.905042+00:00",
+  "candidate": "af4d93382639f55f3077bcc4881aaa0e4009a619",
+  "result": "SOURCE_MECHANICAL_CLEAR",
+  "packets": [
+    {
+      "packet": "names-clean-fixture-try-shared3-v2",
+      "master_sha256": "2a537a7e10a91d48d8699b2286eb1366efc17864ee2b19140c3ad0b9c604b07a",
+      "files": 4,
+      "exact_duplicate_payloads": 3,
+      "include_substitutions": 3,
+      "all_targets_current_same_bytes_and_git_oid": true,
+      "all_modified_module_formatted_inverse": true,
+      "actual_crate_editions": true,
+      "all_literal_Rust_include_references_after": true,
+      "actual_Rust_or_test_execution": false
+    },
+    {
+      "packet": "names-clean-fixture-vm-shared6-v1",
+      "master_sha256": "3449b809fb74730ff58eef3c22026ad45f5860cd32b006da2190dfa1df2b6b03",
+      "files": 19,
+      "exact_duplicate_payloads": 15,
+      "include_substitutions": 14,
+      "all_targets_current_same_bytes_and_git_oid": true,
+      "all_modified_module_formatted_inverse": true,
+      "actual_crate_editions": true,
+      "all_literal_Rust_include_references_after": true,
+      "actual_Rust_or_test_execution": false
+    }
+  ],
+  "runtime_or_release_admission": false,
+  "scope": "Byte-identical fixture deduplication and complete modified-module inverse after exact include redirection plus actual-edition formatting. Full execution still required."
+}

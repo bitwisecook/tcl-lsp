@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T03:05:24Z
+Last updated: 2026-10-27T03:44:55Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+03:44 UTC final1bd8 current25 packet dfdefc82/1a170c76 independentlyCLEAR9839dbd1 +Rootwholepositioninverse/V16PASS adopted/pushedff67. Exact12 SourceCut+9reporttop/3inline joins; new16614/5/currentallguards retained. Sole newstrict run40445772183/job121996588920 inprogress exactff67bd5d1295db8edbe205cce6219e81aa30d770; oldbd80oneLint SourceStructure repair innewsource, not measuredgreen. Ca8d03:40 remains54completed/4running, no cancel/duplicate. App realclosedconsumerdesign1b7fb4db remainsreview-only; NativeV4 optionalproducerparked, source-onlyMAP/RANGE failures retained/no normal/worldpermission donation.
+
+Currentbd80 strict40439260762 CLOSED FULLAUTH23 1de52fb0: sole source_structure5839 too_many_lines109/100, noRustE; LSP12da/74f4 repair ready/integrating. Current25next recipe prepared/unexecuted forRootsource609eb/C667a9 andpendingdefault166protocol4b09/915b: exact12Scope dependencies09533f13 plusapprovedW002 full-reportchain3 inLogical3/Native35/Corpus2+inlineReport, newnested14/5 currentaudit. WaitactualRootfinalHEAD. Ca8d03:28 still54completed/4running Rust2/5,E2E1/2 preserved. Actualbd80Spec MAP/RANGE0/0FAIL/LENGTH1/1, optionalNativeVMrequestparked. N17 measuredsource-onlyownerb166; boundedrealapplicationclosedconsumerdesign1b7fb4db underScope, no SourceNormal/worlddebt retag or HookVM donation; no featureclosure claim.
 
 03:05 UTC finalcc2f644e/a9ad source union independentlyCLEARc212 adopted; discovering bd80 strict actual result now. Source-only MAP owner dispositionb166 decisive: optionalNativeV4 parked, no entry/HookVM/Normal donation. Actual app-owned closedconsumer must satisfy real owned execution/effect contract and world-lookup edge, not parser+source bool. LSP nextconditional_source directleaf census e309 shows4missing joins Core2/Taint2/hostNav/Spec, Root approval pending. OldCa8d lastactual54/58closed4running, no cancel/duplicate.
 

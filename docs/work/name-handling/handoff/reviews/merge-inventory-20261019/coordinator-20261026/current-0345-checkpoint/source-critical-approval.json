@@ -1,0 +1,68 @@
+{
+  "utc": "2026-10-27T03:17:48.505765+00:00",
+  "scope": "Root approves only actual SourceCut defining producer dependencies in four already owned maps; no new map, runtime permission, guard, assertion or result admission.",
+  "basis": "WORK790bd0317 / staged region7f279+namespaceobservereb3dac",
+  "keys": [
+    {
+      "parent": "autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "route": "Realm PRIMARY actual inherited conditional-region predicate selects matching existing purpose before sole query"
+    },
+    {
+      "parent": "compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "route": "Realm PRIMARY actual inherited conditional-region predicate selects matching existing purpose before sole query"
+    },
+    {
+      "parent": "lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "route": "Realm PRIMARY actual inherited conditional-region predicate selects matching existing purpose before sole query"
+    },
+    {
+      "parent": "spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "route": "Realm PRIMARY actual inherited conditional-region predicate selects matching existing purpose before sole query"
+    },
+    {
+      "parent": "autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    },
+    {
+      "parent": "autoload-core2-inputs.json",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    },
+    {
+      "parent": "compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    },
+    {
+      "parent": "compiler-taint-diagnostic2.json",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    },
+    {
+      "parent": "lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    },
+    {
+      "parent": "lsp-host-navigation-inputs.json",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    },
+    {
+      "parent": "spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    },
+    {
+      "parent": "spectcl-fold-roster.json",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "route": "SignatureSource.project_card sole Analyser handle_source_command producer -> exact source_load capture; same source_load retained-card reader is consumed by SourceCut source-point/survey"
+    }
+  ],
+  "limits": "Exact4 region +8 project-card producer closure joins only. WORK-only observer and CLEAN functionality retain separate byte pins. Existing source_point_entry closure retained."
+}

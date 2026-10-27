@@ -1,0 +1,18 @@
+{
+  "status": "CLEAR_BOUNDED_SOURCE_MECHANICAL",
+  "utc": "2026-10-27T02:48:05.207758+00:00",
+  "master_sha256": "2b34e443c18031aecd7d3b91ec47e2f45a3190c8f10baf14f01a1ea8641913f7",
+  "lane_manifest_sha256": "a15143749a8853da4cd8026aa4508f8be8949c1a5307da485fe2ea6369c81857",
+  "patch_sha256": "a5e4bf146141a25d97aa0d4abce6d7134a4530bbcb733ac61b79798ef8f6a261",
+  "files": {
+    "REPORT.md": "e26ad41bb5053d4f28fe6c48cf6d96962685bbd90eb57f247a780a7a7e3f54f3",
+    "review.json": "92925b81ea69eb5983d7cb2ee11bbb7c7fc1bd8ae0763e21ea606dc60659373b",
+    "review.py": "d6e1e74d7deb26702484c7ff0f5e008bcfe6b53db94752c4ee4c445a92fdfa8d",
+    "delta.json": "6cb3431eca469af8749d636b9805e92f63974de645152bfc0f64dfbe0b314885"
+  },
+  "original_V2_hold_receipt_sha256": "b4a654e39ec330dbedb142c088553131bd857829aa2254a318f5f8ed2ed4cb58",
+  "canonical_mutations": false,
+  "actual_Rust_tests": "UNRUN",
+  "typecheck": "UNRUN",
+  "gates_waived": false
+}

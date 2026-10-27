@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-27T03:13:27.600870+00:00",
+  "result": "STATIC_CLEAR",
+  "manifest_sha256": "eb3dac295e51df9b61308fb7b710b1739b334d3b8dfbd3f6e678866196b6b522",
+  "checks": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "whole_old_module_erasure_inverse": true,
+      "current_F_R_fmt": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "whole_old_module_erasure_inverse": true,
+      "current_F_R_fmt": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "whole_old_module_erasure_inverse": true,
+      "current_F_R_fmt": true
+    }
+  ],
+  "semantic_review": [
+    "Two private identity helpers return exact bool/Option<T> by value; Option not cloned/reborrowed/relooked up, no changed drop boundary before caller unwrap/flatten/filter.",
+    "Eligibility && remains lazy in same order; capture remains inside original then closure. Original path-span filter and source input/image/word/schema/first-path/unanimity/final-source queries each once at same positions.",
+    "Schema nested Option remains double-?; trace does not flatten Refused into positive or query alternate source. paths.next and paths.all stay ordered/lazy with same original iterator.",
+    "Debug-only static stage/offset/bool/is_some output uses existing compiletime COARSE/shared64 admission; no new URI/source/owner/query/flag/quota/process/budget. Release helper just returns existing value with static label tuple unused.",
+    "No assertion, fixture, owner, Native/Normal/frame/permission or CLEAN change."
+  ],
+  "limits": [
+    "Actual issuer row/cause/Rust UNRUN; quota/filter/absence remains UNOBSERVED.",
+    "Diagnostic bool direction is stage-specific: schema.not-current-interpreter true is refusal, eligibility true is pass."
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-27T03:04:02.137291+00:00",
+  "complete": true,
+  "source": "bd808725f5d55c7810b0a55694d96e7d60472b2c",
+  "run": 40439283848,
+  "assessments": [
+    {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-core2-40439283848-actual-v1/assessment-v1.json",
+      "sha256": "7fce6660966ac3d78aac46d418b979c0136ecf13568c8163a845dcd452abb24a",
+      "status": "AUTHENTIC_SEPARATE_CORE2_FAIL",
+      "job": 121975438209,
+      "artifact": 12705564690
+    },
+    {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-startup40439283848-actual-v1/assessment-v1.json",
+      "sha256": "e21f6620028abd61a8faeef4e1839bf793ffeaace8e0b56593ec26ae4fa7c63f",
+      "status": "AUTHENTIC_FRESH0W_STARTUP_FUNCTIONAL_FAIL",
+      "job": 121975439259,
+      "artifact": 12706099029
+    }
+  ],
+  "actual_core": {
+    "original8": "ALL PASS",
+    "source4": "2PASS2FAIL",
+    "Tk3": "2PASS1FAIL",
+    "gain": "29B child SourceCut geometry+its owner/body/role/currentness assertions progress; 41B suffix still tapeNone. Source4overallunchanged.",
+    "namespace": "Stored source target literal/cardNone fails setup660 before intended extra-region negative",
+    "Tk": "positive/prerequisite renderer PASS; shadow assertionNone fails448 actualSome content/identityUNOBSERVED"
+  },
+  "actual_startup": {
+    "cold_ms": 112.10872,
+    "scan30": "FAIL before initial diagnostic/definition/references",
+    "Context2": "COMPLETE_ORIGINAL_ASSERTIONS"
+  },
+  "limits": "Exact bounded current source only. Allsource/provider/dependency/tool/process/ELF/ZIP/API/currentcritical guards authenticated by separateassessments. No browser/fullCI/shipping performance acceptance, no120sRSScausalclaim."
+}

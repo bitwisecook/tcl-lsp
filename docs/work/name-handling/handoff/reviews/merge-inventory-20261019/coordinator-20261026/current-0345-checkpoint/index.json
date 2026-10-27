@@ -1,0 +1,90 @@
+{
+  "utc": "2026-10-27T03:34:17.141611+00:00",
+  "scope": "Small source-qualified receipts only; not runtime/release acceptance; full archives authority original/GitHub",
+  "files": [
+    {
+      "name": "strictbd80-assessment.json",
+      "original": "/workspace/naming-proof-storage/ccg-strictbd80-40439260762-actual-v1/assessment.json",
+      "sha256": "1de52fb09115666b67d6b71ccab501c73986b612136d354da55e4802345208f7",
+      "bytes": 3944
+    },
+    {
+      "name": "lsp-bd80-index.json",
+      "original": "/workspace/naming-proof-storage/lsp-bd8087-host-wave-evidence-index-v1/index-v1.json",
+      "sha256": "5ac02935c7d6489a6ecdcf84ca00f2e9de9410c1b01a8514a120a6924ac5f65c",
+      "bytes": 1695
+    },
+    {
+      "name": "corpus-bd80-authentication.json",
+      "original": "/workspace/naming-proof-storage/names-corpus2-40439271096-actual-v1/authentication.json",
+      "sha256": "0ca312ff18db0c1ea2b3d7f2d0f7e1446fe2325e471cf9c52f6751b0e3e2a4db",
+      "bytes": 12523
+    },
+    {
+      "name": "compiler-terminal-index.json",
+      "original": "/workspace/naming-proof-storage/compiler-terminal32da-bd80-captures-v1/index.json",
+      "sha256": "7baf8825acb8aa4a6b70b9b1dc90ba8798f3155832d067a1a2b8dd01c041209f",
+      "bytes": 6077
+    },
+    {
+      "name": "prepAf4d-authentication.json",
+      "original": "/workspace/naming-proof-storage/names-prep-pr-40439704916-actual-v1/authentication.json",
+      "sha256": "80516c5a172c9eb711747ddc37813374fbf723a2d9300a4a6d3e71284bbcab7d",
+      "bytes": 6320
+    },
+    {
+      "name": "fixture-first3-source-review.json",
+      "original": "/workspace/naming-proof-storage/peer-names-first3-tables-v3/receipt.json",
+      "sha256": "0b8faf53b4ab62eeec05cb2924d2e6bb2bc01c5c3001dd39211a8562c261afff",
+      "bytes": 940
+    },
+    {
+      "name": "fixture-thin-dedupe-root-review.json",
+      "original": "/workspace/naming-proof-storage/root-thin-fixture-dedupe-review-v1.json",
+      "sha256": "8ea785115c06fdd5fbe6afdeabb5b4095c5a8be63ac87e4c8f787bed0ea111b4",
+      "bytes": 1385
+    },
+    {
+      "name": "region-source-review.json",
+      "original": "/workspace/naming-proof-storage/compiler-peer-primary-region-purpose-v1/receipt.json",
+      "sha256": "e277cd9695ccc2e159e39ea7300d440705cf0adcf0b654bcd79f0ba3a4debb5b",
+      "bytes": 2607
+    },
+    {
+      "name": "report-owner-review.json",
+      "original": "/workspace/naming-proof-storage/compiler-peer-command-availability-report-v1/receipt.json",
+      "sha256": "3bdd984281e28f8b2b5368aec2018476f540080bc28feb5fabe818a2609a2378",
+      "bytes": 5692
+    },
+    {
+      "name": "namespace-observer-review.json",
+      "original": "/workspace/naming-proof-storage/compiler-peer-namespace-issuer-observer-v1/receipt.json",
+      "sha256": "ba236fa21377546f2817197246ad46563510cd0af234fa104ba8149fc846f468",
+      "bytes": 1848
+    },
+    {
+      "name": "next5-protocol-review.json",
+      "original": "/workspace/naming-proof-storage/peer-compiler-body-report5-protocol-v2/receipt.json",
+      "sha256": "69c27306adc892ca5d4fe502a4d4507daa2247a362b31b688425a204a0f9d9ba",
+      "bytes": 883
+    },
+    {
+      "name": "source-critical-approval.json",
+      "original": "/workspace/naming-proof-storage/root-sourcecut-region-and-project-card-dependencies-approval-20261027.json",
+      "sha256": "09533f13d243a2b56f7dca3360623eb448f9f591fe4601a9ee942e931685f751",
+      "bytes": 4322
+    },
+    {
+      "name": "reclaim0.json",
+      "original": "/workspace/naming-proof-storage/root-frozen-old-two-elf-reclaim-20261027T0328-0.json",
+      "sha256": "ee145502e146136d5058d5dd0f0644559e94db5763bd27592996e1bbe3c5755f",
+      "bytes": 4893
+    },
+    {
+      "name": "reclaim1.json",
+      "original": "/workspace/naming-proof-storage/root-frozen-old-two-elf-reclaim-20261027T0328-1.json",
+      "sha256": "92abb2cde9384331b40a7cf3d83f75198170cc12dec7de18db7f868a5e7bf936",
+      "bytes": 4887
+    }
+  ]
+}

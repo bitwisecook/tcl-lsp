@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-27T03:02:26.942657+00:00",
+  "result": "STATIC_CLEAR",
+  "master_sha256": "7f279e1d99bdf64a208f6f5be99d1fb255c13c7343353d6bb6ff6ed0a04dcdbb",
+  "files": [
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "current_before_after_inverse": true,
+      "before_sha256": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
+      "after_sha256": "75fdf97572790e889cf79eb26b84c8433e1d74ee0eaa6fe1509f1be0412b4573"
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/name-handling.md",
+      "current_before_after_inverse": true,
+      "before_sha256": "a41f20af24dbb9734d34b9047595148562d6a9cd5bd4e2b1cfd9a8d996cd518e",
+      "after_sha256": "37077f8f9e3f1486724f05823f60ad3ea405e0a4b4ac45ec9a7241c0abd79564"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "current_before_after_inverse": true,
+      "before_sha256": "f0e1018905e05c51c1a8f5ef4f57504a1d0b8ca476c6cc5dcf4f7f1f5ffaabcb",
+      "after_sha256": "d3aa22bff577a982496fa1330d814a5094cacd508828eaef0b09284205b9d4ec"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/name-handling.md",
+      "current_before_after_inverse": true,
+      "before_sha256": "4349897aa5cbf1f071d10ceaee331fefc0b6766b81d38e94d99dd7f192e371f5",
+      "after_sha256": "39789c59d88b87dba681667a110fb0370a6ba579d3f23499760bf96695edc76c"
+    }
+  ],
+  "review": [
+    "ConditionalRegion selected only from actual retained inherited-entry conditional-region payload; no caller bool/result-marker grant.",
+    "Both purpose-keyed cache and producer receive the same purpose, once; old CompleteProgram path retained for whole-input receivers.",
+    "Producer independently requires genuine region payload and original_region_plan(origin,config); CompleteProgram still refuses region; no retry after None.",
+    "Full input/current owner/attachment/config/image/native-vector/offset guards precede query unchanged; final declaration/opaque-barrier/current binding/shape checks remain after query unchanged.",
+    "No command-selection/value-shared helper, sourcecut right selection, Native/frame/Normal/Eq/assertion change.",
+    "Contract limits region to issued prefix plan and terminal missing-proof refusal."
+  ],
+  "limitations": [
+    "No Rust build or new suffix success run; actual prior tape None does not prove this change alone closes every later gate.",
+    "Independent static source/types/purpose/lifecycle review only; no semantic/coverage/performance acceptance."
+  ]
+}

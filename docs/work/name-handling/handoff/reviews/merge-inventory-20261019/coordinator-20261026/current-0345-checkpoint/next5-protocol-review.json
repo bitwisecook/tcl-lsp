@@ -1,0 +1,17 @@
+{
+  "status": "CLEAR_BOUNDED_OWNER5_PROTOCOL_STATIC_FINITE_MOCKS",
+  "utc": "2026-10-27T03:31:23.869748+00:00",
+  "master_sha256": "58773cdb8947fc5415437814b70e8454b70fdf4cf82a0956b5e04dfa2e28648b",
+  "patch_sha256": "5aa13756247c34ba764c07b61291d8034c94da9ba7b5a86a45f79bb3040d7bf6",
+  "files": {
+    "REPORT.md": "fb070350a07fd92e6616b6febe5589daaabdba87775e2813ca335cd541e58cd1",
+    "review.json": "c805e8343682db4d93fd973398e3d265c191fade1d8ec563d3760c95676f64df",
+    "review.py": "cd681f4d7fc620a40c04ab512174b4478c4cbbb3779396b05c064e098605b090"
+  },
+  "V1_hold_receipt_sha256": "382a1c1469b26225ab21f8ada28b25594e3ec7c68515a0dcea46e1194c364281",
+  "actual_Rust_tests": "UNRUN",
+  "real_product_children": 0,
+  "canonical_mutations": false,
+  "gate_waiver": false,
+  "final_metadata_refresh": "Root/Codegen required before dispatch; no global pin/budget/old phase waiver."
+}

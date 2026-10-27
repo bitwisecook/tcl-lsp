@@ -1,0 +1,316 @@
+{
+  "utc": "2026-10-27T03:33:38.613217+00:00",
+  "file": {
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/eda_environment_packs-8b4ac261b7fc6ba2",
+    "bytes": 134660840,
+    "inode": 297333,
+    "device": 27,
+    "mtime_ns": 1792730988255729379,
+    "sha256": "feb2a046ae88a907490dc25b0fab99ba7165dd3df22d30a66e9f099d3d3cf9c0",
+    "age_hours": 94.62807476566897
+  },
+  "plan_sha256": "06e0a433a5c0e43f5a08213933e7a8a9a8e9161141cf988d868247fcef6cff09",
+  "compiler_censuses": [
+    [
+      [
+        23116,
+        "cargo",
+        "Z"
+      ],
+      [
+        45151,
+        "cargo",
+        "Z"
+      ],
+      [
+        31743,
+        "rustc",
+        "Z"
+      ],
+      [
+        45394,
+        "rustc",
+        "Z"
+      ],
+      [
+        356533,
+        "rustc",
+        "Z"
+      ],
+      [
+        502653,
+        "rustc",
+        "Z"
+      ],
+      [
+        526771,
+        "rustc",
+        "Z"
+      ]
+    ],
+    [
+      [
+        23116,
+        "cargo",
+        "Z"
+      ],
+      [
+        45151,
+        "cargo",
+        "Z"
+      ],
+      [
+        31743,
+        "rustc",
+        "Z"
+      ],
+      [
+        45394,
+        "rustc",
+        "Z"
+      ],
+      [
+        356533,
+        "rustc",
+        "Z"
+      ],
+      [
+        502653,
+        "rustc",
+        "Z"
+      ],
+      [
+        526771,
+        "rustc",
+        "Z"
+      ]
+    ],
+    [
+      [
+        23116,
+        "cargo",
+        "Z"
+      ],
+      [
+        45151,
+        "cargo",
+        "Z"
+      ],
+      [
+        31743,
+        "rustc",
+        "Z"
+      ],
+      [
+        45394,
+        "rustc",
+        "Z"
+      ],
+      [
+        356533,
+        "rustc",
+        "Z"
+      ],
+      [
+        502653,
+        "rustc",
+        "Z"
+      ],
+      [
+        526771,
+        "rustc",
+        "Z"
+      ]
+    ]
+  ],
+  "live_process_censuses": [
+    [
+      [
+        1,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        2,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        207,
+        0,
+        "S",
+        "foreign uid"
+      ],
+      [
+        257,
+        0,
+        "S",
+        "foreign uid"
+      ],
+      [
+        522,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        70885,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650205,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650207,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650208,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650209,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652332,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652334,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652335,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652336,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1654546,
+        1000,
+        "R",
+        "all fd/exe/maps checked"
+      ]
+    ],
+    [
+      [
+        1,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        2,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        207,
+        0,
+        "S",
+        "foreign uid"
+      ],
+      [
+        257,
+        0,
+        "S",
+        "foreign uid"
+      ],
+      [
+        522,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        70885,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650205,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650207,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650208,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1650209,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652332,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652334,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652335,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1652336,
+        1000,
+        "S",
+        "all fd/exe/maps checked"
+      ],
+      [
+        1654546,
+        1000,
+        "R",
+        "all fd/exe/maps checked"
+      ]
+    ]
+  ],
+  "free_before": 2185441280,
+  "free_after": 2318745600,
+  "scope": "Only one of two obsolete derived test/probe ELFs in frozen old active target. No source, evidence, ZIP or current executable deleted; rebuild if reused.",
+  "test_age_minimum_seconds": 86400
+}

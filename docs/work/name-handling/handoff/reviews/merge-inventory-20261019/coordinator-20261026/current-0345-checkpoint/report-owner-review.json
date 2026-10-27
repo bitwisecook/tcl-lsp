@@ -1,0 +1,106 @@
+{
+  "utc": "2026-10-27T03:12:16.023569+00:00",
+  "result": "STATIC_CLEAR",
+  "master_sha256": "51dc916a6e61a41f5e226f4185d814a508af513d581dcf20d58e748199d5cf04",
+  "checks": [
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2",
+      "after_sha256": "2ce3c658805b113a5ad44aeb56e3d21e882649ec14e9f0a0ebced7832cf1e6b8",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/registry_invocation/source_availability.rs",
+      "before_sha256": "e598bcb334e0a38f25d69b1842b50436b87375a86064480bf6948e89893f3992",
+      "after_sha256": "27bee3b0e1c99fdcf32bcd39c12a60808baa5e47d55586fbf10b4573d95e23c4",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "before_sha256": "85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0",
+      "after_sha256": "42e61af9cd3d54b3647a2717c00c67569e1a4cd7240ca134e0bd7eabe0629863",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "before_sha256": "f74a2abcf9444f6d43f3200c2929ecb1712e178a6c389884fc7a6199a42b4a88",
+      "after_sha256": "fe3fb9cbb66aff05830315474c92ef0bd4deaf45a42bc5133a43e32aea6cce1c",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/command_binding/availability_report.rs",
+      "before_sha256": null,
+      "after_sha256": "9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs",
+      "before_sha256": null,
+      "after_sha256": "6bbe921f372b047b98cc613e5d158713093edaada4e218226aa578361638a0e4",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "f15d3f2cebf718179568fe5a5fec66930febed2756820266b07d9f36907e7b0a",
+      "after_sha256": "a5d7a380bb65c102442fcebfa557c0aadd189e1b50151edffd35cc8d3f263042",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/registry_invocation/source_availability.rs",
+      "before_sha256": "2ef44f9b24fadf05c83a023a1f61827d9e0411114e371a4857df43c698fe8f79",
+      "after_sha256": "1f7908b9f0a4e3c9bd997618fa366f39dec7df268f30e63680b257a2fd07fa3f",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "before_sha256": "54e05d1949b9a0567eaa0c2199fc00a40d693b1d030fbb9f2c6b2789cf7b9156",
+      "after_sha256": "84b7f0b5b90f208802122b3fe971b90171b6924731ac88a697f98606939fed73",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "before_sha256": "e0b0dca90662a184003e44b923988bb9af95689cbbdeeea5edc89fc7f16babaf",
+      "after_sha256": "d9b8151e6894e34f604a9d9abff63956814d3cdb7044e3b9bf6e16f035b7d22a",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/command_binding/availability_report.rs",
+      "before_sha256": null,
+      "after_sha256": "9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688",
+      "current_F_R_fmt": true
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/registry_invocation/source_availability/report_tests.rs",
+      "before_sha256": null,
+      "after_sha256": "6bbe921f372b047b98cc613e5d158713093edaada4e218226aa578361638a0e4",
+      "current_F_R_fmt": true
+    }
+  ],
+  "exhaustive_binding_fields": 57,
+  "exhaustive_CommandTokens_fields": 14,
+  "semantic_review": [
+    "Both full nonempty receipt subjects reauthenticate in their corresponding actual output AnalysisResult before any nominal-owner correspondence. Receipt descriptor/full original words/full resolved input/origin/realm stay strict.",
+    "Only SourceInvocationBinding.original_analysis_owner uses exact output.analysis_owners nominal pair, requiring both original owners present and pointer-matched to current captures. Every other 56 binding fields retain strict typed Eq; future added field breaks exhaustive pattern.",
+    "All 12 non-binding token fields stay strict; source binding mandatory. Nested binding sequence length, order, original offsets and each owner+full-payload pair remain exact; no offset-only or spelling-only reconstruction.",
+    "Ordinary subject/binding Eq/Hash/runtime/Salsa/cutoff unchanged. Any missing/mismatched extra field returns None, never equality or a value/Native/Normal permission.",
+    "Report-only field comparison changes only CommandAvailability variant; diagnostic code/message/span/fixes/all other report fields retain existing policy.",
+    "Test output-pair factory borrows actual current captures, matching full input/image/registry and actual complete body correspondence; no fallback/default fabricated positive.",
+    "Genuine old 20-folding source-point analyses positive before foreign/missing/token/other-binding/profile negatives; raw Eq remains strict. Tests do not replace original corpus or production capture prerequisites."
+  ],
+  "limits": [
+    "No Rust/test/corpus execution; actual positive may still refuse a different strict owner-bearing field and must be measured.",
+    "This is not full corpus parity, performance acceptance or permission to normalize any additional field."
+  ]
+}
