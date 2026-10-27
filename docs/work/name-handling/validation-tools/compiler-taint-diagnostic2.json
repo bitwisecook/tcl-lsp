@@ -59,5 +59,59 @@
     "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca",
     "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+  },
+  "separate_coroinject_diagnostic": {
+    "schema": "separate-coroinject-diagnostic1-v1",
+    "expected_selected": 1,
+    "source_keys": [
+      "rust/tcl-compiler/src/command_binding.rs",
+      "rust/tcl-compiler/src/command_binding/called_static_layouts.rs",
+      "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "rust/tcl-compiler/src/command_binding/source_catalogue_advice.rs",
+      "rust/tcl-compiler/src/compilation_unit.rs",
+      "rust/tcl-compiler/src/ir.rs",
+      "rust/tcl-compiler/src/realm.rs",
+      "rust/tcl-compiler/src/registry_invocation.rs",
+      "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs",
+      "rust/tcl-compiler/src/ssa.rs",
+      "rust/tcl-compiler/src/taint.rs",
+      "rust/tcl-compiler/src/taint/source_context.rs",
+      "rust/tcl-compiler/src/taint_interproc.rs",
+      "rust/tcl-compiler/tests/taint.rs",
+      "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs",
+      "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs",
+      "rust/tcl-compiler/src/command_binding/source_execution_control.rs",
+      "rust/tcl-compiler/src/command_binding/native_compiler_formals.rs",
+      "rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs",
+      "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs",
+      "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+    ],
+    "functions": [
+      {
+        "path": "rust/tcl-compiler/tests/taint.rs",
+        "name": "coroinject_command_prefix_sink",
+        "sha256": "b74b15209171205b8f8f0bd444781c334c54f0660a42d6b33520b0b5911722b7"
+      }
+    ],
+    "rows": [
+      {
+        "group": "diagnostic-taint-coroinject1",
+        "package": "tcl-compiler",
+        "kind": [
+          "test"
+        ],
+        "target": "taint",
+        "selector": "dangerous_sinks::coroinject_command_prefix_sink",
+        "env": {
+          "TCL_LSP_TRACE_TAINT_CU_INGRESS": "1"
+        }
+      }
+    ]
   }
 }
