@@ -1,0 +1,61 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-27T23:27:43.407032+00:00",
+  "scheduled_report_utc": "2026-10-27T23:26:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Release fixture cleanup COMPLETE 51/51 at 83c8e08 (scalar getters, unread disposition 41 merge/47 remove-from-release, vwait global-scope removal after compiler-names showed WORK makes no vwait frame claim, two README corrections). All independently reviewed; removed observations remain on WORK.",
+    "Release prep 40598654664 on f42a74e: format/codegen/lint/typecheck PASS; sole failure the nondeterministic CodeLens smoke (same as a6f87e9; PASS on 531d338). Open LSP blocker with lsp role.",
+    "Compiler (local, filtered, not hosted): E0063 cfg-test buildstop closed; Layout21 20 PASS/1 FAIL; main170 compiler-lib 131/132 PASS; Jim52 43 PASS/9 FAIL (was 40/12). Sole Layout/main170 failure is the MAY sinking-helper control: standalone units carry no InvocationDialect, so the command world is opaque; with the dialect supplied, read on an undefined channel makes eval unreachable per tclsh. Held as a user decision.",
+    "Jim instance typing (oo.rs + one-line commands.rs hook) on WORK pending compiler-names review/adoption; Jim loop and 4-word static proc world-closure causes routed to compiler-names.",
+    "WIP snapshots include embedded temporary probe tests in two runtime test files; must be removed before squash."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "lsp, compiler-codegen, vm-runtime roles",
+    "compiler-names review of Jim instance typing"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)",
+    "MAY sinking-helper control: standalone unit dialect vs documented fixture correction (new)"
+  ],
+  "next_report_utc": "2026-10-27T23:57:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
