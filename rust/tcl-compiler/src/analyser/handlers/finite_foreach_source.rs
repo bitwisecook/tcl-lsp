@@ -109,7 +109,7 @@ impl FiniteForeachReportingState {
         head: Option<Token>,
         name: Token,
         scope: &[usize],
-        body_depth: usize,
+        body_depth: u32,
     ) -> FiniteNameLookup {
         let Some(head) = head else {
             return FiniteNameLookup::Ordinary;
@@ -246,7 +246,7 @@ struct FiniteForeachProcedures {
     names: Vec<Arc<FiniteForeachProcedureName>>,
     variable: String,
     body_span: Span,
-    entry_depth: usize,
+    entry_depth: u32,
 }
 
 impl FiniteForeachProcedures {
