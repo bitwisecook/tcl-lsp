@@ -182,6 +182,17 @@ infer an engine from a lexer grammar, or derive an error code from message text.
 8. Tcllib specs set `tcllib_package`; Tk specs set `required_package = "Tk"`
    and do not warn on a missing import, because `wish` auto-loads Tk.
 
+
+Source hover may document the current authenticated descriptor's explicit
+`required_package` as a **Declared prerequisite**, including its
+`package require` spelling. This is package requirement metadata, not a claim
+that the document lacks an import, the package has loaded, or the command can
+execute. The presentation states that whether the prerequisite is already
+supplied at runtime is unresolved and preserves the source owner's separate command
+availability annotation. Ambient or automatically loaded packages such as Tk
+must not be described as missing. `owning_package()` membership by itself does
+not issue this explicit prerequisite line.
+
 ### Package resolver (`pkgIndex.tcl` / `tclIndex`)
 
 9. `PackageResolver::scan_tree(root, max_dirs)` walks a workspace tree (each

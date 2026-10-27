@@ -203,6 +203,10 @@ fn command_text(
     }
     if let Some(package) = spec.required_package {
         let _ = write!(out, "\nDeclared provider: `{package}`.\n");
+        let _ = write!(
+            out,
+            "\n**Declared prerequisite**: `package require {package}`. Whether this prerequisite is already supplied at runtime is unresolved.\n"
+        );
     }
     super::append_command_event_metadata(&mut out, spec, super::EventRelease::of(context));
     Some(out)
@@ -385,6 +389,78 @@ mod tests {
             Some(crate::registry_for_dialect("jim")),
             crate::profile_for_dialect("jim"),
         )
+    }
+
+    fn tk_source_analysis(source: &str) -> AnalysisResult {
+        let environment = tcl_registry::model::ingress::resolve_environment("tk");
+        let profile = environment.analyser_profile();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tk")
+    }
+
+    #[test]
+    fn tk_source_hover_keeps_declared_prerequisite_and_unresolved_availability() {
+        let source = "button .b -text hi\npack .b\n";
+        let analysis = tk_source_analysis(source);
+        let card = at(source, &analysis, "button").expect("current Tk source descriptor");
+        assert!(card.value.contains("Create and manipulate a button widget"));
+        assert!(card.value.contains("Declared provider: `Tk`"));
+        assert!(
+            card.value
+                .contains("**Declared prerequisite**: `package require Tk`")
+        );
+        assert!(
+            card.value
+                .contains("Whether this prerequisite is already supplied at runtime is unresolved")
+        );
+        assert!(card.value.contains("command availability is unresolved"));
+        assert!(!card.value.contains("**Requires**:"));
+        assert!(analysis.package_requires.is_empty());
+    }
+
+    #[test]
+    fn tk_source_prerequisite_refuses_stale_source_and_foreign_input() {
+        let source = "button .b -text hi\n";
+        let analysis = tk_source_analysis(source);
+        assert!(at(source, &analysis, "button").is_some());
+        assert!(at("button .b -text changed\n", &analysis, "button").is_none());
+        let mut foreign = analysis.clone();
+        let profile = crate::profile_for_dialect("jim");
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            analysis.body_lexer_config.unwrap(),
+        ));
+        assert!(at(source, &foreign, "button").is_none());
+        let shadow = "proc button args {return custom}\nbutton .b -text hi\n";
+        assert!(at(shadow, &tk_source_analysis(shadow), "button").is_none());
+    }
+
+    #[test]
+    fn declared_prerequisite_uses_required_package_not_owning_package() {
+        let source = "button .b -text hi\n";
+        let analysis = tk_source_analysis(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let mut spec = context.commands().get("button").unwrap().clone();
+        assert_eq!(spec.required_package, Some("Tk"));
+        let text = command_text(&spec, context.context(), None).unwrap();
+        assert!(text.contains("package require Tk"));
+        // Counterfactual renderer input only: owning-package metadata cannot
+        // substitute for the selected descriptor's explicit prerequisite.
+        spec.required_package = None;
+        spec.tcllib_package = Some("not-a-required-package");
+        let text = command_text(&spec, context.context(), None).unwrap();
+        assert!(!text.contains("Declared prerequisite"));
+        assert!(!text.contains("package require"));
     }
 
     #[test]
