@@ -21,10 +21,19 @@ impl SourceInvocationBinding {
         }
         // Every other typed field remains exact. A future field must fail this
         // exhaustive pattern rather than silently becoming an ignored facet.
+        macro_rules! different_field {
+            (original_argument_syntax) => {
+                self.authenticated_argument_syntax_report_eq(other, output)
+                    .is_none()
+            };
+            ($field:ident) => {
+                self.$field != other.$field
+            };
+        }
         macro_rules! same_fields {
             ($($field:ident),+ $(,)?) => {
                 let Self { original_analysis_owner: _, $($field: _),+ } = self;
-                $(if self.$field != other.$field {
+                $(if different_field!($field) {
                     trace_availability_binding_refusal(stringify!($field));
                     return None;
                 })+

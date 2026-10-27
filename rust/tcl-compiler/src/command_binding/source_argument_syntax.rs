@@ -578,3 +578,128 @@ mod purpose_controls {
         );
     }
 }
+
+impl SourceInvocationBinding {
+    // Report-only correspondence. Ordinary Eq/Hash and syntax permissions remain strict.
+    pub(super) fn authenticated_argument_syntax_report_eq(
+        &self,
+        other: &Self,
+        output: &crate::analyser::authenticated_report::ReportOutputCorrespondence<'_>,
+    ) -> Option<()> {
+        match (
+            &self.original_argument_syntax,
+            &other.original_argument_syntax,
+        ) {
+            (None, None) => return Some(()),
+            (Some(_), Some(_)) => {}
+            _ => return None,
+        }
+        let (left_analysis, right_analysis) = output.analyses();
+        let left = self.current_report_argument_syntax(left_analysis)?;
+        let right = other.current_report_argument_syntax(right_analysis)?;
+        if !output.analysis_owners(&left.owner, &right.owner) {
+            return None;
+        }
+        let OriginalSourceArgumentSyntax {
+            owner: _,
+            parent: _,
+            site: _,
+            words: _,
+            config: _,
+        } = left;
+        if left.parent != right.parent
+            || left.site != right.site
+            || left.words != right.words
+            || left.config != right.config
+        {
+            return None;
+        }
+        Some(())
+    }
+
+    fn current_report_argument_syntax(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> Option<&OriginalSourceArgumentSyntax> {
+        let syntax = self.original_argument_syntax.as_deref()?;
+        let input = analysis.resolved_input.as_ref()?;
+        let original = syntax.owner.metadata.source_analysis_input()?;
+        if !Arc::ptr_eq(&syntax.owner, self.original_analysis_owner.as_ref()?)
+            || !Arc::ptr_eq(&syntax.owner.source, &syntax.site.source)
+            || (original != input && original != &input.for_nested_source())
+        {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            input.context_registry().commands(),
+            original,
+            syntax.config,
+            Some(original.unit_profile()),
+        )?;
+        syntax.site.source.original_lexical_command(
+            &syntax.words,
+            syntax.site.offset,
+            syntax.config,
+        )?;
+        Some(syntax)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn assert_argument_syntax_report_refusals_for_test(
+        &self,
+        other: &Self,
+        output: &crate::analyser::authenticated_report::ReportOutputCorrespondence<'_>,
+    ) {
+        let left = self.original_argument_syntax.as_deref().unwrap();
+        let right = other.original_argument_syntax.as_deref().unwrap();
+        assert!(left != right, "ordinary syntax equality remains nominal");
+        assert!(
+            self.authenticated_argument_syntax_report_eq(other, output)
+                .is_some()
+        );
+        assert!(
+            other
+                .authenticated_argument_syntax_report_eq(self, output)
+                .is_none()
+        );
+        let refused = |syntax: OriginalSourceArgumentSyntax| {
+            let mut changed = other.clone();
+            changed.original_argument_syntax = Some(Arc::new(syntax));
+            assert!(
+                self.authenticated_argument_syntax_report_eq(&changed, output)
+                    .is_none()
+            );
+        };
+        refused(left.clone());
+        let mut changed = right.clone();
+        changed.owner = Arc::new((*right.owner).clone());
+        refused(changed);
+        let mut changed = right.clone();
+        changed.site.offset += 1;
+        refused(changed);
+        let mut changed = right.clone();
+        changed.config.strict_quoting = !changed.config.strict_quoting;
+        refused(changed);
+        let mut changed = right.clone();
+        changed.words = Arc::from(Vec::new());
+        refused(changed);
+        let mut changed = right.clone();
+        let mut parent = (*changed.parent).clone();
+        parent.argv_texts[0].push('x');
+        changed.parent = Arc::new(parent);
+        refused(changed);
+        let mut missing = other.clone();
+        missing.original_argument_syntax = None;
+        assert!(
+            self.authenticated_argument_syntax_report_eq(&missing, output)
+                .is_none()
+        );
+        let mut both_missing = self.clone();
+        both_missing.original_argument_syntax = None;
+        assert!(
+            both_missing
+                .authenticated_argument_syntax_report_eq(&missing, output)
+                .is_some()
+        );
+    }
+}
