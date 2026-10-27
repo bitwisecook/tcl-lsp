@@ -306,7 +306,7 @@ mod tests {
                     case[0]
                 );
                 if profile == "jim" {
-                    assert_jim_original_objects(profile, rows, index, case[0], &original);
+                    assert_jim_original_objects(profile, &rows, index, case[0], &original);
                 }
                 compared += 1;
             }
