@@ -88,7 +88,8 @@
     "rust/tcl-syntax/src/naming.rs": "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f",
     "rust/tcl-lexer/src/ranges.rs": "e13b7a2330f0867835e09b85303abc9b94e1e58a8adad1bfa865a9f5c87fd5a6",
     "rust/tcl-lexer/src/lib.rs": "85101576575a4370870d52f4ad02c96216f3a2391eef013108fd9497f5157a98",
-    "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs": "0b91c59fd92ada7061ac06e65888d37e54220ed607180b60fe90c8f1e3b244ac"
+    "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs": "0b91c59fd92ada7061ac06e65888d37e54220ed607180b60fe90c8f1e3b244ac",
+    "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "dbb2543be35583aa0fbe792b969873b06073175eb533b77b68b9a3c8685d3dd6"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
