@@ -5969,4 +5969,57 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn caller_alias_transition_survives_native_draft_both_renderers_and_reload() {
+        use tcl_registry::CommandTableEffect;
+        static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "alias",
+            command_table_effect: Some(CommandTableEffect::CreatesCallerAliases),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::aliases",
+            command_table_effect: Some(CommandTableEffect::CreatesCallerAliases),
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert_eq!(
+            text.matches("command_table_effect CreatesCallerAliases")
+                .count(),
+            2,
+            "{text}"
+        );
+        let rust = crate::render_rs::render(&before);
+        assert_eq!(
+            rust.matches("CommandTableEffect::CreatesCallerAliases")
+                .count(),
+            2,
+            "{rust}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let parsed = pack.command("probe::aliases").unwrap().spec;
+        assert_eq!(parsed.command_table_effect, spec.command_table_effect);
+        assert_eq!(
+            parsed.subcommands[0].command_table_effect,
+            MEMBERS[0].command_table_effect
+        );
+        let after = draft::from_command_spec(parsed);
+        assert_eq!(
+            after.get("command_table_effect"),
+            before.get("command_table_effect")
+        );
+        assert_eq!(after.get("subcommands"), before.get("subcommands"));
+        let invalid = crate::spectcl::evaluate_pack(&text.replace(
+            "command_table_effect CreatesCallerAliases",
+            "command_table_effect Unknown",
+        ));
+        assert!(!invalid.notices.is_empty());
+        let rejected = invalid.command("probe::aliases").unwrap().spec;
+        assert!(rejected.command_table_effect.is_none());
+        assert!(rejected.subcommands[0].command_table_effect.is_none());
+    }
 }

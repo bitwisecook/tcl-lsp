@@ -284,7 +284,7 @@ const ROWS: &[Row] = &[
     one(
         "command_table_effect",
         "How the call changes the interpreter's command table.",
-        "`DefinesProcedure`, `RenamesCommands`, or `CreatesAliases`.",
+        "`DefinesProcedure`, `RenamesCommands`, `CreatesAliases`, or `CreatesCallerAliases`.",
     ),
     one(
         "cfg_rewrite_name",

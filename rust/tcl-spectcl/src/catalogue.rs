@@ -315,6 +315,10 @@ pub const COMMAND_TABLE_EFFECTS: &[Variant] = &[
     v("DefinesProcedure", "defines a new procedure (`proc`)"),
     v("RenamesCommands", "moves or deletes a command (`rename`)"),
     v("CreatesAliases", "creates an alias (`interp alias`)"),
+    v(
+        "CreatesCallerAliases",
+        "creates a Jim caller-namespace alias (`alias`)",
+    ),
 ];
 
 /// [`PatternType`] — the pattern language a pattern argument uses.
@@ -1064,7 +1068,8 @@ mod tests {
             match k {
                 CommandTableEffect::DefinesProcedure
                 | CommandTableEffect::RenamesCommands
-                | CommandTableEffect::CreatesAliases => true,
+                | CommandTableEffect::CreatesAliases
+                | CommandTableEffect::CreatesCallerAliases => true,
             }
         }
         fn pattern(k: PatternType) -> bool {

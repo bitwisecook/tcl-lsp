@@ -267,6 +267,7 @@ speclib jim-own-surface 2.0 {
     command alias {
         available {jim 0.76-}
         arity 2..
+        command_table_effect CreatesCallerAliases
         defines_command_at 0
         arg 0 -role Name
         arg 1 -role CommandNameProbe
