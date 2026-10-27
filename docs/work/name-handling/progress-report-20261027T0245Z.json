@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-27T02:45:00.792092+00:00",
+  "scheduled_report_utc": "2026-10-27T02:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-27T03:15:00+00:00",
+  "change_since_previous_report": [
+    "0215officialreportactual02:16:04.749/source626039, publishedWORK6094a4fb51ec39c9d4d845a5d785c0dee7cb2799 at02:18:03.831 afterfreshdepth1fetch/normalpush. Timer0245session9350armed. AllF/zeroPTF/green/performanceopen; no PR/admissions.",
+    "32da strictFULLAUTHfcc4c4b9 confirmsreceiverfixcompiled/NoRustE. Actual8Clippy findings: handlers117lines/map_unwrap_or2Compiler-owned andretained_source6questionmarksNames-owned. LaterstrictstagesUNRUN; nozeroWarningsclaim. Pairednarrowrepairsunderstrongpeer. Compiler16032da40436746857 solecaptureactive, no inferredteststatus.",
+    "CurrentC2b74 fixtureaudit31c39070:ZEROtestreadpaths missing; historical2514keep\u21922509present+5READMEabsent. All51recommendedtablefamilies stillpresent/1317files and9mergegroupsremain. Review208wiringisOPTIONAL,inventory173listedunasserted172absentfromrelease, retainedJimtable10casesnowasserted/20otherresultcasesnotclaimed. No tests/assertionschanged, trackingmandatory208citationtobecorrectedwithreview.",
+    "Source-provenLSPavoidablecopyfixa823 strong77554 appliedWORK9cf844a03:privategetterborrowsactualheldArc andArc::clone replacesdeepAnalysisResultclone. Worker/2attempts/currency/publication/assertsunchanged; Ccarryalsoapplied. No latency/RSS/120s attributionoracceptedperformancepair.",
+    "Fixed3protocolV2 master503e4d5a strongScopea397 sourcecleared98+19mockchecks; coroinjectoldselectorV2master52234eef strongScopea243 sourcecleared22mocks. BothofftreeRootintegrationpending; no actualchildren, no Nativegrants/oldoutcome-erasure.",
+    "N17V4draftheldactualinstalledcompilerrequestidentitygap in publiccallback. Runtime-issuedscopedrequestrelation mustbindactualcurrentcompiler/interpreter/gen/ordinarycurrencybeforeprivatecanonicalanalysis token; no futureprepareborrowing, no Normalfromknownbytes. SourcepatchUNFROZEN/noefficacy.",
+    "OldCa8dfullCI54of58completeat02:20:Rust2/Rust5/E2E1/E2E2healthy/preserved. CompleteHeavy+Rust3sourcequalifiedbaseline2955P677F20776UNOBSERVED216notinavailable; no later-source transfer, allreleasegatesopen.",
+    "Arcsourcefixa823/77554appliedWORK9cf844a03/C4e34391b2; Names6questionmark1d2d/9b708 appliedWORKa5efd8/Caef12e; Compiler2V2b6b4/ba594 appliedWORKcc2f/Caf4d93382. Originalguards/loops/read/depth/lazy/drop/owner/assertions preserved, sourceRustretryUNRUN.",
+    "Work-only fixed3protocolV2503e/a397 integrated436d33238 andcoroinjectV25223/a243 integratedfbbf5782, actualdiagnosticchildrenUNRUN/defaultnow161. No VMNativepermission/testassertionschanges.",
+    "Finalcc2f current25 union644e7dd0/a9ad096e independentCompiler c21283+RootfullinversePASS14files/13top+1nested/eightwholeJSON+oneexactliteral/zeroadditions. BothArcparentmapsalreadyincludedgetterleaf, no newkeys. Applied/pushedWORKbd808725f/Caf4d93382 afterfreshdepth1fetch, actualV16PASS13/30/22. NewtargetedPOSTs active/nohealthycancels, exactprep+irulesfixed3nextafterpredecessorguards.",
+    "Allbd80POSTs complete by02:42: seven targetedmodesstrict/corpus/Layout/Core/Jim/WASM/Spec plus exactcandidateAf4dprep40439704916 and fixed3irulesmode afteractual2c31predecessor40409883883terminal. Compiler161replacement HELDhealthyold32dacomplier16040436746857. No healthycancel/no runtime169replay. Currentactualoutcomespending.",
+    "Fixturecleanup first3hex tables2f05db9d from20TSVs preservingallbytes/keys/newlines/empty/NA/sourcepaths and27includechanges underScopepeer, noactualtests. ThinTry3dedupea80b andVM15dedupe3449 off-tree exactidenticalexistingtargets, Rootpeer nextafterPOSTfreeze; no Cfixturesdeletedyet/51notclaimedcomplete."
+  ],
+  "committed": [
+    "6260391217b9effb45711cdd7be25208c0bfd235"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Refresh only actual source dependencies and current source pins; push reviewed WORK-first fixes and release carries, then rerun compiler/strict/Core/corpus/WASM/Spec after predecessor termination.",
+    "Authenticate focused runtime and remaining fullCI terminal artifacts; fix exact current source causes preserving public behavior and fail-closed guards.",
+    "Complete section F, current origin/rust zero pass-to-fail, accepted Tcl performance, all required tests, docs/comments/generated/package/prep-pr and squash-ready PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2379976704,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

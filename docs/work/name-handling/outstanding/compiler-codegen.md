@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T01:59:39Z
+Last updated: 2026-10-27T02:22:09Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current32da strict40436741343/job121967104544 CLOSED FULLAUTH24 fcc4c4b9: noRustE, E0599 receiver repaired; eight currentClippyprimaries handlers117/100+map_unwrap_or(Compiler) andretained_source question_mark6(LSP). LaterstagesUNRUN/no green. Finald0cf6505/59b0 independentfc487 adopted/pushed32da; no newkeys. Ca8d actual02:20 remains54completed/4running Rust2/5+E2E1/2; healthy preserved. N17V4 fourpath pairedUNFROZEN draft rustfmtparseonly: discovered manualpublicCompileService callback cannot prove installedsameprovider, ScopeconfirmsrequiredactualVMscopedrequest. Runtime minimalexistingpass-owner/weakscope/currentepoch+compileridentityproducer proposed; no issuer/APIcodeclearance orMAPgain. V2/V3 held.
 
 Current f990 strict40435098274/job121961776873 CLOSED FULLAUTH23 767f5495: one actual E0599 realm/source_transition_advice.rs1805 owns_original_analysis_attachment missing on SourceCommandBindings; LSP/Root routed, downstream strict stages UNRUN/no provider-dependency seals. Final645f union beafb658/c79ce5c6 independentlyCLEAR6b1f6b18 and adopted Root f990; metadata no semantic result donation. Ca8d Rust3 complete selected ledger76a886bd:3916 selected=3228P688F, plus1qualifiedignored; exact API3 allPASS on Ca8d only. Four older CI jobs last observed running01:44, healthy preserved. N17 V2/V3 held; Scope auditing genuine selected substitution compiler/cache owner and actual observer receipt, no code/guards/assert changes.
 
