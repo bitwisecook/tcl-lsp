@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 27 October 2026, 03:45 UTC, on `work`. Release gates remain open and the six-hour target has passed. The latest corpus validates all42 generated pairs, while text comparison still refuses W002 subject correspondence. Prep passes13 of14 LSP smokes; code-lens references remain unavailable. Strict validation clears the prior eight lints and reports one remaining function-length lint. Reviewed source fixes and ownership controls are committed for the next validation batch. No zero-regression, shipping-performance or release admission is made.
+Updated 27 October 2026, 04:15 UTC, on `work`. Release gates remain open and the six-hour target has passed. The latest corpus validates all42 generated pairs, while text comparison still refuses W002 subject correspondence. Prep passes13 of14 LSP smokes; code-lens references remain unavailable. Strict validation clears the prior eight lints and reports one remaining function-length lint. Reviewed source fixes and ownership controls are committed for the next validation batch. No zero-regression, shipping-performance or release admission is made.
 
 ## Scope
 
@@ -64,7 +64,7 @@ Release preparation plan: [clean LSP PR plan](lsp-release-pr-plan.md). All funct
 
 Measurements below are the implementation agents' own runs on the shared working tree at the time stated (22 Oct unless noted). They are not guarded validations, admit no audit unit, and do not change the rows under "Outstanding validations". Agent notes: [handoff/reviews/merge-inventory-20261019/](handoff/reviews/merge-inventory-20261019/).
 
-| Agent | Area | Latest reported state (27 Oct, 03:45 UTC) | Rows affected | Notes |
+| Agent | Area | Latest reported state (27 Oct, 04:15 UTC) | Rows affected | Notes |
 | --- | --- | --- | --- | --- |
 | lsp | LSP crates | Arcprojectiona823 strong77554 integratedWORK9cf/C4e3, actualcopyavoidednotcausal120sproof; ownsnewbd80Core/startup capture afterRootPOST. CompilerhandlerV2 strongba594 clears99/28bodylines; f990capturesbuildblocked/fullauth, no semanticdonation. | 3, 4, 5, 15, 17, 18, 19, 20 | [outstanding/lsp.md](outstanding/lsp.md) |
 | compiler | Lowering, C6, iRules, itcl/snit | Fullauthindex7baf main160153P5F2UNRUN/original135132P3F/newmemo+custody+numeric+primaryallPASS; bd80Layout17elevenPsixF/Jim52fortyPtwelveF. Genuinebodyqualification90b8/c92readynew2UNRUN; actualSourceBodyMAYdesignseparate/noNative/standaloneflip. Finitecapturenone stillfirstpredicateunobserved. | 3, 6, 7, 8, 19 | [outstanding/compiler.md](outstanding/compiler.md) |
@@ -74,7 +74,7 @@ Measurements below are the implementation agents' own runs on the shared working
 | bigip-lsp (user's separate session) | BIG-IP/F5 LSP units | Header13:17 staleover60min; usernotified. Ownerreportsallownedunblockedimplementationcomplete including35units/clippy0W/editorconfigs/XC/ILX; remainingcompiler event/ILX, nativehoststartup, LSPdiagnostics/rewrite and genericminifier blockersroutedtoowningroles, no duplicate. | 15 | [outstanding/bigip-lsp.md](outstanding/bigip-lsp.md) |
 | perf (user's separate session) | Analysis and pack-load cost | External owner03:22 records perf-realm-interprocedural.patch proven at83774d, forwarded to compiler and integrated after independent carry review. All102Tcl+15iRules+7synthetic complete reports equal in three pairs; no global/runtime equality relaxation. Matching89 compiler failures, depth1000 OOM and both quiet-server failures remain; final shipping performance still unaccepted. | 17, 18 | [outstanding/perf.md](outstanding/perf.md) |
 | review-triage (user's separate session) | External review | Owner reports COMPLETE; old timestamp does not indicate unfinished triage. Section F implementation, host, baseline and performance validations remain open. | Release gate | [outstanding/review-triage.md](outstanding/review-triage.md) |
-| coordination checks | Protocol validation support | 0315published3b7c03:21; currentP1bd8/C667 sourcecommittedunpublished, finalsourcepinsrebindpendingafterobserverCIcfgfix. 0345auto90302/reminder25796armed. AllF/zeroPTF/green/Tclperfopen, noexternalrole takeover. | Release gate | [incident](handoff/reviews/merge-inventory-20261019/coordinator-20261022/source-hold-incident-20261022T1534Z.json) |
+| coordination checks | Protocol validation support | 0345published8e3b03:46; P1bb0/Cf54dcommittedunpublished; finalcoupledSourcepinsfreezingnext, all9ff67oldactive/soleauth. 0415auto59604/reminder71111armed;F/zeroPTF/green/TclperfOPEN. | Release gate | [incident](handoff/reviews/merge-inventory-20261019/coordinator-20261022/source-hold-incident-20261022T1534Z.json) |
 | gates (finished) | CI gates | cargo-deny clean, `ty` 26 → 0, pyright 647 → 0 (`d5a44d33c2`). | 14 | `gates-NOTES.md` |
 | contracts (finished) | Owner manifest | owner-resolution 608 → 0 diagnostics (`355bd99edf`). | 23 | `contracts-NOTES.md` |
 

@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T03:43:39Z
+Last updated: 2026-10-27T04:13:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T04:13:00Z: Minimal LogicalEval V2 fe655f2d frozen paired6paths, explicit required_compiled_local_layout refusal, original getter/parse/compile/preflight order and NativeDirect/UpLevel guards preserved. Scope final receipt pending (no further semantic blocker reported), Compiler bounded peer pending; seven new controls UNRUN. No generic/no-entry compiler door or replay. Metadata intent6bc1e7b1 NEXT only. Sole ff67 Spec40445805494/job121996696084 now terminalFAIL/uploadSUCCESS, capture/auth pending; WASM40445800418/job121996681212 remains healthy in_progress. Prior bd80 all3 FULLAUTH source-qualified below. Optional VM request remains PARKED; SCF/word/reset independent unresolved, no all-functional gain claim. No local builds/canonical edits/duplicate captures.
 
 Current 2026-10-27T03:43:39Z: ALL3bd80 solecaptures FULLAUTH: WASMbaa21853/775d334a original25PASS,Broad8exact6P2F(70framingpairs0f4de447,NativeAddextraCoverage); Spec23feee2c old16/VM1/ordinary4PASS,LENGTH1/1 MAP/RANGE0/0,full600INCOMPLETE600.4949 noaggregate,oldfullinput40a7a412; iRulesfixed3+reset17ed74e5/envelope9f7b all50streams/11ownedprocesses,originalbootstrapFAIL CLI2PASS initScopePASS,new3actualclosedFAIL exactb64/SCF/word. b64actualLogicalC84 nonNativeEval vsphysicalC9; actualorch::reset full775B body603fddca captureddecl/body-slot/namevarC84 vsExecC9,contentmatchnotpurposegrant. Rootpriority genuineLogicalEval/sourceconsumer: pairedVMdraft6paths authoring/statics/strongScope+Compilerpeer next, originalNativeDirectguard/UpLevel semantics/publicSCF/bootstrap/b64asserts untouched. NewEvalfouractualmatchingproviders+grammar+physicalC9pin/currentpolicy; freshwords/noNativepool/cache/layout, distinctprovenance. SCF/word/reset independent/noallfunctionalclaim. OptionalVMrequest561273db remainsROOTPARKED803682e5/nointegration/strongclearance/Rustexecution; source-onlyMAPineligible. No localbuild/canonicaledit/duplicatecapture.
 
