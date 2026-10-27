@@ -16101,8 +16101,8 @@ impl Backend {
                 .capture_coarse_semantic_source(uri, &snapshot)
                 .await?
                 .ok_or_else(coarse_semantic_source_changed)?;
-            let analysis = Arc::new(
-                readonly_reference_reports::CoarseSemanticTokenSource::analysis(&source).clone(),
+            let analysis = Arc::clone(
+                readonly_reference_reports::CoarseSemanticTokenSource::analysis(&source),
             );
             let text = Arc::clone(&snapshot.text);
             let data = crate::rt::spawn_blocking(move || {
