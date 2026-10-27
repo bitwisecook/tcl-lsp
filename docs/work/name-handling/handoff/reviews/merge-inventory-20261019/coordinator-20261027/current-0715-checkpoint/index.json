@@ -148,6 +148,20 @@
       "bytes": 1729,
       "sha256": "e5e1cc3c5d4ef08b63af2a7abdf865931ea62ec2ba747e1ba7ecd3425377cf48",
       "qualification": "Actual later group completion, received after0715checkpoint; no main166 or release admission"
+    },
+    {
+      "copy": "runtime-fb5e-index.json",
+      "original": "/workspace/naming-proof-storage/vm-fb5e-owned-captures-fullauth-index.json",
+      "bytes": 1119,
+      "sha256": "315fa1f468435bb66053adf03bbd37b7a4bba394f40aca3f50583e75695d62a5",
+      "qualification": "Actual later group completion; source-qualified, not release admission"
+    },
+    {
+      "copy": "strict-eade.json",
+      "original": "/workspace/naming-proof-storage/ccg-stricteade-40465302661-actual-v1/assessment.json",
+      "bytes": 4458,
+      "sha256": "efdb196681242629df81cd0c828ab88bbe0f7f1cedd8c57a765f0834fd6eb70d",
+      "qualification": "Actual later group completion; source-qualified, not release admission"
     }
   ],
   "gate_changes": []

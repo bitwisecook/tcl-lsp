@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-27T07:25:22.323028+00:00",
+  "source": "fb5e7187e4cd05d7a55e879845399807f2a38ab1",
+  "owned_captures": [
+    {
+      "mode": "Spec",
+      "run": 40462316500,
+      "job": 122049560312,
+      "path": "/workspace/naming-proof-storage/vm-spectcl-actual-40462316500/spec-file7-and-full600-current-closure.json",
+      "sha256": "d0684640fea33aef47cd5c25480036b14dbe0385c71a84a47c1d4d46c15668a9",
+      "zip_sha256": "1e009f954a024aa77538562d5cc7aefb0ce3a345482bede14ac5e9524121749d",
+      "qualified_overall": "FAIL"
+    },
+    {
+      "mode": "iRules",
+      "run": 40462322615,
+      "job": 122049580452,
+      "path": "/workspace/naming-proof-storage/vm-irules-actual-40462322615/cause3-and-reset-boundary-authentication.json",
+      "sha256": "eba8a07b7203bfa25a3ac821aca3d283756901b835db42b264647b361aa2993a",
+      "zip_sha256": "b56b4d953a01472867f8c0e88a267c86959eaf5cdc060ed685010b25a90c944d",
+      "qualified_overall": "FAIL"
+    }
+  ],
+  "scope": "Two assigned current captures complete/full-authenticated. No WASM owned in this wave. No general release green or later source transfer."
+}

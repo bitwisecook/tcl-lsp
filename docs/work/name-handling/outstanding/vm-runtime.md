@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T07:16:17Z
+Last updated: 2026-10-27T07:25:56Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T07:25:56Z: BOTH fb5e owned captures FULLAUTH index315fa1f4; no pending own run. Spec RAWbe6bc12c+combinedV3fcb700d7/777checks/source5+fn7 eachgroup/69ownedprocesses: old16/VM1/ordinary4PASS, oldEval7+newFile7ALLPASS, full600OWNPASS548.423s/25packs1516cmd24hooks19088/19088/319diag87opts, overallFAIL LENGTH1/1 MAP/RANGE0/0; closured068/oldjoin2001. iRules RAW7e391+supplementeba8: oldbootstrapFAIL CLI2/initScopePASS,new3FAIL; SCFgrammar→unidentified69Bscriptpreflight, nofile/bodyclaim; pure71prefix1a1e before39Breset. NEXT Work-only admissionprefix observer21fdd8 at compile_service helper+4callers, same flag/row/inputbytes96/channel/len, Scope peerqueued afterCore16; no canonicaledit. Namespacecallerproposal stillHELDdf107/Scopec555 publicgettergap. Proceduredesigna941 lowerpriority openemission/literal/activation proofs. No localbuild/POST/duplicatearchive.
 
 Current 2026-10-27T07:16:17Z: fb5e iRules40462322615 FULLAUTH RAW7e391a8b+cause3eba8a07b/50streams11matched durableprocesses. OriginalbootstrapFAIL CLI2/initScopePASS; new3allFAIL. SCF changed samecall failure grammar→NativePreflightRequired, nearest actual69B script_bytes/frameProcedure/noProcBody/ctxrefusaltrue cfgNone; sourceidentity/file-read/body-unproven, no parsedSCFclaim. Pure71publishedvectorsincl8b64 still bounded prefix closure1a1e4e44 beforeactualreset594, wholefile572→fb5e exact; caseFAIL/laterstagesincomplete. Spec40462316500 still APIactive/uploadpending; RAW+V3 next. Namespace proposal heldScopec555/publicgettercoverage gap V2df107; no typedtry_to_str Native refusal carrier, no catch/API grant. Strict7Rootpairedintegrated79b3/b556 actualRustunrun.
 
