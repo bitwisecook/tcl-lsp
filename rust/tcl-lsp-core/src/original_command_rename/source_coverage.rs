@@ -316,11 +316,8 @@ impl<'a> SourceCut<'a> {
         )?;
         let tokens = walk.tokens(document.source, command);
         let binding = require_coverage(tokens.source_binding.as_ref(), offset, "cut.binding")?;
-        let input = require_coverage(
-            binding.original_head_name_input(&tokens),
-            offset,
-            "cut.input",
-        )?;
+        let (input, decline_stage) = binding.original_head_name_input_with_decline_stage(&tokens);
+        let input = require_coverage(input, offset, decline_stage)?;
         let lookup = require_coverage(
             binding.original_command_lookup(&tokens, &input),
             offset,

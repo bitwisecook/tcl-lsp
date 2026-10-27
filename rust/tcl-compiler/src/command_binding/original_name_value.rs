@@ -14,6 +14,39 @@ pub(crate) enum OriginalWordSourcePurpose {
     ArgumentEvaluation,
 }
 
+#[derive(Clone, Copy)]
+enum OriginalHeadInputDecline {
+    Tokens,
+    RecordedWords,
+    WordCorrespondence,
+    HeadWords,
+    FrozenLength,
+    Expanded,
+    WrittenInput,
+    ListInput,
+    ListLength,
+    ListFirst,
+    NoHead,
+}
+
+impl OriginalHeadInputDecline {
+    fn stage(self) -> &'static str {
+        match self {
+            Self::Tokens => "cut.input.tokens",
+            Self::RecordedWords => "cut.input.recorded-words",
+            Self::WordCorrespondence => "cut.input.word-correspondence",
+            Self::HeadWords => "cut.input.head-words",
+            Self::FrozenLength => "cut.input.frozen-length",
+            Self::Expanded => "cut.input.expanded",
+            Self::WrittenInput => "cut.input.written-input",
+            Self::ListInput => "cut.input.list-input",
+            Self::ListLength => "cut.input.list-length",
+            Self::ListFirst => "cut.input.list-first",
+            Self::NoHead => "cut.input.no-head",
+        }
+    }
+}
+
 enum OriginalRecordedNamePurpose {
     Native,
     Logical(crate::signature_scan::original_name::OriginalSourceNamePurpose),
@@ -1602,6 +1635,66 @@ impl super::SourceInvocationBinding {
         let (words, _) = self.original_recorded_name_words()?;
         (words == tokens.words()).then_some(())?;
         self.original_recorded_head_name_input()
+    }
+
+    /// Diagnostic facade for the same original-head query. The static stage
+    /// describes a refusal only; it supplies no name, owner or selection proof.
+    #[must_use]
+    pub fn original_head_name_input_with_decline_stage(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> (Option<SignatureSourceNameInput>, &'static str) {
+        let mut stage = OriginalHeadInputDecline::Tokens;
+        let input = (|| {
+            if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+                return None;
+            }
+            stage = OriginalHeadInputDecline::RecordedWords;
+            let (words, _) = self.original_recorded_name_words()?;
+            stage = OriginalHeadInputDecline::WordCorrespondence;
+            (words == tokens.words()).then_some(())?;
+            self.original_recorded_head_name_input_with_stage(&mut stage)
+        })();
+        (input, stage.stage())
+    }
+
+    fn original_recorded_head_name_input_with_stage(
+        &self,
+        stage: &mut OriginalHeadInputDecline,
+    ) -> Option<SignatureSourceNameInput> {
+        *stage = OriginalHeadInputDecline::HeadWords;
+        let (words, config) = self.original_recorded_name_words()?;
+        let Some(frozen) = self.frozen_written_words.as_deref() else {
+            *stage = OriginalHeadInputDecline::WrittenInput;
+            return self.original_recorded_written_name_input(0, words, config);
+        };
+        *stage = OriginalHeadInputDecline::FrozenLength;
+        (frozen.len() == words.len()).then_some(())?;
+        for (written, word) in frozen.iter().enumerate() {
+            use crate::registry_invocation::EffectiveInvocationWord;
+            if word.expansion_len() == Some(0) {
+                continue;
+            }
+            if matches!(word, EffectiveInvocationWord::Expanded) {
+                *stage = OriginalHeadInputDecline::Expanded;
+                return None;
+            }
+            *stage = OriginalHeadInputDecline::WrittenInput;
+            let input = self.original_recorded_written_name_input(written, words, config)?;
+            return match word.expansion_len() {
+                Some(elements) => {
+                    *stage = OriginalHeadInputDecline::ListInput;
+                    let children = input.original_list_elements()?;
+                    *stage = OriginalHeadInputDecline::ListLength;
+                    (children.len() == elements).then_some(())?;
+                    *stage = OriginalHeadInputDecline::ListFirst;
+                    children.into_iter().next()
+                }
+                None => Some(input),
+            };
+        }
+        *stage = OriginalHeadInputDecline::NoHead;
+        None
     }
 
     /// Actual head producer from this binding's independently retained full
