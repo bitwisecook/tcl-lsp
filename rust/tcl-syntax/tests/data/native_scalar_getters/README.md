@@ -6,9 +6,10 @@ These deterministic direct-object probes cover Tcl 8.4.20, 8.5.19, 8.6.18,
 expression parsing, implicit `sqrt`, source numeric syntax and mathematical
 truth are separate protocols.
 
-The committed output files record 312 fresh Wide/Double values and cache
+The committed captures, keyed by their original file names in `captures.tsv`,
+record 312 fresh Wide/Double values and cache
 transitions, 77 Boolean/storage transitions, 105 existing C caches and
-60 C NUL/storage getter calls. `jim-range-state.txt` adds eight explicit
+60 C NUL/storage getter calls. The `jim-range-state.txt` record adds eight explicit
 clear/ERANGE and cached-integer boundary contrasts. Getter return bits are
 independent of the retained cache: C8.5/8.6 can return a wrapped Wide while
 retaining a larger bignum; explicit C8.4 Double converts WideInt, while its
@@ -39,8 +40,8 @@ done
 ```
 
 Compare `double`, `wide`, `boolean`, `cached-getter` and `nul-getter` output
-with the respective `double-VERSION`, `wide-VERSION`, `boolean-VERSION`,
-`cached-VERSION` and `nul-VERSION` files. Repeat for the other pinned releases.
+with the respective `double-VERSION.txt`, `wide-VERSION.txt`, `boolean-VERSION.txt`,
+`cached-VERSION.txt` and `nul-VERSION.txt` records of `captures.tsv`. Repeat for the other pinned releases.
 For the pinned Jim source/build directory, set `native_jim_root` and run:
 
 ```sh
@@ -54,8 +55,8 @@ done
 rm -rf "$native_getter_build"
 ```
 
-Jim expected files are `jim-double-probe.txt`, `jim-wide-native.txt`,
-`jim-boolean-native.txt` and `jim-range-state.txt`. The sequential Wide probe
+Jim expected records are the `captures.tsv` keys `jim-double-probe.txt`,
+`jim-wide-native.txt`, `jim-boolean-native.txt` and `jim-range-state.txt`. The sequential Wide probe
 intentionally retains native `errno` across cases: an unsigned overflow
 precedes its signed-MIN discriminator. The paired range-state probe separately
 supplies clear versus ERANGE native state, and proves that existing Int cache
