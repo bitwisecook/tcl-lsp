@@ -208,7 +208,7 @@ impl<'a> TaintSourceContext<'a> {
     }
 
     pub(crate) fn formals_for_unit_body(
-        unit: &crate::compilation_unit::CompilationUnit,
+        unit: &'a crate::compilation_unit::CompilationUnit,
         body: crate::ir::ProcedureId,
         registry: &CommandRegistry,
     ) -> Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology> {
