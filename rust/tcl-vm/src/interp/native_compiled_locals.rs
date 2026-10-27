@@ -829,39 +829,59 @@ mod tests {
         vm
     }
 
-    const BORROWED_SOURCE_FIXTURES: [(&str, &str); 6] = [
-        (
-            "tcl8.4",
-            include_str!("../../tests/data/native_borrowed_frame_slots/8.4.20.tsv"),
-        ),
-        (
-            "tcl8.5",
-            include_str!("../../tests/data/native_borrowed_frame_slots/8.5.19.tsv"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../tests/data/native_borrowed_frame_slots/8.6.18.tsv"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../tests/data/native_borrowed_frame_slots/9.0.4.tsv"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../tests/data/native_borrowed_frame_slots/9.1.0.tsv"),
-        ),
-        (
-            "jim",
-            include_str!("../../tests/data/native_borrowed_frame_slots/Jim.tsv"),
-        ),
-    ];
+    fn borrowed_source_fixtures() -> [(&'static str, String); 6] {
+        [
+            (
+                "tcl8.4",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_borrowed_frame_slots/captures.tsv"),
+                    "8.4.20.tsv",
+                ),
+            ),
+            (
+                "tcl8.5",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_borrowed_frame_slots/captures.tsv"),
+                    "8.5.19.tsv",
+                ),
+            ),
+            (
+                "tcl8.6",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_borrowed_frame_slots/captures.tsv"),
+                    "8.6.18.tsv",
+                ),
+            ),
+            (
+                "tcl9.0",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_borrowed_frame_slots/captures.tsv"),
+                    "9.0.4.tsv",
+                ),
+            ),
+            (
+                "tcl9.1",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_borrowed_frame_slots/captures.tsv"),
+                    "9.1.0.tsv",
+                ),
+            ),
+            (
+                "jim",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_borrowed_frame_slots/captures.tsv"),
+                    "Jim.tsv",
+                ),
+            ),
+        ]
+    }
 
     #[test]
     fn original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references() {
         let names = borrowed_source_names();
         let body =
             unhex(include_str!("../../tests/data/native_borrowed_frame_slots/body.hex").trim());
-        let engines = BORROWED_SOURCE_FIXTURES;
+        let engines = borrowed_source_fixtures();
         let mut compared = 0;
         for (engine, expected) in engines {
             let rows = expected.lines().collect::<Vec<_>>();
@@ -1097,28 +1117,42 @@ mod tests {
         vm
     }
 
-    const DICTIONARY_SEARCH_FIXTURES: [(&str, &str); 4] = [
-        (
-            "tcl8.5",
-            include_str!("../../tests/data/native_dictionary_search/8.5.19.tsv"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../tests/data/native_dictionary_search/8.6.18.tsv"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../tests/data/native_dictionary_search/9.0.4.tsv"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../tests/data/native_dictionary_search/9.1.0.tsv"),
-        ),
-    ];
+    fn dictionary_search_fixtures() -> [(&'static str, String); 4] {
+        [
+            (
+                "tcl8.5",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "8.5.19.tsv",
+                ),
+            ),
+            (
+                "tcl8.6",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "8.6.18.tsv",
+                ),
+            ),
+            (
+                "tcl9.0",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "9.0.4.tsv",
+                ),
+            ),
+            (
+                "tcl9.1",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "9.1.0.tsv",
+                ),
+            ),
+        ]
+    }
 
     #[test]
     fn original_dictionary_search_matches_100_native_storage_windows() {
-        let engines = DICTIONARY_SEARCH_FIXTURES;
+        let engines = dictionary_search_fixtures();
         let mut compared = 0;
         for (engine, expected) in engines {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
@@ -1452,7 +1486,11 @@ mod tests {
 
     #[test]
     fn compiled_dictionary_c86_for_error_preserves_original_completion_and_reference_windows() {
-        let row = include_str!("../../tests/data/native_dictionary_search/epilogues/8.6.18.tsv")
+        let fixture = tcl_test_support::fixture_tables::text(
+            include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+            "epilogues/8.6.18.tsv",
+        );
+        let row = fixture
             .lines()
             .find(|row| row.starts_with("for-error\t"))
             .expect("original native C86 for-error row");
@@ -1464,19 +1502,31 @@ mod tests {
         let engines = [
             (
                 "tcl8.5",
-                include_str!("../../tests/data/native_dictionary_search/epilogues/8.5.19.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "epilogues/8.5.19.tsv",
+                ),
             ),
             (
                 "tcl8.6",
-                include_str!("../../tests/data/native_dictionary_search/epilogues/8.6.18.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "epilogues/8.6.18.tsv",
+                ),
             ),
             (
                 "tcl9.0",
-                include_str!("../../tests/data/native_dictionary_search/epilogues/9.0.4.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "epilogues/9.0.4.tsv",
+                ),
             ),
             (
                 "tcl9.1",
-                include_str!("../../tests/data/native_dictionary_search/epilogues/9.1.0.tsv"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_dictionary_search/captures.tsv"),
+                    "epilogues/9.1.0.tsv",
+                ),
             ),
         ];
         let mut compared = 0;

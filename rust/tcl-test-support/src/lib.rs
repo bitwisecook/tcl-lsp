@@ -38,6 +38,7 @@ pub mod ensemble_map_prefix;
 pub mod expressions;
 pub mod fixed_corpus;
 pub mod fixed_sources;
+pub mod fixture_tables;
 mod jim;
 pub mod jim_strings;
 pub mod native_integer_formatter;

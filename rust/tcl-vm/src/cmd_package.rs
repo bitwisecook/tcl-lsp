@@ -2607,13 +2607,31 @@ mod tests {
 
     #[test]
     fn package_completion_matches_all_six_native_84_controls() {
-        const FIXTURES: [&str; 6] = [
-            include_str!("../../tcl-registry/tests/data/native_package_ordinary/8.4.20.tsv"),
-            include_str!("../../tcl-registry/tests/data/native_package_ordinary/8.5.19.tsv"),
-            include_str!("../../tcl-registry/tests/data/native_package_ordinary/8.6.18.tsv"),
-            include_str!("../../tcl-registry/tests/data/native_package_ordinary/9.0.4.tsv"),
-            include_str!("../../tcl-registry/tests/data/native_package_ordinary/9.1.0.tsv"),
-            include_str!("../../tcl-registry/tests/data/native_package_ordinary/Jim.tsv"),
+        let fixtures: [String; 6] = [
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../tcl-registry/tests/data/native_package_ordinary/captures.tsv"),
+                "8.4.20.tsv",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../tcl-registry/tests/data/native_package_ordinary/captures.tsv"),
+                "8.5.19.tsv",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../tcl-registry/tests/data/native_package_ordinary/captures.tsv"),
+                "8.6.18.tsv",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../tcl-registry/tests/data/native_package_ordinary/captures.tsv"),
+                "9.0.4.tsv",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../tcl-registry/tests/data/native_package_ordinary/captures.tsv"),
+                "9.1.0.tsv",
+            ),
+            tcl_test_support::fixture_tables::text(
+                include_str!("../../tcl-registry/tests/data/native_package_ordinary/captures.tsv"),
+                "Jim.tsv",
+            ),
         ];
         const FILES: &[(&str, &[u8])] = &[
             (
@@ -2659,7 +2677,7 @@ mod tests {
                 tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
             )));
         let mut compared = 0;
-        for (engine, fixture) in FIXTURES.into_iter().enumerate() {
+        for (engine, fixture) in fixtures.into_iter().enumerate() {
             for row in fixture.lines() {
                 let fields: Vec<_> = row.split('\t').collect();
                 assert_eq!(fields.len(), 4);
