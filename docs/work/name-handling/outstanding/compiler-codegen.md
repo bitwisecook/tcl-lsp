@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T00:31:06Z
+Last updated: 2026-10-27T01:04:05Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+01:04 UTC final4525 current25 union FROZEN f5f76db3/7dc8cbf4 onPa8a successor452546fb/Cd0513062, Compiler independentpeer active; authorV16PASS532de7df13/30/22, actual12Runtimeguards PASScbb02240, nestedNumeric14+3PASS35d8d149. Exact9finite+5WASM approvedjoins, oldChild10/currentrecursive descriptors, newhidden-cell3source/currentpositivefn guards, Cold2 inlinecurrentNoTom94a4. Routinefinite descriptor source_path→source+soleconsumer fixes realV16schema withoutwaiver. Olda8apacketsheld/superseded. Numericcompiler06a07d31 all3staticpeersclear/integrated; numeric3sameexistingELFs default156protocolbbf816/48c60c8c integrated, noCargo/env/budget change. Runtime measured e8db rawnew3=2P1F quietCOW0expected1; focused169UNRUN after2700 cap; reviewed per-cell98840/ba07 nowcurrentRootsource but actualrerunUNRUN. N17V1HOLD888f missingactualsubstcodecache invalidation; V2 01c72647 independentsemanticreviewheldseparate/nointegration. CurrentCa8d Heavy complete356=326P30F receipt06277eb6; Rootbaselinejoin299P12F24097unknown216notinAVAILABLE (sourcea8d only). Other Rust/E2E terminalartifacts absent at01:03 boundedAPI, API3/smoke outcomesUNOBSERVED. ActiveCI preserved; nooutcome/gate/Nativecoverage donation.
 
 Current e8db strict FULLAUTH23 fe629a13: ONE field_comparison106/100 lint, Names combined helper/witness successor under strongpeer; no RustE and no downstream standalone PASS inferred. Ca8d currentCI active (latest57jobs43closed/14running); heavy/all5Rustshards+3E2E partitions still active, API3/smoke outcomes UNOBSERVED. SevenRust+threeE2E selected listings captured once; exact lens/Tk partition1 and push partition2 selections d2252028, no terminal donation. Browser/WASI actual rename refusals routedLSP; multi-folder10P4F, extensionpartition2 five real failures before shutdown143/partialunknown. Numericcompiler paired06a07d31 independently staticCLEAR Compiler4f176/Runtimec18bef/emitter5d8026; actualnewtests/WASM/goldens/perf UNRUN. Rootapproved exact5WASM importerkernel keys; focused3 plan can reuse existing compiler+runtimeAPI freshELFs with noCargo change. N17V1 held888f due missing actualsubstcode cache invalidation; immutableV2 01c72647 records exactvalue/sharedalias cache retirement+poolnumericwithdrawal beforefirstread, allGeneric/reentry/footprintguards unchanged, no Normal retag; independentsemanticreview active, no integration/efficacy claim. FinalC cleanup80096 pairedonce; no canonical writes bythisrole.
 

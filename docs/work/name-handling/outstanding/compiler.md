@@ -2,11 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T00:42:54.335204+00:00 (finite4 Scope peer and numeric3 protocol peer clear; empty Installed report custody V2 source clear; Root integration/final union/executable gates pending)
+Last updated: 2026-10-27T00:56:19.142864+00:00 (urgent per-physical-cell hidden callback repair source clear; final a8a metadata V2 remains held for canonical descriptor-key/current-source successor)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Urgent Runtime hidden-cell repair strong CLEAR:** master98840e073b1dcb0edcc050818551e9fcabcbacf6bf43e8bdf071d3a909c094cb strongba07aef0158df46becc544dfc320532502e6582e7f0d422599adabc688e055d1 at compiler-peer-cached-increment-hidden-cell-v1/receipt.json. All6current/fixedGit/F-R/fmt2021; same scalar/expected pointer/owned/zerooperation/alias/RMW/nonconstant gates return current CopyVarId. Same physicalID excludes hidden ErrorInfo/ErrorCode/precision registrations, matching actual production selectors; unrelated mandatory registrations remain installed. All ordinarytrace/resolver/env/root/C9/cache/currentness/original RMW/kernel/ABI guards unchanged. Original COW positive assertions exact plus typedInt hiddenerror status0/outuntouched/inputunchanged negatives. Actual refinedRust/Clippy/positive/control outcomesUNRUN. Runtime raw complete-inventory new3 observed2P1F is separate from focused169UNRUN at suite deadline; no complete focused coverage or repair efficacy claim. Final source/fn pins must refresh after Root integration.
+
+**Latest metadata hold:** Codegen finala8a current25 V2 manifest62bfa80a is HELD for finite descriptor source_path key vs adoptedV16 canonical source field; exact successor being authored, no scanner exception. Root may include cleared hidden-cell repair before finalcurrent union. Do not apply held V2 or treat stale nestedNumeric14/Runtime3 hashes as current.
 
 **Latest finite4 protocol strong CLEAR:** Scope159111dc83cb935bef78f0c3b0f442b8a2554c70c76cec4614cdb45f18fb3d0a binds67b30f1e/f245429d; independent source function-span4SHA/current2/modes/fulloldinverse plus22 no-child actual-helper/execute/parser/lifecycle controls. Root notified, final9key union still required; actualRust/new4UNRUN.
 
