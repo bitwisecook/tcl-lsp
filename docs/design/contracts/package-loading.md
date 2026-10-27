@@ -192,6 +192,9 @@ supplied at runtime is unresolved and preserves the source owner's separate comm
 availability annotation. Ambient or automatically loaded packages such as Tk
 must not be described as missing. `owning_package()` membership by itself does
 not issue this explicit prerequisite line.
+A same-name source procedure may still have its own checked conditional
+procedure documentation. That separate owner cannot borrow the shadowed
+Registry descriptor's package prerequisite or provider wording.
 
 ### Package resolver (`pkgIndex.tcl` / `tclIndex`)
 

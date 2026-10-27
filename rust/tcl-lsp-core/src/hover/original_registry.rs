@@ -445,10 +445,31 @@ mod tests {
         ));
         assert!(at(source, &foreign, "button").is_none());
         let shadow = "proc button args {return custom}\nbutton .b -text hi\n";
-        let shadow_hover = at(shadow, &tk_source_analysis(shadow), "button");
+        let shadow_analysis = tk_source_analysis(shadow);
+        let cursor = u32::try_from(shadow.rfind("button").unwrap() + 1).unwrap();
+        let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+            shadow, &shadow_analysis, cursor,
+        ).expect("the same original conditional procedure call");
+        let declaration = call.declaration(&shadow_analysis).unwrap();
+        assert_eq!(declaration.metadata().qualified_name, "::button");
+        assert_eq!(
+            &shadow[declaration.metadata().body_span.as_range()],
+            "return custom"
+        );
+        let shadow_hover = at(shadow, &shadow_analysis, "button").unwrap();
+        assert_eq!(
+            shadow_hover.value,
+            format!(
+                "**Possible procedure**\n\n{}",
+                super::super::proc_hover_text(declaration.metadata())
+            ),
+        );
+        assert!(!shadow_hover.value.contains("package require Tk"));
+        assert!(!shadow_hover.value.contains("Declared provider: `Tk`"));
         assert!(
-            shadow_hover.is_none(),
-            "actual shadow hover: {shadow_hover:?}"
+            !shadow_hover
+                .value
+                .contains("Create and manipulate a button widget")
         );
     }
 
