@@ -241,32 +241,52 @@ impl Interp {
 mod tests {
     use super::*;
 
-    const FIXTURES: [(&str, &str); 6] = [
-        (
-            "tcl8.4",
-            include_str!("../../tests/data/native_object_vector/8.4.20.txt"),
-        ),
-        (
-            "tcl8.5",
-            include_str!("../../tests/data/native_object_vector/8.5.19.txt"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../tests/data/native_object_vector/8.6.18.txt"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../tests/data/native_object_vector/9.0.4.txt"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../tests/data/native_object_vector/9.1.0.txt"),
-        ),
-        (
-            "jim",
-            include_str!("../../tests/data/native_object_vector/Jim.txt"),
-        ),
-    ];
+    fn original_vector_fixtures() -> [(&'static str, String); 6] {
+        [
+            (
+                "tcl8.4",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "8.4.20.txt",
+                ),
+            ),
+            (
+                "tcl8.5",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "8.5.19.txt",
+                ),
+            ),
+            (
+                "tcl8.6",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "8.6.18.txt",
+                ),
+            ),
+            (
+                "tcl9.0",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "9.0.4.txt",
+                ),
+            ),
+            (
+                "tcl9.1",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "9.1.0.txt",
+                ),
+            ),
+            (
+                "jim",
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "Jim.txt",
+                ),
+            ),
+        ]
+    }
 
     fn interpreter(environment: &str) -> Interp {
         let profile = crate::environment::profile_for_dialect(environment);
@@ -435,7 +455,7 @@ mod tests {
             b"logged_original",
         ];
         let mut windows = 0;
-        for (environment, fixture) in FIXTURES {
+        for (environment, fixture) in original_vector_fixtures() {
             for row in fixture.lines() {
                 let expected: Vec<_> = row.split('\t').collect();
                 let case: usize = expected[0].parse().unwrap();
@@ -478,7 +498,7 @@ mod tests {
             interp.set_result(argv[2]);
             Code::Error
         }
-        for (environment, _) in FIXTURES {
+        for (environment, _) in original_vector_fixtures() {
             if environment == "jim" {
                 continue;
             }
@@ -506,27 +526,45 @@ mod tests {
         let fixtures = [
             (
                 "tcl8.4",
-                include_str!("../../tests/data/native_object_vector/completions/8.4.20.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "completions/8.4.20.txt",
+                ),
             ),
             (
                 "tcl8.5",
-                include_str!("../../tests/data/native_object_vector/completions/8.5.19.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "completions/8.5.19.txt",
+                ),
             ),
             (
                 "tcl8.6",
-                include_str!("../../tests/data/native_object_vector/completions/8.6.18.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "completions/8.6.18.txt",
+                ),
             ),
             (
                 "tcl9.0",
-                include_str!("../../tests/data/native_object_vector/completions/9.0.4.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "completions/9.0.4.txt",
+                ),
             ),
             (
                 "tcl9.1",
-                include_str!("../../tests/data/native_object_vector/completions/9.1.0.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "completions/9.1.0.txt",
+                ),
             ),
             (
                 "jim",
-                include_str!("../../tests/data/native_object_vector/completions/Jim.txt"),
+                tcl_test_support::fixture_tables::text(
+                    include_str!("../../tests/data/native_object_vector/captures.tsv"),
+                    "completions/Jim.txt",
+                ),
             ),
         ];
         for (environment, fixture) in fixtures {
