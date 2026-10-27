@@ -14,10 +14,10 @@
     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
     "rust/tcl-compiler/src/analyser/handlers.rs": "55581125a5554854553f3ef53262581c0715b973597345a9f3eb3887702871f2",
     "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_member.rs": "6fe1d3d8060c465b867e3bb3611c9e10a4cd799f861aad966455cba5531be328",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "0a3069f741604e5c42a530e129c49e0c582bbbc6503df0bf7508a77ce6e95c82",
-    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "4133a2a93b919503a2513e428a989ed670ee3418ecbec1dd5d04eaaffa517b9e",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca",
     "rust/tcl-compiler/src/analyser/commands.rs": "1aeb34f0e1e1805dba5ddac1add605e81f383717e14f94cef54411a1380b1a53",
-    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "affdcdbf339d2dcd0d192463bbb7a4a0f151e633b05628ee4207cef3ded51584",
+    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "cfb0a93f5801ea18173d9b65e6ed488466ab512f133a7971016055dadef6e0b1",
     "rust/tcl-compiler/src/analyser/state.rs": "31159fd04fe9189d70eddd886988819be5d78d0a267e588d8d53306d137a9180"
   },
   "build_targets": [
@@ -294,7 +294,7 @@
     "schema": "finite-foreach-source-controls4-v1",
     "expected_selected": 4,
     "source": "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
-    "source_sha256": "affdcdbf339d2dcd0d192463bbb7a4a0f151e633b05628ee4207cef3ded51584",
+    "source_sha256": "cfb0a93f5801ea18173d9b65e6ed488466ab512f133a7971016055dadef6e0b1",
     "source_peer_sha256": "a677716ee4a58a8e62190533c42d39270e5112c7a1938c7370423300944b40cf",
     "rows": [
       {

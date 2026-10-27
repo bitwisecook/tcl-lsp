@@ -5594,7 +5594,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "2e2d1b33ac817e62c378f3161bb204ff8c3e93c832a51da61e23b23e599b4618",
+    == "68ba9e1175d58c4c65644ee96b88c6f13cb6845ab9fd47c26d63248c88e55d4f",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -5774,7 +5774,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "5f2208f116121e101194a973c3393e101e3a4387ee148f3d779a3698549b8aec",
+    == "d5f04cd73950ae133c111d65ceb19e875b473f3a506094cac6ef43578e6184b8",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -6035,7 +6035,7 @@ layout11_acceptance_exit = None
 finite_foreach_validation = None
 finite_foreach_rows = []
 if args.jim_source_layout_only:
-    require(sha(BASE / "compiler-jim-source-layout11.json") == "d8e4e16d21359d4c72bc0acd6e566caa3b3af335a969557867f3d624aa925d6d",
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "b3b0c5843b1e75495a234ffcd9e8b2993f3b40c1ebef8a90dfa4286adbf3e32d",
             "exact Layout11 roster/direct source pins required")
     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
     require(jim_layout_validation["expected_selected"] == 11

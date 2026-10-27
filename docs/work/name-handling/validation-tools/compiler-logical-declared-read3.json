@@ -76,7 +76,7 @@
     "rust/tcl-registry/src/native_procedure.rs": "f9b40f1a656a71a7fa9f6c422a67f5cd0600c5bcda1a8d98fb7b269363a9686b",
     "rust/tcl-registry/src/resolved_invocation.rs": "d620046738e2088b11737535a02f0e56b58f2584007e66a5bbd03e82a4f4e867",
     "rust/tcl-compiler/src/analyser/commands.rs": "1aeb34f0e1e1805dba5ddac1add605e81f383717e14f94cef54411a1380b1a53",
-    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "affdcdbf339d2dcd0d192463bbb7a4a0f151e633b05628ee4207cef3ded51584",
+    "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs": "cfb0a93f5801ea18173d9b65e6ed488466ab512f133a7971016055dadef6e0b1",
     "rust/tcl-compiler/src/analyser/state.rs": "31159fd04fe9189d70eddd886988819be5d78d0a267e588d8d53306d137a9180",
     "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
     "rust/tcl-compiler/src/registry_invocation.rs": "fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac",
@@ -681,7 +681,7 @@
     "expected_selected": 3,
     "scope": "Actual Box/I64 default-increment compiler controls plus exact shared ABI signature; no String/framing/performance acceptance",
     "source_pins": {
-      "rust/tcl-runtime-api/src/codegen_abi.rs": "38964bdbf11697809803503f5edbb0580172e53223169232e33938054c499f4a",
+      "rust/tcl-runtime-api/src/codegen_abi.rs": "5652d18e7630559e25801f9381cde828a1c00dc11ac449f0dab60db2f498fcd4",
       "rust/tcl-compiler/src/native_lowering/ir.rs": "38f91ace67308397540241604ab2abc2e1668ac484ca02b4ee1ce887971feac9",
       "rust/tcl-compiler/src/native_lowering/cells.rs": "6de9adb276fd5dd6f39382258197f834e8f3d7331e1349287e3b8bd67e124f70",
       "rust/tcl-compiler/src/native_lowering/lower.rs": "344bccf58ad295f755ae761012d025af3442413ae13342dd067098720044bb21",
