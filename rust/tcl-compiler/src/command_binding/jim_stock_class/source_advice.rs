@@ -267,7 +267,7 @@ mod controls {
             &retained.origin,
             &retained.baseline
         ));
-        assert!(retained != foreign);
+        assert_ne!(retained, foreign);
         assert_creator_rejects_partial_and_foreign(&analysis, effect, &foreign);
         let own = member(source, &analysis);
         assert!(own.supports_member_association(&analysis));
