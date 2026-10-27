@@ -1,0 +1,60 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-27T22:23:26.079932+00:00",
+  "scheduled_report_utc": "2026-10-27T22:21:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "WORK strict 40588176868 on 111d0604c: Rust fmt+clippy now PASS (workspace, x509, runtime/rust). First failing gate is WORK-only check-name-resolution-proofs: 2235 structural errors (965 stale bigip-probe evidence digests owned by external bigip-lsp, proof records citing changed sources, 3 unbound test annotations). Not refreshed blindly; not on release.",
+    "Release fixture cleanup 44 -> 48/51: upvar/exists c5bf48a (packet afterimages re-verified), ensemble/encoding/control_expression a6f87e9 (independent peer review: no HOLD; lossless 85/85). Release prep 40592335120 on a6f87e9 running.",
+    "capi_scalar and info converted (63 records lossless), under peer review; scalar getters in progress; 88 unread records confirmed by code-read, disposition per release plan (merge/remove-from-release/assert-draft).",
+    "Corpus cause narrowed: cold analyses disagree on command_realm.bindings.invocation_reads; test-only trace refinement c7e406583.",
+    "Six pre-existing runtime failures on release (3 control_expression, 3 Jim info inventory) routed to vm-runtime for origin/rust comparison.",
+    "WIP snapshot affd0b99f (compiler-codegen/vm-runtime unreviewed edits)."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "release prep 40592335120 (a6f87e9)",
+    "lsp, compiler, compiler-codegen, vm-runtime roles",
+    "compiler-names scalar getters + disposition",
+    "peer review capi_scalar/info"
+  ],
+  "next_report_utc": "2026-10-27T22:53:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
