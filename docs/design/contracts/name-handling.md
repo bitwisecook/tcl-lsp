@@ -4025,7 +4025,11 @@ operation, preserving all original written operands and the independently
 selected descriptor/argument offset. The retained declaration advice and its
 debts remain unchanged. The command lookup and shared fallback helpers keep
 `Refused` terminal; they neither consult this primary value view nor gain a
-selection. Foreign/stale owners or inputs, barriers, captured/expanded operands
+selection. The primary value query selects its tape purpose before lookup from
+its authenticated retained entry: a genuine conditional region uses only its
+issued region plan, while a whole-input receiver keeps `CompleteProgram`.
+A region never retries as a whole-file catalogue or certifies omitted commands;
+missing tape, final declaration, current owner or barrier proof stays terminal. Foreign/stale owners or inputs, barriers, captured/expanded operands
 and mismatched shapes refuse. This supplies no actual variable value, command
 permission, Native body/frame, operation Normal fact or edit authority. The
 ordinary `Written(0)` route and the separate namespace/load-card owner gap are
