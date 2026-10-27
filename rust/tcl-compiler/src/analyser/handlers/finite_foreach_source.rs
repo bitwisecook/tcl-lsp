@@ -242,6 +242,24 @@ impl FiniteForeachProcedureName {
     }
 }
 
+// Observe only existing results; the original flag/filter/1024 quota remain shared.
+macro_rules! finite_some {
+    ($stage:literal, $value:expr) => {
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            concat!("analyser.finite.", $stage),
+            $value,
+        )?
+    };
+}
+macro_rules! finite_none {
+    ($stage:literal) => {
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            concat!("analyser.finite.", $stage),
+            None,
+        )
+    };
+}
+
 struct FiniteForeachProcedures {
     names: Vec<Arc<FiniteForeachProcedureName>>,
     variable: String,
@@ -319,15 +337,19 @@ impl FiniteForeachProcedures {
         Some(call)
     }
 
-    fn capture(
+    fn capture_loop_header(
         analyser: &Analyser,
         head: Token,
         args: &[String],
         tokens: &[Token],
         scope: &[usize],
-    ) -> Option<Self> {
-        let input = analyser.result.resolved_input.as_ref()?;
-        let policy = analyser.declaration_name_policy()?;
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<(
+        crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+        String,
+        Span,
+    )> {
         if !Self::supports_input(analyser, input)
             || analyser.result.original_source_region.is_some()
             || policy.recipe() != tcl_syntax::naming::NativeNameProtocol::Jim084
@@ -336,66 +358,103 @@ impl FiniteForeachProcedures {
             || tokens[1].kind != TokenType::Str
             || tokens[2].kind != TokenType::Str
         {
-            return None;
+            return finite_none!("eligibility");
         }
-        let call = Self::selected_call(analyser, head, args, tokens, policy)?;
-        let (variable, _) =
-            Analyser::literal_foreach_binding(&args[0], &args[1], true, analyser.word_rules())?;
+        let call = finite_some!(
+            "selected-call",
+            Self::selected_call(analyser, head, args, tokens, policy)
+        );
+        let (variable, _) = finite_some!(
+            "literal-binding",
+            Analyser::literal_foreach_binding(&args[0], &args[1], true, analyser.word_rules())
+        );
         if variable.is_empty()
             || !variable
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'_')
         {
-            return None;
+            return finite_none!("variable-shape");
         }
-        let current_scope = super::super::scope::scope_at(&analyser.result.global_scope, scope)?;
+        let current_scope = finite_some!(
+            "scope",
+            super::super::scope::scope_at(&analyser.result.global_scope, scope)
+        );
         if current_scope.original_interpreter_source_domain.is_some() {
-            return None;
+            return finite_none!("source-domain");
         }
-        let declaration = current_scope.variables.get(&variable)?;
+        let declaration = finite_some!("variable", current_scope.variables.get(&variable));
         if declaration.link_target.is_some() || !declaration.array_indices.is_empty() {
-            return None;
+            return finite_none!("variable-bindings");
         }
-        let declaration_span = declaration.definition_span;
-        let parent = call.word(1)?;
-        let list = SignatureSourceNameValue::from_original_static_word(
-            parent,
-            analyser.word_rules(),
-            policy,
-        )?;
-        let values = list.list_elements()?;
+        Some((call, variable, declaration.definition_span))
+    }
+
+    fn capture(
+        analyser: &Analyser,
+        head: Token,
+        args: &[String],
+        tokens: &[Token],
+        scope: &[usize],
+    ) -> Option<Self> {
+        let input = finite_some!("input", analyser.result.resolved_input.as_ref());
+        let policy = finite_some!("policy", analyser.declaration_name_policy());
+        let (call, variable, declaration_span) =
+            Self::capture_loop_header(analyser, head, args, tokens, scope, policy, input)?;
+        let parent = finite_some!("list-word", call.word(1));
+        let list = finite_some!(
+            "list-value",
+            SignatureSourceNameValue::from_original_static_word(
+                parent,
+                analyser.word_rules(),
+                policy,
+            )
+        );
+        let values = finite_some!("list-elements", list.list_elements());
         if values.is_empty() {
-            return None;
+            return finite_none!("empty-elements");
         }
-        let commands = analyser.direct_statements_in_span(tokens[2].span)?;
+        let commands = finite_some!(
+            "body-statements",
+            analyser.direct_statements_in_span(tokens[2].span)
+        );
         let [declaration] = commands.as_slice() else {
-            return None;
+            return finite_none!("body-count");
         };
-        let positions = analyser.original_procedure_source_words_at(
-            declaration.argv[0],
-            declaration.args(),
-            declaration.arg_tokens(),
-        )?;
-        let name_token = *declaration.arg_tokens().get(positions.name)?;
+        let positions = finite_some!(
+            "procedure-words",
+            analyser.original_procedure_source_words_at(
+                declaration.argv[0],
+                declaration.args(),
+                declaration.arg_tokens(),
+            )
+        );
+        let name_token = *finite_some!("name-token", declaration.arg_tokens().get(positions.name));
         if name_token.kind != TokenType::Var
-            || declaration.args().get(positions.name)? != &format!("${variable}")
+            || finite_some!("name-text", declaration.args().get(positions.name))
+                != &format!("${variable}")
             || !declaration
                 .arg_single_token()
                 .get(positions.name)
                 .copied()
                 .unwrap_or(false)
         {
-            return None;
+            return finite_none!("name-shape");
         }
-        let realm = analyser.result.retained_command_realm()?;
+        let realm = finite_some!("realm", analyser.result.retained_command_realm());
         if realm.source_bindings_ref().has_conditional_source_region() {
-            return None;
+            return finite_none!("region");
         }
-        let owner = Arc::clone(realm.source_bindings_ref().original_analysis_owner()?);
-        let namespace = analyser.declaration_namespace_scope(scope)?;
+        let owner = Arc::clone(finite_some!(
+            "owner",
+            realm.source_bindings_ref().original_analysis_owner()
+        ));
+        let namespace = finite_some!("namespace", analyser.declaration_namespace_scope(scope));
         for value in &values {
-            let text = std::str::from_utf8(value.bytes()).ok()?;
-            SignatureSourceCommand::procedure_in_context(policy, &namespace, text)?;
+            let text = finite_some!("element-utf8", std::str::from_utf8(value.bytes()).ok());
+            finite_some!(
+                "element-name",
+                SignatureSourceCommand::procedure_in_context(policy, &namespace, text)
+            );
         }
         let image = tcl_lexer::SourceImage::document(&analyser.source);
         let names = values
