@@ -112,7 +112,7 @@ impl<'a> AuthoredBodyTaintContext<'a> {
     }
 
     pub(super) fn has_formal(self, ssa: &crate::ssa::SsaFunction, name: &str) -> bool {
-        if !std::ptr::eq(ssa, &self.function.ssa) {
+        if !std::ptr::eq(ssa, &raw const self.function.ssa) {
             return false;
         }
         self.function.body_id.is_some_and(|body| {

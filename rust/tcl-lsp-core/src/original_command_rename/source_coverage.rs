@@ -233,21 +233,13 @@ impl<'a> Task<'a> {
     ) -> Result<tcl_compiler::ir::CommandTokens, OriginalCommandRenameRefusal> {
         let mut tokens = walk.tokens(self.document.source, command);
         if let Some(layout) = &self.body_layout {
-            let offset = command
+            command
                 .argv
                 .first()
-                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?
-                .span
-                .start();
-            require_coverage(
-                layout.stamp_original_tokens(
-                    self.document.source,
-                    self.document.analysis,
-                    &mut tokens,
-                ),
-                offset,
-                "cut.body-layout",
-            )?;
+                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
+            layout
+                .stamp_original_tokens(self.document.source, self.document.analysis, &mut tokens)
+                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
         }
         Ok(tokens)
     }
@@ -452,7 +444,9 @@ fn queue_cut_declaration<'a>(
         .start();
     reject_selected_command_link_coverage(receipt.invocation(), offset)?;
     let body = receipt.body().content_span();
-    let layout = require_coverage(receipt.into_body_layout(survey), offset, "cut.body-world")?;
+    let layout = receipt
+        .into_body_layout(survey)
+        .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
     let mut nested = Task::nested(
         task.document,
         walk,
