@@ -2213,29 +2213,29 @@ mod native_path_publication_tests {
         // C84's three original NA rows are retained independently: this test
         // checks absent purpose, without normalising a raw Return to C API Ok.
         let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
-        let cases = [("missing-root-failed-path-unset", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-root-failed-path-unset.tcl").as_slice(), [include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-root-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-root-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-root-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-root-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-root-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-root-failed-path-unset/stdout")]),
-("missing-member-failed-path-unset", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-member-failed-path-unset.tcl").as_slice(), [include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-member-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-member-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-member-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-member-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-member-failed-path-unset/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-member-failed-path-unset/stdout")]),
-("linked-root-path-set", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/linked-root-path-set.tcl").as_slice(), [include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/linked-root-path-set/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/linked-root-path-set/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/linked-root-path-set/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/linked-root-path-set/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/linked-root-path-set/stdout"),
-include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/linked-root-path-set/stdout")])];
+        let cases = [("missing-root-failed-path-unset", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-root-failed-path-unset.tcl").as_slice(), [tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.4.20/missing-root-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.5.19/missing-root-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.6.18/missing-root-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "9.0.4/missing-root-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "9.1.0/missing-root-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "jim/missing-root-failed-path-unset/stdout")]),
+("missing-member-failed-path-unset", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-member-failed-path-unset.tcl").as_slice(), [tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.4.20/missing-member-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.5.19/missing-member-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.6.18/missing-member-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "9.0.4/missing-member-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "9.1.0/missing-member-failed-path-unset/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "jim/missing-member-failed-path-unset/stdout")]),
+("linked-root-path-set", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/linked-root-path-set.tcl").as_slice(), [tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.4.20/linked-root-path-set/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.5.19/linked-root-path-set/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "8.6.18/linked-root-path-set/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "9.0.4/linked-root-path-set/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "9.1.0/linked-root-path-set/stdout"),
+tcl_test_support::fixture_tables::text(include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/captures.tsv"), "jim/linked-root-path-set/stdout")])];
         let mut compared = 0;
         let mut unsupported = 0;
         for (case, source, columns) in cases {
             for (engine, column) in providers.iter().zip(columns) {
-                let (expected_code, expected_result) = original_result(column);
+                let (expected_code, expected_result) = original_result(&column);
                 let profile =
                     tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
                 if *engine == "tcl8.4" {

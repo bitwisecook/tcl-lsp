@@ -38,10 +38,10 @@ fn hex(bytes: &[u8]) -> String {
 
 fn observation(provider: &str, version: &str, case: &str) -> (u8, String) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/data/native_vwait_original")
-        .join(provider)
-        .join(format!("{case}.stdout.tsv"));
+        .join("tests/data/native_vwait_original/captures.tsv");
     let contents = std::fs::read_to_string(path).expect("retained native source observation");
+    let contents =
+        tcl_test_support::fixture_tables::text(&contents, &format!("{provider}/{case}.stdout.tsv"));
     let mut rows = contents.lines();
     assert_eq!(
         rows.next(),

@@ -10,49 +10,45 @@ macro_rules! source {
         ))
     };
 }
+const OPTION_CAPTURES: &str = include_str!(
+    "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/captures.tsv"
+);
+
 macro_rules! rows {
     ($version:literal) => {
         [
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/root-empty/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/root-missing/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/root-c-prefix/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/root-e-prefix/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/child-missing/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/child-empty/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/child-h-prefix/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_interpreter_option_tables210/",
-                $version,
-                "/child-hi-prefix/stdout"
-            )),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/root-empty/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/root-missing/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/root-c-prefix/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/root-e-prefix/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/child-missing/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/child-empty/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/child-h-prefix/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                OPTION_CAPTURES,
+                concat!($version, "/child-hi-prefix/stdout"),
+            ),
         ]
     };
 }
@@ -125,12 +121,12 @@ fn interp_subcommand_words_resolve_like_original_native_option_tables() {
                 compare(
                     &mut interp,
                     source!("child-prelude"),
-                    rows,
+                    &rows,
                     "PRELUDE",
                     &context,
                 );
             }
-            compare(&mut interp, source, rows, "ORIGINAL", &context);
+            compare(&mut interp, source, &rows, "ORIGINAL", &context);
         }
     }
     assert_eq!(crate::counters::finalize(), 0);
