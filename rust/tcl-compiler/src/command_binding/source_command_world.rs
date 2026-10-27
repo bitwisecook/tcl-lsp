@@ -908,6 +908,12 @@ impl OriginalClassInstanceMethodRoster {
 }
 
 impl OriginalCompletedCommandWorld {
+    /// Same authenticated completed state for a private conditional syntax view.
+    /// Callers retain the cut/declaration owner; this grants no body execution.
+    pub(super) fn source_cut_body_state(&self) -> &Arc<ModuleCommandBindings> {
+        &self.state
+    }
+
     fn class_relation_allocations(
         &self,
         class: &SourceCommandDefinition,

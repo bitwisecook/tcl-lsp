@@ -34,7 +34,9 @@ use crate::registry_invocation::{
 };
 
 pub(super) mod logical_body_entry;
+mod source_cut_body;
 mod static_read_child;
+pub(crate) use source_cut_body::OriginalSourceCutBodyRows;
 
 /// A positioned conditional declaration recipe, never an implementation allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2744,10 +2746,25 @@ impl SourceCommandBindings {
         declaration: &DeclarationLayoutObservation,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        let Some(segments) = nested_layout_segments(&body.source, declaration.config) else {
+        self.retain_declared_body_layouts_from_snapshot(
+            body,
+            &declaration.snapshot,
+            declaration.config,
+            registry,
+        );
+    }
+
+    fn retain_declared_body_layouts_from_snapshot(
+        &mut self,
+        body: DeclaredProcedureBody,
+        snapshot: &SourceLookupSnapshot,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let Some(segments) = nested_layout_segments(&body.source, config) else {
             return;
         };
-        let mut state = declaration.snapshot.state.clone();
+        let mut state = snapshot.state.clone();
         state.variable_frame = body.frame.clone();
         state.source_variables = Arc::new(
             state
@@ -2765,10 +2782,7 @@ impl SourceCommandBindings {
         }
         state.current_source_origin = Some(Arc::clone(&body.source.origin));
         let namespace = body.namespace.clone();
-        let snapshot = Arc::new(SourceLookupSnapshot::in_realm(
-            state,
-            declaration.snapshot.realm,
-        ));
+        let snapshot = Arc::new(SourceLookupSnapshot::in_realm(state, snapshot.realm));
         let entry = Arc::new(OriginalDiagnosticFrameEntry::DeclaredProcedure(Arc::new(
             body,
         )));
@@ -2779,7 +2793,7 @@ impl SourceCommandBindings {
             let tokens = super::source_command_tokens_boxed(
                 &entry.source().text,
                 entry.source().base(),
-                declaration.config,
+                config,
                 &segment,
             );
             let site = CommandAllocationSite {
@@ -2792,20 +2806,13 @@ impl SourceCommandBindings {
                 entry: Arc::clone(&entry),
                 snapshot: Arc::clone(&snapshot),
                 namespace: namespace.clone(),
-                config: declaration.config,
+                config,
                 words: Arc::from(tokens.words()),
             };
             if !observations.contains(&observation) {
                 observations.push(observation);
             }
-            if !retains_successor_layout(
-                &site,
-                &tokens,
-                &snapshot,
-                &namespace,
-                declaration.config,
-                registry,
-            ) {
+            if !retains_successor_layout(&site, &tokens, &snapshot, &namespace, config, registry) {
                 break;
             }
         }

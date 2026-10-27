@@ -5,6 +5,7 @@
 //! Original finite source continuation plans owned by the existing kernel.
 
 mod region;
+pub(crate) use region::OriginalSourceCutBodyEntryProjection;
 pub(super) use region::SourceConditionalRegionEntry;
 pub use region::{
     OriginalSingleSourceCutSurvey, OriginalSourceConditionalOutcome,

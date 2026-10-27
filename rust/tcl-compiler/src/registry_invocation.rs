@@ -1366,6 +1366,9 @@ pub fn original_authored_result_completion_for_source_coverage<'a>(
     })
 }
 
+mod source_cut_body_layout;
+pub use source_cut_body_layout::OriginalSourceCutBodyLayout;
+
 /// Deferred declaration geometry under one exact completed source cut.
 /// The original child or suffix owns its Registry source schema; this grants
 /// no inherited invocation purpose, body entry, Native frame or Normal result.
@@ -1374,8 +1377,10 @@ pub struct OriginalSourceCutProcedureDeclaration<'a> {
     selected: ResolvedStatementInvocation,
     body: OriginalSourceScriptBody,
     head_correspondence: SourceCutStoredHead,
+    header: CommandTokens,
+    command: crate::segmenter::SegmentedCommand,
 }
-impl OriginalSourceCutProcedureDeclaration<'_> {
+impl<'a> OriginalSourceCutProcedureDeclaration<'a> {
     /// Same original selected owner, never an equal-text replacement analysis.
     #[must_use]
     pub fn is_for_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
@@ -1389,6 +1394,16 @@ impl OriginalSourceCutProcedureDeclaration<'_> {
     pub const fn invocation(&self) -> &ResolvedStatementInvocation {
         &self.selected
     }
+    /// Retain this same declaration and completed cut for conditional body syntax.
+    /// No alternate header/body or execution entry can replace a refused owner.
+    #[must_use]
+    pub fn into_body_layout(
+        self,
+        survey: &crate::command_binding::OriginalSingleSourceCutSurvey<'_>,
+    ) -> Option<OriginalSourceCutBodyLayout<'a>> {
+        OriginalSourceCutBodyLayout::capture(self, survey)
+    }
+
     /// Exact complete original deferred body, still requiring its own survey.
     #[must_use]
     pub const fn body(&self) -> &OriginalSourceScriptBody {
@@ -1489,11 +1504,7 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     let original = source_cut_stage("body-word", words.original_argument_word(2))?;
     if source_cut_refuses(
         "body-source-context",
-        original.group().kind != tcl_lexer::WordKind::Braced
-            || original.group().expand
-            || body.original_container() != original
-            || !body.matches_source(image, input.lexer_config())
-            || !body.matches_context(context),
+        source_cut_body_refused(original, &body, image, input, context),
     ) {
         return None;
     }
@@ -1503,7 +1514,23 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
         selected,
         body,
         head_correspondence,
+        header: tokens,
+        command: command.clone(),
     })
+}
+
+fn source_cut_body_refused(
+    original: &tcl_lexer::NativeWord,
+    body: &OriginalSourceScriptBody,
+    image: &tcl_lexer::SourceImage,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    context: &tcl_registry::model::ContextRegistry,
+) -> bool {
+    original.group().kind != tcl_lexer::WordKind::Braced
+        || original.group().expand
+        || body.original_container() != original
+        || !body.matches_source(image, input.lexer_config())
+        || !body.matches_context(context)
 }
 
 /// A value-only declaration-word join, never source command selection.
