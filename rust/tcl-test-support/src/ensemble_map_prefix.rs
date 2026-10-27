@@ -24,7 +24,7 @@ pub struct EnsembleMapPrefixControl {
     pub index: usize,
     /// Original case identifier.
     pub case: &'static str,
-    /// Whole immutable stdout for C8.5, C8.6, C9.0 and C9.1 respectively.
+    /// Keys of the whole immutable stdout for C8.5, C8.6, C9.0 and C9.1 respectively.
     pub columns: [&'static str; 4],
 }
 
@@ -34,90 +34,50 @@ pub const CONTROLS: &[EnsembleMapPrefixControl] = &[
         index: 0,
         case: "create-relative-raw-nul",
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout"
-            ),
+            "8.5.19/create-relative-raw-nul/stdout",
+            "8.6.18/create-relative-raw-nul/stdout",
+            "9.0.4/create-relative-raw-nul/stdout",
+            "9.1.0/create-relative-raw-nul/stdout",
         ],
     },
     EnsembleMapPrefixControl {
         index: 1,
         case: "create-rooted-raw-nul",
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout"
-            ),
+            "8.5.19/create-rooted-raw-nul/stdout",
+            "8.6.18/create-rooted-raw-nul/stdout",
+            "9.0.4/create-rooted-raw-nul/stdout",
+            "9.1.0/create-rooted-raw-nul/stdout",
         ],
     },
     EnsembleMapPrefixControl {
         index: 2,
         case: "configure-relative-raw-nul",
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout"
-            ),
+            "8.5.19/configure-relative-raw-nul/stdout",
+            "8.6.18/configure-relative-raw-nul/stdout",
+            "9.0.4/configure-relative-raw-nul/stdout",
+            "9.1.0/configure-relative-raw-nul/stdout",
         ],
     },
     EnsembleMapPrefixControl {
         index: 3,
         case: "configure-rooted-raw-nul",
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout"
-            ),
+            "8.5.19/configure-rooted-raw-nul/stdout",
+            "8.6.18/configure-rooted-raw-nul/stdout",
+            "9.0.4/configure-rooted-raw-nul/stdout",
+            "9.1.0/configure-rooted-raw-nul/stdout",
         ],
     },
     EnsembleMapPrefixControl {
         index: 4,
         case: "create-global-relative-raw-nul",
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout"
-            ),
+            "8.5.19/create-global-relative-raw-nul/stdout",
+            "8.6.18/create-global-relative-raw-nul/stdout",
+            "9.0.4/create-global-relative-raw-nul/stdout",
+            "9.1.0/create-global-relative-raw-nul/stdout",
         ],
     },
 ];
@@ -168,11 +128,15 @@ pub fn operation_words(index: usize) -> &'static [&'static [u8]] {
     }
 }
 
-/// Original non-version rows. The backend's provider labels are separate from
-/// the captured native executable version; every operation/getter/call row stays.
+const CAPTURES: &str =
+    include_str!("../../tcl-registry/tests/data/native_ensemble_map_prefix312/captures.tsv");
+
+/// Original non-version rows of one keyed whole stdout. The backend's provider
+/// labels are separate from the captured native executable version; every
+/// operation/getter/call row stays.
 #[must_use]
 pub fn observation_rows(column: &str) -> Vec<String> {
-    column
+    crate::fixture_tables::text(CAPTURES, column)
         .lines()
         .filter(|row| !row.starts_with("VERSION|"))
         .map(str::to_owned)

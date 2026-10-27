@@ -709,9 +709,18 @@ mod tests {
 
     #[test]
     fn syntax_compiler_reset_publishes_original_without_a_global_literal_owner() {
-        let native = include_str!("../../../../rust/tcl-registry/tests/data/native_control_expression/syntax-lifecycle-9.1.0.tsv")
-            .lines().find(|line| line.starts_with("0\tcompiled\t")).unwrap()
-            .split('\t').collect::<Vec<_>>();
+        let table = tcl_test_support::fixture_tables::text(
+            include_str!(
+                "../../../../rust/tcl-registry/tests/data/native_control_expression/captures.tsv"
+            ),
+            "syntax-lifecycle-9.1.0.tsv",
+        );
+        let native = table
+            .lines()
+            .find(|line| line.starts_with("0\tcompiled\t"))
+            .unwrap()
+            .split('\t')
+            .collect::<Vec<_>>();
         let mut interp = interp("tcl9.1");
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
         let source = obj::Owned::fresh(obj::new_string_bytes(b"original body"));

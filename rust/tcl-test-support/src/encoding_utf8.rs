@@ -23,6 +23,29 @@
 //! source literal. Provider result primary, residency, getter bytes and public
 //! error fields remain separate observations. No execution authority follows.
 
+/// One original provider's whole immutable stdout.
+#[derive(Clone, Copy)]
+pub enum Column {
+    /// A keyed record of the original constructor windows' table.
+    Object(&'static str),
+    /// A whole prefixed-offset window stdout.
+    Offset(&'static str),
+}
+
+const OBJECT_CAPTURES: &str =
+    include_str!("../../tcl-registry/tests/data/native_encoding_utf8_object306/captures.tsv");
+
+impl Column {
+    /// The complete original stdout bytes.
+    #[must_use]
+    pub fn text(self) -> String {
+        match self {
+            Self::Object(key) => crate::fixture_tables::text(OBJECT_CAPTURES, key),
+            Self::Offset(text) => text.to_owned(),
+        }
+    }
+}
+
 /// One fixed original C object-vector control.
 pub struct Utf8EncodingControl {
     /// Original native probe case identifier.
@@ -30,7 +53,7 @@ pub struct Utf8EncodingControl {
     /// The original probe's explicit `ByteArray` constructor, not inferred from bytes.
     pub binary: bool,
     /// Whole immutable stdout for each of the five original C providers.
-    pub columns: [&'static str; 5],
+    pub columns: [Column; 5],
 }
 
 /// The original fifty constructor windows and five independent prefixed-offset windows.
@@ -39,231 +62,131 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         case: "string-eacute",
         binary: false,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-eacute/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-eacute/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-eacute/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-eacute/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-eacute/stdout"
-            ),
+            Column::Object("8.4.20/string-eacute/stdout"),
+            Column::Object("8.5.19/string-eacute/stdout"),
+            Column::Object("8.6.18/string-eacute/stdout"),
+            Column::Object("9.0.4/string-eacute/stdout"),
+            Column::Object("9.1.0/string-eacute/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "string-modified-zero",
         binary: false,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-modified-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-modified-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-modified-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-modified-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-modified-zero/stdout"
-            ),
+            Column::Object("8.4.20/string-modified-zero/stdout"),
+            Column::Object("8.5.19/string-modified-zero/stdout"),
+            Column::Object("8.6.18/string-modified-zero/stdout"),
+            Column::Object("9.0.4/string-modified-zero/stdout"),
+            Column::Object("9.1.0/string-modified-zero/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "string-literal-zero",
         binary: false,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-literal-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-literal-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-literal-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-literal-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-literal-zero/stdout"
-            ),
+            Column::Object("8.4.20/string-literal-zero/stdout"),
+            Column::Object("8.5.19/string-literal-zero/stdout"),
+            Column::Object("8.6.18/string-literal-zero/stdout"),
+            Column::Object("9.0.4/string-literal-zero/stdout"),
+            Column::Object("9.1.0/string-literal-zero/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "string-ff",
         binary: false,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-ff/stdout"
-            ),
+            Column::Object("8.4.20/string-ff/stdout"),
+            Column::Object("8.5.19/string-ff/stdout"),
+            Column::Object("8.6.18/string-ff/stdout"),
+            Column::Object("9.0.4/string-ff/stdout"),
+            Column::Object("9.1.0/string-ff/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "byte-array-ff",
         binary: true,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-ff/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-ff/stdout"
-            ),
+            Column::Object("8.4.20/byte-array-ff/stdout"),
+            Column::Object("8.5.19/byte-array-ff/stdout"),
+            Column::Object("8.6.18/byte-array-ff/stdout"),
+            Column::Object("9.0.4/byte-array-ff/stdout"),
+            Column::Object("9.1.0/byte-array-ff/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "byte-array-zero",
         binary: true,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-zero/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-zero/stdout"
-            ),
+            Column::Object("8.4.20/byte-array-zero/stdout"),
+            Column::Object("8.5.19/byte-array-zero/stdout"),
+            Column::Object("8.6.18/byte-array-zero/stdout"),
+            Column::Object("9.0.4/byte-array-zero/stdout"),
+            Column::Object("9.1.0/byte-array-zero/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "string-surrogate-pair",
         binary: false,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-surrogate-pair/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-surrogate-pair/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-surrogate-pair/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-surrogate-pair/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-surrogate-pair/stdout"
-            ),
+            Column::Object("8.4.20/string-surrogate-pair/stdout"),
+            Column::Object("8.5.19/string-surrogate-pair/stdout"),
+            Column::Object("8.6.18/string-surrogate-pair/stdout"),
+            Column::Object("9.0.4/string-surrogate-pair/stdout"),
+            Column::Object("9.1.0/string-surrogate-pair/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "string-single-high-surrogate",
         binary: false,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-single-high-surrogate/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-single-high-surrogate/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-single-high-surrogate/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-single-high-surrogate/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-single-high-surrogate/stdout"
-            ),
+            Column::Object("8.4.20/string-single-high-surrogate/stdout"),
+            Column::Object("8.5.19/string-single-high-surrogate/stdout"),
+            Column::Object("8.6.18/string-single-high-surrogate/stdout"),
+            Column::Object("9.0.4/string-single-high-surrogate/stdout"),
+            Column::Object("9.1.0/string-single-high-surrogate/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "string-astral",
         binary: false,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-astral/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-astral/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-astral/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-astral/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-astral/stdout"
-            ),
+            Column::Object("8.4.20/string-astral/stdout"),
+            Column::Object("8.5.19/string-astral/stdout"),
+            Column::Object("8.6.18/string-astral/stdout"),
+            Column::Object("9.0.4/string-astral/stdout"),
+            Column::Object("9.1.0/string-astral/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "byte-array-utf8-eacute-octets",
         binary: true,
         columns: [
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-utf8-eacute-octets/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-utf8-eacute-octets/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-utf8-eacute-octets/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-utf8-eacute-octets/stdout"
-            ),
-            include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-utf8-eacute-octets/stdout"
-            ),
+            Column::Object("8.4.20/byte-array-utf8-eacute-octets/stdout"),
+            Column::Object("8.5.19/byte-array-utf8-eacute-octets/stdout"),
+            Column::Object("8.6.18/byte-array-utf8-eacute-octets/stdout"),
+            Column::Object("9.0.4/byte-array-utf8-eacute-octets/stdout"),
+            Column::Object("9.1.0/byte-array-utf8-eacute-octets/stdout"),
         ],
     },
     Utf8EncodingControl {
         case: "string-eacute-single-high-surrogate",
         binary: false,
         columns: [
-            include_str!(
+            Column::Offset(include_str!(
                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/string-eacute-single-high-surrogate/stdout"
-            ),
-            include_str!(
+            )),
+            Column::Offset(include_str!(
                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/string-eacute-single-high-surrogate/stdout"
-            ),
-            include_str!(
+            )),
+            Column::Offset(include_str!(
                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/string-eacute-single-high-surrogate/stdout"
-            ),
-            include_str!(
+            )),
+            Column::Offset(include_str!(
                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/string-eacute-single-high-surrogate/stdout"
-            ),
-            include_str!(
+            )),
+            Column::Offset(include_str!(
                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/string-eacute-single-high-surrogate/stdout"
-            ),
+            )),
         ],
     },
 ];
@@ -285,7 +208,8 @@ pub fn decode_hex(hex: &str) -> Vec<u8> {
 
 /// Original counted constructor data recorded before evaluation/getters.
 #[must_use]
-pub fn original_input(column: &str) -> Vec<u8> {
+pub fn original_input(column: Column) -> Vec<u8> {
+    let column = column.text();
     let input = column
         .lines()
         .find(|line| line.starts_with("INPUT|"))
@@ -295,8 +219,9 @@ pub fn original_input(column: &str) -> Vec<u8> {
 
 /// Preserve every observed field independently of the version-reporting row.
 #[must_use]
-pub fn object_observation_rows(column: &str) -> Vec<String> {
+pub fn object_observation_rows(column: Column) -> Vec<String> {
     column
+        .text()
         .lines()
         .filter(|line| !line.starts_with("VERSION|"))
         .map(str::to_owned)
@@ -304,6 +229,7 @@ pub fn object_observation_rows(column: &str) -> Vec<String> {
 }
 
 /// Jim's independent original command-availability query and caught invocation.
-pub const JIM_AVAILABILITY: &str = include_str!(
-    "../../tcl-registry/tests/data/native_encoding_utf8_object306/jim/string-eacute/stdout"
-);
+#[must_use]
+pub fn jim_availability() -> String {
+    Column::Object("jim/string-eacute/stdout").text()
+}

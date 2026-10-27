@@ -34,6 +34,14 @@ fn call(interp: &mut Interp, argument: &[u8]) -> (Code, Vec<obj::Owned>) {
     let argv = original.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
     (interp.eval_original_object_vector(&argv), original)
 }
+fn original_table(key: &str) -> String {
+    tcl_test_support::fixture_tables::text(
+        include_str!(
+            "../../../../../rust/tcl-registry/tests/data/native_control_expression/captures.tsv"
+        ),
+        key,
+    )
+}
 fn run_outputs(table: &str, expected: usize) {
     let mut compared = 0;
     for row in table.lines() {
@@ -70,21 +78,11 @@ fn run_outputs(table: &str, expected: usize) {
 }
 #[test]
 fn registered_control_artifacts_match_75_native_controls() {
-    run_outputs(
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_control_expression/control75.tsv"
-        ),
-        75,
-    );
+    run_outputs(&original_table("control75.tsv"), 75);
 }
 #[test]
 fn compound_expression_programs_match_40_native_controls() {
-    run_outputs(
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_control_expression/compound40.tsv"
-        ),
-        40,
-    );
+    run_outputs(&original_table("compound40.tsv"), 40);
 }
 fn storage(original: *mut TclObj) -> String {
     obj::check_native_liveness(original).unwrap();
@@ -160,35 +158,15 @@ fn run_expression_storage(table: &str, expected_count: usize) {
 
 #[test]
 fn compiled_expression_storage_matches_40_original_native_windows() {
-    run_expression_storage(
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_control_expression/storage40.tsv"
-        ),
-        40,
-    );
+    run_expression_storage(&original_table("storage40.tsv"), 40);
 }
 
 #[test]
 fn compiled_syntax_context_retains_same_native_message_and_options() {
     for (version, table) in [
-        (
-            "8.6.18",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_control_expression/syntax-context-8.6.18.tsv"
-            ),
-        ),
-        (
-            "9.0.4",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_control_expression/syntax-context-9.0.4.tsv"
-            ),
-        ),
-        (
-            "9.1.0",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_control_expression/syntax-context-9.1.0.tsv"
-            ),
-        ),
+        ("8.6.18", original_table("syntax-context-8.6.18.tsv")),
+        ("9.0.4", original_table("syntax-context-9.0.4.tsv")),
+        ("9.1.0", original_table("syntax-context-9.1.0.tsv")),
     ] {
         let mut interp = interpreter(profile(version));
         let _definition = define(&mut interp, b"expr {$x ? (1/0) : (1+2)}");
@@ -259,13 +237,11 @@ fn compiled_syntax_context_retains_same_native_message_and_options() {
                     b"syntax"
                 );
                 assert!(!obj::has_string_rep(original));
-                assert!(
-                    crate::dict::native_object_bytes(
-                        original,
-                        tcl_syntax::native_string::NativeStringProtocol::Jim084
-                    )
-                    .is_err()
-                );
+                assert!(crate::dict::native_object_bytes(
+                    original,
+                    tcl_syntax::native_string::NativeStringProtocol::Jim084
+                )
+                .is_err());
             } else {
                 assert_eq!(storage(original), fields[5], "{version}: {line}");
                 let slot = fields[3].parse::<usize>().unwrap();
@@ -278,12 +254,7 @@ fn compiled_syntax_context_retains_same_native_message_and_options() {
 
 #[test]
 fn folded_logical_literal_ownership_matches_eight_native_collisions() {
-    run_expression_storage(
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_control_expression/folded-boolean8.tsv"
-        ),
-        8,
-    );
+    run_expression_storage(&original_table("folded-boolean8.tsv"), 8);
 }
 
 #[test]
@@ -294,24 +265,9 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
         b"error BODY",
     ];
     for (version, table) in [
-        (
-            "8.6.18",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_control_expression/return-context-8.6.18.tsv"
-            ),
-        ),
-        (
-            "9.0.4",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_control_expression/return-context-9.0.4.tsv"
-            ),
-        ),
-        (
-            "9.1.0",
-            include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_control_expression/return-context-9.1.0.tsv"
-            ),
-        ),
+        ("8.6.18", original_table("return-context-8.6.18.tsv")),
+        ("9.0.4", original_table("return-context-9.0.4.tsv")),
+        ("9.1.0", original_table("return-context-9.1.0.tsv")),
     ] {
         for (case, source) in sources.iter().enumerate() {
             let mut interp = interpreter(profile(version));
@@ -371,22 +327,13 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
 
 #[test]
 fn c84_logical_storage_and_short_circuit_match_eight_native_controls() {
-    run_expression_storage(
-        include_str!(
-            "../../../../../rust/tcl-registry/tests/data/native_control_expression/logical84.tsv"
-        ),
-        8,
-    );
+    run_expression_storage(&original_table("logical84.tsv"), 8);
 }
 
 #[test]
 fn compiled_catch_store_order_matches_four_native_alias_controls() {
     let mut compared = 0;
-    for row in include_str!(
-        "../../../../../rust/tcl-registry/tests/data/native_control_expression/catch4.tsv"
-    )
-    .lines()
-    {
+    for row in original_table("catch4.tsv").lines() {
         let fields = row.split('\t').collect::<Vec<_>>();
         let mut interp = interpreter(profile(fields[0]));
         let body = decode(fields[1]);
@@ -423,11 +370,7 @@ fn compiled_catch_store_order_matches_four_native_alias_controls() {
 #[test]
 fn catch_publication_and_store_order_match_six_native_engines() {
     let mut compared = 0;
-    for row in include_str!(
-        "../../../../../rust/tcl-registry/tests/data/native_control_expression/catch-publication6.tsv"
-    )
-    .lines()
-    {
+    for row in original_table("catch-publication6.tsv").lines() {
         let fields = row.split('\t').collect::<Vec<_>>();
         let mut interp = if fields[0] == "jim" {
             Interp::with_native_core(

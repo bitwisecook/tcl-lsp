@@ -1028,14 +1028,16 @@ mod tests {
 
     #[test]
     fn syntax_compiler_reset_publishes_original_without_a_global_literal_owner() {
-        let native = include_str!(
-            "../../../tcl-registry/tests/data/native_control_expression/syntax-lifecycle-9.1.0.tsv"
-        )
-        .lines()
-        .find(|line| line.starts_with("0\tcompiled\t"))
-        .unwrap()
-        .split('\t')
-        .collect::<Vec<_>>();
+        let table = tcl_test_support::fixture_tables::text(
+            include_str!("../../../tcl-registry/tests/data/native_control_expression/captures.tsv"),
+            "syntax-lifecycle-9.1.0.tsv",
+        );
+        let native = table
+            .lines()
+            .find(|line| line.starts_with("0\tcompiled\t"))
+            .unwrap()
+            .split('\t')
+            .collect::<Vec<_>>();
         let mut vm = native_vm("tcl9.1");
         let mut literals = tcl_bytecode::LiteralTable::new();
         let message = literals.register_unshared(b"divide by zero");

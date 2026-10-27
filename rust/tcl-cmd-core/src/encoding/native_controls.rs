@@ -31,6 +31,7 @@ fn selected_utf8_units_match_all_55_original_c_conversion_windows() {
             .zip(control.columns)
         {
             let original = original_input(column);
+            let column = column.text();
             let source = if control.binary {
                 NativeStringProtocol::C(version)
                     .materialize(NativeStringInput::PureByteArray(&original))
