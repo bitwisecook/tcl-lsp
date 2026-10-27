@@ -73,7 +73,7 @@ impl CoarseSemanticTokenSource {
     }
 
     /// Actual configured structure-only analysis; no enriched completion grant.
-    pub(super) fn analysis(&self) -> &AnalysisResult {
+    pub(super) fn analysis(&self) -> &Arc<AnalysisResult> {
         match &self.analysis.kind {
             WorkspaceSymbolAnalysisKind::Fresh(document) => &document.seed.analysis,
             WorkspaceSymbolAnalysisKind::Database(document) => &document.analysis,
