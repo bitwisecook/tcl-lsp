@@ -131,7 +131,7 @@ def original_result(stdout, exit_code):
     return "PASS" if passed == 1 else "FAIL"
 
 
-def execute(
+def execute_owned(
     argv, prefix, artifact, seconds, environment, budget, working_directory=None
 ):
     require(budget > 0, "aggregate log budget exhausted")
@@ -144,6 +144,8 @@ def execute(
         )
     if prefix.startswith("initialization-scope-"):
         require(available >= seconds + 25, "scope-control cleanup reserve unavailable")
+    if prefix.startswith("cause3-"):
+        require(available >= seconds + 25, "cause3 immediate full180+25 reserve unavailable")
     seconds = min(seconds, available)
     return owner.run(
         argv,
@@ -205,6 +207,173 @@ def initialization_scope_append(artifacts, environment, budget, processes, outco
     return budget
 
 
+CAUSE3_SELECTORS = (
+    "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+    "live::tests::scf_loader_stores_parsed_snatpool_members",
+    "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+)
+
+
+def execute(argv, prefix, artifact, seconds, environment, budget, working_directory=None):
+    attempt = {"prefix": prefix, "argv": list(argv), "artifact": str(artifact),
+               "returned": False, "receipt": None}
+    attempts.append(attempt)
+    save(out / "attempts.json", attempts)
+    receipt = execute_owned(argv, prefix, artifact, seconds, environment, budget, working_directory)
+    attempt.update(returned=True, receipt=receipt)
+    save(out / "attempts.json", attempts)
+    return receipt
+
+
+def cause3_closed_attempt(attempt):
+    require(attempt["returned"] is True, "unsettled process attempt")
+    prefix = attempt["prefix"]
+    receipt = attempt["receipt"]
+    require(json.loads((out / (prefix + ".process.json")).read_text()) == receipt,
+            "durable current-attempt receipt missing or changed")
+    require(receipt["argv"] == attempt["argv"] and receipt["artifact"] == attempt["artifact"],
+            "attempt/receipt identity mismatch")
+    pid = receipt["pid"]
+    require(type(pid) is int and pid > 0 and type(receipt["pid_start_ticks"]) is int
+            and receipt["pid_start_ticks"] > 0 and receipt["process_group"] == pid,
+            "owned parent birth/group absent")
+    require(receipt["parent_waitid_wnowait"]["si_pid"] == pid
+            and type(receipt["exit_code"]) is int, "WNOWAIT/reap proof absent")
+    require(receipt["timer_armed_before_spawn"] is True
+            and receipt["timer_armed_monotonic_ns"] <= receipt["spawn_return_monotonic_ns"]
+            and receipt["group_empty_before_parent_reap"] is True
+            and receipt["owned_live_group_members"] == []
+            and receipt["last_group_scan"] == {"complete": True, "members": [], "vanished_pids": []}
+            and receipt["consecutive_complete_empty_group_scans"] >= 2,
+            "owned child/group/pipe closure absent")
+    require(receipt["artifact_unchanged"] is True
+            and receipt["artifact_sha256_before"] == receipt["artifact_sha256_after"]
+            == sha(Path(attempt["artifact"])), "attempt executable changed")
+    require(receipt["minimum_free_bytes"] >= FLOOR and receipt["disk_floor_bytes"] == FLOOR,
+            "prior child crossed disk floor")
+    for stream in ("stdout", "stderr"):
+        path = out / (prefix + "." + stream)
+        require(receipt[stream] == str(path) and path.stat().st_size == receipt[stream + "_bytes"],
+                "attempt streams absent/truncated")
+    require(receipt["retained_bytes"] == receipt["stdout_bytes"] + receipt["stderr_bytes"],
+            "attempt capture incomplete")
+    require(lifecycle(receipt) or (receipt["stop_reason"] == "selector_timeout"
+            and receipt["complete"] is False), "unsafe attempt stop")
+    return receipt
+
+
+def cause3_admit_original():
+    require(original_phase_settled is True, "original phase termination is unsettled")
+    require(attempts and len(attempts) == len(processes), "unknown/partial original attempt")
+    for index, attempt in enumerate(attempts):
+        receipt = cause3_closed_attempt(attempt)
+        require(receipt == processes[index], "process history/attempt mismatch")
+        if receipt["stop_reason"] is not None:
+            require(index == len(attempts) - 1, "prior timeout cannot excuse later attempt")
+    if error is not None:
+        last = attempts[-1]
+        selector = last["argv"][1] if len(last["argv"]) > 1 else ""
+        require(last["prefix"].startswith(("tcl_irule_test-", "irule-"))
+                and last["receipt"]["stop_reason"] == "selector_timeout"
+                and error == repr(RuntimeError("original test lifecycle/capture stop: " + selector))
+                and any(row["selector"] == selector and row["state"] == "RUNNING"
+                        and row.get("receipt") == last["prefix"] + ".process.json" for row in rows),
+                "original error is not current returned selector timeout")
+    else:
+        require(all(lifecycle(item) for item in processes), "original stop without exact timeout")
+
+
+def cause3_source_guards():
+    require(files(dependency_roots) == dependencies_before and source() == before
+            and files(provider_roots) == providers_before
+            and files(list(tools.values())) == tool_pins
+            and all(artifact_unchanged(item) for item in artifacts),
+            "cause3 current source/provider/dependency/tool/artifact drift")
+    require(os.environ.get("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC") == "first-decline-v1"
+            and env.get("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC") == "first-decline-v1",
+            "same first-decline environment absent")
+    require(all(sha(root / name) == pin for name, pin in roster["source_pins"].items()),
+            "cause3 source pin mismatch")
+    for guard in roster["cause3_functions"]:
+        lines = (root / guard["path"]).read_bytes().splitlines(keepends=True)
+        body = b"".join(lines[guard["first_line"] - 1:guard["last_line"]])
+        require(hashlib.sha256(body).hexdigest() == guard["sha256"], "cause3 function pin mismatch")
+
+
+def cause3_artifact():
+    require(roster["cause3_controls"] == list(CAUSE3_SELECTORS), "fixed cause3 roster changed")
+    selected = [item for item in artifacts if item["target"] == "tcl_irule_test"]
+    require(len(selected) == 1 and len(artifacts) == 3, "same authenticated heavy artifacts absent")
+    artifact = selected[0]
+    event = artifact["cargo_event"]
+    require(event["fresh"] is False and event["profile"]["test"] is True
+            and event["profile"]["debug_assertions"] is True
+            and event["target"]["name"] == "tcl_irule_test" and event["target"]["kind"] == ["lib"]
+            and event["manifest_path"] == str(root / "rust/tcl-irule-test/Cargo.toml")
+            and str(Path(event["executable"]).resolve()) == artifact["path"]
+            and Path(artifact["path"]).is_relative_to(target)
+            and artifact["strict_Rust_0w"] is True, "same fresh current harness ELF absent")
+    with Path(artifact["path"]).open("rb") as stream:
+        require(stream.read(4) == b"\x7fELF", "cause3 artifact is not ELF")
+    listing = json.loads((out / "roster-tcl_irule_test.json").read_text())
+    expected = roster["full_rosters"]["tcl_irule_test"] + roster["initialization_scope_controls"]
+    require(listing["target"] == "tcl_irule_test"
+            and listing["executable_sha256"] == artifact["sha256"]
+            and listing["listing_sha256"] == sha(out / "list-tcl_irule_test.stdout")
+            and len(listing["selected"]) == len(set(listing["selected"])) == len(expected)
+            and set(listing["selected"]) == set(expected)
+            and set(CAUSE3_SELECTORS) <= set(listing["selected"]), "cause3 actual full listing mismatch")
+    return artifact
+
+
+def cause3_append():
+    global remaining
+    cause3_admit_original()
+    for index, row in enumerate(cause3_rows):
+        cause3_source_guards()
+        artifact = cause3_artifact()
+        require(remaining > 512 * 1024, "cause3 shared capture reserve unavailable")
+        require(deadline - time.time() >= 205, "cause3 full180+25 reserve unavailable")
+        row["state"] = "RUNNING"
+        save(out / "cause3-outcomes.json", cause3_rows)
+        prefix = "cause3-" + str(index).zfill(2)
+        receipt = execute([artifact["path"], row["selector"], "--exact", "--nocapture", "--test-threads=1"],
+                          prefix, Path(artifact["path"]), 180, env, remaining,
+                          working_directory=root / "rust/tcl-irule-test")
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        row.update(exit_code=receipt["exit_code"], receipt=prefix + ".process.json",
+                   stdout=prefix + ".stdout", stderr=prefix + ".stderr")
+        cause3_closed_attempt(attempts[-1])
+        require(lifecycle(receipt), "cause3 lifecycle/capture stop")
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        row["state"] = original_result(stdout, receipt["exit_code"])
+        save(out / "cause3-outcomes.json", cause3_rows)
+        cause3_source_guards()
+    return all(row["state"] == "PASS" for row in cause3_rows)
+
+
+def cause3_finish(original_status):
+    phase_error = None
+    try:
+        passed = cause3_append()
+        if original_status == 0 and not passed:
+            original_status = 1
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError, ImportError,
+            KeyError, TypeError, AssertionError, KeyboardInterrupt, NameError) as failure:
+        phase_error = repr(failure)
+        original_status = 2
+    for row in cause3_rows:
+        if row["state"] == "RUNNING":
+            row["state"] = "INCOMPLETE"
+        if row["state"] in ("UNRUN", "INCOMPLETE"):
+            row["unrun_reason"] = phase_error
+    save(out / "cause3-outcomes.json", cause3_rows)
+    save(out / "cause3-summary.json", {"outcomes": cause3_rows, "error": phase_error,
+         "original_error": error, "overall_exit": original_status, "diagnostic_only": True})
+    return original_status
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -233,7 +402,7 @@ resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 roster_path = BASE / "irules-preflight-roster.json"
 require(
     sha(roster_path)
-    == "71aa54a129189705ea55af536922827fbaa07aa34f95e786a87326c16676573c",
+    == "355247988339500a2732aa2455910cbcae4eb13bf31a14f495f912d72e5cd600",
     "approved original preflight3 roster changed",
 )
 roster = json.loads(roster_path.read_text())
@@ -269,6 +438,10 @@ remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
 processes = []
+original_phase_settled = False
+attempts = []
+cause3_rows = [{"group": "separate_cause3", "target": "tcl_irule_test", "selector": name, "state": "UNRUN"}
+               for name in CAUSE3_SELECTORS]
 error = None
 final_errors = []
 status = 2
@@ -682,6 +855,7 @@ try:
     status = 2
     remaining = initialization_scope_append(artifacts, env, remaining, processes, initialization_scope_rows[0])
     status = 0 if all(row["state"] == "PASS" for row in rows + initialization_scope_rows) else 1
+    original_phase_settled = True
 except (
     RuntimeError,
     OSError,
@@ -695,7 +869,9 @@ except (
 ) as failure:
     error = repr(failure)
     print("IRULE PREFLIGHT DIAGNOSTIC STOP " + error, file=sys.stderr, flush=True)
+    original_phase_settled = True
 finally:
+    status = cause3_finish(status)
     if initialization_scope_rows[0]["state"] == "RUNNING":
         initialization_scope_rows[0]["state"] = "INCOMPLETE"
     if initialization_scope_rows[0]["state"] in ["UNRUN", "INCOMPLETE"]:
@@ -746,6 +922,9 @@ finally:
             "processes": processes,
             "remaining_log_bytes": remaining,
             "outcomes": rows,
+            "required_separate_cause_tests": 3,
+            "separate_cause_outcomes": cause3_rows,
+            "attempts": attempts,
             "required_original_tests": 3,
             "original_tests_closed": sum(
                 row["state"] in ["PASS", "FAIL"] for row in rows

@@ -166,7 +166,8 @@
     "runtime/rust/src/expr_error.rs": "86c1eeff660d490e560bf6cefa827a19fd62a558ff47ff8e2a0493128f76e535",
     "runtime/rust/src/expr_error/cold_state.rs": "94a4bec3c1a1a73f4b4fa927beda34b8671fa2673ea294fcd3ec7db50d65c321",
     "rust/tcl-vm/src/interp/native_procedure_refusal_observer.rs": "5ea5a36a84c230f5563720846c1a6aba997d387c398683babaa368996ee3334a",
-    "runtime/rust/src/interp/cached_increment.rs": "5461b65a2bfe339ae5d0baad136583ad6d7d19f62a58fa6a771902a5af770162"
+    "runtime/rust/src/interp/cached_increment.rs": "5461b65a2bfe339ae5d0baad136583ad6d7d19f62a58fa6a771902a5af770162",
+    "rust/tcl-irule-test/src/pure_functions.rs": "feb630998c7ed68e2a74e961702f6109d5103bb944e138e1821083be36e24688"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",
@@ -174,5 +175,33 @@
   ],
   "initialization_scope_controls": [
     "live::tests::native_framework_initialization_restores_f5_policy_after_success_and_error"
+  ],
+  "cause3_controls": [
+    "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+    "live::tests::scf_loader_stores_parsed_snatpool_members",
+    "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents"
+  ],
+  "cause3_functions": [
+    {
+      "selector": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+      "path": "rust/tcl-irule-test/src/pure_functions.rs",
+      "first_line": 556,
+      "last_line": 638,
+      "sha256": "6199824b0c0c7daa84081a681ddd94004985fe4968e3501f5a0e54d1d72d17de"
+    },
+    {
+      "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
+      "path": "rust/tcl-irule-test/src/live.rs",
+      "first_line": 1459,
+      "last_line": 1521,
+      "sha256": "ad5b5ec3888489bcb60f070b927dec4c7ecf1939881bb30f6a1e8e3ea9cee461"
+    },
+    {
+      "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+      "path": "rust/tcl-irule-test/src/live.rs",
+      "first_line": 1540,
+      "last_line": 1650,
+      "sha256": "c5c912438dec7e1e1022ef38eb9e6a4be652f173c266345b633a9436f196a7c9"
+    }
   ]
 }
