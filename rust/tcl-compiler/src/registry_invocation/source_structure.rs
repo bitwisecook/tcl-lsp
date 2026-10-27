@@ -5878,7 +5878,13 @@ mod tests {
             .unwrap()
             .borrowed_context_registry();
         let head = super::super::source_cut_resolved_head_correspondence(
-            source, config, realm, context, &tokens, &selected,
+            source,
+            config,
+            analysis.resolved_input.as_ref().unwrap(),
+            realm,
+            context,
+            &tokens,
+            &selected,
         )
         .unwrap();
         assert_eq!(head.left().origins().first(), written.origins().first());
@@ -5889,6 +5895,7 @@ mod tests {
             super::super::source_cut_resolved_head_correspondence(
                 &(source.to_owned() + " "),
                 config,
+                analysis.resolved_input.as_ref().unwrap(),
                 realm,
                 context,
                 &tokens,
@@ -5902,6 +5909,7 @@ mod tests {
             super::super::source_cut_resolved_head_correspondence(
                 source,
                 foreign_config,
+                analysis.resolved_input.as_ref().unwrap(),
                 realm,
                 context,
                 &tokens,
@@ -5914,6 +5922,7 @@ mod tests {
             super::super::source_cut_resolved_head_correspondence(
                 source,
                 config,
+                analysis.resolved_input.as_ref().unwrap(),
                 foreign.retained_command_realm().unwrap(),
                 context,
                 &tokens,

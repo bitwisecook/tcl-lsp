@@ -1465,8 +1465,7 @@ pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     }
     let head_correspondence = source_cut_head(
         source,
-        input.lexer_config(),
-        realm,
+        (input.lexer_config(), input, realm),
         context,
         &tokens,
         &words,
@@ -1542,16 +1541,22 @@ impl SourceCutStoredHead {
 
 fn source_cut_head(
     source: &str,
-    config: tcl_lexer::LexerConfig,
-    realm: &crate::realm::CommandBindingRealm,
+    current: (
+        tcl_lexer::LexerConfig,
+        &crate::analyser::ResolvedAnalysisInput,
+        &crate::realm::CommandBindingRealm,
+    ),
     context: &tcl_registry::model::ContextRegistry,
     tokens: &CommandTokens,
     words: &source_structure::OriginalRegistryWords,
 ) -> Option<SourceCutStoredHead> {
+    let (config, input, realm) = current;
     match words.origins().first()? {
         InvocationWordOrigin::Written(0) => Some(SourceCutStoredHead::Written),
         InvocationWordOrigin::ResolvedHead => Some(SourceCutStoredHead::Resolved(Box::new(
-            source_cut_resolved_head_correspondence(source, config, realm, context, tokens, words)?,
+            source_cut_resolved_head_correspondence(
+                source, config, input, realm, context, tokens, words,
+            )?,
         ))),
         _ => None,
     }
@@ -1586,6 +1591,7 @@ fn source_cut_declaration_origins(words: &source_structure::OriginalRegistryWord
 fn source_cut_resolved_head_correspondence(
     source: &str,
     config: tcl_lexer::LexerConfig,
+    input: &crate::analyser::ResolvedAnalysisInput,
     realm: &crate::realm::CommandBindingRealm,
     context: &tcl_registry::model::ContextRegistry,
     tokens: &CommandTokens,
@@ -1603,33 +1609,13 @@ fn source_cut_resolved_head_correspondence(
     ) {
         return None;
     }
-    let advice = source_cut_stage(
-        "pair.value-advice",
-        realm.original_source_transition_value_advice(context, tokens, true),
+    let values = source_cut_stage(
+        "pair.primary-declaration-values",
+        realm.original_source_procedure_declaration_values(input, context, tokens),
     )?;
-    let original = source_cut_stage(
-        "pair.words",
-        source_structure::source_transition_words_from_advice(source, config, context, advice),
-    )?;
-    if source_cut_refuses(
-        "pair.operands",
-        original.origins().len() != words.origins().len()
-            || original
-                .origins()
-                .iter()
-                .enumerate()
-                .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
-            || (0..words.arguments().len()).any(|index| {
-                original.original_argument_word(index) != words.original_argument_word(index)
-            }),
-    ) {
-        return None;
-    }
-    source_cut_stage(
-        "pair.correspondence",
-        original.original_source_head_correspondence(words, context),
-    )
-    .map(|heads| SourceCutDeclarationWordCorrespondence { heads })
+    values
+        .head_correspondence(source, config, input, words)
+        .map(|heads| SourceCutDeclarationWordCorrespondence { heads })
 }
 
 pub(crate) fn source_cut_stage<T>(stage: &'static str, value: Option<T>) -> Option<T> {

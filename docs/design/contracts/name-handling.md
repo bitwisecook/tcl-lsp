@@ -4124,6 +4124,27 @@ completion authority. A private declaration-word carrier retains this value-only
 purpose and cannot substitute its left source catalogue for the separately
 selected command or body.
 
+The selected-head join obtains primary declaration operand values from the final
+procedure-declaration record in the same held transition tape. The record must
+be present and unanimous, with no registry barrier, and retain the actual
+analysis attachment, source origin/site, complete input/configuration, original
+native-word vector and current registered declaration shape. A missing or
+conflicted row remains unavailable; a local pre-merge procedure preview cannot
+replace that record. No standalone replay, second analysis or alternate source
+point is used to supply it.
+
+This value projection is structurally separate from conditional command lookup.
+Its opaque carrier exposes only the existing original-head correspondence
+operation, preserving all original written operands and the independently
+selected descriptor/argument offset. The retained declaration advice and its
+debts remain unchanged. The command lookup and shared fallback helpers keep
+`Refused` terminal; they neither consult this primary value view nor gain a
+selection. Foreign/stale owners or inputs, barriers, captured/expanded operands
+and mismatched shapes refuse. This supplies no actual variable value, command
+permission, Native body/frame, operation Normal fact or edit authority. The
+ordinary `Written(0)` route and the separate namespace/load-card owner gap are
+unchanged.
+
 ### Authored result-completion source coverage
 
 An exact current AuthoredSimulation invocation can retain source coverage for

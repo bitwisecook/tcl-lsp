@@ -1789,6 +1789,70 @@ impl super::CommandBindingRealm {
         Some(advice)
     }
 
+    /// Read primary declaration values from this same held tape, never lookup fallback.
+    pub(crate) fn original_source_procedure_declaration_values(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        context: &ContextRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<crate::command_binding::OriginalSourceProcedureDeclarationValues> {
+        if cut_value_refuses(
+            true,
+            "declaration-values.full-input",
+            !self.matches_resolved_analysis_input(input)
+                || !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context)
+                || tokens.synthetic.is_some()
+                || !self.bindings.owns_original_analysis_attachment(tokens),
+        ) {
+            return None;
+        }
+        let binding = cut_value_stage(
+            true,
+            "declaration-values.binding",
+            tokens.source_binding.as_ref(),
+        )?;
+        let origin = cut_value_stage(
+            true,
+            "declaration-values.origin",
+            self.bindings.source_origin(),
+        )?;
+        let owner = cut_value_stage(
+            true,
+            "declaration-values.analysis-owner",
+            self.bindings.original_analysis_owner(),
+        )?;
+        let image = origin.source_image();
+        let config = input.lexer_config();
+        if cut_value_refuses(
+            true,
+            "declaration-values.current-image",
+            self.bindings.original_source_lexer_config() != Some(config)
+                || !self.matches_original_source_image(image, config),
+        ) {
+            return None;
+        }
+        let offset = cut_value_stage(true, "declaration-values.head", tokens.words().first())?
+            .source()
+            .span
+            .start();
+        let original = cut_value_stage(
+            true,
+            "declaration-values.native-vector",
+            crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                offset,
+                config,
+            ),
+        )?;
+        let prepared = self.source_advice.get_or_prepare(context, || {
+            self.bindings
+                .original_source_transition_advice_tape(context)
+        });
+        let tape = cut_value_stage(true, "declaration-values.tape", prepared.as_ref().as_ref())?;
+        tape.procedure_declaration_values(owner, input, offset, &original, binding)
+    }
+
     /// Original source operand producers are a separate purpose from command
     /// selection. A known target may retain declaration values, but the caller
     /// must independently match its effective argv, target and dialect.

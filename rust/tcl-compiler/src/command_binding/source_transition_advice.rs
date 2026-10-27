@@ -848,6 +848,71 @@ struct OriginalSourceArityPrefix {
     debts: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
 }
 
+/// A primary declaration-operand value view from one final retained tape row.
+/// No advice or registry-word unwrap is exposed to command-selection callers.
+pub(crate) struct OriginalSourceProcedureDeclarationValues {
+    advice: Arc<OriginalSourceCommandTransitionAdvice>,
+    shape: tcl_registry::AuthoredSourceProcedureArguments,
+    input: crate::analyser::ResolvedAnalysisInput,
+}
+impl OriginalSourceProcedureDeclarationValues {
+    pub(crate) fn head_correspondence(
+        self,
+        source: &str,
+        config: LexerConfig,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        selected: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalSourceHeadCorrespondence>
+    {
+        use crate::registry_invocation::{
+            InvocationWordOrigin, source_cut_refuses, source_cut_stage,
+        };
+        if source_cut_refuses(
+            "declaration-values.input",
+            &self.input != input || config != input.lexer_config(),
+        ) {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let original = source_cut_stage(
+            "pair.words",
+            crate::registry_invocation::source_structure::source_transition_words_from_advice(
+                source,
+                config,
+                context,
+                self.advice.as_ref().clone(),
+            ),
+        )?;
+        let shape = source_cut_stage(
+            "declaration-values.schema",
+            original.with_source_schema(context, |schema| {
+                schema.authored_source_procedure_arguments()
+            }),
+        )??;
+        if source_cut_refuses("declaration-values.shape", shape != self.shape) {
+            return None;
+        }
+        if source_cut_refuses(
+            "pair.operands",
+            original.origins().len() != selected.origins().len()
+                || original
+                    .origins()
+                    .iter()
+                    .enumerate()
+                    .any(|(index, origin)| *origin != InvocationWordOrigin::Written(index))
+                || (0..selected.arguments().len()).any(|index| {
+                    original.original_argument_word(index) != selected.original_argument_word(index)
+                }),
+        ) {
+            return None;
+        }
+        source_cut_stage(
+            "pair.correspondence",
+            original.original_source_head_correspondence(selected, context),
+        )
+    }
+}
+
 type ConditionalProcedureDeclarationSelection = (
     Arc<source_procedure::OriginalSourceProcedureBody>,
     tcl_registry::AuthoredSourceProcedureArguments,
@@ -1351,6 +1416,57 @@ impl OriginalSourceTransitionAdviceTape {
         offset: u32,
     ) -> Option<&[OriginalSourceInterpreterPathBinding]> {
         self.interpreter_paths.get(&offset).map(Vec::as_slice)
+    }
+
+    /// Primary operand values only: final conflicts, absence and barriers refuse.
+    pub(crate) fn procedure_declaration_values(
+        &self,
+        owner: &Arc<super::OriginalSourceAnalysisOwner>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        offset: u32,
+        original: &[NativeWord],
+        binding: &super::SourceInvocationBinding,
+    ) -> Option<OriginalSourceProcedureDeclarationValues> {
+        use crate::registry_invocation::{source_cut_refuses, source_cut_stage};
+        if source_cut_refuses(
+            "declaration-values.registry-barrier",
+            self.blocks_registry_source(offset),
+        ) {
+            return None;
+        }
+        let record = source_cut_stage(
+            "declaration-values.record",
+            self.conditional_procedure_declarations.get(&offset),
+        )?;
+        let (procedure, shape) = source_cut_stage("declaration-values.unanimity", record.as_ref())?;
+        let advice = &procedure.declaration;
+        let origin = &owner.source;
+        let site = source_cut_stage(
+            "declaration-values.binding-site",
+            binding.dispatch_site.as_ref(),
+        )?;
+        if source_cut_refuses(
+            "declaration-values.owner-source-context",
+            owner.config != input.lexer_config()
+                || !Arc::ptr_eq(&site.source, origin)
+                || site.offset != offset
+                || binding
+                    .original_analysis_owner
+                    .as_ref()
+                    .is_none_or(|actual| !Arc::ptr_eq(actual, owner))
+                || !Arc::ptr_eq(&advice.site.source, origin)
+                || advice.site.offset != offset
+                || !advice.matches_source(origin.source_image(), input.lexer_config())
+                || !advice.matches_context(input.borrowed_context_registry())
+                || advice.original_words() != original,
+        ) {
+            return None;
+        }
+        Some(OriginalSourceProcedureDeclarationValues {
+            advice: Arc::clone(advice),
+            shape: *shape,
+            input: input.clone(),
+        })
     }
 
     pub(crate) fn blocks_registry_source(&self, offset: u32) -> bool {
@@ -4834,5 +4950,265 @@ mod advice_cell_storage_tests {
         assert_eq!(current.cells.get(&imported), old.cells.get(&imported));
         assert_eq!(current.cells.len() + 1, old.cells.len());
         assert!(old.uncertain_operations.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod declaration_value_controls {
+    use super::{
+        OriginalSourceProcedureDeclarationValues, OriginalSourceTransitionAdviceLookup,
+        OriginalSourceTransitionAdviceTape, source_class,
+    };
+    use crate::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+    use crate::ir::CommandTokens;
+    use std::sync::Arc;
+
+    const SOURCE: &str = "proc helper {} {return VALUE}";
+
+    struct Fixture {
+        source: String,
+        analysis: AnalysisResult,
+        command: crate::segmenter::SegmentedCommand,
+        tokens: CommandTokens,
+        original: Vec<tcl_lexer::NativeWord>,
+        tape: OriginalSourceTransitionAdviceTape,
+    }
+    impl Fixture {
+        fn values(&self) -> Option<OriginalSourceProcedureDeclarationValues> {
+            let realm = self.analysis.retained_command_realm()?;
+            self.tape.procedure_declaration_values(
+                realm.source_bindings_ref().original_analysis_owner()?,
+                self.analysis.resolved_input.as_ref()?,
+                0,
+                &self.original,
+                self.tokens.source_binding.as_ref()?,
+            )
+        }
+        fn selected(&self) -> crate::registry_invocation::source_structure::OriginalRegistryWords {
+            crate::registry_invocation::source_structure::source_registry_words(
+                &self.source,
+                &self.analysis,
+                &self.command,
+            )
+            .unwrap()
+        }
+    }
+    fn fixture(source: &str) -> Fixture {
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let realm = analysis.retained_command_realm().unwrap();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = realm.original_source_image().unwrap();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .remove(0);
+        let mut tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            input.lexer_config(),
+            &command,
+        );
+        realm.stamp_original_tokens(&mut tokens);
+        let original = crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            0,
+            input.lexer_config(),
+        )
+        .unwrap();
+        let tape = realm
+            .source_bindings_ref()
+            .original_source_transition_advice_tape(input.borrowed_context_registry())
+            .unwrap();
+        Fixture {
+            source: source.to_owned(),
+            analysis,
+            command,
+            tokens,
+            original,
+            tape,
+        }
+    }
+
+    #[test]
+    fn primary_declaration_values_keep_the_final_record_and_command_refusal() {
+        let fixture = fixture(SOURCE);
+        assert!(matches!(
+            fixture.tape.lookup(0),
+            OriginalSourceTransitionAdviceLookup::Refused
+        ));
+        let values = fixture
+            .values()
+            .expect("genuine final same-tape declaration values");
+        let (record, shape) = fixture
+            .tape
+            .conditional_procedure_declarations
+            .get(&0)
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        assert!(Arc::ptr_eq(&values.advice, &record.declaration));
+        assert_eq!(values.shape, *shape);
+        let input = fixture.analysis.resolved_input.as_ref().unwrap();
+        let realm = fixture.analysis.retained_command_realm().unwrap();
+        assert!(
+            realm
+                .original_source_transition_advice(
+                    input.borrowed_context_registry(),
+                    &fixture.tokens,
+                )
+                .is_none()
+        );
+        let selected = fixture.selected();
+        let values = realm
+            .original_source_procedure_declaration_values(
+                input,
+                input.borrowed_context_registry(),
+                &fixture.tokens,
+            )
+            .unwrap();
+        let pair = values
+            .head_correspondence(SOURCE, input.lexer_config(), input, &selected)
+            .unwrap();
+        assert!(pair.matches_selected_source(&selected));
+        assert!(matches!(
+            fixture.tape.lookup(0),
+            OriginalSourceTransitionAdviceLookup::Refused
+        ));
+    }
+
+    #[test]
+    fn declaration_values_refuse_absent_and_sticky_conflicted_final_records() {
+        let mut absent = fixture(SOURCE);
+        assert!(absent.values().is_some());
+        assert!(
+            absent
+                .tape
+                .conditional_procedure_declarations
+                .remove(&0)
+                .is_some()
+        );
+        assert!(absent.values().is_none());
+        assert!(matches!(
+            absent.tape.lookup(0),
+            OriginalSourceTransitionAdviceLookup::Refused
+        ));
+        let mut conflict = fixture(SOURCE);
+        let actual = conflict
+            .tape
+            .conditional_procedure_declarations
+            .get(&0)
+            .cloned()
+            .unwrap();
+        assert!(actual.is_some());
+        source_class::merge_receipt(
+            &mut conflict.tape.conditional_procedure_declarations,
+            0,
+            None,
+        );
+        source_class::merge_receipt(
+            &mut conflict.tape.conditional_procedure_declarations,
+            0,
+            actual,
+        );
+        assert!(
+            conflict
+                .tape
+                .conditional_procedure_declarations
+                .get(&0)
+                .unwrap()
+                .is_none()
+        );
+        assert!(conflict.values().is_none());
+    }
+
+    #[test]
+    fn declaration_values_refuse_registry_barrier_and_equal_foreign_owner() {
+        let mut barred = fixture(SOURCE);
+        assert!(barred.values().is_some());
+        barred.tape.registry_barriers.insert(0);
+        assert!(barred.values().is_none());
+        let current = fixture(SOURCE);
+        let foreign = fixture(SOURCE);
+        let input = current.analysis.resolved_input.as_ref().unwrap();
+        let foreign_owner = foreign
+            .analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref()
+            .original_analysis_owner()
+            .unwrap();
+        assert!(
+            current
+                .tape
+                .procedure_declaration_values(
+                    foreign_owner,
+                    input,
+                    0,
+                    &current.original,
+                    current.tokens.source_binding.as_ref().unwrap(),
+                )
+                .is_none()
+        );
+        let realm = current.analysis.retained_command_realm().unwrap();
+        assert!(
+            realm
+                .original_source_procedure_declaration_values(
+                    input,
+                    input.borrowed_context_registry(),
+                    &foreign.tokens,
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn declaration_values_refuse_changed_input_source_and_selected_operands() {
+        let current = fixture(SOURCE);
+        let input = current.analysis.resolved_input.as_ref().unwrap();
+        let selected = current.selected();
+        assert!(
+            current
+                .values()
+                .unwrap()
+                .head_correspondence(
+                    "proc helper {} {return OTHER}",
+                    input.lexer_config(),
+                    input,
+                    &selected,
+                )
+                .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let changed =
+            ResolvedAnalysisInput::new(profile, profile, input.context_registry(), config);
+        let realm = current.analysis.retained_command_realm().unwrap();
+        assert!(
+            realm
+                .original_source_procedure_declaration_values(
+                    &changed,
+                    changed.borrowed_context_registry(),
+                    &current.tokens,
+                )
+                .is_none()
+        );
+        let other = fixture("proc helper {argument} {return $argument}");
+        assert!(
+            current
+                .values()
+                .unwrap()
+                .head_correspondence(SOURCE, input.lexer_config(), input, &other.selected(),)
+                .is_none()
+        );
+        let mut wrong_shape = current.values().unwrap();
+        wrong_shape.shape.name = usize::MAX;
+        assert!(
+            wrong_shape
+                .head_correspondence(SOURCE, input.lexer_config(), input, &selected,)
+                .is_none()
+        );
     }
 }
