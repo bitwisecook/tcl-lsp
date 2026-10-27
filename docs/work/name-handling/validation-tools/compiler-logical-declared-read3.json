@@ -1009,5 +1009,41 @@
         "env": {}
       }
     ]
+  },
+  "separate_source_cut_body_owner_control": {
+    "schema": "separate-sourcecut-body-owner1-v1",
+    "expected_selected": 1,
+    "source": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+    "source_sha256": "dbb2543be35583aa0fbe792b969873b06073175eb533b77b68b9a3c8685d3dd6",
+    "source_pins": {
+      "rust/tcl-compiler/src/registry_invocation.rs": "3e0e9ae468ef94a266a8e37b32b5e7a518f0e69f7b4d5cb839fdb2d8b8de109f",
+      "rust/tcl-compiler/src/registry_invocation/source_cut_body_layout.rs": "01f478eb4f0e3360ffb82a31d8ad5a15c98321a60ecceb18f275e3909a52b6d6",
+      "rust/tcl-compiler/src/command_binding.rs": "ff21e88d2cf62f43c2ff61ca6a8b52cde092c59ee3dd37402172291a96548680",
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "fce8dbe9dd54c315c018c350833e7cf912ac6a9f5338ce1d65b43431e9a57c0e",
+      "rust/tcl-compiler/src/command_binding/declaration_preview/source_cut_body.rs": "b41b7ec93e394add13cb932378f2c79942dae098a803e38742d5c692e3e8b0f3",
+      "rust/tcl-compiler/src/command_binding/source_command_world.rs": "39c4acc6b4ca7585f0a76b1257cd784db9ecc06033f7d46bd8a767ec244957f8",
+      "rust/tcl-compiler/src/command_binding/conditional_source.rs": "37bb35622964cba5ddce642c9e87d75f516f7d66aa05785cc7f3adcbc0ac0a50",
+      "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "dbb2543be35583aa0fbe792b969873b06073175eb533b77b68b9a3c8685d3dd6",
+      "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be"
+    },
+    "functions": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+        "name": "source_cut_body_projection_refuses_equal_but_foreign_analysis_owner",
+        "sha256": "3483c7fda6d4e78d62f68db043c7912ef20a624899977af8b56b51b34206a970"
+      }
+    ],
+    "rows": [
+      {
+        "group": "diagnostic-sourcecut-body-owner1",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::conditional_source::region::controls::source_cut_body_projection_refuses_equal_but_foreign_analysis_owner",
+        "env": {}
+      }
+    ]
   }
 }
