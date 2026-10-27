@@ -15,34 +15,33 @@ macro_rules! source {
         ))
     };
 }
+const HOLDER_CAPTURES: &str = include_str!(
+    "../../../../rust/tcl-registry/tests/data/native_namespace_holder_routing202/captures.tsv"
+);
+
 macro_rules! rows {
     ($version:literal) => {
         [
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
-                $version,
-                "/deferred-original/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
-                $version,
-                "/recreated-object-private-dispatcher/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
-                $version,
-                "/synchronous-create/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
-                $version,
-                "/synchronous-replace/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
-                $version,
-                "/deferred-alias-relative-rooted/stdout"
-            )),
+            tcl_test_support::fixture_tables::text(
+                HOLDER_CAPTURES,
+                concat!($version, "/deferred-original/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                HOLDER_CAPTURES,
+                concat!($version, "/recreated-object-private-dispatcher/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                HOLDER_CAPTURES,
+                concat!($version, "/synchronous-create/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                HOLDER_CAPTURES,
+                concat!($version, "/synchronous-replace/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                HOLDER_CAPTURES,
+                concat!($version, "/deferred-alias-relative-rooted/stdout"),
+            ),
         ]
     };
 }
@@ -138,11 +137,11 @@ fn original_command_holder_source_controls_match_all_native_providers() {
             crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
             let context = format!("{engine}/{index}");
             if let Some(prelude) = control.prelude {
-                assert_phase(&mut interp, prelude, rows, "PRELUDE", &context);
+                assert_phase(&mut interp, prelude, &rows, "PRELUDE", &context);
             }
-            assert_phase(&mut interp, control.source, rows, "ORIGINAL", &context);
+            assert_phase(&mut interp, control.source, &rows, "ORIGINAL", &context);
             if let Some(query) = control.query {
-                assert_phase(&mut interp, query, rows, "QUERY", &context);
+                assert_phase(&mut interp, query, &rows, "QUERY", &context);
             }
         }
     }
@@ -158,29 +157,29 @@ macro_rules! ensemble_source {
         ))
     };
 }
+const ENSEMBLE_CAPTURES: &str = include_str!(
+    "../../../../rust/tcl-registry/tests/data/native_ensemble_holder_routing205/captures.tsv"
+);
+
 macro_rules! ensemble_rows {
     ($version:literal) => {
         [
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
-                $version,
-                "/default-live/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
-                $version,
-                "/relative-qualified-live/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
-                $version,
-                "/default-retained-parent/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
-                $version,
-                "/relative-retained-parent/stdout"
-            )),
+            tcl_test_support::fixture_tables::text(
+                ENSEMBLE_CAPTURES,
+                concat!($version, "/default-live/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                ENSEMBLE_CAPTURES,
+                concat!($version, "/relative-qualified-live/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                ENSEMBLE_CAPTURES,
+                concat!($version, "/default-retained-parent/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                ENSEMBLE_CAPTURES,
+                concat!($version, "/relative-retained-parent/stdout"),
+            ),
         ]
     };
 }
@@ -219,16 +218,16 @@ fn original_ensemble_holder_source_controls_match_all_native_providers() {
             assert_phase(
                 &mut interp,
                 ensemble_source!("holder-prelude.tcl"),
-                rows,
+                &rows,
                 "PRELUDE",
                 &context,
             );
-            assert_phase(&mut interp, source, rows, "ORIGINAL", &context);
+            assert_phase(&mut interp, source, &rows, "ORIGINAL", &context);
             if index >= 2 {
                 assert_phase(
                     &mut interp,
                     ensemble_source!("retained-query.tcl"),
-                    rows,
+                    &rows,
                     "QUERY",
                     &context,
                 );
@@ -247,29 +246,29 @@ macro_rules! jim_library_source {
         ))
     };
 }
+const JIM_LIBRARY_CAPTURES: &str = include_str!(
+    "../../../../rust/tcl-registry/tests/data/native_jim_namespace_distribution236/captures.tsv"
+);
+
 macro_rules! jim_library_rows {
     ($version:literal) => {
         [
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
-                $version,
-                "/original-library-formals-and-bodies/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
-                $version,
-                "/global-helper-replacement/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
-                $version,
-                "/namespace-local-helper-replacement/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
-                $version,
-                "/original-unsupported-and-arity/stdout"
-            )),
+            tcl_test_support::fixture_tables::text(
+                JIM_LIBRARY_CAPTURES,
+                concat!($version, "/original-library-formals-and-bodies/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                JIM_LIBRARY_CAPTURES,
+                concat!($version, "/global-helper-replacement/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                JIM_LIBRARY_CAPTURES,
+                concat!($version, "/namespace-local-helper-replacement/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                JIM_LIBRARY_CAPTURES,
+                concat!($version, "/original-unsupported-and-arity/stdout"),
+            ),
         ]
     };
 }
@@ -305,7 +304,7 @@ fn original_jim_namespace_library_sources_match_all_native_provider_results() {
                 tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceEnsemble,
             );
             let context = format!("{engine}/namespace-library/{index}");
-            assert_phase(&mut interp, source, rows, "ORIGINAL", &context);
+            assert_phase(&mut interp, source, &rows, "ORIGINAL", &context);
         }
     }
 }
@@ -318,29 +317,29 @@ macro_rules! rooted_factory_source {
         ))
     };
 }
+const ROOTED_FACTORY_CAPTURES: &str = include_str!(
+    "../../../../rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/captures.tsv"
+);
+
 macro_rules! rooted_factory_rows {
     ($version:literal) => {
         [
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
-                $version,
-                "/default-namespace-command/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
-                $version,
-                "/namespace-prefix-override/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
-                $version,
-                "/literal-command-prefix-override/stdout"
-            )),
-            include_str!(concat!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
-                $version,
-                "/exact-create-and-option-selection/stdout"
-            )),
+            tcl_test_support::fixture_tables::text(
+                ROOTED_FACTORY_CAPTURES,
+                concat!($version, "/default-namespace-command/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                ROOTED_FACTORY_CAPTURES,
+                concat!($version, "/namespace-prefix-override/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                ROOTED_FACTORY_CAPTURES,
+                concat!($version, "/literal-command-prefix-override/stdout"),
+            ),
+            tcl_test_support::fixture_tables::text(
+                ROOTED_FACTORY_CAPTURES,
+                concat!($version, "/exact-create-and-option-selection/stdout"),
+            ),
         ]
     };
 }
@@ -377,7 +376,7 @@ fn original_jim_ensemble_sources_match_all_native_rooted_public_results() {
                 tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceEnsemble,
             );
             let context = format!("{engine}/namespace-factory/{index}");
-            assert_phase(&mut interp, source, rows, "ORIGINAL", &context);
+            assert_phase(&mut interp, source, &rows, "ORIGINAL", &context);
         }
     }
     assert_eq!(crate::counters::finalize(), 0);

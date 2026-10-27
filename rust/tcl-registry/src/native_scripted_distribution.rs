@@ -216,8 +216,9 @@ mod tests {
     fn original_namespace_library_metadata_matches_public_formals_and_bodies() {
         // The exact public declarations establish source assets, not their
         // continued live binding or native core/compiler capabilities.
-        let stdout = include_str!(
-            "../tests/data/native_jim_namespace_distribution236/jim/original-library-formals-and-bodies/stdout"
+        let stdout = tcl_test_support::fixture_tables::text(
+            include_str!("../tests/data/native_jim_namespace_distribution236/captures.tsv"),
+            "jim/original-library-formals-and-bodies/stdout",
         );
         let fields: Vec<_> = stdout
             .lines()
