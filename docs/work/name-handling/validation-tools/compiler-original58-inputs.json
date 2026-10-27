@@ -151,7 +151,7 @@
   },
   "source_head_at_preparation": "9e1db358cc90e121838262496a7075cf78b35d6a",
   "source_pins": {
-    "rust/tcl-compiler/src/registry_invocation/source_availability.rs": "e598bcb334e0a38f25d69b1842b50436b87375a86064480bf6948e89893f3992",
+    "rust/tcl-compiler/src/registry_invocation/source_availability.rs": "27bee3b0e1c99fdcf32bcd39c12a60808baa5e47d55586fbf10b4573d95e23c4",
     "rust/tcl-compiler/src/analyser/commands.rs": "1aeb34f0e1e1805dba5ddac1add605e81f383717e14f94cef54411a1380b1a53",
     "rust/tcl-compiler/src/command_binding/source_unavailability_advice.rs": "95aa817fc19ab2f472b6903fef46ff0b557c4e7fb09bc6583cea8b14048988e1",
     "rust/tcl-compiler/tests/optimiser.rs": "53e7b254886d6d3c9c2f5827e3f323134c5dc5019dcfe53272514b3b80e9dfc7",

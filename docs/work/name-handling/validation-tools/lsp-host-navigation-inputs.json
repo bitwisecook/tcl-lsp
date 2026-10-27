@@ -48,12 +48,15 @@
     "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
     "rust/tcl-lsp-server/src/readonly_reference_reports.rs": "8ee714bd17cf7e9911bb2254dbd5858387dfc0d98e98546f790f80aa20644f2c",
     "rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs": "19205ff1fcf10a40900681c84bf2886edcffc8265424578f33bda0c1c2a3d358",
-    "rust/tcl-compiler/src/registry_invocation.rs": "fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac",
+    "rust/tcl-compiler/src/registry_invocation.rs": "9c0f60a40589ac344ef7109c24b965d4a1437a51ead56f8742be2d4b67145735",
     "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "4e5c1369a02ed26df4becae20580292cf0b3419fe8915c118b4644a9e9dda96d",
-    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca",
-    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "7d68fab8ec707151890e6f6f226edaf4c26379b8101f179c4cfba749142027d5",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "75fdf97572790e889cf79eb26b84c8433e1d74ee0eaa6fe1509f1be0412b4573",
     "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77",
-    "rust/tcl-compiler/src/command_binding.rs": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2"
+    "rust/tcl-compiler/src/command_binding.rs": "2ce3c658805b113a5ad44aeb56e3d21e882649ec14e9f0a0ebced7832cf1e6b8",
+    "rust/tcl-compiler/src/command_binding/conditional_source.rs": "d1bf6c102561f9fd72379b2f8d9603146e23485211300234af94bb56b9f87f26",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "dc47162b521f5342fdbf8c0d960c9f51987b24b563e7c6765020dc16e467ca4e",
+    "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs": "33dda3c71f7a4ec2fdee556e464445daa527ca2ba8657815cf3dbb7c81131cba"
   }
 }

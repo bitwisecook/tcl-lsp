@@ -5835,7 +5835,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "283e550b9104efa741569e1a1d7727b81f088d9d801dbbc4fec28145e07da8bf",
+    == "f792836cce3519904061dba4a2db5637f4280f961eb9104af531637245b85b35",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -5872,7 +5872,7 @@ original_rows = [
 ]
 require(
     sha(BASE / "compiler-native35-supplemental3.json")
-    == "832271a76f16c9287f395bc427f81f85a6f2e7524b7704d8587f9146d4c2817d",
+    == "dfb75da3bd8204bf861571d584b8e30004753cf100a1c47f2e8590e645e0081e",
     "exact separate Native35 supplemental3 input pin",
 )
 supplemental = json.loads((BASE / "compiler-native35-supplemental3.json").read_text())
@@ -6023,7 +6023,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "020caf56609743186f02e77ffd581ed94d4e0cf31ac74f27d425639bc99cbdcd",
+    == "3e8902622cc93b066759cb0dcd2c30b40a0984f42ed5c8779fa428587e2c3649",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -6206,7 +6206,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "ddcb881d09eb277ac1a1de024ab3c89b4c305d6ea66236dd59401a51538fab39",
+    == "744534dc86c7b8619bf8fc80b649e2efd300a5a4b9e1a5519b5905910410c51e",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -6403,7 +6403,7 @@ require(cached_increment_compiler_validation["schema"] == "cached-increment-comp
 cached_increment_compiler_rows = [dict(row, state="UNRUN") for row in cached_increment_compiler_validation["rows"]]
 
 primary_procedure_value_validation = logical_validation["separate_primary_procedure_value_controls"]
-require(primary_procedure_value_validation == {'schema': 'primary-procedure-value4-v1', 'expected_selected': 4, 'source_pins': {'rust/tcl-compiler/src/command_binding.rs': '003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2', 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs': '2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30', 'rust/tcl-compiler/src/command_binding/retained_source.rs': 'b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77', 'rust/tcl-compiler/src/realm/source_transition_advice.rs': '549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574', 'rust/tcl-compiler/src/registry_invocation.rs': 'fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac', 'rust/tcl-compiler/src/registry_invocation/source_structure.rs': 'dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca'}, 'functions': [{'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'primary_declaration_values_keep_the_final_record_and_command_refusal', 'sha256': 'ebd07c9e125c3f1ef14a6155901f55bdfdca5dddc1562c24ac5ebb37ac4f2aeb'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'sha256': '94559dac6fb3a1718597f928e85db453db088622b09bb54854db70bb942f9497'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'sha256': '27abb4ce686fd9a2d9ebeca1f10b4dbb12380886f7de20c601c122130a7d7af4'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_changed_input_source_and_selected_operands', 'sha256': '538719e632940b1d0d32f2e114222ef9f57c7f73b8ffd64197ff541ba9cc3488'}], 'rows': [{'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'env': {}}]}, "exact primary procedure value4 roster/source/functions")
+require(primary_procedure_value_validation == {'schema': 'primary-procedure-value4-v1', 'expected_selected': 4, 'source_pins': {'rust/tcl-compiler/src/command_binding.rs': '2ce3c658805b113a5ad44aeb56e3d21e882649ec14e9f0a0ebced7832cf1e6b8', 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs': '2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30', 'rust/tcl-compiler/src/command_binding/retained_source.rs': 'b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77', 'rust/tcl-compiler/src/realm/source_transition_advice.rs': '75fdf97572790e889cf79eb26b84c8433e1d74ee0eaa6fe1509f1be0412b4573', 'rust/tcl-compiler/src/registry_invocation.rs': '9c0f60a40589ac344ef7109c24b965d4a1437a51ead56f8742be2d4b67145735', 'rust/tcl-compiler/src/registry_invocation/source_structure.rs': '7d68fab8ec707151890e6f6f226edaf4c26379b8101f179c4cfba749142027d5'}, 'functions': [{'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'primary_declaration_values_keep_the_final_record_and_command_refusal', 'sha256': 'ebd07c9e125c3f1ef14a6155901f55bdfdca5dddc1562c24ac5ebb37ac4f2aeb'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'sha256': '94559dac6fb3a1718597f928e85db453db088622b09bb54854db70bb942f9497'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'sha256': '27abb4ce686fd9a2d9ebeca1f10b4dbb12380886f7de20c601c122130a7d7af4'}, {'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'path': 'rust/tcl-compiler/src/command_binding/source_transition_advice.rs', 'name': 'declaration_values_refuse_changed_input_source_and_selected_operands', 'sha256': '538719e632940b1d0d32f2e114222ef9f57c7f73b8ffd64197ff541ba9cc3488'}], 'rows': [{'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::primary_declaration_values_keep_the_final_record_and_command_refusal', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_absent_and_sticky_conflicted_final_records', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_registry_barrier_and_equal_foreign_owner', 'env': {}}, {'group': 'diagnostic-primary-procedure-value4', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_transition_advice::declaration_value_controls::declaration_values_refuse_changed_input_source_and_selected_operands', 'env': {}}]}, "exact primary procedure value4 roster/source/functions")
 primary_procedure_value_rows = [dict(row, state="UNRUN") for row in primary_procedure_value_validation["rows"]]
 
 body_availability_validation = logical_validation["separate_authored_body_availability_controls"]
@@ -6417,10 +6417,10 @@ require(analyser_layout_diagnostic_validation["schema"] == "analyser-layout-firs
 analyser_layout_diagnostic_rows: list[dict[str, Any]] = [dict(row, state="UNRUN", layout_trace_observation="UNOBSERVED") for row in analyser_layout_diagnostic_validation["rows"]]
 
 source_point_corpus_validation = json.loads((BASE / "source-point-complete-text-corpus2.json").read_text())
-require(sha(BASE / "source-point-complete-text-corpus2.json") == "c0b8f8ea7c655e5cb495cd725433e84a4418c6208a4f28d3edf7efbd3e0c7818", "exact separately bounded complete text corpus roster")
+require(sha(BASE / "source-point-complete-text-corpus2.json") == "b23e4b9434bf6b91f39546e300a6dd604200a5880da4197192f488a07f33850f", "exact separately bounded complete text corpus roster")
 source_point_corpus_rows = [dict(row, state="UNRUN") for row in source_point_corpus_validation["rows"]]
 
-source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '85341e14c948143008d17defb79b0ed5ee26d81f1b90e4c67189beaca1eccfa0', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': 'e7975d3056844a75252fe51ecffd60baab20d7360a0b6a88e0f4787161de3921'}
+source_point_report_source_pins = {'rust/tcl-compiler/src/command_binding/source_analysis_cache.rs': 'd0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7', 'rust/tcl-compiler/src/analyser/authenticated_report.rs': '42e61af9cd3d54b3647a2717c00c67569e1a4cd7240ca134e0bd7eabe0629863', 'rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs': 'e7975d3056844a75252fe51ecffd60baab20d7360a0b6a88e0f4787161de3921', 'rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs': 'fe3fb9cbb66aff05830315474c92ef0bd4deaf45a42bc5133a43e32aea6cce1c', 'rust/tcl-compiler/src/registry_invocation/source_availability.rs': '27bee3b0e1c99fdcf32bcd39c12a60808baa5e47d55586fbf10b4573d95e23c4', 'rust/tcl-compiler/src/command_binding/availability_report.rs': '9f1c71f269fa1c7c4cb9af996d75886d8f844d33fb3500d09e1263e1187e2688'}
 source_point_report_rows = [dict(row, state="UNRUN", capture_observation="UNOBSERVED") for row in [{'group': 'diagnostic-source-point-report-firstguard1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_analysis_cache::tests::source_point_cache_full_report_cold_warm_and_mixed_stay_equal', 'env': {'TCL_LSP_TRACE_AUTHENTICATED_REPORT': '1'}}]]
 
 require(
@@ -6470,7 +6470,7 @@ layout11_acceptance_exit = None
 finite_foreach_validation = None
 finite_foreach_rows = []
 if args.jim_source_layout_only:
-    require(sha(BASE / "compiler-jim-source-layout11.json") == "deee947380cf19dd3d98dbcda4cf8dfa8b5e7ebc7b768010083fd77f9f8d4287",
+    require(sha(BASE / "compiler-jim-source-layout11.json") == "b361515453bf874c77d0e938bd74078f4a1ebc20f5b2cf4d5104977ac5aa7946",
             "exact Layout11 roster/direct source pins required")
     jim_layout_validation = json.loads((BASE / "compiler-jim-source-layout11.json").read_text())
     require(jim_layout_validation["expected_selected"] == 11

@@ -32,7 +32,7 @@
   ],
   "scope": "Separate diagnostic2 after ALL unchanged original65 executions. Original eval_sink duplicate plus existing genuine Standalone ownership control. No assertion/purpose/Native/guard or budget changes. Actual selected compiler test profile has debug_assertions true; existing taint.rs ingress hooks remain unchanged.",
   "source_pins": {
-    "rust/tcl-compiler/src/command_binding.rs": "003c24c3ebb7fdd256172c2e9f96318fe47a4587828647c596fd09c0768344d2",
+    "rust/tcl-compiler/src/command_binding.rs": "2ce3c658805b113a5ad44aeb56e3d21e882649ec14e9f0a0ebced7832cf1e6b8",
     "rust/tcl-compiler/src/command_binding/called_static_layouts.rs": "709a9c49819d10e69a4d97f86e641e4c41c6dd9a2c7083e3d25070fa1ebad679",
     "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "567521bb72be8f7db4345e8398110f1028f8a6915844cf7ad55077b7583314c0",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "b6b3728c6c74153b35ea87a9bb1ca40289d3f5db90efa43e86b3a76c61b29d77",
@@ -40,11 +40,11 @@
     "rust/tcl-compiler/src/compilation_unit.rs": "646b630dd2ddcfb3574363e90d0b8a9a8e0b608ee856640e9db034ab719d0d6f",
     "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
     "rust/tcl-compiler/src/realm.rs": "95ff1fc2db0b842fd90ea7b834485a51bf5bb8a8c9f06327641ea1cfa76db083",
-    "rust/tcl-compiler/src/registry_invocation.rs": "fdd44caf7d96d0ba77925d2c4295cb929a052ca1ad762c2f59ab71e272a196ac",
+    "rust/tcl-compiler/src/registry_invocation.rs": "9c0f60a40589ac344ef7109c24b965d4a1437a51ead56f8742be2d4b67145735",
     "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "abcd8c0af33d7f511cc01048e95c0202dbd03202a3ae3b40abd7d81e49bb9769",
     "rust/tcl-compiler/src/ssa.rs": "8df79291dc78a1f140fbe6b1df8c63fadc88ab795038fdb9f7b536c00fce9cd0",
     "rust/tcl-compiler/src/taint.rs": "96cd7d1b2616dd54163945a3541cccba128bfb15a80fe1d8bf7dc6da7f1d7f6b",
-    "rust/tcl-compiler/src/taint/source_context.rs": "1b37befd609ebb3bef635d4d31a059b00b25afee81357130c89feb73622794fb",
+    "rust/tcl-compiler/src/taint/source_context.rs": "655b387a37347dbbf0849704adec8326dd22ca34e350dd0b650edd896f336fbd",
     "rust/tcl-compiler/src/taint_interproc.rs": "ada061856adbce79fe31d46599c7237e2e74ed0405730bcc3a999093593be42f",
     "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d",
     "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
@@ -56,9 +56,12 @@
     "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "4e5c1369a02ed26df4becae20580292cf0b3419fe8915c118b4644a9e9dda96d",
     "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs": "d0bc5a4b132c7bbdf5aabb28980ef127d2c9e500b7c02906367f07cb74b3eae7",
     "rust/tcl-compiler/src/command_binding/source_point_entry.rs": "23d04172900ab7121cf08a666681be664a3ccda6c3d21b837dc58b575bb068be",
-    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "dfa9874a401074c391eec72b75d44a59ac4e155c178f7fd568c5b87ee9709cca",
-    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "549d96cb15d301689ed40a53675d5a2597f2e1ff29ac2f2a7a64a862c80b9574",
-    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30"
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "7d68fab8ec707151890e6f6f226edaf4c26379b8101f179c4cfba749142027d5",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "75fdf97572790e889cf79eb26b84c8433e1d74ee0eaa6fe1509f1be0412b4573",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "2d99dfa24f72e73b615de0bf85aeb41ac7cccee62538bd3325ac206c60330f30",
+    "rust/tcl-compiler/src/command_binding/conditional_source.rs": "d1bf6c102561f9fd72379b2f8d9603146e23485211300234af94bb56b9f87f26",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "dc47162b521f5342fdbf8c0d960c9f51987b24b563e7c6765020dc16e467ca4e",
+    "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs": "33dda3c71f7a4ec2fdee556e464445daa527ca2ba8657815cf3dbb7c81131cba"
   },
   "separate_coroinject_diagnostic": {
     "schema": "separate-coroinject-diagnostic1-v1",
