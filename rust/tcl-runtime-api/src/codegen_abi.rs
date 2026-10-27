@@ -352,7 +352,7 @@ pub enum CodegenAbiImportId {
     /// name/length, held expected object, delta, old/sum i64s, owned-result out.
     /// Zero is pre-effect no-match (out untouched); one entered the original
     /// kernel (out is its owned result or null); negative is terminal ABI/Host
-    /// refusal. These are not NativeProcEntry completion statuses.
+    /// refusal. These are not `NativeProcEntry` completion statuses.
     TryCachedIncr,
 }
 
