@@ -1236,20 +1236,31 @@ mod tests {
         .is_err());
         assert!(!obj::has_string_rep(plain.as_ptr()));
     }
-    const WIDE: [&str; 5] = [
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-8.4.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-8.5.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-8.6.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-9.0.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-9.1.txt"),
-    ];
-    const DOUBLE: [&str; 5] = [
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-8.4.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-8.5.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-8.6.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-9.0.txt"),
-        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-9.1.txt"),
-    ];
+    fn scalar_getter_capture(key: &str) -> String {
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/captures.tsv"),
+            key,
+        )
+    }
+
+    static WIDE: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
+        [
+            scalar_getter_capture("wide-8.4.txt"),
+            scalar_getter_capture("wide-8.5.txt"),
+            scalar_getter_capture("wide-8.6.txt"),
+            scalar_getter_capture("wide-9.0.txt"),
+            scalar_getter_capture("wide-9.1.txt"),
+        ]
+    });
+    static DOUBLE: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
+        [
+            scalar_getter_capture("double-8.4.txt"),
+            scalar_getter_capture("double-8.5.txt"),
+            scalar_getter_capture("double-8.6.txt"),
+            scalar_getter_capture("double-9.0.txt"),
+            scalar_getter_capture("double-9.1.txt"),
+        ]
+    });
     fn field<'a>(line: &'a str, key: &str) -> &'a str {
         line.split_ascii_whitespace()
             .find_map(|word| {
@@ -1272,7 +1283,7 @@ mod tests {
     #[test]
     fn physical_fresh_getters_match_measured_c_values_and_original_caches() {
         let mut count = 0;
-        for (kind, fixtures) in [(Kind::Wide, WIDE), (Kind::Double, DOUBLE)] {
+        for (kind, fixtures) in [(Kind::Wide, &*WIDE), (Kind::Double, &*DOUBLE)] {
             for (index, fixture) in fixtures.iter().enumerate() {
                 for line in fixture.lines() {
                     count += 1;
@@ -1336,25 +1347,13 @@ mod tests {
     }
     #[test]
     fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
-        const FIXTURES: [&str; 6] = [
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-8.4.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-8.5.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-8.6.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-9.0.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-9.1.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/jim-boolean-native.txt"
-            ),
+        let originals: [String; 6] = [
+            scalar_getter_capture("boolean-8.4.txt"),
+            scalar_getter_capture("boolean-8.5.txt"),
+            scalar_getter_capture("boolean-8.6.txt"),
+            scalar_getter_capture("boolean-9.0.txt"),
+            scalar_getter_capture("boolean-9.1.txt"),
+            scalar_getter_capture("jim-boolean-native.txt"),
         ];
         let inputs: [&[u8]; 7] = [
             b"1\0X",
@@ -1366,7 +1365,7 @@ mod tests {
             b"1.5",
         ];
         let mut count = 0;
-        for (index, fixture) in FIXTURES.iter().enumerate() {
+        for (index, fixture) in originals.iter().enumerate() {
             let dialect = VERSIONS.get(index).map_or_else(
                 || {
                     tcl_registry::InvocationDialect::of_profile(
@@ -1456,18 +1455,12 @@ mod tests {
     #[test]
     fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
         use tcl_syntax::scalar_getter::NativeScalarGetterErrorCode;
-        const FIXTURES: [&str; 5] = [
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt"
-            ),
-            include_str!(
-                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt"
-            ),
-            include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt"),
-            include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt"),
+        let originals: [String; 5] = [
+            scalar_getter_capture("int/8.4.20.txt"),
+            scalar_getter_capture("int/8.5.19.txt"),
+            scalar_getter_capture("int/8.6.18.txt"),
+            scalar_getter_capture("int/9.0.4.txt"),
+            scalar_getter_capture("int/9.1.0.txt"),
         ];
         const INPUTS: [&[u8]; 11] = [
             b"1\0X",
@@ -1493,7 +1486,7 @@ mod tests {
                 .collect()
         }
         let mut count = 0;
-        for (index, fixture) in FIXTURES.iter().enumerate() {
+        for (index, fixture) in originals.iter().enumerate() {
             let version = VERSIONS[index];
             let dialect = tcl_registry::InvocationDialect::for_version(version);
             obj::install_double_string_policy(tcl_dialect::DoubleStringPolicy::for_tcl_version(

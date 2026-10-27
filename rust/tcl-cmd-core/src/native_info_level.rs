@@ -123,24 +123,22 @@ mod tests {
         scalar_getter::{NativeScalarGetterFailure, NativeScalarGetterProtocol},
     };
 
+    fn scalar_getter_capture(key: &str) -> String {
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../tcl-syntax/tests/data/native_scalar_getters/captures.tsv"),
+            key,
+        )
+    }
+
     #[test]
     fn native_level_integer_error_retains_primitive_fields_and_string_producer() {
         // Native introspection case13 observes the String result. Primitive
         // row10 separately supplies this exact original String bad's message
         // and error code; this transport check observes no header or frame.
         for (version, rows) in [
-            (
-                TclVersion::V8_6,
-                include_str!("../../tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt"),
-            ),
-            (
-                TclVersion::V9_0,
-                include_str!("../../tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt"),
-            ),
-            (
-                TclVersion::V9_1,
-                include_str!("../../tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt"),
-            ),
+            (TclVersion::V8_6, scalar_getter_capture("int/8.6.18.txt")),
+            (TclVersion::V9_0, scalar_getter_capture("int/9.0.4.txt")),
+            (TclVersion::V9_1, scalar_getter_capture("int/9.1.0.txt")),
         ] {
             let original: Vec<_> = rows.lines().nth(10).unwrap().split('\t').collect();
             assert_eq!(&original[..4], &["10", "1", "777", "string"]);

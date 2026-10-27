@@ -315,24 +315,21 @@ mod tests {
         );
     }
 
+    fn scalar_getter_capture(key: &str) -> String {
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../tcl-syntax/tests/data/native_scalar_getters/captures.tsv"),
+            key,
+        )
+    }
+
     #[test]
     fn seeded_expression_native_stages_retain_ninety_observations() {
         let fixtures = [
-            include_str!(
-                "../../tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.4.20.txt"
-            ),
-            include_str!(
-                "../../tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.5.19.txt"
-            ),
-            include_str!(
-                "../../tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.6.18.txt"
-            ),
-            include_str!(
-                "../../tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.0.4.txt"
-            ),
-            include_str!(
-                "../../tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.1.0.txt"
-            ),
+            scalar_getter_capture("errors/expression_stage/8.4.20.txt"),
+            scalar_getter_capture("errors/expression_stage/8.5.19.txt"),
+            scalar_getter_capture("errors/expression_stage/8.6.18.txt"),
+            scalar_getter_capture("errors/expression_stage/9.0.4.txt"),
+            scalar_getter_capture("errors/expression_stage/9.1.0.txt"),
         ];
         assert_eq!(
             fixtures

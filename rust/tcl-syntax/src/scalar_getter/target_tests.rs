@@ -400,13 +400,19 @@ fn original_long_octal_failure_keeps_its_integer_purpose() {
     assert_eq!(successes, 2);
 }
 
+fn scalar_getter_capture(key: &str) -> String {
+    tcl_test_support::fixture_tables::text(
+        include_str!("../../tests/data/native_scalar_getters/captures.tsv"),
+        key,
+    )
+}
+
 #[test]
 fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations() {
     // Five original public primitive fields and three independent final Eval
     // fields. The Int/Long Eval recipe is bounded by the shared original C
     // reset/error-log source, not an additional provider observation here.
-    let eval_fixture =
-        include_str!("../../tests/data/native_scalar_getters/errors/error-state-8.4.20.txt");
+    let eval_fixture = scalar_getter_capture("errors/error-state-8.4.20.txt");
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
     let mut direct_fields = 0;
     let mut eval_fields = 0;

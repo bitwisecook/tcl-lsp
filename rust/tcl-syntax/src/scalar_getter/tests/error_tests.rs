@@ -1,27 +1,40 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use super::*;
 
-const STATE: [&str; 5] = [
-    include_str!("../../../tests/data/native_scalar_getters/errors/error-state-8.4.20.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/error-state-8.5.19.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/error-state-8.6.18.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/error-state-9.0.4.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/error-state-9.1.0.txt"),
-];
-const OCTAL: [&str; 5] = [
-    include_str!("../../../tests/data/native_scalar_getters/errors/octal-8.4.20.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/octal-8.5.19.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/octal-8.6.18.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/octal-9.0.4.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/octal-9.1.0.txt"),
-];
-const UNITS: [&str; 5] = [
-    include_str!("../../../tests/data/native_scalar_getters/errors/units-8.4.20.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/units-8.5.19.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/units-8.6.18.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/units-9.0.4.txt"),
-    include_str!("../../../tests/data/native_scalar_getters/errors/units-9.1.0.txt"),
-];
+fn scalar_getter_capture(key: &str) -> String {
+    tcl_test_support::fixture_tables::text(
+        include_str!("../../../tests/data/native_scalar_getters/captures.tsv"),
+        key,
+    )
+}
+
+static STATE: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("errors/error-state-8.4.20.txt"),
+        scalar_getter_capture("errors/error-state-8.5.19.txt"),
+        scalar_getter_capture("errors/error-state-8.6.18.txt"),
+        scalar_getter_capture("errors/error-state-9.0.4.txt"),
+        scalar_getter_capture("errors/error-state-9.1.0.txt"),
+    ]
+});
+static OCTAL: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("errors/octal-8.4.20.txt"),
+        scalar_getter_capture("errors/octal-8.5.19.txt"),
+        scalar_getter_capture("errors/octal-8.6.18.txt"),
+        scalar_getter_capture("errors/octal-9.0.4.txt"),
+        scalar_getter_capture("errors/octal-9.1.0.txt"),
+    ]
+});
+static UNITS: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("errors/units-8.4.20.txt"),
+        scalar_getter_capture("errors/units-8.5.19.txt"),
+        scalar_getter_capture("errors/units-8.6.18.txt"),
+        scalar_getter_capture("errors/units-9.0.4.txt"),
+        scalar_getter_capture("errors/units-9.1.0.txt"),
+    ]
+});
 
 fn unhex(text: &str) -> Vec<u8> {
     text.as_bytes()
@@ -120,9 +133,7 @@ fn primitive_failures_keep_cache_origin_and_existing_error_state() {
             count += 1;
         }
     }
-    for line in
-        include_str!("../../../tests/data/native_scalar_getters/errors/jim-error-state.txt").lines()
-    {
+    for line in scalar_getter_capture("errors/jim-error-state.txt").lines() {
         verify_line(5, line, true);
         count += 1;
     }
@@ -132,7 +143,7 @@ fn primitive_failures_keep_cache_origin_and_existing_error_state() {
 #[test]
 fn invalid_octal_and_native_character_units_match_actual_releases() {
     let mut count = 0;
-    for fixtures in [OCTAL, UNITS] {
+    for fixtures in [&*OCTAL, &*UNITS] {
         for (index, fixture) in fixtures.iter().enumerate() {
             for line in fixture.lines() {
                 verify_line(index, line, false);

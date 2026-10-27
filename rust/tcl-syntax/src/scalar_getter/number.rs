@@ -188,25 +188,20 @@ mod tests {
         }
     }
 
+    fn scalar_getter_capture(key: &str) -> String {
+        tcl_test_support::fixture_tables::text(
+            include_str!("../../tests/data/native_scalar_getters/captures.tsv"),
+            key,
+        )
+    }
+
     #[test]
     fn numeric_purposes_match_all_128_direct_native_probe_rows() {
         let fixtures = [
-            (
-                TclVersion::V8_5,
-                include_str!("../../tests/data/native_scalar_getters/number/8.5.19.tsv"),
-            ),
-            (
-                TclVersion::V8_6,
-                include_str!("../../tests/data/native_scalar_getters/number/8.6.18.tsv"),
-            ),
-            (
-                TclVersion::V9_0,
-                include_str!("../../tests/data/native_scalar_getters/number/9.0.4.tsv"),
-            ),
-            (
-                TclVersion::V9_1,
-                include_str!("../../tests/data/native_scalar_getters/number/9.1.0.tsv"),
-            ),
+            (TclVersion::V8_5, scalar_getter_capture("number/8.5.19.tsv")),
+            (TclVersion::V8_6, scalar_getter_capture("number/8.6.18.tsv")),
+            (TclVersion::V9_0, scalar_getter_capture("number/9.0.4.tsv")),
+            (TclVersion::V9_1, scalar_getter_capture("number/9.1.0.tsv")),
         ];
         let texts: [&[u8]; 10] = [
             b"1",

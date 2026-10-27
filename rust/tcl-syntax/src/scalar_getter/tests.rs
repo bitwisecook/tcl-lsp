@@ -83,44 +83,61 @@ const VERSIONS: [TclVersion; 5] = [
     TclVersion::V9_0,
     TclVersion::V9_1,
 ];
-const DOUBLE: [&str; 6] = [
-    include_str!("../../tests/data/native_scalar_getters/double-8.4.txt"),
-    include_str!("../../tests/data/native_scalar_getters/double-8.5.txt"),
-    include_str!("../../tests/data/native_scalar_getters/double-8.6.txt"),
-    include_str!("../../tests/data/native_scalar_getters/double-9.0.txt"),
-    include_str!("../../tests/data/native_scalar_getters/double-9.1.txt"),
-    include_str!("../../tests/data/native_scalar_getters/jim-double-probe.txt"),
-];
-const WIDE: [&str; 6] = [
-    include_str!("../../tests/data/native_scalar_getters/wide-8.4.txt"),
-    include_str!("../../tests/data/native_scalar_getters/wide-8.5.txt"),
-    include_str!("../../tests/data/native_scalar_getters/wide-8.6.txt"),
-    include_str!("../../tests/data/native_scalar_getters/wide-9.0.txt"),
-    include_str!("../../tests/data/native_scalar_getters/wide-9.1.txt"),
-    include_str!("../../tests/data/native_scalar_getters/jim-wide-native.txt"),
-];
-const BOOLEAN: [&str; 6] = [
-    include_str!("../../tests/data/native_scalar_getters/boolean-8.4.txt"),
-    include_str!("../../tests/data/native_scalar_getters/boolean-8.5.txt"),
-    include_str!("../../tests/data/native_scalar_getters/boolean-8.6.txt"),
-    include_str!("../../tests/data/native_scalar_getters/boolean-9.0.txt"),
-    include_str!("../../tests/data/native_scalar_getters/boolean-9.1.txt"),
-    include_str!("../../tests/data/native_scalar_getters/jim-boolean-native.txt"),
-];
-const CACHED: [&str; 5] = [
-    include_str!("../../tests/data/native_scalar_getters/cached-8.4.txt"),
-    include_str!("../../tests/data/native_scalar_getters/cached-8.5.txt"),
-    include_str!("../../tests/data/native_scalar_getters/cached-8.6.txt"),
-    include_str!("../../tests/data/native_scalar_getters/cached-9.0.txt"),
-    include_str!("../../tests/data/native_scalar_getters/cached-9.1.txt"),
-];
-const NUL: [&str; 5] = [
-    include_str!("../../tests/data/native_scalar_getters/nul-8.4.txt"),
-    include_str!("../../tests/data/native_scalar_getters/nul-8.5.txt"),
-    include_str!("../../tests/data/native_scalar_getters/nul-8.6.txt"),
-    include_str!("../../tests/data/native_scalar_getters/nul-9.0.txt"),
-    include_str!("../../tests/data/native_scalar_getters/nul-9.1.txt"),
-];
+fn scalar_getter_capture(key: &str) -> String {
+    tcl_test_support::fixture_tables::text(
+        include_str!("../../tests/data/native_scalar_getters/captures.tsv"),
+        key,
+    )
+}
+
+static DOUBLE: std::sync::LazyLock<[String; 6]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("double-8.4.txt"),
+        scalar_getter_capture("double-8.5.txt"),
+        scalar_getter_capture("double-8.6.txt"),
+        scalar_getter_capture("double-9.0.txt"),
+        scalar_getter_capture("double-9.1.txt"),
+        scalar_getter_capture("jim-double-probe.txt"),
+    ]
+});
+static WIDE: std::sync::LazyLock<[String; 6]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("wide-8.4.txt"),
+        scalar_getter_capture("wide-8.5.txt"),
+        scalar_getter_capture("wide-8.6.txt"),
+        scalar_getter_capture("wide-9.0.txt"),
+        scalar_getter_capture("wide-9.1.txt"),
+        scalar_getter_capture("jim-wide-native.txt"),
+    ]
+});
+static BOOLEAN: std::sync::LazyLock<[String; 6]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("boolean-8.4.txt"),
+        scalar_getter_capture("boolean-8.5.txt"),
+        scalar_getter_capture("boolean-8.6.txt"),
+        scalar_getter_capture("boolean-9.0.txt"),
+        scalar_getter_capture("boolean-9.1.txt"),
+        scalar_getter_capture("jim-boolean-native.txt"),
+    ]
+});
+static CACHED: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("cached-8.4.txt"),
+        scalar_getter_capture("cached-8.5.txt"),
+        scalar_getter_capture("cached-8.6.txt"),
+        scalar_getter_capture("cached-9.0.txt"),
+        scalar_getter_capture("cached-9.1.txt"),
+    ]
+});
+static NUL: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
+    [
+        scalar_getter_capture("nul-8.4.txt"),
+        scalar_getter_capture("nul-8.5.txt"),
+        scalar_getter_capture("nul-8.6.txt"),
+        scalar_getter_capture("nul-9.0.txt"),
+        scalar_getter_capture("nul-9.1.txt"),
+    ]
+});
 
 fn protocol(index: usize) -> NativeScalarGetterProtocol {
     VERSIONS.get(index).map_or_else(
@@ -187,8 +204,8 @@ fn verify(conversion: &NativeScalarGetterConversion, code: &str, bits: &str, con
 fn fresh_native_getter_grammar_value_and_cache_match_all_six_engines() {
     let mut count = 0;
     for (kind, fixtures) in [
-        (NativeScalarGetterKind::Wide, WIDE),
-        (NativeScalarGetterKind::Double, DOUBLE),
+        (NativeScalarGetterKind::Wide, &*WIDE),
+        (NativeScalarGetterKind::Double, &*DOUBLE),
     ] {
         for (index, fixture) in fixtures.iter().enumerate() {
             for line in fixture.lines() {
@@ -434,7 +451,7 @@ fn retained_native_range_state_affects_fresh_boundaries_and_not_cached_integers(
     let jim = protocol(5);
     let inputs = [b"9223372036854775807".as_slice(), b"-9223372036854775808"];
     let values = [i64::MAX, i64::MIN];
-    let fixture = include_str!("../../tests/data/native_scalar_getters/jim-range-state.txt");
+    let fixture = scalar_getter_capture("jim-range-state.txt");
     let mut count = 0;
     for line in fixture.lines() {
         let at = field(line, "case").parse::<usize>().unwrap();
@@ -584,11 +601,11 @@ fn assert_primitive_int_row(
 #[test]
 fn primitive_int_retains_native_width_cache_and_error_stage() {
     let rows = [
-        include_str!("../../tests/data/native_scalar_getters/int/8.4.20.txt"),
-        include_str!("../../tests/data/native_scalar_getters/int/8.5.19.txt"),
-        include_str!("../../tests/data/native_scalar_getters/int/8.6.18.txt"),
-        include_str!("../../tests/data/native_scalar_getters/int/9.0.4.txt"),
-        include_str!("../../tests/data/native_scalar_getters/int/9.1.0.txt"),
+        scalar_getter_capture("int/8.4.20.txt"),
+        scalar_getter_capture("int/8.5.19.txt"),
+        scalar_getter_capture("int/8.6.18.txt"),
+        scalar_getter_capture("int/9.0.4.txt"),
+        scalar_getter_capture("int/9.1.0.txt"),
     ];
     let inputs: [&[u8]; 11] = [
         b"1\0X",
@@ -645,9 +662,7 @@ fn jim_decimal_string_switch_keeps_its_own_native_stage() {
         b"bad",
     ];
     let mut checked = 0;
-    for row in
-        include_str!("../../tests/data/native_scalar_getters/decimal-switch/jim0.84.txt").lines()
-    {
+    for row in scalar_getter_capture("decimal-switch/jim0.84.txt").lines() {
         let fields: Vec<_> = row.split('\t').collect();
         let case: usize = fields[0].parse().unwrap();
         let outcome = protocol.jim_decimal_wide_probe(inputs[case]).unwrap();
@@ -669,7 +684,7 @@ fn jim_decimal_string_switch_keeps_its_own_native_stage() {
 #[test]
 fn legacy_long_and_wide_retain_distinct_native_primary_caches() {
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
-    let fixture = include_str!("../../tests/data/native_scalar_getters/long84/8.4.20.tsv");
+    let fixture = scalar_getter_capture("long84/8.4.20.tsv");
     let mut count = 0;
     for line in fixture.lines().filter(|line| line.starts_with("ROW\t")) {
         let fields: Vec<_> = line.split('\t').collect();

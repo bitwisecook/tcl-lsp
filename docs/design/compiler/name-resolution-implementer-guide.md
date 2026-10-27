@@ -4647,7 +4647,8 @@ conversion stage. C84 direct `Tcl_ExprObj`/`Tcl_ExprBooleanObj` leaves seeded st
 unchanged, while subsequent Eval propagation sets NONE. Later C retains its
 selected structured stage code. NaN/domain/range/parser failures cannot borrow
 this record; Jim's independent direct API is not authored by it. The seeded
-90-row same-command fixture is in `native_scalar_getters/errors/expression_stage`.
+90-row same-command fixture is the `errors/expression_stage/` records of
+`native_scalar_getters/captures.tsv`.
 Dynamic raw variable input and literal expression-source NUL are distinct native
 stages; this fixture cannot donate parser equivalence or primitive acceptance.
 
@@ -4658,7 +4659,7 @@ license those stages. Cache subtype also stays separate from canonical string
 production and alias/object effects.
 
 The durable native fixtures live in
-`rust/tcl-syntax/tests/data/native_scalar_getters` and
+`rust/tcl-syntax/tests/data/native_scalar_getters` (one keyed `captures.tsv`) and
 `native_numeric_operand_conversions`; their READMEs give native build commands
 and manifests retain original sources, libraries and result hashes. Registry
 `native_numeric_conversion::tests` and

@@ -475,28 +475,38 @@ mod tests {
     }
     use super::*;
 
-    const FIXTURES: [(TclVersion, &str); 5] = [
-        (
-            TclVersion::V8_4,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-8.4.20.txt"),
-        ),
-        (
-            TclVersion::V8_5,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-8.5.19.txt"),
-        ),
-        (
-            TclVersion::V8_6,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-8.6.18.txt"),
-        ),
-        (
-            TclVersion::V9_0,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-9.0.4.txt"),
-        ),
-        (
-            TclVersion::V9_1,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-9.1.0.txt"),
-        ),
-    ];
+    fn scalar_getter_capture(key: &str) -> String {
+        tcl_test_support::fixture_tables::text(
+            include_str!("../tests/data/native_scalar_getters/captures.tsv"),
+            key,
+        )
+    }
+
+    static FIXTURES: std::sync::LazyLock<[(TclVersion, String); 5]> =
+        std::sync::LazyLock::new(|| {
+            [
+                (
+                    TclVersion::V8_4,
+                    scalar_getter_capture("errors/character-units-8.4.20.txt"),
+                ),
+                (
+                    TclVersion::V8_5,
+                    scalar_getter_capture("errors/character-units-8.5.19.txt"),
+                ),
+                (
+                    TclVersion::V8_6,
+                    scalar_getter_capture("errors/character-units-8.6.18.txt"),
+                ),
+                (
+                    TclVersion::V9_0,
+                    scalar_getter_capture("errors/character-units-9.0.4.txt"),
+                ),
+                (
+                    TclVersion::V9_1,
+                    scalar_getter_capture("errors/character-units-9.1.0.txt"),
+                ),
+            ]
+        });
 
     fn field<'a>(line: &'a str, name: &str) -> &'a str {
         line.split_ascii_whitespace()
@@ -636,7 +646,7 @@ mod tests {
     #[test]
     fn canonical_native_units_encoding_and_previous_boundaries_match_five_releases() {
         let mut count = 0;
-        for (version, fixture) in FIXTURES {
+        for &(version, ref fixture) in FIXTURES.iter() {
             let policy = NativeTclUtf::for_version(version);
             for line in fixture.lines() {
                 let bytes = unhex(field(line, "input"));
