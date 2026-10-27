@@ -1,0 +1,111 @@
+{
+  "utc": "2026-10-27T05:43:14.054654+00:00",
+  "scope": "FULLAUTH boundary + complete immutable source-content, qualified",
+  "runs": [
+    {
+      "name": "compiler-layout15-40453029383",
+      "run": 40453029383,
+      "job": 122019903052,
+      "source": "27663e031f11c16853aa77271d67642b80a9f1b6",
+      "boundary": "/workspace/naming-proof-storage/compiler-layout15-40453029383/boundary-assessment-v1.json",
+      "boundary_sha256": "2ba0a94dec274f502ae8fc46940030fe03b455bffa2578afe48cd43a59390306",
+      "zip_sha256": "e183e904b085f762408af5263b1a8731311be093c5216f955cf2c4f1f0fae7c9",
+      "zip_bytes": 11543935,
+      "artifact": 12711912441,
+      "all_owned_closed": 39,
+      "fresh_Cargo_artifacts": 2,
+      "counts": {
+        "PASS": 13,
+        "FAIL": 4
+      },
+      "phases": {
+        "jim_source_layout11_outcomes": {
+          "PASS": 10,
+          "FAIL": 1
+        },
+        "separate_own_jim_diagnostic_rows": {
+          "FAIL": 2
+        },
+        "separate_finite_foreach_control_rows": {
+          "PASS": 3,
+          "FAIL": 1
+        }
+      },
+      "seals": {
+        "artifacts": true,
+        "dependencies": true,
+        "providers": true,
+        "source": true,
+        "tools": true
+      },
+      "error": null,
+      "final_errors": []
+    },
+    {
+      "name": "compiler-jim52-40453033937",
+      "run": 40453033937,
+      "job": 122019917300,
+      "source": "27663e031f11c16853aa77271d67642b80a9f1b6",
+      "boundary": "/workspace/naming-proof-storage/compiler-jim52-40453033937/boundary-assessment-v1.json",
+      "boundary_sha256": "7379701b807868a0ffa988fa22702e7407d2bfc0e5de330c59a5ac0b6aca32b5",
+      "zip_sha256": "6cd0236d16b79116edffc79eb9cce75cad100e51b92f61f7e80bde533facce2a",
+      "zip_bytes": 11088228,
+      "artifact": 12711752081,
+      "all_owned_closed": 59,
+      "fresh_Cargo_artifacts": 3,
+      "counts": {
+        "PASS": 40,
+        "FAIL": 12
+      },
+      "phases": {
+        "outcomes": {
+          "PASS": 7
+        },
+        "supplemental_outcomes": {
+          "PASS": 29,
+          "FAIL": 9
+        },
+        "diagnostic_static_outcomes": {
+          "PASS": 3,
+          "FAIL": 2
+        },
+        "static_alternatives_control_outcomes": {
+          "PASS": 1
+        },
+        "raw_method_diagnostic_outcomes": {
+          "FAIL": 1
+        }
+      },
+      "seals": {
+        "artifacts": true,
+        "dependencies": true,
+        "providers": true,
+        "source": true,
+        "tools": true
+      },
+      "error": null,
+      "final_errors": []
+    }
+  ],
+  "full_git": {
+    "source": "27663e031f11c16853aa77271d67642b80a9f1b6",
+    "source_before_after_equal": true,
+    "exact_main_root_membership": 126921,
+    "all_uploaded_git_content_sha256_matches": 126921,
+    "unique_blob_sha256_hashes": 79594,
+    "unique_blob_bytes_hashed": 9634889425,
+    "symlink_records_verified": 0,
+    "git_nul_listing_sha256": "8e5adff94360117b876cfb194bc1e5c7ad81ef85e3babfac640874d9256f79d4",
+    "qualification": "Exact immutable Git membership/content and source-map symlink metadata only; no execution/provider/semantic/performance claim."
+  },
+  "shared_source_companion": "/workspace/naming-proof-storage/compiler-jim52-40453033937/shared-2766-source-content.json",
+  "finite_gain": "Literal readonly lineage positive and unwind/depth control nowPASS; mutation/multiple-binding/expansion/name-prefix negative remainsPASS; foreign-owner/scope/config checks passed until final actual current-source mutation negative failed. All17 source-owned observations, no synthetic reclassification.",
+  "old_Layout_advance": "Both a/b declarations now present; first actual original assertion fails body span42..68vs42..69, still first finitefixture, not later rooted forms.",
+  "remaining": "Current-source guard +finite-only canonical fullword extent97d2f03c sourceproposal pending LSP strongpeer, repaired outcomesUNRUN. OwnJim UnknownEarlierMutation retained; no quiet/effect waiver.",
+  "limits": [
+    "No general compiler135/166 count recomputation across different heads; previous ff67 main remains its own evidence.",
+    "No actual uploaded ELF payload or physical source file-mode snapshot; fresh Cargo/driver hashes, processes and every terminal/stream/map authenticated.",
+    "Source audit exact126921records/79594blobs/9634889425bytes/zero symlinks; no broad CI/performance/release acceptance.",
+    "Missing first-refusal environment/trace remains UNOBSERVED; reached predicate groups are not independently observed inner clauses."
+  ]
+}

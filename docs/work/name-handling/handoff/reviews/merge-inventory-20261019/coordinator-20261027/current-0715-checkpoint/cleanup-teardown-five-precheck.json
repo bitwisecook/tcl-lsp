@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-27T07:04:15.900012+00:00",
+  "head": "b556e02649e67d1588b315525884930bf418fe38",
+  "result": "PASS_CURRENT_PREIMAGES_AFTERIMAGES_PATHSET_COMPLETE_ORIGINAL_RECORDS",
+  "files": 90,
+  "records": 84,
+  "empty_records": 0,
+  "whitespace_checks": "Both canonical Git and isolated Git with exact canonical attributes, --whitespace=error",
+  "actual_attributes_sha256": "d45b93d3e39150a1e1f48edead80d198084394dfbc3dfbff743f763bd97368c5",
+  "peer_sha256": "4034b54c0fe14281f1c06d86581deba1a6851a9f706883e5aac48ab69c32f759",
+  "actualRust": "UNRUN"
+}

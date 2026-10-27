@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-27T07:05:57.264224+00:00",
+  "result": "PASS_EXACT_1_WHOLE_SOURCE_7_FULL_LEXICAL_FUNCTION_REFRESH_AND_OLD_JSON_INVERSE",
+  "source": "81cd80df1958fb3b97af96208337bf1ac8698aba",
+  "files": 1,
+  "old_and_new_source_and_fn_bytes": true,
+  "new_selectors_keys_env_budgets": false,
+  "actualRust": "UNRUN"
+}

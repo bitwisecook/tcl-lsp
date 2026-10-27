@@ -1,0 +1,46 @@
+{
+  "utc": "2026-10-27T05:53:35.834835+00:00",
+  "source": "c2d06232c513a3e8eaf35967ef830cc5e6b6ffa6",
+  "run": 40454535923,
+  "all_assigned_terminal_authenticated": true,
+  "cases": {
+    "Core": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-core2-40454535923-actual-v1/assessment-v1.json",
+      "sha256": "371d1f748a76028727cc1296f30084179586e89eecf50e50bae3e5db689fa880",
+      "status": "AUTHENTIC_SEPARATE_CORE2_FAIL",
+      "source": "c2d06232c513a3e8eaf35967ef830cc5e6b6ffa6"
+    },
+    "startup": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-startup40454535923-actual-v1/assessment-v1.json",
+      "sha256": "788bae6a52d6a3bc53de46ea241e7d389183e5af48974048e6f17884b967e697",
+      "status": "AUTHENTIC_FRESH0W_STARTUP_FUNCTIONAL_FAIL",
+      "source": "c2d06232c513a3e8eaf35967ef830cc5e6b6ffa6"
+    }
+  },
+  "Core": "Original8ALLPASS; Tk3ALLPASS first canonicalcontentowner correctedcontrol success; Source4still2P2F. SourceCutbodydraftnotinwave.",
+  "startup": "Fresh0W/cold74.776096ms; scan30PASS17847.187ms; initialdiagnostic-32801Current report unavailable; definition/referencesUNRUN; Context2COMPLETE. SlotNone/Some1 andSome1/Some2 remain unjoined toadmissionproducer/document.",
+  "source_failures": [
+    {
+      "member": "source-load-control-1.stderr",
+      "sha256": "abdf70be1c4085bd33310cf13d4dc1cb31f19199cb9040982273dcd53f9fe07c",
+      "line": 133,
+      "lines": [
+        "thread 'original_command_rename::source_coverage::tests::single_cut_source_coverage_surveys_actual_child_and_issued_suffix' (7517) panicked at rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs:866:17:",
+        "IncompleteCoverage: Some(\"rename.coverage-document source_bytes=44 analysis_owner=0x7968b61fbfd8 offset=31 stage=cut.input.recorded-words\")",
+        "stack backtrace:"
+      ]
+    },
+    {
+      "member": "source-load-control-4.stderr",
+      "sha256": "82f48716e1270176520e672d0545442e3d2ae4e386c8311d951fb51f22cf178a",
+      "line": 132,
+      "lines": [
+        "thread 'original_command_rename::source_coverage::tests::source_coverage_never_omits_extra_cuts_or_namespace_frames' (7527) panicked at rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs:657:15:",
+        "called `Option::unwrap()` on a `None` value",
+        "stack backtrace:"
+      ]
+    }
+  ],
+  "qualification": "No normal CodeLens/prep, wholeproject, shipping/performance or causal acceptance. Names owns exactCprep; no oldsource result transfer.",
+  "payload": "SoletwoZIPs exactAPI digest/size/CRC; noELFextraction orlocalbuild."
+}

@@ -1,0 +1,86 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-27T07:15:13.151294+00:00",
+  "scheduled_report_utc": "2026-10-27T07:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-27T07:45:00+00:00",
+  "change_since_previous_report": [
+    "0645officialreport/checkpointwrittenon-time06:45:00.713/source03d8c583c4ea6877379076a3ba40788209a592a7, publication18485; next0715prearmed6148.",
+    "Knownunsafe docstring edit concretecanonicalcontentadapterda77 strongCompilere5ae withmatchedC86oracle063c original+correctedVALUE, rawbracewrongargs. RootqueuesNEXTaftercurrentca93snapshotPOSTs; no assertion/body-spanrepresentation/Native/identity/currency change.",
+    "Currentca93/C928nestedargumentownerrepaircommittedandPUSHED; finalmetadataold282eheldafteradvance, Codegencomposesexactca93 directdefiner3top+inline+nested(14\u219215sources)/same5controls/166count approval422c. All18intendedjoins(file7+range6+syntax5) requireRootV16 beforePOST; no additionalSourcecohortchanges.",
+    "Finalca93metadata88e1/independentCompiler9903+Rootall25preimages/wholeinverse PASS adoptedWORKfb5e7187e4cd05d7a55e879845399807f2a38ab1; V16 PASS13startup/30runners/22wholeguards. Pfb5e/Cd554 normalPUSH confirmed. No semantic green claimed; affected focusedPOSTs afterterminalguards.",
+    "New reversibleobsoletefrozenAELFarchive peer2aa9: four>89h singlelink binaries eachgzip/fullrestoreSHA/currenthash/stat/noLIVEcargo-rustc/accessiblyknownuse verified thenRootunlinked;2.479GBfree. ExistingexhaustiveallUIDhelperHOLDunchanged; foreignserviceuseunknown explicitlyretained/Unixopenreferencessurvive. Archivespreserved/noactualsource/currentELF/ZIPdeletion.",
+    "All8exactfb5ePOSTscompleted0639 beforeP0615docspublication76f8c01bc332c9947c400aaf6408543070229716; fullsourcequalified IDs root-fb5e-focused-wave-discovery-v1.json, allLIVE and soleowners assigned. No activeCIcancelled.",
+    "NEXTdocstringda77/e5ae Rootcurrent4preimages+patchcheck integratedWORK8188 first/C95a, sameauthenticatingquery nowretainscanonicalcontentSpan. MAY2160/LSP1e8 Rootpaired20currentpreimages/patchesPASS integratedWORKdd60 first, Ccarryinprogress; no runtimewarning/clean-call/all140 efficacyclaim.",
+    "C-onlyfixturecleanup18f2/Scopec21 Root163currentpreimages/after/pathsets/156completeoriginalbyteimagesPASS integratedC306be;29of51families sourceintegrated,22remaining. Allassertions/Tclscripts/rowparsers retained; no actualRustclaim.",
+    "MAYCcarrycompleted0fe6e7ff0 afterWORKdd60 first; all20currentpreimages/patches/afterimages verified. FreezeNEXTsourceWORKdd60/C0fe6 forCodegencoupledmetadatarefresh; SourceCutdistinctfuturecohort. Current8fb5erunsremainunmodified/live.",
+    "Read/source/keys3 fixturecleanup e8c066/Scope0ff3 Root38currentpreimages/afterimages/pathset/30completeoldbyteimagesPASS, C-onlyapplied; total32/51,19remaining. ActualRustunrun; one optionalmacro2tuplecomma reviewed, original341sixpaths/bytesretained no tablecredit.",
+    "Currentef56metadata2802/Compilerstrong0b6f+Root8files/all25preimages/9toprefresh+1exactapprovedMAYleaf+3nestedhash/4derivedwholeJSON/driverbyteASTinversePASS adoptedWORK96be406f905eea98e23d0b37fd046dd22792a162; V16PASS13/30/22, no semanticacceptance. Docstring1actualselectorwasnotinoldCore15; isolatedsameELFappendprotocol+oneRootdirectdefinerkey894d pendingScopeclear/currentcarry. MAY3samefreshcompilerlibprotocolpendingScope, old166unchanged.",
+    "FinalreleaseboundedprocesspointerscanagainstC56d6 found0listedhighsignalpatternsacrossalllistedrootsincludingJSON/Tclfixtures; excludesonlylocks/SVG. Notclaimwholecomment/docqualityorfinalgates. CurrentCsource32/51fixturefamilies,19remaining; nextteardown5offtreeScopequeued.",
+    "Exactfb5eStrict40462355978 FULLAUTHa62097/126951source/9tools/process235.097s/CAP/closurePASS then7Clippy drop_non_dropinnewlogical_file_tests.rs;RustE0. Runtimepreparesnarrow7inertdrop(entry)removalV2d600; lexicalblockV1heldbyowneraheadintegrationbecauseunrelatedlocallifetimesshorten. No allow/dummyDrop/assertionchanges; actualRustV2unrun.",
+    "Docstring1samefreshCoreprotocolV2feba/Scope76fe Root2currentpreimages/whitespacecheckPASS adoptedWORK10538b1e57b32eb71b76c4635aeb4d9efde28748; exactdirectselecteddefineronekeyRoot894d. Addsactualoriginal_docstring_tests controlafterold15, no priorbudget/env/Cargo/oldassert changes. ActualRustUNRUN.",
+    "MAY3protocolV1a825 Scope10eecHOLD: placementbeforeoldcorpus couldconsumeitsbudget. Realoldcorpus2reserve2840 underglobal3600 makesbeforeplacementunhelpful; Rootroutineprotocoldecisionappendnew3 AFTERentireold166 inclcorpus2, preservingoldphasebudget/order/Cargo/deadline, newUNRUN2+oldFAILsticky ifcannotfit. Compilerimmutable successorpending, no oldasserts/coverage weakened.",
+    "TinyVM7nondropV2d600/Compiler62ae Rootcurrentpairedpreimages+exact7inertdropremovals+finalLF PASS integratedWORK79b3b45ec98d95a9d5b144bf24e01f358255807d first/Cb556e02649e67d1588b315525884930bf418fe38. Spec7currentwholelexicaltesthashes mustrefreshbeforePOSTs; allscripts/assertions/scopes/otherlocals unchanged. ActualClippyretryUNRUN.",
+    "MAY3V2b003/Scope7fbd Root2currentpreimages/afterimages/all16sourcepins/wholeoldJSONinversePASS adoptedcurrentWork; new3AFTERentireold166+oldcorpus2complete, samefreshcompilerlib/absolute3600/log20MiB/env/Cargo. OldFAILsticky and newUNRUN2 ifcannotfit; alloriginalasserts/order/budgets intact.",
+    "Newfb5ecorpus soleZIP12715313203/APIdigest1e1ef13d/CRCpreliminarychecks andfreshdebugtrue/AUTH1/0w/CLOSEDactualchildexit101; actual70_var_traces old-oldavailablecorrespondencepanic nowlaterthanprior20. Harnesspostprocess RuntimeError corpusmarkerlinebound leaves textRUNNING/generatedUNRUN; rawfullauth/preciseoversizeline+causalwindowanalysis ownNamespending, no parserboundwaiver/currentgenerated42donation.",
+    "C-onlyteardown5 5497/4034 Root90currentpreimages/after/pathset/84wholebytesPASS integratedC0994702c5183ec3f5612b1b55095b43f26ef87c6; original51now37/14remaining. Keepsrawfallbacktwofamilies/24reads+4scripts andall14targeted scripts/assert/counter/droporder; actualRustUNRUN.",
+    "Tiny81cdSpec7ada4/Compiler6731/Rootcomplete7lexicalfunction+wholeleaf/inversePASS adoptedWORKeade5641a007d6cc6d85b9a8b479d5b6ca1ce086. CurrentV16PASS13/30/22, normalPUSH P=eade/C=0994 confirmed afterdepth1fetch. Terminal-guarded newCore/startup+StrictPOSTscomplete, healthyfb5eotherjobsuntouched. ExactnewIDsdiscovery ownroot pending, actualnewoutcomesUNRUN.",
+    "fb5eRAWCOREAUTH829d740a (Names) verifies allCRC/123pins/source/provider/deps/tools/strict0wdebugtrueAUTH ELF/list/sameELF/5ownedclosed/allcaps+floors. Exactactualdecoderreexec reproduces8192lineboundFAIL on38302B REPORT_BODY_CANDIDATE siteDebug line5129/SHAa160b; oldmainpostprocessrowRUNNING/generatedUNRUN remains. Independentlyauthenticated34complete rawmarkers/102typedEqualpairs through17textinputs bothmodes incl20folding; exact70vartraces old-oldfirstnegative command_realm withallpriorgatestrue. No702/744acceptance; fullGit supplementpending, boundedWORK-onlysiteoffsetobserverproposalnextdistinctcohort.",
+    "Tracking current-state.md top/latestshippingchecks andoutstandingrows1/5 refreshedfromactualsource-qualifiedreceipts, replacingstale04:30/ff67status. Copied19immutableactual/staticreceipts+SHAindex into coordinator-20261027/current-0715-checkpoint (349199B); no auditunit/sectionFadmissions. NewCore16RAWvalidatorheldafterScopeactualASTcounterexamples (paths/runID/wait/time/UNRUNstatebindings), LSPfixesbeforeanynewartifactacceptance."
+  ],
+  "committed": [
+    "03d8c583c4ea6877379076a3ba40788209a592a7"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Refresh only actual source dependencies and current source pins; push reviewed WORK-first fixes and release carries, then rerun compiler/strict/Core/corpus/WASM/Spec after predecessor termination.",
+    "Authenticate focused runtime and remaining fullCI terminal artifacts; fix exact current source causes preserving public behavior and fail-closed guards.",
+    "Complete section F, current origin/rust zero pass-to-fail, accepted Tcl performance, all required tests, docs/comments/generated/package/prep-pr and squash-ready PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22 21:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual timestamps, no audit-unit admission or release checkbox change. Six-hour target missed; decisions remain settled.",
+  "disk_free_bytes": 2361249792,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

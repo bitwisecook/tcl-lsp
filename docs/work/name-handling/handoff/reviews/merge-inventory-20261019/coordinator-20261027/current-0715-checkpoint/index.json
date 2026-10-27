@@ -1,0 +1,147 @@
+{
+  "utc": "2026-10-27T07:12:19.924749+00:00",
+  "scope": "Immutable source-qualified receipts; no audit-unit or release admission",
+  "files": [
+    {
+      "copy": "strict-fb5e.json",
+      "original": "/workspace/naming-proof-storage/ccg-strictfb5e-40462355978-actual-v1/assessment.json",
+      "bytes": 3954,
+      "sha256": "a62097fbf086507baf85a56167c5a37b43b4d39953fd2a7291edc6fdab070eb3",
+      "qualification": "actual bounded strict failure"
+    },
+    {
+      "copy": "corpus-fb5e-raw-authentication.json",
+      "original": "/workspace/naming-proof-storage/names-corpus2-40462343078-actual-v1/authentication.json",
+      "bytes": 53414,
+      "sha256": "829d740aae1853f18a3627e192b20d7427836492f279595bda67669dc84d4dda",
+      "qualification": "actual RAWCOREAUTH; formal parser failed/generated unrun"
+    },
+    {
+      "copy": "lsp-c2d-index.json",
+      "original": "/workspace/naming-proof-storage/lsp-c2d062-host-wave-evidence-index-v1/index-v1.json",
+      "bytes": 2581,
+      "sha256": "8822e82f1cdf3487348d3e82de128c1ca987f79191bdc77a553914cddbabf523",
+      "qualification": "actual source-qualified Core/startup"
+    },
+    {
+      "copy": "core-c2d.json",
+      "original": "/workspace/naming-proof-storage/lsp-hosted-core2-40454535923-actual-v1/assessment-v1.json",
+      "bytes": 45573,
+      "sha256": "371d1f748a76028727cc1296f30084179586e89eecf50e50bae3e5db689fa880",
+      "qualification": "actual"
+    },
+    {
+      "copy": "startup-c2d.json",
+      "original": "/workspace/naming-proof-storage/lsp-hosted-startup40454535923-actual-v1/assessment-v1.json",
+      "bytes": 42369,
+      "sha256": "788bae6a52d6a3bc53de46ea241e7d389183e5af48974048e6f17884b967e697",
+      "qualification": "actual"
+    },
+    {
+      "copy": "layout-jim-2766-index.json",
+      "original": "/workspace/naming-proof-storage/compiler-current2766-layout-jim-closed-v1/index.json",
+      "bytes": 4545,
+      "sha256": "1bc3f65663f217e85abeb9d48477c33a363409e5f3b56243e9ce3fe0bc5ef912",
+      "qualification": "actual"
+    },
+    {
+      "copy": "prep-pr-cebea.json",
+      "original": "/workspace/naming-proof-storage/names-prep-pr-40454543365-actual-v1/authentication.json",
+      "bytes": 6320,
+      "sha256": "7c3c6d910f5773f30f7f61acb1bd2240108ffc1d848159ca35ca318fa402440b",
+      "qualification": "actual earlier exact clean candidate"
+    },
+    {
+      "copy": "spectcl-572.json",
+      "original": "/workspace/naming-proof-storage/vm-spectcl-actual-40451629434/logical-eval7-artifact-authentication.json",
+      "bytes": 41867,
+      "sha256": "16197fb5d92ec73e8db0bdab83b1873a1cdfb42af79c230afb108d00abc93bcf",
+      "qualification": "actual earlier source"
+    },
+    {
+      "copy": "baseline-ca8d-summary.json",
+      "original": "/workspace/naming-proof-storage/root-cleana8d-baseline-heavy-rust3-rust5-e2e3-available-join-v1/summary.json",
+      "bytes": 5401,
+      "sha256": "4a92418f9df79dbd96298cc9bb4e891a56a108a9b100102f520c9812c8a15253",
+      "qualification": "complete-only earlier source comparison"
+    },
+    {
+      "copy": "jobs-fb5e.json",
+      "original": "/workspace/naming-proof-storage/root-fb5e-focused-wave-discovery-v1.json",
+      "bytes": 2397,
+      "sha256": "a88d6760c415e765476013b8d325ab0b6af63cfe76a52a9be480401f8a696de1",
+      "qualification": "dispatch/status snapshot"
+    },
+    {
+      "copy": "jobs-eade.json",
+      "original": "/workspace/naming-proof-storage/root-eade-focused-wave-discovery-v1.json",
+      "bytes": 802,
+      "sha256": "07f609b7578ed76b7d09b0486ed76940c5cc93ba873d92d0758e313aea517a4a",
+      "qualification": "dispatch/status snapshot"
+    },
+    {
+      "copy": "may-adoption.json",
+      "original": "/workspace/naming-proof-storage/root-authored-body-may-v3-adoption.json",
+      "bytes": 4443,
+      "sha256": "702107ebba549840791300c167f84b401099604f35b61e06b92b4aef37b1174a",
+      "qualification": "static adoption, Rust unrun"
+    },
+    {
+      "copy": "docstring-adoption.json",
+      "original": "/workspace/naming-proof-storage/root-docstring-content-adapter-v1-adoption.json",
+      "bytes": 1604,
+      "sha256": "87a3c28a19bc8143d19696de6157d037baf1a005b4ee2106afbef9140c80094d",
+      "qualification": "static adoption"
+    },
+    {
+      "copy": "file7-lint-precheck.json",
+      "original": "/workspace/naming-proof-storage/root-vm-file7-nondrop-v2-precheck.json",
+      "bytes": 256,
+      "sha256": "e2053e9d720f2b7642929bc8e89d334fa25d13f0ffef545abea152f9ae412ff0",
+      "qualification": "static"
+    },
+    {
+      "copy": "may3-protocol-precheck.json",
+      "original": "/workspace/naming-proof-storage/root-may3-protocol-v2-precheck.json",
+      "bytes": 316,
+      "sha256": "307238aad0079287bc82049aa5ce29d37c2c8bd4b642b499c9ee1ade77edae23",
+      "qualification": "static"
+    },
+    {
+      "copy": "file7-guard-audit.json",
+      "original": "/workspace/naming-proof-storage/root-81cd-file7-guard-audit-v1.json",
+      "bytes": 323,
+      "sha256": "c0d918e72250a761b90b37a460050b1d9d8e05847ef2d6b2ae144f520e9dbc71",
+      "qualification": "static"
+    },
+    {
+      "copy": "current-preflight.json",
+      "original": "/workspace/naming-proof-storage/root-current-after81cd-preflight-v16.json",
+      "bytes": 23391,
+      "sha256": "09b2c82a6f9834296ca2598cbfb7657a6509116718a2d6d6816eec8a5104ae0d",
+      "qualification": "source metadata preflight only"
+    },
+    {
+      "copy": "cleanup-teardown-five-precheck.json",
+      "original": "/workspace/naming-proof-storage/root-names-clean-fixture-tables-teardown-five-v1-precheck.json",
+      "bytes": 562,
+      "sha256": "be37e13472fbc4c5a45082a5ad63c95ff72a47a3098c31de1303733429a5127e",
+      "qualification": "static whole-byte conservation"
+    },
+    {
+      "copy": "reversible-old-elf-archive.json",
+      "original": "/workspace/naming-proof-storage/root-reversible-old-elf-archive-20261027-v1/receipt.json",
+      "bytes": 109081,
+      "sha256": "b10a977b2abb4623dfaf7ff4196b4730a62ce1fb5a1d022826b1d118f199165e",
+      "qualification": "storage receipt; foreign-process uncertainty explicit"
+    },
+    {
+      "copy": "corpus-fb5e-full-git.json",
+      "original": "/workspace/naming-proof-storage/names-corpus2-40462343078-actual-v1/full-git-content-authentication.json",
+      "bytes": 547,
+      "sha256": "34fc82f9c40fd30b669ae6acb0abfc08792f5537e73623d05c6defe8aac69918",
+      "qualification": "Actual fullGit content supplement; formalrows parserFAIL/generatedUNRUN remain"
+    }
+  ],
+  "gate_changes": []
+}

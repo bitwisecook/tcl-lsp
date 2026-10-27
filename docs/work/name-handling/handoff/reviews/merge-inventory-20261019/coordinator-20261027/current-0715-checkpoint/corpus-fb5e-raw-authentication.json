@@ -1,0 +1,1150 @@
+{
+  "source": "fb5e7187e4cd05d7a55e879845399807f2a38ab1",
+  "run": 40462343078,
+  "job": 122049647637,
+  "artifact": 12715313203,
+  "api_zip_digest": "1e1ef13d01417226152ad0b8cf65533eec9dea8d8c4adc96e4bf6a1e715996c2",
+  "safe_unique_crc_members": 47,
+  "source_provider_dependency_tool_before_after_equal": true,
+  "all123_source_and_fixture_pins_match_Git_and_upload": true,
+  "fresh_strict_0w_compiler_lib_elf": "a1fbea0e5b7ed38e96b68aae43a9515dd559a477eb8387dc261462a86f2d4bc1",
+  "actual_profile": {
+    "debug_assertions": true,
+    "debuginfo": 0,
+    "opt_level": "0",
+    "overflow_checks": true,
+    "test": true
+  },
+  "actual_child_AUTH": {
+    "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+  },
+  "actual_test_listing_and_same_ELF": true,
+  "owned_closed_processes": 5,
+  "all_process_budgets_shared_cap_deadline_floor": true,
+  "harness_error": "RuntimeError('corpus marker parser line bound')",
+  "unchanged_parser_refusal_reproduced": [
+    "RuntimeError",
+    "corpus marker parser line bound"
+  ],
+  "actual_roster_states": [
+    "RUNNING (exception prevented final update)",
+    "UNRUN"
+  ],
+  "raw_text_child_terminal": "FAIL exit101; independent original Rust terminal parser",
+  "raw_markers_independently_authenticated": 34,
+  "raw_typed_equal_pairs_before_failure": 102,
+  "required_text_pairs": 702,
+  "generated_current_pairs": "UNRUN; no prior42 transfer",
+  "raw_first_refusal": {
+    "source_context": [
+      17512,
+      "SOURCE_POINT_CORPUS_BEGIN input=\"samples/wasm/t7-dynamic/70_var_traces.tcl\" dialect=tcl8.6 original=true"
+    ],
+    "line": 17571,
+    "row": "REPORT_CAPTURE stage=compare.owner.command_realm refuses=true",
+    "pair": "old-old: actual first comparison expression evaluated first in exact source",
+    "preceding_actual_guards": "both current-output/current-owner and bodies positive; optimiser_source_origin/analysis_context_unavailable refuse=false"
+  },
+  "raw_first_panic": "assertion `left == right` failed: complete corpus label=samples/wasm/t7-dynamic/70_var_traces.tcl mixed=false pair=old-old",
+  "raw_left": "Unavailable(CompleteFieldCorrespondenceUnavailable)",
+  "oversized_body_candidate_rows": [
+    {
+      "line": 5129,
+      "bytes": 38302,
+      "sha256": "a160b10f130ebdf3477ec5909733e49ffffc483fc96ea2b2c4a46c88d9e1266f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 159, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 5131,
+      "bytes": 38310,
+      "sha256": "0ca4cfb38c19190a8f8a9dc6e8949bf8f10dcac4710262a1c982fedb8206f535",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 159, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 5167,
+      "bytes": 38302,
+      "sha256": "25e450ecfcc2b0c93b86800321b2105dff458bd3ac18b4e9f77ba1a758839039",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 164, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 5169,
+      "bytes": 38310,
+      "sha256": "df9f58a1be752ea24816259f1648beb297df7a50d81d9bcee82edb613cf055dd",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 164, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 5205,
+      "bytes": 38302,
+      "sha256": "c0c4d603c4f5a78e6a4433291543b6267b4eac09dec0613444b5ebb4eb6c2031",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 169, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 5207,
+      "bytes": 38310,
+      "sha256": "fdd69ef90e1f9ca19e9b6007edb44c3b735eeb9fc13215b87d517b09e9bc1afb",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 169, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 5562,
+      "bytes": 38302,
+      "sha256": "6ed517b52a07fb41f5b3586a135523e125a76cd57f6d6a07ba655cfd9fb18cf6",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 175, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 5564,
+      "bytes": 38310,
+      "sha256": "2d9acd12c3938ca9b9adc2df29cdf76807288a4684d814b775d26541bd5019b0",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 175, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 5600,
+      "bytes": 38302,
+      "sha256": "b8c2e89ae394697171a46fdc650441f92daa47d2b873da671c7dff0858969792",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 180, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 5602,
+      "bytes": 38310,
+      "sha256": "38df16d7df3629f16f28cc8b1b8ee6274d1df56d58f27d4a89f34264227c01c9",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 180, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 5638,
+      "bytes": 38302,
+      "sha256": "2fd28ea231271619d3158d6882850e08dea8a9ac69b98f954332626327c13770",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 185, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 5640,
+      "bytes": 38310,
+      "sha256": "883b71868dca9cd4ac8fc884683d09d355cf3501b7341e0ad9b05105692a2e43",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 185, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 5782,
+      "bytes": 38302,
+      "sha256": "85c388aa5b647c4279ed8b434d564800e37d010cc7e2796d957d8c18293fae7d",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 190, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 5784,
+      "bytes": 38310,
+      "sha256": "3cef6832ef03b9469d08a5bafd6e79d3b863827d314af31e374faa7764c49b45",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 190, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 7184,
+      "bytes": 33467,
+      "sha256": "820db21b4c331a537d3431a47a98e99cc7fa3446ee23c91351523b5048aad853",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 254, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 7186,
+      "bytes": 33475,
+      "sha256": "3dfec220815c3349e55e0121b1d01a34fffec889f022593b13c8cac986849408",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 254, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 7222,
+      "bytes": 33467,
+      "sha256": "4da2755c672bd79811ee010d2d69e09cc108850a7e3308a7b258b097a4d85050",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 259, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 7224,
+      "bytes": 33475,
+      "sha256": "2c59d7fae6993636031762530363b7736e60927240637b1b1e389a11cd9a2a36",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 259, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 7260,
+      "bytes": 33467,
+      "sha256": "13cc6fef41aa86c7bdb82d4cf4b79091a6ef99e71c33fe92ac72c07fa55c4a44",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 264, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 7262,
+      "bytes": 33475,
+      "sha256": "0247f3481d3bd1de3d537c6ab13ca13e1bd1d9cbf7da8a71d145fb68c6a361f5",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 264, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 7617,
+      "bytes": 33468,
+      "sha256": "345cdecfd551a2a4cef68f7acb22c22c4db9fbf71f3aa8d56be2fa08e948fea4",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 270, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 7619,
+      "bytes": 33476,
+      "sha256": "92490b082ef233002c57c5c8fe5c431d50e5c9e968855970981ab600a37e55f5",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 270, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 7655,
+      "bytes": 33468,
+      "sha256": "8a6003f61a52223d4e9662489b137f91fde0c8722fc0764ceed74fcd741b9942",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 275, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 7657,
+      "bytes": 33476,
+      "sha256": "0a7b22566907fefd20fec260ed093369b5436c35dfef1568c655d832a92daab9",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 275, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 7693,
+      "bytes": 33468,
+      "sha256": "299b163bc87ca4aada9432c427b8ff6b9ab8c891e9d3c71da16e8b6a6a87fbca",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 280, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 7695,
+      "bytes": 33476,
+      "sha256": "1acbd2e3efdac87f65862c0fb500f0c309d395ac8926610c26507013549a9ec4",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 280, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 7837,
+      "bytes": 33468,
+      "sha256": "64fe3916cf0a93182d7cf2bdf45276de0d4aded5ee7cc4d9a358428a02297938",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 285, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 22, e"
+    },
+    {
+      "line": 7839,
+      "bytes": 33476,
+      "sha256": "8d28caca85afb2b8c05358698bbb4ee0df54389794df08c040e7e713640d22cf",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 285, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { st"
+    },
+    {
+      "line": 8194,
+      "bytes": 11024,
+      "sha256": "f1d1bb60bbaa5fbad7658a06762439ce5254697ea57ce4fe3e0b4e205d41bbc3",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 288, "
+    },
+    {
+      "line": 8196,
+      "bytes": 11024,
+      "sha256": "5faeea3064bae41da87b200a1e0886db14e3b800f026503b808005502af84e67",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 1 } role=unit kind=Installed declaration=Span { start: 344, "
+    },
+    {
+      "line": 8198,
+      "bytes": 11024,
+      "sha256": "c9e93ed05e612334da90e2aea47e2a70939c7e3a389c7b9d9fd427dba13c915a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 2 } role=unit kind=Installed declaration=Span { start: 535, "
+    },
+    {
+      "line": 8200,
+      "bytes": 11024,
+      "sha256": "279e86e8f05cef743000e4878ea948f6c93d8c400c4488e92421b9b439129c92",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 3 } role=unit kind=Installed declaration=Span { start: 619, "
+    },
+    {
+      "line": 8202,
+      "bytes": 11024,
+      "sha256": "806a5bcb18c3d6e8deb4f5670d6ac09620d44319e74bf96b636ad27c89c2a9b8",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 4 } role=unit kind=Installed declaration=Span { start: 852, "
+    },
+    {
+      "line": 8204,
+      "bytes": 11025,
+      "sha256": "6701d9cd19df9cb119866eec1313fed7ee32a746fca264ad2ac258c9f4ba8fe8",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 5 } role=unit kind=Installed declaration=Span { start: 997, "
+    },
+    {
+      "line": 8206,
+      "bytes": 11027,
+      "sha256": "3aade96f06037d9b1dd295ebae73e68e7112e88cfe92db9f4ea9d4ab7108e145",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 6 } role=unit kind=Installed declaration=Span { start: 1242,"
+    },
+    {
+      "line": 8208,
+      "bytes": 11027,
+      "sha256": "6b74e2bf564fb76af6da59c3aa20ba461597b4e39f314b48ffbc8107dd16853a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 7 } role=unit kind=Installed declaration=Span { start: 1446,"
+    },
+    {
+      "line": 8210,
+      "bytes": 11027,
+      "sha256": "77b405553a75559dfa915201523044ea955b6df89033b384f11404d873028f36",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 8 } role=unit kind=Installed declaration=Span { start: 1571,"
+    },
+    {
+      "line": 8212,
+      "bytes": 11027,
+      "sha256": "eab1d55850f29eec68e96b81694cc98fdec47008914ca2229832b8ef0c4a89f0",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 9 } role=unit kind=Installed declaration=Span { start: 1781,"
+    },
+    {
+      "line": 8214,
+      "bytes": 11028,
+      "sha256": "20d1fde7e4ec920ecce9ad893e98caf404fd2a9a1b0a966b4de3ae8b711b48d2",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 10 } role=unit kind=Installed declaration=Span { start: 1956"
+    },
+    {
+      "line": 8216,
+      "bytes": 11034,
+      "sha256": "8c1fdc2aa887b12ac922b182c1b2e574767067d411f0acdb5ebd4b08d523f4df",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 11 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8218,
+      "bytes": 11034,
+      "sha256": "312098883735c561c7bdb00ce9534f9153270d9d1f6aab9dbe049095323919df",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 12 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8220,
+      "bytes": 11034,
+      "sha256": "b661297701672dac34365ee774f01fce199d8ad993ff40e40250eab21fa54b53",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 13 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8222,
+      "bytes": 11034,
+      "sha256": "91940d65dcb4cada2294209fc40bb03569631e40c9694c9a439c2a7b9dfc6db7",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 14 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8224,
+      "bytes": 11034,
+      "sha256": "29b3b31aba638abee4358b591f63fe9bff2236b9cb9fe994c726453a921adcbb",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 15 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8226,
+      "bytes": 11035,
+      "sha256": "04824a06d741daa226186ec2c9634717a835eca6bd4566855802d65d5d8201d3",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 16 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8228,
+      "bytes": 11037,
+      "sha256": "b6cacdfc0b34714d39da7b8865072392edd80cad824d77eeacd8d08e46aa7c6c",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 17 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8230,
+      "bytes": 11037,
+      "sha256": "49ab0e59b1574c6707dba75a5f2286e3feda914707fb5f21068adc7c389c4d0f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 18 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8232,
+      "bytes": 11037,
+      "sha256": "3c580f0a899c4a49dc29a4a8bbbf8ba29dbde9c844953e487fac600c12344948",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 19 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8234,
+      "bytes": 11037,
+      "sha256": "cbc7a626520646ddde9c8c158576279020494b9fa16279ab3533072f5c32bcc8",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 20 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8236,
+      "bytes": 11037,
+      "sha256": "b7fcefc9c3e638ba2a3ca70c1278adfc03d08d817a23ac1e3f9ac3affea5a9b0",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 292, ordinal: 21 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8272,
+      "bytes": 11024,
+      "sha256": "09068f11f28334c88fe65b8831f82e5190bc2c8a39207489783a08a0896ae078",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 288, "
+    },
+    {
+      "line": 8274,
+      "bytes": 11024,
+      "sha256": "e672c4b7ee39b47525ef0577457ff909581c358ef29544f44ba38b4e560fbbc3",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 1 } role=unit kind=Installed declaration=Span { start: 344, "
+    },
+    {
+      "line": 8276,
+      "bytes": 11024,
+      "sha256": "a152c5e3ff475092cd9efaabd2acde38b1c66429345b8688f77bffd4195df776",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 2 } role=unit kind=Installed declaration=Span { start: 535, "
+    },
+    {
+      "line": 8278,
+      "bytes": 11024,
+      "sha256": "c9942565460611b4c017abcb4d8459f70d30daaee737eb7d2005b4e8b405ec72",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 3 } role=unit kind=Installed declaration=Span { start: 619, "
+    },
+    {
+      "line": 8280,
+      "bytes": 11024,
+      "sha256": "41828016b819d8df7963748f0d0e9b25ca52c896508dd04028133dc69547e8c9",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 4 } role=unit kind=Installed declaration=Span { start: 852, "
+    },
+    {
+      "line": 8282,
+      "bytes": 11025,
+      "sha256": "5e5d70e33f705659383e33fd51a0093b82a3efa28daa553fe931f67820f0eb35",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 5 } role=unit kind=Installed declaration=Span { start: 997, "
+    },
+    {
+      "line": 8284,
+      "bytes": 11027,
+      "sha256": "fc85eaeadbdf82d540ebd39622ce30868e1bdbe9e64ccd67e9027234bdd927b5",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 6 } role=unit kind=Installed declaration=Span { start: 1242,"
+    },
+    {
+      "line": 8286,
+      "bytes": 11027,
+      "sha256": "72aa78667315688483895952971ae2a237c583c776b1b6006c9e287d4c497fd4",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 7 } role=unit kind=Installed declaration=Span { start: 1446,"
+    },
+    {
+      "line": 8288,
+      "bytes": 11027,
+      "sha256": "cac0be334240bfda96d0e3361d52fd263254c8be86be39a1e1dff40697744cd6",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 8 } role=unit kind=Installed declaration=Span { start: 1571,"
+    },
+    {
+      "line": 8290,
+      "bytes": 11027,
+      "sha256": "a85df3ef70f1dfe631aadf9fb06fa9d43f9cc883dfa45ff68ff41fe862a00791",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 9 } role=unit kind=Installed declaration=Span { start: 1781,"
+    },
+    {
+      "line": 8292,
+      "bytes": 11028,
+      "sha256": "f6041886cb480796c05dc292d4ad9a9d466556b21c96c4fed088c348ea835478",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 10 } role=unit kind=Installed declaration=Span { start: 1956"
+    },
+    {
+      "line": 8294,
+      "bytes": 11034,
+      "sha256": "c91bc083cb5b70c4038d6291c0b8cb6593ef82501543e8df852ebf1411c6020a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 11 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8296,
+      "bytes": 11034,
+      "sha256": "55795febfa9a435e889fad3863ac6eb7652aef4665891d74cc67ec6a3d35f61c",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 12 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8298,
+      "bytes": 11034,
+      "sha256": "089c84d441cf8e2e16ae6c16313d1f70ef21c3a056490de1205647d864780a6e",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 13 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8300,
+      "bytes": 11034,
+      "sha256": "33573d9bf64e6ef6a82bbc148c019285675863a8ae26616c7e8c6a46f0163e93",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 14 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8302,
+      "bytes": 11034,
+      "sha256": "87e3499b2445e3575802e3ce9511a47132721b763225bd50c5d738ad5bac754a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 15 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8304,
+      "bytes": 11035,
+      "sha256": "195d92f50f6e6e86604e6db94a39248d085955173b2a79aff7353a35ef1b3767",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 16 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8306,
+      "bytes": 11037,
+      "sha256": "0b84dd10c663d75590f1b7847106da4e64f862406e65d5e42a4cc6b6751bfedf",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 17 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8308,
+      "bytes": 11037,
+      "sha256": "eec6981a31bcd045514cbbd0a723eb84635bdcc275fd47b5dc048908124cf8f7",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 18 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8310,
+      "bytes": 11037,
+      "sha256": "cd1b4df4c95a699562b8a013596842dee41c22d2e0207f1e751e9fe6162c8d32",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 19 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8312,
+      "bytes": 11037,
+      "sha256": "8dc12de4705089bac0278bcbbd3a27a87ab3d44ea233ee5360333b8714509f02",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 20 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8314,
+      "bytes": 11037,
+      "sha256": "c40470693de64d343fe006e724db66adbf1df46a2690f0045c64fc4ff696eb21",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 297, ordinal: 21 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8350,
+      "bytes": 11024,
+      "sha256": "2fe5d6c63717244f7effda2251494897290766636081c6b7220f448af0feeccb",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 288, "
+    },
+    {
+      "line": 8352,
+      "bytes": 11024,
+      "sha256": "a241d06ba1a9fff6e326c51c53ffb3b2ea40f146ee98c288fdbfebf635820e7f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 1 } role=unit kind=Installed declaration=Span { start: 344, "
+    },
+    {
+      "line": 8354,
+      "bytes": 11024,
+      "sha256": "0ae4e88946d689863c0bbb324a0ab3fb225b43e862e1394e7719b5c9c5e48c1b",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 2 } role=unit kind=Installed declaration=Span { start: 535, "
+    },
+    {
+      "line": 8356,
+      "bytes": 11024,
+      "sha256": "3e930a968befb82fcc3f66aa9fc17dc563ce3f6aec7e89143c794cf9ce6ec53e",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 3 } role=unit kind=Installed declaration=Span { start: 619, "
+    },
+    {
+      "line": 8358,
+      "bytes": 11024,
+      "sha256": "8d5d49d08bb798bb8c78678f3dec3dfd523537e616c21f1e604b915cbdb776b7",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 4 } role=unit kind=Installed declaration=Span { start: 852, "
+    },
+    {
+      "line": 8360,
+      "bytes": 11025,
+      "sha256": "11dbe7d9e03ae75561168e0f7a8f776b6b0299533a0f774cde57bb8668b09961",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 5 } role=unit kind=Installed declaration=Span { start: 997, "
+    },
+    {
+      "line": 8362,
+      "bytes": 11027,
+      "sha256": "44d167ba5e7eacec3e1c5bf58efd76c7a11d0e41b116391a1cd6e836be084bd5",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 6 } role=unit kind=Installed declaration=Span { start: 1242,"
+    },
+    {
+      "line": 8364,
+      "bytes": 11027,
+      "sha256": "e984f97806c0ef6e73949239680a464b54b9c6a273858e009e9a822fa3697ed7",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 7 } role=unit kind=Installed declaration=Span { start: 1446,"
+    },
+    {
+      "line": 8366,
+      "bytes": 11027,
+      "sha256": "bda22106a69a9c95f1cd124d3d2fabbc7f12475224a3da0080728eb73bd8fd5a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 8 } role=unit kind=Installed declaration=Span { start: 1571,"
+    },
+    {
+      "line": 8368,
+      "bytes": 11027,
+      "sha256": "a5ada2af642bea07110fbda0979c7c72dac43440ecfb93390fcb24f8136a7bc9",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 9 } role=unit kind=Installed declaration=Span { start: 1781,"
+    },
+    {
+      "line": 8370,
+      "bytes": 11028,
+      "sha256": "3809c0a41248918bc53761703a6eac2753c5754738fff439ead67c14c695dbc1",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 10 } role=unit kind=Installed declaration=Span { start: 1956"
+    },
+    {
+      "line": 8372,
+      "bytes": 11034,
+      "sha256": "0844566a3710faa75e53d51d403eae100a3ffb2bcab4d758cac4b6433656aa35",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 11 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8374,
+      "bytes": 11034,
+      "sha256": "23bd889651d14fd678689de12ddf93c5ab9305045a680bf2deca197c1dbc698c",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 12 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8376,
+      "bytes": 11034,
+      "sha256": "e39383c70351a8ef3e6a1f77958ddc88e81b1f7beda224798e5f036a058c4b4a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 13 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8378,
+      "bytes": 11034,
+      "sha256": "7f91c4757fe45077813837edab659bee2ca38c39a7dd3a92c8372039f2c39018",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 14 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8380,
+      "bytes": 11034,
+      "sha256": "dd98b7fc6944b1d10927f14eb96093c7f3220a44d893ebbcf84197fd1fbb7cc0",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 15 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8382,
+      "bytes": 11035,
+      "sha256": "4229dbd3212f4d25dca489bb2acf9540fa7de7e6933f23063598b8188614fb5f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 16 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8384,
+      "bytes": 11037,
+      "sha256": "471a0d587338744449dacd44310e61824d9f013650f0b490d612f5969ea3b200",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 17 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8386,
+      "bytes": 11037,
+      "sha256": "9f017985349b12042b10e5377cd9b63f8a423171b6ab7084afd4cb3aca5a9c28",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 18 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8388,
+      "bytes": 11037,
+      "sha256": "fff01244b6bb1af4b3e2356f76428b5edc0485e10923d37066b47e0a93adc923",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 19 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8390,
+      "bytes": 11037,
+      "sha256": "8159067feea6fdf1a0a69c7d83616a3b963c8c4ffda773690cc273c3c3520cc2",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 20 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8392,
+      "bytes": 11037,
+      "sha256": "7428a2e204be411446dc728448de87f49dfa893a26823199383b96515af49389",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 302, ordinal: 21 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8753,
+      "bytes": 11024,
+      "sha256": "28b2ceb671e7b1d8eb06fb8eab456822dcec86a4060cdde21e551b6b0022a916",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 288, "
+    },
+    {
+      "line": 8755,
+      "bytes": 11024,
+      "sha256": "7aee77b6e0dce73e46a0bf4baa6fa30c6809f178828d75befe3192d6eefc2bf1",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 1 } role=unit kind=Installed declaration=Span { start: 344, "
+    },
+    {
+      "line": 8757,
+      "bytes": 11024,
+      "sha256": "4713b39c4216cf6f6d8b4a9e7ea83b0db9e5ab74f3a009d926229624b4a41a37",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 2 } role=unit kind=Installed declaration=Span { start: 535, "
+    },
+    {
+      "line": 8759,
+      "bytes": 11024,
+      "sha256": "f0f9cc1ca6f75581fcb39a98f5176ed37623e6f34e6101fff8bb710bd8592762",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 3 } role=unit kind=Installed declaration=Span { start: 619, "
+    },
+    {
+      "line": 8761,
+      "bytes": 11024,
+      "sha256": "d0461b3f1401accd2baabc36415f7d6a5675c58566121429bcdc0a688fa7b931",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 4 } role=unit kind=Installed declaration=Span { start: 852, "
+    },
+    {
+      "line": 8763,
+      "bytes": 11025,
+      "sha256": "30951d0c309aa9c5fbd33133907c498cc1f4f18154cbb63638d95846424db074",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 5 } role=unit kind=Installed declaration=Span { start: 997, "
+    },
+    {
+      "line": 8765,
+      "bytes": 11027,
+      "sha256": "75ea491074304e0cfcf4a329e57c598a1c76f076fd4c51edc94cc47fdcd3e7ce",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 6 } role=unit kind=Installed declaration=Span { start: 1242,"
+    },
+    {
+      "line": 8767,
+      "bytes": 11027,
+      "sha256": "c2e61fb0139abfd6245c523111e098c5083ee6505c7798bef5542773265b9c55",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 7 } role=unit kind=Installed declaration=Span { start: 1446,"
+    },
+    {
+      "line": 8769,
+      "bytes": 11027,
+      "sha256": "08fe76e8c3b7cf221e4c1ca7ec2b29b38146b499453b669554e0c965832075db",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 8 } role=unit kind=Installed declaration=Span { start: 1571,"
+    },
+    {
+      "line": 8771,
+      "bytes": 11027,
+      "sha256": "76497f90b4b2a427572324c748a6dee83ab7648bef3fb4a9a1652d384e0a3982",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 9 } role=unit kind=Installed declaration=Span { start: 1781,"
+    },
+    {
+      "line": 8773,
+      "bytes": 11028,
+      "sha256": "991a07c788ddbcb4745ae9b85ca5f81cdc60a0974d6a40ae46c62d3085c7e08d",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 10 } role=unit kind=Installed declaration=Span { start: 1956"
+    },
+    {
+      "line": 8775,
+      "bytes": 11034,
+      "sha256": "e16aa1fa2411ca9e759bc630bf86281e85ca38517f7783614bcd5c2ed4cf70fe",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 11 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8777,
+      "bytes": 11034,
+      "sha256": "ea99e36a70db5d0422432c8b8b6567e32b87806ee1e7062e80ba004528dbf98c",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 12 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8779,
+      "bytes": 11034,
+      "sha256": "56d3acf6a8b30c2e635ab12e0f328518cb508af6a92e11806626f234bdba50b1",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 13 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8781,
+      "bytes": 11034,
+      "sha256": "081b3c4aaec827ba1391f446583252c04a546e8bc48f6bafd417305462202e6d",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 14 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8783,
+      "bytes": 11034,
+      "sha256": "5c053e2125441f6c7c8d2b471219d5f936b14d57cee01d371b09924b08fe0dc1",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 15 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8785,
+      "bytes": 11035,
+      "sha256": "2072406cefca08add648d4efe3beab2067a95eb3007088c909795b321de78905",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 16 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8787,
+      "bytes": 11037,
+      "sha256": "9ae990154eca1ea2fb9db41b5a9438fbbfa4977d2af916eb00c6522861cb25c6",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 17 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8789,
+      "bytes": 11037,
+      "sha256": "b07cfa5ca3b7c10b86f5f4a7961e452900309ea673ea8a1175550a4f516ffe2d",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 18 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8791,
+      "bytes": 11037,
+      "sha256": "cbbec06cf5e027e4ca6335282946841e5971995f06b284e940867ca15337b253",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 19 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8793,
+      "bytes": 11037,
+      "sha256": "e1d81d2a0c32860a834782be9d895dc36e3205ef97b6cd5d4bd634b7167abfdb",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 20 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8795,
+      "bytes": 11037,
+      "sha256": "a3787acca5f861b7471e23ae0f8c441e68711994a5d760930e3e9f1956163c18",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 308, ordinal: 21 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8831,
+      "bytes": 11024,
+      "sha256": "5071eeb92a893e49f15304a61f96ee4bd5bbddd447833d7e2d42723a2a4ddb4f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 288, "
+    },
+    {
+      "line": 8833,
+      "bytes": 11024,
+      "sha256": "e3df0377544d17971483b2ddfc4a7a13bf67a62b99c8f71d4ae47f508b2dfb67",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 1 } role=unit kind=Installed declaration=Span { start: 344, "
+    },
+    {
+      "line": 8835,
+      "bytes": 11024,
+      "sha256": "ad2d8e6e5b9b5ffbeeb7b1b5925c9fe71f1e55fe288461aa805a8f38b74e63f0",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 2 } role=unit kind=Installed declaration=Span { start: 535, "
+    },
+    {
+      "line": 8837,
+      "bytes": 11024,
+      "sha256": "92b7ac0afb703d8b25cd0ef98b6a9626aeff158a5ede50d630265064ce06fe29",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 3 } role=unit kind=Installed declaration=Span { start: 619, "
+    },
+    {
+      "line": 8839,
+      "bytes": 11024,
+      "sha256": "9dfd97582df80f2043a9eadbc83853c64dd46e45ef1a7ff287e64703082dbedc",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 4 } role=unit kind=Installed declaration=Span { start: 852, "
+    },
+    {
+      "line": 8841,
+      "bytes": 11025,
+      "sha256": "461f0a09bbe5f9e561243d8bb710493245c848fad4614e9395d24306ebec3d2f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 5 } role=unit kind=Installed declaration=Span { start: 997, "
+    },
+    {
+      "line": 8843,
+      "bytes": 11027,
+      "sha256": "a02992d1658dc6fb351aada403428c73244db1cfd25245d0fbbf66a8f36be2b4",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 6 } role=unit kind=Installed declaration=Span { start: 1242,"
+    },
+    {
+      "line": 8845,
+      "bytes": 11027,
+      "sha256": "929674b90ff93739f2f613c750bf28d4165ff86482fc0233fb2bfc09eef67898",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 7 } role=unit kind=Installed declaration=Span { start: 1446,"
+    },
+    {
+      "line": 8847,
+      "bytes": 11027,
+      "sha256": "7d170eb7cc19a27f5def77a15c1c6cc0d20b0c4c6e3c4946faea76e1a882ebc1",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 8 } role=unit kind=Installed declaration=Span { start: 1571,"
+    },
+    {
+      "line": 8849,
+      "bytes": 11027,
+      "sha256": "1dd539af524b307cc11ab3e67ef78712bd0cf7395a3ee726979566e58fb67941",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 9 } role=unit kind=Installed declaration=Span { start: 1781,"
+    },
+    {
+      "line": 8851,
+      "bytes": 11028,
+      "sha256": "369e15e44f9dcbafbf1a661d5c3ed4a067bff98774bde19a0bd9a361c88567a7",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 10 } role=unit kind=Installed declaration=Span { start: 1956"
+    },
+    {
+      "line": 8853,
+      "bytes": 11034,
+      "sha256": "e8ea6e3e6d33bfdd4c9eaf3b4ef0aceac1d300c98a90850377f42537c74d7c36",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 11 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8855,
+      "bytes": 11034,
+      "sha256": "382f7712949621bed5a1e14e5d577285aa5463c4bc6937002ea4d128a0e201d1",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 12 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8857,
+      "bytes": 11034,
+      "sha256": "e5b8fc65e152c872b0eb8ba635065a784ee4918560dffba6d2d0ce6176fa733a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 13 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8859,
+      "bytes": 11034,
+      "sha256": "05927e156e90200545e50a1dd08d9775408b027470475bf0a141c601028905ed",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 14 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8861,
+      "bytes": 11034,
+      "sha256": "3d93db769a1839475a12c5e1110bbe9bb9f8095c2a6bf23c0ec0dfe8c370a074",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 15 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8863,
+      "bytes": 11035,
+      "sha256": "9398a329b71ab53a5d6d568569df1e5ad020cf29fd949d32106cf86768b34d74",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 16 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8865,
+      "bytes": 11037,
+      "sha256": "2c1bdb31dcb4be91d434ff483dfdf6d329181fcb4944a3b1f2de7291c275b054",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 17 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8867,
+      "bytes": 11037,
+      "sha256": "8435c553fc6b4e069d389523a3b05c6709694f180aea6437db62871129c9520c",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 18 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8869,
+      "bytes": 11037,
+      "sha256": "e3f386b93702abe58d40b904bdec383f8dbca47ccde9a9d208a5a7d777c527ae",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 19 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8871,
+      "bytes": 11037,
+      "sha256": "9e659b52552e89cf0cf1e6396dc54069ee17ed2ea4125804d411e6ae88db2f38",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 20 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8873,
+      "bytes": 11037,
+      "sha256": "2ae7edaca6cbbb81ff9cc944a07d1bf5cab767b08b5f3bb1a17c9a65c1b45b16",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 313, ordinal: 21 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8909,
+      "bytes": 11024,
+      "sha256": "2a0cce5d314916b61db98f6f0bce44ed4a93f7799df58e566bb3aa032fe87fbe",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 288, "
+    },
+    {
+      "line": 8911,
+      "bytes": 11024,
+      "sha256": "6069bde5c7fece756d386cfd37be78dbda5e2e5f6acd1f71f43d4d762e8028cb",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 1 } role=unit kind=Installed declaration=Span { start: 344, "
+    },
+    {
+      "line": 8913,
+      "bytes": 11024,
+      "sha256": "adfcba04ada9e9dc48124eac397ca17a8b72cbec611f8f55edc362616e395f33",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 2 } role=unit kind=Installed declaration=Span { start: 535, "
+    },
+    {
+      "line": 8915,
+      "bytes": 11024,
+      "sha256": "f291f3078d563971172f32c59b261a547d1f9e48094a3f89389d2d3d0ce1bda2",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 3 } role=unit kind=Installed declaration=Span { start: 619, "
+    },
+    {
+      "line": 8917,
+      "bytes": 11024,
+      "sha256": "85c5d18e37c2cde04db47b608093e53f5543558da33da5b17c4fcb4a2d71de0a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 4 } role=unit kind=Installed declaration=Span { start: 852, "
+    },
+    {
+      "line": 8919,
+      "bytes": 11025,
+      "sha256": "1a665a6ce381389242c18fda21591a592cecc604ff46ba085b6d5e7b779123f4",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 5 } role=unit kind=Installed declaration=Span { start: 997, "
+    },
+    {
+      "line": 8921,
+      "bytes": 11027,
+      "sha256": "de497dfc07abc024a2803c985fe40c563e56ea5989c0d5db328ce1d20e777795",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 6 } role=unit kind=Installed declaration=Span { start: 1242,"
+    },
+    {
+      "line": 8923,
+      "bytes": 11027,
+      "sha256": "dfd297357e2c09c92c74e7f82a43b2c7f2e7aaf1ba6600e4c54dc95df378b655",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 7 } role=unit kind=Installed declaration=Span { start: 1446,"
+    },
+    {
+      "line": 8925,
+      "bytes": 11027,
+      "sha256": "a039d2b73899744866e95fb79d7807a239127382dfb00462254219ce96db4e29",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 8 } role=unit kind=Installed declaration=Span { start: 1571,"
+    },
+    {
+      "line": 8927,
+      "bytes": 11027,
+      "sha256": "c68727a9f9529a9442cbee1e90e26ef5af250bd5321146261b22ae8a81f4b072",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 9 } role=unit kind=Installed declaration=Span { start: 1781,"
+    },
+    {
+      "line": 8929,
+      "bytes": 11028,
+      "sha256": "4fd9f07acbaa201f5be17601e9de8f608ac2fd64b56011e654f6ccf7e75d29fb",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 10 } role=unit kind=Installed declaration=Span { start: 1956"
+    },
+    {
+      "line": 8931,
+      "bytes": 11034,
+      "sha256": "513f989b9b27d82d4ff8cb07d86105c7f56a592dd0637bf02889bc204c289e9c",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 11 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8933,
+      "bytes": 11034,
+      "sha256": "97b2f2b5b272e4d422c531ca1d2bce183ad3b9eba596a104156dce90763fa02a",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 12 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8935,
+      "bytes": 11034,
+      "sha256": "02e646577a464c26e7541bb62158d93540483b340c9251ff0cdbb91a95bdabe2",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 13 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8937,
+      "bytes": 11034,
+      "sha256": "1d7c2567583499537267383ef0c859d6cb4830fdcf07536fae69225a9875cef2",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 14 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8939,
+      "bytes": 11034,
+      "sha256": "fafd1097b9ad19c818679a5644e60ddfa5e447cab2edb6acda084688291969e5",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 15 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8941,
+      "bytes": 11035,
+      "sha256": "4db564c4139bb055f41a9366d47590b1a753facd9ec747d655b1db2815369dfa",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 16 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8943,
+      "bytes": 11037,
+      "sha256": "0420fb267c7320f89cf46342c84a148c162db8f5fd78d73d14fe8b0671724da4",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 17 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8945,
+      "bytes": 11037,
+      "sha256": "d4cc2133fa0297134653382ed8b1fa102059d4ea09ac4521c2a3eea29093de52",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 18 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8947,
+      "bytes": 11037,
+      "sha256": "e5e6473d1be2afe9ba7f6827b2d1ba8e37ec55618d1b1659b6dcdb4188578730",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 19 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8949,
+      "bytes": 11037,
+      "sha256": "d490f1db9b0c66d0d101f0d613f6d7e844635015082701cfe25ba3a7e68c0f72",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 20 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 8951,
+      "bytes": 11037,
+      "sha256": "cc5fae4f4466c78dff2da01b93e4c4f38a62a5613549f2ee40b86dd7643b97a7",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 318, ordinal: 21 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9095,
+      "bytes": 11024,
+      "sha256": "b5765b74fdd4fea4a4bf85c4da06e5ba0b4ca0a5452de38dd3013aab2b0edcbc",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 288, "
+    },
+    {
+      "line": 9097,
+      "bytes": 11024,
+      "sha256": "4bf8809f41996cece397523e7cd4aecf7a6283e911308ec72dcd0ce1723562d8",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 1 } role=unit kind=Installed declaration=Span { start: 344, "
+    },
+    {
+      "line": 9099,
+      "bytes": 11024,
+      "sha256": "5d7e32b71d13c95a8cdb8233ab1baef368f0c1e0429ec340c44f33db5825d4eb",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 2 } role=unit kind=Installed declaration=Span { start: 535, "
+    },
+    {
+      "line": 9101,
+      "bytes": 11024,
+      "sha256": "aef074aa2bc6988a4f2cfcf6dca9fae82838dc0e175968c9870121cae33e1019",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 3 } role=unit kind=Installed declaration=Span { start: 619, "
+    },
+    {
+      "line": 9103,
+      "bytes": 11024,
+      "sha256": "707eb06a004720c4e4f40f0d0a690c3d880da800d67b635afe1f376054949580",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 4 } role=unit kind=Installed declaration=Span { start: 852, "
+    },
+    {
+      "line": 9105,
+      "bytes": 11025,
+      "sha256": "a0de44192a9122cae32b0260d0d842c69f988df817740bd20a7cd5870fd9c52f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 5 } role=unit kind=Installed declaration=Span { start: 997, "
+    },
+    {
+      "line": 9107,
+      "bytes": 11027,
+      "sha256": "67a38850c66aca1d3bcf2f207f3060893e48fd0c1988dfdbbb58508d3ef3f3c3",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 6 } role=unit kind=Installed declaration=Span { start: 1242,"
+    },
+    {
+      "line": 9109,
+      "bytes": 11027,
+      "sha256": "9d789a47009f110f7713319c2b19e6070f1e13b2a03b861c9aea10386276e030",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 7 } role=unit kind=Installed declaration=Span { start: 1446,"
+    },
+    {
+      "line": 9111,
+      "bytes": 11027,
+      "sha256": "6e5ac2ffbf2cbd947b9cdba9c23405a682934ae4c3801cf709538880e59f7fb2",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 8 } role=unit kind=Installed declaration=Span { start: 1571,"
+    },
+    {
+      "line": 9113,
+      "bytes": 11027,
+      "sha256": "05f8bfdd5fd7f8e4a0781e6308384ff9db52a9e2676edf30a074f18120ef7014",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 9 } role=unit kind=Installed declaration=Span { start: 1781,"
+    },
+    {
+      "line": 9115,
+      "bytes": 11028,
+      "sha256": "617b0fe0c5838bcf9ac96a9606578062ecc9c056b276ee44ff0297cf1f0bec81",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 10 } role=unit kind=Installed declaration=Span { start: 1956"
+    },
+    {
+      "line": 9117,
+      "bytes": 11034,
+      "sha256": "5c445b34238c2a988962969eccbd2833fa8630cc7aa7123993e0e800f32d869e",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 11 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9119,
+      "bytes": 11034,
+      "sha256": "1ed81b825daedbf16812e2403a3e4905a341800680ed9eade5402588fd4f1e0d",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 12 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9121,
+      "bytes": 11034,
+      "sha256": "b758fd083f4e13f61309ccbff1d7a5515948715031cf6bd7aab6be75a7712b78",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 13 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9123,
+      "bytes": 11034,
+      "sha256": "c4dd5e575893dda78275bb8087106deb377274b88576fd25a18f30c8e88f9b3f",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 14 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9125,
+      "bytes": 11034,
+      "sha256": "8d0f2f591dd6c927cf597d35d342ad71f3acbc103f7ae395209c78b29f786bb6",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 15 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9127,
+      "bytes": 11035,
+      "sha256": "be239631fc18aa5e8644b00ba3b35503a4af8d26220875a2c2a13fd95d4fc5e7",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 16 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9129,
+      "bytes": 11037,
+      "sha256": "fa624711664f5a7f2f5354a93169e221d5699df1c7200b59a09fc999ab25b206",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 17 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9131,
+      "bytes": 11037,
+      "sha256": "f01dd687e8fbde7783669029f88897eb8e453a8f5d292eba4696e507c09e84ec",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 18 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9133,
+      "bytes": 11037,
+      "sha256": "3c5bddabd2b1354ef4a6ca7b04150925595d7d614289eec27e1b2f277b24c624",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 19 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9135,
+      "bytes": 11037,
+      "sha256": "4f8ab0e7f5e31697bcdfb619c00882566ef925528b2808e7abddf4be36c54397",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 20 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    },
+    {
+      "line": 9137,
+      "bytes": 11037,
+      "sha256": "17b71b9562825ab1ad404d5856673d55f9d431952fe60889a776ac0bf6802ce9",
+      "prefix": "REPORT_BODY_CANDIDATE id=ProcedureId { scope: 323, ordinal: 21 } role=unit kind=OriginalDeclaration declaration=Span { s"
+    }
+  ],
+  "no_line_bound_waiver": true,
+  "full_corpus_gate_accepted": false,
+  "performance_accepted": false,
+  "native_byte_packset": "Separate domain, not covered by117text",
+  "full_Git_content_supplement": "Separate; running",
+  "qualifications": "Source-owned syntax barrier advanced past20-folding with bothmodes markers, but collector line-bound exception invalidates formal corpus outcome. This proof preserves actual RUNNING/UNRUN rows and raw childFAIL.102 raw typedEqual pairs are bounded authenticated pre-failure evidence, not complete702/744 acceptance. command_realm inner mismatch remains UNOBSERVED; no guessed mapping or guard relaxation."
+}

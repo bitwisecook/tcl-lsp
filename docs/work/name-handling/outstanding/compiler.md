@@ -2,11 +2,15 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-27T06:32:44.257008+00:00 (authored-body MAY paired V3 source2160a56e ready for strong peer; Names3cee/docstringda77 static peers closed; all prior owned captures terminal)
+Last updated: 2026-10-27T07:04:45.386744+00:00 (MAY source2160/1e8 integrated; after-old166 MAY3V2 b003/7fbd adopted; fb5e new3 captures owned, Jim terminal intake active; SourceCutV9 strong peer pending)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Current state
+
+Current live sourcefb5e capture ownership: Layout40462329606/job122049604760, Jim5240462336253/job122049626268, compiler16640462349318/job122049669008. At06:58 UTC Jim terminalFAIL, Layout uploading evidence, maincompiler166 healthy in controls. Sole Jim ZIP intake API12715770356/11,091,178B/ba48910da09143600544a7ef04af94f24d749e6855b128f0dca2cbd7c021c893 verified CRC; assessment/fullGit pending, no causal or coverage verdict. No healthy cancellation or duplicate intake; disk floor respected.
+
+MAY source2160 strong LSP1e8 and Root20preimage/afterimage adoption complete WORKdd60/C0fe6 (later source-preserving heads). New MAY3 protocol V1a825 held for preceding old corpus2; immutable V2b003/5af43 places new3 AFTER ENTIRE old166 incl corpus2 closure, unchanged3600/20MiB/2GiB/180list+180test+40cleanup and perrow400/220. Scope7fbd strongclear; Root adopted81cd. New3 allUNRUN, no old budget donation. Strict7 inert drop removald600/62ae Rootadopted; current Type/Clippy efficacy unrun. Current finalef56 metadata2802/7ebd strong0b6f includes sole approved Taint2 new leaf; no implied new3 outcome.
 
 Primary NEXT production proposal is immutable /workspace/naming-proof-storage/compiler-authored-body-may-paired-v3/manifest.json SHA2160a56e08cf8511d10789f7f08bfaaaf79d60b1a76a4fc097fc0ebae36b5857. Ten paths/lane (eight Rust including one new private source leaf; two shipping contracts), WORK-first then exact CLEAN carry preserving CLEAN's intentional lack of WORK-only ingress tracers. Distinct current CU/FU/card/semantic owner/full SSA+CFG source inventory and same-body scope joins issue only authored MAY sink schema and conditional formal ordinals. General metadata/body refusal, Module Native/Logical formals, SCRIPT unknown seeds, Native/Normal/represented-value/sanitiser contracts stay unchanged. Both-lane whole nine-old-module/document erasure and body bounds max99 supplement0ddafdb117355eda140f4a665b8d608d02539d22cc5c5765db60d4469ef909db; all old test bodies exact, three genuine new source-owner/formal/original-do_eval controls UNRUN. Strong LSP peer pending. No actual gain, clean-call compatibility or all140 causal/efficacy claim. Earlier unreviewed pairedV1/V2 held superseded; mutable draft/checkpoint3d350 historical.
 

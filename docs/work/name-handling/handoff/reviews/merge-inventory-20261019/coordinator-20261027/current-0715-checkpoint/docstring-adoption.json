@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-27T06:43:54.042809+00:00",
+  "result": "PASS_CURRENT4_AFTERIMAGES_WORK_FIRST_CLEAN_CARRY",
+  "manifest_sha256": "da77f7aa1f736e7f0a74a9cf04d83f734c4ce4705fa70489f021ef84faf238c9",
+  "source_peer": "e5ae4a0b2d2463e3eabeeb71755d96449824b473007bb1afd6ca2fad93a4ef70",
+  "files": [
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "before_sha256": "a6c2ec597fba735bfc47bb78d6cad36261884ccecd61ed03fa5bea961ccfcec1",
+      "after_sha256": "c5d684813a57a072a3320200f33a3c0ef0a9b0b8d6f0b5f6a850a4e330d30981"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "b3914b1c13b4364d6ce0c9265a5fdc9ef24ab9580ca323bd4a9476f37be01724",
+      "after_sha256": "4797d5811c1dd223a4f3b6bb7be7e9f1eff2e0c94d5c900e32e754b513420914"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "before_sha256": "3f83eed325ec609cdedbd777999108e8c11eea6292892e452bbc7293a5bdc2b7",
+      "after_sha256": "e21528248fc025ace13182176330693eacd36e6261998306300780b329744b2f"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "e48b02d519273d7cb8540152ddc9e0ba9c44d2d8561aaca875416c4a03b5c68b",
+      "after_sha256": "619835cff4b365af419da9ab1169b14e9c498afc7a2a49cf893e48bf0c3b3531"
+    }
+  ],
+  "before_prechecks": "All4actualHEAD blobs exact before application; immutable lane packet has no lane manifest so Rootderived simple manifest adapters under/tmp from master, hashesbound",
+  "actualRust": "UNRUN"
+}

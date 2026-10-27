@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T06:24:58Z
+Last updated: 2026-10-27T06:52:52Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current fb5e strict FULLAUTH23 CLOSED a62097fb:7 drop_non_drop primaries in new logical_file_tests.rs, RustE0, actual126951-source/process/tool seals qualified; Runtime owns repair, downstream strict unrun. Exact Cprep40462362092 remains active/no terminal archive yet. Finalef56 metadata2802/7ebd strongCompiler0b6f +authorV16PASS13/30/22, exact9refresh+one approved MAY child, Root adoption/dispatch owned. N17 concrete evaluatorV1 HOLD3b991 (standard host bootstrap, exact TLS identity and per-call selected-row joins); restrictive private MemoryHost engine producer/identity helper successor off-tree, no closed capability or MAP/RANGE gain. Old Ca8d all58 terminal; E2E1 partial610P270F/2missing and E2E2 partial593P245F/1missing qualified, no lifecycle/completion donation.
 
 Final ca93 metadata packet 88e1d1df sealed off-tree; Compiler independent peer active, author V16/current function checks running. Exact approved file/range/argument-definer joins only; default166 remains166 with15-source/5-function descriptor. Root owns adoption/dispatch. Ca8d all58 jobs terminal; final E2E1/2 cancelled archives captured once, partial ledger authentication pending/no completion donation. N17 DATA/flow remain no capability; concrete owned backend/compiler/evaluator/cache/literal closure is next priority, original MAP/RANGE failures retained.
 

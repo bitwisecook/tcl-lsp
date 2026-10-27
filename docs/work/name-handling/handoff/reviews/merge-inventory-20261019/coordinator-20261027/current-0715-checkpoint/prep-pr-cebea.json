@@ -1,0 +1,249 @@
+{
+  "exact_shared_cap": true,
+  "same_absolute_deadline_spread_seconds": 0.010939836502075195,
+  "candidate": "ebeadf4266d8d869da3b55a2ebfc040b2450975c",
+  "workflow": "c2d06232c513a3e8eaf35967ef830cc5e6b6ffa6",
+  "run": 40454543365,
+  "artifact": 12713005639,
+  "zip_sha256": "036347c9d085c17ed3e8f5be88b52c27cdded2db123a6dde4107f852549f3e57",
+  "zip_bytes": 1764711,
+  "all_safe_unique_members_crc_pass": 59,
+  "full_tracked_source_paths_match_exact_Git": 10987,
+  "tracked_blob_bytes_hashed": 182460790,
+  "initial_final_tree": "8c19842130580f751c8468373b149a076d481ae9",
+  "initial_before_gate_source_index_worktree_clean": true,
+  "final_source_index_worktree_clean": true,
+  "changed_paths": [],
+  "final_status": "",
+  "owner_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "all_owned_process_closures_authenticated": true,
+  "total_retained_log_bytes": 2077228,
+  "phases": [
+    {
+      "phase": "identity-1",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 75086352384,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-2",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 75086344192,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-3",
+      "argv": [
+        "/usr/bin/git",
+        "ls-files",
+        "-z"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 75085688832,
+      "retained_bytes": 650782
+    },
+    {
+      "phase": "identity-4",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 75085701120,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "identity-5",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=no"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 75085697024,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "setup",
+      "argv": [
+        "/usr/bin/make",
+        "install-test-deps"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 72665432064,
+      "retained_bytes": 76563
+    },
+    {
+      "phase": "identity-6",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 72691204096,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-7",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 72691195904,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-8",
+      "argv": [
+        "/usr/bin/git",
+        "ls-files",
+        "-z"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 72690540544,
+      "retained_bytes": 650782
+    },
+    {
+      "phase": "identity-9",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 72690536448,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "identity-10",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=no"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 72690532352,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "prep-pr",
+      "argv": [
+        "/usr/bin/make",
+        "prep-pr"
+      ],
+      "complete": true,
+      "exit_code": 2,
+      "minimum_free_bytes": 50616541184,
+      "retained_bytes": 48073
+    },
+    {
+      "phase": "identity-11",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 51184910336,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-12",
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 51184902144,
+      "retained_bytes": 41
+    },
+    {
+      "phase": "identity-13",
+      "argv": [
+        "/usr/bin/git",
+        "ls-files",
+        "-z"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 51184246784,
+      "retained_bytes": 650782
+    },
+    {
+      "phase": "identity-14",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 51184242688,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "identity-15",
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=no"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 51184238592,
+      "retained_bytes": 0
+    },
+    {
+      "phase": "generated-diff",
+      "argv": [
+        "/usr/bin/git",
+        "diff",
+        "--binary",
+        "HEAD",
+        "--"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "minimum_free_bytes": 51182284800,
+      "retained_bytes": 0
+    }
+  ],
+  "actual_setup": "PASS exit0; owned UV installer correction reached",
+  "exact_make_prep_pr": "REACHED FAIL exit2: selected target compilation succeeds and canonical ::double smoke PASS; final LSP server smoke13PASS/1FAIL (code lens resolve); push-only diagnostics and Tk hover genuinely PASS.",
+  "gate_accepted": false,
+  "limitations": "Actual exact prep-pr FAIL during LSP server smoke; canonical compiler smoke, push-only diagnostics, Tk hover genuinely PASS on this candidate, no fullCI/rustcheck transfer. Current source/index/nonignored tree fully clean and generated diff empty. Installer/provider tools were setup-selected and version-logged, not all authenticated matching Native runtime providers; do not infer Native authority or full rust-check/full CI from this gate."
+}

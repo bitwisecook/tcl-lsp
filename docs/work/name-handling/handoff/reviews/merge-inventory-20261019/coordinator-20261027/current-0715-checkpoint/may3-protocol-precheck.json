@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-27T07:01:01.548934+00:00",
+  "result": "PASS_CURRENT2_PREIMAGES_AFTERIMAGES_16_CURRENT_SOURCE_KEYS_AND_OLD_JSON_INVERSE",
+  "peer": "7fbd87c63bf7155c3fc53a10e7ec42bac6820e0cdf72daa2dc0d58691a9da266",
+  "placement": "New3 afterentireold166; unchangedsharedbudget/Cargo",
+  "actualRust": "UNRUN"
+}

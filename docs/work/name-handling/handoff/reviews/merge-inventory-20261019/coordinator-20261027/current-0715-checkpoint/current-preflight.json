@@ -1,0 +1,526 @@
+{
+  "utc": "2026-10-27T07:06:46.448071+00:00",
+  "source": "eade5641a007d6cc6d85b9a8b479d5b6ca1ce086",
+  "after_source": "eade5641a007d6cc6d85b9a8b479d5b6ca1ce086",
+  "pure_helper_sha256": "a0b74f1e54d61339d4b418ea4a23e0e7df995a937097243167c86c040777cc97",
+  "rosters": [
+    {
+      "name": "compiler-original58-inputs.json",
+      "sha256": "f792836cce3519904061dba4a2db5637f4280f961eb9104af531637245b85b35",
+      "source_pins": 16,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-native35-supplemental3.json",
+      "sha256": "ca8b0d8dfb0743ab07cdf6ad72aa24b822adcc2901dfde21b488b182d564bae5",
+      "source_pins": 7,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-sh21-supplemental2.json",
+      "sha256": "8d4eb5f02a0324659b689e0678d0ff6a83c4ff443be54c920255da6b2b7c6ccb",
+      "source_pins": 4,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-readflow-supplemental1.json",
+      "sha256": "58273fd8585042a099da73aa67b9e83c91d790607225d88c05da6c324746a9a3",
+      "source_pins": 1,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "spectcl-fold-roster.json",
+      "sha256": "34735e239b6a7eef66ff47b0480adc7e84ede91e169c7e565b88692f67abe164",
+      "source_pins": 105,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "jim-source-roster.json",
+      "sha256": "fe5d833a8cb1173d5ed5964fa54d8070777e82bb5b89609a095c88ef949ae94d",
+      "source_pins": 19,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "runtime-baseline-supplement-roster.json",
+      "sha256": "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f",
+      "source_pins": null,
+      "explicit_pin_map_present": false
+    },
+    {
+      "name": "wasm-real-link-roster.json",
+      "sha256": "617f9e4dc557c0766156e1b7e83ded9f16c044aa83babb562cfbbc8fbc27d522",
+      "source_pins": 69,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "irules-preflight-roster.json",
+      "sha256": "b5dfd3130ed77851b2285e96abaf72f46825b61ea2181bd651e96e69aa256c12",
+      "source_pins": 82,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-catch-diagnostic1.json",
+      "sha256": "b354a76d54d0510b4bb27e2802c66ffa3d56d2270062a908ba2ae937d3a6edeb",
+      "source_pins": 1,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-taint-diagnostic2.json",
+      "sha256": "f0770e18ad9e7c5df29d0c68cf57247a0961192c71b5b1fc087f033666f2bcb8",
+      "source_pins": 31,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "autoload-core2-inputs.json",
+      "sha256": "270d16e5dc34f9b4d7f7847c4aa5a03f4dfce37f800c1bd8ed8f5c3854ed8d93",
+      "source_pins": 28,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "lsp-host-navigation-inputs.json",
+      "sha256": "0d5b15c776f10ac27094c4af761ba9decdad3a178270c2c4ee79a5ba759b7e6d",
+      "source_pins": 38,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "lsp-navigation-unit-inputs.json",
+      "sha256": "be732fcf111764d768b6488627ca0aabab87eca56bbc6d74f96197aee3acb884",
+      "source_pins": 15,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-closed-consumer-controls.json",
+      "sha256": "604f45e34d9ad26129fc058ddb306aa9cabaa99b16d09f537d938ff2410c40fb",
+      "source_pins": 6,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-inlining-readonly13.json",
+      "sha256": "675e583f4d08a52c730d1a055f7a93989aef618f30eeb8891d5b8f4303886efe",
+      "source_pins": 27,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-source-read-ancestry3.json",
+      "sha256": "ed061f196bbab53c2e9994bb74370325fec6df87099f2f83d6cc18107b4d8d08",
+      "source_pins": 4,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-logical-declared-read3.json",
+      "sha256": "08dbf493a84644fe9148d9c5eab199e0994f714d235bab12df65df70a7eefdbb",
+      "source_pins": 55,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "source-point-complete-text-corpus2.json",
+      "sha256": "7ba1ff291501adb5a6904613256730b9ee692dc00a0b9f4443b71d6a646c6c6e",
+      "source_pins": 123,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-jim-source-layout11.json",
+      "sha256": "443c4caa77c4642dc2b286dc3a4aec7040c8c4069e82fc1cb856752825b01f65",
+      "source_pins": 13,
+      "explicit_pin_map_present": true
+    }
+  ],
+  "startup13": {
+    "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-inputs.json",
+    "sha256": "f827e35658f69998f195f38125dfd48af60254a587bfcb02d213b86c459edca5",
+    "count": 13
+  },
+  "AST_scanned_runners": [
+    {
+      "path": "docs/work/name-handling/validation-tools/_paths.py",
+      "sha256": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "sha256": "b9f0d584d6f0bfacaa8d143ecc7a8bf55fe132eca39235accbd59601966f6133",
+      "whole_hash_guards": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/c84-formatter-diagnostics.py",
+      "sha256": "6a7f1052d2f4a4f75d930eeac4ce6554702845f7070a8c7592fc8640913daff3",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/capture-inputs.py",
+      "sha256": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/capture-providers.py",
+      "sha256": "ca2915ff24b65d0bd54eb8c5f34345ae48ef8cf60f2975af99fa3acff2237c14",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/ci-jobs.py",
+      "sha256": "462dc2b295013640db70c3db1c94dd4db99f3f2fe4592dc3eec461e8f6e67343",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "sha256": "04fd3d06f28f207c2b6a9fbe21ed8781719c5e551503d210bd4fe0b7bba1d772",
+      "whole_hash_guards": 13
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-table-filter.py",
+      "sha256": "7fcb9fec2c51b591a70845703c78b4326b2e24a3b7ec915279ebfc6d7f80b03b",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/diagnostic-required-source-pins.py",
+      "sha256": "a0b74f1e54d61339d4b418ea4a23e0e7df995a937097243167c86c040777cc97",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/finalize-build.py",
+      "sha256": "88fd3dc7643a261229d2d85f866acf91ade52f0af0a5560ad784b05d914cc6b6",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py",
+      "sha256": "d96fa1805e4adafa0d2c78a9f7ddd51cbcb0461694c7a2021b43c3c8e20cb4be",
+      "whole_hash_guards": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "sha256": "91f0a95b5b9b43435153835f3b829295a5275e8aa23ae2f9d32a7d10c8426680",
+      "whole_hash_guards": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "sha256": "da29f2388661c7afad22f34da3a8a632c139c65ac1acf0214a1ddc22ac84f967",
+      "whole_hash_guards": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py",
+      "sha256": "648ac9071120f05303e01ab7c571f19973d2444785c3605c786ed9de4cb24d76",
+      "whole_hash_guards": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/context/bounded_client.py",
+      "sha256": "dcaac7b9121b0f842d8a9bda0bf6f72efdeae963f464d39f92f6680f1b099a31",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/context/reproduce.py",
+      "sha256": "dcfeaf161e18d029864b0a188493f11e4e753f01f478c74e8c845c00cf20592f",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/run.py",
+      "sha256": "4e6ff66988853d3863524445db0388d7749588c5eadbe389a4fd37292751b25a",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/typical/bounded_client.py",
+      "sha256": "e9f7c03b945a49e1e64d4eb7097548050728f2823b6c794ae42d3dcf4d382aeb",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/typical/semantic_checks.py",
+      "sha256": "8bf578c6fa59507682385df9276f8c29f5bcfa500dd5480eaeac3165176b7b71",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/typical/worker.py",
+      "sha256": "39a2e9c510344d0b629b444d98c6dee691be4179606723d8c5613a20e624d7c4",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/run-lsp.py",
+      "sha256": "18040b484a46de2366ff918d84f80491c0680c46bcbe101da4f2e9707a966883",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/run-targeted.py",
+      "sha256": "922c8a7ca63407ec157ca4650bdc6d6477d3e4717f6aaa2aed8f165fbb5d606c",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-baseline-supplement.py",
+      "sha256": "0dbc8be2efeff7d1fe7c3a2142fd8d899b86fdd526fd762bb041fa50388a9e80",
+      "whole_hash_guards": 3
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-c84-provider.py",
+      "sha256": "d4b817aafa1d80b730f9e506b6cb54ceb53c868e48d0f11c1fe7cd3b07bb1754",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-diagnostics.py",
+      "sha256": "8c84f5b1328038c8a1deffcfa62e92a070ccd7b42493312ba34d0d3a0a9e077c",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-stack-frames.py",
+      "sha256": "0700346a97d8a0397e386f766a045a96a54ab148993720927c5a40ad000607cf",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-diagnostics.py",
+      "sha256": "c8b0b258bdad71dab764ad4a2f4e7c8cf34fe3bbcc2b0fb48f1565c03b41a5b8",
+      "whole_hash_guards": 0
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py",
+      "sha256": "90d9ebc7462210e7f567760acf109181c9a456feb8346747341950d8d9da2ce8",
+      "whole_hash_guards": 1
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/write-report.py",
+      "sha256": "5f48f597c8ca3422b2a5b72a6e8489c458fbb731d40845b57085adce6b322711",
+      "whole_hash_guards": 0
+    }
+  ],
+  "runner_whole_input_hash_guards": [
+    {
+      "driver": "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py",
+      "line": 304,
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "expected_sha256": "270d16e5dc34f9b4d7f7847c4aa5a03f4dfce37f800c1bd8ed8f5c3854ed8d93",
+      "actual_sha256": "270d16e5dc34f9b4d7f7847c4aa5a03f4dfce37f800c1bd8ed8f5c3854ed8d93",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6044,
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-selectors.json",
+      "expected_sha256": "d4a45ac4eb52a5743b0cb8a5a8256a7f73214f45627c05e25055f2f58bef95d2",
+      "actual_sha256": "d4a45ac4eb52a5743b0cb8a5a8256a7f73214f45627c05e25055f2f58bef95d2",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6049,
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-inputs.json",
+      "expected_sha256": "f792836cce3519904061dba4a2db5637f4280f961eb9104af531637245b85b35",
+      "actual_sha256": "f792836cce3519904061dba4a2db5637f4280f961eb9104af531637245b85b35",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6086,
+      "path": "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "expected_sha256": "ca8b0d8dfb0743ab07cdf6ad72aa24b822adcc2901dfde21b488b182d564bae5",
+      "actual_sha256": "ca8b0d8dfb0743ab07cdf6ad72aa24b822adcc2901dfde21b488b182d564bae5",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6124,
+      "path": "docs/work/name-handling/validation-tools/compiler-sh21-supplemental2.json",
+      "expected_sha256": "8d4eb5f02a0324659b689e0678d0ff6a83c4ff443be54c920255da6b2b7c6ccb",
+      "actual_sha256": "8d4eb5f02a0324659b689e0678d0ff6a83c4ff443be54c920255da6b2b7c6ccb",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6162,
+      "path": "docs/work/name-handling/validation-tools/compiler-readflow-supplemental1.json",
+      "expected_sha256": "58273fd8585042a099da73aa67b9e83c91d790607225d88c05da6c324746a9a3",
+      "actual_sha256": "58273fd8585042a099da73aa67b9e83c91d790607225d88c05da6c324746a9a3",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6199,
+      "path": "docs/work/name-handling/validation-tools/compiler-catch-diagnostic1.json",
+      "expected_sha256": "b354a76d54d0510b4bb27e2802c66ffa3d56d2270062a908ba2ae937d3a6edeb",
+      "actual_sha256": "b354a76d54d0510b4bb27e2802c66ffa3d56d2270062a908ba2ae937d3a6edeb",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6237,
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "expected_sha256": "f0770e18ad9e7c5df29d0c68cf57247a0961192c71b5b1fc087f033666f2bcb8",
+      "actual_sha256": "f0770e18ad9e7c5df29d0c68cf57247a0961192c71b5b1fc087f033666f2bcb8",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6277,
+      "path": "docs/work/name-handling/validation-tools/compiler-closed-consumer-controls.json",
+      "expected_sha256": "604f45e34d9ad26129fc058ddb306aa9cabaa99b16d09f537d938ff2410c40fb",
+      "actual_sha256": "604f45e34d9ad26129fc058ddb306aa9cabaa99b16d09f537d938ff2410c40fb",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6296,
+      "path": "docs/work/name-handling/validation-tools/compiler-inlining-readonly13.json",
+      "expected_sha256": "675e583f4d08a52c730d1a055f7a93989aef618f30eeb8891d5b8f4303886efe",
+      "actual_sha256": "675e583f4d08a52c730d1a055f7a93989aef618f30eeb8891d5b8f4303886efe",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6377,
+      "path": "docs/work/name-handling/validation-tools/compiler-source-read-ancestry3.json",
+      "expected_sha256": "ed061f196bbab53c2e9994bb74370325fec6df87099f2f83d6cc18107b4d8d08",
+      "actual_sha256": "ed061f196bbab53c2e9994bb74370325fec6df87099f2f83d6cc18107b4d8d08",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6420,
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "expected_sha256": "08dbf493a84644fe9148d9c5eab199e0994f714d235bab12df65df70a7eefdbb",
+      "actual_sha256": "08dbf493a84644fe9148d9c5eab199e0994f714d235bab12df65df70a7eefdbb",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6635,
+      "path": "docs/work/name-handling/validation-tools/source-point-complete-text-corpus2.json",
+      "expected_sha256": "7ba1ff291501adb5a6904613256730b9ee692dc00a0b9f4443b71d6a646c6c6e",
+      "actual_sha256": "7ba1ff291501adb5a6904613256730b9ee692dc00a0b9f4443b71d6a646c6c6e",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "line": 6688,
+      "path": "docs/work/name-handling/validation-tools/compiler-jim-source-layout11.json",
+      "expected_sha256": "443c4caa77c4642dc2b286dc3a4aec7040c8c4069e82fc1cb856752825b01f65",
+      "actual_sha256": "443c4caa77c4642dc2b286dc3a4aec7040c8c4069e82fc1cb856752825b01f65",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py",
+      "line": 404,
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "expected_sha256": "b5dfd3130ed77851b2285e96abaf72f46825b61ea2181bd651e96e69aa256c12",
+      "actual_sha256": "b5dfd3130ed77851b2285e96abaf72f46825b61ea2181bd651e96e69aa256c12",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "line": 343,
+      "path": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "expected_sha256": "fe5d833a8cb1173d5ed5964fa54d8070777e82bb5b89609a095c88ef949ae94d",
+      "actual_sha256": "fe5d833a8cb1173d5ed5964fa54d8070777e82bb5b89609a095c88ef949ae94d",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+      "line": 154,
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "expected_sha256": "0d5b15c776f10ac27094c4af761ba9decdad3a178270c2c4ee79a5ba759b7e6d",
+      "actual_sha256": "0d5b15c776f10ac27094c4af761ba9decdad3a178270c2c4ee79a5ba759b7e6d",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py",
+      "line": 299,
+      "path": "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+      "expected_sha256": "be732fcf111764d768b6488627ca0aabab87eca56bbc6d74f96197aee3acb884",
+      "actual_sha256": "be732fcf111764d768b6488627ca0aabab87eca56bbc6d74f96197aee3acb884",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/runtime-baseline-supplement.py",
+      "line": 124,
+      "path": "docs/work/name-handling/validation-tools/runtime-baseline-supplement-roster.json",
+      "expected_sha256": "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f",
+      "actual_sha256": "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/runtime-baseline-supplement.py",
+      "line": 127,
+      "path": "docs/work/name-handling/validation-tools/runtime-other-failures-roster.json",
+      "expected_sha256": "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821",
+      "actual_sha256": "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/runtime-baseline-supplement.py",
+      "line": 130,
+      "path": "docs/work/name-handling/validation-tools/runtime-a26-failed-originals.log.json",
+      "expected_sha256": "88dd41eae670e31bd0f08d857f3fc35f2ccf53164d0127096f5a30c08e675ab5",
+      "actual_sha256": "88dd41eae670e31bd0f08d857f3fc35f2ccf53164d0127096f5a30c08e675ab5",
+      "matches": true
+    },
+    {
+      "driver": "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py",
+      "line": 311,
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "expected_sha256": "617f9e4dc557c0766156e1b7e83ded9f16c044aa83babb562cfbbc8fbc27d522",
+      "actual_sha256": "617f9e4dc557c0766156e1b7e83ded9f16c044aa83babb562cfbbc8fbc27d522",
+      "matches": true
+    }
+  ],
+  "runner_hardcoded_source_pin_guards": [],
+  "failures": [],
+  "result": "PASS",
+  "scope": "All v4 explicit source maps preserved, startup13 exact required map, and safe-AST discovered existing runner JSON whole-input hardcoded hashes and hardcoded source-pin comparisons against exact JSON/Git source. No runner imports/execution, no updates or blind refresh, no build/runtime/provider/fullprotocol acceptance.",
+  "live_source_descriptors": [
+    {
+      "roster": "compiler-logical-declared-read3.json",
+      "json_keys": [
+        "separate_restored_child_owner_control"
+      ],
+      "source": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "source_sha256": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
+      "top_source_sha256": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
+      "actual_source_sha256": "8a362ee75160b9d09fae1600ba6b47b1754968d70bd628f590d924137334613b",
+      "matches_top": true,
+      "matches_git": true
+    },
+    {
+      "roster": "compiler-jim-source-layout11.json",
+      "json_keys": [
+        "separate_finite_foreach_controls"
+      ],
+      "source": "rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs",
+      "source_sha256": "84d74c172472addc2e4856d743d312dee1d82d911cda5602404a983703a1e539",
+      "top_source_sha256": "84d74c172472addc2e4856d743d312dee1d82d911cda5602404a983703a1e539",
+      "actual_source_sha256": "84d74c172472addc2e4856d743d312dee1d82d911cda5602404a983703a1e539",
+      "matches_top": true,
+      "matches_git": true
+    }
+  ],
+  "live_source_descriptor_scope": {
+    "rosters": [
+      "compiler-original58-inputs.json",
+      "compiler-native35-supplemental3.json",
+      "compiler-sh21-supplemental2.json",
+      "compiler-readflow-supplemental1.json",
+      "spectcl-fold-roster.json",
+      "jim-source-roster.json",
+      "runtime-baseline-supplement-roster.json",
+      "wasm-real-link-roster.json",
+      "irules-preflight-roster.json",
+      "compiler-catch-diagnostic1.json",
+      "compiler-taint-diagnostic2.json",
+      "autoload-core2-inputs.json",
+      "lsp-host-navigation-inputs.json",
+      "lsp-navigation-unit-inputs.json",
+      "compiler-closed-consumer-controls.json",
+      "compiler-inlining-readonly13.json",
+      "compiler-source-read-ancestry3.json",
+      "compiler-logical-declared-read3.json",
+      "source-point-complete-text-corpus2.json",
+      "compiler-jim-source-layout11.json"
+    ],
+    "recursive_key": "source_sha256",
+    "required_join": "same-object source -> top source_pins -> pinned Git HEAD bytes",
+    "historical_path_exemptions": [],
+    "outside_scope": "Historical/non-live files outside the explicit roster list; source-only descriptors with no duplicated source_sha256",
+    "limits": {
+      "bytes_per_roster": 4194304,
+      "nodes_per_roster": 100000,
+      "depth": 64
+    }
+  }
+}

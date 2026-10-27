@@ -1,0 +1,112 @@
+{
+  "utc": "2026-10-27T06:43:53.984018+00:00",
+  "manifest_sha256": "2160a56e08cf8511d10789f7f08bfaaaf79d60b1a76a4fc097fc0ebae36b5857",
+  "peer_sha256": "1e8c5ddc4a556d04a539222927df7379ad204409e90a2fe8c93be43f58d98504",
+  "before_prechecks": "both20 exact beforeGit hashes/newabsence and Gitapply whitespaceerror checked before mutations; tool outputs0631/0641",
+  "result": "PASS_CURRENT20_AFTERIMAGES_WORK_FIRST_CLEAN_CARRY",
+  "WORK": "dd60d2ee6b8120e2cace9e6d0be939d28a9ca57c",
+  "CLEAN": "0fe6e7ff07ce42643d9c30104d1381146d7a217c",
+  "files": [
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/name-handling.md",
+      "after_sha256": "b929ac63dd604f72fbc4f50eb7ad120ceb73b86761f04f41527b5c59fbab565d"
+    },
+    {
+      "lane": "WORK",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "after_sha256": "cce609cb5c145b2be4497c042bce31b3187c6f64e0cb9a5da4b813ae403dfd76"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "after_sha256": "2a55d523e59872629e54fbddbbfece2821b22ceaf7c6515bc2bec4a5a2f6b39a"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs",
+      "after_sha256": "d1ac8befbc163ee75e4d694677e3dc455e6d7d097e2c29ce02d82db4f4c84f90"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs",
+      "after_sha256": "06e9af63178eff3c47332aa47892e32ebd236f9017fce27a630bc7a3840212f7"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+      "after_sha256": "34ca9bc4a6fd4759b6f23787e5030e10087313b3d2cca14a3db1aeb8c3db51cd"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "after_sha256": "a9ed77b1d16922dfecffb027db2933159efd61915eb42127bfcb748859cc9ef8"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/taint/source_context.rs",
+      "after_sha256": "0698fd5bd0c28b00fe92e1c14a5bfaa11363accbb83adebe078f91204497da3c"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/taint/source_context/authored_body.rs",
+      "after_sha256": "ac6f22009cc9030daf96220076fbb95cfa4068e287d23b98c96ed1fbdd189eab"
+    },
+    {
+      "lane": "WORK",
+      "path": "rust/tcl-compiler/src/taint_interproc.rs",
+      "after_sha256": "81a5c166b34543bfa1bd7a7fc0919b28b2ca5edb2b4f2f5615f7bc64a6f4d867"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/name-handling.md",
+      "after_sha256": "7372d78ec74ddc80d8627f0ecfefe0fce2e197182dc10475f0a946d145be8468"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "after_sha256": "bfcc2fd339cad6608b9bd1c50464c5825b3282cdb0f2901ddb001ea7bb9fce97"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "after_sha256": "1be506d08552947a09118b06e686c3f55676548fde548f833f8e4c5dfe8d5389"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs",
+      "after_sha256": "d1ac8befbc163ee75e4d694677e3dc455e6d7d097e2c29ce02d82db4f4c84f90"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs",
+      "after_sha256": "1c6914faf15df0907fd21a5f7bdd5fab2a2f1385e3332d82afe23ceb862d0750"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+      "after_sha256": "05803fb7d3f75d3deac1dc5da203bfdc93b443a1c58ef60ede2dafb865f44b3e"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "after_sha256": "31c433f8e831b04eaaa66af220f589446e07fcd2baaa535d5f954fce57a5eff3"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/taint/source_context.rs",
+      "after_sha256": "7cd66e0d5dfc6a91fbca8e99fb1640541b8c2b9528f40f1392e0eb12b038547b"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/taint/source_context/authored_body.rs",
+      "after_sha256": "ac6f22009cc9030daf96220076fbb95cfa4068e287d23b98c96ed1fbdd189eab"
+    },
+    {
+      "lane": "CLEAN",
+      "path": "rust/tcl-compiler/src/taint_interproc.rs",
+      "after_sha256": "f58217b39c7d8f75b8275b70df6b089116de4a8a13850158e4a407fd0076ddaa"
+    }
+  ],
+  "Rust_semantics": "UNRUN"
+}
