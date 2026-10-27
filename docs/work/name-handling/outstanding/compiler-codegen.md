@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-27T07:38:57Z
+Last updated: 2026-10-27T08:06:12Z
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Final1c07 SourceCut current25 union84d20e14/70b0 independentlySTATIC CLEAR0792a006, authorV16PASS13/30/22caf7 +12actualRuntimeguards/Numeric14/3PASS. Actual17 directSourceCut joins c2da and30existingrefreshes; Body15/PRIMARY6/MAY16 AST-owned literals preserveallrows/env/budgets. Root adoption/POST only; owner1/Layout overlays use exact AFTER images. EadeStrict FULLAUTHefdb Rust2FAIL/ClippyUNRUN; exactCprep d554 FULLAUTH6786 remains13P1F lens, all10623Gitblobs/18phaseclosures, no newer-source donation. N17 H1-H4 sourceV3 6c636/0e57 independent sourceCLEAR83ade only, actualwhole-backend/emitted/getter/cache/retirement H5 stillunbuilt/unadmitted; no Normal/CU/replaypermission or MAP/RANGE gain.
 
 Current eade strict FULLAUTH24 efdb1966 CLOSED: exact2Rust E0308/E0621 in MAY; Compiler repair integratedef86 but retryUNRUN. Exact Cprep d554 FULLAUTH6786441e CLOSED: all10623candidateGitblobs/182678482B+18phase closures, makeFAIL2 LSP13P1F lens#724; canonical/push/TkPASS onthatcandidate only, no currentC/fullCI donation. RootSourceCutV11 integrated37249, actual4map dependency census88d6f8d1 requests17direct joins; finalmetadata waits Rootapproval/freeze. N17 ownershipV2 source06c61 reviewed167222: actual private prebootstrap host/exactTLS/field-drop facts only, integrationHOLD H1-H4 request/cache/profile/declaration lineage assigned independent reviewer; I own H5 fullsource actualVM/compiler/literal/getter/retirement closure. No NativeNormal/CU/replay grant or MAP/RANGE gain.
 

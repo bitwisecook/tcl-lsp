@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T07:25:56Z
+Last updated: 2026-10-27T08:07:32Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T08:07:32Z: Resumed C1–C2 release triage current1c0719, exact33selectors/10targetsd881bf59 map; historicalJim9/26stale, fb5eJim52original45=36P9F/full52=40P12F. CompilerOwnJim2reserved3class/memberroutes; remainingstaticbody/read/loop/multiword/Tclnegative/dynamicreceiver leads notblanketclasscause. Actualstatic01 fallbackchildlookup_stablefalse (notmissingScripttraversal); static03 scope.catalogue-or-advicefalse at45, no guardrelaxation. OldCa8dUPF2(17hooks)/EDA13/format2PASSonly, NOTcurrentSpecselection. RootnexttargetproposalUPF2freshELF+Jimroster/gen/seed/metadata viaexistingownedmodes; no newCargo/build/POST authored. LSPownerconfirmscurrentdeliveredcrossworkerpacklifecycleOPEN. Compileraliasselector0318 parityread: Studiodynamiccatalogue/schema/draft/bothrenderers needexplicitnewvariantcommand/subroundtrip; authoringCompiler, no overlappingedit. Bothfb5ecaptures315f FULLclosed retained. AdmissionprefixScopef60d nowRootadopted/pushed; actual69BidentityNEXTunrun. NamespaceproposalHELDpublicgettercoverage/userdecision; proceduredesignlowerpriority.
 
 Current 2026-10-27T07:25:56Z: BOTH fb5e owned captures FULLAUTH index315fa1f4; no pending own run. Spec RAWbe6bc12c+combinedV3fcb700d7/777checks/source5+fn7 eachgroup/69ownedprocesses: old16/VM1/ordinary4PASS, oldEval7+newFile7ALLPASS, full600OWNPASS548.423s/25packs1516cmd24hooks19088/19088/319diag87opts, overallFAIL LENGTH1/1 MAP/RANGE0/0; closured068/oldjoin2001. iRules RAW7e391+supplementeba8: oldbootstrapFAIL CLI2/initScopePASS,new3FAIL; SCFgrammar→unidentified69Bscriptpreflight, nofile/bodyclaim; pure71prefix1a1e before39Breset. NEXT Work-only admissionprefix observer21fdd8 at compile_service helper+4callers, same flag/row/inputbytes96/channel/len, Scope peerqueued afterCore16; no canonicaledit. Namespacecallerproposal stillHELDdf107/Scopec555 publicgettergap. Proceduredesigna941 lowerpriority openemission/literal/activation proofs. No localbuild/POST/duplicatearchive.
 

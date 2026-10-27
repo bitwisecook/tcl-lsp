@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-27T07:45:01.750835+00:00
+Last updated: 2026-10-27T08:15:01.316158+00:00
 
 ## Resume
 
@@ -13,7 +13,7 @@ Last updated: 2026-10-27T07:45:01.750835+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed. Current checkpoints run every30 minutes; preserve actual report and push timestamps. The current cycle below records the next deadline.
 
-### Current cycle and routing (07:45 UTC)
+### Current cycle and routing (08:15 UTC)
 
 - 0715officialreporton-time07:15:11.409/snapshotdb4f06, PUBLISHED43b646f1b36a05324d8b44d382eab0eb42fa0972 at07:16:06.926afterreviewedWORKobserver614b normalpush. Next0745timer26354armed; externalBIGIP/perfstale/no takeover.
 - TinyVM7nondropV2d600/Compiler62ae Rootcurrentpairedpreimages+exact7inertdropremovals+finalLF PASS integratedWORK79b3b45ec98d95a9d5b144bf24e01f358255807d first/Cb556e02649e67d1588b315525884930bf418fe38. Spec7currentwholelexicaltesthashes mustrefreshbeforePOSTs; allscripts/assertions/scopes/otherlocals unchanged. ActualClippyretryUNRUN.
@@ -32,3 +32,8 @@ Last updated: 2026-10-27T07:45:01.750835+00:00
 - SourceCutV11b656/Compilerstrongad66 Root22actualHEADpreimages/newabsence/afterimages/isolatedGitcurrentattrs/pairedpatchesPASS adoptedWORK3724992a3c88faaa7e433f3214fda647399c55c2 first/C2bf62da49b9ac87ca29f35a02c52ca65ec2297a0. New2privateleaves/11pathslane; originalscripts/asserts andallstrongbindingfacets retained, only8syntaxgeometryfields maychangeundersamenominalsurvey/completedworld/declaration/bodyownership. No Native/Normal/frame/effect/dispatchpermission. Factory97body/98inclclose. ActualRust/sourcecoveragegainsUNRUN.
 - Postgroupdocsonlyfreshfetchnormalpublicationslayout137664d8 at07:23:41 andruntime086f551b at07:32:37 preserveallproductbytes and0745timer. Currentrootsemanticfixes/sourceproofreviewseparatefromreleaseadmission; nofullworkspace/perf/PRacceptance.
 - SourceCut17actualdirectjoins census88d6 RootcurrentGit/absence/callmethods checked andapprovedc2daefe: exact2newleaves+existingworld/declaration_preview in4existingmaps plushostNavsource_point_entry only. No Coreconsumerfanout/rows/env/deadline/Nativegrant. FinalmetadatahelduntilNamesrealmMirroronefileSourceCutcarry; no staleHEADwaiver.
+- fb5eMain166FULLAUTH6aaedea2 closes160PASS4FAIL2UNRUN; original135133PASS2FAIL (onlyownJim2), qualification2+W002report3+analyserLayout3/diag3+Memo8/custody3/numeric3/primary4/reportrepeatALLPASS. Remaining4FAILownJim2+aliasrepeat+coroinject, corpus2UNRUNunderunchangedsharedbudget. Exactjoinb4394141 documents5gainsvsff67; fullsource/provider/deps/tools/artifact/process/count/transport/sharedGit sealsvalid. No MAYnewsource/bodygainorwholeCompileracceptance.
+- Names completeoversizeoriginSHA2d346 confirmsall182fb5elines>8192(min11024/max38310) areREPORT_BODY_CANDIDATE site=Some(CommandAllocationSite), nootherorigin. WORKobserver614b removessoleunboundedDebug; actualcorrectedtraceUNRUN/no parserboundwaiver. RealmMirrorcurrentSourceCutonefilecarryV3pendingScopepeer; innerfieldunobserved.
+- RealmMirrorV3 0bcc/Scopee702 Root3currentbefore/after/patchPASS adoptedWORK1c07193d134d759fe55d001c0c6ca7af22fbf0cb. Same48bindings+3realm ops once/order/shortcircuit/OptionArcidentity, bothordinaryEqbyteexact; onlyexistingAUTH/test staticfirstfalse labels, no values/queries/clones/Native/Normal/cutoff changes/Ccarry. InnercauseUNRUN. ProductfreezeconfirmedCodegen finalcurrentmetadata beforeanyadditionalproduct.
+- Scheduling avoidsnewmode/env/Cargo: default170retainsold166(incloldcorpusfull2840admission)+MAY3+SourceCutowner1; dedicatedexistingLayout21 appendsnew4AFTERunchangedold17, samefreshcompilerlib/integration inventory/deadline/CAP/400220/UNRUN2+oldFAILsticky. Oldcorpusneverstarved; separateactualnew4canrunwhereolddefaultcorpusadmissionleavesUNRUN. LSPonecomposedprotoV2b772 Scopepeer/currentmetadataAFTERcarrypending.
+- IndependentclosedconsumerV2receipt1672 sourceplumbingCLEAR/capabilityHOLD; reviewerthenauthored3fileH1-H4V3 successor6c636 undercoordination, requestauthbeforecache/callback+affineRc/currentprofile/allHookCallaxes+actualinstallerdeclarationallocationprovenance, sixRusttestsUNRUN/rustfmtonly. RequiresindependentScopepeer; authorCodegenownsH5actualbackend/emitted/getter/literal/fullsource/retirement. No canonicalintegration/capabilitygrant.
