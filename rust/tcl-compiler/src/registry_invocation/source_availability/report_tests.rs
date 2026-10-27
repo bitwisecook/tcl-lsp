@@ -105,8 +105,11 @@ fn availability_report_preserves_every_other_binding_facet() {
             .is_none()
     );
     assert!(
-        a.authenticated_availability_report_eq(&Default::default(), &output)
-            .is_none()
+        a.authenticated_availability_report_eq(
+            &crate::command_binding::SourceInvocationBinding::default(),
+            &output
+        )
+        .is_none()
     );
     let different = Analyser::new().analyse_for_report("set value VALUE", "tcl8.4");
     assert!(left.availability_output_pair_for_test(&different).is_none());
