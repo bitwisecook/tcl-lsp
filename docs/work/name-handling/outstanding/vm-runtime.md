@@ -1,10 +1,12 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-27T04:52:00Z
+Last updated: 2026-10-27T05:46:09Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current 2026-10-27T05:46:09Z: ALL3 source572 ownedcaptures FULLAUTH. SpecnewLogicalEval7 ALLPASS strongV2actual16197fb5/568checks, old16+VM1+ordinary4PASS/full600OWNPASS591.794s aggregate9c4b7e7e(25packs1516commands24hooks19090/19090/319diag87opts); LENGTH1/1 MAP/RANGE0/0 overallFAIL. WASM44208ebd old25PASS Broad8 6P2F exactzerochangesa6eb533e. iRules5f052015 oldbootstrapFAIL CLI2/initScopePASS new3FAIL; bounded unchangedpurefile controlflowfd9518a9 confirms71vectorsincl8b64passed beforelater39Breset, no wholecasePASS. Resetactualhandoffe892 typedProcedureBody/EnteredSource nominalbeforeenter_proc, no Eval reuse/pointretag/preflighterase. Firststage logicalfileSOURCE730cc bothpeers1d441+a28def nowRootpairedintegrated9143/be17; actualnew7UNRUN. Newfile7 protocolV2c10663f4 pendingScope, sameSpecVMELF oldEval7→newfile7→full600,5genuinesourceguards NOTLiveSession,7fn,1190/1010+805+512KiB/UNRUN2/noCargoreset. No activeownedcapture/localbuild/canonicalwrites; bodydesignnextonlygenuineownedproducer/currency.
 
 Current 2026-10-27T04:52:00Z: Root572dd98a actualSOLE assigned Spec40451629434/job122015457776 (new7existingVMELF), iRulesfixed340451639883/job122015489161, WASM40451644225/job122015503198; all3 APIin_progress, artifactsNOTdownloaded. Exactsource/fullcaps/freshsize+2GiB+24MiBguards mandatory. VerifierV2 strongScope83144600 ready (8ce05/script04b00766), originalenvelope prerequisite/newtimeoutUNQUALIFIED. Genuinefirststagefile-source DESIGN29bec2ec only pendingScope: explicit sourcefileprovider/sameNameScope+argv currentcurrency, unchangedkernel/bodyguards, no newexecutiondoor/NativeDirect/Evalretag. No implementation/tests authored orSCFgain. Priorff67bothFULLAUTH +retrofullbinding2b6f sourcequalified retained.
 
