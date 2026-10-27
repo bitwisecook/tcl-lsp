@@ -441,7 +441,11 @@ mod tests {
         ));
         assert!(at(source, &foreign, "button").is_none());
         let shadow = "proc button args {return custom}\nbutton .b -text hi\n";
-        assert!(at(shadow, &tk_source_analysis(shadow), "button").is_none());
+        let shadow_hover = at(shadow, &tk_source_analysis(shadow), "button");
+        assert!(
+            shadow_hover.is_none(),
+            "actual shadow hover: {shadow_hover:?}"
+        );
     }
 
     #[test]
