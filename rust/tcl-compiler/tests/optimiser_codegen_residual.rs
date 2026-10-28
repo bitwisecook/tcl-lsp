@@ -87,6 +87,11 @@ use tcl_registry::CommandRegistry;
 // Shared helpers.
 
 fn registry() -> CommandRegistry {
+    // ZZ-COMPILER-ROLE-TEMPORARY-CLASSIFICATION
+    if let Ok(name) = std::env::var("ZZ_PROFILE") {
+        let profile = tcl_dialect::DialectProfile::find(&name).unwrap();
+        return CommandRegistry::build_default().project_for_profile(profile);
+    }
     CommandRegistry::build_default()
 }
 

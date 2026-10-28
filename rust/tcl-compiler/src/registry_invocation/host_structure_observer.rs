@@ -54,10 +54,6 @@ impl Drop for HostStructureTraceGuard {
 }
 
 pub(crate) fn flag(stage: &'static str, value: bool) -> bool {
-    // TEMP-ISSUER-TRACE
-    if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
-        eprintln!("TEMP_ISSUER flag stage={stage} value={value}");
-    }
     if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
         TRACE.with(|trace| {
             if let Some(rows) = trace.borrow_mut().as_mut() {

@@ -3254,13 +3254,8 @@ impl super::OriginalCompilationLookupAdvice {
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<super::OriginalInvocationSourcePurpose> {
-        // TEMP-ISSUER-TRACE
-        let state = self.source_purpose_state();
-        let purpose = state.retained_original_source_purpose(metadata, registry);
-        if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
-            eprintln!("TEMP_ISSUER final point={} origin={} purpose={purpose:?}", state.baseline.source_point_entry.is_some(), state.current_source_origin.is_some());
-        }
-        purpose
+        self.source_purpose_state()
+            .retained_original_source_purpose(metadata, registry)
     }
 
     /// The state whose baseline supplies this layout's source purpose: its own,
@@ -3317,12 +3312,7 @@ impl super::SourceInvocationBinding {
                     && original.context() == metadata.context() => {}
             _ => return None,
         }
-        // TEMP-ISSUER-TRACE
-        let purpose = advice.original_source_purpose(metadata, registry);
-        if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
-            eprintln!("TEMP_ISSUER advice offset={:?} purpose={purpose:?}", tokens.words().first().map(|word| word.source().span.start()));
-        }
-        purpose
+        advice.original_source_purpose(metadata, registry)
     }
 }
 

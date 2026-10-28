@@ -750,6 +750,7 @@ impl Backend {
 
     /// Same bounded readonly transaction, including original provider lease,
     /// encloses both coarse token cache mutation and response projection.
+    #[cfg(test)]
     pub(super) async fn with_current_coarse_semantic_source<T>(
         &self,
         source: &CoarseSemanticTokenSource,
@@ -859,6 +860,7 @@ impl Backend {
         }))
     }
 
+    #[cfg(test)]
     pub(super) async fn finish_code_action_response(
         &self,
         source: &OriginalCodeActionSource,
@@ -1208,6 +1210,7 @@ impl Backend {
         ))
     }
 
+    #[cfg(test)]
     pub(super) async fn publish_checked_library_analyses(
         &self,
         analysed: &[(Uri, super::DocumentState, WorkspaceSymbolSourceAnalysis)],

@@ -4383,20 +4383,3 @@ mod special_variable_sources {
         assert!(of_code("eval $env(CMD)", IR, "T100").is_empty());
     }
 }
-
-#[test]
-fn zz_compiler_role_temporary_dialect_probe() {
-    for (source, dialect) in [
-        ("set x [gets stdin]\neval {[eval $x]}", "tcl8.6"),
-        ("set uri [HTTP::uri]\nset m [string match \"/api/??\" $uri]", "f5-irules"),
-        ("set p [HTTP::path]\nHTTP::path $p", "f5-irules"),
-        ("set x [gets stdin]\nputs $x", "tcl8.6"),
-        ("set fd stdin\nset x [chan configure $fd]\neval $x", "tcl8.6"),
-    ] {
-        let found: Vec<_> = dialect_warns(source, dialect)
-            .iter()
-            .map(|w| (w.code.to_string(), w.sink_command.clone(), w.variable.clone()))
-            .collect();
-        eprintln!("ZZPROBE {dialect} {source:?} => {found:?}");
-    }
-}

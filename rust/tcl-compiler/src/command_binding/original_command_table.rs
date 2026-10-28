@@ -485,45 +485,6 @@ mod tests {
     use super::*;
     use crate::signature_scan::scope::SignatureSourceNameKey;
 
-    // TEMP-STOCK-TRACE
-    #[test]
-    fn temp_stock_trace() {
-        tcl_spectcl::core_surfaces::ensure();
-        for prefix in [
-            "class C {}; proc proc args {}; C method m {} {}",
-            "class C {}; proc {C method} args {}; C method m {} {}",
-            "class C {}; proc C args {}; C method m {} {}",
-            "class Base {}; class Other {}; class C {Base Other} {}; C method m {} {}",
-            "eval [gets stdin]; class C {}; C method m {} {}",
-            "class C {}; C method m {} {}; C method m {} {}",
-        ] {
-            let source = format!("{prefix}\nmissing_stock_contract\n");
-            let result = crate::analyser::Analyser::new().analyse(&source, "jim");
-            let realm = result.retained_command_realm().unwrap();
-            let mut offsets = vec![0_u32];
-            for (index, byte) in source.bytes().enumerate() {
-                if byte == b';' || byte == b'\n' {
-                    let next = source[index + 1..].len() - source[index + 1..].trim_start().len();
-                    offsets.push(u32::try_from(index + 1 + next).unwrap());
-                }
-            }
-            for offset in offsets {
-                if offset as usize >= source.len() { continue; }
-                let binding = realm.invocation_at_source("", offset);
-                eprintln!(
-                    "TEMP_STOCK prefix={prefix:?} offset={offset} word={:?} lookup={} absent={} unknown={} targets={} opaque={:?} unclosed={:?}",
-                    &source[offset as usize..source[offset as usize..].find(' ').map_or(source.len(), |e| offset as usize + e).min(source.len())],
-                    binding.lookup_state.is_some(),
-                    binding.may_be_absent,
-                    binding.unknown,
-                    binding.targets.len(),
-                    binding.lookup_state.as_ref().map(|s| s.state.has_opaque_domain()),
-                    binding.lookup_state.as_ref().map(|s| s.state.unclosed_command_world),
-                );
-            }
-        }
-    }
-
     #[test]
     fn original_initial_table_selects_the_registered_handler() {
         for version in tcl_dialect::TclVersion::ALL {
@@ -3268,10 +3229,6 @@ impl ModuleCommandBindings {
     /// 0.84), only a handler definitely absent from every lookup slot ends in
     /// an error. An unclosed or opaque world may hold unrecorded commands.
     fn original_unresolved_handler_may_run(&self, namespace: &SourceNamespaceKey) -> bool {
-        // TEMP-AB
-        if std::env::var_os("TEMP_AB_OLD_UNKNOWN").is_some() {
-            return true;
-        }
         if self.unclosed_command_world
             || self.opaque_domain
             || self.baseline.unknown_entry

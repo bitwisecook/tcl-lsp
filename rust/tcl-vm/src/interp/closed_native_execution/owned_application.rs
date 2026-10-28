@@ -173,7 +173,9 @@ pub(super) fn check_function(
         literals,
         lvt: _,
         instructions,
-        labels,
+        // Structural entry/command-end/exit labels; inert, since no jump
+        // opcode is admitted below.
+        labels: _,
         loop_targets,
         body_base_line: _,
         proc_body_src,
@@ -187,7 +189,6 @@ pub(super) fn check_function(
         || native_math_table_prerequisite.is_some()
         || !native_compiler_prerequisites.is_empty()
         || required_compiled_local_layout.is_some()
-        || !labels.is_empty()
         || !loop_targets.is_empty()
         || proc_body_src.is_some()
         || !error_regions.is_empty()

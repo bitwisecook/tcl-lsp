@@ -1689,8 +1689,6 @@ impl super::ModuleCommandBindings {
         if !metadata.matches_registry(registry)
             || self.baseline.registry_snapshot.as_ref() != Some(&registry.snapshot().semantic_key())
         {
-            // TEMP-ISSUER-TRACE
-            if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() { eprintln!("TEMP_ISSUER retained=registry"); }
             return None;
         }
         let original = &self.baseline.metadata_context;
@@ -1701,11 +1699,7 @@ impl super::ModuleCommandBindings {
             (Some(original), Some(input))
                 if original == input || original == &input.for_nested_source() => {}
             (None, None) if original.is_standalone() && metadata.is_standalone() => {}
-            _ => {
-                // TEMP-ISSUER-TRACE
-                if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() { eprintln!("TEMP_ISSUER retained=input orig={:?} req={:?}", original.source_analysis_input().is_some(), metadata.source_analysis_input().is_some()); }
-                return None;
-            }
+            _ => return None,
         }
         if self.baseline.source_point_entry.is_some() {
             // Inherited naming state supplies no implicit invocation purpose.
