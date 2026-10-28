@@ -311,7 +311,7 @@ pub(super) fn register_provider(vm: &mut Vm) {
 }
 
 fn namespace_member(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    super::original_authored_operands::with_original_authored_operands(vm, |vm, operands| {
+    super::original_authored_operands::with_authored_logical_operands(vm, |vm, operands| {
         Ok(namespace_member_in_original(vm, args, operands))
     })
 }

@@ -55,6 +55,20 @@ impl InterpState {
     /// Distribution bootstrap keeps its existing standalone object operations
     /// under an explicitly tagged compatibility purpose. Its descriptive source
     /// recipe authenticates neither an actual engine nor a command activation.
+    /// The installed F5 object-string simulation, independent of any active
+    /// native host activation. Authored logical providers interpret their
+    /// operands under this one recipe whichever realm calls them.
+    pub(crate) fn authored_logical_object_materialization(&self) -> Option<ObjectMaterialization> {
+        let provider = self.logical_providers.names?;
+        let dialect = tcl_registry::InvocationDialect::of_profile(self.logical_execution_profile());
+        dialect.authored_logical_name_simulation(provider)?;
+        let provider = LogicalStringProvider::Tcl84CoreSimulation;
+        dialect
+            .native_string_materialization(Some(provider))
+            .filter(|recipe| recipe.logical_provider() == Some(provider))
+            .map(ObjectMaterialization::AuthoredLogical)
+    }
+
     pub(crate) fn object_materialization(&self) -> Option<ObjectMaterialization> {
         // A reached, independently selected native host activation supplies its
         // own purpose. This is not fallback from a refused logical source call.
@@ -63,14 +77,8 @@ impl InterpState {
                 .native_string_materialization(None)
                 .map(ObjectMaterialization::Native);
         }
-        if let Some(provider) = self.logical_providers.names {
-            let dialect = self.native_invocation_dialect();
-            dialect.authored_logical_name_simulation(provider)?;
-            let provider = LogicalStringProvider::Tcl84CoreSimulation;
-            return dialect
-                .native_string_materialization(Some(provider))
-                .filter(|recipe| recipe.logical_provider() == Some(provider))
-                .map(ObjectMaterialization::AuthoredLogical);
+        if self.logical_providers.names.is_some() {
+            return self.authored_logical_object_materialization();
         }
         if let Some(profile) = self.actual_engine_profile {
             return tcl_registry::InvocationDialect::of_profile(profile)

@@ -23,6 +23,16 @@ pub(crate) struct OriginalAuthoredOperandScope {
 }
 impl OriginalAuthoredOperandScope {
     pub(crate) fn capture(vm: &mut Vm) -> Result<Self, CmdError> {
+        let objects = vm.object_materialization();
+        Self::capture_with(vm, objects)
+    }
+    /// Capture for an authored logical provider: its operands use the installed
+    /// logical object recipe even when a native host activation calls it.
+    pub(crate) fn capture_authored_logical(vm: &mut Vm) -> Result<Self, CmdError> {
+        let objects = vm.authored_logical_object_materialization();
+        Self::capture_with(vm, objects)
+    }
+    fn capture_with(vm: &mut Vm, objects: Option<ObjectMaterialization>) -> Result<Self, CmdError> {
         let observed =
             OriginalOperationObservation::capture(vm).map_err(CmdError::from_execution_refusal)?;
         let entered =
@@ -36,7 +46,7 @@ impl OriginalAuthoredOperandScope {
             strings: vm
                 .actual_native_invocation_dialect()
                 .native_string_protocol(),
-            objects: vm.object_materialization(),
+            objects,
         };
         original.check(vm)?;
         Ok(original)
@@ -310,7 +320,28 @@ pub(crate) fn with_original_authored_operands(
     vm: &mut Vm,
     work: impl FnOnce(&mut Vm, &OriginalAuthoredOperandScope) -> Result<Completion<Value>, CmdError>,
 ) -> Completion<Value> {
-    let original = match OriginalAuthoredOperandScope::capture(vm) {
+    with_captured_authored_operands(vm, OriginalAuthoredOperandScope::capture, work)
+}
+
+/// [`with_original_authored_operands`] under the installed logical object
+/// recipe, for an authored provider called from either realm.
+pub(crate) fn with_authored_logical_operands(
+    vm: &mut Vm,
+    work: impl FnOnce(&mut Vm, &OriginalAuthoredOperandScope) -> Result<Completion<Value>, CmdError>,
+) -> Completion<Value> {
+    with_captured_authored_operands(
+        vm,
+        OriginalAuthoredOperandScope::capture_authored_logical,
+        work,
+    )
+}
+
+fn with_captured_authored_operands(
+    vm: &mut Vm,
+    capture: impl FnOnce(&mut Vm) -> Result<OriginalAuthoredOperandScope, CmdError>,
+    work: impl FnOnce(&mut Vm, &OriginalAuthoredOperandScope) -> Result<Completion<Value>, CmdError>,
+) -> Completion<Value> {
+    let original = match capture(vm) {
         Ok(original) => original,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };

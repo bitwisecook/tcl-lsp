@@ -5499,6 +5499,18 @@ mod tests {
             .collect()
     }
 
+    fn profiled_registry() -> &'static CommandRegistry {
+        tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
+    }
+
+    fn profiled_fold(src: &str) -> Vec<String> {
+        crate::optimiser::optimise_raw(src, profiled_registry(), None)
+            .into_iter()
+            .filter(|o| o.code == DiagCode::O129)
+            .map(|o| o.replacement)
+            .collect()
+    }
+
     fn fold_code(src: &str, code: &str) -> Vec<String> {
         crate::optimiser::optimise_raw(src, &registry(), None)
             .into_iter()
@@ -5710,6 +5722,7 @@ mod tests {
 
     #[test]
     fn o129_concat_preserves_native_trailing_backslash_space_bytes() {
+        // Profiled registry: a dialect-less standalone unit stays fail-closed.
         // All six native engines re-expose exactly one trailing byte after a
         // backslash. The shared concat owner now models that operation.
         for (source, expected) in [
@@ -5718,7 +5731,7 @@ mod tests {
             ("puts [concat {b\\ }]", "b\\ "),
             ("puts [concat a {b\\\\   } c]", "a b\\\\  c"),
         ] {
-            let replacements = crate::optimiser::optimise_raw(source, &registry(), None)
+            let replacements = crate::optimiser::optimise_raw(source, profiled_registry(), None)
                 .into_iter()
                 .filter(|finding| finding.code == DiagCode::O129 && !finding.hint_only)
                 .map(|finding| finding.replacement)
@@ -5734,33 +5747,34 @@ mod tests {
 
     #[test]
     fn o129_resolves_constant_var_args_b2() {
+        // Profiled registry: a dialect-less standalone unit stays fail-closed.
         // A constant `$var` arg in a builtin
         // cmd-sub is resolved (whole-function-constant → sound) before
         // folding; a multi-word value stays a single argument.
         let fold = |src: &str| -> Vec<String> {
-            crate::optimiser::optimise_raw(src, &registry(), None)
+            crate::optimiser::optimise_raw(src, profiled_registry(), None)
                 .into_iter()
                 .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
         assert_eq!(
-            fold("set s abcde\nputs [string length $s]"),
+            profiled_fold("set s abcde\nputs [string length $s]"),
             vec!["5".to_string()],
         );
         // A multi-word constant value is kept as one arg.
         assert_eq!(
-            fold("set s {a b}\nputs [llength $s]"),
+            profiled_fold("set s {a b}\nputs [llength $s]"),
             vec!["2".to_string()],
         );
         // Combined: a resolved var inside an interpolation cmd-sub.
         assert_eq!(
-            fold("set s abc\nputs \"len=[string length $s]\""),
+            profiled_fold("set s abc\nputs \"len=[string length $s]\""),
             vec!["\"len=3\"".to_string()],
         );
         // A non-constant var does not resolve → no fold.
         assert_eq!(
-            fold("puts [string length $undefined]"),
+            profiled_fold("puts [string length $undefined]"),
             [] as [std::string::String; 0]
         );
     }
@@ -5799,27 +5813,33 @@ mod tests {
 
     #[test]
     fn o129_uses_the_actual_binding_before_and_after_a_rebinder() {
+        // Profiled registry: a dialect-less standalone unit stays fail-closed.
         let fold = |src: &str| -> Vec<String> {
-            crate::optimiser::optimise_raw(src, &registry(), None)
+            crate::optimiser::optimise_raw(src, profiled_registry(), None)
                 .into_iter()
                 .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
         // Baseline: untouched `string` folds.
-        assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
+        assert_eq!(
+            profiled_fold("puts [string toupper foo]"),
+            vec!["FOO".to_string()]
+        );
         // An uncalled declaration leaves the stock command selected.
         assert_eq!(
-            fold("proc clobber {} { rename string {} }\nputs [string toupper foo]"),
+            profiled_fold("proc clobber {} { rename string {} }\nputs [string toupper foo]"),
             vec!["FOO".to_string()],
         );
         assert_eq!(
-            fold("proc clobber {} { rename string {} }\nclobber\nputs [string toupper foo]"),
+            profiled_fold(
+                "proc clobber {} { rename string {} }\nclobber\nputs [string toupper foo]"
+            ),
             [] as [String; 0],
             "a completed rebinder removes the reached builtin",
         );
         assert_eq!(
-            fold("rename string {}\nputs [string toupper foo]").len(),
+            profiled_fold("rename string {}\nputs [string toupper foo]").len(),
             0,
             "renamed-away builtin must not fold",
         );

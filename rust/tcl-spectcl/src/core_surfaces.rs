@@ -265,7 +265,7 @@ mod tests {
     }
 
     /// Both compiled-in packs evaluate without a load error and declare no
-    /// hook body: a hook needs a per-pack-set host these packs are never
+    /// hook body: a hook body needs a per-pack-set host these packs are never
     /// loaded with, so one would abstain without saying so. The one notice
     /// either raises is `proc` naming the native `Proc` lowering hook, which
     /// the IR lowering and the command-binding replay both key on to treat a

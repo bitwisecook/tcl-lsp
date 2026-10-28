@@ -3319,7 +3319,19 @@ impl InterpState {
     /// Invocation policy selected by a native token. Host aliases override only
     /// the explicit host activation; ordinary user activations retain their dialect.
     pub(crate) fn native_execution_profile(&self) -> &'static tcl_dialect::DialectProfile {
-        let profile = self.active_native_profile.unwrap_or(self.pin.profile);
+        self.execution_profile_for(self.active_native_profile.unwrap_or(self.pin.profile))
+    }
+
+    /// The pinned logical invocation profile, ignoring a scoped native host
+    /// activation.
+    pub(crate) fn logical_execution_profile(&self) -> &'static tcl_dialect::DialectProfile {
+        self.execution_profile_for(self.pin.profile)
+    }
+
+    fn execution_profile_for(
+        &self,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> &'static tcl_dialect::DialectProfile {
         if profile.is_fallback() {
             crate::environment::profile_for_dialect(self.runtime_version.dialect_name())
         } else {

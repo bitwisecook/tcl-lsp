@@ -83,24 +83,78 @@ const IR: &str = "f5-irules";
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
 /// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
-    // ZZ-COMPILER-ROLE-TEMPORARY-CLASSIFICATION
-    let mode = std::env::var("ZZ_TAINT_MODE").unwrap_or_default();
-    if !dialect.is_empty() && mode.starts_with("dialect") {
-        let src = if mode == "dialect_fd" && src.contains("$fd") && !src.contains("set fd") {
-            format!("set fd stdin\n{src}")
-        } else {
-            src.to_owned()
-        };
-        let registry = static_context_for(dialect).commands();
-        let cu = CompilationUnit::build_for_dialect(&src, registry, false, dialect);
-        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
-        return find_taint_warnings_for_cu(&cu, registry, Some(profile));
-    }
     let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let dialect_opt = (!dialect.is_empty())
         .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     find_taint_warnings_for_cu(&cu, registry, dialect_opt)
+}
+
+/// [`warns`] for a unit built with the profile's invocation dialect.
+fn dialect_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    let registry = static_context_for(dialect).commands();
+    let cu = CompilationUnit::build_for_dialect(src, registry, false, dialect);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    find_taint_warnings_for_cu(&cu, registry, Some(profile))
+}
+
+/// [`dialect_warns`] where an undefined `$fd` gets a defined channel first.
+fn channel_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    if src.contains("$fd") && !src.contains("set fd") {
+        dialect_warns(&format!("set fd stdin\n{src}"), dialect)
+    } else {
+        dialect_warns(src, dialect)
+    }
+}
+
+/// [`codes`] for a unit built with the profile's invocation dialect.
+fn dialect_codes(src: &str, dialect: &str) -> Vec<String> {
+    let mut out: Vec<String> = dialect_warns(src, dialect)
+        .iter()
+        .map(|w| w.code.to_string())
+        .collect();
+    out.sort();
+    out
+}
+
+/// [`codes`] through [`channel_warns`].
+fn channel_codes(src: &str, dialect: &str) -> Vec<String> {
+    let mut out: Vec<String> = channel_warns(src, dialect)
+        .iter()
+        .map(|w| w.code.to_string())
+        .collect();
+    out.sort();
+    out
+}
+
+/// [`of_code`] for a unit built with the profile's invocation dialect.
+fn dialect_of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
+    dialect_warns(src, dialect)
+        .into_iter()
+        .filter(|w| w.code.to_string() == code)
+        .collect()
+}
+
+/// [`of_code`] through [`channel_warns`].
+fn channel_of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
+    channel_warns(src, dialect)
+        .into_iter()
+        .filter(|w| w.code.to_string() == code)
+        .collect()
+}
+
+/// [`has`] for a unit built with the profile's invocation dialect.
+fn dialect_has(src: &str, dialect: &str, code: &str, var: &str) -> bool {
+    dialect_of_code(src, dialect, code)
+        .iter()
+        .any(|w| w.variable == var)
+}
+
+/// [`has`] through [`channel_warns`].
+fn channel_has(src: &str, dialect: &str, code: &str, var: &str) -> bool {
+    channel_of_code(src, dialect, code)
+        .iter()
+        .any(|w| w.variable == var)
 }
 
 /// Sorted list of diagnostic codes.
@@ -471,9 +525,10 @@ mod exec_shell_atom {
 
     #[test]
     fn exec_also_emits_t102_for_generic_taint() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `exec` declares a `--` terminator, so a leading-`-`-capable tainted
         // value is also option injection: generic `read` → both T100 and T102.
-        let cs = codes("set x [read $fd]\nexec $x", D);
+        let cs = channel_codes("set x [read $fd]\nexec $x", D);
         assert!(cs.contains(&"T100".to_string()));
         assert!(cs.contains(&"T102".to_string()));
     }
@@ -508,7 +563,8 @@ mod puts_position_filter {
 
     #[test]
     fn puts_nonewline_literal_channel_tainted_content_flags() {
-        let ws = of_code("set msg [read $fd]\nputs -nonewline stdout $msg", D, "T101");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set msg [read $fd]\nputs -nonewline stdout $msg", D, "T101");
         assert!(ws.iter().any(|w| w.variable == "msg"));
     }
 
@@ -531,9 +587,10 @@ mod t102_scan_region {
 
     #[test]
     fn value_option_consumes_its_argument() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `regexp -start 0 $x subject` — `-start` consumes `0`, so the
         // tainted `$x` lands in the pattern slot (in-region) → T102.
-        let ws = of_code("set x [read $fd]\nregexp -start 0 $x subject", D, "T102");
+        let ws = channel_of_code("set x [read $fd]\nregexp -start 0 $x subject", D, "T102");
         assert!(ws.iter().any(|w| w.variable == "x"));
     }
 
@@ -561,10 +618,11 @@ mod t102_scan_region {
 
     #[test]
     fn exec_option_flag_then_tainted_command_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `exec` declares a `--` terminator with no-value option flags
         // (`-ignorestderr`, `-keepnewline`). A tainted word after such a flag is
         // still in the option-scan region → T102.
-        let ws = of_code("set x [read $fd]\nexec -ignorestderr $x", D, "T102");
+        let ws = channel_of_code("set x [read $fd]\nexec -ignorestderr $x", D, "T102");
         assert!(ws.iter().any(|w| w.variable == "x"));
         assert!(ws[0].sink_command.contains("exec"));
     }
@@ -589,8 +647,9 @@ mod t103_regsub_and_quotes {
 
     #[test]
     fn regsub_tainted_pattern_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: regsub's first positional is the regex pattern; tainted → T103.
-        let ws = of_code("set x [read $fd]\nregsub $x subject {}", D, "T103");
+        let ws = channel_of_code("set x [read $fd]\nregsub $x subject {}", D, "T103");
         assert!(!ws.is_empty());
         assert_eq!(ws[0].variable, "x");
         assert!(ws[0].sink_command.contains("regsub"));
@@ -598,8 +657,9 @@ mod t103_regsub_and_quotes {
 
     #[test]
     fn regsub_all_flag_then_tainted_pattern_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `-all` is a no-value switch; the pattern is the next positional.
-        let ws = of_code("set x [read $fd]\nregsub -all $x subject repl", D, "T103");
+        let ws = channel_of_code("set x [read $fd]\nregsub -all $x subject repl", D, "T103");
         assert!(ws.iter().any(|w| w.variable == "x"));
     }
 
@@ -649,9 +709,10 @@ mod t103_regsub_and_quotes {
 
     #[test]
     fn regexp_start_consumes_value_pattern_after_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `regexp -start 2 a xaxa` → `1`; `-start` consumes its value, so
         // the tainted pattern after it is still the pattern slot → T103.
-        let ws = of_code("set x [read $fd]\nregexp -start 2 $x xaxa", D, "T103");
+        let ws = channel_of_code("set x [read $fd]\nregexp -start 2 $x xaxa", D, "T103");
         assert!(ws.iter().any(|w| w.variable == "x"));
     }
 }
@@ -727,9 +788,10 @@ mod t104_network_sinks {
 
     #[test]
     fn irules_connect_any_arg_warns() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect: `connect` declares `taint_network_sink_args=()` (empty
         // positions ⇒ no slot filter), so any tainted argument is SSRF.
-        let ws = of_code("set h [HTTP::header Host]\nconnect $h", IR, "T104");
+        let ws = dialect_of_code("set h [HTTP::header Host]\nconnect $h", IR, "T104");
         assert!(ws.iter().any(|w| w.variable == "h"));
         assert!(ws[0].sink_command.contains("connect"));
     }
@@ -914,9 +976,10 @@ mod irule3001_depth {
 
     #[test]
     fn url_encoded_body_does_not_suppress() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // URL_ENCODED is NOT an XSS mitigation for an HTML body — only
         // HTML_ESCAPED clears IRULE3001. URI::encode'd content still warns.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set raw [HTTP::query]\nset enc [URI::encode $raw]\nHTTP::respond 200 content $enc",
             IR,
             "IRULE3001",
@@ -926,8 +989,9 @@ mod irule3001_depth {
 
     #[test]
     fn generic_tainted_body_warns_with_xss_message() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set raw [HTTP::payload]\nHTTP::respond 200 content $raw",
             IR,
             "IRULE3001",
@@ -948,8 +1012,9 @@ mod irule3002_depth {
 
     #[test]
     fn header_replace_tainted_value_warns() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect: `replace` is a value sink just like `insert`.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set v [HTTP::header Host]\nHTTP::header replace X-Fwd $v",
             IR,
             "IRULE3002",
@@ -1027,8 +1092,9 @@ mod irule3002_depth {
 
     #[test]
     fn cookie_replace_tainted_value_warns() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set v [HTTP::cookie value sid]\nHTTP::cookie replace sid value $v",
             IR,
             "IRULE3002",
@@ -1059,9 +1125,10 @@ mod irule3003_depth {
 
     #[test]
     fn http_uri_path_colour_does_not_clear_log() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // PATH_PREFIXED is a T102 mitigation, NOT a CRLF mitigation: an HTTP::uri
         // (which carries PATH_PREFIXED, not CRLF_FREE) still trips IRULE3003.
-        let ws = of_code("set u [HTTP::uri]\nlog local0. $u", IR, "IRULE3003");
+        let ws = dialect_of_code("set u [HTTP::uri]\nlog local0. $u", IR, "IRULE3003");
         assert!(!ws.is_empty());
     }
 
@@ -1093,8 +1160,9 @@ mod irule3003_depth {
 
     #[test]
     fn log_message_mentions_log_injection() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set x [HTTP::header User-Agent]\nlog local0. $x",
             IR,
             "IRULE3003",
@@ -1138,8 +1206,9 @@ mod irule3004_depth {
 
     #[test]
     fn generic_header_target_warns_with_open_redirect_message() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect: a raw header value (no path colour) → open redirect.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set loc [HTTP::header Location]\nHTTP::redirect $loc",
             IR,
             "IRULE3004",
@@ -1231,7 +1300,8 @@ mod w313_destructive_file {
 
     #[test]
     fn file_delete_variable_path_warns() {
-        let ws = of_code("set p [read $fd]\nfile delete $p", D, "W313");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set p [read $fd]\nfile delete $p", D, "W313");
         assert!(!ws.is_empty());
         assert_eq!(ws[0].variable, "p");
         assert_eq!(ws[0].sink_command, "file delete");
@@ -1239,24 +1309,27 @@ mod w313_destructive_file {
 
     #[test]
     fn file_mkdir_variable_path_warns() {
-        let ws = of_code("set p [read $fd]\nfile mkdir $p", D, "W313");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set p [read $fd]\nfile mkdir $p", D, "W313");
         assert!(!ws.is_empty());
         assert_eq!(ws[0].sink_command, "file mkdir");
     }
 
     #[test]
     fn file_rename_variable_path_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `file rename` is a destructive (mutating) op.
-        let ws = of_code("set p [read $fd]\nfile rename $p /dest", D, "W313");
+        let ws = channel_of_code("set p [read $fd]\nfile rename $p /dest", D, "W313");
         assert!(!ws.is_empty());
         assert_eq!(ws[0].sink_command, "file rename");
     }
 
     #[test]
     fn force_flag_skipped_to_reach_path() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `file delete -force $p` — `-force` is a switch; the path arg is
         // still `$p`, so W313 fires on `$p` (not on the flag).
-        let ws = of_code("set p [read $fd]\nfile delete -force $p", D, "W313");
+        let ws = channel_of_code("set p [read $fd]\nfile delete -force $p", D, "W313");
         assert!(ws.iter().any(|w| w.variable == "p"));
     }
 
@@ -1331,9 +1404,10 @@ mod w313_destructive_file {
 
     #[test]
     fn normalised_unguarded_path_softens_message() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `[file normalize]` proves normalised but not bounded; W313 is not
         // suppressed, only softened — the message asks to verify the directory.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set raw [read $fd]\nset p [file normalize $raw]\nfile delete $p",
             D,
             "W313",
@@ -1353,10 +1427,11 @@ mod w313_destructive_file {
 
     #[test]
     fn file_join_path_is_not_normalised_still_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `file join /base ../x` → `/base/../x` (a portable concat that
         // does NOT collapse `..`). PATH_JOINED is not PATH_NORMALISED, so a
         // `[file join]`d tainted path still trips W313.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set raw [read $fd]\nset p [file join /base $raw]\nfile delete $p",
             D,
             "W313",
@@ -1419,10 +1494,11 @@ mod transform_propagation {
 
     #[test]
     fn path_normalised_interpolation_appends_clears_colour() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `"${norm}/extra"` re-introduces unvalidated structure → PATH_NORMALISED
         // lost, so a `file delete` of the interpolated value is the un-normalised
         // (harder) W313 message, not the softened one.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set raw [read $fd]\nset norm [file normalize $raw]\nset p \"${norm}/x\"\nfile delete $p",
             D,
             "W313",
@@ -1444,10 +1520,11 @@ mod sanitiser_breadth {
 
     #[test]
     fn string_is_integer_sanitises() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `string is integer …` returns a boolean (0/1) — a fixed numeric
         // return that cannot carry content taint.
         assert!(
-            codes(
+            channel_codes(
                 "set x [read $fd]\nset ok [string is integer $x]\neval $ok",
                 D,
             )
@@ -1457,9 +1534,10 @@ mod sanitiser_breadth {
 
     #[test]
     fn string_compare_sanitises() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `string compare a b` → an int in {-1,0,1}.
         assert!(
-            codes(
+            channel_codes(
                 "set x [read $fd]\nset c [string compare $x foo]\nexpr $c",
                 D,
             )
@@ -1469,8 +1547,11 @@ mod sanitiser_breadth {
 
     #[test]
     fn string_match_sanitises() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `string match pat str` → boolean.
-        assert!(codes("set x [read $fd]\nset m [string match a* $x]\nexpr $m", D,).is_empty());
+        assert!(
+            channel_codes("set x [read $fd]\nset m [string match a* $x]\nexpr $m", D,).is_empty()
+        );
     }
 
     #[test]
@@ -1538,9 +1619,10 @@ mod dialect_gating {
 
     #[test]
     fn irules_sink_fires_under_irules_dialect() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // Control: the same HTTP::respond IS classified under f5-irules.
         assert!(
-            !of_code(
+            !dialect_of_code(
                 "set d [HTTP::payload]\nHTTP::respond 200 content $d",
                 IR,
                 "IRULE3001",
@@ -1592,13 +1674,14 @@ mod interproc_depth {
 
     #[test]
     fn sanitising_helper_result_via_var_clears_t101() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: the helper returns `string length` (an int) → clean. Captured
         // into `$n` first (the canonical sanitiser-propagation form), `puts $n`
         // is T101-clean. (The embedded form `puts [len $raw]` hits the
         // emit_sink_warnings false positive documented in w313/sanitiser_breadth
         // — avoided here by binding the result to a variable.)
         let src = "proc len {x} { return [string length $x] }\nset raw [read $fd]\nset n [len $raw]\nputs $n";
-        assert!(of_code(src, D, "T101").is_empty());
+        assert!(channel_of_code(src, D, "T101").is_empty());
     }
 
     #[test]
@@ -1611,10 +1694,11 @@ mod interproc_depth {
 
     #[test]
     fn tainted_arg_into_helper_with_internal_sink_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // The sink lives inside the helper; the tainted actual flows in and trips
         // it (the entry-taint seeding path).
         let src = "proc run {cmd} { eval $cmd }\nset raw [read $fd]\nrun $raw";
-        let ws = of_code(src, D, "T100");
+        let ws = channel_of_code(src, D, "T100");
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
 }

@@ -798,6 +798,14 @@ impl Frame {
             .native_policy
             .is_some_and(|policy| &policy != current_policy)
         {
+            if std::env::var_os("ZZ_VM_STALE_POLICY_PROBE").is_some() {
+                eprintln!(
+                    "ZZ_STALE_POLICY frame={:?}\ncurrent={:?}\n{}",
+                    self.native_policy,
+                    current_policy,
+                    std::backtrace::Backtrace::force_capture()
+                );
+            }
             Some("cannot continue bytecode after native invocation policy changed")
         } else if self
             .compiler_generation
