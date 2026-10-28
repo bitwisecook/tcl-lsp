@@ -1,0 +1,61 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T12:00:41.201417+00:00",
+  "scheduled_report_utc": "2026-10-28T11:55:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "vm-runtime round 2: C8.4 LONG84 fix clean (runtime lib 2275 PASS/129 FAIL vs 2272/132, zero new failures; 2 of 3 control_expression tests and one cache control newly pass); SpecTcl completion row + DEFINES_PROCEDURE native resolver parity landed (loader, vocabulary, studio GAPS, docs; jim_own_surface 11/11); iRules pure-functions test now PASS via selected-policy dictionary protocol. test-spectcl-compat still FAIL (pack_source_e2e 9/10, spec_corpus string pack N17 gate, one 600 s watchdog under load to rerun quietly). Root accepted one narrowed core_surfaces assertion as matching its documented intent; directed a producer-side fix (no seal relaxation) for the authored compound crossing.",
+    "Root fixed a stray #[path] attribute in compile_service.rs (swept in by WIP) that broke every tcl-compiler build; cargo check -p tcl-compiler --lib now clean (22f5e84d6).",
+    "WIP snapshot of role edits committed."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "compiler-codegen: H5 slice 2",
+    "lsp: recapture required changes, startup stall, source_views",
+    "compiler: standalone-unit test correction",
+    "compiler-names: stock-class, Source4, corpus",
+    "vm-runtime: authored compound seal, tmm_word_boolean, c84 row 5, spectcl lib baseline"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T12:31:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
