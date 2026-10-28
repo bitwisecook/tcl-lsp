@@ -596,6 +596,20 @@ impl OriginalSourcePointEntry {
         self.payload.region.as_ref()
     }
 
+    /// The issuing source's own state when `origin` is that source continuing
+    /// past one of its conditional regions. A child view of another file, or
+    /// any other origin, inherits naming state only and receives no issuer.
+    pub(super) fn issuing_continuation_state(
+        &self,
+        origin: &super::SourceOriginId,
+    ) -> Option<&super::ModuleCommandBindings> {
+        self.payload.region.as_ref()?;
+        matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+            if parent == &self.source_origin()
+            && source == self.payload.site.source.source_image())
+        .then_some(&self.payload.snapshot.state)
+    }
+
     pub(super) fn internal_region_entry(&self) -> Option<super::SourceAnalysisEntry> {
         self.payload.region.as_ref()?;
         Some(self.minted_entry(

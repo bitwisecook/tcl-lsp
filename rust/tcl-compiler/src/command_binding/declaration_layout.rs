@@ -3245,14 +3245,24 @@ impl super::OriginalCompilationLookupAdvice {
 
     /// Purpose of this already joined original declaration or compiler layout.
     /// The shared baseline classifier issues no invocation, frame or handler.
+    /// A source's own continuation past a conditional region keeps the purpose
+    /// of the state that issued the region.
     pub(crate) fn original_source_purpose(
         &self,
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<super::OriginalInvocationSourcePurpose> {
-        self.snapshot
-            .state
-            .retained_original_source_purpose(metadata, registry)
+        let mut state = &self.snapshot.state;
+        while let (Some(point), Some(origin)) = (
+            state.baseline.source_point_entry.as_ref(),
+            state.current_source_origin.as_deref(),
+        ) {
+            let Some(issuer) = point.issuing_continuation_state(origin) else {
+                break;
+            };
+            state = issuer;
+        }
+        state.retained_original_source_purpose(metadata, registry)
     }
 }
 
@@ -3266,49 +3276,22 @@ impl super::SourceInvocationBinding {
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<super::OriginalInvocationSourcePurpose> {
-        // TEMP-SOURCE-ADVICE-TRACE
-        let trace = |stage: &str| {
-            if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
-                eprintln!(
-                    "TEMP_SOURCE_ADVICE offset={:?} stage={stage}",
-                    tokens.words().first().map(|word| word.source().span.start())
-                );
-            }
-        };
         if self.lookup_state.is_some() {
-            trace("lookup-state");
             return self.original_invocation_source_purpose(tokens, metadata, registry);
         }
         if !metadata.matches_registry(registry) {
-            trace("registry");
             return None;
         }
-        let declaration = self.declaration_operand_layout_advice(tokens);
-        trace(if declaration.is_some() { "declaration-advice" } else { "no-declaration-advice" });
-        let compiler = self.original_compilation_lookup_advice(tokens);
-        trace(if compiler.is_some() { "compiler-advice" } else { "no-compiler-advice" });
-        let Some(advice) = declaration.or(compiler) else {
-            trace("no-advice");
-            return None;
-        };
-        let Ok(original) = advice.original_declaration_metadata_context(registry, tokens) else {
-            trace("metadata-context-err");
-            return None;
-        };
-        trace(match (&original, metadata.source_analysis_input()) {
-            (Some(_), Some(_)) => "both-inputs",
-            (None, None) => "no-inputs",
-            (Some(_), None) => "original-only",
-            (None, Some(_)) => "request-only",
-        });
+        let advice = self
+            .declaration_operand_layout_advice(tokens)
+            .or_else(|| self.original_compilation_lookup_advice(tokens))?;
+        let original = advice
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()?;
         match (original, metadata.source_analysis_input()) {
             (Some(original), Some(request)) => {
-                let Some(input) = original.source_analysis_input() else {
-                    trace("original-input-missing");
-                    return None;
-                };
+                let input = original.source_analysis_input()?;
                 if input != request && input != &request.for_nested_source() {
-                    trace("input-mismatch");
                     return None;
                 }
             }
@@ -3317,14 +3300,9 @@ impl super::SourceInvocationBinding {
                 if original.is_standalone()
                     && metadata.is_standalone()
                     && original.context() == metadata.context() => {}
-            _ => {
-                trace("context-shape");
-                return None;
-            }
+            _ => return None,
         }
-        let purpose = advice.original_source_purpose(metadata, registry);
-        trace(if purpose.is_some() { "purpose" } else { "no-purpose" });
-        purpose
+        advice.original_source_purpose(metadata, registry)
     }
 }
 

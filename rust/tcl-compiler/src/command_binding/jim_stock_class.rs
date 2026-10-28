@@ -627,8 +627,9 @@ mod tests {
 
     #[test]
     fn earlier_unknown_and_changed_dependencies_do_not_recover_a_stock_world() {
+        // jimsh 0.84 starts without `unknown`, so only dynamic input stays an unknown earlier mutation.
         for source in [
-            "unknown_stock_mutator; class C {x 0}",
+            "eval [gets stdin]; class C {x 0}",
             "proc proc args {}; class C {x 0}",
             "class Base {x 0}; class Other {z 0}; class C {Base Other} {y 0}",
         ] {
@@ -685,12 +686,13 @@ mod tests {
 
     #[test]
     fn stock_method_publication_keeps_missing_and_replaced_owners_opaque() {
+        // jimsh 0.84 starts without `unknown`, so only dynamic input stays an unknown earlier mutation.
         for prefix in [
             "class C {}; proc proc args {}; C method m {} {}",
             "class C {}; proc {C method} args {}; C method m {} {}",
             "class C {}; proc C args {}; C method m {} {}",
             "class Base {}; class Other {}; class C {Base Other} {}; C method m {} {}",
-            "unknown_stock_mutator; class C {}; C method m {} {}",
+            "eval [gets stdin]; class C {}; C method m {} {}",
             "class C {}; C method m {} {}; C method m {} {}",
         ] {
             let state = state_before_unknown(prefix);
@@ -777,10 +779,11 @@ mod tests {
 
     #[test]
     fn extra_parent_commands_and_changed_parent_helpers_keep_inheritance_opaque() {
+        // jimsh 0.84 starts without `unknown`, so only dynamic input stays an unknown earlier mutation.
         for source in [
             "class Base {x 0}; proc {Base foreign} {} {}; class C Base {y 0}",
             "class Base {x 0}; proc {Base vars} {} {}; class C Base {y 0}",
-            "class Base {x 0}; unknown_stock_mutator; class C Base {y 0}",
+            "class Base {x 0}; eval [gets stdin]; class C Base {y 0}",
         ] {
             let state = state_before_unknown(source);
             assert!(
