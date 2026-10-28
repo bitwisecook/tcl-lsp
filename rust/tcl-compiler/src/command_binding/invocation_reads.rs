@@ -314,68 +314,6 @@ impl SourceCommandBindings {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn analyse(source: &str) -> (SourceCommandBindings, tcl_registry::CommandRegistry) {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let bindings =
-            SourceCommandBindings::analyse(source, tcl_lexer::LexerConfig::default(), &registry);
-        (bindings, registry)
-    }
-
-    #[test]
-    fn entered_body_reads_are_distinct_from_original_arguments() {
-        let source = "set x VALUE; catch {set x}";
-        let (bindings, _) = analyse(source);
-        let offset = u32::try_from(source.find("catch").unwrap()).unwrap();
-        let invocation = bindings.invocation_at_source("", offset);
-        let reads = invocation.invocation_variable_reads.as_ref().unwrap();
-        assert_eq!(reads.native_reads.len(), 1);
-        assert_eq!(reads.native_reads[0].place.name, "x");
-        assert_eq!(reads.residual, SourceVariableReadResidual::Closed);
-        assert_eq!(
-            bindings.variable_accesses_for_invocation_args(offset),
-            [] as [SourceVariableAccess; 0]
-        );
-    }
-
-    #[test]
-    fn callee_reads_keep_each_actual_caller_alias_target() {
-        let source = "proc read {name} {upvar 1 $name a; set a}; set x X; set y Y; read x; read y";
-        let (bindings, _) = analyse(source);
-        for name in ["x", "y"] {
-            let offset = u32::try_from(source.rfind(&format!("read {name}")).unwrap()).unwrap();
-            let invocation = bindings.invocation_at_source("", offset);
-            let reads = invocation.invocation_variable_reads.as_ref().unwrap();
-            assert!(
-                reads
-                    .native_reads
-                    .iter()
-                    .any(|read| read.place.name == name),
-                "{name}: {reads:?}"
-            );
-            assert!(
-                !reads
-                    .native_reads
-                    .iter()
-                    .any(|read| read.place.name == if name == "x" { "y" } else { "x" })
-            );
-        }
-    }
-
-    #[test]
-    fn opaque_body_keeps_an_explicit_unknown_read_residual() {
-        let source = "proc p {} {missing_dynamic_handler}; p";
-        let (bindings, _) = analyse(source);
-        let offset = u32::try_from(source.rfind('p').unwrap()).unwrap();
-        let invocation = bindings.invocation_at_source("", offset);
-        let reads = invocation.invocation_variable_reads.as_ref().unwrap();
-        assert_eq!(reads.residual, SourceVariableReadResidual::Unknown);
-    }
-}
-
 // Report-bound classification of an already refused field; ordinary equality stays exact.
 #[cfg(test)]
 pub(super) fn report_trace_invocation_reads_part(
@@ -457,5 +395,67 @@ fn report_trace_native_read_part(
         }
     } else {
         "native_reads.variable_context"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn analyse(source: &str) -> (SourceCommandBindings, tcl_registry::CommandRegistry) {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let bindings =
+            SourceCommandBindings::analyse(source, tcl_lexer::LexerConfig::default(), &registry);
+        (bindings, registry)
+    }
+
+    #[test]
+    fn entered_body_reads_are_distinct_from_original_arguments() {
+        let source = "set x VALUE; catch {set x}";
+        let (bindings, _) = analyse(source);
+        let offset = u32::try_from(source.find("catch").unwrap()).unwrap();
+        let invocation = bindings.invocation_at_source("", offset);
+        let reads = invocation.invocation_variable_reads.as_ref().unwrap();
+        assert_eq!(reads.native_reads.len(), 1);
+        assert_eq!(reads.native_reads[0].place.name, "x");
+        assert_eq!(reads.residual, SourceVariableReadResidual::Closed);
+        assert_eq!(
+            bindings.variable_accesses_for_invocation_args(offset),
+            [] as [SourceVariableAccess; 0]
+        );
+    }
+
+    #[test]
+    fn callee_reads_keep_each_actual_caller_alias_target() {
+        let source = "proc read {name} {upvar 1 $name a; set a}; set x X; set y Y; read x; read y";
+        let (bindings, _) = analyse(source);
+        for name in ["x", "y"] {
+            let offset = u32::try_from(source.rfind(&format!("read {name}")).unwrap()).unwrap();
+            let invocation = bindings.invocation_at_source("", offset);
+            let reads = invocation.invocation_variable_reads.as_ref().unwrap();
+            assert!(
+                reads
+                    .native_reads
+                    .iter()
+                    .any(|read| read.place.name == name),
+                "{name}: {reads:?}"
+            );
+            assert!(
+                !reads
+                    .native_reads
+                    .iter()
+                    .any(|read| read.place.name == if name == "x" { "y" } else { "x" })
+            );
+        }
+    }
+
+    #[test]
+    fn opaque_body_keeps_an_explicit_unknown_read_residual() {
+        let source = "proc p {} {missing_dynamic_handler}; p";
+        let (bindings, _) = analyse(source);
+        let offset = u32::try_from(source.rfind('p').unwrap()).unwrap();
+        let invocation = bindings.invocation_at_source("", offset);
+        let reads = invocation.invocation_variable_reads.as_ref().unwrap();
+        assert_eq!(reads.residual, SourceVariableReadResidual::Unknown);
     }
 }

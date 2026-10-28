@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-28T00:10Z",
+  "source": "User answer in chat (structured question)",
+  "decisions": {
+    "may_sinking_helper_fixture_correction": {
+      "question": "original_sinking_helper_uses_only_current_authored_may_schema and three interprocedural taint tests build standalone compilation units with no invocation dialect, leaving the command world opaque so T100 at eval never fires; with the dialect supplied, `read $fd` on an undefined channel is a proven Tcl error (tclsh agrees) and eval is unreachable.",
+      "choice": "Fixture correction",
+      "meaning": "Narrow, documented test correction: build these tests with the profile's dialect and give `fd` a defined channel so the fixture matches tclsh semantics. The T100 assertion itself is unchanged. Product ingress (standalone CompilationUnit::build_for) is not changed."
+    }
+  }
+}
