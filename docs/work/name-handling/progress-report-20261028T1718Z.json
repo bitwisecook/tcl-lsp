@@ -1,0 +1,67 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T17:18:06.717625+00:00",
+  "scheduled_report_utc": "2026-10-28T14:34:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Third container restart (~14:40-17:10Z); all four roles had finished and their final reports were recovered from transcripts; WIP snapshot 40a8a6c8c; pruned 735 build files (7.1 GB).",
+    "USER DECISION (user-decisions-20261028T1450Z.json): SpecTcl discovery stays fail-closed for unreadable/unparseable selected manifests/lockfiles; the two baseline tests and the discovery documentation are updated to the new contract.",
+    "Full CI 40702593891 on 841e0e3d4 measured nothing: tcl-compiler failed deny(missing_docs) at compile_service.rs:341 (a transient doc split, since fixed); test-only dead code in taint_depth.rs/propagation.rs would also fail under CARGO_BUILD_WARNINGS=deny. Re-dispatch after the compiler role's clippy fix.",
+    "H5 slice 2 implemented (all ten Astra changes plus follow-ups; tcl-vm 4/4, tcl-compiler 11/11, engine 12/12, spectcl 23/23 incl. 12 end-to-end); Astra re-review of the implementation running.",
+    "Compiler: 79 standalone-unit tests corrected non-vacuously (taint 287/86, taint_depth 104/26, o129 3/4); remaining failures attributed: ~117 optimiser/coverage failures to set lowering as a generic Call (source-purpose chain, compiler-names), 40 taint product gaps in four groups (compiler), analyser target aborts on a stack overflow (compiler). Tk-profile and undefined-variable fixture corrections approved within the standalone decision.",
+    "compiler-names: opaque-puts rule narrowed (Unknown keeps the world withheld; LSP test passes), Jim unknown regression fixed, namespace path-word fixed, corpus cause found (process-global receipt counter); per-arena counter, namespace-eval body entry, and startup image/tail-parse reuse approved; Source4 return needs an AuthoredSimulation declaration-metadata route (design first).",
+    "lsp: source_views fixture now runs the real workspace scan, matching production (4P/3F, was 1P/6F).",
+    "vm-runtime: runtime lib 2276P/128F with zero new failures; all control_expression tests pass; tmm_word_boolean stale-policy cause fixed; seal split (a/b/c) sent to Astra for a design recommendation."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Astra: slice-2 implementation re-review",
+    "Astra: iRules seal-split design",
+    "compiler: clippy blockers, Tk/undefined fixtures, taint gaps, analyser abort",
+    "compiler-names: optimiser set lowering, receipt counter, startup reuse, namespace eval, return design",
+    "vm-runtime: discovery tests/docs, templated_single_word, regexp recipe, array owner",
+    "lsp: three source_views failures"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T17:56:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
