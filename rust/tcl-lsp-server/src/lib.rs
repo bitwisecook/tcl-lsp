@@ -32564,7 +32564,7 @@ impl Backend {
         let uri_key = uri.as_str().to_owned();
         let mut actions = crate::rt::spawn_blocking(move || {
             Self::build_document_code_actions(&CodeActionWorkerInputs {
-                uri_key: uri_key,
+                uri_key: &uri_key,
                 exports: &exports,
                 doc: &doc,
                 analysis: &analysis,
@@ -32573,7 +32573,7 @@ impl Backend {
                 docstring_style,
                 registry: &registry,
                 context_diags: &context_diags,
-                uri_str: uri_str,
+                uri_str: &uri_str,
                 dialect: &dialect,
             })
         })
@@ -34701,9 +34701,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
+        let target = &uri;
         readonly_reference_reports::retry_readonly_attempt(
             Err(coarse_semantic_source_changed()),
-            async || self.semantic_tokens_full_attempt(&uri).await,
+            move || self.semantic_tokens_full_attempt(target),
         )
         .await?
     }
@@ -34719,9 +34720,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
+        let (target, request) = (&uri, &params);
         readonly_reference_reports::retry_readonly_attempt(
             Err(coarse_semantic_source_changed()),
-            async || self.semantic_tokens_full_delta_attempt(&uri, &params).await,
+            move || self.semantic_tokens_full_delta_attempt(target, request),
         )
         .await?
     }
@@ -35365,8 +35367,9 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        readonly_reference_reports::retry_readonly_attempt(None, async || {
-            self.code_action_attempt(&uri, &params).await
+        let (target, request) = (&uri, &params);
+        readonly_reference_reports::retry_readonly_attempt(None, move || {
+            self.code_action_attempt(target, request)
         })
         .await
     }

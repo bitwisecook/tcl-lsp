@@ -29,7 +29,7 @@ use crate::install::OwnedHookRegistry;
 use crate::pack::PackSet;
 
 /// The release an owned evaluator runs: its private engines are native cores.
-const OWNED_PROFILE: &str = "tcl9.1";
+pub(super) const OWNED_PROFILE: &str = "tcl9.1";
 
 /// One selected command substitution the owned evaluator answered.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +69,19 @@ pub struct OwnedApplicationFolds {
     pub telemetry: OwnedEvaluatorTelemetry,
 }
 
+/// The installed program that answered one selected fold, as detached text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnedFoldLineage {
+    /// The pack that declared the hook.
+    pub pack: String,
+    /// The pack file that declared it.
+    pub file: String,
+    /// The canonical command the fold replaced.
+    pub command: String,
+    /// The registry slot the plan bound it to.
+    pub slot: String,
+}
+
 /// Select every top-level fold request in `source` against the packs'
 /// private `tcl9.1` registry, and answer each request that names one of the
 /// packs' installed hooks through an owned evaluator on its own worker
@@ -101,14 +114,13 @@ fn owned_worker(
     let profile = tcl_registry::model::ingress::resolve_known_environment(OWNED_PROFILE)
         .and_then(|environment| environment.catalogue_profile())
         .ok_or(ClosedSourceRefusal::NativeContext)?;
-    let owner = OwnedApplicationEvaluator::new(
-        crate::install::owned_hook_registry(profile, packs),
-        HostConfig::default(),
-    )?;
+    let installed = crate::install::bounded_owned_hook_registry(profile, packs)
+        .ok_or(ClosedSourceRefusal::Budget)?;
+    let owner = OwnedApplicationEvaluator::new(installed, HostConfig::default())?;
     let selected = select_application_folds(source, owner.registry(), profile)?;
     let mut folds = Vec::new();
     for fold in &selected {
-        if let Some(value) = owner.answer(fold.request())?
+        if let Some((value, _)) = owner.answer(fold.request())?
             && fold.admits_answer(&value)
         {
             folds.push(OwnedApplicationFold {
@@ -359,11 +371,11 @@ impl PackHookHost for CountedEvaluator {
 /// Owns the private registry, plan, host and receiver of one worker thread.
 /// Construct it only inside that worker; no caller engine, host, callback
 /// or evaluator is accepted.
-struct OwnedApplicationEvaluator {
+pub(super) struct OwnedApplicationEvaluator {
     plan: Arc<HookPlan>,
     registry: Arc<CommandRegistry>,
     registry_key: RegistrySemanticKey,
-    installed: OwnedHookRegistry,
+    installed: Arc<OwnedHookRegistry>,
     host: PrivateApplicationHost,
     evaluator: Rc<CountedEvaluator>,
     receiver: Rc<dyn PackHookHost>,
@@ -372,7 +384,10 @@ struct OwnedApplicationEvaluator {
 }
 
 impl OwnedApplicationEvaluator {
-    fn new(installed: OwnedHookRegistry, config: HostConfig) -> Result<Self, ClosedSourceRefusal> {
+    pub(super) fn new(
+        installed: Arc<OwnedHookRegistry>,
+        config: HostConfig,
+    ) -> Result<Self, ClosedSourceRefusal> {
         let plan = Arc::clone(installed.plan());
         let registry = Arc::clone(installed.registry());
         let profile = installed.profile();
@@ -446,14 +461,17 @@ impl OwnedApplicationEvaluator {
         Ok(owned)
     }
 
-    fn registry(&self) -> &CommandRegistry {
+    pub(super) fn registry(&self) -> &CommandRegistry {
         &self.registry
     }
 
     /// Answer one compiler-selected request. `Ok(None)` when the request
     /// names no hook these packs installed (it is not evaluated), or when the
     /// hook abstained.
-    fn answer(&self, request: &SelectedConstFold) -> Result<Option<String>, ClosedSourceRefusal> {
+    pub(super) fn answer(
+        &self,
+        request: &SelectedConstFold,
+    ) -> Result<Option<(String, OwnedFoldLineage)>, ClosedSourceRefusal> {
         let profile = self.installed.profile();
         if request.dialect() != InvocationDialect::of_profile(profile) {
             return Err(ClosedSourceRefusal::NativeContext);
@@ -500,7 +518,8 @@ impl OwnedApplicationEvaluator {
         // Reentry is refused before any host availability is consulted.
         let call = self.gate.begin()?;
         self.check_current()?;
-        let slot = self.selected_slot(spec, member, family, ordinary, versioned)?;
+        let binding = self.selected_binding(spec, member, family, ordinary, versioned)?;
+        let slot = binding.slot;
         let _dialect = pack_hooks::DialectScope::enter(Some(profile.name));
         self.gate.arm(FoldRequest {
             slot,
@@ -522,19 +541,29 @@ impl OwnedApplicationEvaluator {
             return Err(ClosedSourceRefusal::Currency);
         }
         call.complete()?;
-        Ok(answer)
+        Ok(answer.map(|value| {
+            (
+                value,
+                OwnedFoldLineage {
+                    pack: binding.pack.clone(),
+                    file: binding.file.display().to_string(),
+                    command: request.facts().canonical_command.clone(),
+                    slot: format!("{slot:?}"),
+                },
+            )
+        }))
     }
 
     /// The single plan binding whose installed allocation, declaration, file,
     /// pack, owner, family and thunk all join to the selected spec.
-    fn selected_slot(
+    fn selected_binding(
         &self,
         spec: &CommandSpec,
         member: Option<&str>,
         family: HookFamily,
         ordinary: Option<tcl_registry::hooks::ConstFoldFn>,
         versioned: Option<tcl_registry::hooks::VersionedConstFoldFn>,
-    ) -> Result<HookSlot, ClosedSourceRefusal> {
+    ) -> Result<&super::OriginalHookBinding, ClosedSourceRefusal> {
         let mut matches = self.plan.bindings.iter().filter(|binding| {
             let owner_matches = match (&binding.owner, member) {
                 (HookOwner::Command, None) => true,
@@ -565,7 +594,7 @@ impl OwnedApplicationEvaluator {
         if matches.next().is_some() {
             return Err(ClosedSourceRefusal::Currency);
         }
-        Ok(selected.slot)
+        Ok(selected)
     }
 
     fn telemetry(&self) -> OwnedEvaluatorTelemetry {
@@ -594,7 +623,7 @@ impl OwnedApplicationEvaluator {
 
     /// The receiver, registry, generation, bindings and private hosts are all
     /// still exactly those this owner captured. Any drift retires it.
-    fn check_current(&self) -> Result<(), ClosedSourceRefusal> {
+    pub(super) fn check_current(&self) -> Result<(), ClosedSourceRefusal> {
         let current = self.gate.live.get()
             && pack_hooks::current_host_is(&self.receiver)
             && self.registry_key == self.registry.snapshot().semantic_key()

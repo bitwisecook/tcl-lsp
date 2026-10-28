@@ -3263,10 +3263,10 @@ impl ModuleCommandBindings {
     }
 
     /// Whether a missing command can reach an unresolved-command handler in
-    /// this world. The registry's native fallback policy names the handler;
-    /// it implies no binding (Jim 0.84 starts without `unknown`), so only a
-    /// handler definitely absent from every lookup slot ends in an error. An
-    /// unclosed or opaque world may hold commands its table does not record.
+    /// this world. The registry's native fallback policy names the handler and
+    /// says whether a fresh interpreter binds it; where it starts unbound (Jim
+    /// 0.84), only a handler definitely absent from every lookup slot ends in
+    /// an error. An unclosed or opaque world may hold unrecorded commands.
     fn original_unresolved_handler_may_run(&self, namespace: &SourceNamespaceKey) -> bool {
         // TEMP-AB
         if std::env::var_os("TEMP_AB_OLD_UNKNOWN").is_some() {
@@ -3288,6 +3288,9 @@ impl ModuleCommandBindings {
         }) else {
             return true;
         };
+        if policy.default_handler_bound {
+            return true;
+        }
         let Ok(keys) = self.source_keys_checked(policy.default_handler, namespace) else {
             return true;
         };

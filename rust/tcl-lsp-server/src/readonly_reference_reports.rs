@@ -230,10 +230,13 @@ thread_local! {
 
 /// Run one whole capture, compute and final transaction, recapturing only
 /// after a currency refusal. Exhausted attempts return `unavailable`.
-pub(super) async fn retry_readonly_attempt<T, E>(
+pub(super) async fn retry_readonly_attempt<T, E, Attempt>(
     unavailable: T,
-    mut attempt: impl AsyncFnMut() -> Result<ControlFlow<T>, E>,
-) -> Result<T, E> {
+    mut attempt: impl FnMut() -> Attempt,
+) -> Result<T, E>
+where
+    Attempt: std::future::Future<Output = Result<ControlFlow<T>, E>>,
+{
     for _ in 0..READONLY_CURRENCY_ATTEMPTS {
         if let ControlFlow::Break(answer) = attempt().await? {
             return Ok(answer);
@@ -1223,35 +1226,44 @@ impl Backend {
         files: &[std::path::PathBuf],
     ) -> DocumentSourceResult<Option<Vec<(Uri, super::DocumentState, WorkspaceSymbolSourceAnalysis)>>>
     {
-        retry_readonly_attempt(None, async || {
-            let inputs_epoch = self.diag_inputs_epoch();
-            let factory_generation = *self.class_factory_generation.read().await;
-            let mut analysed = Vec::new();
-            for path in files {
-                let Some(target_uri) = super::canonical_file_uri(path) else {
-                    continue;
-                };
-                let Some(snapshot) = self.read_document(&target_uri).await? else {
-                    continue;
-                };
-                let Some(receipt) = self
-                    .capture_workspace_symbol_analysis(&target_uri, &snapshot)
-                    .await?
-                else {
-                    continue;
-                };
-                analysed.push((target_uri, snapshot, receipt));
-            }
-            if analysed.is_empty() {
-                return Ok(ControlFlow::Break(Some(analysed)));
-            }
-            Ok(self
-                .library_analyses_transaction(&analysed, inputs_epoch, factory_generation)
-                .await?
-                .into_attempt()
-                .map_break(|published| published.map(|()| analysed)))
+        retry_readonly_attempt(None, move || {
+            self.capture_and_publish_library_attempt(files)
         })
         .await
+    }
+
+    async fn capture_and_publish_library_attempt(
+        &self,
+        files: &[std::path::PathBuf],
+    ) -> DocumentSourceResult<
+        ControlFlow<Option<Vec<(Uri, super::DocumentState, WorkspaceSymbolSourceAnalysis)>>>,
+    > {
+        let inputs_epoch = self.diag_inputs_epoch();
+        let factory_generation = *self.class_factory_generation.read().await;
+        let mut analysed = Vec::new();
+        for path in files {
+            let Some(target_uri) = super::canonical_file_uri(path) else {
+                continue;
+            };
+            let Some(snapshot) = self.read_document(&target_uri).await? else {
+                continue;
+            };
+            let Some(receipt) = self
+                .capture_workspace_symbol_analysis(&target_uri, &snapshot)
+                .await?
+            else {
+                continue;
+            };
+            analysed.push((target_uri, snapshot, receipt));
+        }
+        if analysed.is_empty() {
+            return Ok(ControlFlow::Break(Some(analysed)));
+        }
+        Ok(self
+            .library_analyses_transaction(&analysed, inputs_epoch, factory_generation)
+            .await?
+            .into_attempt()
+            .map_break(|published| published.map(|()| analysed)))
     }
 
     async fn library_analyses_transaction(
@@ -1334,9 +1346,8 @@ impl Backend {
         &self,
         advice: &tcl_lsp_core::workspace_index::ConditionalNamespaceImportAdvice,
     ) -> DocumentSourceResult<Option<Vec<String>>> {
-        retry_readonly_attempt(None, async || {
+        retry_readonly_attempt(None, move || {
             self.finish_conditional_namespace_advice_attempt(advice)
-                .await
         })
         .await
     }
@@ -1431,10 +1442,7 @@ impl Backend {
         &self,
         selected: &Uri,
     ) -> DocumentSourceResult<Option<Vec<tower_lsp_server::ls_types::CodeLens>>> {
-        retry_readonly_attempt(None, async || {
-            self.readonly_logical_lenses_attempt(selected).await
-        })
-        .await
+        retry_readonly_attempt(None, move || self.readonly_logical_lenses_attempt(selected)).await
     }
 
     async fn readonly_logical_lenses_attempt(
@@ -1484,9 +1492,8 @@ impl Backend {
         selected: &Uri,
         handle: tcl_lsp_core::original_declaration::OriginalDeclarationHandle,
     ) -> DocumentSourceResult<Option<tower_lsp_server::ls_types::CodeLens>> {
-        retry_readonly_attempt(None, async || {
+        retry_readonly_attempt(None, move || {
             self.readonly_logical_lens_resolve_attempt(selected, handle)
-                .await
         })
         .await
     }
@@ -1589,9 +1596,8 @@ impl Backend {
         selected: &Uri,
         position: Position,
     ) -> DocumentSourceResult<Option<Vec<tower_lsp_server::ls_types::CallHierarchyItem>>> {
-        retry_readonly_attempt(None, async || {
+        retry_readonly_attempt(None, move || {
             self.readonly_logical_call_prepare_attempt(selected, position)
-                .await
         })
         .await
     }
@@ -1647,9 +1653,8 @@ impl Backend {
     ) -> DocumentSourceResult<
         Option<Vec<(tower_lsp_server::ls_types::CallHierarchyItem, Vec<Range>)>>,
     > {
-        retry_readonly_attempt(None, async || {
+        retry_readonly_attempt(None, move || {
             self.readonly_logical_call_walk_attempt(item, incoming)
-                .await
         })
         .await
     }
@@ -1859,9 +1864,8 @@ impl Backend {
         selected: &Uri,
         position: Position,
     ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
-        retry_readonly_attempt(Vec::new(), async || {
+        retry_readonly_attempt(Vec::new(), move || {
             self.readonly_logical_hierarchy_prepare_attempt(selected, position)
-                .await
         })
         .await
     }
@@ -1911,9 +1915,8 @@ impl Backend {
         item: &tower_lsp_server::ls_types::TypeHierarchyItem,
         subtypes: bool,
     ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
-        retry_readonly_attempt(Vec::new(), async || {
+        retry_readonly_attempt(Vec::new(), move || {
             self.readonly_logical_hierarchy_walk_attempt(item, subtypes)
-                .await
         })
         .await
     }
@@ -1990,9 +1993,8 @@ impl Backend {
         selected: &Uri,
         position: Position,
     ) -> DocumentSourceResult<Option<Vec<Location>>> {
-        retry_readonly_attempt(None, async || {
+        retry_readonly_attempt(None, move || {
             self.readonly_logical_implementation_attempt(selected, position)
-                .await
         })
         .await
     }
@@ -2073,13 +2075,12 @@ impl Backend {
         selected: &Uri,
         include_declaration: bool,
     ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceReport>> {
-        retry_readonly_attempt(None, async || {
+        retry_readonly_attempt(None, move || {
             self.readonly_original_declaration_reference_attempt(
                 identity,
                 selected,
                 include_declaration,
             )
-            .await
         })
         .await
     }

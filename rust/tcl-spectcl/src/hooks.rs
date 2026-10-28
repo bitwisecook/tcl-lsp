@@ -62,9 +62,14 @@
 //! pack file (`docs/design/compiler/registry-consumer-contracts.md` § *Ruling
 //! — trust gates execution, not authority*).
 
+mod owned_application;
 mod owned_evaluator;
+pub use owned_application::{
+    FoldAuthority, OwnedApplicationExecution, OwnedApplicationReceipt,
+    execute_owned_application_source,
+};
 pub use owned_evaluator::{
-    OwnedApplicationFold, OwnedApplicationFolds, OwnedEvaluatorTelemetry,
+    OwnedApplicationFold, OwnedApplicationFolds, OwnedEvaluatorTelemetry, OwnedFoldLineage,
     fold_owned_application_source,
 };
 

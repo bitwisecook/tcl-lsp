@@ -29,6 +29,8 @@ use tcl_vm::Vm;
 
 mod application_hook_engine;
 pub use application_hook_engine::{PrivateApplicationHookHost, private_application_hook_engine};
+mod application_vm;
+pub use application_vm::PrivateApplicationVm;
 
 /// Optimise and execute inside an owned Native worker. Neither a caller's VM,
 /// values, channels, callbacks nor compiler enter this worker. All Native

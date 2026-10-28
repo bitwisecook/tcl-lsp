@@ -84,6 +84,13 @@ pub fn select_application_folds(
     let metadata: crate::registry_invocation::InvocationMetadataContext<'_> = (&*retained).into();
     let mut selected = Vec::new();
     for statement in &module.top_level.statements {
+        // The ordinary O129 visitor's sites only.
+        if !matches!(
+            statement,
+            crate::ir::Statement::Call { .. } | crate::ir::Statement::AssignValue { .. }
+        ) {
+            continue;
+        }
         let Some(tokens) = statement.tokens() else {
             continue;
         };
@@ -92,7 +99,9 @@ pub fn select_application_folds(
         else {
             continue;
         };
-        for word in tokens.words() {
+        // Whole-word substitutions after the command word; never a head,
+        // an expansion or a template part.
+        for word in tokens.words().iter().skip(1) {
             let WordExpr::CommandSubstitution { source: site, .. } = word else {
                 continue;
             };
@@ -125,6 +134,329 @@ pub fn select_application_folds(
         }
     }
     Ok(selected)
+}
+
+/// Upper bound on top-level commands in an application candidate.
+pub const MAX_APPLICATION_COMMANDS: usize = 64;
+
+/// Which admitted text a rewrite proposal names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationText {
+    /// The original, admitted for correspondence only; it is never executed.
+    Original,
+    /// The planned candidate.
+    Candidate,
+}
+
+/// The original source, its candidate with each answered substitution
+/// replaced by its rendered literal, and the candidate's complete command and
+/// scalar inventory. The answers' authority is the fold that selected them;
+/// this plan only proves the rewrite's byte correspondence and closes the
+/// candidate's effects.
+#[derive(Debug, Clone)]
+pub struct ApplicationRewritePlan {
+    source: String,
+    candidate: String,
+    profile: &'static tcl_dialect::DialectProfile,
+    registry: tcl_registry::RegistrySemanticKey,
+    commands: Vec<String>,
+    scalars: Vec<String>,
+}
+
+impl ApplicationRewritePlan {
+    /// Replace each selected substitution by its rendered answer and close
+    /// the candidate.
+    ///
+    /// # Errors
+    /// Refuses an empty or unrenderable answer set, an answer that reads apart
+    /// from its literal, overlapping sites, command-span drift, and any
+    /// candidate command outside the admitted inventory.
+    pub fn new(
+        source: &str,
+        registry: &CommandRegistry,
+        profile: &'static tcl_dialect::DialectProfile,
+        answers: &[(SelectedApplicationFold, String)],
+    ) -> Result<Self, ClosedSourceRefusal> {
+        if answers.is_empty() {
+            return Err(ClosedSourceRefusal::Source);
+        }
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let mut edits = Vec::with_capacity(answers.len());
+        for (fold, value) in answers {
+            let span = fold.span();
+            let site = source
+                .get(span.clone())
+                .ok_or(ClosedSourceRefusal::Source)?;
+            if !fold.admits_answer(value)
+                || crate::const_subst::folded_literal_reads_apart(
+                    value,
+                    tcl_dialect::TclVersion::V9_1,
+                )
+                || !site.starts_with('[')
+                || !site.ends_with(']')
+            {
+                return Err(ClosedSourceRefusal::Source);
+            }
+            let word = tcl_syntax::word_rules::lexical_unicode_source_word(value, config)
+                .filter(|word| {
+                    tcl_syntax::word_rules::lexical_unicode_source_word_matches(word, value, config)
+                })
+                .ok_or(ClosedSourceRefusal::Source)?;
+            edits.push((span, word));
+        }
+        edits.sort_by_key(|(span, _)| span.start);
+        if edits.windows(2).any(|pair| pair[0].0.end > pair[1].0.start) {
+            return Err(ClosedSourceRefusal::Source);
+        }
+        let mut candidate = source.to_owned();
+        for (span, word) in edits.iter().rev() {
+            candidate.replace_range(span.clone(), word);
+        }
+        corresponding_commands(source, &candidate, &edits, config)?;
+        let (commands, scalars) = candidate_inventory(&candidate, registry, profile)?;
+        Ok(Self {
+            source: source.to_owned(),
+            candidate,
+            profile,
+            registry: registry.snapshot().semantic_key(),
+            commands,
+            scalars,
+        })
+    }
+
+    /// The original source.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// The candidate source.
+    #[must_use]
+    pub fn candidate(&self) -> &str {
+        &self.candidate
+    }
+
+    /// Canonical registry commands the candidate invokes.
+    #[must_use]
+    pub fn command_names(&self) -> &[String] {
+        &self.commands
+    }
+
+    /// Plain scalars the candidate writes; each must start absent.
+    #[must_use]
+    pub fn scalar_names(&self) -> &[String] {
+        &self.scalars
+    }
+
+    /// The registry semantic key the plan was built under.
+    #[must_use]
+    pub fn registry_key(&self) -> &tcl_registry::RegistrySemanticKey {
+        &self.registry
+    }
+
+    /// Classify `text`: the original (correspondence only) or the candidate,
+    /// whose inventory is recomputed and must be unchanged.
+    ///
+    /// # Errors
+    /// `Currency` for a changed registry, `Source` for any other text or a
+    /// changed candidate inventory.
+    pub fn accepts(
+        &self,
+        text: &str,
+        registry: &CommandRegistry,
+    ) -> Result<ApplicationText, ClosedSourceRefusal> {
+        if registry.snapshot().semantic_key() != self.registry {
+            return Err(ClosedSourceRefusal::Currency);
+        }
+        if text == self.source {
+            return Ok(ApplicationText::Original);
+        }
+        if text != self.candidate {
+            return Err(ClosedSourceRefusal::Source);
+        }
+        let (commands, scalars) = candidate_inventory(text, registry, self.profile)?;
+        if commands != self.commands || scalars != self.scalars {
+            return Err(ClosedSourceRefusal::Source);
+        }
+        Ok(ApplicationText::Candidate)
+    }
+}
+
+/// Every original command maps to one candidate command at its offset-adjusted
+/// span; only the replaced words differ.
+fn corresponding_commands(
+    source: &str,
+    candidate: &str,
+    edits: &[(std::ops::Range<usize>, String)],
+    config: tcl_lexer::LexerConfig,
+) -> Result<(), ClosedSourceRefusal> {
+    let original = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let rewritten = crate::segmenter::segment_commands_with_offset_and_config(candidate, 0, config);
+    if original.len() != rewritten.len() {
+        return Err(ClosedSourceRefusal::Source);
+    }
+    let shift = |offset: usize| -> Option<usize> {
+        let mut adjusted = offset;
+        for (span, word) in edits {
+            if span.end <= offset {
+                adjusted = adjusted.checked_add(word.len())?.checked_sub(span.len())?;
+            } else if span.start < offset {
+                return None;
+            }
+        }
+        Some(adjusted)
+    };
+    for (before, after) in original.iter().zip(&rewritten) {
+        let range = before.span.as_range();
+        let start = shift(range.start).ok_or(ClosedSourceRefusal::Source)?;
+        let end = shift(range.end).ok_or(ClosedSourceRefusal::Source)?;
+        if before.is_partial || after.is_partial || after.span.as_range() != (start..end) {
+            return Err(ClosedSourceRefusal::Source);
+        }
+    }
+    Ok(())
+}
+
+/// Commands and written scalars of a candidate, admitted from the registry's
+/// semantic operation: a plain scalar `set` of a literal, or a channel write
+/// whose channel, when named, is the literal standard output. Everything else,
+/// including any command that can take a script body or command prefix, is
+/// refused.
+fn candidate_inventory(
+    text: &str,
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Result<(Vec<String>, Vec<String>), ClosedSourceRefusal> {
+    use tcl_registry::hooks::LoweringHookId;
+    use tcl_registry::{ArgRole, IntrinsicId, SemanticOperationId};
+    if text.len() > MAX_APPLICATION_SOURCE_BYTES {
+        return Err(ClosedSourceRefusal::Budget);
+    }
+    let cu = CompilationUnit::build_for_profile(text, registry, false, profile);
+    let module = &cu.ir_module;
+    if !module.procedures.is_empty()
+        || module.body_lowerings().next().is_some()
+        || module.source_metadata_input.is_none()
+        || module.top_level.statements.is_empty()
+    {
+        return Err(ClosedSourceRefusal::Source);
+    }
+    if module.top_level.statements.len() > MAX_APPLICATION_COMMANDS {
+        return Err(ClosedSourceRefusal::Budget);
+    }
+    let retained = crate::registry_invocation::retained_module_metadata_context(registry, module)
+        .ok_or(ClosedSourceRefusal::Source)?;
+    let metadata: crate::registry_invocation::InvocationMetadataContext<'_> = (&*retained).into();
+    let mut commands = Vec::new();
+    let mut scalars: Vec<String> = Vec::new();
+    for statement in &module.top_level.statements {
+        if !matches!(
+            statement,
+            crate::ir::Statement::Call { .. }
+                | crate::ir::Statement::AssignValue { .. }
+                | crate::ir::Statement::AssignConst { .. }
+        ) {
+            return Err(ClosedSourceRefusal::Source);
+        }
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .ok_or(ClosedSourceRefusal::Source)?;
+        super::original_target(tokens)?;
+        let words = tokens.words();
+        let Some(WordExpr::Literal { .. }) = words.first() else {
+            return Err(ClosedSourceRefusal::Source);
+        };
+        let invocation =
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens,
+            )
+            .ok_or(ClosedSourceRefusal::Source)?;
+        let name = invocation.facts.canonical_command.clone();
+        let spec = registry
+            .get_for_surface(&name, Some(metadata.context().authoring_query()))
+            .ok_or(ClosedSourceRefusal::Source)?;
+        if CommandRegistry::spec_may_have_arg_role(spec, ArgRole::Body)
+            || CommandRegistry::spec_may_have_arg_role(spec, ArgRole::CommandPrefix)
+            || !spec.command_prefixes.is_empty()
+            || spec.command_prefix_resolver.is_some()
+        {
+            return Err(ClosedSourceRefusal::Source);
+        }
+        match invocation.facts.operation {
+            SemanticOperationId::StructuredLowering(LoweringHookId::Set) => {
+                let [_, WordExpr::Literal { text: target, .. }, value] = words else {
+                    return Err(ClosedSourceRefusal::Source);
+                };
+                if !super::plain_scalar(target) || literal_text(value).is_none() {
+                    return Err(ClosedSourceRefusal::Source);
+                }
+                if !scalars.contains(target) {
+                    scalars.push(target.clone());
+                }
+            }
+            SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite) => {
+                let mut arguments = Vec::with_capacity(words.len() - 1);
+                for word in &words[1..] {
+                    arguments.push(argument_text(word, &scalars, profile)?);
+                }
+                let spelled = arguments.iter().map(String::as_str).collect::<Vec<_>>();
+                for index in registry.arg_indices_for_role(&name, &spelled, ArgRole::Channel) {
+                    if !matches!(
+                        words.get(index + 1),
+                        Some(WordExpr::Literal { text, .. }) if text == "stdout"
+                    ) {
+                        return Err(ClosedSourceRefusal::Source);
+                    }
+                }
+            }
+            _ => return Err(ClosedSourceRefusal::Source),
+        }
+        commands.push(name);
+    }
+    commands.sort();
+    commands.dedup();
+    scalars.sort();
+    Ok((commands, scalars))
+}
+
+/// A word whose value is fixed text: literal, braced, or a quoted template
+/// of text alone.
+fn literal_text(word: &WordExpr) -> Option<String> {
+    match word {
+        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => Some(text.clone()),
+        WordExpr::Template { parts, .. } => parts
+            .iter()
+            .map(|part| match part {
+                crate::ir::WordPart::Text { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect(),
+        _ => None,
+    }
+}
+
+/// A channel-write argument: fixed text, or a read of a scalar the candidate
+/// already wrote.
+fn argument_text(
+    word: &WordExpr,
+    scalars: &[String],
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Result<String, ClosedSourceRefusal> {
+    if let Some(text) = literal_text(word) {
+        return Ok(text);
+    }
+    let WordExpr::Variable { spelling, .. } = word else {
+        return Err(ClosedSourceRefusal::Source);
+    };
+    let tree = crate::expr_parser::parse_expr(spelling, Some(profile.name));
+    let name = super::simple_reference(&tree)?;
+    if !scalars.iter().any(|held| held == name) {
+        return Err(ClosedSourceRefusal::Source);
+    }
+    Ok(spelling.clone())
 }
 
 #[cfg(test)]

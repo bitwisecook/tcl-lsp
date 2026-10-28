@@ -60,7 +60,9 @@
 mod closed_native_execution;
 pub use closed_native_execution::execute_optimised_closed_source;
 #[doc(hidden)]
-pub use closed_native_execution::{PrivateApplicationHookHost, private_application_hook_engine};
+pub use closed_native_execution::{
+    PrivateApplicationHookHost, PrivateApplicationVm, private_application_hook_engine,
+};
 
 use std::cell::RefCell;
 use std::rc::Rc;

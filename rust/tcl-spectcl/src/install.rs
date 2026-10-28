@@ -301,6 +301,62 @@ pub(crate) fn owned_hook_registry(
     }
 }
 
+/// Distinct private stores one process may build. Each build leaks its
+/// installed specs once, so stores are kept by pack key and the count is
+/// capped rather than evicted: eviction would not reclaim them.
+const MAX_OWNED_HOOK_REGISTRIES: usize = 16;
+
+/// Private stores by profile and pack key, built at most once each.
+pub(crate) struct OwnedHookRegistryMemo {
+    entries: std::sync::Mutex<Vec<(&'static str, u64, Arc<OwnedHookRegistry>)>>,
+    cap: usize,
+}
+
+impl OwnedHookRegistryMemo {
+    pub(crate) const fn new(cap: usize) -> Self {
+        Self {
+            entries: std::sync::Mutex::new(Vec::new()),
+            cap,
+        }
+    }
+
+    /// The store for `packs` under `profile`, built on first request.
+    /// `None` once the cap is reached for a store not yet built.
+    pub(crate) fn get(
+        &self,
+        profile: &'static DialectProfile,
+        packs: &PackSet,
+    ) -> Option<Arc<OwnedHookRegistry>> {
+        let mut entries = self
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, _, held)) = entries
+            .iter()
+            .find(|(name, key, _)| *name == profile.name && *key == packs.key)
+        {
+            return Some(Arc::clone(held));
+        }
+        if entries.len() >= self.cap {
+            return None;
+        }
+        let built = Arc::new(owned_hook_registry(profile, packs));
+        entries.push((profile.name, packs.key, Arc::clone(&built)));
+        Some(built)
+    }
+}
+
+static OWNED_HOOK_REGISTRIES: OwnedHookRegistryMemo =
+    OwnedHookRegistryMemo::new(MAX_OWNED_HOOK_REGISTRIES);
+
+/// The process's bounded private store for `packs` under `profile`.
+pub(crate) fn bounded_owned_hook_registry(
+    profile: &'static DialectProfile,
+    packs: &PackSet,
+) -> Option<Arc<OwnedHookRegistry>> {
+    OWNED_HOOK_REGISTRIES.get(profile, packs)
+}
+
 /// An `-override` describes the shipped command itself: the interpreter's
 /// command, and so the compile procedure C registered for it and each of
 /// its subcommands, is unchanged by a pack's description of it. A pack never
@@ -416,6 +472,32 @@ mod tests {
             origin: Origin::DotDir,
             dependency_tier: None,
         }])
+    }
+
+    #[test]
+    fn private_stores_are_kept_by_pack_key_and_capped() {
+        let _cache = cache_guard();
+        let dir = tmpdir("private-memo");
+        let first = pack_set(
+            &dir,
+            "first.tclspec",
+            "speclib memo_first 1 {command memo_first {const_fold -inputs {words} {words ctx} {fold 1}}}",
+        );
+        let second = pack_set(
+            &dir,
+            "second.tclspec",
+            "speclib memo_second 1 {command memo_second {const_fold -inputs {words} {words ctx} {fold 2}}}",
+        );
+        let profile = crate::environment::profile_for_dialect("tcl9.1");
+        let memo = OwnedHookRegistryMemo::new(1);
+        let held = memo.get(profile, &first).expect("first store");
+        assert!(Arc::ptr_eq(&held, &memo.get(profile, &first).unwrap()));
+        assert!(
+            memo.get(profile, &second).is_none(),
+            "the cap refuses a new store"
+        );
+        assert!(memo.get(profile, &first).is_some());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

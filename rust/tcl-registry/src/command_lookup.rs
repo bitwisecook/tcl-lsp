@@ -61,6 +61,9 @@ pub struct NativeLookupFallbackPolicy {
     pub namespace_handler: Option<UnknownHandlerNamespace>,
     /// Default prefix when no namespace handler is configured.
     pub default_handler: &'static str,
+    /// Whether a fresh interpreter already binds the default handler: C Tcl's
+    /// `init.tcl` defines `::unknown`; Jim 0.84 binds none until a script does.
+    pub default_handler_bound: bool,
 }
 
 /// Resolve actual native policy without inferring an implementation from a
@@ -90,6 +93,7 @@ pub fn native_lookup_fallback_policy(
             return Some(NativeLookupFallbackPolicy {
                 namespace_handler: None,
                 default_handler: "::unknown",
+                default_handler_bound: true,
             });
         }
         Family::Jim
@@ -100,6 +104,7 @@ pub fn native_lookup_fallback_policy(
             return Some(NativeLookupFallbackPolicy {
                 namespace_handler: None,
                 default_handler: "unknown",
+                default_handler_bound: false,
             });
         }
         _ => return None,
@@ -107,6 +112,7 @@ pub fn native_lookup_fallback_policy(
     Some(NativeLookupFallbackPolicy {
         namespace_handler,
         default_handler: "::unknown",
+        default_handler_bound: true,
     })
 }
 
@@ -184,6 +190,7 @@ mod tests {
             Some(NativeLookupFallbackPolicy {
                 namespace_handler: None,
                 default_handler: "::unknown",
+                default_handler_bound: true,
             })
         );
     }

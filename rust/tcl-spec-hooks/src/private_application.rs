@@ -19,6 +19,9 @@ use tcl_registry::pack_hooks::{HookSlot, PackHookHost};
 
 use crate::{CrashRecord, HookHost, HookInstallation, HostConfig, PackPrograms};
 
+/// The private application VM, re-exported so its owner names no engine.
+pub use tcl_engine_tclvm::PrivateApplicationVm;
+
 /// The only release whose pinned hooks this host can run.
 const PINNED_RELEASE: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_1;
 

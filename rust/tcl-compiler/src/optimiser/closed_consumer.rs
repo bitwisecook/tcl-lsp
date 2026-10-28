@@ -18,6 +18,7 @@ use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
 
 mod application;
 pub use application::{
+    ApplicationRewritePlan, ApplicationText, MAX_APPLICATION_COMMANDS,
     MAX_APPLICATION_SOURCE_BYTES, SelectedApplicationFold, select_application_folds,
 };
 

@@ -9,6 +9,18 @@ use tcl_bytecode::{FunctionAsm, ModuleAsm, Op};
 use tcl_runtime_api::closed_native_consumer::ClosedSourceRefusal;
 use tcl_runtime_api::native_compilation::{NativeCommandImplementation, NativeCompilationEntry};
 
+mod owned_application;
+pub use owned_application::PreparedOwnedApplicationSource;
+
+/// The returned-code domain a private owner admits. The arithmetic domain is
+/// the integer transcript consumer's; the application domain admits only
+/// plain dispatch over literal words and scalar reads.
+#[derive(Clone, Copy)]
+enum ClosedModuleDomain {
+    Arithmetic,
+    Application(tcl_lexer::LexerConfig),
+}
+
 /// Private preparation retained by its concrete owner. This opaque artifact
 /// grants no closed-consumer authority to an ordinary VM or its `CompileService`.
 pub struct PreparedClosedNativeSource {
@@ -181,7 +193,13 @@ impl Vm {
                 tcl_runtime_api::diagnostic_output::note_closed_native_refusal(30, 0, 0);
                 ClosedSourceRefusal::Execution
             })?;
-        check_module(&module, &image, &namespace, self.source_profile())?;
+        check_module(
+            &module,
+            &image,
+            &namespace,
+            self.source_profile(),
+            ClosedModuleDomain::Arithmetic,
+        )?;
         self.validate_module_profile(&module).map_err(|_| {
             #[cfg(debug_assertions)]
             tcl_runtime_api::diagnostic_output::note_closed_native_refusal(31, 0, 0);
@@ -272,6 +290,7 @@ fn check_module(
     source: &tcl_runtime_api::SourceImage,
     namespace: &tcl_runtime_api::ByteNamespacePath,
     profile: &'static tcl_dialect::DialectProfile,
+    domain: ClosedModuleDomain,
 ) -> Result<(), ClosedSourceRefusal> {
     if module.profile.cache_key() != profile.cache_key()
         || &module.source != source
@@ -284,8 +303,16 @@ fn check_module(
         tcl_runtime_api::diagnostic_output::note_closed_native_refusal(20, 0, 0);
         return Err(ClosedSourceRefusal::NativeContext);
     }
-    check_function(&module.top_level, false)?;
-    check_function(&module.top_level_body, true)
+    match domain {
+        ClosedModuleDomain::Arithmetic => {
+            check_function(&module.top_level, false)?;
+            check_function(&module.top_level_body, true)
+        }
+        ClosedModuleDomain::Application(config) => {
+            owned_application::check_function(&module.top_level, false, config)?;
+            owned_application::check_function(&module.top_level_body, true, config)
+        }
+    }
 }
 
 #[cfg(debug_assertions)]
