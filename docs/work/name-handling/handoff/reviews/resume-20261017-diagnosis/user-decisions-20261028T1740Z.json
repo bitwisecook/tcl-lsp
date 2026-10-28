@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-28T17:40Z",
+  "source": "User answer in chat (structured question)",
+  "evidence": "handoff/reviews/merge-inventory-20261019/coordinator-20261027/astra-irules-seal-split-review-v1.md",
+  "decisions": {
+    "irules_simulation_object_recipe": {
+      "choice": "Tcl 8.4 objects",
+      "meaning": "Inside the authored iRules simulation, list and dict values use the authored C8.4 object recipe the registry declares. Every list/dict producer and consumer that can run in the simulation takes its recipe from the single selector (object_materialization / OriginalAuthoredOperandScope); the physical C9 recipe is used only at an explicit allowlist of physical-only sites, enforced by a drift gate. The compound seal is not relaxed and no boundary reparse is added; a sealed object crossing realms is refused. The name-axis counterpart (store_original_c_array_member) follows as a separate change."
+    }
+  }
+}
