@@ -146,6 +146,12 @@ enum RegistryTarget {
         profile: &'static DialectProfile,
         overlay: u64,
     },
+    /// One exact shared store, fixed to its profile: a compile for another
+    /// profile is refused rather than projected.
+    Shared {
+        profile: &'static DialectProfile,
+        registry: Arc<CommandRegistry>,
+    },
 }
 
 /// The registry generation `overlay` names for `profile`, if its packs are
@@ -189,6 +195,7 @@ impl RegistryTarget {
             Self::Overlay { profile, overlay } => overlaid_registry(profile, *overlay)
                 .map(ProfileRegistry::Cached)
                 .map_err(|miss| overlay_refusal(&miss)),
+            Self::Shared { registry, .. } => Ok(ProfileRegistry::Cached(Arc::clone(registry))),
         }
     }
 
@@ -222,6 +229,18 @@ impl RegistryTarget {
             Self::Overlay { overlay, .. } => overlaid_registry(profile, *overlay)
                 .map(ProfileRegistry::Cached)
                 .map_err(|miss| overlay_refusal(&miss)),
+            Self::Shared {
+                profile: fixed,
+                registry,
+            } => {
+                if fixed.cache_key() == profile.cache_key() {
+                    Ok(ProfileRegistry::Cached(Arc::clone(registry)))
+                } else {
+                    Err(CompileError::Unsupported(
+                        "the shared command store is fixed to its own profile".into(),
+                    ))
+                }
+            }
         }
     }
 }
@@ -305,6 +324,20 @@ impl BytecodeCompileService {
     ///
     /// [`OverlayMiss`] when `overlay` is non-zero and its packs are not
     /// installed for `profile`.
+    /// A service over exactly `registry`, fixed to `profile`. Its modules are
+    /// compiled against that store itself, never a projection of it.
+    #[must_use]
+    pub fn for_shared_registry(
+        profile: &'static DialectProfile,
+        registry: Arc<CommandRegistry>,
+    ) -> Self {
+        Self {
+            registry: RegistryTarget::Shared { profile, registry },
+            config: LexerConfig::from_grammar(profile.grammar),
+            profile: Some(profile),
+        }
+    }
+
     pub fn for_profile_with_overlay(
         profile: &'static DialectProfile,
         overlay: u64,

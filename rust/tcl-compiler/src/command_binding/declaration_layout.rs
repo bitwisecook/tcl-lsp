@@ -3263,6 +3263,10 @@ impl super::OriginalCompilationLookupAdvice {
     /// that source which issued the region.
     fn source_purpose_state(&self) -> &super::ModuleCommandBindings {
         let mut state = &self.snapshot.state;
+        // TEMP-AB
+        if std::env::var_os("TEMP_AB_OLD").is_some() {
+            return state;
+        }
         while let (Some(point), Some(origin)) = (
             state.baseline.source_point_entry.as_ref(),
             state.current_source_origin.as_deref(),

@@ -635,6 +635,17 @@ impl OwnedApplicationEvaluator {
                 .all(|binding| self.evaluator.actual.is_available(binding.slot))
             && self.host.is_quiet();
         if !current {
+            eprintln!(
+                self.gate.live.get(),
+                pack_hooks::current_host_is(&self.receiver),
+                self.registry_key == self.registry.snapshot().semantic_key(),
+                pack_hooks::evaluator_generation() == self.generation,
+                self.plan
+                    .bindings
+                    .iter()
+                    .all(|binding| self.evaluator.actual.is_available(binding.slot)),
+                self.host.is_quiet()
+            );
             self.gate.refuse();
             return Err(ClosedSourceRefusal::Currency);
         }

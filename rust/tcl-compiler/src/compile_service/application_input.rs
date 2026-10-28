@@ -9,6 +9,8 @@
 //! other compilation, including nested scripts, substitution templates,
 //! procedures and command plans, is refused.
 
+use std::sync::Arc;
+
 use tcl_bytecode::ModuleAsm;
 use tcl_registry::CommandRegistry;
 use tcl_runtime_api::{
@@ -18,19 +20,24 @@ use tcl_runtime_api::{
 
 use super::BytecodeCompileService;
 
-/// The canonical compiler over one registry, accepting only the admitted
-/// candidate as a plain root script.
+/// The canonical compiler over one exact shared store, accepting only the
+/// admitted candidate as a plain root script.
 pub struct ApplicationInputCompileService {
     canonical: BytecodeCompileService,
     admitted: SourceImage,
 }
 
 impl ApplicationInputCompileService {
-    /// Accept exactly `candidate`, compiled against `registry`.
+    /// Accept exactly `candidate`, compiled against `registry` itself under
+    /// `profile`.
     #[must_use]
-    pub fn new(registry: CommandRegistry, candidate: &str) -> Self {
+    pub fn new(
+        profile: &'static tcl_dialect::DialectProfile,
+        registry: Arc<CommandRegistry>,
+        candidate: &str,
+    ) -> Self {
         Self {
-            canonical: BytecodeCompileService::new(registry),
+            canonical: BytecodeCompileService::for_shared_registry(profile, registry),
             admitted: SourceImage::native(candidate.as_bytes()),
         }
     }
@@ -77,7 +84,8 @@ mod tests {
     fn only_the_admitted_root_script_compiles() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
         let service = ApplicationInputCompileService::new(
-            CommandRegistry::build_default().project_for_profile(profile),
+            profile,
+            Arc::new(CommandRegistry::build_default().project_for_profile(profile)),
             "puts 5",
         );
         assert!(service.compile("puts 5").is_err());

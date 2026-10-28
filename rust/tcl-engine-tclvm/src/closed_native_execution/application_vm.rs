@@ -7,6 +7,7 @@
 //! its owning backend admits the candidate first.
 
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tcl_compiler::compile_service::ApplicationInputCompileService;
@@ -33,7 +34,8 @@ pub struct PrivateApplicationVm {
 }
 
 impl PrivateApplicationVm {
-    /// Build the VM for `candidate`. The compiler is installed once, before
+    /// Build the VM for `candidate`, compiled against `registry` itself. The
+    /// compiler is installed once, before
     /// the first observation: `Vm::with_native_core` installs none, and
     /// `set_compiler` advances the compiler generation exactly once, which the
     /// prepared module then pins. `commands` are restricted and `scalars`
@@ -43,7 +45,7 @@ impl PrivateApplicationVm {
     /// `Currency` when `registry` does not carry `expected`; `NativeContext`
     /// for an unavailable profile, bootstrap, command or scalar root.
     pub fn new(
-        registry: &CommandRegistry,
+        registry: &Arc<CommandRegistry>,
         expected: &RegistrySemanticKey,
         candidate: &str,
         commands: Vec<String>,
@@ -53,10 +55,7 @@ impl PrivateApplicationVm {
             tcl_registry::model::ingress::resolve_known_environment(RELEASE.dialect_profile_name())
                 .and_then(|environment| environment.catalogue_profile())
                 .ok_or(ClosedSourceRefusal::NativeContext)?;
-        let compiler_registry = registry.project_for_profile(profile);
-        if registry.snapshot().semantic_key() != *expected
-            || compiler_registry.snapshot().semantic_key() != *expected
-        {
+        if registry.snapshot().semantic_key() != *expected {
             return Err(ClosedSourceRefusal::Currency);
         }
         let host = Rc::new(MemoryHost::new());
@@ -68,7 +67,8 @@ impl PrivateApplicationVm {
         )
         .ok_or(ClosedSourceRefusal::NativeContext)?;
         vm.set_compiler(Box::new(ApplicationInputCompileService::new(
-            compiler_registry,
+            profile,
+            Arc::clone(registry),
             candidate,
         )));
         vm.set_command_limit(Some(256));
@@ -192,11 +192,14 @@ impl PrivateApplicationVm {
 mod tests {
     use super::*;
 
-    fn registry() -> CommandRegistry {
-        let profile = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+    fn profile() -> &'static tcl_dialect::DialectProfile {
+        tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
             .and_then(|environment| environment.catalogue_profile())
-            .unwrap();
-        CommandRegistry::build_default().project_for_profile(profile)
+            .unwrap()
+    }
+
+    fn registry() -> Arc<CommandRegistry> {
+        Arc::new(CommandRegistry::build_default().project_for_profile(profile()))
     }
 
     fn private(candidate: &str, commands: &[&str], scalars: &[&str]) -> PrivateApplicationVm {
@@ -254,7 +257,9 @@ mod tests {
             let registry = registry();
             vm.vm
                 .set_compiler(Box::new(ApplicationInputCompileService::new(
-                    registry, "puts 1",
+                    profile(),
+                    registry,
+                    "puts 1",
                 )));
             assert_eq!(
                 vm.execute(prepared).err(),

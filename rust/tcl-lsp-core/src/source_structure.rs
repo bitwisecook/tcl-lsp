@@ -3136,28 +3136,3 @@ mod original_hover_word_geometry_tests {
     }
 }
 
-#[cfg(test)]
-mod tmp_probe_autoload_scaling {
-    #[test]
-    fn tmp_probe_autoload_scaling() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tmp/tk8.6.18/library/tclIndex");
-        let text = std::fs::read_to_string(path).unwrap();
-        let header: Vec<&str> = text.lines().take_while(|line| !line.starts_with("set ")).collect();
-        let sets: Vec<&str> = text.lines().filter(|line| line.starts_with("set ")).collect();
-        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
-        for count in [30, 60, 120, sets.len()] {
-            let source = format!("{}\n{}\n", header.join("\n"), sets[..count].join("\n"));
-            let started = std::time::Instant::now();
-            let analysis = super::analyse_autoload_registration_structure(&source, profile, registry, config);
-            eprintln!(
-                "TMP_PROBE count={count} bytes={} elapsed_ms={} invocations={}",
-                source.len(),
-                started.elapsed().as_millis(),
-                analysis.command_invocations.len()
-            );
-        }
-    }
-}
