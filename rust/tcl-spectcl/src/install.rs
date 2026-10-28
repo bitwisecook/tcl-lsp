@@ -419,6 +419,59 @@ mod tests {
     }
 
     #[test]
+    fn private_and_cached_stores_expose_the_same_surface() {
+        let _cache = cache_guard();
+        let dir = tmpdir("private-parity");
+        let packs = pack_set(
+            &dir,
+            "parity.tclspec",
+            "speclib parity 1 {\n\
+             ambient_package parity_pkg 1.0\n\
+             command parity_fold {const_fold -inputs {words} {words ctx} {fold 1}}\n\
+             command parity_plain {arity 0..1}\n\
+             }",
+        );
+        for dialect in ["tcl9.1", "tcl8.6"] {
+            let profile = crate::environment::profile_for_dialect(dialect);
+            let cached = registry_with_packs(profile, &packs);
+            let owned = owned_hook_registry(profile, &packs);
+            let private = owned.registry();
+            assert!(!Arc::ptr_eq(&cached, private), "{dialect}");
+            assert_eq!(
+                cached.profile().map(|p| p.name),
+                private.profile().map(|p| p.name)
+            );
+            assert_eq!(cached.overlay_generation(), private.overlay_generation());
+            assert_eq!(
+                cached.ambient_package_rows(),
+                private.ambient_package_rows()
+            );
+            let mut names: Vec<_> = cached.command_names_in_any_dialect().collect();
+            let mut private_names: Vec<_> = private.command_names_in_any_dialect().collect();
+            names.sort_unstable();
+            private_names.sort_unstable();
+            assert_eq!(names, private_names, "{dialect}");
+            assert!(names.contains(&"parity_fold") && names.contains(&"set"));
+            let (query, private_query) = (cached.own_surface_query(), private.own_surface_query());
+            for name in &names {
+                let ordinary = cached.get_for_surface(name, query);
+                let selected = private.get_for_surface(name, private_query);
+                assert_eq!(
+                    ordinary.map(|spec| format!("{spec:?}")),
+                    selected.map(|spec| format!("{spec:?}")),
+                    "{dialect} {name}"
+                );
+                assert_eq!(
+                    ordinary.and_then(|spec| cached.pack_origin(spec)),
+                    selected.and_then(|spec| private.pack_origin(spec)),
+                    "{dialect} {name}"
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn private_registry_retains_actual_installed_and_source_allocations() {
         let _cache = cache_guard();
         let dir = tmpdir("private-lineage");

@@ -180,18 +180,34 @@ macro_rules! n17_live_some {
 /// One checked original fold whose selected implementation has not run.
 /// It carries the same canonical facts, retained argv and execution policy
 /// the ordinary fold would pass; evaluating it is the holder's decision and
-/// grants no execution or Native authority.
+/// grants no execution or Native authority. Only this crate's selection
+/// constructs one.
 #[derive(Debug, Clone)]
 pub struct SelectedConstFold {
-    /// Canonical facts of the selected invocation.
-    pub facts: Box<tcl_registry::InvocationFacts>,
-    /// Complete retained argv values, the command word(s) included.
-    pub values: Vec<String>,
-    /// Actual execution policy selected at invocation ingress.
-    pub dialect: tcl_registry::InvocationDialect,
+    facts: Box<tcl_registry::InvocationFacts>,
+    values: Vec<String>,
+    dialect: tcl_registry::InvocationDialect,
 }
 
 impl SelectedConstFold {
+    /// Canonical facts of the selected invocation.
+    #[must_use]
+    pub fn facts(&self) -> &tcl_registry::InvocationFacts {
+        &self.facts
+    }
+
+    /// Complete retained argv values, the command word(s) included.
+    #[must_use]
+    pub fn values(&self) -> &[String] {
+        &self.values
+    }
+
+    /// Actual execution policy selected at invocation ingress.
+    #[must_use]
+    pub fn dialect(&self) -> tcl_registry::InvocationDialect {
+        self.dialect
+    }
+
     /// The implementation's arguments: the retained argv after the command
     /// (and subcommand) words.
     #[must_use]

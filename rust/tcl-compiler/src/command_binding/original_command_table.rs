@@ -3265,9 +3265,13 @@ impl ModuleCommandBindings {
     /// Whether a missing command can reach an unresolved-command handler in
     /// this world. The registry's native fallback policy names the handler;
     /// it implies no binding (Jim 0.84 starts without `unknown`), so only a
-    /// handler definitely absent from every lookup slot ends in an error.
+    /// handler definitely absent from every lookup slot ends in an error. An
+    /// unclosed or opaque world may hold commands its table does not record.
     fn original_unresolved_handler_may_run(&self, namespace: &SourceNamespaceKey) -> bool {
-        if self.namespace_unknown_handlers.contains(namespace)
+        if self.unclosed_command_world
+            || self.opaque_domain
+            || self.baseline.unknown_entry
+            || self.namespace_unknown_handlers.contains(namespace)
             || self.unknown_lookup_namespaces.contains(namespace)
         {
             return true;

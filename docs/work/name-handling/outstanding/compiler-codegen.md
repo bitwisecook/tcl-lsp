@@ -1,14 +1,16 @@
 # Outstanding work: compiler-codegen agent
 
-## Resume — 2026-10-28 round 2 (iRules bracket children; slice 1 awaiting peer review)
+## Resume — 2026-10-28 round 3 (review notes A1–B2; slice 1 unfreezes when green)
 
-iRules bracket children: under an authored naming simulation (C9 point, authored C8.4 policy) `compiler_dialect` can never select a native recipe, so a bracket script now compiles through the existing generic route (`emit_inline_cmd_subst`), exactly as top-level commands under that entry do (`codegen/statements.rs`, `authored_name_policy`). A native-policy entry keeps native scheduling and its refusal. Commands resolve at run time under the VM's policy; the VM still refuses bytecode after a native invocation-policy change.
+Independent review: slice 1 (Scope A) and the authored bracket-child route (Scope B) CLEAR-WITH-NOTES, no HOLD. Notes handled this round: A1 `SelectedConstFold` fields private with accessors (only const_subst constructs one); A5 private-store docs state the shared un-overlaid read for overlay != 0; A4 private/cached store parity test (`install::tests::private_and_cached_stores_expose_the_same_surface`); B1 authored VM rebind test (`an_authored_bracket_child_never_runs_a_superseded_builtin`); B2 foreign Native-authority policy control.
 
-- Executed: tcl-compiler lib `native_authored_bracket` 2/2 + `closed_consumer::application` 2/2 PASS (procedure refusal fixed). tcl-irule-test bootstrap + cause3 = 0/4 PASS, but three now pass compile admission and stop at vm-runtime protocol refusals: `cmd_dict.rs:50-56` "native dictionary diagnostic protocol" (pure_functions b64decode) and `StringAccess(Unavailable(ProtocolUnavailable))` (bootstrap reset, scf_loader). `tmm_word_boolean…` unchanged: first `expr {1 and 1}` hits "cannot continue bytecode after native invocation policy changed" (`tcl-vm/src/exec.rs:801`), runtime, untriaged further.
-- pack_source_e2e 9/10 PASS (O129 fold and reference-body pass); derived-body fails at `format %x -1` under 8.6 (analysis None vs shell). spec_corpus first gates unchanged LENGTH1/1 MAP0/0 RANGE0/0 (FAIL as recorded).
-- Clippy `-D warnings` clean on tcl-compiler/registry/engine/spec-hooks/spectcl lib+tests.
-- Slice 1 (owned evaluator / request dispatch / private store) unchanged, frozen pending the scheduled peer review of deviations 1–4.
-- Open for H5: private application VM/candidate execution, returned-code/literal/getter/cache/COW/observer closure, lineage into executed modules, fixture wiring, MAP (opaque `subst`) and RANGE (interprocedural constants), per-call spec leak.
+Preconditions recorded (must hold before any consumer uses the selection or owned evaluator):
+- **A2:** `select_application_folds` walks every top-level statement kind with retained tokens, wider than the ordinary O129 visitor (Call/AssignValue). Before any rewrite consumer, either narrow selection to the ordinary visitor's sites or document the broader site set, and render answers with `render_propagation_word`.
+- **A3:** each owned call installs into a fresh private store and leaks its installed specs once. Bound the call rate (or cache by pack key under the same lineage) before production wiring.
+
+Round 2 state still holds: bracket route executed (compiler 4/4), iRules bootstrap+cause3 now stop at vm-runtime protocol refusals (`cmd_dict.rs:50-56`; StringAccess ProtocolUnavailable) and `tmm_word_boolean` policy-transition refusal; pack_source_e2e 9/10 (`format %x -1` under 8.6); spec first gates LENGTH1/1 MAP0/0 RANGE0/0.
+
+Next: H5 slice 2 (private VM execution, candidate admission, returned-code/literal closure) — design first, Astra review before adoption.
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 

@@ -510,8 +510,12 @@ pub fn profile_store_with_overlay(
 }
 
 /// [`profile_store_with_overlay`] built for one owner alone: the same layers,
-/// `extend` and core surface, with no shared cache read, published or pruned,
-/// so `extend` always runs and the returned handle is the only one.
+/// `extend` and core surface. The pack-carrying store and its derived core
+/// surface are neither read from nor published to the shared caches, so
+/// `extend` always runs and the returned handle is the only one. For a
+/// non-zero `overlay` the core surface is ranked over the shared un-overlaid
+/// store of `profile`, read (and built once if absent) exactly as the cached
+/// path reads it.
 #[must_use]
 pub fn private_profile_store_with_overlay(
     profile: &'static DialectProfile,

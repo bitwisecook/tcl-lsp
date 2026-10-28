@@ -443,7 +443,8 @@ pub(crate) fn registry_with_core_surface(
 }
 
 /// [`registry_with_core_surface`] for a store no cache holds: the derived
-/// store is neither read from nor published to the shared table.
+/// store is neither read from nor published to the shared table. A non-zero
+/// `overlay` still reads the shared un-overlaid store of `profile`.
 #[must_use]
 pub(crate) fn private_registry_with_core_surface(
     base: Arc<CommandRegistry>,

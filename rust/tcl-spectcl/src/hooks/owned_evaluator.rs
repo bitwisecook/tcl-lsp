@@ -455,18 +455,18 @@ impl OwnedApplicationEvaluator {
     /// hook abstained.
     fn answer(&self, request: &SelectedConstFold) -> Result<Option<String>, ClosedSourceRefusal> {
         let profile = self.installed.profile();
-        if request.dialect != InvocationDialect::of_profile(profile) {
+        if request.dialect() != InvocationDialect::of_profile(profile) {
             return Err(ClosedSourceRefusal::NativeContext);
         }
         let query = request
-            .dialect
+            .dialect()
             .authoring_query()
             .ok_or(ClosedSourceRefusal::NativeContext)?;
         // The selection the value flow uses; the last registered spec of a
         // name is deliberately not enough.
         let spec = self
             .registry
-            .get_for_surface(&request.facts.canonical_command, Some(query))
+            .get_for_surface(&request.facts().canonical_command, Some(query))
             .ok_or(ClosedSourceRefusal::Source)?;
         if !self.installed.installs(spec) {
             return Ok(None);
@@ -476,7 +476,7 @@ impl OwnedApplicationEvaluator {
         } else {
             Some(
                 request
-                    .facts
+                    .facts()
                     .subcommand
                     .canonical_name()
                     .ok_or(ClosedSourceRefusal::Source)?,
@@ -507,15 +507,15 @@ impl OwnedApplicationEvaluator {
             arguments: arguments.iter().map(|value| (*value).to_owned()).collect(),
             profile: profile.name,
             version: (family == HookFamily::ConstFoldVersioned)
-                .then_some(request.dialect.tcl_version)
+                .then_some(request.dialect().tcl_version)
                 .flatten(),
         })?;
         let answer = if let Some(name) = member {
             spec.subcommand(name)
                 .ok_or(ClosedSourceRefusal::Source)?
-                .run_const_fold_in(&arguments, request.dialect)
+                .run_const_fold_in(&arguments, request.dialect())
         } else {
-            spec.run_const_fold_in(&arguments, request.dialect)
+            spec.run_const_fold_in(&arguments, request.dialect())
         };
         self.check_current()?;
         if pack_hooks::current_dialect() != Some(profile.name) {

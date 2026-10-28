@@ -148,7 +148,7 @@ mod tests {
             panic!("one selected fold: {selected:?}");
         };
         assert_eq!(&source[fold.span()], "[string length $s]");
-        assert_eq!(fold.request().facts.canonical_command, "string");
+        assert_eq!(fold.request().facts().canonical_command, "string");
         assert_eq!(fold.request().arguments(), Some(vec!["abc"]));
         assert!(fold.admits_answer("3"));
     }
