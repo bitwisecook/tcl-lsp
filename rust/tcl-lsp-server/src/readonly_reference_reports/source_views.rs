@@ -1664,14 +1664,17 @@ impl Backend {
                 })
                 .collect::<Vec<_>>()
         };
+        tmp_view_probe!("cache.candidates uri={} inherited={} count={}", uri.as_str(), inherited.is_some(), candidates.len());
         if candidates.len() != 1 {
             return Ok(None);
         }
         let candidate = &candidates[0];
         // This returned Arc retains ownership only. Publication/render rejoins
         // its exact ID and complete ancestry again after every async phase.
-        self.with_current_original_source_view(candidate.id, |view| Some(Arc::clone(view)))
-            .await
+        let current = self.with_current_original_source_view(candidate.id, |view| Some(Arc::clone(view)))
+            .await?;
+        tmp_view_probe!("cache.current uri={} current={}", uri.as_str(), current.is_some());
+        Ok(current)
     }
 
     fn source_view_target(

@@ -110,6 +110,7 @@ mod gen_vscode_package;
 mod gen_zed_queries;
 mod kcs_index_links;
 mod number_drift;
+mod object_recipe_gate;
 mod owner_resolution;
 mod pack_goldens;
 mod registry_axes;
@@ -409,6 +410,16 @@ enum Command {
         check: bool,
     },
 
+    /// Hold every `tcl-vm` list and dictionary recipe to the object
+    /// materialization selector, outside a reviewed physical-only list.
+    #[command(name = "object-recipe-gate")]
+    ObjectRecipeGate {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Hold every caller of `DialectProfile::all()`, `KNOWN_DIALECTS` and
     /// `available_dialects(` to the allowlist in `rust/xtask/src/catalogue_callers.rs`: a list of names
     /// shown to a user reads the environment registry, not the catalogue.
@@ -575,6 +586,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::SegmentationDrift { check } => Ok(segmentation_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
+        Command::ObjectRecipeGate { check } => Ok(object_recipe_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
         Command::OwnerResolution => owner_resolution::run(),

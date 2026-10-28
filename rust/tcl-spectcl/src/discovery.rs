@@ -1767,7 +1767,9 @@ mod tests {
             vec![("app".to_owned(), Some(DependencyTier::Root))]
         );
         assert!(
-            !selection_issues(&root).is_empty(),
+            selection_issues(&root)
+                .iter()
+                .any(|path| path.ends_with("tclpkg.lock")),
             "the unreadable lockfile is an issue"
         );
 

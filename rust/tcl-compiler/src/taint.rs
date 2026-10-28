@@ -6468,7 +6468,10 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
         }
         #[cfg(debug_assertions)]
         if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
-            eprintln!("ZZ_SCAFFOLD at={at} head={head:?} fact={:?}", identities.binding_at(&head, at)); // ZZPROBE
+            let zz = tcl_registry::model::ingress::static_context_for("tcl8.6"); // ZZPROBE
+            eprintln!("ZZ_SCAFFOLD at={at} head={head:?} fact={:?} knowledge={:?}", identities.binding_at(&head, at), identities.knowledge_at(zz.context(), zz.commands(), &head, at)); // ZZPROBE
+            for zo in [0, at.saturating_sub(1), at, at + 1] { let p = identities.source_bindings_ref().projection_at_source(&head, zo); eprintln!("ZZ_SCAFFOLD   proj@{zo} unknown={} absent={} targets={:?}", p.unknown, p.may_be_absent, p.targets.iter().map(|t| (&t.command, t.registry_backed)).collect::<Vec<_>>()); } // ZZPROBE
+            let p = identities.invocation_at_source(&head, at); eprintln!("ZZ_SCAFFOLD   exact@{at} unknown={} absent={} targets={:?}", p.unknown, p.may_be_absent, p.targets.iter().map(|t| (&t.command, t.registry_backed)).collect::<Vec<_>>()); // ZZPROBE
         }
         match identities.binding_at(&head, at) {
             crate::realm::RealmBindingFact::Unchanged => {}

@@ -154,20 +154,6 @@ fn channel_of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
         .collect()
 }
 
-/// [`dialect_warns`] under the `tk` profile, which adds Tk to Tcl 8.6.
-fn tk_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
-    assert_eq!(dialect, D, "the tk profile extends Tcl 8.6");
-    dialect_warns(src, "tk")
-}
-
-/// [`of_code`] through [`tk_warns`].
-fn tk_of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
-    tk_warns(src, dialect)
-        .into_iter()
-        .filter(|w| w.code.to_string() == code)
-        .collect()
-}
-
 /// Sorted list of diagnostic codes from the taint pass.
 fn codes(src: &str, dialect: &str) -> Vec<String> {
     let mut out: Vec<String> = warns(src, dialect)
@@ -892,10 +878,9 @@ mod object_instance_taint_sources {
 
     #[test]
     fn ambiguous_instance_class_abstains() {
-        // Tk profile build: plain tclsh has no Tk widgets, and a standalone unit stays opaque.
         let source = "ttk::entry .widget\nlistbox .widget\nset value [.widget get]\neval $value";
         assert!(
-            tk_of_code(source, D, "T100").is_empty(),
+            of_code(source, D, "T100").is_empty(),
             "a receiver with incompatible registry classes must not be guessed"
         );
     }
@@ -1235,9 +1220,8 @@ mod object_instance_taint_sources {
 
     #[test]
     fn display_only_textvariable_and_widget_handle_stay_clean() {
-        // Tk profile build: plain tclsh has no Tk widgets, and a standalone unit stays opaque.
         assert!(
-            tk_of_code(
+            of_code(
                 "set safe fixed\nlabel .display -textvariable safe\neval $safe",
                 D,
                 "T100"
@@ -1246,7 +1230,7 @@ mod object_instance_taint_sources {
             "a display-only textvariable is not a user-input source"
         );
         assert!(
-            tk_of_code("set widget [entry .user]\neval $widget", D, "T100").is_empty(),
+            of_code("set widget [entry .user]\neval $widget", D, "T100").is_empty(),
             "a widget constructor's trusted handle is not user input"
         );
     }
@@ -1288,10 +1272,9 @@ mod object_instance_taint_sources {
 
     #[test]
     fn display_only_instance_configure_does_not_taint_its_variable() {
-        // Tk profile build: plain tclsh has no Tk widgets, and a standalone unit stays opaque.
         let source = "label .caption\n.caption configure -textvariable caption\neval $caption";
         assert!(
-            tk_of_code(source, D, "T100").is_empty(),
+            of_code(source, D, "T100").is_empty(),
             "a display-only class option must not become an input source"
         );
     }
@@ -1388,9 +1371,8 @@ mod object_instance_taint_sources {
 
     #[test]
     fn later_constructor_does_not_retroactively_type_an_earlier_receiver() {
-        // Tk profile build: plain tclsh has no Tk widgets, and a standalone unit stays opaque.
         assert!(
-            tk_of_code(
+            of_code(
                 "set value [.future get]\nttk::entry .future\neval $value",
                 D,
                 "T100"
@@ -1539,32 +1521,30 @@ mod object_instance_taint_sources {
 
     #[test]
     fn dynamic_parameter_receiver_configure_abstains() {
-        // Tk profile build: plain tclsh has no Tk widgets, and a standalone unit stays opaque.
         let source = "entry .user\nproc link_input {widget} {\n    $widget configure -textvariable ::value\n}\nlink_input .user\neval $::value";
         assert!(
-            tk_of_code(source, D, "T100").is_empty(),
+            of_code(source, D, "T100").is_empty(),
             "a parameter receiver has no uniform class proof and must not be guessed"
         );
     }
 
     #[test]
     fn eager_call_and_conditional_constructor_do_not_create_global_receiver_facts() {
-        // Tk profile build: plain tclsh has no Tk widgets, and a standalone unit stays opaque.
         let called_too_early = "proc link_input {} {\n    .user configure -textvariable ::value\n}\nlink_input\nentry .user\neval $::value";
         assert!(
-            tk_of_code(called_too_early, D, "T100").is_empty(),
+            of_code(called_too_early, D, "T100").is_empty(),
             "a constructor after an eager call cannot type that invocation"
         );
 
         let conditional = "if {$flag} { entry .user }\nproc link_input {} {\n    .user configure -textvariable ::value\n}\nlink_input\neval $::value";
         assert!(
-            tk_of_code(conditional, D, "T100").is_empty(),
+            of_code(conditional, D, "T100").is_empty(),
             "a conditional constructor does not prove a receiver exists"
         );
 
         let conditional_rebind = "entry .user\nif {$flag} { label .user }\nproc read_input {} {\n    set value [.user get]\n    eval $value\n}\nread_input";
         assert!(
-            tk_of_code(conditional_rebind, D, "T100").is_empty(),
+            of_code(conditional_rebind, D, "T100").is_empty(),
             "a possible later constructor withdraws an earlier receiver proof"
         );
     }
