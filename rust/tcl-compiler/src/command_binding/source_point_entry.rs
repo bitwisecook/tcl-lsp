@@ -603,6 +603,15 @@ impl OriginalSourcePointEntry {
         &self,
         origin: &super::SourceOriginId,
     ) -> Option<&super::ModuleCommandBindings> {
+        // TEMP-ISSUER-TRACE
+        if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
+            let (kind, parent_eq, source_eq) = match origin.kind() {
+                super::SourceOriginKind::InheritedPoint { parent, source } => ("inherited", parent == &self.source_origin(), source == self.payload.site.source.source_image()),
+                super::SourceOriginKind::Authored(_) => ("authored", false, false),
+                _ => ("other", false, false),
+            };
+            eprintln!("TEMP_ISSUER region={} kind={kind} parent_eq={parent_eq} source_eq={source_eq} site_offset={}", self.payload.region.is_some(), self.payload.site.offset);
+        }
         self.payload.region.as_ref()?;
         matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
             if parent == &self.source_origin()

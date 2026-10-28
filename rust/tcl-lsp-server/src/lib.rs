@@ -6491,7 +6491,7 @@ async fn apply_cross_file_evidence_if_current(
             continue;
         }
         file.set_external_call_sites(&mut *db).to(want);
-        trace_coarse_db_write("evidence.external_call_sites", &*db);
+        trace_coarse_db_write("evidence.external_call_sites", &db);
         if requires_self_refresh {
             changes.requires_self_refresh.insert(uri.clone());
         }
@@ -6878,7 +6878,7 @@ async fn apply_workspace_class_factories_if_current(
         }
         file.set_workspace_class_factories(&mut *db)
             .to(want.clone());
-        trace_coarse_db_write("evidence.class_factories", &*db);
+        trace_coarse_db_write("evidence.class_factories", &db);
         changed.push(uri);
     }
     if changed.is_empty() {
@@ -6962,7 +6962,7 @@ async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> 
             continue;
         }
         file.set_workspace_subclass_methods(&mut *db).to(want);
-        trace_coarse_db_write("evidence.subclass_methods", &*db);
+        trace_coarse_db_write("evidence.subclass_methods", &db);
         changed.push(uri.clone());
     }
     changed
@@ -11724,7 +11724,7 @@ impl Backend {
             for (uri, file) in files.iter() {
                 let next = file.sidecar_stubs_epoch(&*db).wrapping_add(1);
                 file.set_sidecar_stubs_epoch(&mut *db).to(next);
-                trace_coarse_db_write("source.sidecar_epoch", &*db);
+                trace_coarse_db_write("source.sidecar_epoch", &db);
                 uris.push(uri.clone());
             }
             uris
@@ -14275,7 +14275,7 @@ impl Backend {
         config.set_targets(&mut *db).to(targets);
         let provides = self.package_provides.lock().await.clone();
         config.set_package_provides(&mut *db).to(provides);
-        trace_coarse_db_write("config.sync", &*db);
+        trace_coarse_db_write("config.sync", &db);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -26834,7 +26834,7 @@ impl Backend {
                     handle.set_package_provides(&mut *db).to(provides);
                     handle.set_bigip_version(&mut *db).to(bigip);
                     handle.set_targets(&mut *db).to(targets);
-                    trace_coarse_db_write("config.folder", &*db);
+                    trace_coarse_db_write("config.folder", &db);
                     next.push((folder.clone(), handle));
                 } else {
                     let handle = tcl_lsp_db::AnalyserConfig::new(

@@ -3262,7 +3262,12 @@ impl super::OriginalCompilationLookupAdvice {
             };
             state = issuer;
         }
-        state.retained_original_source_purpose(metadata, registry)
+        // TEMP-ISSUER-TRACE
+        let purpose = state.retained_original_source_purpose(metadata, registry);
+        if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
+            eprintln!("TEMP_ISSUER final point={} origin={} purpose={purpose:?}", state.baseline.source_point_entry.is_some(), state.current_source_origin.is_some());
+        }
+        purpose
     }
 }
 
@@ -3302,7 +3307,12 @@ impl super::SourceInvocationBinding {
                     && original.context() == metadata.context() => {}
             _ => return None,
         }
-        advice.original_source_purpose(metadata, registry)
+        // TEMP-ISSUER-TRACE
+        let purpose = advice.original_source_purpose(metadata, registry);
+        if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
+            eprintln!("TEMP_ISSUER advice offset={:?} purpose={purpose:?}", tokens.words().first().map(|word| word.source().span.start()));
+        }
+        purpose
     }
 }
 

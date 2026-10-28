@@ -2474,6 +2474,25 @@ impl Backend {
             .await
     }
 
+    async fn trace_unknown_source_view_edge(
+        &self,
+        parent: &PublishedOriginalSourceView,
+        edge: &tcl_lsp_core::workspace_index::WorkspaceSource,
+    ) {
+        let frontier = match edge.original_source_frontier.as_deref() {
+            None => "none",
+            Some(SourceFrontier::CurrentCut(_)) => "current-cut-mismatch",
+            Some(SourceFrontier::ConditionalAssociation(_)) => "association-mismatch",
+            Some(SourceFrontier::Unknown) => "unknown",
+        };
+        let detail = format!(
+            "frontier={frontier} load={}",
+            edge.original_project_source_load.is_some()
+        );
+        self.trace_host_navigation(&parent.draft.physical.uri, "frontier.unknown-edge", &detail)
+            .await;
+    }
+
     async fn original_source_view_frontier_step(
         &self,
         parent: &Arc<PublishedOriginalSourceView>,
@@ -2555,25 +2574,8 @@ impl Backend {
                     // coverage keeps the actual conditional body's obligations.
                     state.conditional_obligations = true;
                 }
-                frontier => {
-                    let detail = format!(
-                        "frontier={} load={}",
-                        match frontier {
-                            None => "none",
-                            Some(SourceFrontier::CurrentCut(_)) => "current-cut-mismatch",
-                            Some(SourceFrontier::ConditionalAssociation(_)) => {
-                                "association-mismatch"
-                            }
-                            Some(SourceFrontier::Unknown) => "unknown",
-                        },
-                        edge.original_project_source_load.is_some(),
-                    );
-                    self.trace_host_navigation(
-                        &parent.draft.physical.uri,
-                        "frontier.unknown-edge",
-                        &detail,
-                    )
-                    .await;
+                _ => {
+                    self.trace_unknown_source_view_edge(parent, edge).await;
                     unknown = true;
                     let debt = OriginalSourceViewDebt {
                         owner: Arc::clone(parent),
