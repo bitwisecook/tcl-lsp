@@ -370,19 +370,24 @@ fn physical_recipe_functions(text: &str) -> Vec<String> {
             && let Some(length) = cfg_test_len(&tokens, index)
         {
             index += length;
-            // A bodiless item (`mod name;`, `use …;`) ends at its `;`.
+            // The guarded item: a block is skipped whole, while a bodiless
+            // item (`mod name;`) or a field (`name: value,`) has none.
             let mut probe = index;
-            while tokens
-                .get(probe)
-                .is_some_and(|token| !matches!(token.kind, TokenKind::OpenBrace | TokenKind::Semi))
-            {
-                probe += 1;
-            }
-            if tokens
-                .get(probe)
-                .is_some_and(|token| token.kind == TokenKind::OpenBrace)
-            {
-                skip_from = Some(depth);
+            while let Some(token) = tokens.get(probe) {
+                match token.kind {
+                    TokenKind::OpenParen | TokenKind::OpenBracket => {
+                        probe = closing(&tokens, probe);
+                    }
+                    TokenKind::OpenBrace => {
+                        skip_from = Some(depth);
+                        break;
+                    }
+                    TokenKind::Semi
+                    | TokenKind::Comma
+                    | TokenKind::CloseBrace
+                    | TokenKind::CloseParen => break,
+                    _ => probe += 1,
+                }
             }
             index = probe;
             continue;
@@ -539,7 +544,21 @@ mod tests {
                 Value::native_list_constructor(items, protocol)
             }
             fn signature(bytes: [u8; 4]) -> usize { bytes.len() }
+            fn fields() -> State {
+                State {
+                    #[cfg(test)]
+                    probe: 0,
+                    other: 1,
+                }
+            }
+            fn after(vm: &Vm, items: Vec<Value>) -> Value {
+                let p = vm.actual_native_invocation_dialect().native_string_protocol().unwrap();
+                Value::native_list_constructor(items, p)
+            }
         ";
-        assert_eq!(physical_recipe_functions(source), vec!["outer".to_owned()]);
+        assert_eq!(
+            physical_recipe_functions(source),
+            vec!["outer".to_owned(), "after".to_owned()]
+        );
     }
 }
