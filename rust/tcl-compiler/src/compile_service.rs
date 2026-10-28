@@ -32,7 +32,6 @@ use crate::codegen::emitter::{
     ModuleEmissionScope, codegen_module_with_emission_scope,
     codegen_procedure_module_with_emission_scope,
 };
-#[path = "compile_service/native_procedure_source.rs"]
 mod application_input;
 mod native_procedure_source;
 pub use application_input::ApplicationInputCompileService;
