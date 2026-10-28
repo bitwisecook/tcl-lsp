@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-28T09:20Z",
+  "source": "User answer in chat (structured question)",
+  "supersedes_scope_of": "user-decisions-20261028T0010Z.json (extends the fixture correction beyond the four MAY/interprocedural tests)",
+  "evidence": "origin/rust CI 5203: tcl-compiler::taint 373/373 PASS; WORK: 236 PASS / 137 FAIL, mostly standalone CompilationUnit::build_for units without an invocation dialect leaving the command world opaque; seven o129 optimiser tests fail the same way with CommandRegistry::build_default() carrying no profile.",
+  "decisions": {
+    "standalone_unit_tests_explicit_dialect": {
+      "choice": "Correct all affected tests",
+      "meaning": "Every test whose failure is proven to come from standalone-unit opacity builds with an explicit profile dialect (or a profiled registry for o129). Product keeps standalone units without a dialect fail-closed/opaque. Assertions and expected values are unchanged; each corrected test carries a one-line reason. Failures with any other cause are root-caused, not covered by this correction."
+    }
+  }
+}

@@ -1,6 +1,10 @@
 # Outstanding work: compiler agent
 
-## Resume — compiler role, 2026-10-27 resume (post container restart)
+## Resume — compiler role, round 2 (2026-10-28)
+
+Round 2 (WORK, safe-cargo, filtered): user fixture decision 20261028T0010Z applied — MAY control and the three interprocedural taint tests now build with the dialect and `set fd stdin`; all four PASS (T100/T101 assertions unchanged). coroprobe/coroinject still FAIL standalone; an executed probe shows both emit T100 under the same dialect + defined-channel fixture (not applied: outside the decision). Source-card token identity (handlers.rs, source_load.rs) applied: `project_source_paths_keep_original_grammar_and_decline_reporting_values` PASS with new braced/quoted rows; tcl-lsp-server completed_world_owner_controls still 1 PASS / 6 FAIL (failure moved to main-scope completeness, lsp-owned). Registry `path_candidate` applied only for unversioned Tcl/Jim (other families stay Unknown); source_file 6/6 PASS. o129 7/7 FAIL: standalone raw units never carry a metadata context (needs supplied source input) and const_subst needs a dialect; profileless `build_default` has neither — reported, not changed. jim_stock_class: three fixtures used a missing command as an "unknown mutator"; jimsh 0.84 errors there, so replaced by `eval [gets stdin]`; 2 recovered, `stock_method_publication_keeps_missing_and_replaced_owners_opaque` still loses lookup state for a jimsh-reachable prefix after compiler-names' `original_unresolved_handler_may_run` (routed). Jim52 derived 44 PASS / 8 FAIL (jim_document target 29/35).
+
+## Resume — compiler role, round 1 (2026-10-27)
 
 Local WORK executions (filtered, one target at a time; not hosted, not gate acceptance). Logs and per-selector JSON: scratchpad `res-*.json`, `res2-*.json`, `subset-*.txt`.
 
