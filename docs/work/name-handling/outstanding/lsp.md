@@ -15,7 +15,7 @@ Local results below are on WORK plus concurrently swept WIP role edits (not a pi
 - **Source4 rerun** (round 4): positive case unchanged (offset 31, compiler purpose gap, assigned to compiler-names); namespace case now passes card setup and fails next at `load.source_point_entry(&prefix)` = None (line 696) for the logical plain-Tcl input inside `namespace eval ::` (compiler-side).
 - **Pre-existing failures seen**: `logical_hierarchy_tests::logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners` (prepare returns 0 items) and `logical_hierarchy_final_snapshot_rejects_changed_relation_parent_with_current_target` (`related_logical_from_inventory` returns None, a core-only call); not caused by the recapture change, no pre-change baseline run.
 - **Cross-role assignments (root, round 2)**: source-card span and registry `path_candidate` hunks to compiler; Source4 planner gap to compiler-names.
-- **Observers added (WORK-only, gated)**: `#[cfg(test)]` stderr mirror of HOST_NAV_STAGE; `frontier.edges-unavailable`, `frontier.unknown-edge`, `visit.child-unavailable`, `references.final-transaction-refused` rows; runtime `COARSE_SOURCE document_snapshot` / `final.document_snapshot` / `final.publish` rows.
+- **Observers**: every development trace row added during this resume has been removed after the review; pre-existing HOST_NAV_STAGE infrastructure is unchanged.
 - **Open**: browser `direct-procedure-owner` on `return "hi $who"` in `lib/helpers.tcl` and WASI `projection.unavailable` (app.tcl scope incomplete) need hosted reruns after the two compiler/registry hunks; startup 30 s scan timeout not investigated locally (needs release server build).
 
 
