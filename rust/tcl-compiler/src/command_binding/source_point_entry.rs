@@ -612,11 +612,12 @@ impl OriginalSourcePointEntry {
             };
             eprintln!("TEMP_ISSUER region={} kind={kind} parent_eq={parent_eq} source_eq={source_eq} site_offset={}", self.payload.region.is_some(), self.payload.site.offset);
         }
-        self.payload.region.as_ref()?;
-        matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
-            if parent == &self.source_origin()
-            && source == self.payload.site.source.source_image())
-        .then_some(&self.payload.snapshot.state)
+        let issuer = self.payload.region.as_ref()?.issuing_point();
+        (issuer.payload.site == self.payload.site
+            && matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+                if parent == &self.source_origin()
+                && source == self.payload.site.source.source_image()))
+        .then_some(&issuer.payload.snapshot.state)
     }
 
     pub(super) fn internal_region_entry(&self) -> Option<super::SourceAnalysisEntry> {

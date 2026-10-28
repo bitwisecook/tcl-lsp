@@ -283,9 +283,14 @@ mod tests {
                 })
                 .collect();
             assert!(unexpected.is_empty(), "{name}: {unexpected:?}");
+            // A `-native` resolver names shipped engine code and needs no host;
+            // only a Tcl body would.
             for command in &pack.commands {
                 assert!(
-                    command.hooks.is_empty(),
+                    !command
+                        .hooks
+                        .iter()
+                        .any(|hook| matches!(hook.source, crate::loader::HookSource::Body { .. })),
                     "{name}: `{}` declares a hook body",
                     command.spec.name
                 );

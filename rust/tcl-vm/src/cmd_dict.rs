@@ -50,11 +50,14 @@ impl VmDictionaryObjects {
         let string = dialect.native_string_materialization(Some(
             tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )).ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable("native dictionary object protocol"))?.protocol();
-        let names = dialect.native_name_protocol().ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        // The selected name policy, including an installed authored logical
+        // simulation, formats diagnostics; the physical point alone cannot.
+        let names = vm
+            .name_policy_protocol()
+            .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native dictionary diagnostic protocol",
-            ),
-        )?;
+            ))?;
         Ok(Self {
             string,
             names,

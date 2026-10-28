@@ -62,6 +62,11 @@ impl SourceConditionalRegionEntry {
         &self.0.continuation.plan.frames[self.0.frame_index]
     }
 
+    /// The source point whose issuing source this region continues.
+    pub(in crate::command_binding) fn issuing_point(&self) -> &OriginalSourcePointEntry {
+        &self.0.continuation.point
+    }
+
     pub(in crate::command_binding) fn matches_predecessor(
         &self,
         point: &OriginalSourcePointEntry,

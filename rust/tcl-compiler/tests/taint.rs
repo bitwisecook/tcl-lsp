@@ -94,6 +94,15 @@ const IR: &str = "f5-irules";
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
 /// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    // ZZ-COMPILER-ROLE-TEMPORARY-CLASSIFICATION
+    match std::env::var("ZZ_TAINT_MODE").as_deref() {
+        Ok("dialect") if !dialect.is_empty() => return dialect_warns(src, dialect),
+        Ok("dialect_fd") if !dialect.is_empty() && src.contains("$fd") && !src.contains("set fd") => {
+            return dialect_warns(&format!("set fd stdin\n{src}"), dialect);
+        }
+        Ok("dialect_fd") if !dialect.is_empty() => return dialect_warns(src, dialect),
+        _ => {}
+    }
     let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let dialect_opt = (!dialect.is_empty())

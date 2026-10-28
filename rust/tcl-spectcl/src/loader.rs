@@ -2944,6 +2944,7 @@ const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Set,
     InlineCodegenHookId::InfoExists,
     InlineCodegenHookId::InfoLevel,
+    InlineCodegenHookId::InfoCommandsResolve,
     InlineCodegenHookId::NamespaceCurrent,
     InlineCodegenHookId::NamespaceOrigin,
     InlineCodegenHookId::NamespaceCode,

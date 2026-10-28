@@ -83,6 +83,19 @@ const IR: &str = "f5-irules";
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
 /// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    // ZZ-COMPILER-ROLE-TEMPORARY-CLASSIFICATION
+    let mode = std::env::var("ZZ_TAINT_MODE").unwrap_or_default();
+    if !dialect.is_empty() && mode.starts_with("dialect") {
+        let src = if mode == "dialect_fd" && src.contains("$fd") && !src.contains("set fd") {
+            format!("set fd stdin\n{src}")
+        } else {
+            src.to_owned()
+        };
+        let registry = static_context_for(dialect).commands();
+        let cu = CompilationUnit::build_for_dialect(&src, registry, false, dialect);
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        return find_taint_warnings_for_cu(&cu, registry, Some(profile));
+    }
     let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let dialect_opt = (!dialect.is_empty())
