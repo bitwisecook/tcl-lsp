@@ -267,11 +267,13 @@ mod tests {
     // Each expectation is the tclsh 9.0.4 `disassemble lambda` listing.
     #[test]
     fn c9_regexp_compiler_matches_the_release_disassembly() {
-        use NativeRegexpMatcher::{Equal, Glob, Regexp};
-        let glob = |pattern: &[u8], nocase| Glob {
-            pattern: pattern.to_vec(),
-            nocase,
-        };
+        use NativeRegexpMatcher::{Equal, Regexp};
+        fn glob(pattern: &[u8], nocase: bool) -> NativeRegexpMatcher {
+            NativeRegexpMatcher::Glob {
+                pattern: pattern.to_vec(),
+                nocase,
+            }
+        }
         let cases: [(&[u8], NativeRegexpMatcher, usize); 25] = [
             // loadScalar re; loadScalar s; regexp +3
             (

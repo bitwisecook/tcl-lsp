@@ -2588,37 +2588,17 @@ mod evaluated_command_layout_controls {
     use super::*;
 
     #[test]
-    fn zz_probe_templated() {
-        for source in [
-            "speclib demo 1.1 {command one {pure}}",
-            "speclib demo 1.1 {command one pure}",
-            "speclib demo 1.1 {set body pure; command one $body}",
-            "speclib demo 1.1 {set body unsafe_command; command one $body}",
-            "speclib demo 1.1 {proc define {name body} {command $name $body}; define one unsafe_command}",
-            "speclib demo 1.1 {command one {unsafe_command}}",
-        ] {
-            let pack = evaluate_pack(source);
-            let spec = pack.command("one");
-            eprintln!(
-                "ZZ {source:?} -> traits={:?} unsafe={:?} notices={:?}",
-                spec.map(|s| s.spec.traits),
-                spec.map(|s| s.spec.unsafe_command),
-                pack.notices.iter().map(|n| n.message.clone()).collect::<Vec<_>>()
-            );
-        }
-    }
-
-    #[test]
     fn genuine_templated_single_word_body_keeps_the_authored_registration() {
         for source in [
-            "speclib demo 1.1 {set body pure; command one $body}",
-            "speclib demo 1.1 {proc define {name body} {command $name $body}; define one pure}",
+            "speclib demo 1.1 {set body unsafe_command; command one $body}",
+            "speclib demo 1.1 {proc define {name body} {command $name $body}; define one unsafe_command}",
         ] {
             let pack = evaluate_pack(source);
             let spec = pack
                 .command("one")
                 .expect("actual evaluated body is not identified by whitespace");
-            assert_eq!(spec.spec.traits, tcl_registry::traits::Traits::PURE);
+            // `pure` is a subcommand row; a one-word command body uses a command row.
+            assert!(spec.spec.unsafe_command, "{:?}", pack.notices);
         }
     }
 

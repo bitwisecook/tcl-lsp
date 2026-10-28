@@ -6192,13 +6192,18 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         );
         return;
     };
+    let entry = nested_script_entry_site(script, source_span, context.source.config);
+    #[cfg(debug_assertions)]
+    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
+        eprintln!("ZZ_SCAFFOLD entry={entry} span={source_span:?} nested={:?}", ssa_stmt.statement.tokens().map(|t| t.nested_bindings.iter().map(|(o, b)| (*o, b.unknown, b.may_be_absent, b.targets.iter().map(|t| t.command.clone()).collect::<Vec<_>>())).collect::<Vec<_>>())); // ZZPROBE
+    }
     let command_setup = command_head_ctx.map_or_else(
         || Ok(String::new()),
         |head_context| {
             ambient_command_setup(
                 &preliminary_cu,
                 head_context.identities,
-                source_span.start(),
+                entry,
                 context.shadowed_builtins,
                 context.registry,
                 context.source.metadata,
@@ -6260,6 +6265,24 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
             warnings.push(warning);
         }
     }
+}
+
+/// The outer source offset at which a nested command substitution starts
+/// executing: its first command's dispatch site, where the ambient command
+/// table is the one the nested script observes. The substitution's own start
+/// is the enclosing command's dispatch site instead.
+fn nested_script_entry_site(script: &str, source_span: Span, config: tcl_lexer::LexerConfig) -> u32 {
+    let at = source_span.start();
+    let Some(base) = at
+        .checked_add(1)
+        .filter(|_| usize::try_from(source_span.len()).is_ok_and(|len| len == script.len() + 2))
+    else {
+        return at;
+    };
+    crate::segmenter::segment_commands_with_offset_and_config(script, base, config.nested())
+        .first()
+        .and_then(|command| command.argv.first())
+        .map_or(at, |head| head.span.start())
 }
 
 /// Close the nested replay's outer bindings over variables referenced by

@@ -564,6 +564,13 @@ mod tests {
         .map(|o| o.code.as_str().to_owned())
         .collect();
         eprintln!("TEMP_OPT codes={codes:?}");
+        let source = "set a 1\nset b [expr {$a + 2}]";
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(source, registry, false, profile)
+            .with_interprocedural(registry, Some(profile));
+        let raw = crate::optimiser::manager::optimise_unit_raw_report(&cu, registry, Some(profile));
+        eprintln!("TEMP_OPT raw={:?}", raw.members().iter().map(|o| o.code.as_str().to_owned()).collect::<Vec<_>>());
+        let text = format!("{:?}", cu.ir_module.top_level);
+        eprintln!("TEMP_OPT ir={}", &text[..text.len().min(4000)]);
     }
 
     #[test]
