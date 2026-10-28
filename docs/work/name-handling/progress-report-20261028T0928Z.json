@@ -1,0 +1,62 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T09:28:43.901540+00:00",
+  "scheduled_report_utc": "2026-10-28T09:28:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "USER DECISION (user-decisions-20261028T0920Z.json): origin/rust taint target is 373/373 PASS but WORK 236/137; tests proven to fail only from standalone-unit opacity are corrected to an explicit profile dialect (o129: profiled registry); product stays fail-closed; assertions unchanged; other causes root-caused. Compiler role applying with per-test classification.",
+    "Compiler round 2: MAY control and three interprocedural taint tests PASS after the first fixture decision; source-card delimited path span and narrowed unversioned path_candidate applied; o129 cause identified (no metadata/profile for standalone units); Jim52 44P/8F.",
+    "compiler-codegen: authored-policy bracket children take the generic route (4/4 new tests incl. native negative control); iRules failures move past compile admission to runtime protocol refusals (routed to vm-runtime); pack_source_e2e 9/10; clippy clean on five crates. Independent peer review of slice 1 + bracket route running.",
+    "lsp: CodeLens writer confirmed (evidence.external_call_sites from the diagnostics worker in 30/30 runs); bounded recapture 30/30 smoke, 5/5 unit, clippy clean; independent review running. Hosted lsp-startup-diagnostics 40664177056 dispatched on 2b479a086 for the 30 s scan timeout.",
+    "Stock-class test regression from the Jim unknown-hook change routed back to compiler-names."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "lsp-startup-diagnostics 40664177056",
+    "reviews: slice1+bracket, CodeLens recapture",
+    "compiler: standalone-unit test correction",
+    "compiler-names, vm-runtime, lsp roles"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T09:59:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
