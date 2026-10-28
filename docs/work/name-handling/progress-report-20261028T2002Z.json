@@ -1,0 +1,59 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T20:02:34.108001+00:00",
+  "scheduled_report_utc": "2026-10-28T20:01:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Astra ACCEPT-WITH-NOTES for the H5 slice-2 implementation (all ten required changes verified; four deviations accepted; spectcl 23/23; three suites UNRUN pending a compiling tree). Proven: N17 fixture answered on a quiet private host, selected by O129 gates, executed once restricted on a fresh pinned VM, original never executed, C Tcl transcript; not proven: fold soundness against the runtime original. Notes (lvt closure, leak quantity, UNRUN suites) sent to compiler-codegen; review committed as evidence (ce2c61df7).",
+    "compiler-codegen's new NativeInstructionPlan::Regexp variant broke runtime/rust (E0004); vm-runtime adding a fail-closed decline arm (approved).",
+    "Full ci.yml 40739740045 on 83a0b2351 still running (~2.2 h). WIP snapshot committed."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "full ci.yml 40739740045",
+    "compiler-codegen: regexp plan + slice-2 notes",
+    "compiler, compiler-names, vm-runtime, lsp roles"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T20:32:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
