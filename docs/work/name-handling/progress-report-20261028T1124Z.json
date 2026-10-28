@@ -1,0 +1,60 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T11:24:04.046091+00:00",
+  "scheduled_report_utc": "2026-10-28T11:06:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "compiler-codegen addressed slice-1 review notes A1/A4/A5/B1/B2 (5/5 compiler, 10/10 spectcl, clippy clean except the tcl-compiler lib-test target, blocked by another role's in-flight edit).",
+    "Astra review of H5 slice-2 design: APPROVE-WITH-CHANGES (effect-classified registry inventory, original correspondence-only, closure checker in tcl-vm, every field closed, compile-service generation pin, two-phase evaluator retirement, whole-word admission, A3 bound now in scope, receipt framing; minimum positive/adversarial tests). Review and design committed as evidence (24ccf6d78). compiler-codegen implementing v2 with granted additive tcl-vm/tcl-engine-tclvm hunks.",
+    "WIP snapshot of role edits committed."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "compiler-codegen: H5 slice 2",
+    "lsp: recapture required changes, startup stall, source_views",
+    "compiler: standalone-unit test correction",
+    "compiler-names, vm-runtime"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T11:54:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
