@@ -1,0 +1,63 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T07:20:52.515049+00:00",
+  "scheduled_report_utc": "2026-10-27T23:58:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Second container restart; the 23:58 cycle was delivered at 07:20 (container down ~7 h). No concurrent pushes: work 2a986eda6, release 83c8e08, rust ed694de4 unchanged.",
+    "Disk fell to 1.8 GB (below floor); with no build running, pruned superseded rlibs and test executables older than 60 min (7.8 GB free). New safe-cargo wrapper serialises builds, enforces a 3 GB floor and deletes each test run's executables.",
+    "USER DECISION recorded (user-decisions-20261028T0010Z.json): MAY sinking-helper control and three interprocedural taint tests get a narrow documented fixture correction (profile dialect + defined channel), T100 assertion unchanged, no ingress change.",
+    "Role reports recovered: lsp root-caused CodeLens nondeterminism (global salsa revision moved by a concurrent background write between capture and final check) and committed a bounded whole-capture recapture (local 30/30, independent review pending); vm-runtime: none of the seven release failures exists on origin/rust (no PASS->FAIL), C8.4 LONG84 result fix unbuilt, iRules 69B root cause in codegen bracket-child scheduling under authored name policy; compiler-codegen: H5 slice 1 (V2/V3 owned evaluator, private uncached store) in tree, targeted 9/9+17/17+7/7 PASS, grants no execution; compiler-names: adopted Jim instance typing, Jim loop/static-proc causes identified (registry hook fact approved; SpecTcl completion/transition parity routed to vm-runtime).",
+    "Fixed clippy items_after_test_module in invocation_reads trace helpers (pure move)."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "lsp: recapture validation, writer confirmation, startup timeout",
+    "compiler: MAY fixture correction, source-card span, registry path_candidate, o129",
+    "compiler-names: unknown-hook fact, Source4 planner gap, corpus cause",
+    "vm-runtime: LONG84 fix runs, SpecTcl proc completion/transition parity, spectcl-compat",
+    "compiler-codegen: iRules authored bracket-child route"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T07:51:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
