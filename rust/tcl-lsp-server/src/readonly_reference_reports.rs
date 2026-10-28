@@ -170,8 +170,77 @@ pub(super) const fn is_source_census(coverage: ReadonlyReferenceCoverage) -> boo
     )
 }
 
-/// Fresh whole-report captures after a refused final currency transaction.
-const READONLY_REFERENCE_REPORT_ATTEMPTS: usize = 3;
+/// Total captures of one readonly answer, the first included.
+///
+/// Bounded so a recapture loop can never spin: a further attempt runs only
+/// after the final transaction found a lock, epoch, generation or captured
+/// snapshot moved, and each attempt repeats the whole capture. Exhausting it
+/// is safe rather than merely unlikely: the answer is withheld as
+/// unavailable, never presented from a stale capture, and the client's next
+/// request captures again.
+const READONLY_CURRENCY_ATTEMPTS: usize = 3;
+
+/// Outcome of one final readonly transaction over captured sources.
+pub(super) enum ReadonlyTransaction<T> {
+    /// The captured sources were current and the answer was published.
+    Published(T),
+    /// A lock, epoch, generation or captured snapshot moved since capture.
+    CurrencyRefused,
+    /// The sources were current but the answer itself could not be issued.
+    PublishRefused,
+}
+
+impl<T> ReadonlyTransaction<T> {
+    pub(super) fn published(self) -> Option<T> {
+        match self {
+            Self::Published(value) => Some(value),
+            Self::CurrencyRefused | Self::PublishRefused => None,
+        }
+    }
+
+    /// Only a currency refusal asks for a fresh capture.
+    pub(super) fn into_attempt(self) -> ControlFlow<Option<T>> {
+        match self {
+            Self::Published(value) => ControlFlow::Break(Some(value)),
+            Self::PublishRefused => ControlFlow::Break(None),
+            Self::CurrencyRefused => ControlFlow::Continue(()),
+        }
+    }
+
+    /// A refused coarse token issue keeps its content-modified answer.
+    pub(super) fn into_coarse_token_attempt(
+        self,
+    ) -> ControlFlow<tower_lsp_server::jsonrpc::Result<T>> {
+        match self {
+            Self::Published(value) => ControlFlow::Break(Ok(value)),
+            Self::PublishRefused => {
+                ControlFlow::Break(Err(super::coarse_semantic_source_changed()))
+            }
+            Self::CurrencyRefused => ControlFlow::Continue(()),
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Unrelated Salsa input writes to land before the next final transactions.
+    static UNRELATED_WRITES_BEFORE_FINAL: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
+/// Run one whole capture, compute and final transaction, recapturing only
+/// after a currency refusal. Exhausted attempts return `unavailable`.
+pub(super) async fn retry_readonly_attempt<T, E>(
+    unavailable: T,
+    mut attempt: impl AsyncFnMut() -> Result<ControlFlow<T>, E>,
+) -> Result<T, E> {
+    for _ in 0..READONLY_CURRENCY_ATTEMPTS {
+        if let ControlFlow::Break(answer) = attempt().await? {
+            return Ok(answer);
+        }
+    }
+    Ok(unavailable)
+}
 
 /// A source occurrence census covers its own document only: any other
 /// retained document, or an unavailable inventory, may hold references it
@@ -681,10 +750,20 @@ impl Backend {
     pub(super) async fn with_current_coarse_semantic_source<T>(
         &self,
         source: &CoarseSemanticTokenSource,
-        mut publish: impl FnMut() -> Option<T>,
+        publish: impl FnMut() -> Option<T>,
     ) -> DocumentSourceResult<Option<T>> {
+        self.coarse_semantic_source_transaction(source, publish)
+            .await
+            .map(ReadonlyTransaction::published)
+    }
+
+    pub(super) async fn coarse_semantic_source_transaction<T>(
+        &self,
+        source: &CoarseSemanticTokenSource,
+        mut publish: impl FnMut() -> Option<T>,
+    ) -> DocumentSourceResult<ReadonlyTransaction<T>> {
         let admissions = [source.analysis.admission()];
-        self.with_current_readonly_source_state(
+        self.readonly_source_transaction(
             source.inputs_epoch,
             source.factory_generation,
             &admissions,
@@ -783,22 +862,35 @@ impl Backend {
         actions: Vec<tcl_lsp_core::code_actions::CodeAction>,
         only: Option<&Vec<tower_lsp_server::ls_types::CodeActionKind>>,
     ) -> DocumentSourceResult<Option<Vec<tower_lsp_server::ls_types::CodeActionOrCommand>>> {
+        self.code_action_response_transaction(source, actions, only)
+            .await
+            .map(ReadonlyTransaction::published)
+    }
+
+    pub(super) async fn code_action_response_transaction(
+        &self,
+        source: &OriginalCodeActionSource,
+        actions: Vec<tcl_lsp_core::code_actions::CodeAction>,
+        only: Option<&Vec<tower_lsp_server::ls_types::CodeActionKind>>,
+    ) -> DocumentSourceResult<
+        ReadonlyTransaction<Vec<tower_lsp_server::ls_types::CodeActionOrCommand>>,
+    > {
         let mut admissions = vec![source.analysis.admission()];
         if let Some(admission) = source.document.path_admission.as_deref() {
             if admission.uri() != &source.uri {
-                return Ok(None);
+                return Ok(ReadonlyTransaction::PublishRefused);
             }
             admissions.push(admission);
         } else if self.store.workspace_source_inventory_provider()
             == super::vfs::WorkspaceSourceInventoryProvider::HostReported
             && source.uri.scheme().as_str() == "file"
         {
-            return Ok(None);
+            return Ok(ReadonlyTransaction::PublishRefused);
         }
         // FnMut is called once by the shared transaction. Do not clone action
         // plans or mint a second source receipt on a refused publication.
         let mut actions = Some(actions);
-        self.with_current_readonly_source_state(
+        self.readonly_source_transaction(
             source.inputs_epoch,
             source.factory_generation,
             &admissions,
@@ -964,8 +1056,8 @@ impl Backend {
         coverage: ReadonlyReferenceCoverage,
         inputs_epoch: u64,
         factory_generation: u64,
-    ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceReport>> {
-        self.with_current_readonly_documents(documents, inputs_epoch, factory_generation, || {
+    ) -> DocumentSourceResult<ReadonlyTransaction<OriginalReadonlyReferenceReport>> {
+        self.readonly_documents_transaction(documents, inputs_epoch, factory_generation, || {
             lift_readonly_reference_targets(&targets, documents).map(|locations| {
                 OriginalReadonlyReferenceReport {
                     locations,
@@ -976,40 +1068,37 @@ impl Backend {
         .await
     }
 
-    async fn with_current_readonly_documents<T>(
+    async fn readonly_documents_transaction<T>(
         &self,
         documents: &[OriginalReadonlyReferenceDocument],
         inputs_epoch: u64,
         factory_generation: u64,
         mut publish: impl FnMut() -> Option<T>,
-    ) -> DocumentSourceResult<Option<T>> {
+    ) -> DocumentSourceResult<ReadonlyTransaction<T>> {
         let admissions = documents
             .iter()
             .map(|document| document.admission.as_ref())
             .collect::<Vec<_>>();
-        self.with_current_readonly_source_state(
+        self.readonly_source_transaction(
             inputs_epoch,
             factory_generation,
             &admissions,
             None,
             |state| {
-                let current = documents.iter().all(|document| {
-                    document.matches_current_snapshot(
-                        state.uri_generations,
-                        state.open,
-                        state.db,
-                        state.files,
-                        state.published,
-                    )
-                });
-                trace_coarse_transaction_check("final.document_snapshot", current, &admissions)
+                documents
+                    .iter()
+                    .all(|document| {
+                        document.matches_current_snapshot(
+                            state.uri_generations,
+                            state.open,
+                            state.db,
+                            state.files,
+                            state.published,
+                        )
+                    })
                     .then_some(())
             },
-            |_, ()| {
-                let published = publish();
-                trace_coarse_transaction_check("final.publish", published.is_some(), &admissions);
-                published
-            },
+            |_, ()| publish(),
         )
         .await
     }
@@ -1020,9 +1109,48 @@ impl Backend {
         factory_generation: u64,
         admissions: &[&DocumentPathAdmission],
         saved_sources: Option<&[(&DocumentPathAdmission, &[u8])]>,
+        check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
+        publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
+    ) -> DocumentSourceResult<Option<T>> {
+        self.readonly_source_transaction(
+            inputs_epoch,
+            factory_generation,
+            admissions,
+            saved_sources,
+            check,
+            publish,
+        )
+        .await
+        .map(ReadonlyTransaction::published)
+    }
+
+    /// Rewrite one retained file's cross-file evidence with its own value, as
+    /// the diagnostics worker does: the revision moves, captured values do not.
+    #[cfg(test)]
+    async fn write_unrelated_input_before_final(&self) {
+        use salsa::Setter as _;
+        if UNRELATED_WRITES_BEFORE_FINAL.get() == 0 {
+            return;
+        }
+        UNRELATED_WRITES_BEFORE_FINAL.set(UNRELATED_WRITES_BEFORE_FINAL.get() - 1);
+        let mut db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        let file = *files.values().next().expect("a retained source file");
+        let evidence = file.external_call_sites(&*db).clone();
+        file.set_external_call_sites(&mut *db).to(evidence);
+    }
+
+    async fn readonly_source_transaction<T, Checked>(
+        &self,
+        inputs_epoch: u64,
+        factory_generation: u64,
+        admissions: &[&DocumentPathAdmission],
+        saved_sources: Option<&[(&DocumentPathAdmission, &[u8])]>,
         mut check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
         mut publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
-    ) -> DocumentSourceResult<Option<T>> {
+    ) -> DocumentSourceResult<ReadonlyTransaction<T>> {
+        #[cfg(test)]
+        self.write_unrelated_input_before_final().await;
         let _inputs = self.analyser_inputs_gate.read().await;
         let generation = self.class_factory_generation.read().await;
         let open = self
@@ -1031,11 +1159,11 @@ impl Backend {
             .await;
         let Ok(db) = self.db.try_lock() else {
             trace_coarse_transaction_check("final.db_lock", false, admissions);
-            return Ok(None);
+            return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let Ok(files) = self.db_files.try_lock() else {
             trace_coarse_transaction_check("final.files_lock", false, admissions);
-            return Ok(None);
+            return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let published = self
             .source_path_admissions
@@ -1050,7 +1178,7 @@ impl Backend {
             self.diag_inputs_epoch() == inputs_epoch && *generation == factory_generation,
             admissions,
         ) {
-            return Ok(None);
+            return Ok(ReadonlyTransaction::CurrencyRefused);
         }
         let state = ReadonlySourceState {
             open: &open,
@@ -1060,9 +1188,9 @@ impl Backend {
             uri_generations: &uri_generations,
         };
         let Some(checked) = check(&state) else {
-            return Ok(None);
+            return Ok(ReadonlyTransaction::CurrencyRefused);
         };
-        if let Some(sources) = saved_sources {
+        let issued = if let Some(sources) = saved_sources {
             DocumentPathAdmission::with_current_saved_sources(sources, self.store.as_ref(), || {
                 publish(&state, &checked)
             })
@@ -1070,7 +1198,11 @@ impl Backend {
             DocumentPathAdmission::with_current(admissions, self.store.as_ref(), || {
                 publish(&state, &checked)
             })
-        }
+        }?;
+        Ok(issued.map_or(
+            ReadonlyTransaction::PublishRefused,
+            ReadonlyTransaction::Published,
+        ))
     }
 
     pub(super) async fn publish_checked_library_analyses(
@@ -1079,6 +1211,55 @@ impl Backend {
         inputs_epoch: u64,
         factory_generation: u64,
     ) -> DocumentSourceResult<bool> {
+        self.library_analyses_transaction(analysed, inputs_epoch, factory_generation)
+            .await
+            .map(|transaction| transaction.published().is_some())
+    }
+
+    /// Capture each library file and publish the whole set, recapturing only
+    /// after a currency refusal. `None` withholds every captured analysis.
+    pub(super) async fn capture_and_publish_library_files(
+        &self,
+        files: &[std::path::PathBuf],
+    ) -> DocumentSourceResult<Option<Vec<(Uri, super::DocumentState, WorkspaceSymbolSourceAnalysis)>>>
+    {
+        retry_readonly_attempt(None, async || {
+            let inputs_epoch = self.diag_inputs_epoch();
+            let factory_generation = *self.class_factory_generation.read().await;
+            let mut analysed = Vec::new();
+            for path in files {
+                let Some(target_uri) = super::canonical_file_uri(path) else {
+                    continue;
+                };
+                let Some(snapshot) = self.read_document(&target_uri).await? else {
+                    continue;
+                };
+                let Some(receipt) = self
+                    .capture_workspace_symbol_analysis(&target_uri, &snapshot)
+                    .await?
+                else {
+                    continue;
+                };
+                analysed.push((target_uri, snapshot, receipt));
+            }
+            if analysed.is_empty() {
+                return Ok(ControlFlow::Break(Some(analysed)));
+            }
+            Ok(self
+                .library_analyses_transaction(&analysed, inputs_epoch, factory_generation)
+                .await?
+                .into_attempt()
+                .map_break(|published| published.map(|()| analysed)))
+        })
+        .await
+    }
+
+    async fn library_analyses_transaction(
+        &self,
+        analysed: &[(Uri, super::DocumentState, WorkspaceSymbolSourceAnalysis)],
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> DocumentSourceResult<ReadonlyTransaction<()>> {
         let mut saved = Vec::new();
         let mut admissions = Vec::new();
         for (uri, snapshot, analysis) in analysed {
@@ -1087,23 +1268,23 @@ impl Backend {
                     == super::vfs::WorkspaceSourceInventoryProvider::HostReported
                 && uri.scheme().as_str() == "file"
             {
-                return Ok(false);
+                return Ok(ReadonlyTransaction::PublishRefused);
             }
             for admission in
                 std::iter::once(analysis.admission()).chain(snapshot.path_admission.as_deref())
             {
                 if admission.uri() != uri {
-                    return Ok(false);
+                    return Ok(ReadonlyTransaction::PublishRefused);
                 }
                 admissions.push(admission);
                 if let Some(path) = admission.path() {
                     admission.check_current(self.store.as_ref())?;
                     let Ok(bytes) = self.store.read(path) else {
-                        return Ok(false);
+                        return Ok(ReadonlyTransaction::PublishRefused);
                     };
                     let (text, _) = tcl_lsp_core::source_decode::decode_source(&bytes);
                     if tcl_lexer::normalise_lone_cr(&text).as_ref() != snapshot.text.as_ref() {
-                        return Ok(false);
+                        return Ok(ReadonlyTransaction::PublishRefused);
                     }
                     saved.push((admission, bytes));
                 }
@@ -1113,40 +1294,38 @@ impl Backend {
             .iter()
             .map(|(admission, bytes)| (*admission, bytes.as_slice()))
             .collect::<Vec<_>>();
-        Ok(self
-            .with_current_readonly_source_state(
-                inputs_epoch,
-                factory_generation,
-                &admissions,
-                Some(&sources),
-                |state| {
-                    analysed
-                        .iter()
-                        .all(|(uri, snapshot, analysis)| {
-                            analysis.matches_snapshot(uri, snapshot)
-                                && analysis.matches_current_state(
-                                    state,
-                                    inputs_epoch,
-                                    factory_generation,
-                                )
-                        })
-                        .then_some(())
-                },
-                |_, ()| {
-                    let _rehoming = self.rehoming_gate.try_lock().ok()?;
-                    let mut index = self.workspace_index.try_write().ok()?;
-                    let mut seeds = self.rehomed_source_seeds.try_lock().ok()?;
-                    let mut autoloaded = self.autoloaded_library_uris.try_lock().ok()?;
-                    for (uri, _, analysis) in analysed {
-                        index.replace_document(uri.as_str(), analysis.analysis());
-                        seeds.remove(uri.as_str());
-                        autoloaded.insert(uri.as_str().to_owned());
-                    }
-                    Some(())
-                },
-            )
-            .await?
-            .is_some())
+        self.readonly_source_transaction(
+            inputs_epoch,
+            factory_generation,
+            &admissions,
+            Some(&sources),
+            |state| {
+                analysed
+                    .iter()
+                    .all(|(uri, snapshot, analysis)| {
+                        analysis.matches_snapshot(uri, snapshot)
+                            && analysis.matches_current_state(
+                                state,
+                                inputs_epoch,
+                                factory_generation,
+                            )
+                    })
+                    .then_some(())
+            },
+            |_, ()| {
+                let _rehoming = self.rehoming_gate.try_lock().ok()?;
+                let mut index = self.workspace_index.try_write().ok()?;
+                let mut seeds = self.rehomed_source_seeds.try_lock().ok()?;
+                let mut autoloaded = self.autoloaded_library_uris.try_lock().ok()?;
+                for (uri, _, analysis) in analysed {
+                    index.replace_document(uri.as_str(), analysis.analysis());
+                    seeds.remove(uri.as_str());
+                    autoloaded.insert(uri.as_str().to_owned());
+                }
+                Some(())
+            },
+        )
+        .await
     }
 
     /// Project namespace relationships only under their original input/index
@@ -1155,21 +1334,32 @@ impl Backend {
         &self,
         advice: &tcl_lsp_core::workspace_index::ConditionalNamespaceImportAdvice,
     ) -> DocumentSourceResult<Option<Vec<String>>> {
+        retry_readonly_attempt(None, async || {
+            self.finish_conditional_namespace_advice_attempt(advice)
+                .await
+        })
+        .await
+    }
+
+    async fn finish_conditional_namespace_advice_attempt(
+        &self,
+        advice: &tcl_lsp_core::workspace_index::ConditionalNamespaceImportAdvice,
+    ) -> DocumentSourceResult<ControlFlow<Option<Vec<String>>>> {
         let inputs_epoch = self.diag_inputs_epoch();
         let factory_generation = *self.class_factory_generation.read().await;
         let mut documents = Vec::new();
         for source in advice.documents() {
             let Some(text) = source.source() else {
-                return Ok(None);
+                return Ok(ControlFlow::Break(None));
             };
             let Some(document) = self
                 .capture_readonly_source_document(source.uri(), Arc::from(text))
                 .await?
             else {
-                return Ok(None);
+                return Ok(ControlFlow::Break(None));
             };
             if !source.matches_input(document.input.as_ref()) {
-                return Ok(None);
+                return Ok(ControlFlow::Break(None));
             }
             documents.push(document);
         }
@@ -1178,10 +1368,10 @@ impl Backend {
         let open = self.documents.lock("namespace_advice_final_snapshot").await;
         let index = self.workspace_index.read().await;
         let Ok(db) = self.db.try_lock() else {
-            return Ok(None);
+            return Ok(ControlFlow::Continue(()));
         };
         let Ok(files) = self.db_files.try_lock() else {
-            return Ok(None);
+            return Ok(ControlFlow::Continue(()));
         };
         let published = self
             .source_path_admissions
@@ -1198,7 +1388,7 @@ impl Backend {
                 !document.matches_current_snapshot(&uri_generations, &open, &db, &files, &published)
             })
         {
-            return Ok(None);
+            return Ok(ControlFlow::Continue(()));
         }
         let admissions = documents
             .iter()
@@ -1213,6 +1403,7 @@ impl Backend {
                     .collect(),
             )
         })
+        .map(ControlFlow::Break)
     }
 
     async fn logical_call_documents(
@@ -1240,10 +1431,20 @@ impl Backend {
         &self,
         selected: &Uri,
     ) -> DocumentSourceResult<Option<Vec<tower_lsp_server::ls_types::CodeLens>>> {
+        retry_readonly_attempt(None, async || {
+            self.readonly_logical_lenses_attempt(selected).await
+        })
+        .await
+    }
+
+    async fn readonly_logical_lenses_attempt(
+        &self,
+        selected: &Uri,
+    ) -> DocumentSourceResult<ControlFlow<Option<Vec<tower_lsp_server::ls_types::CodeLens>>>> {
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
         let Some(documents) = self.logical_call_documents(selected).await? else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let Some(stamp) = LogicalCallPublicationStamp::capture(
             &documents,
@@ -1251,16 +1452,16 @@ impl Backend {
             epoch,
             generation,
         ) else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let Some(lenses) = tcl_lsp_core::code_lens::logical_source_lenses(
             selected.as_str(),
             &logical_call_inventory(&documents),
         ) else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let mut registry = self.original_declaration_registry.lock().await;
-        self.with_current_readonly_documents(&documents, epoch, generation, || {
+        Ok(self.readonly_documents_transaction(&documents, epoch, generation, || {
             let workspace = self.workspace_index.try_read().ok()?;
             if LogicalCallPublicationStamp::capture(&documents, &workspace, epoch, generation).as_ref() != Some(&stamp) {
                 return None;
@@ -1275,7 +1476,7 @@ impl Backend {
                     data: Some(serde_json::json!({ "logicalSourceLens": handle, "uri": selected.as_str() })),
                 })
             }).collect::<Option<Vec<_>>>()
-        }).await
+        }).await?.into_attempt())
     }
 
     pub(super) async fn readonly_logical_lens_resolve(
@@ -1283,10 +1484,22 @@ impl Backend {
         selected: &Uri,
         handle: tcl_lsp_core::original_declaration::OriginalDeclarationHandle,
     ) -> DocumentSourceResult<Option<tower_lsp_server::ls_types::CodeLens>> {
+        retry_readonly_attempt(None, async || {
+            self.readonly_logical_lens_resolve_attempt(selected, handle)
+                .await
+        })
+        .await
+    }
+
+    async fn readonly_logical_lens_resolve_attempt(
+        &self,
+        selected: &Uri,
+        handle: tcl_lsp_core::original_declaration::OriginalDeclarationHandle,
+    ) -> DocumentSourceResult<ControlFlow<Option<tower_lsp_server::ls_types::CodeLens>>> {
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
         let Some(documents) = self.logical_call_documents(selected).await? else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let Some(stamp) = LogicalCallPublicationStamp::capture(
             &documents,
@@ -1294,7 +1507,7 @@ impl Backend {
             epoch,
             generation,
         ) else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let publication =
             tcl_lsp_core::original_declaration::LogicalCallHostPublication::retain(stamp.clone());
@@ -1309,7 +1522,7 @@ impl Backend {
                 &publication,
             )
         else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let uri = selected.clone();
         let (documents, selection, report) = crate::rt::spawn_blocking(move || {
@@ -1327,46 +1540,48 @@ impl Backend {
             uri: selected.clone(),
         })?;
         let (Some(selection), Some(report)) = (selection, report) else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
-        self.with_current_readonly_documents(&documents, epoch, generation, || {
-            let workspace = self.workspace_index.try_read().ok()?;
-            if LogicalCallPublicationStamp::capture(&documents, &workspace, epoch, generation)
-                .as_ref()
-                != Some(&stamp)
-                || !report.is_current(&logical_call_inventory(&documents))
-            {
-                return None;
-            }
-            let locations = report
-                .possible_source_targets()
-                .iter()
-                .map(|(owner, range)| {
-                    documents
-                        .iter()
-                        .find(|document| document.uri.as_str() == owner)
-                        .map(|document| Location {
-                            uri: document.uri.clone(),
-                            range: super::lift_lsp_range(*range),
-                        })
+        Ok(self
+            .readonly_documents_transaction(&documents, epoch, generation, || {
+                let workspace = self.workspace_index.try_read().ok()?;
+                if LogicalCallPublicationStamp::capture(&documents, &workspace, epoch, generation)
+                    .as_ref()
+                    != Some(&stamp)
+                    || !report.is_current(&logical_call_inventory(&documents))
+                {
+                    return None;
+                }
+                let locations = report
+                    .possible_source_targets()
+                    .iter()
+                    .map(|(owner, range)| {
+                        documents
+                            .iter()
+                            .find(|document| document.uri.as_str() == owner)
+                            .map(|document| Location {
+                                uri: document.uri.clone(),
+                                range: super::lift_lsp_range(*range),
+                            })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let range = super::lift_lsp_range(selection.range());
+                let command = OriginalReadonlyReferenceReport {
+                    locations,
+                    coverage: report.coverage(),
+                }
+                .lens_command(selected, range.start);
+                Some(tower_lsp_server::ls_types::CodeLens {
+                    range,
+                    command: Some(command),
+                    data: Some(serde_json::json!({
+                        "logicalSourceLens": handle, "uri": selected.as_str(),
+                        "sourceReferenceCoverage": coverage_tag(report.coverage()),
+                    })),
                 })
-                .collect::<Option<Vec<_>>>()?;
-            let range = super::lift_lsp_range(selection.range());
-            let command = OriginalReadonlyReferenceReport {
-                locations,
-                coverage: report.coverage(),
-            }
-            .lens_command(selected, range.start);
-            Some(tower_lsp_server::ls_types::CodeLens {
-                range,
-                command: Some(command),
-                data: Some(serde_json::json!({
-                    "logicalSourceLens": handle, "uri": selected.as_str(),
-                    "sourceReferenceCoverage": coverage_tag(report.coverage()),
-                })),
             })
-        })
-        .await
+            .await?
+            .into_attempt())
     }
 
     pub(super) async fn readonly_logical_call_prepare(
@@ -1374,10 +1589,23 @@ impl Backend {
         selected: &Uri,
         position: Position,
     ) -> DocumentSourceResult<Option<Vec<tower_lsp_server::ls_types::CallHierarchyItem>>> {
+        retry_readonly_attempt(None, async || {
+            self.readonly_logical_call_prepare_attempt(selected, position)
+                .await
+        })
+        .await
+    }
+
+    async fn readonly_logical_call_prepare_attempt(
+        &self,
+        selected: &Uri,
+        position: Position,
+    ) -> DocumentSourceResult<ControlFlow<Option<Vec<tower_lsp_server::ls_types::CallHierarchyItem>>>>
+    {
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
         let Some(retained) = self.logical_call_documents(selected).await? else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let uri = selected.clone();
         let Some(stamp) = LogicalCallPublicationStamp::capture(
@@ -1386,7 +1614,7 @@ impl Backend {
             epoch,
             generation,
         ) else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let (retained, advice) = crate::rt::spawn_blocking(move || {
             let inventory = logical_call_inventory(&retained);
@@ -1403,11 +1631,13 @@ impl Backend {
             uri: selected.clone(),
         })?;
         let Some(advice) = advice else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
-        self.finish_logical_call_advice(&retained, &advice, &stamp)
-            .await
-            .map(|projection| projection.map(|projection| projection.items))
+        Ok(self
+            .finish_logical_call_advice(&retained, &advice, &stamp)
+            .await?
+            .into_attempt()
+            .map_break(|projection| projection.map(|projection| projection.items)))
     }
 
     pub(super) async fn readonly_logical_call_walk(
@@ -1417,18 +1647,32 @@ impl Backend {
     ) -> DocumentSourceResult<
         Option<Vec<(tower_lsp_server::ls_types::CallHierarchyItem, Vec<Range>)>>,
     > {
+        retry_readonly_attempt(None, async || {
+            self.readonly_logical_call_walk_attempt(item, incoming)
+                .await
+        })
+        .await
+    }
+
+    async fn readonly_logical_call_walk_attempt(
+        &self,
+        item: &tower_lsp_server::ls_types::CallHierarchyItem,
+        incoming: bool,
+    ) -> DocumentSourceResult<
+        ControlFlow<Option<Vec<(tower_lsp_server::ls_types::CallHierarchyItem, Vec<Range>)>>>,
+    > {
         let Some(handle) = item
             .data
             .as_ref()
             .and_then(|data| data.get("logicalCallHierarchy"))
             .and_then(|value| serde_json::from_value(value.clone()).ok())
         else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
         let Some(retained) = self.logical_call_documents(&item.uri).await? else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let Some(stamp) = LogicalCallPublicationStamp::capture(
             &retained,
@@ -1436,7 +1680,7 @@ impl Backend {
             epoch,
             generation,
         ) else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let publication =
             tcl_lsp_core::original_declaration::LogicalCallHostPublication::retain(stamp.clone());
@@ -1451,7 +1695,7 @@ impl Backend {
                 &publication,
             )
         else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let (retained, advice) = crate::rt::spawn_blocking(move || {
             let inventory = logical_call_inventory(&retained);
@@ -1467,11 +1711,13 @@ impl Backend {
             uri: item.uri.clone(),
         })?;
         let Some(advice) = advice else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
-        self.finish_logical_call_advice(&retained, &advice, &stamp)
-            .await
-            .map(|projection| projection.map(|projection| projection.edges))
+        Ok(self
+            .finish_logical_call_advice(&retained, &advice, &stamp)
+            .await?
+            .into_attempt()
+            .map_break(|projection| projection.map(|projection| projection.edges)))
     }
 
     async fn finish_logical_call_advice(
@@ -1479,9 +1725,9 @@ impl Backend {
         documents: &[OriginalReadonlyReferenceDocument],
         advice: &tcl_lsp_core::call_hierarchy::LogicalCallAdvice,
         stamp: &LogicalCallPublicationStamp,
-    ) -> DocumentSourceResult<Option<LogicalCallProjection>> {
+    ) -> DocumentSourceResult<ReadonlyTransaction<LogicalCallProjection>> {
         let mut registry = self.original_declaration_registry.lock().await;
-        self.with_current_readonly_documents(
+        self.readonly_documents_transaction(
             documents,
             stamp.inputs_epoch,
             stamp.factory_generation,
@@ -1542,9 +1788,10 @@ impl Backend {
         projection: impl Fn() -> &'a [tcl_lsp_core::type_hierarchy::TypeHierarchyItem],
         inputs_epoch: u64,
         factory_generation: u64,
-    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+    ) -> DocumentSourceResult<ReadonlyTransaction<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>>>
+    {
         let mut registry = self.original_declaration_registry.lock().await;
-        self.with_current_readonly_documents(documents, inputs_epoch, factory_generation, || {
+        self.readonly_documents_transaction(documents, inputs_epoch, factory_generation, || {
             projection()
                 .iter()
                 .map(|item| {
@@ -1570,7 +1817,6 @@ impl Backend {
                 .collect::<Option<Vec<_>>>()
         })
         .await
-        .map(Option::unwrap_or_default)
     }
 
     async fn finish_logical_hierarchy_advice(
@@ -1579,7 +1825,8 @@ impl Backend {
         advice: &tcl_lsp_core::type_hierarchy::LogicalHierarchyAdvice,
         inputs_epoch: u64,
         factory_generation: u64,
-    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+    ) -> DocumentSourceResult<ReadonlyTransaction<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>>>
+    {
         self.finish_logical_hierarchy_projection(
             documents,
             || advice.possible_source_items(),
@@ -1604,6 +1851,7 @@ impl Backend {
             factory_generation,
         )
         .await
+        .map(|transaction| transaction.published().unwrap_or_default())
     }
 
     pub(super) async fn readonly_logical_hierarchy_prepare(
@@ -1611,16 +1859,28 @@ impl Backend {
         selected: &Uri,
         position: Position,
     ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+        retry_readonly_attempt(Vec::new(), async || {
+            self.readonly_logical_hierarchy_prepare_attempt(selected, position)
+                .await
+        })
+        .await
+    }
+
+    async fn readonly_logical_hierarchy_prepare_attempt(
+        &self,
+        selected: &Uri,
+        position: Position,
+    ) -> DocumentSourceResult<ControlFlow<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>>> {
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
         let Some(current) = self.read_document(selected).await? else {
-            return Ok(Vec::new());
+            return Ok(ControlFlow::Break(Vec::new()));
         };
         let Some(document) = self
             .capture_readonly_reference_document(selected.as_str(), current.text)
             .await?
         else {
-            return Ok(Vec::new());
+            return Ok(ControlFlow::Break(Vec::new()));
         };
         let (document, advice) = crate::rt::spawn_blocking(move || {
             let advice = tcl_lsp_core::type_hierarchy::prepare_logical_advice_for_document(
@@ -1637,10 +1897,13 @@ impl Backend {
             uri: selected.clone(),
         })?;
         let Some(advice) = advice else {
-            return Ok(Vec::new());
+            return Ok(ControlFlow::Break(Vec::new()));
         };
-        self.finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
-            .await
+        Ok(self
+            .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
+            .await?
+            .into_attempt()
+            .map_break(Option::unwrap_or_default))
     }
 
     pub(super) async fn readonly_logical_hierarchy_walk(
@@ -1648,13 +1911,25 @@ impl Backend {
         item: &tower_lsp_server::ls_types::TypeHierarchyItem,
         subtypes: bool,
     ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+        retry_readonly_attempt(Vec::new(), async || {
+            self.readonly_logical_hierarchy_walk_attempt(item, subtypes)
+                .await
+        })
+        .await
+    }
+
+    async fn readonly_logical_hierarchy_walk_attempt(
+        &self,
+        item: &tower_lsp_server::ls_types::TypeHierarchyItem,
+        subtypes: bool,
+    ) -> DocumentSourceResult<ControlFlow<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>>> {
         let Some(handle) = item
             .data
             .as_ref()
             .and_then(|data| data.get("logicalHierarchy"))
             .and_then(|value| serde_json::from_value(value.clone()).ok())
         else {
-            return Ok(Vec::new());
+            return Ok(ControlFlow::Break(Vec::new()));
         };
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
@@ -1665,12 +1940,12 @@ impl Backend {
                 .capture_readonly_reference_document(&uri, source)
                 .await?
             else {
-                return Ok(Vec::new());
+                return Ok(ControlFlow::Break(Vec::new()));
             };
             retained.push(document);
         }
         let Some(owner) = retained.iter().find(|document| document.uri == item.uri) else {
-            return Ok(Vec::new());
+            return Ok(ControlFlow::Break(Vec::new()));
         };
         let Some(identity) = self
             .original_declaration_registry
@@ -1678,7 +1953,7 @@ impl Backend {
             .await
             .resolve_logical_class(handle, item.uri.as_str(), &owner.source, &owner.analysis)
         else {
-            return Ok(Vec::new());
+            return Ok(ControlFlow::Break(Vec::new()));
         };
         let (retained, advice) = crate::rt::spawn_blocking(move || {
             let inventory = retained
@@ -1701,10 +1976,13 @@ impl Backend {
             uri: item.uri.clone(),
         })?;
         let Some(advice) = advice else {
-            return Ok(Vec::new());
+            return Ok(ControlFlow::Break(Vec::new()));
         };
-        self.finish_logical_hierarchy_advice(&retained, &advice, epoch, generation)
-            .await
+        Ok(self
+            .finish_logical_hierarchy_advice(&retained, &advice, epoch, generation)
+            .await?
+            .into_attempt()
+            .map_break(Option::unwrap_or_default))
     }
 
     pub(super) async fn readonly_logical_implementation(
@@ -1712,16 +1990,28 @@ impl Backend {
         selected: &Uri,
         position: Position,
     ) -> DocumentSourceResult<Option<Vec<Location>>> {
+        retry_readonly_attempt(None, async || {
+            self.readonly_logical_implementation_attempt(selected, position)
+                .await
+        })
+        .await
+    }
+
+    async fn readonly_logical_implementation_attempt(
+        &self,
+        selected: &Uri,
+        position: Position,
+    ) -> DocumentSourceResult<ControlFlow<Option<Vec<Location>>>> {
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
         let Some(current) = self.read_document(selected).await? else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let Some(document) = self
             .capture_readonly_reference_document(selected.as_str(), current.text)
             .await?
         else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let (document, advice) = crate::rt::spawn_blocking(move || {
             let advice = tcl_lsp_core::implementation::logical_implementation_advice(
@@ -1738,10 +2028,12 @@ impl Backend {
             uri: selected.clone(),
         })?;
         let Some(advice) = advice else {
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
-        self.finish_logical_implementation_advice(&[document], &advice, epoch, generation)
-            .await
+        Ok(self
+            .finish_logical_implementation_advice(&[document], &advice, epoch, generation)
+            .await?
+            .into_attempt())
     }
 
     async fn finish_logical_implementation_advice(
@@ -1750,8 +2042,8 @@ impl Backend {
         advice: &tcl_lsp_core::implementation::LogicalImplementationAdvice,
         epoch: u64,
         generation: u64,
-    ) -> DocumentSourceResult<Option<Vec<Location>>> {
-        self.with_current_readonly_documents(documents, epoch, generation, || {
+    ) -> DocumentSourceResult<ReadonlyTransaction<Vec<Location>>> {
+        self.readonly_documents_transaction(documents, epoch, generation, || {
             let owner = documents.first()?;
             if !advice.is_current(owner.uri.as_str(), &owner.source, &owner.analysis) {
                 return None;
@@ -1775,32 +2067,21 @@ impl Backend {
     /// Source-only occurrences join the original declaration in its real URI.
     /// All participants retain their actual `SourceFile` and full checked input;
     /// this report cannot be consumed as call edges or editable occurrences.
-    ///
-    /// A refused final currency transaction recaptures every participant from
-    /// scratch: a concurrent input write elsewhere is indistinguishable there
-    /// from drift, and each fresh attempt re-runs every capture and currency
-    /// guard. Capture and ownership refusals stay terminal.
     pub(super) async fn readonly_original_declaration_reference_report(
         &self,
         identity: &OriginalDeclarationIdentity,
         selected: &Uri,
         include_declaration: bool,
     ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceReport>> {
-        for _ in 0..READONLY_REFERENCE_REPORT_ATTEMPTS {
-            if let ControlFlow::Break(report) = self
-                .readonly_original_declaration_reference_attempt(
-                    identity,
-                    selected,
-                    include_declaration,
-                )
-                .await?
-            {
-                return Ok(report);
-            }
-        }
-        self.trace_host_navigation(selected, "references.final-transaction-refused", "")
-            .await;
-        Ok(None)
+        retry_readonly_attempt(None, async || {
+            self.readonly_original_declaration_reference_attempt(
+                identity,
+                selected,
+                include_declaration,
+            )
+            .await
+        })
+        .await
     }
 
     async fn readonly_original_declaration_reference_attempt(
@@ -1890,9 +2171,7 @@ impl Backend {
                 factory_generation,
             )
             .await?
-            .map_or(ControlFlow::Continue(()), |report| {
-                ControlFlow::Break(Some(report))
-            }))
+            .into_attempt())
     }
 
     pub(super) async fn readonly_original_method_reference_locations_at(
@@ -2167,19 +2446,6 @@ fn trace_coarse_transaction_check(
     accepted
 }
 
-/// Observe the leading currency conjuncts of one final readonly snapshot check.
-fn trace_coarse_document_snapshot(
-    rows: &[(&str, bool)],
-    captured: salsa::Revision,
-    current: salsa::Revision,
-) {
-    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
-        eprintln!(
-            "COARSE_SOURCE document_snapshot {rows:?} captured_revision={captured:?} current_revision={current:?}"
-        );
-    }
-}
-
 /// Identity-only diagnosis of the actual reached coarse-source rejection.
 /// This reads no source/provider/analysis state and never changes admission.
 pub(super) fn trace_coarse_source_check(stage: &str, accepted: bool) -> bool {
@@ -2390,22 +2656,6 @@ impl ReadonlySourceDocument {
         files: &std::collections::HashMap<Uri, tcl_lsp_db::SourceFile>,
         published: &std::collections::HashMap<Uri, super::PublishedSourcePath>,
     ) -> bool {
-        trace_coarse_document_snapshot(
-            &[
-                ("open", self.publication.matches_open_documents(open)),
-                (
-                    "uri_generation",
-                    uri_generations.get(&self.uri).copied().unwrap_or_default()
-                        == self.publication.uri_generation,
-                ),
-                (
-                    "database_revision",
-                    tcl_lsp_db::database_revision(db) == self.database_revision,
-                ),
-            ],
-            self.database_revision,
-            tcl_lsp_db::database_revision(db),
-        );
         self.publication.matches_open_documents(open)
             && uri_generations.get(&self.uri).copied().unwrap_or_default()
                 == self.publication.uri_generation
@@ -2494,6 +2744,7 @@ mod tests {
             )
             .await
             .unwrap()
+            .published()
             .is_some()
     }
 
@@ -2732,6 +2983,61 @@ mod tests {
         assert_eq!(command.title, "0 references");
         assert_eq!(command.command, "tcl-lsp.showReferences");
     }
+
+    #[tokio::test]
+    async fn unrelated_input_writes_recapture_then_withhold_the_census() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///readonly-unrelated-write.tcl".parse().unwrap();
+        register_current(&backend, &uri, SOURCE).await;
+        let identity = ping_identity(&backend, &uri).await;
+        UNRELATED_WRITES_BEFORE_FINAL.set(1);
+        let report = backend
+            .readonly_original_declaration_reference_report(&identity, &uri, false)
+            .await
+            .unwrap()
+            .expect("one unrelated write is recaptured");
+        assert_eq!(UNRELATED_WRITES_BEFORE_FINAL.get(), 0);
+        assert_eq!(
+            report.coverage,
+            ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+        );
+        assert_eq!(report.locations.len(), 2);
+        UNRELATED_WRITES_BEFORE_FINAL.set(READONLY_CURRENCY_ATTEMPTS);
+        assert!(
+            backend
+                .readonly_original_declaration_reference_report(&identity, &uri, false)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(UNRELATED_WRITES_BEFORE_FINAL.get(), 0);
+        let lens = backend
+            .code_lens(CodeLensParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
+                partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
+            })
+            .await
+            .unwrap()
+            .unwrap()
+            .into_iter()
+            .find(|lens| {
+                lens.range.start.character == u32::try_from(SOURCE.find("ping").unwrap()).unwrap()
+            })
+            .unwrap();
+        UNRELATED_WRITES_BEFORE_FINAL.set(READONLY_CURRENCY_ATTEMPTS);
+        let lens = backend.code_lens_resolve(lens).await.unwrap();
+        UNRELATED_WRITES_BEFORE_FINAL.set(0);
+        assert_eq!(
+            lens.data.as_ref().unwrap()["sourceReferenceCoverage"],
+            "unavailable"
+        );
+        let command = lens.command.unwrap();
+        assert_eq!(command.title, "References unavailable");
+        assert_eq!(command.command, "");
+        assert!(command.arguments.is_none());
+    }
 }
 
 #[cfg(test)]
@@ -2964,7 +3270,9 @@ mod conditional_navigation_publication_tests {
             backend
                 .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
                 .await
-                .unwrap(),
+                .unwrap()
+                .published()
+                .unwrap_or_default(),
             [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
     }
@@ -3012,6 +3320,7 @@ mod conditional_navigation_publication_tests {
                 .finish_logical_implementation_advice(&[document], &advice, epoch, generation)
                 .await
                 .unwrap()
+                .published()
                 .is_none()
         );
     }
@@ -3198,6 +3507,7 @@ mod logical_call_wire_tests {
                 .finish_logical_call_advice(&documents, &advice, &stamp)
                 .await
                 .unwrap()
+                .published()
                 .is_some()
         );
         register(&backend, &uri, &format!("{source}# changed\n")).await;
@@ -3206,6 +3516,7 @@ mod logical_call_wire_tests {
                 .finish_logical_call_advice(&documents, &advice, &stamp)
                 .await
                 .unwrap()
+                .published()
                 .is_none()
         );
     }
@@ -3291,6 +3602,7 @@ mod logical_call_provider_generation_tests {
             .finish_logical_call_advice(&documents, &advice, &stamp)
             .await
             .unwrap()
+            .published()
             .unwrap();
         assert_eq!(projection.items.len(), 1);
         let handle = serde_json::from_value(
@@ -3334,6 +3646,7 @@ mod logical_call_provider_generation_tests {
                 .finish_logical_call_advice(&documents, &advice, &stamp)
                 .await
                 .unwrap()
+                .published()
                 .is_none()
         );
     }

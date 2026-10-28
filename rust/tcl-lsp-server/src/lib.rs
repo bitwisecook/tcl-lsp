@@ -1401,16 +1401,6 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 /// next schedule therefore re-resolves.
 const DIAG_INPUTS_RESOLVE_ATTEMPTS: u32 = 4;
 
-/// Observe one completed Salsa input write and the revision it published.
-fn trace_coarse_db_write(site: &str, db: &tcl_lsp_db::TclDatabase) {
-    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
-        eprintln!(
-            "COARSE_SOURCE db_write site={site} revision={:?}",
-            tcl_lsp_db::database_revision(db)
-        );
-    }
-}
-
 /// How long a request may wait on the document-sync barrier before the server
 /// says so on its log channel.
 ///
@@ -6491,7 +6481,6 @@ async fn apply_cross_file_evidence_if_current(
             continue;
         }
         file.set_external_call_sites(&mut *db).to(want);
-        trace_coarse_db_write("evidence.external_call_sites", &db);
         if requires_self_refresh {
             changes.requires_self_refresh.insert(uri.clone());
         }
@@ -6878,7 +6867,6 @@ async fn apply_workspace_class_factories_if_current(
         }
         file.set_workspace_class_factories(&mut *db)
             .to(want.clone());
-        trace_coarse_db_write("evidence.class_factories", &db);
         changed.push(uri);
     }
     if changed.is_empty() {
@@ -6962,7 +6950,6 @@ async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> 
             continue;
         }
         file.set_workspace_subclass_methods(&mut *db).to(want);
-        trace_coarse_db_write("evidence.subclass_methods", &db);
         changed.push(uri.clone());
     }
     changed
@@ -11580,7 +11567,6 @@ impl Backend {
                     .to(admission.analyser_path().map(str::to_owned));
                 file.set_text(db).to(text);
                 file.set_dialect(db).to(dialect.to_owned());
-                trace_coarse_db_write("source.admitted", &*db);
             } else {
                 let file = Self::revive_or_create_db_source(
                     db,
@@ -11724,7 +11710,6 @@ impl Backend {
             for (uri, file) in files.iter() {
                 let next = file.sidecar_stubs_epoch(&*db).wrapping_add(1);
                 file.set_sidecar_stubs_epoch(&mut *db).to(next);
-                trace_coarse_db_write("source.sidecar_epoch", &db);
                 uris.push(uri.clone());
             }
             uris
@@ -11802,7 +11787,6 @@ impl Backend {
             .remove(uri);
         file.set_text(db).to(String::new());
         file.set_external_call_sites(db).to(None);
-        trace_coarse_db_write("source.retire", &*db);
         tombstones.insert(uri.clone(), file);
         true
     }
@@ -11826,7 +11810,6 @@ impl Backend {
             file.set_path(db).to(path);
             file.set_text(db).to(text);
             file.set_dialect(db).to(dialect);
-            trace_coarse_db_write("source.revive", &*db);
             file
         } else {
             tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
@@ -11844,7 +11827,6 @@ impl Backend {
         // next sync would not assert anyway.
         if oracle.is_some() {
             file.set_workspace_class_factories(db).to(oracle);
-            trace_coarse_db_write("source.class_factories", &*db);
         }
         file
     }
@@ -13918,7 +13900,6 @@ impl Backend {
         match *project {
             Some(p) => {
                 p.set_files(db).to(sources);
-                trace_coarse_db_write("project.files", &*db);
             }
             None => *project = Some(tcl_lsp_db::Project::new(&*db, sources)),
         }
@@ -13955,7 +13936,6 @@ impl Backend {
             Some(handle) => {
                 handle.set_files(db).to(sources);
                 handle.set_token_configurations(db).to(Some(configurations));
-                trace_coarse_db_write("project.folder_files", &*db);
             }
             None => {
                 *project = Some(tcl_lsp_db::Project::with_token_configurations(
@@ -14275,7 +14255,6 @@ impl Backend {
         config.set_targets(&mut *db).to(targets);
         let provides = self.package_provides.lock().await.clone();
         config.set_package_provides(&mut *db).to(provides);
-        trace_coarse_db_write("config.sync", &db);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -18640,32 +18619,13 @@ impl Backend {
             }
             resolver_revision = self.package_resolver.read().await.revision();
         }
-        if !files.is_empty() {
-            let inputs_epoch = self.diag_inputs_epoch();
-            let factory_generation = *self.class_factory_generation.read().await;
-            let mut analysed = Vec::new();
-            for path in files {
-                let Some(target_uri) = canonical_file_uri(&path) else {
-                    continue;
-                };
-                let Some(snapshot) = self.read_document(&target_uri).await? else {
-                    continue;
-                };
-                let Some(receipt) = self
-                    .capture_workspace_symbol_analysis(&target_uri, &snapshot)
-                    .await?
-                else {
-                    continue;
-                };
-                analysed.push((target_uri, snapshot, receipt));
-            }
-            if !analysed.is_empty()
-                && !self
-                    .publish_checked_library_analyses(&analysed, inputs_epoch, factory_generation)
-                    .await?
-            {
-                return Ok(None);
-            }
+        if !files.is_empty()
+            && self
+                .capture_and_publish_library_files(&files)
+                .await?
+                .is_none()
+        {
+            return Ok(None);
         }
 
         // Revalidate the caller's complete source and exact query after all
@@ -18838,46 +18798,19 @@ impl Backend {
                 return Ok(Some(existing.clone()));
             }
         }
-        let mut resolved = None;
-        let inputs_epoch = self.diag_inputs_epoch();
-        let factory_generation = *self.class_factory_generation.read().await;
-        let mut analysed = Vec::new();
-        for path in files {
-            let Some(target_uri) = canonical_file_uri(&path) else {
-                continue;
-            };
-            let Some(target_doc) = self.read_document(&target_uri).await? else {
-                continue;
-            };
-            let Some(receipt) = self
-                .capture_workspace_symbol_analysis(&target_uri, &target_doc)
-                .await?
-            else {
-                continue;
-            };
-            let file_analysis = receipt.analysis();
-            if resolved.is_none() {
-                resolved = absolute
-                    .iter()
-                    .find(|cand| {
-                        file_analysis.all_procs.contains_key(*cand)
-                            || file_analysis.all_classes.contains_key(*cand)
-                    })
-                    .cloned();
-            }
-            analysed.push((target_uri, target_doc, receipt));
-        }
-        if analysed.is_empty() {
-            return Ok(resolved);
-        }
-
-        if !self
-            .publish_checked_library_analyses(&analysed, inputs_epoch, factory_generation)
-            .await?
-        {
+        let Some(analysed) = self.capture_and_publish_library_files(&files).await? else {
             return Ok(None);
-        }
-        Ok(resolved)
+        };
+        Ok(analysed.iter().find_map(|(_, _, receipt)| {
+            let file_analysis = receipt.analysis();
+            absolute
+                .iter()
+                .find(|cand| {
+                    file_analysis.all_procs.contains_key(*cand)
+                        || file_analysis.all_classes.contains_key(*cand)
+                })
+                .cloned()
+        }))
     }
 
     async fn library_publication_source(
@@ -26834,7 +26767,6 @@ impl Backend {
                     handle.set_package_provides(&mut *db).to(provides);
                     handle.set_bigip_version(&mut *db).to(bigip);
                     handle.set_targets(&mut *db).to(targets);
-                    trace_coarse_db_write("config.folder", &db);
                     next.push((folder.clone(), handle));
                 } else {
                     let handle = tcl_lsp_db::AnalyserConfig::new(
@@ -26896,7 +26828,6 @@ impl Backend {
         handle.set_targets(db).to(Vec::new());
         handle.set_bigip_version(db).to(None);
         handle.set_targets(db).to(Vec::new());
-        trace_coarse_db_write("config.folder_clear", &*db);
     }
 
     /// The feature toggles in effect for `uri` — the process-global set with
@@ -32381,6 +32312,308 @@ impl Backend {
     }
 }
 
+impl Backend {
+    async fn semantic_tokens_full_attempt(
+        &self,
+        uri: &Uri,
+    ) -> jsonrpc::Result<ControlFlow<jsonrpc::Result<Option<SemanticTokensResult>>>> {
+        let Some(doc) = self.read_document_for_semantic_tokens(uri).await? else {
+            return Ok(ControlFlow::Break(Ok(None)));
+        };
+        // `S-semantic-tokens-rich`: real classification, served from the
+        // memoised `semantic_tokens` query (packed integer stream, 5 ints per
+        // token `[deltaLine, deltaCol, length, type, modifiers]`).
+        let core = self.semantic_tokens_core_data(uri, &doc).await?;
+        if let Some(source) = core.coarse_source {
+            let mut wire = Some(LspSemanticTokens {
+                result_id: None,
+                data: lift_semantic_token_data(&core.data),
+            });
+            let mut data = Some(core.data);
+            return Ok(self
+                .coarse_semantic_source_transaction(&source, || {
+                    let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
+                        readonly_reference_reports::trace_coarse_source_check(
+                            "final.token_cache_lock",
+                            false,
+                        );
+                        return None;
+                    };
+                    readonly_reference_reports::trace_coarse_source_check(
+                        "final.token_cache_lock",
+                        true,
+                    );
+                    let data = data.take()?;
+                    let mut wire = wire.take()?;
+                    let result_id = next_semantic_tokens_id();
+                    wire.result_id = Some(result_id.clone());
+                    cache.insert(uri.clone(), (result_id, data));
+                    Some(Some(SemanticTokensResult::Tokens(wire)))
+                })
+                .await?
+                .into_coarse_token_attempt());
+        }
+        let core_data = core.data;
+        let result_id = next_semantic_tokens_id();
+        // Remember this stream so a later `full/delta` with this `resultId` can
+        // diff against it.
+        self.last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), (result_id.clone(), core_data.clone()));
+        Ok(ControlFlow::Break(Ok(Some(SemanticTokensResult::Tokens(
+            LspSemanticTokens {
+                result_id: Some(result_id),
+                data: lift_semantic_token_data(&core_data),
+            },
+        )))))
+    }
+    async fn semantic_tokens_full_delta_attempt(
+        &self,
+        uri: &Uri,
+        params: &SemanticTokensDeltaParams,
+    ) -> jsonrpc::Result<ControlFlow<jsonrpc::Result<Option<SemanticTokensFullDeltaResult>>>> {
+        let Some(doc) = self.read_document_for_semantic_tokens(uri).await? else {
+            return Ok(ControlFlow::Break(Ok(None)));
+        };
+        let core = self.semantic_tokens_core_data(uri, &doc).await?;
+        if let Some(source) = core.coarse_source {
+            // Pure lift/diff work stays outside the source publication lease.
+            // The same cache's unique issued id revalidates this baseline; a
+            // concurrent cache change simply selects the full-stream response.
+            let baseline = self
+                .last_semantic_tokens
+                .lock()
+                .await
+                .get(uri)
+                .filter(|(id, _)| *id == params.previous_result_id)
+                .cloned();
+            let mut edits = baseline.as_ref().map(|(_, old)| {
+                core_semantic_tokens::diff(old, &core.data)
+                    .map(|edit| SemanticTokensEdit {
+                        start: edit.start,
+                        delete_count: edit.delete_count,
+                        data: Some(lift_semantic_token_data(&edit.data)),
+                    })
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            });
+            let mut full = Some(lift_semantic_token_data(&core.data));
+            let mut data = Some(core.data);
+            return Ok(self
+                .coarse_semantic_source_transaction(&source, || {
+                    let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
+                        readonly_reference_reports::trace_coarse_source_check(
+                            "final.token_cache_lock",
+                            false,
+                        );
+                        return None;
+                    };
+                    readonly_reference_reports::trace_coarse_source_check(
+                        "final.token_cache_lock",
+                        true,
+                    );
+                    let data = data.take()?;
+                    let result_id = next_semantic_tokens_id();
+                    let baseline_current = baseline.as_ref().is_some_and(|(id, _)| {
+                        cache.get(uri).is_some_and(|(current, _)| current == id)
+                    });
+                    let wire = if baseline_current {
+                        SemanticTokensFullDeltaResult::TokensDelta(SemanticTokensDelta {
+                            result_id: Some(result_id.clone()),
+                            edits: edits.take()?,
+                        })
+                    } else {
+                        SemanticTokensFullDeltaResult::Tokens(LspSemanticTokens {
+                            result_id: Some(result_id.clone()),
+                            data: full.take()?,
+                        })
+                    };
+                    cache.insert(uri.clone(), (result_id, data));
+                    Some(Some(wire))
+                })
+                .await?
+                .into_coarse_token_attempt());
+        }
+        let new_data = core.data;
+        let result_id = next_semantic_tokens_id();
+        // Swap the cache to the freshly-served stream and grab the previous one
+        // *only if* its `resultId` matches the client's `previousResultId` — a
+        // stale / unknown id means we can't safely diff, so fall back to a full
+        // stream.  Doing the take-and-replace under one lock keeps concurrent
+        // requests for the same URI consistent.
+        let baseline = {
+            let mut cache = self.last_semantic_tokens.lock().await;
+            let prev = cache
+                .remove(uri)
+                .filter(|(id, _)| *id == params.previous_result_id);
+            cache.insert(uri.clone(), (result_id.clone(), new_data.clone()));
+            prev
+        };
+        if let Some((_, old_data)) = baseline {
+            // Matching baseline: answer with the minimal token-aligned edit
+            // (an empty edit list when nothing changed) rather than the whole
+            // stream — the incremental path every `full/delta`-capable editor
+            // benefits from.
+            let edits = semantic_token_delta_edits(&old_data, &new_data);
+            Ok(ControlFlow::Break(Ok(Some(
+                SemanticTokensFullDeltaResult::TokensDelta(SemanticTokensDelta {
+                    result_id: Some(result_id),
+                    edits,
+                }),
+            ))))
+        } else {
+            Ok(ControlFlow::Break(Ok(Some(
+                SemanticTokensFullDeltaResult::Tokens(LspSemanticTokens {
+                    result_id: Some(result_id),
+                    data: lift_semantic_token_data(&new_data),
+                }),
+            ))))
+        }
+    }
+}
+
+impl Backend {
+    async fn code_action_attempt(
+        &self,
+        uri: &Uri,
+        params: &CodeActionParams,
+    ) -> jsonrpc::Result<ControlFlow<Option<Vec<CodeActionOrCommand>>>> {
+        let Some(doc) = self.read_document(uri).await? else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let range = core_semantic_range(params.range);
+        // The dedicated BIG-IP adapter retains its existing routing. Ordinary
+        // source edits require an actual open, versioned document receipt.
+        let ControlFlow::Continue(source) = self
+            .code_action_source_for_range(uri, &doc, params.range)
+            .await?
+        else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let analysis = self
+            .analysis_for_code_action_source(uri, &doc, source.as_ref())
+            .await?;
+        // `S-code-actions-rich`: walks the analyser's
+        // diagnostics for fixes whose span overlaps the
+        // requested range, plus fuzzy `package require`
+        // suggestions for the word at the cursor.  Run on a worker.
+        let Some(registry) = analysis
+            .resolved_registry()
+            .map(|registry| registry.snapshot().shared_registry())
+        else {
+            return Ok(ControlFlow::Break(None));
+        };
+        // The resolved per-check disabled set — the same one the diagnostics
+        // path resolves for this document (folder overrides included) — so the
+        // compiler-checks code-action path does not re-surface a quick-fix for
+        // a diagnostic the user disabled.
+        let (disabled_codes, ..) = self.resolved_analysis_settings(uri).await;
+        // The analyser diagnostics this document actually publishes.  Code
+        // actions lift their quick-fixes from this set, never from the
+        // analyser's raw one, so a W123 the workspace refinements decided to
+        // suppress can never leave a "did you mean…?" rewrite behind
+        // when the diagnostic itself is gone. What the document *shows* of
+        // it is the policy step's decision, taken below with the compiler
+        // checks and the optimiser's rewrites in the same report.
+        let published = self
+            .code_action_published_diagnostics(uri, &doc, &analysis, &registry, &disabled_codes)
+            .await;
+        // Lift the request-context diagnostics (the editor sends the ones it
+        // currently shows) so context-driven quick-fixes — e.g. the iRules
+        // taint encode-wrap fixes — can act on them even when the analyser
+        // didn't re-emit them.
+        let context_diags = lift_context_diagnostics(&params.context.diagnostics);
+        let dialect = doc.dialect.clone();
+        let uri_str = uri.as_str().to_string();
+        // IRULE4002 generic-name patterns for the iRules-only compiler-checks
+        // code-action lowering below (uncached, off the salsa path).
+        let generic_patterns = self.generic_variable_patterns.lock().await.clone();
+        // The report the lightbulb reads is built the pull path's way
+        // (`published_findings`, `published_report`): the style line length
+        // and the XC switch feed the same producers, so a fix is decided
+        // against the exact set the document publishes.
+        let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules()
+            && self.xc_diagnostics_enabled(uri).await;
+        let policy_layers = self.resolved_policy_layers(uri).await;
+        let report_inputs = CodeActionReportInputs {
+            published,
+            registry: Arc::clone(&registry),
+            generic_patterns,
+            evidence: self.cross_file_evidence_for(uri).await,
+            layers: policy_layers,
+            style_line_length: self.resolved_style_line_length(uri).await,
+            xc_for_irules,
+        };
+        // The action builders compose their inserted text with plain `\n`;
+        // this is the line ending it is retargeted onto below, so a docstring
+        // / `package require` / `# noqa` / extracted `set` inserted into a
+        // CRLF or old-Mac document keeps that document's terminators.
+        let line_ending = self.resolved_edit_line_ending(uri, doc.raw()).await;
+        // The inline-proc refactor substitutes the reached proc's body, so
+        // it needs the same export view definition uses.
+        let exports = match &source {
+            Some(source) => source.exports(),
+            None => self.export_snapshot().await,
+        };
+        // `tclLsp.formatting.docstringStyle` — resolved the same way
+        // as every other folder-overridable formatting setting, then handed
+        // to the docstring source action so it actually governs where (or
+        // whether) a generated stub is inserted.
+        let docstring_style = self.resolved_docstring_style(uri).await;
+        let uri_key = uri.as_str().to_owned();
+        let mut actions = crate::rt::spawn_blocking(move || {
+            Self::build_document_code_actions(&CodeActionWorkerInputs {
+                uri_key: uri_key,
+                exports: &exports,
+                doc: &doc,
+                analysis: &analysis,
+                report_inputs: &report_inputs,
+                range,
+                docstring_style,
+                registry: &registry,
+                context_diags: &context_diags,
+                uri_str: uri_str,
+                dialect: &dialect,
+            })
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("code_action worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if actions.is_empty() {
+            return Ok(ControlFlow::Break(None));
+        }
+        core_code_actions::retarget_newlines(&mut actions, &line_ending);
+        let lifted = if let Some(source) = &source {
+            match self
+                .code_action_response_transaction(source, actions, params.context.only.as_ref())
+                .await?
+            {
+                readonly_reference_reports::ReadonlyTransaction::Published(lifted) => lifted,
+                readonly_reference_reports::ReadonlyTransaction::PublishRefused => {
+                    return Ok(ControlFlow::Break(None));
+                }
+                readonly_reference_reports::ReadonlyTransaction::CurrencyRefused => {
+                    return Ok(ControlFlow::Continue(()));
+                }
+            }
+        } else {
+            let mut lifted = lift_code_actions(actions, uri, params.context.only.as_ref());
+            for action in &mut lifted {
+                attach_source_action_data(action, serde_json::json!({"kind": "legacy-bigip"}));
+            }
+            lifted
+        };
+        if lifted.is_empty() {
+            return Ok(ControlFlow::Break(None));
+        }
+        Ok(ControlFlow::Break(Some(lifted)))
+    }
+}
+
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         // A document can be opened, and analysed, before the start-up pack
@@ -34468,54 +34701,11 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await? else {
-            return Ok(None);
-        };
-        // `S-semantic-tokens-rich`: real classification, served from the
-        // memoised `semantic_tokens` query (packed integer stream, 5 ints per
-        // token `[deltaLine, deltaCol, length, type, modifiers]`).
-        let core = self.semantic_tokens_core_data(&uri, &doc).await?;
-        if let Some(source) = core.coarse_source {
-            let mut wire = Some(LspSemanticTokens {
-                result_id: None,
-                data: lift_semantic_token_data(&core.data),
-            });
-            let mut data = Some(core.data);
-            return self
-                .with_current_coarse_semantic_source(&source, || {
-                    let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
-                        readonly_reference_reports::trace_coarse_source_check(
-                            "final.token_cache_lock",
-                            false,
-                        );
-                        return None;
-                    };
-                    readonly_reference_reports::trace_coarse_source_check(
-                        "final.token_cache_lock",
-                        true,
-                    );
-                    let data = data.take()?;
-                    let mut wire = wire.take()?;
-                    let result_id = next_semantic_tokens_id();
-                    wire.result_id = Some(result_id.clone());
-                    cache.insert(uri.clone(), (result_id, data));
-                    Some(Some(SemanticTokensResult::Tokens(wire)))
-                })
-                .await?
-                .ok_or_else(coarse_semantic_source_changed);
-        }
-        let core_data = core.data;
-        let result_id = next_semantic_tokens_id();
-        // Remember this stream so a later `full/delta` with this `resultId` can
-        // diff against it.
-        self.last_semantic_tokens
-            .lock()
-            .await
-            .insert(uri.clone(), (result_id.clone(), core_data.clone()));
-        Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
-            result_id: Some(result_id),
-            data: lift_semantic_token_data(&core_data),
-        })))
+        readonly_reference_reports::retry_readonly_attempt(
+            Err(coarse_semantic_source_changed()),
+            async || self.semantic_tokens_full_attempt(&uri).await,
+        )
+        .await?
     }
 
     async fn semantic_tokens_full_delta(
@@ -34529,103 +34719,11 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await? else {
-            return Ok(None);
-        };
-        let core = self.semantic_tokens_core_data(&uri, &doc).await?;
-        if let Some(source) = core.coarse_source {
-            // Pure lift/diff work stays outside the source publication lease.
-            // The same cache's unique issued id revalidates this baseline; a
-            // concurrent cache change simply selects the full-stream response.
-            let baseline = self
-                .last_semantic_tokens
-                .lock()
-                .await
-                .get(&uri)
-                .filter(|(id, _)| *id == params.previous_result_id)
-                .cloned();
-            let mut edits = baseline.as_ref().map(|(_, old)| {
-                core_semantic_tokens::diff(old, &core.data)
-                    .map(|edit| SemanticTokensEdit {
-                        start: edit.start,
-                        delete_count: edit.delete_count,
-                        data: Some(lift_semantic_token_data(&edit.data)),
-                    })
-                    .into_iter()
-                    .collect::<Vec<_>>()
-            });
-            let mut full = Some(lift_semantic_token_data(&core.data));
-            let mut data = Some(core.data);
-            return self
-                .with_current_coarse_semantic_source(&source, || {
-                    let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
-                        readonly_reference_reports::trace_coarse_source_check(
-                            "final.token_cache_lock",
-                            false,
-                        );
-                        return None;
-                    };
-                    readonly_reference_reports::trace_coarse_source_check(
-                        "final.token_cache_lock",
-                        true,
-                    );
-                    let data = data.take()?;
-                    let result_id = next_semantic_tokens_id();
-                    let baseline_current = baseline.as_ref().is_some_and(|(id, _)| {
-                        cache.get(&uri).is_some_and(|(current, _)| current == id)
-                    });
-                    let wire = if baseline_current {
-                        SemanticTokensFullDeltaResult::TokensDelta(SemanticTokensDelta {
-                            result_id: Some(result_id.clone()),
-                            edits: edits.take()?,
-                        })
-                    } else {
-                        SemanticTokensFullDeltaResult::Tokens(LspSemanticTokens {
-                            result_id: Some(result_id.clone()),
-                            data: full.take()?,
-                        })
-                    };
-                    cache.insert(uri.clone(), (result_id, data));
-                    Some(Some(wire))
-                })
-                .await?
-                .ok_or_else(coarse_semantic_source_changed);
-        }
-        let new_data = core.data;
-        let result_id = next_semantic_tokens_id();
-        // Swap the cache to the freshly-served stream and grab the previous one
-        // *only if* its `resultId` matches the client's `previousResultId` — a
-        // stale / unknown id means we can't safely diff, so fall back to a full
-        // stream.  Doing the take-and-replace under one lock keeps concurrent
-        // requests for the same URI consistent.
-        let baseline = {
-            let mut cache = self.last_semantic_tokens.lock().await;
-            let prev = cache
-                .remove(&uri)
-                .filter(|(id, _)| *id == params.previous_result_id);
-            cache.insert(uri.clone(), (result_id.clone(), new_data.clone()));
-            prev
-        };
-        if let Some((_, old_data)) = baseline {
-            // Matching baseline: answer with the minimal token-aligned edit
-            // (an empty edit list when nothing changed) rather than the whole
-            // stream — the incremental path every `full/delta`-capable editor
-            // benefits from.
-            let edits = semantic_token_delta_edits(&old_data, &new_data);
-            Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
-                SemanticTokensDelta {
-                    result_id: Some(result_id),
-                    edits,
-                },
-            )))
-        } else {
-            Ok(Some(SemanticTokensFullDeltaResult::Tokens(
-                LspSemanticTokens {
-                    result_id: Some(result_id),
-                    data: lift_semantic_token_data(&new_data),
-                },
-            )))
-        }
+        readonly_reference_reports::retry_readonly_attempt(
+            Err(coarse_semantic_source_changed()),
+            async || self.semantic_tokens_full_delta_attempt(&uri, &params).await,
+        )
+        .await?
     }
 
     async fn semantic_tokens_range(
@@ -35267,133 +35365,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await? else {
-            return Ok(None);
-        };
-        let range = core_semantic_range(params.range);
-        // The dedicated BIG-IP adapter retains its existing routing. Ordinary
-        // source edits require an actual open, versioned document receipt.
-        let ControlFlow::Continue(source) = self
-            .code_action_source_for_range(&uri, &doc, params.range)
-            .await?
-        else {
-            return Ok(None);
-        };
-        let analysis = self
-            .analysis_for_code_action_source(&uri, &doc, source.as_ref())
-            .await?;
-        // `S-code-actions-rich`: walks the analyser's
-        // diagnostics for fixes whose span overlaps the
-        // requested range, plus fuzzy `package require`
-        // suggestions for the word at the cursor.  Run on a worker.
-        let Some(registry) = analysis
-            .resolved_registry()
-            .map(|registry| registry.snapshot().shared_registry())
-        else {
-            return Ok(None);
-        };
-        // The resolved per-check disabled set — the same one the diagnostics
-        // path resolves for this document (folder overrides included) — so the
-        // compiler-checks code-action path does not re-surface a quick-fix for
-        // a diagnostic the user disabled.
-        let (disabled_codes, ..) = self.resolved_analysis_settings(&uri).await;
-        // The analyser diagnostics this document actually publishes.  Code
-        // actions lift their quick-fixes from this set, never from the
-        // analyser's raw one, so a W123 the workspace refinements decided to
-        // suppress can never leave a "did you mean…?" rewrite behind
-        // when the diagnostic itself is gone. What the document *shows* of
-        // it is the policy step's decision, taken below with the compiler
-        // checks and the optimiser's rewrites in the same report.
-        let published = self
-            .code_action_published_diagnostics(&uri, &doc, &analysis, &registry, &disabled_codes)
-            .await;
-        // Lift the request-context diagnostics (the editor sends the ones it
-        // currently shows) so context-driven quick-fixes — e.g. the iRules
-        // taint encode-wrap fixes — can act on them even when the analyser
-        // didn't re-emit them.
-        let context_diags = lift_context_diagnostics(&params.context.diagnostics);
-        let dialect = doc.dialect.clone();
-        let uri_str = uri.as_str().to_string();
-        // IRULE4002 generic-name patterns for the iRules-only compiler-checks
-        // code-action lowering below (uncached, off the salsa path).
-        let generic_patterns = self.generic_variable_patterns.lock().await.clone();
-        // The report the lightbulb reads is built the pull path's way
-        // (`published_findings`, `published_report`): the style line length
-        // and the XC switch feed the same producers, so a fix is decided
-        // against the exact set the document publishes.
-        let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules()
-            && self.xc_diagnostics_enabled(&uri).await;
-        let policy_layers = self.resolved_policy_layers(&uri).await;
-        let report_inputs = CodeActionReportInputs {
-            published,
-            registry: Arc::clone(&registry),
-            generic_patterns,
-            evidence: self.cross_file_evidence_for(&uri).await,
-            layers: policy_layers,
-            style_line_length: self.resolved_style_line_length(&uri).await,
-            xc_for_irules,
-        };
-        // The action builders compose their inserted text with plain `\n`;
-        // this is the line ending it is retargeted onto below, so a docstring
-        // / `package require` / `# noqa` / extracted `set` inserted into a
-        // CRLF or old-Mac document keeps that document's terminators.
-        let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
-        // The inline-proc refactor substitutes the reached proc's body, so
-        // it needs the same export view definition uses.
-        let exports = match &source {
-            Some(source) => source.exports(),
-            None => self.export_snapshot().await,
-        };
-        // `tclLsp.formatting.docstringStyle` — resolved the same way
-        // as every other folder-overridable formatting setting, then handed
-        // to the docstring source action so it actually governs where (or
-        // whether) a generated stub is inserted.
-        let docstring_style = self.resolved_docstring_style(&uri).await;
-        let uri_key = uri.as_str().to_owned();
-        let mut actions = crate::rt::spawn_blocking(move || {
-            Self::build_document_code_actions(&CodeActionWorkerInputs {
-                uri_key: &uri_key,
-                exports: &exports,
-                doc: &doc,
-                analysis: &analysis,
-                report_inputs: &report_inputs,
-                range,
-                docstring_style,
-                registry: &registry,
-                context_diags: &context_diags,
-                uri_str: &uri_str,
-                dialect: &dialect,
-            })
+        readonly_reference_reports::retry_readonly_attempt(None, async || {
+            self.code_action_attempt(&uri, &params).await
         })
         .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("code_action worker panicked: {err}").into(),
-            data: None,
-        })?;
-        if actions.is_empty() {
-            return Ok(None);
-        }
-        core_code_actions::retarget_newlines(&mut actions, &line_ending);
-        let lifted = if let Some(source) = &source {
-            let Some(lifted) = self
-                .finish_code_action_response(source, actions, params.context.only.as_ref())
-                .await?
-            else {
-                return Ok(None);
-            };
-            lifted
-        } else {
-            let mut lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
-            for action in &mut lifted {
-                attach_source_action_data(action, serde_json::json!({"kind": "legacy-bigip"}));
-            }
-            lifted
-        };
-        if lifted.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(lifted))
     }
 
     async fn execute_command(

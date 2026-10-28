@@ -1,15 +1,21 @@
 # Outstanding work: vm-runtime agent
 
-## Resume — 2026-10-27 resume (vm-runtime)
+## Resume — round 2 (2026-10-28, vm-runtime)
 
-Snapshot only; history below is unchanged. Disk fell to 1.8 GB at the end of this pass, so the last runtime fix is UNBUILT.
+Snapshot only; history below is unchanged. All cargo goes through the safe-cargo wrapper.
 
-- **iRules 69B: root cause reproduced locally on WORK (executed).** Under the iRules simulation (C9 physical point, authored C8.4 name policy), compiling any *nested* bracket child inside a natively emitted command word refuses at `rust/tcl-compiler/src/codegen/statements.rs:2659` (`schedule_native_command` → `native_byte_command_plan` → `compiler_dialect` fails at `entry.name_policy_point`, because an authored policy never equals `NamePolicyProtocol::for_native_point(point)`). The result is `native_dependency_refusal` → `ProviderRequired` → `CompilationAdmission(NativePreflightRequired)`. The minimal reproduction is the top-level `set y [llength [info commands ::nope]]`, with no expression and no procedure involved. The same refusal hits the 69B expression command term (`scf_loader`), bootstrap `orch::reset` (`variable _assert_failures [list]` inside a 775B body) and pure_functions `reset` (39B). The fix is in compiler-codegen ownership (native bracket-child scheduling under authored logical naming) and needs a design decision. No VM-only custody can discharge it without a Native bypass. Probe: `scratchpad/packets/vm-irules-bracket-child-repro-v1/`.
-- **Third cause3 test** `tmm_word_boolean_operators…` is a distinct failure: `Eval("cannot continue bytecode after native invocation policy changed")` (`tcl-vm/src/exec.rs:801` / `interp.rs:30975`). It is untriaged.
-- **runtime/rust (WORK, executed before the fix):** 2272 PASS / 132 FAIL of the full lib (`--features engine`). The seven root-routed tests are absent on origin/rust ed694de4, so none is a PASS→FAIL against the baseline. Of these, all three control_expression tests have root cause C84 `TCL_LONG84_TYPE`, which `bignum::read_with_syntax`/`is_nan_operand` do not recognise. In addition, `expr::float_result` read-and-cached the result (stringifying 8.4 results and shimmering 8.5 folded literals). The fix is applied in `runtime/rust/src/bignum.rs` + `expr.rs` (new `bignum::result_double`, non-caching). It is UNBUILT and UNRUN.
-- **Jim inventory 3 + ensemble-holder 1:** these belong to a larger Jim namespace-helper cluster (~40 failing tests). The holder test shows `invalid command name "namespace delete"` where Jim 0.84 shows the `ensemble` usage error. The inventory tests leave the pattern with its probe type after the helper (Jim converts it to `string` through `string first` → `Jim_Utf8Length`), and the vars helper never reaches the pattern getter. Root cause is still open.
-- **SpecTcl C.1–C.2:** source inventory only; nothing was executed this pass (disk). `make test-spectcl-compat` is UNRUN.
-- Namespace121 is still unanswered: not implemented, not assumed.
+- **runtime/rust LONG84 fix (executed):** the full lib went from 2272 PASS / 132 FAIL to 2275 / 129, with no newly failing test. Newly passing: `compiled_expression_storage_matches_40_original_native_windows`, `folded_logical_literal_ownership_matches_eight_native_collisions` and `expr::tests::c84_reached_expression_matches_seven_original_cache_controls`. `c84_logical_storage_and_short_circuit_match_eight_native_controls` now passes rows 0–4 and fails at 8.4.20/5 (`expr {$x && (0x10+010)}`) with ScalarNumericInputUnavailable. The first refusal is `report_expr_error` from `execute_body_expression`. That row was masked by row 0 before the fix; still open.
+- **SpecTcl parity packet (applied):**
+  - Command- and subcommand-level `completion {CODE …}` (loader, row vocabulary, authoring property). The studio GAPS entry is now `DraftOpaque`, and spec-packs.md is updated.
+  - `proc::state_transitions.resolver` binds the shipped `DEFINES_PROCEDURE` resolver in `STATE_TRANSITION_RESOLVER_NATIVE`, with a catalogue label.
+  - The Jim `proc` pack declares `completion {Ok Error}` and the full DEFINES_PROCEDURE `state_transitions` block.
+  - Results: jim_own_surface 11/11, jim_core_metadata_identity 1/1. jim_document is 29 PASS / 6 FAIL, and the three target tests still FAIL on pre-existing compiler-names causes (W307 `$s`, W210 statics, missing W123 in a statics body).
+- **iRules (executed, after the compiler-codegen bracket route):**
+  - `pure_functions` now PASSES after the `cmd_dict.rs` fix (the selected name policy, including the authored simulation, formats diagnostics).
+  - The harness and scf_loader tests are refused in `authored_package::namespace_member_in_original` → `OriginalAuthoredOperandScope::list`. The members list carries a different sealed compound string protocol (`Value::seal_compound_string_protocol`) from the authored C8.4 materialisation. This host/logical object-boundary question needs a design decision.
+  - The tmm word-boolean test is unchanged; its stale-policy source is not yet located.
+- Jim namespace-helper cluster (~40 runtime tests, including holder/inventory) is queued. The lead is the namespace-aware `info commands` helper relay (`native_jim_lookup.rs`).
+- `make test-spectcl-compat` is UNRUN: disk was 3.5 GB, under the 4 GB rule.
 
 Last updated: 2026-10-27T09:44:54Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.

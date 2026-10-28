@@ -2474,25 +2474,6 @@ impl Backend {
             .await
     }
 
-    async fn trace_unknown_source_view_edge(
-        &self,
-        parent: &PublishedOriginalSourceView,
-        edge: &tcl_lsp_core::workspace_index::WorkspaceSource,
-    ) {
-        let frontier = match edge.original_source_frontier.as_deref() {
-            None => "none",
-            Some(SourceFrontier::CurrentCut(_)) => "current-cut-mismatch",
-            Some(SourceFrontier::ConditionalAssociation(_)) => "association-mismatch",
-            Some(SourceFrontier::Unknown) => "unknown",
-        };
-        let detail = format!(
-            "frontier={frontier} load={}",
-            edge.original_project_source_load.is_some()
-        );
-        self.trace_host_navigation(&parent.draft.physical.uri, "frontier.unknown-edge", &detail)
-            .await;
-    }
-
     async fn original_source_view_frontier_step(
         &self,
         parent: &Arc<PublishedOriginalSourceView>,
@@ -2502,12 +2483,6 @@ impl Backend {
             .original_source_view_edges(Arc::clone(parent), &state.unknown)
             .await?
         else {
-            self.trace_host_navigation(
-                &parent.draft.physical.uri,
-                "frontier.edges-unavailable",
-                "",
-            )
-            .await;
             return Ok(OriginalSourceViewFrontierStep::Pending);
         };
         state.unknown.retain(|debt| {
@@ -2575,7 +2550,6 @@ impl Backend {
                     state.conditional_obligations = true;
                 }
                 _ => {
-                    self.trace_unknown_source_view_edge(parent, edge).await;
                     unknown = true;
                     let debt = OriginalSourceViewDebt {
                         owner: Arc::clone(parent),
@@ -2620,8 +2594,6 @@ impl Backend {
             OriginalSourceViewFrontierStep::Cut(edge) => edge,
         };
         let Some(child) = self.source_view_child(&parent, &edge).await? else {
-            self.trace_host_navigation(&parent.draft.physical.uri, "visit.child-unavailable", "")
-                .await;
             return Ok(false);
         };
         let Some(SourceFrontier::CurrentCut(cut)) = edge.original_source_frontier.as_deref() else {
@@ -3292,8 +3264,6 @@ impl Backend {
 impl Backend {
     async fn trace_host_navigation_stage(&self, stage: &str) {
         if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-            #[cfg(test)]
-            eprintln!("HOST_NAV_STAGE uri=* stage={stage}");
             self.client
                 .log_message(
                     tower_lsp_server::ls_types::MessageType::LOG,
@@ -3305,8 +3275,6 @@ impl Backend {
 
     pub(crate) async fn trace_host_navigation(&self, uri: &Uri, stage: &str, detail: &str) {
         if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-            #[cfg(test)]
-            eprintln!("HOST_NAV_STAGE uri={} stage={stage} {detail}", uri.as_str());
             self.client
                 .log_message(
                     tower_lsp_server::ls_types::MessageType::LOG,

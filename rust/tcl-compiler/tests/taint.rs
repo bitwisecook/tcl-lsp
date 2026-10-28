@@ -94,15 +94,6 @@ const IR: &str = "f5-irules";
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
 /// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
-    // ZZ-COMPILER-ROLE-TEMPORARY-CLASSIFICATION
-    match std::env::var("ZZ_TAINT_MODE").as_deref() {
-        Ok("dialect") if !dialect.is_empty() => return dialect_warns(src, dialect),
-        Ok("dialect_fd") if !dialect.is_empty() && src.contains("$fd") && !src.contains("set fd") => {
-            return dialect_warns(&format!("set fd stdin\n{src}"), dialect);
-        }
-        Ok("dialect_fd") if !dialect.is_empty() => return dialect_warns(src, dialect),
-        _ => {}
-    }
     let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let dialect_opt = (!dialect.is_empty())
@@ -116,6 +107,51 @@ fn dialect_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     let cu = CompilationUnit::build_for_dialect(src, registry, false, dialect);
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     find_taint_warnings_for_cu(&cu, registry, Some(profile))
+}
+
+/// [`dialect_warns`] where an undefined `$fd` gets a defined channel first.
+fn channel_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    if src.contains("$fd") && !src.contains("set fd") {
+        dialect_warns(&format!("set fd stdin\n{src}"), dialect)
+    } else {
+        dialect_warns(src, dialect)
+    }
+}
+
+/// [`codes`] for a unit built with the profile's invocation dialect.
+fn dialect_codes(src: &str, dialect: &str) -> Vec<String> {
+    let mut out: Vec<String> = dialect_warns(src, dialect)
+        .iter()
+        .map(|w| w.code.to_string())
+        .collect();
+    out.sort();
+    out
+}
+
+/// [`codes`] through [`channel_warns`].
+fn channel_codes(src: &str, dialect: &str) -> Vec<String> {
+    let mut out: Vec<String> = channel_warns(src, dialect)
+        .iter()
+        .map(|w| w.code.to_string())
+        .collect();
+    out.sort();
+    out
+}
+
+/// [`of_code`] for a unit built with the profile's invocation dialect.
+fn dialect_of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
+    dialect_warns(src, dialect)
+        .into_iter()
+        .filter(|w| w.code.to_string() == code)
+        .collect()
+}
+
+/// [`of_code`] through [`channel_warns`].
+fn channel_of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
+    channel_warns(src, dialect)
+        .into_iter()
+        .filter(|w| w.code.to_string() == code)
+        .collect()
 }
 
 /// Sorted list of diagnostic codes from the taint pass.
@@ -379,9 +415,10 @@ mod no_false_positives {
 
     #[test]
     fn safe_eval() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // `eval $x` where x is a literal string — no taint reaches the sink.
         assert_eq!(
-            codes("set x \"puts hello\"\neval $x", D),
+            dialect_codes("set x \"puts hello\"\neval $x", D),
             Vec::<String>::new()
         );
     }
@@ -434,7 +471,8 @@ mod tcl_taint_sources {
 
     #[test]
     fn constant_variable_command_head_reaches_sink_at_the_use_site() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "set command eval\nset line [gets stdin]\n$command $line",
             D,
             "T100",
@@ -1632,19 +1670,21 @@ mod taint_propagation {
 
     #[test]
     fn sanitiser_blocks_taint() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `string length $x` returns an int (`11` for an 11-char value) —
         // a fixed numeric return cannot carry taint, so the result is clean.
         assert_eq!(
-            codes("set x [read $fd]\nset n [string length $x]\nexpr $n", D),
+            channel_codes("set x [read $fd]\nset n [string length $x]\nexpr $n", D),
             Vec::<String>::new()
         );
     }
 
     #[test]
     fn llength_sanitises() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `llength` returns an int (element count) — sanitises taint.
         assert_eq!(
-            codes("set x [read $fd]\nset n [llength $x]\nexpr $n", D),
+            channel_codes("set x [read $fd]\nset n [llength $x]\nexpr $n", D),
             Vec::<String>::new()
         );
     }
@@ -1759,6 +1799,7 @@ mod dangerous_sinks {
 
     #[test]
     fn coroprobe_command_prefix_sink() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `coroprobe coroName command ?arg ...?` evaluates `command` in a
         // suspended coroutine's frame right now — it carries
         // `Traits::EVALUATES_CODE` but (unlike `eval`/`exec`/`uplevel`) not
@@ -1767,7 +1808,7 @@ mod dangerous_sinks {
         // than silently losing it now that sink classification is
         // registry-driven instead of hardcoded per-trait checks in the
         // compiler.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set cmd [read $fd]\ncoroprobe myCoro $cmd",
             "tcl9.0",
             "T100",
@@ -1777,7 +1818,8 @@ mod dangerous_sinks {
 
     #[test]
     fn coroinject_command_prefix_sink() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set cmd [read $fd]\ncoroinject myCoro $cmd",
             "tcl9.0",
             "T100",
@@ -1839,8 +1881,9 @@ mod output_sinks {
 
     #[test]
     fn puts_sanitised_clean() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         assert!(
-            of_code(
+            channel_of_code(
                 "set x [read $fd]\nset n [string length $x]\nputs $n",
                 D,
                 "T101",
@@ -1895,9 +1938,10 @@ mod output_sinks {
 
     #[test]
     fn puts_tainted_output_alongside_tainted_chan() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // Control: when BOTH channel and content are tainted, only the content
         // word flags T101.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set chan [read $fd]\nset msg [read $fd]\nputs -nonewline $chan $msg",
             D,
             "T101",
@@ -1908,7 +1952,8 @@ mod output_sinks {
 
     #[test]
     fn puts_interpolation_propagates() {
-        let ws = of_code("set x [read $fd]\nputs \"data: $x\"", D, "T101");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nputs \"data: $x\"", D, "T101");
         assert!(!ws.is_empty());
     }
 
@@ -1926,13 +1971,14 @@ mod output_sinks {
 
     #[test]
     fn puts_via_interp_alias_still_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `interp alias {} myputs {} puts` makes `myputs` a genuine
         // current-interpreter alias for the real `puts` builtin. The sink
         // classification must resolve the call through the lowerer's
         // `canonical_command` (populated for a resolved alias) rather than
         // the literal source spelling `"myputs"`, which isn't itself a
         // registered command and would otherwise silently miss the sink.
-        let ws = of_code(
+        let ws = channel_of_code(
             "interp alias {} myputs {} puts\nset x [read $fd]\nmyputs $x",
             D,
             "T101",
@@ -1968,10 +2014,11 @@ mod output_sinks {
 
     #[test]
     fn puts_inside_namespace_eval_body_still_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `namespace eval` registers its block as a synthetic body unit
         // (`Module::body_units`) — a fresh-frame body outside any proc —
         // which must be covered by the same sink check as the top level.
-        let ws = of_code(
+        let ws = channel_of_code(
             "namespace eval ::myns {\n\
              set x [read $fd]\n\
              puts $x\n\
@@ -2000,7 +2047,8 @@ mod option_injection {
 
     #[test]
     fn regexp_tainted_without_terminator() {
-        let ws = of_code("set x [read $fd]\nregexp $x test", D, "T102");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nregexp $x test", D, "T102");
         assert!(!ws.is_empty());
         assert!(ws[0].sink_command.contains("regexp"));
     }
@@ -2013,7 +2061,8 @@ mod option_injection {
 
     #[test]
     fn glob_tainted_without_terminator() {
-        let ws = of_code("set x [read $fd]\nglob $x", D, "T102");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nglob $x", D, "T102");
         assert!(!ws.is_empty());
     }
 
@@ -2078,9 +2127,10 @@ mod option_injection {
 
     #[test]
     fn regexp_tainted_pattern_still_warns() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // A tainted *pattern* (leading substitution, could expand to `-x`)
         // remains a T102 candidate even when a later positional is literal.
-        let ws = of_code("set x [read $fd]\nregexp $x hello", D, "T102");
+        let ws = channel_of_code("set x [read $fd]\nregexp $x hello", D, "T102");
         assert_eq!(ws.len(), 1);
         assert_eq!(ws[0].variable, "x");
         assert!(ws[0].sink_command.contains("regexp"));
@@ -2101,8 +2151,9 @@ mod irules_output_sinks {
 
     #[test]
     fn http_respond_tainted_body() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set data [HTTP::payload]\nHTTP::respond 200 content $data",
             IR,
             "IRULE3001",
@@ -2118,8 +2169,9 @@ mod irules_output_sinks {
 
     #[test]
     fn http_header_insert_tainted() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set val [HTTP::header Host]\nHTTP::header insert X-Foo $val",
             IR,
             "IRULE3002",
@@ -2136,8 +2188,9 @@ mod irules_output_sinks {
 
     #[test]
     fn http_cookie_insert_tainted() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "set val [HTTP::cookie value session]\nHTTP::cookie insert name \"track\" value $val",
             IR,
             "IRULE3002",
@@ -2166,8 +2219,9 @@ mod log_injection {
 
     #[test]
     fn log_tainted_data() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // f5-dialect.
-        let ws = of_code("set x [HTTP::uri]\nlog local0. $x", IR, "IRULE3003");
+        let ws = dialect_of_code("set x [HTTP::uri]\nlog local0. $x", IR, "IRULE3003");
         assert!(!ws.is_empty());
         assert!(ws[0].sink_command.contains("log"));
     }
@@ -2286,7 +2340,8 @@ mod t102_suppression {
 
     #[test]
     fn generic_taint_still_warns() {
-        let ws = of_code("set x [read $fd]\nregexp $x test", D, "T102");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nregexp $x test", D, "T102");
         assert!(!ws.is_empty());
     }
 
@@ -2516,7 +2571,8 @@ mod crlf_free {
 
     #[test]
     fn generic_taint_irule3003_still_warns() {
-        let ws = of_code("set raw [HTTP::query]\nlog local0. $raw", IR, "IRULE3003");
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code("set raw [HTTP::query]\nlog local0. $raw", IR, "IRULE3003");
         assert!(!ws.is_empty());
     }
 
@@ -2809,7 +2865,8 @@ mod html_escaped {
 
     #[test]
     fn generic_taint_irule3001_fires() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "set raw [HTTP::query]\nHTTP::respond 200 content $raw",
             IR,
             "IRULE3001",
@@ -2819,7 +2876,8 @@ mod html_escaped {
 
     #[test]
     fn interpolation_invalidates_html_escaped() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "set raw [HTTP::query]\nset safe [HTML::encode $raw]\nset broken \"<b>${safe}</b>\"\nHTTP::respond 200 content $broken",
             IR,
             "IRULE3001",
@@ -2985,7 +3043,8 @@ mod header_token_safe {
 
     #[test]
     fn generic_taint_in_header_value_warns() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "set val [HTTP::header Host]\nHTTP::header insert X-Fwd $val",
             IR,
             "IRULE3002",
@@ -3021,7 +3080,8 @@ mod source_colour_augmentation {
 
     #[test]
     fn generic_taint_no_augmentation() {
-        let ws = of_code("set raw [read $fd]\nregexp $raw test", D, "T102");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set raw [read $fd]\nregexp $raw test", D, "T102");
         assert!(!ws.is_empty());
     }
 }
@@ -3192,8 +3252,9 @@ mod interpolation_colour_invalidation {
 
     #[test]
     fn html_escaped_stripped() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         let source = "set raw [HTTP::query]\nset safe [HTML::encode $raw]\nset broken \"<b>$safe</b>\"\nHTTP::respond 200 content $broken";
-        assert!(!of_code(source, IR, "IRULE3001").is_empty());
+        assert!(!dialect_of_code(source, IR, "IRULE3001").is_empty());
     }
 
     #[test]
@@ -3230,8 +3291,9 @@ mod transform_colour_edge_cases {
 
     #[test]
     fn list_with_literal_untainted() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // [list hello] is untainted → eval is clean.
-        assert!(of_code("set x [list hello]\neval $x", D, "T100").is_empty());
+        assert!(dialect_of_code("set x [list hello]\neval $x", D, "T100").is_empty());
     }
 
     #[test]
@@ -3248,8 +3310,9 @@ mod transform_colour_edge_cases {
 
     #[test]
     fn file_normalize_with_untainted_no_colour() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         assert!(
-            of_code(
+            dialect_of_code(
                 "set norm [file normalize \"/tmp/foo\"]\neval $norm",
                 D,
                 "T100"
@@ -3266,10 +3329,11 @@ mod sink_suppression_matrix {
 
     #[test]
     fn irule3001_not_suppressed_by_crlf_free() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // URL_ENCODED/CRLF_FREE does NOT suppress IRULE3001 (XSS).
         let source =
             "set raw [HTTP::query]\nset enc [URI::encode $raw]\nHTTP::respond 200 content $enc";
-        assert!(!of_code(source, IR, "IRULE3001").is_empty());
+        assert!(!dialect_of_code(source, IR, "IRULE3001").is_empty());
     }
 
     #[test]
@@ -3378,9 +3442,10 @@ mod t100_sink_suppression {
 
     #[test]
     fn eval_with_literal_list_tainted_head_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `eval [list $raw]` → $raw becomes the cmd word → T100 fires.
         let source = "set raw [read $fd]\neval [list $raw]";
-        let ws = of_code(source, D, "T100");
+        let ws = channel_of_code(source, D, "T100");
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
@@ -3393,9 +3458,10 @@ mod t100_sink_suppression {
 
     #[test]
     fn subst_not_suppressed_by_shell_atom() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // subst is never suppressed by SHELL_ATOM.
         let source = "set addr [IP::client_addr]\nsubst $addr";
-        assert!(!of_code(source, IR, "T100").is_empty());
+        assert!(!dialect_of_code(source, IR, "T100").is_empty());
     }
 
     #[test]
@@ -3424,14 +3490,16 @@ mod t103_regexp_pattern_injection {
 
     #[test]
     fn tainted_regexp_pattern_fires() {
-        let ws = of_code("set pat [read $fd]\nregexp $pat teststring", D, "T103");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set pat [read $fd]\nregexp $pat teststring", D, "T103");
         assert!(!ws.is_empty());
         assert_eq!(ws[0].code.to_string(), "T103");
     }
 
     #[test]
     fn tainted_regsub_pattern_fires() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set pat [read $fd]\nregsub $pat teststring replacement",
             D,
             "T103",
@@ -3441,7 +3509,8 @@ mod t103_regexp_pattern_injection {
 
     #[test]
     fn tainted_regexp_with_options_fires() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set pat [read $fd]\nregexp -nocase -- $pat teststring",
             D,
             "T103",
@@ -3476,7 +3545,8 @@ mod t103_regexp_pattern_injection {
 
     #[test]
     fn tainted_regsub_with_options_fires() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set pat [read $fd]\nregsub -all -nocase -- $pat teststring replacement",
             D,
             "T103",
@@ -3486,7 +3556,8 @@ mod t103_regexp_pattern_injection {
 
     #[test]
     fn t103_message_format() {
-        let ws = of_code("set pat [read $fd]\nregexp $pat teststring", D, "T103");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set pat [read $fd]\nregexp $pat teststring", D, "T103");
         assert!(!ws.is_empty());
         assert!(ws[0].message.contains("pat"));
         assert!(ws[0].message.contains("regexp") || ws[0].message.to_lowercase().contains("regex"));
@@ -3524,7 +3595,8 @@ mod irule3004_open_redirect {
 
     #[test]
     fn tainted_redirect_fires() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "set dest [HTTP::query]\nHTTP::redirect $dest",
             IR,
             "IRULE3004",
@@ -3535,7 +3607,8 @@ mod irule3004_open_redirect {
 
     #[test]
     fn tainted_header_redirect_fires() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "set url [HTTP::header value Redirect-To]\nHTTP::redirect $url",
             IR,
             "IRULE3004",
@@ -3557,9 +3630,10 @@ mod irule3004_open_redirect {
 
     #[test]
     fn html_escaped_does_not_suppress_irule3004() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // HTML_ESCAPED is the wrong encoding for a redirect target.
         let source = "set raw [HTTP::query]\nset safe [HTML::encode $raw]\nHTTP::redirect $safe";
-        assert!(!of_code(source, IR, "IRULE3004").is_empty());
+        assert!(!dialect_of_code(source, IR, "IRULE3004").is_empty());
     }
 
     #[test]
@@ -3581,7 +3655,8 @@ mod irule3004_open_redirect {
 
     #[test]
     fn message_format() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "set url [HTTP::query]\nHTTP::redirect $url",
             IR,
             "IRULE3004",
@@ -3779,9 +3854,10 @@ mod t105_interp_eval_sinks {
 
     #[test]
     fn interp_eval_literal_list_known_head_suppressed() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: literal `[list puts $x]` → puts is the cmd word, $x the arg.
         let source = "set x [read $fd]\ninterp eval $child [list puts $x]";
-        assert!(of_code(source, D, "T105").is_empty());
+        assert!(channel_of_code(source, D, "T105").is_empty());
     }
 
     #[test]
@@ -3905,7 +3981,8 @@ mod irule3103_expr_operators {
 
     #[test]
     fn starts_with_path_pattern() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "if { [HTTP::uri] starts_with \"/api\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -3928,7 +4005,8 @@ mod irule3103_expr_operators {
 
     #[test]
     fn ends_with_extension() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "if { [HTTP::uri] ends_with \".html\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -3939,7 +4017,8 @@ mod irule3103_expr_operators {
 
     #[test]
     fn contains_query_param() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "if { [HTTP::uri] contains \"&key=\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -3950,7 +4029,8 @@ mod irule3103_expr_operators {
 
     #[test]
     fn contains_equals_query() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "if { [HTTP::uri] contains \"user=test\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -3961,7 +4041,8 @@ mod irule3103_expr_operators {
 
     #[test]
     fn matches_glob_path() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "if { [HTTP::uri] matches_glob \"/api/*\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -3972,7 +4053,8 @@ mod irule3103_expr_operators {
 
     #[test]
     fn matches_glob_query() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "if { [HTTP::uri] matches_glob \"*&key=*\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -4117,7 +4199,8 @@ mod irule3103_edge_cases {
 
     #[test]
     fn glob_question_path_with_wildcard() {
-        let ws = of_code(
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code(
             "if { [HTTP::uri] matches_glob \"/api/?\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -4128,9 +4211,10 @@ mod irule3103_edge_cases {
 
     #[test]
     fn regex_question_is_quantifier_not_query() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // regex `?` is a quantifier; `/api/v[0-9]+/?` is path-like. Braced,
         // because in quotes the `[0-9]` is a command substitution (#2227).
-        let ws = of_code(
+        let ws = dialect_of_code(
             "if { [HTTP::uri] matches_regex {^/api/v[0-9]+/?$} } { log local0. x }",
             IR,
             "IRULE3103",
@@ -4141,8 +4225,9 @@ mod irule3103_edge_cases {
 
     #[test]
     fn regex_escaped_question_is_query() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // regex `\?` is a literal `?` → query signal.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "if { [HTTP::uri] matches_regex \"\\\\?key=\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -4241,8 +4326,9 @@ mod irule3103_edge_cases {
 
     #[test]
     fn regex_escaped_ampersand_is_query() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // regex `\&` is a literal `&` → query signal.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "if { [HTTP::uri] matches_regex \"key\\\\&id\" } { log local0. x }",
             IR,
             "IRULE3103",
@@ -4281,9 +4367,13 @@ mod special_variable_sources {
 
     #[test]
     fn local_shadow_is_not_a_source() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // A local `set argv …` shadows the interpreter global: the read sees
         // the clean literal (higher SSA version), so no taint reaches the sink.
-        assert_eq!(codes("set argv clean\neval $argv", D), Vec::<String>::new());
+        assert_eq!(
+            dialect_codes("set argv clean\neval $argv", D),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
