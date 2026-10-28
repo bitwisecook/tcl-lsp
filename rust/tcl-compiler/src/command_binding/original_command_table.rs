@@ -3217,9 +3217,41 @@ impl ModuleCommandBindings {
         }
         // No fallback implementation is invented from an opaque report name.
         // The generic driver keeps the independently possible unknown handler.
-        selected.unknown |=
-            selected.may_be_absent && matches!(lookup, super::CommandTargetLookup::WithFallback);
+        selected.unknown |= selected.may_be_absent
+            && matches!(lookup, super::CommandTargetLookup::WithFallback)
+            && self.original_unresolved_handler_may_run(namespace);
         Some(selected)
+    }
+
+    /// Whether a missing command can reach an unresolved-command handler in
+    /// this world. The registry's native fallback policy names the handler;
+    /// it implies no binding (Jim 0.84 starts without `unknown`), so only a
+    /// handler definitely absent from every lookup slot ends in an error.
+    fn original_unresolved_handler_may_run(&self, namespace: &SourceNamespaceKey) -> bool {
+        if self.namespace_unknown_handlers.contains(namespace)
+            || self.unknown_lookup_namespaces.contains(namespace)
+        {
+            return true;
+        }
+        let Some(policy) = self.baseline.dialect.and_then(|dialect| {
+            tcl_registry::command_lookup::native_lookup_fallback_policy(
+                dialect,
+                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+            )
+        }) else {
+            return true;
+        };
+        let Ok(keys) = self.source_keys_checked(policy.default_handler, namespace) else {
+            return true;
+        };
+        keys.is_empty()
+            || keys.iter().any(|key| {
+                self.original_bindings_for_key(key).is_none_or(|bindings| {
+                    bindings
+                        .iter()
+                        .any(|binding| *binding != MayBinding::Missing)
+                })
+            })
     }
 
     fn original_resolve_target(

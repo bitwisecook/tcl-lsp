@@ -1401,6 +1401,16 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 /// next schedule therefore re-resolves.
 const DIAG_INPUTS_RESOLVE_ATTEMPTS: u32 = 4;
 
+/// Observe one completed Salsa input write and the revision it published.
+fn trace_coarse_db_write(site: &str, db: &tcl_lsp_db::TclDatabase) {
+    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
+        eprintln!(
+            "COARSE_SOURCE db_write site={site} revision={:?}",
+            tcl_lsp_db::database_revision(db)
+        );
+    }
+}
+
 /// How long a request may wait on the document-sync barrier before the server
 /// says so on its log channel.
 ///
@@ -6481,6 +6491,7 @@ async fn apply_cross_file_evidence_if_current(
             continue;
         }
         file.set_external_call_sites(&mut *db).to(want);
+        trace_coarse_db_write("evidence.external_call_sites", &*db);
         if requires_self_refresh {
             changes.requires_self_refresh.insert(uri.clone());
         }
@@ -6867,6 +6878,7 @@ async fn apply_workspace_class_factories_if_current(
         }
         file.set_workspace_class_factories(&mut *db)
             .to(want.clone());
+        trace_coarse_db_write("evidence.class_factories", &*db);
         changed.push(uri);
     }
     if changed.is_empty() {
@@ -6950,6 +6962,7 @@ async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> 
             continue;
         }
         file.set_workspace_subclass_methods(&mut *db).to(want);
+        trace_coarse_db_write("evidence.subclass_methods", &*db);
         changed.push(uri.clone());
     }
     changed
@@ -11567,6 +11580,7 @@ impl Backend {
                     .to(admission.analyser_path().map(str::to_owned));
                 file.set_text(db).to(text);
                 file.set_dialect(db).to(dialect.to_owned());
+                trace_coarse_db_write("source.admitted", &*db);
             } else {
                 let file = Self::revive_or_create_db_source(
                     db,
@@ -11710,6 +11724,7 @@ impl Backend {
             for (uri, file) in files.iter() {
                 let next = file.sidecar_stubs_epoch(&*db).wrapping_add(1);
                 file.set_sidecar_stubs_epoch(&mut *db).to(next);
+                trace_coarse_db_write("source.sidecar_epoch", &*db);
                 uris.push(uri.clone());
             }
             uris
@@ -11787,6 +11802,7 @@ impl Backend {
             .remove(uri);
         file.set_text(db).to(String::new());
         file.set_external_call_sites(db).to(None);
+        trace_coarse_db_write("source.retire", &*db);
         tombstones.insert(uri.clone(), file);
         true
     }
@@ -11810,6 +11826,7 @@ impl Backend {
             file.set_path(db).to(path);
             file.set_text(db).to(text);
             file.set_dialect(db).to(dialect);
+            trace_coarse_db_write("source.revive", &*db);
             file
         } else {
             tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
@@ -11827,6 +11844,7 @@ impl Backend {
         // next sync would not assert anyway.
         if oracle.is_some() {
             file.set_workspace_class_factories(db).to(oracle);
+            trace_coarse_db_write("source.class_factories", &*db);
         }
         file
     }
@@ -13900,6 +13918,7 @@ impl Backend {
         match *project {
             Some(p) => {
                 p.set_files(db).to(sources);
+                trace_coarse_db_write("project.files", &*db);
             }
             None => *project = Some(tcl_lsp_db::Project::new(&*db, sources)),
         }
@@ -13936,6 +13955,7 @@ impl Backend {
             Some(handle) => {
                 handle.set_files(db).to(sources);
                 handle.set_token_configurations(db).to(Some(configurations));
+                trace_coarse_db_write("project.folder_files", &*db);
             }
             None => {
                 *project = Some(tcl_lsp_db::Project::with_token_configurations(
@@ -14255,6 +14275,7 @@ impl Backend {
         config.set_targets(&mut *db).to(targets);
         let provides = self.package_provides.lock().await.clone();
         config.set_package_provides(&mut *db).to(provides);
+        trace_coarse_db_write("config.sync", &*db);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -26813,6 +26834,7 @@ impl Backend {
                     handle.set_package_provides(&mut *db).to(provides);
                     handle.set_bigip_version(&mut *db).to(bigip);
                     handle.set_targets(&mut *db).to(targets);
+                    trace_coarse_db_write("config.folder", &*db);
                     next.push((folder.clone(), handle));
                 } else {
                     let handle = tcl_lsp_db::AnalyserConfig::new(
@@ -26874,6 +26896,7 @@ impl Backend {
         handle.set_targets(db).to(Vec::new());
         handle.set_bigip_version(db).to(None);
         handle.set_targets(db).to(Vec::new());
+        trace_coarse_db_write("config.folder_clear", &*db);
     }
 
     /// The feature toggles in effect for `uri` — the process-global set with

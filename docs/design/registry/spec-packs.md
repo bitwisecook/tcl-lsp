@@ -49,11 +49,13 @@ spec. The equivalence fixtures include `lsort`, `switch`, TclOO/snit definers,
 **invocation refinement** — arity, a literal `selector`, argument roles,
 options and relations, availability, and the replacement `traits` /
 `mutator` / effects one call shape states — written in the owning scope's
-own words and read by the owning scope's own readers. The native halves
-(`completion`, `dispatch_dependencies`, `literal_argument_validator`, and
-the compiler hook ids) stay Rust-only, and a form carrying one is
+own words and read by the owning scope's own readers. A form's native
+halves (`completion`, `dispatch_dependencies`, `literal_argument_validator`,
+and the compiler hook ids) stay Rust-only, and a form carrying one is
 *reported*, not thinned, so the round trip never claims more than it
-preserves. Tk's widget methods are the largest structured-form user:
+preserves. At command and subcommand scope, `completion {CODE …}` declares
+an exact set of `Ok`/`Error`/`Return`/`Break`/`Continue`. The studio draft
+records only that it is set, which is a `DraftOpaque` gap. Tk's widget methods are the largest structured-form user:
 `tk_form_refinements_round_trip_through_the_pack_dsl` renders every Tk
 command that refines its subcommand forms to a pack and asserts the
 reloaded form tables equal the compiled ones. Plain `forms` remains

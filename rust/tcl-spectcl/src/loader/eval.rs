@@ -263,6 +263,7 @@ const ROW_WORDS: &[&str] = &[
     "prefix_matching",
     "self_receiver_words",
     "return_type",
+    "completion",
     "var_write_typing",
     "inferred_storage_type",
     "byte_array_effect",

@@ -171,7 +171,13 @@ pub fn original_project_source_load_at(
         let load = target.original_project_source_load.as_ref()?;
         (target.original_interpreter_source_load.is_none()
             && load.words.head_source()?.span().start() == offset
-            && load.path_word()?.span() == target.range
+            && load.path_word().is_some_and(|path| {
+                path.span() == target.range
+                    || path
+                        .tokens()
+                        .first()
+                        .is_some_and(|written| written.span == target.range)
+            })
             && load.matches_source(&image, input))
         .then_some(load.as_ref())
     });
@@ -256,6 +262,8 @@ mod tests {
     fn project_source_paths_keep_original_grammar_and_decline_reporting_values() {
         for (source, dialect, literal) in [
             ("source {a $b [c].tcl}", "tcl8.6", Some("a $b [c].tcl")),
+            ("source {lib dir/a.tcl}", "tcl8.6", Some("lib dir/a.tcl")),
+            ("source \"lib.tcl\"", "tcl8.6", Some("lib.tcl")),
             ("source -encoding utf-8 lib.tcl", "tcl8.6", Some("lib.tcl")),
             ("source -nopkg lib.tcl", "tcl9.0", Some("lib.tcl")),
             ("source $path", "tcl8.6", None),

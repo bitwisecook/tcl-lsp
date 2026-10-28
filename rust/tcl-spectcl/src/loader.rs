@@ -109,6 +109,7 @@ use tcl_registry::clause_grammar::{
     DefaultClause,
 };
 use tcl_registry::command_table::CommandTableEffect;
+use tcl_registry::completion::{CompletionCode, CompletionDescriptor};
 use tcl_registry::definer::{
     BuiltinMethodReceiver, BuiltinObjectMethod, CallableRole, DeclaredMemberVisibility,
     DefinerFamily, DefinitionBodyGrammar, InitTiming, ManufacturerMethod, MemberBodyCommand,
@@ -2742,6 +2743,32 @@ fn enum_by_name<T: Copy + fmt::Debug>(
         log.say(line, format!("unknown {what} `{name}` dropped"));
     }
     found
+}
+
+const COMPLETION_CODES: &[CompletionCode] = &[
+    CompletionCode::Ok,
+    CompletionCode::Error,
+    CompletionCode::Return,
+    CompletionCode::Break,
+    CompletionCode::Continue,
+];
+
+/// `completion {CODE …}`: the exact completion codes the command can finish
+/// with, each producing its result and options. An unreadable row is dropped,
+/// leaving the conservative descriptor.
+fn completion_row(text: &str, line: u32, log: &mut Log) -> Option<CompletionDescriptor> {
+    let mut codes = Vec::new();
+    for word in list_words(text) {
+        let code = enum_by_name(COMPLETION_CODES, &word, "completion code", line, log)?;
+        if !codes.contains(&code) {
+            codes.push(code);
+        }
+    }
+    if codes.is_empty() {
+        log.say(line, "an empty `completion` row is dropped");
+        return None;
+    }
+    Some(CompletionDescriptor::exact(leak_slice(codes)))
 }
 
 const TCL_TYPES: &[TclType] = &[
@@ -6932,6 +6959,7 @@ fn apply_command_stmt(
         "return_type" => {
             spec.return_type = enum_by_name(TCL_TYPES, &value, "return type", stmt.line, log);
         }
+        "completion" => spec.completion = completion_row(&value, stmt.line, log),
         "var_write_typing" => {
             if let Some(typing) = parse_var_write_typing(&value, stmt.line, log) {
                 spec.var_write_typing = typing;
@@ -8823,6 +8851,7 @@ fn apply_subcommand_stmt(
         "return_type" => {
             sub.return_type = enum_by_name(TCL_TYPES, &value, "return type", stmt.line, log);
         }
+        "completion" => sub.completion = completion_row(&value, stmt.line, log),
         "var_write_typing" => {
             if let Some(typing) = parse_var_write_typing(&value, stmt.line, log) {
                 sub.var_write_typing = typing;

@@ -11788,7 +11788,13 @@ impl Analyser {
             load_trace_flag(
                 "path-span",
                 None,
-                load.path_word().is_some_and(|path| path.span() == st.span),
+                load.path_word().is_some_and(|path| {
+                    path.span() == st.span
+                        || path
+                            .tokens()
+                            .first()
+                            .is_some_and(|written| written.span == st.span)
+                }),
             )
         });
         let path = &args[file_idx];

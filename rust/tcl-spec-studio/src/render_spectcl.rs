@@ -218,6 +218,11 @@ pub const GAPS: &[Gap] = &[
     // Native result contracts require runtime identity, observer boundaries and
     // representation proofs; the loadable authoring surface cannot assert those.
     Gap {
+        key: "completion",
+        spelling: "completion {CODE …}",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
         key: "native_result",
         spelling: "native_result -native CONTRACT",
         kind: GapKind::DraftOpaque,
@@ -370,11 +375,6 @@ pub const GAPS: &[Gap] = &[
         kind: GapKind::LoaderGap,
     },
     // Excluded by design.
-    Gap {
-        key: "completion",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
     Gap {
         key: "dispatch_dependencies",
         spelling: "",

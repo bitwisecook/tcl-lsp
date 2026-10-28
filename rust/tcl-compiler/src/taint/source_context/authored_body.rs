@@ -213,6 +213,9 @@ mod controls {
         ));
         let dialect =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let channel = format!("set fd stdin\n{SOURCE}");
+        let unit = CompilationUnit::build_for_dialect(&channel, registry, false, "tcl8.6");
         let warnings = crate::taint::find_taint_warnings_for_cu(&unit, registry, Some(dialect));
         assert!(
             warnings

@@ -199,6 +199,11 @@ const ROWS: &[Row] = &[
     ),
     // Results and typing.
     one("return_type", "The command's result type.", ""),
+    one(
+        "completion",
+        "The exact completion codes the command can finish with.",
+        "A list of `Ok`, `Error`, `Return`, `Break` and `Continue`; each produces its result and options. Absent means any code.",
+    ),
     variant("var_write_typing", "How a written variable is typed."),
     variant("return_elements", "How the result's elements are typed."),
     variant(

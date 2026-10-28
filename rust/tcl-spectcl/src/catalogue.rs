@@ -621,7 +621,7 @@ pub const CONSTRAINTS_NATIVE: &[Variant] = &{
 /// `state_transitions { resolver -native ID }`.
 pub const STATE_TRANSITION_RESOLVER_NATIVE: &[Variant] = &{
     let table = tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE;
-    let labels: &[Variant] = &[];
+    let labels: &[Variant] = &[v("proc::state_transitions.resolver", "proc")];
     let mut rows = [v("", ""); tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE.len()];
     let mut at = 0;
     while at < table.len() {

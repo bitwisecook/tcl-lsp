@@ -496,7 +496,12 @@ pub const EVALUATE_NATIVE: &[(&str, EvalRoute)] = &[];
 
 /// See [`ARG_ROLE_RESOLVER_NATIVE`]. `state_transitions { resolver -native
 /// ID }`.
-pub const STATE_TRANSITION_RESOLVER_NATIVE: &[(&str, StateTransitionResolver)] = &[];
+pub const STATE_TRANSITION_RESOLVER_NATIVE: &[(&str, StateTransitionResolver)] = &[(
+    "proc::state_transitions.resolver",
+    crate::state_transition::command_binding::DEFINES_PROCEDURE
+        .resolver
+        .expect("the shipped procedure definition carries its resolver"),
+)];
 
 /// See [`ARG_ROLE_RESOLVER_NATIVE`]. `facts -native ID`: checked, not
 /// stored — nothing reads a pack's facts yet — so the table records only

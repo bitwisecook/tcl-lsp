@@ -233,6 +233,16 @@ speclib jim-own-surface 2.0 {
         side_effect ProcDefinition -writes
         analyser_hook -native Proc
         lowering_hook -native Proc
+        completion {Ok Error}
+        state_transitions {
+            composition    Extend
+            argument_shape Positional
+            resolver -native proc::state_transitions.resolver
+            widen  -operands {Indices 0} -domains {CommandBindings Namespaces CommandTraces}
+            covers LegacyCommandTable -domains {CommandBindings}
+            covers {LegacySideEffect ProcDefinition} -domains {CommandBindings}
+            commit OnOkOnly
+        }
         arg 0 -role Name
         arg 1 -role ParamList
         repeat StaticVarList -from 2 -stride 250 -exclude-trailing 1 -optional-leading

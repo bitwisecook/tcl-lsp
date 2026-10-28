@@ -2424,7 +2424,10 @@ impl CodegenCtx<'_> {
                     self.emit(Op::EVAL_STK, vec![]);
                     return;
                 }
-                if self.native_entry.is_none() {
+                // An authored naming simulation never matches a native compiler
+                // recipe, so its bracket scripts compile as top-level commands
+                // under that entry do: generic dispatch under the VM's policy.
+                if self.native_entry.is_none_or(authored_name_policy) {
                     if let Ok(text) = std::str::from_utf8(&image.bytes()[region.as_range()]) {
                         self.emit_inline_cmd_subst(text);
                     } else {
@@ -3849,6 +3852,18 @@ mod native_list_index_tests;
 #[cfg(test)]
 #[path = "native_variable_preparation_tests.rs"]
 mod native_variable_preparation_tests;
+
+#[cfg(test)]
+#[path = "native_authored_bracket_tests.rs"]
+mod native_authored_bracket_tests;
+
+/// Whether `entry` runs an authored naming simulation rather than its native
+/// point's own policy.
+fn authored_name_policy(entry: &tcl_runtime_api::NativeCompilationEntry) -> bool {
+    entry.command_name_policy().is_some_and(|policy| {
+        policy.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+    })
+}
 
 #[cfg(test)]
 mod tests {

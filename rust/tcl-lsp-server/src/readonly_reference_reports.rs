@@ -2168,9 +2168,15 @@ fn trace_coarse_transaction_check(
 }
 
 /// Observe the leading currency conjuncts of one final readonly snapshot check.
-fn trace_coarse_document_snapshot(rows: &[(&str, bool)]) {
+fn trace_coarse_document_snapshot(
+    rows: &[(&str, bool)],
+    captured: salsa::Revision,
+    current: salsa::Revision,
+) {
     if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
-        eprintln!("COARSE_SOURCE document_snapshot {rows:?}");
+        eprintln!(
+            "COARSE_SOURCE document_snapshot {rows:?} captured_revision={captured:?} current_revision={current:?}"
+        );
     }
 }
 
@@ -2384,18 +2390,22 @@ impl ReadonlySourceDocument {
         files: &std::collections::HashMap<Uri, tcl_lsp_db::SourceFile>,
         published: &std::collections::HashMap<Uri, super::PublishedSourcePath>,
     ) -> bool {
-        trace_coarse_document_snapshot(&[
-            ("open", self.publication.matches_open_documents(open)),
-            (
-                "uri_generation",
-                uri_generations.get(&self.uri).copied().unwrap_or_default()
-                    == self.publication.uri_generation,
-            ),
-            (
-                "database_revision",
-                tcl_lsp_db::database_revision(db) == self.database_revision,
-            ),
-        ]);
+        trace_coarse_document_snapshot(
+            &[
+                ("open", self.publication.matches_open_documents(open)),
+                (
+                    "uri_generation",
+                    uri_generations.get(&self.uri).copied().unwrap_or_default()
+                        == self.publication.uri_generation,
+                ),
+                (
+                    "database_revision",
+                    tcl_lsp_db::database_revision(db) == self.database_revision,
+                ),
+            ],
+            self.database_revision,
+            tcl_lsp_db::database_revision(db),
+        );
         self.publication.matches_open_documents(open)
             && uri_generations.get(&self.uri).copied().unwrap_or_default()
                 == self.publication.uri_generation

@@ -101,6 +101,14 @@ fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     find_taint_warnings_for_cu(&cu, registry, dialect_opt)
 }
 
+/// [`warns`] for a unit built with the profile's invocation dialect.
+fn dialect_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    let registry = static_context_for(dialect).commands();
+    let cu = CompilationUnit::build_for_dialect(src, registry, false, dialect);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    find_taint_warnings_for_cu(&cu, registry, Some(profile))
+}
+
 /// Sorted list of diagnostic codes from the taint pass.
 fn codes(src: &str, dialect: &str) -> Vec<String> {
     let mut out: Vec<String> = warns(src, dialect)
@@ -1648,8 +1656,14 @@ mod interprocedural_taint {
     #[test]
     fn helper_sanitiser_suppresses_taint() {
         // tclsh: the helper returns `string length` (an int) → clean result.
-        let source = "proc safe_len {x} { return [string length $x] }\nset raw [read $fd]\nset n [safe_len $raw]\nexpr $n\n";
-        assert_eq!(codes(source, D), Vec::<String>::new());
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let source = "set fd stdin\nproc safe_len {x} { return [string length $x] }\nset raw [read $fd]\nset n [safe_len $raw]\nexpr $n\n";
+        let mut codes: Vec<String> = dialect_warns(source, D)
+            .iter()
+            .map(|w| w.code.to_string())
+            .collect();
+        codes.sort();
+        assert_eq!(codes, Vec::<String>::new());
     }
 
     #[test]
@@ -1663,8 +1677,13 @@ mod interprocedural_taint {
 
     #[test]
     fn tainted_argument_into_sinking_helper_warns() {
-        let source = "proc do_eval {x} { eval $x }\nset data [read $fd]\ndo_eval $data\n";
-        let ws = of_code(source, D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let source =
+            "set fd stdin\nproc do_eval {x} { eval $x }\nset data [read $fd]\ndo_eval $data\n";
+        let ws: Vec<_> = dialect_warns(source, D)
+            .into_iter()
+            .filter(|w| w.code.to_string() == "T100")
+            .collect();
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
@@ -1675,8 +1694,13 @@ mod interprocedural_taint {
         // argument into the `args` list parameter — a tainted actual must
         // still be traced (via the interprocedural entry-taint solve's
         // `args`-packing rule) into the sink inside the callee body.
-        let source = "proc log {args} { puts $args }\nset data [read $fd]\nlog $data\n";
-        let ws = of_code(source, D, "T101");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let source =
+            "set fd stdin\nproc log {args} { puts $args }\nset data [read $fd]\nlog $data\n";
+        let ws: Vec<_> = dialect_warns(source, D)
+            .into_iter()
+            .filter(|w| w.code.to_string() == "T101")
+            .collect();
         assert!(
             !ws.is_empty(),
             "expected T101 for tainted args-packed data, got {ws:?}"

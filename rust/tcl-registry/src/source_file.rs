@@ -183,8 +183,14 @@ pub fn select(arguments: InvocationArguments<'_>) -> SourceFileSelection {
 /// file grammar; an option whose availability differs remains unknown.
 #[must_use]
 pub fn path_candidate(arguments: InvocationArguments<'_>) -> SourceFileSelection {
-    if arguments.dialect().is_some() {
-        return select(arguments);
+    if let Some(dialect) = arguments.dialect() {
+        if let Some(grammar) = dialect.source_file_grammar() {
+            return select_with_grammar(arguments, grammar);
+        }
+        // An unversioned Tcl or Jim interpreter follows one audited grammar.
+        if !matches!(dialect.family(), Some(Family::Tcl | Family::Jim)) {
+            return SourceFileSelection::Unknown;
+        }
     }
     let first = select_with_grammar(arguments, SourceFileGrammar::Filename);
     if [
@@ -326,6 +332,39 @@ mod tests {
         );
         assert_eq!(
             path_candidate(InvocationArguments::structured(&[InvocationWord::Expanded])),
+            SourceFileSelection::Unknown
+        );
+    }
+
+    #[test]
+    fn unversioned_tcl_navigation_uses_only_shared_file_layouts() {
+        let unversioned = InvocationDialect {
+            tcl_version: None,
+            ..InvocationDialect::for_version(TclVersion::V8_6)
+        };
+        assert!(unversioned.source_file_grammar().is_none());
+        let path = [InvocationWord::Literal("child.tcl")];
+        let arguments = InvocationArguments::structured(&path).with_dialect(unversioned);
+        assert!(matches!(
+            path_candidate(arguments),
+            SourceFileSelection::Selected(SourceFileOperands { path_at: 0, .. })
+        ));
+        assert_eq!(select(arguments), SourceFileSelection::Unknown);
+        let encoding = [
+            InvocationWord::Literal("-encoding"),
+            InvocationWord::Literal("utf-8"),
+            InvocationWord::Literal("child.tcl"),
+        ];
+        assert_eq!(
+            path_candidate(InvocationArguments::structured(&encoding).with_dialect(unversioned)),
+            SourceFileSelection::Unknown
+        );
+        let foreign = InvocationDialect {
+            native_family: None,
+            ..unversioned
+        };
+        assert_eq!(
+            path_candidate(InvocationArguments::structured(&path).with_dialect(foreign)),
             SourceFileSelection::Unknown
         );
     }

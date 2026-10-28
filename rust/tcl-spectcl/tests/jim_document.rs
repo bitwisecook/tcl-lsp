@@ -507,6 +507,21 @@ fn loop_is_flagged_under_tcl_and_accepted_under_jim() {
     );
 }
 
+/// `jimsh` dispatches a missing command to an `unknown` the script defines, so
+/// once one exists a missing command is no longer reported, in a `loop` body
+/// or at the top level.
+#[test]
+fn a_jim_unknown_proc_keeps_missing_commands_unreported() {
+    let source = jim(
+        "proc unknown {args} { return UNK }\n\
+         loop i 0 3 { not_a_command_anywhere $i }\n\
+         puts [not_a_command_anywhere 1]\n",
+    );
+    for findings in both_tiers(&source) {
+        assert_eq!(findings, vec![], "{source}");
+    }
+}
+
 /// Under another dialect `class` is not Jim's: nothing is recorded as a class,
 /// `class` is reported as a Jim command disabled there, and the class name it
 /// would have defined is unknown.
