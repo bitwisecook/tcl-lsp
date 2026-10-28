@@ -26,6 +26,7 @@ pub(crate) struct OriginalNumericOps<'a> {
     scope: NativeOperationScope,
     host: Rc<dyn tcl_platform::Host>,
     dialect: InvocationDialect,
+    objects: Option<tcl_syntax::native_string::NativeStringProtocol>,
     abi: Cell<Option<tcl_platform::NativeCIntegerAbi>>,
 }
 
@@ -47,6 +48,14 @@ impl<'a> OriginalNumericOps<'a> {
 
     pub(crate) fn dialect(&self) -> InvocationDialect {
         self.dialect
+    }
+
+    /// The list and dictionary recipe of the object purpose entered with this
+    /// operation, beside its physical numeric dialect.
+    pub(crate) fn object_protocol(
+        &self,
+    ) -> Option<tcl_syntax::native_string::NativeStringProtocol> {
+        self.objects
     }
 
     #[cfg(test)]
@@ -86,6 +95,7 @@ impl<'a> OriginalNumericOps<'a> {
         Ok(Self {
             host: vm.host_rc(),
             dialect: vm.actual_native_invocation_dialect(),
+            objects: vm.object_protocol(),
             vm: RefCell::new(vm),
             scope: scope.clone(),
             abi: Cell::new(None),

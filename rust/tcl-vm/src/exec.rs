@@ -4590,10 +4590,7 @@ impl Vm {
     fn tick_each_loop(&mut self, f: &mut Frame) -> Tick {
         use tcl_cmd_core::native_each_loop::EachLoopAction;
         use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
-        let Some(strings) = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-        else {
+        let Some(strings) = self.object_protocol() else {
             return Tick::Return(self.refuse_host_command("each-loop native List issuer".into()));
         };
         loop {
@@ -6050,10 +6047,7 @@ impl Vm {
                     return Tick::Return(err("list: stack underflow"));
                 }
                 let items = f.stack.split_off(f.stack.len() - n);
-                let value = if let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                {
+                let value = if let Some(protocol) = self.object_protocol() {
                     Value::native_list_constructor(items, protocol)
                 } else {
                     Value::list(items)
@@ -6126,10 +6120,7 @@ impl Vm {
             Op::LIST_RANGE_IMM => {
                 let l = pop(f);
                 if let Some(range) = instr.native_list_range {
-                    let Some(protocol) = self
-                        .actual_native_invocation_dialect()
-                        .native_string_protocol()
-                    else {
+                    let Some(protocol) = self.object_protocol() else {
                         return Tick::Return(crate::command::completion_from_cmd_error(
                             self,
                             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -6171,15 +6162,11 @@ impl Vm {
                     return Tick::Continue;
                 }
                 if imm0(instr) == 0 && imm_at(instr, 1) == tcl_bytecode::INDEX_END {
-                    if let Some(protocol) = self
-                        .actual_native_invocation_dialect()
-                        .native_string_protocol()
-                        .filter(|protocol| {
-                            protocol
-                                .tcl_version()
-                                .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
-                        })
-                    {
+                    if let Some(protocol) = self.object_protocol().filter(|protocol| {
+                        protocol
+                            .tcl_version()
+                            .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
+                    }) {
                         match l.native_full_list_range(protocol) {
                             Ok(value) => f.stack.push(value),
                             Err(error) => {
@@ -6393,15 +6380,11 @@ impl Vm {
             Op::ERROR_PREFIX_EQ => {
                 let prefix = pop(f);
                 let original = pop(f);
-                let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .filter(|protocol| {
-                        protocol
-                            .tcl_version()
-                            .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_1)
-                    })
-                else {
+                let Some(protocol) = self.object_protocol().filter(|protocol| {
+                    protocol
+                        .tcl_version()
+                        .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_1)
+                }) else {
                     return Tick::Return(self.refuse_host_command(
                         "native error-prefix comparison recipe is unavailable".into(),
                     ));
@@ -7128,8 +7111,7 @@ impl Vm {
                     return Tick::Return(err("expand: stack underflow"));
                 };
                 let elements = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
+                    .object_protocol()
                     .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "original expansion List conversion",
                     ))
@@ -7476,10 +7458,7 @@ impl Vm {
                         }
                     };
                 }
-                let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                else {
+                let Some(protocol) = self.object_protocol() else {
                     return Tick::Return(
                         self.refuse_host_command("native tailcall List issuer".into()),
                     );
@@ -8367,10 +8346,7 @@ impl Vm {
                 let raw = f.stack.split_off(f.stack.len() - n);
                 let mut value_lists = Vec::with_capacity(n);
                 let mut iter_max = 0;
-                let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                else {
+                let Some(protocol) = self.object_protocol() else {
                     return Tick::Return(self.refuse_host_command(
                         "native foreach list protocol is unavailable".into(),
                     ));
@@ -8547,10 +8523,7 @@ impl Vm {
             Op::DICT_FIRST => {
                 let slot = imm0(instr);
                 let dict = pop(f);
-                let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                else {
+                let Some(protocol) = self.object_protocol() else {
                     return Tick::Return(self.refuse_host_command(
                         "native dictionary search protocol is unavailable".into(),
                     ));
@@ -11791,8 +11764,7 @@ impl Vm {
             let namespace = tcl_cmd_core::namespace::current_original(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             let protocol = self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+                .object_protocol()
                 .ok_or_else(|| self.refuse_host_command("original tailcall List issuer".into()))?;
             let mut members = Vec::with_capacity(words.len() + 1);
             members.push(namespace);
@@ -11824,10 +11796,7 @@ impl Vm {
             }
         };
         let reached = (|| {
-            let Some(protocol) = self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-            else {
+            let Some(protocol) = self.object_protocol() else {
                 return Tick::Return(
                     self.refuse_host_command("native tailcall List issuer".into()),
                 );

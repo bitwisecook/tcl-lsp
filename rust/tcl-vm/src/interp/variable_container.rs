@@ -50,12 +50,11 @@ impl Vm {
         &self,
         value: &Value,
     ) -> Result<Vec<(Value, Value)>, tcl_syntax::value::ValueError> {
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        let protocol = self.object_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native variable dictionary issuer",
-            ))?;
+            ),
+        )?;
         value.native_object_dict_pairs(protocol)
     }
 

@@ -371,8 +371,7 @@ impl NativeIndexOps for Vm {
         let scope = NativeOperationScope::enter(self)?;
         scope.check(self)?;
         let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .object_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original sort List issuer",
             ))?;

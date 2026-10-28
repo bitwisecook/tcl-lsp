@@ -561,8 +561,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 // before any row append. The existing C empty constructor has that storage.
                 if prefix.is_none() && libraries.is_empty() {
                     let Some(protocol) = vm
-                        .actual_native_invocation_dialect()
-                        .native_string_protocol()
+                        .object_protocol()
                         .filter(|protocol| protocol.tcl_version().is_some())
                     else {
                         return vm.refuse_host_command(

@@ -3121,6 +3121,16 @@ impl NativeCompilationSpec {
                 self.operation,
             ));
         }
+        if self.grammar == NativeCompilationGrammar::Regexp
+            && crate::native_regexp_compilation::modelled(version)
+        {
+            return Some(crate::native_regexp_compilation::select_original(
+                words,
+                operand_from,
+                version,
+                self.operation,
+            ));
+        }
         if let NativeCompilationGrammar::StringMap(scope) = self.grammar {
             return Some(crate::native_string_map_compilation::select_original(
                 words,
@@ -4419,7 +4429,9 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::ListInsertion => {
                 list_insertion_grammar(words, shapes, version, self.operation)
             }
-            NativeCompilationGrammar::Regexp => regexp_grammar(words, shapes),
+            NativeCompilationGrammar::Regexp => {
+                regexp_grammar(words, shapes, version, self.operation)
+            }
             _ => return None,
         })
     }
@@ -4641,10 +4653,6 @@ impl NativeCompilationSpec {
     }
 }
 
-// TclCompileRegexpCmd in all pinned C releases accepts only -nocase
-// abbreviations and -- before exactly two matching operands. Captures and
-// other options invoke the live handler; accepted regexp opcodes remain
-// unmodelled here rather than granting a generic dispatch proof.
 fn unmodelled_hook_selection(version: TclVersion, first: TclVersion) -> NativeCompilationSelection {
     if version < first {
         NativeCompilationSelection::Generic
@@ -5599,13 +5607,42 @@ fn info_commands_grammar(
     }
 }
 
+// TclCompileRegexpCmd in all pinned C releases accepts only -nocase
+// abbreviations and -- before exactly two matching operands. Captures and
+// other options invoke the live handler. The C9 instructions are modelled in
+// `native_regexp_compilation`; earlier releases remain unselected.
 fn regexp_grammar(
     words: InvocationWords<'_>,
     shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    operation: SemanticOperationId,
 ) -> NativeCompilationSelection {
-    match regexp_compiler_pattern_index(words, shapes) {
-        Ok(_) => NativeCompilationSelection::Unknown,
-        Err(selection) => selection,
+    use NativeCompilationSelection as Selection;
+    let index = match regexp_compiler_pattern_index(words, shapes) {
+        Ok(index) => index,
+        Err(selection) => return selection,
+    };
+    if !crate::native_regexp_compilation::modelled(version) {
+        return Selection::Unknown;
+    }
+    let saw_last = index
+        .checked_sub(1)
+        .and_then(|last| words.arguments().literal_at(last))
+        == Some("--");
+    let pattern = crate::native_regexp_compilation::simple_word_bytes(
+        shapes[index],
+        words.arguments().literal_at(index).map(str::as_bytes),
+        false,
+    );
+    if literal_shape(shapes[index]) && words.arguments().literal_at(index).is_none() {
+        Selection::Unknown
+    } else if pattern.is_some_and(|pattern| pattern.first() == Some(&b'-')) && !saw_last {
+        Selection::Generic
+    } else {
+        Selection::Inline {
+            operation,
+            guard: NativeCompilationGuard::BeforeArguments,
+        }
     }
 }
 
@@ -5613,6 +5650,7 @@ fn regexp_compiler_pattern_index(
     words: InvocationWords<'_>,
     shapes: &[NativeCompilationWordShape],
 ) -> Result<usize, NativeCompilationSelection> {
+    use crate::native_regexp_compilation::{RegexpOption, regexp_option, simple_word_bytes};
     use NativeCompilationSelection as Selection;
     if shapes.len() < 2 {
         return Err(Selection::Generic);
@@ -5626,11 +5664,12 @@ fn regexp_compiler_pattern_index(
             return Err(Selection::Unknown);
         };
         index += 1;
-        if option == "--" {
-            break;
-        }
-        if option.len() <= 1 || !"-nocase".starts_with(option) {
-            return Err(Selection::Generic);
+        match simple_word_bytes(shapes[index - 1], Some(option.as_bytes()), false)
+            .and_then(regexp_option)
+        {
+            Some(RegexpOption::Last) => break,
+            Some(RegexpOption::Nocase) => {}
+            None => return Err(Selection::Generic),
         }
     }
     if shapes.len() - index == 2 {

@@ -512,7 +512,11 @@ fn array_set_c_after_trace(
             if let Err(error) = items.check_generation() {
                 return completion_from_cmd_error(vm, error.into());
             }
-            let reached = vm.store_original_c_array_member(original_name, &pair[0], &pair[1]);
+            let reached = if vm.authored_c_variable_names() {
+                store_authored_array_member(vm, name, &pair[0], &pair[1])
+            } else {
+                vm.store_original_c_array_member(original_name, &pair[0], &pair[1])
+            };
             if let Err(error) = currency.check(vm) {
                 drop(reached);
                 return completion_from_cmd_error(vm, error);
@@ -523,6 +527,19 @@ fn array_set_c_after_trace(
         }
     }
     ok(Value::empty())
+}
+
+/// One `array set` member under the authored simulation's own names.
+fn store_authored_array_member(
+    vm: &mut Vm,
+    name: &[u8],
+    key: &Value,
+    value: &Value,
+) -> Result<Value, Completion<Value>> {
+    let key = vm
+        .native_name_operand_bytes_checked(key)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    vm.store_elem_result_bytes(name, &key, value.native_lifetime_lease().into_value())
 }
 
 fn original_compound_ops<T>(

@@ -3,9 +3,14 @@
 
 use super::{CodegenCtx, NativeEmissionTask};
 use tcl_bytecode::{Op, Operand};
+use tcl_registry::native_regexp_compilation::{NativeRegexpInstruction, NativeRegexpMatcher};
 use tcl_registry::native_string_compilation::{
     NativeStringMatchInstruction, NativeStringMatchOperation,
 };
+
+#[cfg(test)]
+#[path = "native_regexp_tests.rs"]
+mod native_regexp_tests;
 
 impl CodegenCtx<'_> {
     pub(super) fn append_native_string_match_tasks(
@@ -34,6 +39,43 @@ impl CodegenCtx<'_> {
 }
 
 impl CodegenCtx<'_> {
+    pub(super) fn append_native_regexp_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: NativeRegexpInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        let flags = recipe.matcher.regexp_flags();
+        let (pattern, op, operands) = match recipe.matcher {
+            NativeRegexpMatcher::Equal(glob) => {
+                (NativeEmissionTask::Literal(glob), Op::STR_EQ, Vec::new())
+            }
+            NativeRegexpMatcher::Glob { pattern, nocase } => (
+                NativeEmissionTask::Literal(pattern),
+                Op::STR_MATCH,
+                vec![Operand::Imm(i32::from(nocase))],
+            ),
+            NativeRegexpMatcher::Regexp { pattern, .. } => {
+                let Some(pattern) = Self::native_namespace_word_task(&command.words, pattern)
+                else {
+                    return false;
+                };
+                (
+                    pattern,
+                    Op::REGEXP,
+                    flags.map(Operand::Imm).into_iter().collect(),
+                )
+            }
+        };
+        let Some(subject) = Self::native_namespace_word_task(&command.words, recipe.subject) else {
+            return false;
+        };
+        operations.push(pattern);
+        operations.push(subject);
+        operations.push(NativeEmissionTask::SwitchOperation(op, operands, version));
+        true
+    }
+
     pub(super) fn append_native_string_trim_tasks(
         command: &tcl_lexer::NativeScriptCommandWords,
         recipe: tcl_registry::native_string_trim_compilation::NativeStringTrimInstruction,

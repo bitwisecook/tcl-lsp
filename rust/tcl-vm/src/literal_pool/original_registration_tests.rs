@@ -71,6 +71,7 @@ fn original_literal_registration_checks_episode_inside_same_value_string_worker(
             check: &check,
             string: &string,
             refuse: &refuse,
+            objects: None,
         };
         let reached = NativeLiteralWorld::register(&world, key, protocol, Some(&callbacks));
         assert!(calls.get() > 0);

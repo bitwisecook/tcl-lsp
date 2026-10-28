@@ -264,6 +264,9 @@ impl CompilerTraversal<'_> {
                 [recipe.pattern.clone(), recipe.subject.clone()],
                 context,
             ),
+            NativeInstructionPlan::Regexp(recipe) => {
+                self.original_operands(words, recipe.original_operands().cloned(), context)
+            }
             _ => {
                 self.require_provider();
                 None

@@ -49,9 +49,15 @@ fn original_switch_pairs(
     version: tcl_dialect::TclVersion,
 ) -> Result<Vec<(Value, Value)>, Completion<Value>> {
     let pairs = if rest.len() == 1 {
-        let items = match rest[0].as_list() {
-            Ok(i) => i,
-            Err(e) => return Err(crate::command::completion_from_tcl_error(vm, e)),
+        let items = match vm
+            .object_protocol()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "switch pattern List recipe",
+            ))
+            .and_then(|protocol| vm.native_object_list_elements_in(&rest[0], protocol))
+        {
+            Ok(items) => items,
+            Err(error) => return Err(crate::command::completion_from_tcl_error(vm, error.into())),
         };
         if items.is_empty() {
             return Err(crate::command::native_wrong_arguments_message(

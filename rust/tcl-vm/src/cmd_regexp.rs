@@ -353,12 +353,9 @@ impl core_re::NativeRegsubObjects for Vm {
         &mut self,
         value: &Value,
     ) -> Result<Vec<Value>, tcl_syntax::value::ValueError> {
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "actual regsub prefix List",
-            ))?;
+        let protocol = self.object_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("actual regsub prefix List"),
+        )?;
         self.native_object_list_elements_in(value, protocol)
             .map(|members| {
                 members

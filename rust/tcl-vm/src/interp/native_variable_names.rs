@@ -64,6 +64,24 @@ impl Vm {
         .then_some(protocol)
     }
 
+    /// The authored simulation's C variable names: an authored recipe with no
+    /// native authority, kept by the byte-name owners rather than the
+    /// physical engine's object-name getter.
+    pub(crate) fn authored_c_variable_names(&self) -> bool {
+        self.native_c_variable_name_protocol().is_none()
+            && self
+                .execution_name_policy()
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                .is_some_and(|selected| {
+                    selected.authority()
+                        == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                        && matches!(
+                            selected.recipe(),
+                            tcl_syntax::naming::NativeNameProtocol::C(_)
+                        )
+                })
+    }
+
     /// Tcl 8.4's `Tcl_SetObjErrorCode` uses a bare `CString` with `GLOBAL_ONLY`,
     /// without an object-name getter or `TCL_LEAVE_ERR_MSG`.
     pub(super) fn store_original_c84_global_error_code(
@@ -208,6 +226,7 @@ impl Vm {
             check: &check,
             string: &string,
             refuse: &refuse,
+            objects: None,
         };
         check().map_err(|_| super::err(""))?;
         if before.is_none() {

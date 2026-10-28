@@ -2967,6 +2967,9 @@ impl CodegenCtx<'_> {
                     command, recipe, version, operations,
                 );
             }
+            NativeInstructionPlan::Regexp(recipe) => {
+                return Self::append_native_regexp_tasks(command, recipe, version, operations);
+            }
             NativeInstructionPlan::Upvar(recipe) => {
                 return Self::append_native_upvar_tasks(command, recipe, operations);
             }

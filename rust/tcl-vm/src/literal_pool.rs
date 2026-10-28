@@ -42,6 +42,8 @@ pub(crate) struct OriginalLiteralCallbacks<'a> {
     pub(crate) check: &'a LiteralCurrencyCheck<'a>,
     pub(crate) string: &'a LiteralStringAccess<'a>,
     pub(crate) refuse: &'a dyn Fn(tcl_syntax::value::ValueError) -> NativeLiteralUnavailable,
+    /// The object recipe of the realm creating the pool.
+    pub(crate) objects: Option<NativeStringProtocol>,
 }
 
 impl From<tcl_syntax::value::ValueError> for NativeLiteralUnavailable {
@@ -639,6 +641,16 @@ impl NativeLiteralPool {
                 {
                     return Err(NativeLiteralUnavailable(
                         "native private constant List compiler recipe is unavailable",
+                    ));
+                }
+                // A logical realm's lists are its own objects; the physical
+                // pool cannot seal one for it.
+                if input
+                    .original
+                    .is_some_and(|original| original.objects != Some(self.protocol))
+                {
+                    return Err(NativeLiteralUnavailable(
+                        "native private constant List differs from the selected object recipe",
                     ));
                 }
                 self.registrations.push(None);

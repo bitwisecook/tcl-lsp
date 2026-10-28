@@ -55,6 +55,18 @@ impl NativeIndexMembers<Value> for VmOptionMembers {
         self.members.elements()
     }
 }
+impl Vm {
+    /// The C List recipe of the selected object purpose.
+    fn index_object_protocol(
+        &self,
+    ) -> Result<tcl_syntax::native_string::NativeStringProtocol, ValueError> {
+        self.object_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C List object recipe",
+            ))
+    }
+}
 impl NativeListIndexOps for Vm {
     type Owner = Value;
     type Members = NativeListItems;
@@ -127,27 +139,24 @@ impl NativeListIndexOps for Vm {
         original.cached_list_representation().is_some()
     }
     fn index_members(&mut self, original: &Value) -> Result<NativeListItems, ValueError> {
-        let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
+        let protocol = self.index_object_protocol()?;
         self.native_object_list_elements_in(original, protocol)
     }
     fn index_ordinary_members(&mut self, original: &Value) -> Result<NativeListItems, ValueError> {
         // Value's current native list conversion installs an ordinary primary.
         // An abstract Value adapter must implement this distinct purpose too.
-        let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
+        let protocol = self.index_object_protocol()?;
         self.native_object_list_elements_in(original, protocol)
     }
     fn index_list_copy(&mut self, original: &Value) -> Result<Value, ValueError> {
-        original.native_list_copy(tcl_syntax::native_string::NativeStringProtocol::C(
-            self.index_version()?,
-        ))
+        original.native_list_copy(self.index_object_protocol()?)
     }
     fn index_members_checked(&mut self, original: &Value) -> Result<NativeListItems, CmdError> {
         let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
         let numeric =
             crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
         let protocol = numeric
-            .dialect()
-            .native_string_protocol()
+            .object_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C List member issuer",
@@ -171,8 +180,7 @@ impl NativeListIndexOps for Vm {
         let numeric =
             crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
         let protocol = numeric
-            .dialect()
-            .native_string_protocol()
+            .object_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C List copy issuer",
@@ -258,8 +266,7 @@ impl tcl_cmd_core::native_list_index::NativeListRangeOps for Vm {
         let numeric =
             crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
         let protocol = numeric
-            .dialect()
-            .native_string_protocol()
+            .object_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C List range issuer",
@@ -278,11 +285,7 @@ impl tcl_cmd_core::native_list_index::NativeListRangeOps for Vm {
         first: i64,
         last: i64,
     ) -> Result<Value, ValueError> {
-        original.native_list_command_range(
-            first,
-            last,
-            tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?),
-        )
+        original.native_list_command_range(first, last, self.index_object_protocol()?)
     }
 }
 impl Vm {

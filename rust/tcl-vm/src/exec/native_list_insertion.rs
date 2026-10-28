@@ -35,9 +35,11 @@ impl Vm {
         }
         let scope = NativeOperationScope::enter(self)?;
         let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
-        let protocol = numeric.dialect().native_string_protocol().ok_or(
-            ValueError::CommandProtocolUnavailable("original List insertion issuer"),
-        )?;
+        let protocol = numeric
+            .object_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original List insertion issuer",
+            ))?;
         let original = operands.remove(0);
         let index = operands.remove(0);
         let reached = (|| {

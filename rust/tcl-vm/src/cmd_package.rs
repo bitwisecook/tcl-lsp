@@ -136,10 +136,7 @@ fn package_wrong_args(vm: &mut OriginalPackage<'_>, member: &str) -> Completion<
 }
 
 fn package_list(vm: &mut OriginalPackage<'_>, members: Vec<Value>) -> Completion<Value> {
-    let Some(strings) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
+    let Some(strings) = vm.object_protocol() else {
         return vm.refuse_host_command("package List result producer is unavailable".into());
     };
     ok(Value::native_list_constructor(members, strings))
@@ -1412,10 +1409,7 @@ fn bad_return_code(
     append_loader_error_frame(vm, &message, loader);
     // Ancillary options retain their original member objects. The selected
     // error factory independently owns the new result and private error code.
-    let Some(strings) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
+    let Some(strings) = vm.object_protocol() else {
         return vm.refuse_host_command("package return-option protocol is unavailable".into());
     };
     let pairs = match vm

@@ -901,10 +901,12 @@ impl Vm {
             original.string(value, protocol, registration)
         };
         let refuse = |error| original.refuse(error);
+        let objects = original.vm.borrow().object_protocol();
         let callbacks = crate::literal_pool::OriginalLiteralCallbacks {
             check: &check,
             string: &string,
             refuse: &refuse,
+            objects,
         };
         let protocol = original
             .vm

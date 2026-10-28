@@ -2544,6 +2544,50 @@ mod tests {
         );
     }
 
+    /// Inside the simulation a list is a Tcl 8.4 object and in the framework a
+    /// Tcl 9 one: each realm renders and parses by its own recipe, as tclsh
+    /// 8.4.20 and 9.0.4 do, and a list sealed by one is refused by the other.
+    #[test]
+    fn each_realm_keeps_its_own_list_recipe() {
+        // (script, tclsh 8.4.20, tclsh 9.0.4)
+        const CASES: &[(&str, &str, &str)] = &[
+            ("list #a b", "#a b", "{#a} b"),
+            ("lindex {a\\x4142 b} 0", "aB", "aA42"),
+        ];
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        for (script, tcl84, tcl90) in CASES {
+            assert_eq!(s.eval(script).unwrap(), *tcl84, "authored `{script}`");
+            assert_eq!(
+                s.eval_final_host_initialization(script).unwrap(),
+                *tcl90,
+                "framework `{script}`"
+            );
+        }
+        for (version, tcl84) in [
+            (tcl_dialect::TclVersion::V8_4, true),
+            (tcl_dialect::TclVersion::V9_0, false),
+        ] {
+            let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
+                continue;
+            };
+            for (script, old, new) in CASES {
+                let outcome = tcl_test_support::run_script(
+                    &tclsh.path,
+                    format!("puts [{script}]\n").as_bytes(),
+                )
+                .expect("tclsh");
+                let text = outcome.strict_text().expect("tclsh answers");
+                assert_eq!(text.trim_end(), if tcl84 { *old } else { *new }, "{script}");
+            }
+        }
+        s.eval_final_host_initialization("set ::crossing [list a b]")
+            .unwrap();
+        assert!(
+            s.eval("lindex $::crossing 0").is_err(),
+            "an authored reader cannot reparse a framework-sealed list"
+        );
+    }
+
     #[test]
     fn measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host() {
         let mut session = LiveSession::embedded().expect("framework");

@@ -153,6 +153,7 @@ pub mod native_mathop_compilation;
 pub mod native_namespace_binding_compilation;
 pub mod native_namespace_string_compilation;
 pub mod native_namespace_upvar_compilation;
+pub mod native_regexp_compilation;
 pub mod native_scalar_compilation;
 pub mod native_string_compilation;
 pub mod native_string_is_compilation;

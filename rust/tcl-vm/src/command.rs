@@ -2084,8 +2084,7 @@ fn split_formal_values(
 ) -> Result<Vec<Value>, CmdError> {
     use tcl_syntax::value::ValueError;
     let strings = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
+        .object_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "formal list producer",
         ))?;

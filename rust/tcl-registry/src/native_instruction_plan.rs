@@ -98,6 +98,8 @@ pub enum NativeInstructionPlan {
     TclOoHelper(crate::native_tcloo_compilation::NativeTclOoInstruction),
     /// Original pattern and subject followed by the selected C string matcher.
     StringMatch(crate::native_string_compilation::NativeStringMatchInstruction),
+    /// C9 regexp pattern (original word or converted glob), subject and matcher.
+    Regexp(crate::native_regexp_compilation::NativeRegexpInstruction),
     /// Original trim subject and optional original character set.
     StringTrim(crate::native_string_trim_compilation::NativeStringTrimInstruction),
     /// Original fixed String operands followed by the selected instruction.
@@ -1159,6 +1161,11 @@ fn selected_container_and_string_instruction_plan(
         NativeCompilationGrammar::StringMatch(scope) => {
             crate::native_string_compilation::instruction(words, operand_from, scope, version)
                 .map(NativeInstructionPlan::StringMatch)
+                .ok_or(Unavailable::OperandGeometry)
+        }
+        NativeCompilationGrammar::Regexp => {
+            crate::native_regexp_compilation::instruction(words, operand_from, version)
+                .map(NativeInstructionPlan::Regexp)
                 .ok_or(Unavailable::OperandGeometry)
         }
         NativeCompilationGrammar::ListRange | NativeCompilationGrammar::ListAssignment => {

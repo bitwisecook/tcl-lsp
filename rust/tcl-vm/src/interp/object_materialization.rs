@@ -69,6 +69,13 @@ impl InterpState {
             .map(ObjectMaterialization::AuthoredLogical)
     }
 
+    /// The list and dictionary recipe every object producer and consumer
+    /// takes: one selector, whichever realm calls it.
+    pub(crate) fn object_protocol(&self) -> Option<NativeStringProtocol> {
+        self.object_materialization()
+            .map(ObjectMaterialization::protocol)
+    }
+
     pub(crate) fn object_materialization(&self) -> Option<ObjectMaterialization> {
         // A reached, independently selected native host activation supplies its
         // own purpose. This is not fallback from a refused logical source call.
@@ -284,6 +291,102 @@ mod tests {
             dictionary
                 .with_native_compound_string_protocol(foreign)
                 .is_ok()
+        );
+    }
+
+    /// The iRules simulation over a Tcl 9 engine, every authored provider set.
+    fn simulation() -> Vm {
+        use tcl_registry::invocation_words::{
+            LogicalExpressionParseProvider, LogicalExpressionQuoteProvider,
+            LogicalSourceWordProvider,
+        };
+        let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let mut vm = Vm::with_native_core(
+            Box::new(std::io::sink()),
+            std::rc::Rc::new(crate::host_native::NativeHost::new()),
+            host,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let profile = tcl_dialect::DialectProfile::irules();
+        vm.set_dialect_profile(profile);
+        assert!(vm.set_command_surface_profile(host));
+        assert!(vm.set_native_engine_profile(host));
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        assert!(vm.set_logical_eval_object_provider(
+            tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
+        ));
+        assert!(
+            vm.set_logical_source_word_provider(LogicalSourceWordProvider::Tcl84CoreSimulation)
+        );
+        assert!(vm.set_logical_expression_parse_provider(
+            LogicalExpressionParseProvider::Tcl84CoreSimulation
+        ));
+        assert!(vm.set_logical_quote_provider(LogicalExpressionQuoteProvider::Tcl84CoreSimulation));
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+        ));
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(TclVersion::V8_4)
+        ));
+        assert!(vm.set_logical_compiled_variable_provider(
+            tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation
+        ));
+        vm
+    }
+
+    fn answer(completion: tcl_runtime_api::Completion<Value>, script: &str) -> String {
+        assert_eq!(completion.code, tcl_runtime_api::Code::Ok, "{script}");
+        completion.result.try_to_str().unwrap().to_string()
+    }
+
+    #[test]
+    fn one_proc_reads_and_writes_its_lists_under_one_recipe_in_each_realm() {
+        // Expected forms are tclsh 8.4.20 and 9.0.4 output for the same script.
+        const DEFINE: &str = "proc p {args} {lindex $args 0; linsert $args 0 x}
+            proc q {args} {list [lindex $args 0] [linsert $args 0 x]}";
+        const CASES: &[(&str, &str, &str)] = &[
+            ("p #c d", "x #c d", "x #c d"),
+            ("q #c d", "#c {x #c d}", "{#c} {x #c d}"),
+            ("list #a b", "#a b", "{#a} b"),
+            ("lindex {a\\x4142 b} 0", "aB", "aA42"),
+            ("linsert {a\\x4142 b} 0 x", "x aB b", "x aA42 b"),
+        ];
+        let mut vm = simulation();
+        assert_eq!(
+            vm.authored_logical_object_materialization()
+                .map(ObjectMaterialization::protocol),
+            Some(NativeStringProtocol::C(TclVersion::V8_4))
+        );
+        answer(vm.try_eval_source(DEFINE).unwrap(), DEFINE);
+        for (script, tcl84, _) in CASES {
+            assert_eq!(answer(vm.try_eval_source(script).unwrap(), script), *tcl84);
+        }
+        answer(vm.try_eval_native_host_source(DEFINE).unwrap(), DEFINE);
+        for (script, _, tcl90) in CASES {
+            assert_eq!(
+                answer(vm.try_eval_native_host_source(script).unwrap(), script),
+                *tcl90
+            );
+        }
+    }
+
+    #[test]
+    fn a_list_sealed_by_one_realm_is_refused_by_the_other() {
+        let mut vm = simulation();
+        answer(
+            vm.try_eval_native_host_source("set ::crossing [list a b]; llength $::crossing")
+                .unwrap(),
+            "host list",
+        );
+        let crossed = vm.try_eval_source("lindex $::crossing 0");
+        assert!(
+            !crossed
+                .as_ref()
+                .is_ok_and(|completion| completion.code == tcl_runtime_api::Code::Ok),
+            "an authored reader cannot reparse a host-sealed list"
         );
     }
 }
