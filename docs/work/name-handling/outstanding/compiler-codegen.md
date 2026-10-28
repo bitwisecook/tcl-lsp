@@ -4,6 +4,8 @@
 
 Independent review: slice 1 (Scope A) and the authored bracket-child route (Scope B) CLEAR-WITH-NOTES, no HOLD. Notes handled this round: A1 `SelectedConstFold` fields private with accessors (only const_subst constructs one); A5 private-store docs state the shared un-overlaid read for overlay != 0; A4 private/cached store parity test (`install::tests::private_and_cached_stores_expose_the_same_surface`); B1 authored VM rebind test (`an_authored_bracket_child_never_runs_a_superseded_builtin`); B2 foreign Native-authority policy control.
 
+Executed under safe-cargo: tcl-compiler lib `native_authored_bracket` + `closed_consumer::application` 5/5 PASS (incl. B1); tcl-spectcl lib `owned_evaluator` + `install::tests::private` 10/10 PASS (incl. A4). Clippy `-D warnings` clean on tcl-registry, tcl-compiler lib, tcl-engine-tclvm, tcl-spec-hooks, tcl-spectcl lib+tests; tcl-compiler lib-test clippy UNRUN this round (another role's uncommitted `original_command_table.rs:3291` E0609). H5 slice 2 design for Astra review: scratchpad `ccg-h5-slice2-design-v1.md`.
+
 Preconditions recorded (must hold before any consumer uses the selection or owned evaluator):
 - **A2:** `select_application_folds` walks every top-level statement kind with retained tokens, wider than the ordinary O129 visitor (Call/AssignValue). Before any rewrite consumer, either narrow selection to the ordinary visitor's sites or document the broader site set, and render answers with `render_propagation_word`.
 - **A3:** each owned call installs into a fresh private store and leaks its installed specs once. Bound the call rate (or cache by pack key under the same lineage) before production wiring.
