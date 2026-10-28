@@ -136,9 +136,6 @@ impl ExprError {
 
     /// Retain the exact reached command/primitive record through expression unwind.
     pub(crate) fn from_cmd_error(error: tcl_cmd_core::CmdError) -> Self {
-        if std::env::var_os("ZZ_RT_SCALAR_PROBE").is_some() && error.native_execution_refusal().is_some() {
-            eprintln!("ZZ_RT_SCALAR from_cmd_error {:?}\n{}", error.native_execution_refusal(), std::backtrace::Backtrace::force_capture());
-        }
         let mut result = Self::from_bytes(error.message_bytes().to_vec());
         if let Some(cause) = error.native_execution_refusal() {
             result.native_execution_refusal = Some(cause.clone());
@@ -166,9 +163,6 @@ impl ExprError {
     }
 
     pub(crate) fn host_refusal(error: tcl_syntax::raw_string::NativeValueAccessRefusal) -> Self {
-        if std::env::var_os("ZZ_RT_SCALAR_PROBE").is_some() {
-            eprintln!("ZZ_RT_SCALAR host_refusal {error:?}\n{}", std::backtrace::Backtrace::force_capture());
-        }
         Self {
             msg: Vec::new(),
             code: None,

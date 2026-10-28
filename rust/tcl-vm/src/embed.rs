@@ -103,6 +103,10 @@ impl NativeCommand for FrameworkBuiltinCapability {
     fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let saved = vm.active_native_profile.replace(self.profile);
         let result = (self.implementation)(vm, args);
+        // A body the builtin deferred (a `catch` script, an `eval` body) was
+        // compiled under this host activation, so it also runs inside it: a
+        // nested drive settles it before the scope ends.
+        let result = vm.settle_native_invoke(result);
         vm.active_native_profile = saved;
         result
     }

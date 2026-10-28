@@ -1431,12 +1431,13 @@ pub fn eval_mathop(
 pub(crate) fn native_jump_boolean84(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<bool, ExprError> {
     crate::typed_value::native_boolean_in(
         value,
         dialect,
         tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
-        None,
+        environment,
     )
     .map_err(ExprError::from_cmd_error)
 }

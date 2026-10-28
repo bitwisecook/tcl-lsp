@@ -8529,7 +8529,7 @@ fn apply_refine_stmt(
         | "var_elements_effect"
         | "safe_on_uninit" => {
             log.say_classified(stmt.line, VocabularyClass::Semantic,
-                "native form value overrides are excluded from strong analysis until the refinement loader and renderer preserve explicit inheritance withdrawal");
+                format!("`{key}`: native form value overrides are excluded from strong analysis until the refinement loader and renderer preserve explicit inheritance withdrawal"));
         }
         // Value transfers (vocabulary 2.2).
         "semantics" | "evaluate" | "facts" => {

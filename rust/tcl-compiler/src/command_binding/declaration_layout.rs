@@ -3218,7 +3218,11 @@ impl super::OriginalCompilationLookupAdvice {
             && self.original_source_purpose(metadata, registry)
                 == Some(super::OriginalInvocationSourcePurpose::AuthoredSimulation)
             && state.baseline.native_entry.is_none()
-            && state.baseline.source_point_entry.is_none()
+            && self
+                .source_purpose_state()
+                .baseline
+                .source_point_entry
+                .is_none()
             && state.baseline.logical_source_input.is_none()
             && state.baseline.vendor_source_input.is_none()
             && state.baseline.hosted_execution_context.is_none()
@@ -3245,13 +3249,24 @@ impl super::OriginalCompilationLookupAdvice {
 
     /// Purpose of this already joined original declaration or compiler layout.
     /// The shared baseline classifier issues no invocation, frame or handler.
-    /// A source's own continuation past a conditional region keeps the purpose
-    /// of the state that issued the region.
     pub(crate) fn original_source_purpose(
         &self,
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<super::OriginalInvocationSourcePurpose> {
+        // TEMP-ISSUER-TRACE
+        let state = self.source_purpose_state();
+        let purpose = state.retained_original_source_purpose(metadata, registry);
+        if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
+            eprintln!("TEMP_ISSUER final point={} origin={} purpose={purpose:?}", state.baseline.source_point_entry.is_some(), state.current_source_origin.is_some());
+        }
+        purpose
+    }
+
+    /// The state whose baseline supplies this layout's source purpose: its own,
+    /// or, when it continues a source past a conditional region, the state of
+    /// that source which issued the region.
+    fn source_purpose_state(&self) -> &super::ModuleCommandBindings {
         let mut state = &self.snapshot.state;
         while let (Some(point), Some(origin)) = (
             state.baseline.source_point_entry.as_ref(),
@@ -3262,12 +3277,7 @@ impl super::OriginalCompilationLookupAdvice {
             };
             state = issuer;
         }
-        // TEMP-ISSUER-TRACE
-        let purpose = state.retained_original_source_purpose(metadata, registry);
-        if std::env::var_os("TCL_LSP_TEMP_SOURCE_ADVICE_TRACE").is_some() {
-            eprintln!("TEMP_ISSUER final point={} origin={} purpose={purpose:?}", state.baseline.source_point_entry.is_some(), state.current_source_origin.is_some());
-        }
-        purpose
+        state
     }
 }
 

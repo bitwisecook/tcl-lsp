@@ -1999,6 +1999,18 @@ fn drive_file_statically(
     source: &str,
     include: Option<Rc<super::IncludeContext>>,
 ) -> Option<State> {
+    // The capture layer segments leniently; an incomplete script (an unclosed
+    // brace, bracket or quote) is a real evaluation failure the interpreter
+    // path diagnoses.
+    if !matches!(
+        tcl_lexer::script_image_is_complete(
+            &tcl_lexer::SourceImage::native(source.as_bytes()),
+            super::source_config(super::FileBom::Skip),
+        ),
+        Ok(true)
+    ) {
+        return None;
+    }
     let state = new_state(source, include);
     // `FileBom::Skip`: this is the file entry point, so a leading mark is a
     // prologue rather than part of the first word.

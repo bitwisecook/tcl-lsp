@@ -706,7 +706,12 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
             return Some((|| {
                 let left = crate::expr::eval_compiled_expression_node(left.as_ref(), self)?;
                 let dialect = self.interp.native_invocation_dialect();
-                let truth = crate::expr::native_jump_boolean84(left.as_ptr(), dialect)?;
+                let host = self.interp.host();
+                let truth = crate::expr::native_jump_boolean84(
+                    left.as_ptr(),
+                    dialect,
+                    host.numeric_environment(),
+                )?;
                 drop(left);
                 let normalized = obj::Owned::retain(
                     self.artifact
@@ -715,12 +720,15 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
                         .expect("C84 original logical normalisation literal"),
                 );
                 let conjunction = *op == tcl_syntax::expr::BinOp::And;
-                let selected = crate::expr::native_jump_boolean84(normalized.as_ptr(), dialect)?;
+                let selected = crate::expr::native_jump_boolean84(
+                    normalized.as_ptr(),
+                    dialect,
+                    host.numeric_environment(),
+                )?;
                 if selected != conjunction {
                     return Ok(normalized);
                 }
                 let right = crate::expr::eval_compiled_expression_node(right.as_ref(), self)?;
-                let host = self.interp.host();
                 crate::expr::native_logical84(
                     dialect,
                     normalized,
