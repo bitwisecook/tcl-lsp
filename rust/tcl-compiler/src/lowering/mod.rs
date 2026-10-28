@@ -3020,6 +3020,7 @@ impl<'r> Lowerer<'r> {
         &self,
         tokens: &CommandTokens,
     ) -> Option<crate::registry_invocation::SourceStructuredInvocation> {
+        if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT lower standalone={} metadata={} readonly={}", self.allows_standalone_registry_metadata(), self.invocation_metadata_context().is_some(), self.readonly_native_declaration_body.is_read_only()); } // TEMP-OPT
         if self.allows_standalone_registry_metadata() {
             return crate::registry_invocation::original_authored_control_invocation(
                 tokens,

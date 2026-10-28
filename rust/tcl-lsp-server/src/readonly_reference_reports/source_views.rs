@@ -553,6 +553,7 @@ enum SourceViewPublicationMode {
     AppendRegions,
 }
 
+macro_rules! tmp_view_probe { ($($arg:tt)*) => { if std::env::var_os("TCL_LSP_TRACE_SOURCE_VIEW_PROBE").is_some() { eprintln!("TMP_VIEW_PROBE {}", format_args!($($arg)*)); } }; }
 impl Backend {
     /// Commit all interpretations of one physical source in the same index
     /// transaction. Pending/unavailable required drafts never call this method.
@@ -2128,6 +2129,7 @@ impl Backend {
         &self,
     ) -> DocumentSourceResult<Option<OriginalSourceRootWork>> {
         let uris = self.workspace_index.read().await.document_uris();
+        tmp_view_probe!("root.index uris={:?}", uris);
         let mut work = OriginalSourceRootWork {
             candidates: Vec::new(),
             pending: HashSet::new(),
@@ -2139,6 +2141,7 @@ impl Backend {
                 return Ok(None);
             };
             if let Some(view) = self.cached_original_source_view(&uri, None).await? {
+                tmp_view_probe!("root.cached uri={}", uri.as_str());
                 work.candidates.push(OriginalSourceRootCandidate {
                     draft: view.draft.clone(),
                     published: Some(view),
@@ -2157,15 +2160,20 @@ impl Backend {
                 })
             };
             if interpreted {
+                tmp_view_probe!("root.interpreted uri={}", uri.as_str());
                 continue;
             }
             let snapshot = self.rehoming_document_snapshot(&uri).await?;
             let super::super::RehomingDocumentSnapshot::Ready(document) = snapshot else {
+                tmp_view_probe!("root.not-ready uri={}", uri.as_str());
                 work.pending.insert(uri);
                 continue;
             };
             match Self::original_declaration_document_participates(&uri, &document) {
-                Some(false) => continue,
+                Some(false) => {
+                    tmp_view_probe!("root.not-participating uri={}", uri.as_str());
+                    continue;
+                }
                 Some(true) => {}
                 None => {
                     work.pending.insert(uri);
@@ -2176,9 +2184,11 @@ impl Backend {
                 .capture_initial_original_source_root(&uri, *document)
                 .await?
             else {
+                tmp_view_probe!("root.capture-unavailable uri={}", uri.as_str());
                 work.pending.insert(uri);
                 continue;
             };
+            tmp_view_probe!("root.candidate uri={}", uri.as_str());
             work.candidates.push(OriginalSourceRootCandidate {
                 draft,
                 published: None,
@@ -2197,6 +2207,7 @@ impl Backend {
                         .entry(target.clone())
                         .or_default()
                         .insert(candidate.draft.physical.uri.clone());
+                    tmp_view_probe!("root.associated from={} target={}", candidate.draft.physical.uri.as_str(), target.as_str());
                     work.associated.insert(target);
                 }
             }
@@ -2651,12 +2662,12 @@ impl Backend {
         };
         while let Some(task) = state.tasks.pop() {
             if state.membership.len() > 4096 {
-                return Ok(state.finish_scope(root_id, root_uri, false));
+                { tmp_view_probe!("scope.incomplete site=1 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
             }
             match task {
                 SourceViewWork::Enter(parent) => {
                     if !self.visit_original_source_view(parent, &mut state).await? {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
+                        { tmp_view_probe!("scope.incomplete site=2 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
                     }
                 }
                 SourceViewWork::AfterChild {
@@ -2665,7 +2676,7 @@ impl Backend {
                     load,
                 } => {
                     let Some(completed_child) = state.finished.get(&child.id) else {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
+                        { tmp_view_probe!("scope.incomplete site=3 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
                     };
                     let Some(work) = self
                         .materialize_conditional_source_regions(
@@ -2676,7 +2687,7 @@ impl Backend {
                         )
                         .await?
                     else {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
+                        { tmp_view_probe!("scope.incomplete site=4 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
                     };
                     state
                         .membership
@@ -2685,7 +2696,7 @@ impl Backend {
                         .reconcile_issued_region_frontiers(&work, &mut state)
                         .await?
                     {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
+                        { tmp_view_probe!("scope.incomplete site=5 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
                     }
                     if let Some(completion) = work.completion() {
                         state.active.remove(&parent.id);
@@ -2695,7 +2706,7 @@ impl Backend {
                         // last issued frame region. It cannot skip to an outer
                         // suffix or manufacture whole-prefix completion.
                         let Some(last) = work.views.last().cloned() else {
-                            return Ok(state.finish_scope(root_id, root_uri, false));
+                            { tmp_view_probe!("scope.incomplete site=6 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
                         };
                         state.tasks.push(SourceViewWork::AfterRegion {
                             work,
@@ -2706,10 +2717,10 @@ impl Backend {
                 }
                 SourceViewWork::AfterRegion { work, region } => {
                     let Some(Some(completed)) = state.finished.get(&region.id) else {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
+                        { tmp_view_probe!("scope.incomplete site=7 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
                     };
                     let Some(completion) = work.completion_through_region(completed) else {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
+                        { tmp_view_probe!("scope.incomplete site=8 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
                     };
                     state.active.remove(&work.parent.id);
                     state.finished.insert(work.parent.id, Some(completion));
@@ -2719,7 +2730,7 @@ impl Backend {
         // Finishing a real first cut cannot silently discharge unrelated or
         // held Unknown cards outside the actual replayed region inventory.
         if !state.unknown.is_empty() {
-            return Ok(state.finish_scope(root_id, root_uri, false));
+            { tmp_view_probe!("scope.incomplete site=9 root={}", root_uri.as_str()); return Ok(state.finish_scope(root_id, root_uri, false)); }
         }
         Ok(state.finish_scope(root_id, root_uri, true))
     }
@@ -2814,8 +2825,13 @@ impl Backend {
         &self,
     ) -> DocumentSourceResult<Option<OriginalCommandSourceWorldCapture>> {
         let Some(settlement) = self.refresh_original_source_view_graph().await? else {
+            tmp_view_probe!("capture.graph-unavailable");
             return Ok(None);
         };
+        for scope in &settlement.scopes {
+            tmp_view_probe!("capture.scope root={} complete={} conditional={} completion={} ids={}", scope.root_uri.as_str(), scope.complete, scope.conditional_obligations, scope.completion.is_some(), scope.ids.len());
+        }
+        tmp_view_probe!("capture.indexed={}", self.original_source_view_settlement_is_indexed(&settlement));
         let capture = OriginalCommandSourceWorldCapture { settlement };
         Ok(self
             .original_command_source_worlds_are_current(&capture)

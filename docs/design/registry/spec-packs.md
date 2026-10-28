@@ -575,18 +575,27 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   can carry a manifest and a lockfile of its own and would otherwise name
   itself a root — reading through the same closed-file store as the packs,
   and never from what a package's own manifest claims. A file found any
-  other way, and a file in a project with no lockfile, have no tier. Below a
-  project that has a lockfile a file always has one: a package the lockfile
-  does not list, a manifest that does not read and a lockfile that does not
-  read each leave it transitive, the least a package gets. The tier is part
-  of the pack set's key, so a package moving in the lockfile's graph reloads
-  what its packs may declare.
+  other way, and a file in a project with no lockfile, have no tier. A
+  package the lockfile does not list is transitive, the least a package
+  gets. Selection fails closed on input it cannot read: a selected manifest
+  or lockfile that does not read or parse yields no packs from that input,
+  so a dependency whose own manifest or whose project's lockfile does not
+  read has its packs dropped, and the selection issue is recorded. The
+  workspace's own packs stay the root's, since that follows from where its
+  manifest sits. This is an intended change from the earlier behaviour,
+  which scanned beside an unreadable manifest and placed the dependency at
+  the transitive floor: a pack must not be selected on the strength of a
+  file nothing could read. The tier is part of the pack set's key, so a
+  package moving in the lockfile's graph reloads what its packs may
+  declare.
 - **A package names its packs with a `spec` directive.** A manifest that says
   `spec { packs {rules.tclspec vendor/more.tclspec} tier direct }` names the
   `.tclspec` files it ships, as paths relative to the manifest and inside the
   package, and discovery loads exactly those beside it — a draft or a fixture
   next to the manifest is not a pack — while a manifest without the directive
-  keeps the scan of every `.tclspec` under its directory. The directive is
+  keeps the scan of every `.tclspec` under its directory. A manifest that does
+  not read or parse has no known directive, so neither applies: nothing beside
+  it is selected and the issue is recorded. The directive is
   data, as every manifest directive is: it names files and runs nothing.
   `tier` is the tier the package asks for its packs when it is a dependency,
   and it is a request: the load holds it no nearer the root than the position

@@ -2231,6 +2231,13 @@ impl SourceInvocationBinding {
         self.lookup_state.as_ref().map(|snapshot| snapshot.realm)
     }
 
+    /// Whether this point was reached in a closed, transparent command world.
+    pub(crate) fn reached_in_closed_world(&self) -> bool {
+        self.lookup_state.as_ref().is_some_and(|point| {
+            !point.state.has_opaque_domain() && !point.state.unclosed_command_world
+        })
+    }
+
     /// Command-word value retained at this lookup, before alias composition.
     /// Different reaching values join to unknown rather than borrowing the
     /// terminal implementation's name.

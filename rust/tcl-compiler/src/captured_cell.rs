@@ -9,12 +9,11 @@
 //! namespace makes retirement permanent, even if identical names are recreated.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use crate::var_resolve::{RootContentsKind, VariableProofRelocation};
-
-static NEXT_RECEIPT: AtomicU64 = AtomicU64::new(1);
 
 /// Identity of one reached, currently active capture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -50,9 +49,27 @@ struct CapturedCellLease {
 
 /// Active operation receipts shared by every selected-frame view.
 /// Finished receipts are removed; external identities are never compared by name.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+/// Every clone of an arena draws receipts from one shared counter, so forks
+/// never reuse a receipt and identical analyses issue identical receipts. The
+/// counter is an allocator, not arena state.
+#[derive(Debug, Clone, Default)]
 pub struct CapturedCellArena {
     leases: BTreeMap<CapturedCellLeaseId, CapturedCellLease>,
+    issued: Arc<AtomicU64>,
+}
+
+impl PartialEq for CapturedCellArena {
+    fn eq(&self, other: &Self) -> bool {
+        self.leases == other.leases
+    }
+}
+
+impl Eq for CapturedCellArena {}
+
+impl std::hash::Hash for CapturedCellArena {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.leases.hash(state);
+    }
 }
 
 impl CapturedCellArena {
@@ -70,7 +87,7 @@ impl CapturedCellArena {
         {
             return None;
         }
-        let id = CapturedCellLeaseId(NEXT_RECEIPT.fetch_add(1, Ordering::Relaxed));
+        let id = CapturedCellLeaseId(self.issued.fetch_add(1, Ordering::Relaxed).checked_add(1)?);
         self.leases.insert(
             id,
             CapturedCellLease {
@@ -230,8 +247,10 @@ impl CapturedCellArena {
 
     /// Join receipts without identifying independent captures of the same family.
     pub fn join(&mut self, other: &Self) {
+        // Receipts from another counter are distinct captures even when equal.
+        let shared = Arc::ptr_eq(&self.issued, &other.issued);
         for (id, lease) in &mut self.leases {
-            if other.leases.get(id) != Some(lease) {
+            if !shared || other.leases.get(id) != Some(lease) {
                 lease.state = CapturedCellState::Unknown;
             }
         }
@@ -261,6 +280,7 @@ impl CapturedCellArena {
                     )
                 })
                 .collect(),
+            issued: Arc::clone(&self.issued),
         }
     }
 }

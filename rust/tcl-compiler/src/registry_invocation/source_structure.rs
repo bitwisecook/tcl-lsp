@@ -153,7 +153,53 @@ pub fn original_single_source_command_substitution_in_plan(
 /// Reuse only immutable document geometry; every caller still performs its
 /// original complete input/owner/currentness checks at the original position.
 /// A missing or mismatched retained image takes the original construction path.
-fn original_query_document_image(
+/// The first command of `tail`, as the whole tail's segmentation gives it.
+/// Lexing runs left to right, so once a prefix holds two complete commands
+/// before any syntax failure, the first can no longer change; F5's `else`
+/// lookahead joins later lines, so that grammar always parses the whole tail.
+// TEMP-STARTUP
+#[cfg(test)]
+pub(crate) fn temp_first_tail_command(
+    tail: &str,
+    offset: u32,
+    config: tcl_lexer::LexerConfig,
+) -> Option<crate::segmenter::SegmentedCommand> {
+    first_tail_command(tail, offset, config)
+}
+
+fn first_tail_command(
+    tail: &str,
+    offset: u32,
+    config: tcl_lexer::LexerConfig,
+) -> Option<crate::segmenter::SegmentedCommand> {
+    let mut end = 256;
+    while !config.brace_line_continuation.continues() && end < tail.len() {
+        let mut cut = end;
+        while !tail.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let window = &tail[..cut];
+        let settled = crate::segmenter::segment_script_image_with_offset_and_config(
+            &tcl_lexer::SourceImage::document(window),
+            offset,
+            config,
+        )
+        .is_ok_and(|script| script.commands.len() >= 2);
+        if settled {
+            return crate::segmenter::segment_commands_with_offset_and_config(
+                window, offset, config,
+            )
+            .into_iter()
+            .next();
+        }
+        end = end.saturating_mul(2);
+    }
+    crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config)
+        .into_iter()
+        .next()
+}
+
+pub(crate) fn original_query_document_image(
     source: &str,
     analysis: &AnalysisResult,
     config: tcl_lexer::LexerConfig,
@@ -1117,7 +1163,10 @@ pub fn selected_registry_words(
     registry: &CommandRegistry,
 ) -> Option<OriginalRegistryWords> {
     let config = analysis.body_lexer_config?;
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+    if !analysis.matches_original_source_image(
+        &original_query_document_image(source, analysis, config),
+        config,
+    ) {
         return None;
     }
     let actual_registry = analysis.resolved_registry()?;
@@ -1911,9 +1960,7 @@ pub fn source_registry_words_in_definition_body_at(
         segment
     } else {
         let tail = source.get(usize::try_from(offset).ok()?..)?;
-        crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config.nested())
-            .into_iter()
-            .next()?
+        first_tail_command(tail, offset, config.nested())?
     };
     (segment.argv.first()?.span.start() == offset).then_some(())?;
     let context = input.context_registry();
@@ -2558,9 +2605,7 @@ pub fn source_registry_words_at(
         segment
     } else {
         let tail = source.get(usize::try_from(offset).ok()?..)?;
-        crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config.nested())
-            .into_iter()
-            .next()?
+        first_tail_command(tail, offset, config.nested())?
     };
     (segment.argv.first()?.span.start() == offset).then_some(())?;
     trace_remote_source_option(
@@ -3169,13 +3214,7 @@ fn registered_original_words_at<'a>(
         // The original tape remains the body/source-role authority below.
         // Parsing a suffix only supplies unchanged word geometry for that join.
         let tail = source.get(usize::try_from(offset).ok()?..)?;
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
-            tail,
-            offset,
-            config.nested(),
-        )
-        .into_iter()
-        .next()?;
+        let segment = first_tail_command(tail, offset, config.nested())?;
         let tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -3893,7 +3932,7 @@ pub(crate) fn original_segment_for_tokens(
     Vec<tcl_lexer::NativeWord>,
 )> {
     let config = analysis.body_lexer_config?;
-    let image = tcl_lexer::SourceImage::document(source);
+    let image = original_query_document_image(source, analysis, config);
     if !analysis.matches_original_source_image(&image, config) {
         return None;
     }
@@ -5114,6 +5153,32 @@ pub fn selected_vendor_registry_words_at(
 #[cfg(test)]
 mod tests {
     use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
+    #[test]
+    fn first_tail_command_matches_the_whole_tail_segmentation() {
+        let long = "x".repeat(300);
+        let sources = [
+            format!("set a 1\nset b 2; set c 3\n# note\nputs $a\n{long}\n"),
+            format!("proc p {{}} {{\n    set x 1\n    set y {{{long}}}\n}}\np\nset z 2\n"),
+            format!("namespace eval :: {{source child.tcl}}; set q {{{long}\n}}\nset r 1\n"),
+            format!("set s \"café {long}\"\nset t [list a \\\n b]\nset u 1\n"),
+            format!("set v {{unclosed {long}\nset w 1\n"),
+        ];
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6").nested();
+        for source in &sources {
+            for (offset, _) in source.char_indices() {
+                let tail = &source[offset..];
+                let offset = u32::try_from(offset).unwrap();
+                assert_eq!(
+                    super::first_tail_command(tail, offset, config),
+                    crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config)
+                        .into_iter()
+                        .next(),
+                    "{offset}"
+                );
+            }
+        }
+    }
 
     use super::*;
 

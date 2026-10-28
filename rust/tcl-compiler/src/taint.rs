@@ -6466,6 +6466,10 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
             rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
             continue;
         }
+        #[cfg(debug_assertions)]
+        if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
+            eprintln!("ZZ_SCAFFOLD at={at} head={head:?} fact={:?}", identities.binding_at(&head, at)); // ZZPROBE
+        }
         match identities.binding_at(&head, at) {
             crate::realm::RealmBindingFact::Unchanged => {}
             crate::realm::RealmBindingFact::Rebound => {

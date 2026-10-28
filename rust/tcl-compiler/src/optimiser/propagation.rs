@@ -5503,14 +5503,6 @@ mod tests {
         tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
     }
 
-    fn profiled_fold(src: &str) -> Vec<String> {
-        crate::optimiser::optimise_raw(src, profiled_registry(), None)
-            .into_iter()
-            .filter(|o| o.code == DiagCode::O129)
-            .map(|o| o.replacement)
-            .collect()
-    }
-
     fn fold_code(src: &str, code: &str) -> Vec<String> {
         crate::optimiser::optimise_raw(src, &registry(), None)
             .into_iter()
@@ -5759,22 +5751,22 @@ mod tests {
                 .collect()
         };
         assert_eq!(
-            profiled_fold("set s abcde\nputs [string length $s]"),
+            fold("set s abcde\nputs [string length $s]"),
             vec!["5".to_string()],
         );
         // A multi-word constant value is kept as one arg.
         assert_eq!(
-            profiled_fold("set s {a b}\nputs [llength $s]"),
+            fold("set s {a b}\nputs [llength $s]"),
             vec!["2".to_string()],
         );
         // Combined: a resolved var inside an interpolation cmd-sub.
         assert_eq!(
-            profiled_fold("set s abc\nputs \"len=[string length $s]\""),
+            fold("set s abc\nputs \"len=[string length $s]\""),
             vec!["\"len=3\"".to_string()],
         );
         // A non-constant var does not resolve → no fold.
         assert_eq!(
-            profiled_fold("puts [string length $undefined]"),
+            fold("puts [string length $undefined]"),
             [] as [std::string::String; 0]
         );
     }
@@ -5822,24 +5814,19 @@ mod tests {
                 .collect()
         };
         // Baseline: untouched `string` folds.
-        assert_eq!(
-            profiled_fold("puts [string toupper foo]"),
-            vec!["FOO".to_string()]
-        );
+        assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
         // An uncalled declaration leaves the stock command selected.
         assert_eq!(
-            profiled_fold("proc clobber {} { rename string {} }\nputs [string toupper foo]"),
+            fold("proc clobber {} { rename string {} }\nputs [string toupper foo]"),
             vec!["FOO".to_string()],
         );
         assert_eq!(
-            profiled_fold(
-                "proc clobber {} { rename string {} }\nclobber\nputs [string toupper foo]"
-            ),
+            fold("proc clobber {} { rename string {} }\nclobber\nputs [string toupper foo]"),
             [] as [String; 0],
             "a completed rebinder removes the reached builtin",
         );
         assert_eq!(
-            profiled_fold("rename string {}\nputs [string toupper foo]").len(),
+            fold("rename string {}\nputs [string toupper foo]").len(),
             0,
             "renamed-away builtin must not fold",
         );

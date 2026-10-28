@@ -107,16 +107,6 @@ fn channel_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     }
 }
 
-/// [`codes`] for a unit built with the profile's invocation dialect.
-fn dialect_codes(src: &str, dialect: &str) -> Vec<String> {
-    let mut out: Vec<String> = dialect_warns(src, dialect)
-        .iter()
-        .map(|w| w.code.to_string())
-        .collect();
-    out.sort();
-    out
-}
-
 /// [`codes`] through [`channel_warns`].
 fn channel_codes(src: &str, dialect: &str) -> Vec<String> {
     let mut out: Vec<String> = channel_warns(src, dialect)
@@ -141,20 +131,6 @@ fn channel_of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
         .into_iter()
         .filter(|w| w.code.to_string() == code)
         .collect()
-}
-
-/// [`has`] for a unit built with the profile's invocation dialect.
-fn dialect_has(src: &str, dialect: &str, code: &str, var: &str) -> bool {
-    dialect_of_code(src, dialect, code)
-        .iter()
-        .any(|w| w.variable == var)
-}
-
-/// [`has`] through [`channel_warns`].
-fn channel_has(src: &str, dialect: &str, code: &str, var: &str) -> bool {
-    channel_of_code(src, dialect, code)
-        .iter()
-        .any(|w| w.variable == var)
 }
 
 /// Sorted list of diagnostic codes.

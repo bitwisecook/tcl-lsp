@@ -157,8 +157,9 @@ pub struct PackFile {
     /// `Some` for every file found beside a `tclpkg.tcl` in a project that
     /// has a `tclpkg.lock`: the project's own package is the root, and any
     /// other is what the lockfile's graph gives it, or transitive when the
-    /// graph does not place it (an unlisted package, a manifest or lockfile
-    /// that does not read). `None` for every other file — a pack no package
+    /// graph does not place it (an unlisted package). A dependency whose
+    /// manifest, or whose project's lockfile, does not read is not selected
+    /// at all. `None` for every other file — a pack no package
     /// ships, and a file in a workspace with no project lockfile — and a pack
     /// with no tier is not narrowed by
     /// [`tcl_registry::model::CodegenCapability`]. Last, so a sort orders by
@@ -566,7 +567,12 @@ fn discover_selected_in(
         .into_iter()
         .filter(|file| seen.insert(file.path.clone()))
         .collect();
-    assign_dependency_tiers(store, &options.workspace_roots, &mut files);
+    assign_dependency_tiers(
+        store,
+        &options.workspace_roots,
+        &mut files,
+        &mut manifest_selection,
+    );
     let configured_sources = configured_sources
         .into_iter()
         .map(|sources| {
@@ -912,21 +918,41 @@ fn normalise(path: &Path) -> PathBuf {
 /// it. It is the *root* package when that manifest sits in the project root
 /// itself, and otherwise the tier is what the project's lockfile and root
 /// manifest give the package the file's own manifest names
-/// ([`dependency_tier`]). Below a project that has a lockfile a file is never
-/// left without a tier: a manifest that does not read, a package the lockfile
-/// does not list and a lockfile that does not read each leave it
+/// ([`dependency_tier`]). A package the lockfile does not list is
 /// [`DependencyTier::Transitive`], the least a package gets, because nothing
-/// the package's own files say — or fail to say — may lift it. Only a
-/// workspace with no project lockfile leaves a file with no tier.
-fn assign_dependency_tiers(store: &dyn SourceStore, roots: &[PathBuf], files: &mut [PackFile]) {
+/// the package's own files say may lift it. Selection fails closed on input
+/// it cannot read: when the project's lockfile or root manifest, or the
+/// package's own manifest, does not read or parse, the dependency's packs are
+/// dropped and the selection issue is recorded. Only a workspace with no
+/// project lockfile leaves a file with no tier.
+fn assign_dependency_tiers(
+    store: &dyn SourceStore,
+    roots: &[PathBuf],
+    files: &mut Vec<PackFile>,
+    selection: &mut ManifestSelectionInputs,
+) {
     let mut reader = TierReader::new(store, roots);
-    for file in files
-        .iter_mut()
-        .filter(|file| file.origin == Origin::BesideManifest)
-    {
-        file.dependency_tier = reader.tier_of(&file.path);
-    }
+    files.retain_mut(|file| {
+        if file.origin != Origin::BesideManifest {
+            return true;
+        }
+        match reader.tier_of(&file.path) {
+            Ok(tier) => {
+                file.dependency_tier = tier;
+                true
+            }
+            Err((path, issue)) => {
+                if !selection.issues.iter().any(|(held, _)| held == &path) {
+                    selection.issues.push((path, issue));
+                }
+                false
+            }
+        }
+    });
 }
+
+/// A selected input that does not read, with the issue it records.
+type SelectionIssue = (PathBuf, String);
 
 /// The manifest and lockfile a directory holds, when it holds them.
 #[derive(Clone, Default)]
@@ -947,9 +973,9 @@ struct TierReader<'a> {
     roots: Vec<PathBuf>,
     listings: HashMap<PathBuf, PackageFiles>,
     /// A project root's manifest and lockfile, once read.
-    projects: HashMap<PathBuf, Option<(ManifestAst, LockFile)>>,
+    projects: HashMap<PathBuf, Result<(ManifestAst, LockFile), SelectionIssue>>,
     /// The tier of each package directory already worked out.
-    packages: HashMap<PathBuf, Option<DependencyTier>>,
+    packages: HashMap<PathBuf, Result<Option<DependencyTier>, SelectionIssue>>,
 }
 
 impl<'a> TierReader<'a> {
@@ -972,21 +998,26 @@ impl<'a> TierReader<'a> {
     }
 
     /// The tier of the package shipping the pack file at `pack`.
-    fn tier_of(&mut self, pack: &Path) -> Option<DependencyTier> {
+    fn tier_of(&mut self, pack: &Path) -> Result<Option<DependencyTier>, SelectionIssue> {
         // The outermost workspace folder holding the pack, as the project
         // rule takes the outermost pair: a folder opened inside an installed
         // dependency would otherwise end the search at the dependency's own
         // manifest and let it stand as a project of its own.
-        let root = self
+        let Some(root) = self
             .roots
             .iter()
             .filter(|root| pack.starts_with(root))
-            .min_by_key(|root| root.components().count())?
-            .clone();
+            .min_by_key(|root| root.components().count())
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        let Some(parent) = pack.parent() else {
+            return Ok(None);
+        };
         // The directories from the pack's own up to the workspace folder,
         // innermost first.
-        let chain: Vec<PathBuf> = pack
-            .parent()?
+        let chain: Vec<PathBuf> = parent
             .ancestors()
             .take_while(|dir| dir.starts_with(&root))
             .map(Path::to_path_buf)
@@ -994,49 +1025,55 @@ impl<'a> TierReader<'a> {
         if chain.iter().any(|dir| self.listing(dir).unavailable) {
             // Do not walk past an unknown local provider to a stronger outer
             // package. Keep the actual pack but give it no promoted trust tier.
-            return Some(DependencyTier::Transitive);
+            return Ok(Some(DependencyTier::Transitive));
         }
-        let package = chain
+        let Some(package) = chain
             .iter()
-            .find(|dir| self.listing(dir).manifest.is_some())?
-            .clone();
+            .find(|dir| self.listing(dir).manifest.is_some())
+            .cloned()
+        else {
+            return Ok(None);
+        };
         if let Some(known) = self.packages.get(&package) {
-            return *known;
+            return known.clone();
         }
         let tier = self.tier_of_package(&package, &chain);
-        self.packages.insert(package, tier);
+        self.packages.insert(package, tier.clone());
         tier
     }
 
-    fn tier_of_package(&mut self, package: &Path, chain: &[PathBuf]) -> Option<DependencyTier> {
-        let project = chain
+    fn tier_of_package(
+        &mut self,
+        package: &Path,
+        chain: &[PathBuf],
+    ) -> Result<Option<DependencyTier>, SelectionIssue> {
+        let Some(project) = chain
             .iter()
             .rev()
             .find(|dir| {
                 let files = self.listing(dir);
                 files.manifest.is_some() && files.lockfile.is_some()
-            })?
-            .clone();
-        if project == package {
-            return Some(DependencyTier::Root);
-        }
-        let manifest = self
-            .listing(package)
-            .manifest
-            .and_then(|manifest| read_manifest(self.store, &manifest));
-        let graded = manifest
-            .as_ref()
-            .and_then(|manifest| {
-                let (root, lock) = self.project(&project)?;
-                dependency_tier(root, lock, &manifest.name)
             })
-            .unwrap_or(DependencyTier::Transitive);
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        if project == package {
+            return Ok(Some(DependencyTier::Root));
+        }
+        let Some(path) = self.listing(package).manifest else {
+            return Ok(None);
+        };
+        let manifest = read_manifest(self.store, &path)?;
+        let (root, lock) = self.project(&project)?;
+        let graded =
+            dependency_tier(root, lock, &manifest.name).unwrap_or(DependencyTier::Transitive);
         // The package may ask for a tier further from the root than its
         // position gives it, and never a nearer one.
-        let requested = manifest
-            .and_then(|manifest| manifest.spec)
-            .map(|spec| spec.requested_tier);
-        Some(requested.map_or(graded, |requested| clamp_requested(requested, graded)))
+        let requested = manifest.spec.map(|spec| spec.requested_tier);
+        Ok(Some(requested.map_or(graded, |requested| {
+            clamp_requested(requested, graded)
+        })))
     }
 
     fn listing(&mut self, dir: &Path) -> PackageFiles {
@@ -1047,20 +1084,25 @@ impl<'a> TierReader<'a> {
             .clone()
     }
 
-    fn project(&mut self, dir: &Path) -> Option<&(ManifestAst, LockFile)> {
+    /// The project root's manifest and lockfile; the root is chosen because
+    /// its listing holds both.
+    fn project(&mut self, dir: &Path) -> Result<&(ManifestAst, LockFile), SelectionIssue> {
         if !self.projects.contains_key(dir) {
             let files = self.listing(dir);
-            let read = files
-                .manifest
-                .zip(files.lockfile)
-                .and_then(|(manifest, lockfile)| {
-                    let manifest = read_manifest(self.store, &manifest)?;
-                    let lock = deserialise(&self.store.read_to_string(&lockfile).ok()?).ok()?;
-                    Some((manifest, lock))
-                });
+            let read = match files.manifest.zip(files.lockfile) {
+                Some((manifest, lockfile)) => read_manifest(self.store, &manifest)
+                    .and_then(|manifest| Ok((manifest, read_lockfile(self.store, &lockfile)?))),
+                None => Err((
+                    dir.to_path_buf(),
+                    "selected project files are unavailable".into(),
+                )),
+            };
             self.projects.insert(dir.to_path_buf(), read);
         }
-        self.projects.get(dir)?.as_ref()
+        match &self.projects[dir] {
+            Ok(project) => Ok(project),
+            Err(issue) => Err(issue.clone()),
+        }
     }
 }
 
@@ -1104,9 +1146,34 @@ impl PackageFiles {
     }
 }
 
-fn read_manifest(store: &dyn SourceStore, path: &Path) -> Option<ManifestAst> {
-    let text = store.read_to_string(path).ok()?;
-    load_manifest_text(&text, path.to_str()).ok()
+fn read_manifest(store: &dyn SourceStore, path: &Path) -> Result<ManifestAst, SelectionIssue> {
+    let text = store.read_to_string(path).map_err(|error| {
+        (
+            path.to_path_buf(),
+            format!("cannot read selected manifest: {error}"),
+        )
+    })?;
+    load_manifest_text(&text, path.to_str()).map_err(|error| {
+        (
+            path.to_path_buf(),
+            format!("cannot parse selected manifest: {error:?}"),
+        )
+    })
+}
+
+fn read_lockfile(store: &dyn SourceStore, path: &Path) -> Result<LockFile, SelectionIssue> {
+    let text = store.read_to_string(path).map_err(|error| {
+        (
+            path.to_path_buf(),
+            format!("cannot read selected lockfile: {error}"),
+        )
+    })?;
+    deserialise(&text).map_err(|error| {
+        (
+            path.to_path_buf(),
+            format!("cannot parse selected lockfile: {error:?}"),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -1663,23 +1730,45 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A manifest or a lockfile that does not read leaves the dependency's
-    /// pack at the floor, transitive: nothing is granted on the strength of a
-    /// file that cannot be read, and a dependency cannot lift itself by
-    /// writing one that does not. A manifest that names a package the
-    /// lockfile does not list is the same. The workspace's own pack is still
-    /// the root's, which is a fact about where its manifest sits.
+    /// The manifest-selection issues one discovery of `root` records.
+    fn selection_issues(root: &Path) -> Vec<PathBuf> {
+        discover_configuration_with_active_studio_in(
+            &NativeStore,
+            &DiscoveryOptions {
+                workspace_roots: vec![root.to_path_buf()],
+                skip_user_tier: true,
+                bundled_dir: Some(root.join("no-such-bundled")),
+                ..DiscoveryOptions::default()
+            },
+            &[],
+        )
+        .manifest_selection
+        .issues
+        .into_iter()
+        .map(|(path, _)| path)
+        .collect()
+    }
+
+    /// A project lockfile or a dependency manifest that does not read selects
+    /// nothing: the dependency's pack is dropped and the selection issue is
+    /// recorded, rather than the pack being placed on the strength of a file
+    /// that cannot be read. The workspace's own pack is still the root's,
+    /// which is a fact about where its manifest sits. A manifest that reads but
+    /// names a package the lockfile does not list is not unreadable input, and
+    /// stays at the transitive floor.
     #[test]
-    fn an_unreadable_manifest_or_lockfile_is_transitive() {
+    fn an_unreadable_manifest_or_lockfile_selects_nothing() {
+        // Selection fails closed on unreadable input (user decision 2026-10-28T1450Z).
         let root = tmpdir("tier-unreadable");
         installed_workspace(&root, &["json"]);
         write(&root.join("tclpkg.lock"), "{ not json");
         assert_eq!(
             tiers_by_pack(&discover_workspace(&root)),
-            vec![
-                ("app".to_owned(), Some(DependencyTier::Root)),
-                ("json".to_owned(), Some(DependencyTier::Transitive))
-            ]
+            vec![("app".to_owned(), Some(DependencyTier::Root))]
+        );
+        assert!(
+            !selection_issues(&root).is_empty(),
+            "the unreadable lockfile is an issue"
         );
 
         write(
@@ -1692,10 +1781,13 @@ mod tests {
         );
         assert_eq!(
             tiers_by_pack(&discover_workspace(&root)),
-            vec![
-                ("app".to_owned(), Some(DependencyTier::Root)),
-                ("json".to_owned(), Some(DependencyTier::Transitive))
-            ]
+            vec![("app".to_owned(), Some(DependencyTier::Root))]
+        );
+        assert!(
+            selection_issues(&root)
+                .iter()
+                .any(|path| path.ends_with("lib/json-1.0.0/tclpkg.tcl")),
+            "the unreadable dependency manifest is an issue"
         );
 
         write(
@@ -1868,11 +1960,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A directive that does not read — a pack outside the package — names
-    /// nothing, so the scan is the answer, exactly as for a manifest that
-    /// does not read at all.
+    /// A directive that does not read — a pack outside the package — selects
+    /// nothing, exactly as for a manifest that does not read at all: no scan
+    /// stands in for it, and the selection issue is recorded.
     #[test]
-    fn a_directive_that_does_not_read_leaves_the_scan_in_place() {
+    fn a_directive_that_does_not_read_selects_nothing() {
+        // Selection fails closed on unreadable input (user decision 2026-10-28T1450Z).
         let root = tmpdir("spec-unreadable");
         write(
             &root.join("tclpkg.tcl"),
@@ -1880,9 +1973,12 @@ mod tests {
         );
         write(&root.join("app.tclspec"), "speclib app 1 {}\n");
         write(&root.join("draft.tclspec"), "speclib draft 1 {}\n");
-        assert_eq!(
-            names(&discover_workspace(&root)),
-            vec!["app.tclspec", "draft.tclspec"]
+        assert_eq!(names(&discover_workspace(&root)), Vec::<&str>::new());
+        assert!(
+            selection_issues(&root)
+                .iter()
+                .any(|path| path.ends_with("tclpkg.tcl")),
+            "the unreadable directive is an issue"
         );
         let _ = std::fs::remove_dir_all(&root);
     }

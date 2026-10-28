@@ -610,19 +610,26 @@ fn authored_simulation_structure_is_supported(
     selected: &ResolvedStatementInvocation,
     source_roles: Option<&StructuredSourceRoles>,
 ) -> Option<()> {
-    let advice = tokens
-        .source_binding
-        .as_ref()?
+    let binding = tokens.source_binding.as_ref()?;
+    // A reached point whose registered handler is proved in its own closed
+    // world needs no simulated declaration lookup; only bodies need modelling.
+    let reached = binding.reached_in_closed_world()
+        && binding
+            .proved_handler_target()
+            .is_some_and(|target| target.registry_backed);
+    let advice = binding
         .declaration_operand_layout_advice(tokens)
-        .or_else(|| {
-            tokens
-                .source_binding
-                .as_ref()?
-                .original_compilation_lookup_advice(tokens)
-        })?;
-    if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
-        return None;
-    }
+        .or_else(|| binding.original_compilation_lookup_advice(tokens));
+    let realm = match &advice {
+        Some(advice) => {
+            if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
+                return None;
+            }
+            advice.realm()
+        }
+        None if reached => binding.invocation_realm()?,
+        None => return None,
+    };
     let config = context.source_analysis_input()?.lexer_config();
     if tokens.words().iter().any(|word| match word {
         WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => false,
@@ -641,19 +648,34 @@ fn authored_simulation_structure_is_supported(
         || selected.written_argument_roles(),
         StructuredSourceRoles::argument_roles,
     );
-    selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
+    let bodiless = reached
+        && roles.iter().all(|(_, role)| {
+            !matches!(
+                role,
+                tcl_registry::ArgRole::Body
+                    | tcl_registry::ArgRole::OpaqueScript
+                    | tcl_registry::ArgRole::Expr
+                    | tcl_registry::ArgRole::LoopVarList
+                    | tcl_registry::ArgRole::ParamList
+                    | tcl_registry::ArgRole::StaticVarList
+            )
+        });
+    selected.with_metadata_schema(registry, context, realm, |schema| {
         use tcl_registry::hooks::LoweringHookId;
-        if !matches!(
-            schema.facts().lowering_hook?,
-            LoweringHookId::If
-                | LoweringHookId::Switch
-                | LoweringHookId::While
-                | LoweringHookId::For
-                | LoweringHookId::Foreach
-                | LoweringHookId::Lmap
-                | LoweringHookId::Catch
-                | LoweringHookId::Try
-        ) || schema.semantics.frame_effect.is_some()
+        let hook = schema.facts().lowering_hook?;
+        if !(bodiless
+            || matches!(
+                hook,
+                LoweringHookId::If
+                    | LoweringHookId::Switch
+                    | LoweringHookId::While
+                    | LoweringHookId::For
+                    | LoweringHookId::Foreach
+                    | LoweringHookId::Lmap
+                    | LoweringHookId::Catch
+                    | LoweringHookId::Try
+            ))
+            || schema.semantics.frame_effect.is_some()
             || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
             || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
         {

@@ -2127,8 +2127,12 @@ impl Analyser {
     }
 
     pub(super) fn retained_value_word(&self, token: Token) -> Option<tcl_lexer::NativeWord> {
-        let image = tcl_lexer::SourceImage::document(&self.source);
         let config = self.file_lexer_config();
+        let image = crate::registry_invocation::source_structure::original_query_document_image(
+            &self.source,
+            &self.result,
+            config,
+        );
         self.result
             .matches_original_source_image(&image, config)
             .then_some(())?;
