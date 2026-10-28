@@ -58,7 +58,7 @@ No live role survives this pause. Restart five roles in parallel only after user
 
 Do not duplicate external bigip-lsp, perf or review-triage. Their old headers are stale; they were reported, not taken over. review-triage is complete. Preserve the external perf equivalence proof and integrated optimisation; it is not shipping performance acceptance.
 
-One genuinely new user question remains UNANSWERED and held: whether namespace semantic tests may use the existing checked VM result projection in place of incidental generic Value.to_str coverage (121 tests). Proposal `vm-namespace-result-projection-proposal-v1` plus qualificationV2 and held Scope review are archived. A checked C9 native-string refusal does not prove typed `try_to_str` refusal; no catch_unwind workaround. Do not implement or assume approval.
+Namespace semantic-test coverage was APPROVED on28 October2026: use the existing checked VM result projection, preserving all121 scripts and expected results and adding the standalone Native string-refusal test. See [recorded user decision](handoff/reviews/resume-20261017-diagnosis/user-decisions-20261028T203718Z.json). The generic Value::to_str/try_to_str capability gap remains explicit. This historical pause checkpoint does not establish current implementation or test status; recheck actual source before applying. Do not reopen the approved coverage decision.
 
 The latest quoted-NUL fixture-precondition decision is already recorded in `user-decisions-20261026T165951Z.json` and implemented earlier; do not reopen it or claim a new receiver capability. All other recorded decisions remain binding.
 
