@@ -6,6 +6,7 @@ iRules bracket children: under an authored naming simulation (C9 point, authored
 
 - Executed: tcl-compiler lib `native_authored_bracket` 2/2 + `closed_consumer::application` 2/2 PASS (procedure refusal fixed). tcl-irule-test bootstrap + cause3 = 0/4 PASS, but three now pass compile admission and stop at vm-runtime protocol refusals: `cmd_dict.rs:50-56` "native dictionary diagnostic protocol" (pure_functions b64decode) and `StringAccess(Unavailable(ProtocolUnavailable))` (bootstrap reset, scf_loader). `tmm_word_boolean…` unchanged: first `expr {1 and 1}` hits "cannot continue bytecode after native invocation policy changed" (`tcl-vm/src/exec.rs:801`), runtime, untriaged further.
 - pack_source_e2e 9/10 PASS (O129 fold and reference-body pass); derived-body fails at `format %x -1` under 8.6 (analysis None vs shell). spec_corpus first gates unchanged LENGTH1/1 MAP0/0 RANGE0/0 (FAIL as recorded).
+- Clippy `-D warnings` clean on tcl-compiler/registry/engine/spec-hooks/spectcl lib+tests.
 - Slice 1 (owned evaluator / request dispatch / private store) unchanged, frozen pending the scheduled peer review of deviations 1–4.
 - Open for H5: private application VM/candidate execution, returned-code/literal/getter/cache/COW/observer closure, lineage into executed modules, fixture wiring, MAP (opaque `subst`) and RANGE (interprocedural constants), per-call spec leak.
 
