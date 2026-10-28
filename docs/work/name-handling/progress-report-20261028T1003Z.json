@@ -1,0 +1,59 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T10:03:12.731023+00:00",
+  "scheduled_report_utc": "2026-10-28T09:59:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Independent review of H5 slice 1 and the iRules authored bracket-child route: both CLEAR-WITH-NOTES, no HOLD; 30/30 targeted tests re-run green; four deviations verified sound (errno guard change lets no consumer-relevant state escape; private store surface identical to cached path). Notes A1/A4/A5/B1/B2 assigned to compiler-codegen; A2/A3 recorded as preconditions for any rewrite or production wiring.",
+    "Hosted lsp-startup-diagnostics 40664177056 on 2b479a086: build PASS (942 s); context PASS; typical FAIL - cold tokens 96 ms, analysis 70 ms, then no workspace_folders_scan timing within 30 s on a one-file root (stall or missing completion signal, not throughput). Routed to lsp.",
+    "WIP snapshot of role edits committed."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "CodeLens recapture review",
+    "compiler standalone-unit test correction",
+    "compiler-names, vm-runtime, lsp, compiler-codegen roles"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T10:32:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
