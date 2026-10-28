@@ -1,0 +1,17 @@
+{
+  "recorded_utc": "2026-10-28T20:37:18.323355+00:00",
+  "source": "Explicit user answer in chat, call_b628baa16e614e81b49b972639c7791e",
+  "decisions": {
+    "namespace_semantic_tests_checked_vm_projection": {
+      "answer": "Use checked VM projection (Recommended)",
+      "meaning": "Use the existing checked VM result projection in the namespace semantic tests shared helper, preserving all121 original scripts and expected results, and add the reviewed standalone Native string-refusal test. Incidental positive Value::to_str coverage is intentionally removed; the unscoped generic getter capability gap remains explicit.",
+      "proposal": "/workspace/naming-proof-storage/vm-namespace-result-projection-proposal-v1/",
+      "proposal_master_sha256": "ddd7fa25afe335be72f7082f634c3dd92f9f45a84ba133308ee458c900d6da0d",
+      "qualification": "/workspace/naming-proof-storage/vm-namespace-result-projection-proposal-v2.json",
+      "qualification_sha256": "df107f98ea56035bc919a41e018c236db33458b2cfc93847c62cc032bf305a2a",
+      "prior_scope_review_sha256": "c55565269c733163c708106912d5e581628144f6c3df3338013e6e4597faa12c",
+      "limits": "This settles the coverage policy only. It neither fixes generic Value::to_str/try_to_str nor grants new Native getter capability, typed try_to_str refusal or runtime gate acceptance. Preserve runtime guards and no catch_unwind workaround. Recheck current source/preimages and required reviews when applying.",
+      "implementation_status": "APPROVED; this decision-recording session has not applied the patch, run tests or restarted implementation. Other sessions current development is preserved; recheck actual source before applying."
+    }
+  }
+}
