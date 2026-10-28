@@ -3918,6 +3918,38 @@ mod completed_world_owner_controls {
     }
 
     #[tokio::test]
+    async fn tmp_probe_refuse_census() {
+        for source_host in [true, false] {
+            let host = if source_host {
+                REFERENCE_SOURCE
+            } else {
+                "proc host_old {value} {return $value}\neval $unknown\nhost_old 7\n"
+            };
+            let (fixture, backend) =
+                reference_fixture(source_host, "eval $unknown\nhost_old 9\n", host).await;
+            let settlement = backend.refresh_original_source_view_graph().await.unwrap().unwrap();
+            let route = backend
+                .original_source_view_navigation_route(
+                    &fixture.host,
+                    tower_lsp_server::ls_types::Position { line: 0, character: 6 },
+                    Some(true),
+                )
+                .await
+                .unwrap();
+            eprintln!(
+                "TMP_PROBE source_host={source_host} census={:?} projection={} route={}",
+                reference_scope_census(&settlement, &fixture),
+                settlement.positive_reference_projection(&fixture.host).is_some(),
+                match route {
+                    std::ops::ControlFlow::Break(None) => "Break(None)".to_owned(),
+                    std::ops::ControlFlow::Break(Some(l)) => format!("Break(Some({}))", l.len()),
+                    std::ops::ControlFlow::Continue(()) => "Continue".to_owned(),
+                }
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn positive_references_refuse_selected_and_dependent_unknown_mutation() {
         for source_host in [false, true] {
             let host = if source_host {

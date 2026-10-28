@@ -6254,6 +6254,10 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
             command_head_ctx,
         );
     }
+    #[cfg(debug_assertions)]
+    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
+        eprintln!("ZZ_NESTED warnings={:?} unavailable={}", nested_report.warnings.iter().map(|w| (w.code, w.variable.clone())).collect::<Vec<_>>(), nested_report.replays.unavailable_replays().len()); // ZZPROBE
+    }
     for residual in nested_report.replays.unavailable_replays() {
         context.unavailable_replay(source_span, residual.reason, command_head_ctx);
     }
@@ -7026,6 +7030,12 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     } else {
         None
     };
+    #[cfg(debug_assertions)]
+    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
+        let mut zz = Vec::new(); // ZZPROBE
+        if let Some((code, sink_label)) = &classified { emit_sink_warnings(&env, span, *code, sink_label, &sink_call, &mut zz); }
+        eprintln!("ZZ_SINK site={} command={command} classified={:?} tokens={} emitted={}", span.start(), classified.as_ref().map(|c| c.0), sink_call.tokens.is_some(), zz.len()); // ZZPROBE
+    }
     if let Some((code, sink_label)) = classified {
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
