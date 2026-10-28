@@ -15,7 +15,11 @@ Snapshot only; history below is unchanged. All cargo goes through the safe-cargo
   - The harness and scf_loader tests are refused in `authored_package::namespace_member_in_original` → `OriginalAuthoredOperandScope::list`. The members list carries a different sealed compound string protocol (`Value::seal_compound_string_protocol`) from the authored C8.4 materialisation. This host/logical object-boundary question needs a design decision.
   - The tmm word-boolean test is unchanged; its stale-policy source is not yet located.
 - Jim namespace-helper cluster (~40 runtime tests, including holder/inventory) is queued. The lead is the namespace-aware `info commands` helper relay (`native_jim_lookup.rs`).
-- `make test-spectcl-compat` is UNRUN: disk was 3.5 GB, under the 4 GB rule.
+- **test-spectcl-compat** (run through the wrapper at 4.7 GB free, against the pinned tclsh9.0):
+  - eval_loader 28/28, golden_packs 3/3, pack_is_real_tcl 1/1.
+  - pack_source_e2e is 9/10: `a_derived_body_runs_under_the_release_the_call_is_analysed_under` gets None where `format %x` under 8.6 should give `ffffffffffffffff`.
+  - spec_corpus is 4/6. The string pack's first gates are vacuous: 0 attempts for length/map/range. The corpus run also hit the 600 s budget watchdog while the machine was heavily loaded.
+  - This gate is still FAIL.
 
 Last updated: 2026-10-27T09:44:54Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
