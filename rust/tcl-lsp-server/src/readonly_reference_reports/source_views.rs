@@ -333,6 +333,12 @@ impl OriginalSourceViewDraft {
         self.inherited.is_some() || self.region.is_some()
     }
 
+    /// A region continues its own physical owner; only an inherited view makes
+    /// the URI another root's interpreted member.
+    fn is_interpreted_member(&self) -> bool {
+        self.inherited.is_some()
+    }
+
     fn ancestors(&self) -> Option<Vec<Arc<PublishedOriginalSourceView>>> {
         let mut ancestors = Vec::new();
         let mut active = HashSet::new();
@@ -776,7 +782,7 @@ impl Backend {
                 if mode == SourceViewPublicationMode::ReplaceFirstEdge
                     && validation_drafts.iter().all(|draft| !draft.is_interpreted())
                     && table.by_uri.get(uri).into_iter().flatten().any(|id| {
-                        table.by_id.get(id).is_some_and(|view| view.draft.is_interpreted())
+                        table.by_id.get(id).is_some_and(|view| view.draft.is_interpreted_member())
                     })
                 {
                     return None;
@@ -2159,7 +2165,7 @@ impl Backend {
                     table
                         .by_id
                         .get(id)
-                        .is_some_and(|view| view.draft.is_interpreted())
+                        .is_some_and(|view| view.draft.is_interpreted_member())
                 })
             };
             if interpreted {
@@ -2291,7 +2297,7 @@ impl Backend {
                             table
                                 .by_id
                                 .get(id)
-                                .is_some_and(|view| view.draft.is_interpreted())
+                                .is_some_and(|view| view.draft.is_interpreted_member())
                         }))
                     .then_some(())?;
                 }

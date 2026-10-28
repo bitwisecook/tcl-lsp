@@ -101,6 +101,20 @@ impl InterpState {
     }
 }
 
+impl crate::Vm {
+    /// `value` as a list under the selected object recipe.
+    pub(crate) fn object_list(
+        &self,
+        value: &crate::Value,
+    ) -> Result<crate::NativeListItems, crate::TclError> {
+        let protocol = self.object_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("selected List recipe"),
+        )?;
+        self.native_object_list_elements_in(value, protocol)
+            .map_err(Into::into)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,16 +375,23 @@ mod tests {
             Some(NativeStringProtocol::C(TclVersion::V8_4))
         );
         answer(vm.try_eval_source(DEFINE).unwrap(), DEFINE);
-        for (script, tcl84, _) in CASES {
-            assert_eq!(answer(vm.try_eval_source(script).unwrap(), script), *tcl84);
-        }
-        answer(vm.try_eval_native_host_source(DEFINE).unwrap(), DEFINE);
-        for (script, _, tcl90) in CASES {
-            assert_eq!(
-                answer(vm.try_eval_native_host_source(script).unwrap(), script),
-                *tcl90
+        let mut framework = simulation();
+        answer(
+            framework.try_eval_native_host_source(DEFINE).unwrap(),
+            DEFINE,
+        );
+        let mut differences = Vec::new();
+        for (script, tcl84, tcl90) in CASES {
+            let authored = answer(vm.try_eval_source(script).unwrap(), script);
+            let host = answer(
+                framework.try_eval_native_host_source(script).unwrap(),
+                script,
             );
+            if (authored.as_str(), host.as_str()) != (*tcl84, *tcl90) {
+                differences.push(format!("{script}: {authored:?} / {host:?}"));
+            }
         }
+        assert_eq!(differences, Vec::<String>::new());
     }
 
     #[test]

@@ -6468,6 +6468,14 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
     for function in cu.analysable_body_function_units() {
         for block in function.ssa.blocks.values() {
             for statement in &block.statements {
+                // A synthetic marker is an effect of the lowering, not a command.
+                if statement
+                    .statement
+                    .tokens()
+                    .is_some_and(|tokens| tokens.synthetic.is_some())
+                {
+                    continue;
+                }
                 match &statement.statement {
                     Statement::Call { command, .. } | Statement::Barrier { command, .. }
                         if !command.contains(['$', '[']) =>
@@ -6501,6 +6509,10 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
             crate::realm::RealmBindingFact::Rebound => {
                 rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
             }
+            // Tcl refuses an alias onto itself and deletes the command, so a
+            // head that still names its own target needs no ambient alias.
+            crate::realm::RealmBindingFact::Command(target)
+                if target.trim_start_matches("::") == head.trim_start_matches("::") => {}
             crate::realm::RealmBindingFact::Command(target) => {
                 let quoted_target = tcl_syntax::list::list_element(target);
                 let _ = writeln!(

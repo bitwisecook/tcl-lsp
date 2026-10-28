@@ -6066,7 +6066,7 @@ impl Vm {
             }
             Op::LIST_LENGTH => {
                 let l = pop(f);
-                match l.as_list() {
+                match self.object_list(&l) {
                     Ok(items) => f.stack.push(Value::int(ilen(items.len()))),
                     Err(e) => {
                         return Tick::Return(crate::command::completion_from_tcl_error(self, e));
@@ -6105,7 +6105,7 @@ impl Vm {
                         }
                     }
                 } else {
-                    let items = match list.as_list() {
+                    let items = match self.object_list(&list) {
                         Ok(items) => items,
                         Err(error) => {
                             return Tick::Return(crate::command::completion_from_tcl_error(
@@ -6177,7 +6177,7 @@ impl Vm {
                             }
                         }
                     } else {
-                        let items = try_op!(l.as_list().map_err(|error| {
+                        let items = try_op!(self.object_list(&l).map_err(|error| {
                             crate::command::completion_from_tcl_error(self, error)
                         }));
                         f.stack.push(slice(
@@ -6187,7 +6187,7 @@ impl Vm {
                         ));
                     }
                 } else {
-                    let items = match l.as_list() {
+                    let items = match self.object_list(&l) {
                         Ok(i) => i,
                         Err(e) => {
                             return Tick::Return(crate::command::completion_from_tcl_error(
@@ -6203,7 +6203,7 @@ impl Vm {
             Op::LIST_IN | Op::LIST_NOT_IN => {
                 let list = pop(f);
                 let needle = pop(f);
-                let items = match list.as_list() {
+                let items = match self.object_list(&list) {
                     Ok(i) => i,
                     Err(e) => {
                         return Tick::Return(crate::command::completion_from_tcl_error(self, e));
@@ -6296,7 +6296,7 @@ impl Vm {
                 let result = match vals.split_first() {
                     None => Vec::new(),
                     Some((list_v, _)) => {
-                        let items = match list_v.as_list() {
+                        let items = match self.object_list(&list_v) {
                             Ok(l) => (*l).clone(),
                             Err(e) => {
                                 return Tick::Return(crate::command::completion_from_tcl_error(

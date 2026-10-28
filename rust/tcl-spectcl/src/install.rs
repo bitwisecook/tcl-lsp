@@ -590,6 +590,32 @@ mod tests {
     }
 
     #[test]
+    fn a_private_store_leaks_one_spec_per_installed_command() {
+        let _cache = cache_guard();
+        let dir = tmpdir("private-leak");
+        let packs = pack_set(
+            &dir,
+            "leak.tclspec",
+            "speclib leak 1 {\n  command leak_a {\n    arity 0\n  }\n  command leak_b {\n    arity 1\n  }\n}\n",
+        );
+        let profile = crate::environment::profile_for_dialect("tcl9.1");
+        let store = owned_hook_registry(profile, &packs);
+        assert_eq!(store.installed.len(), 2);
+        assert!(
+            store
+                .installed
+                .iter()
+                .all(|row| row.installed.subcommands.is_empty())
+        );
+        assert_eq!(
+            store.installed.len() * std::mem::size_of::<CommandSpec>(),
+            0,
+            "MEASURE"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_pack_command_becomes_a_registry_command() {
         let _cache = cache_guard();
         let dir = tmpdir("install");

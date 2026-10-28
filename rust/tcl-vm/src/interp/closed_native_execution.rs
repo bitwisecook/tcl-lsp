@@ -309,8 +309,8 @@ fn check_module(
             check_function(&module.top_level_body, true)
         }
         ClosedModuleDomain::Application(config) => {
-            owned_application::check_function(&module.top_level, false, config)?;
-            owned_application::check_function(&module.top_level_body, true, config)
+            owned_application::check_function(&module.top_level, config)?;
+            owned_application::check_function(&module.top_level_body, config)
         }
     }
 }

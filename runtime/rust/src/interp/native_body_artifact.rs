@@ -1268,6 +1268,8 @@ impl Builder<'_> {
                     .then(|| self.literals.intern_bytes(b"1"));
                 Operation::Uplevel(recipe, default)
             }
+            // A regexp plan declines a native body artifact, as an unavailable plan does.
+            NativeInstructionPlan::Regexp(_) => return Ok(None),
         }))
     }
 
