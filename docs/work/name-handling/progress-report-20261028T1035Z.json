@@ -1,0 +1,58 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-28T10:35:20.099992+00:00",
+  "scheduled_report_utc": "2026-10-28T10:34:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Independent review of the CodeLens bounded recapture: CLEAR-WITH-NOTES - sound (no stale or mixed-revision publication; exhaustion stays a refusal) and contract-consistent. Required before merge: retry only on currency refusal (tri-state), attempt-bound doc, remove trace chaff, add a write-injection retry test, apply a shared capture-level retry to eight other racing entry points. Exhaustion under real load remains possible; exact per-report currency key recorded as the principled follow-up. Assigned to lsp as top priority.",
+    "WIP snapshot of role edits committed."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "lsp: recapture required changes, then startup stall, then source_views",
+    "compiler: standalone-unit test correction",
+    "compiler-names, vm-runtime, compiler-codegen roles"
+  ],
+  "pending_user_decisions": [
+    "namespace121 projection (unanswered, held)"
+  ],
+  "next_report_utc": "2026-10-28T11:06:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
