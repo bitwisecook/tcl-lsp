@@ -163,7 +163,7 @@ fn read(obj: *mut TclObj) -> Option<NumVal> {
 /// Read a numeric object under the caller's selected Tcl numeral grammar.
 fn read_with_syntax(obj: *mut TclObj, syntax: tcl_dialect::NumberSyntax) -> Option<NumVal> {
     let tp = obj::obj_type_ptr(obj);
-    if tp == &obj::TCL_INT_TYPE || tp == &obj::TCL_WIDE84_TYPE {
+    if tp == &obj::TCL_INT_TYPE || tp == &obj::TCL_LONG84_TYPE || tp == &obj::TCL_WIDE84_TYPE {
         return Some(NumVal::Wide(obj::wide_of(obj)));
     }
     if tp == &obj::TCL_DOUBLE_TYPE {
@@ -358,6 +358,31 @@ pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
         // SAFETY: `m` owns a live mp_int; C promotes a bignum to the nearest
         // double (±Inf past the range).
         Some(NumVal::Big(m)) => Some(unsafe { mp_get_double(m.ptr()) }),
+        None => is_nan_operand(obj).then_some(f64::NAN),
+    }
+}
+
+/// The double an expression result holds, or `None` for an integer or a
+/// non-numeric value. Unlike [`read_double`], neither a string nor a parsed
+/// numeric representation is installed on the result: C reaches no getter here.
+pub(crate) fn result_double(obj: *mut TclObj) -> Option<f64> {
+    let tp = obj::obj_type_ptr(obj);
+    if tp == &obj::TCL_INT_TYPE
+        || tp == &obj::TCL_LONG84_TYPE
+        || tp == &obj::TCL_WIDE84_TYPE
+        || tp == &TCL_BIGNUM_TYPE
+    {
+        return None;
+    }
+    if tp == &obj::TCL_DOUBLE_TYPE {
+        return Some(obj::double_of(obj));
+    }
+    if tp == &obj::JIM_COERCED_DOUBLE_TYPE {
+        return Some(obj::wide_of(obj) as f64);
+    }
+    match parse_string_rep_with_syntax(obj, tcl_syntax::number::runtime_syntax()) {
+        Some(NumVal::Float(f)) => Some(f),
+        Some(NumVal::Wide(_) | NumVal::Big(_)) => None,
         None => is_nan_operand(obj).then_some(f64::NAN),
     }
 }
@@ -719,7 +744,11 @@ fn is_nan_operand(obj: *mut TclObj) -> bool {
     if tp == &obj::TCL_DOUBLE_TYPE {
         return obj::double_of(obj).is_nan();
     }
-    if tp == &obj::TCL_INT_TYPE || tp == &obj::TCL_WIDE84_TYPE || tp == &TCL_BIGNUM_TYPE {
+    if tp == &obj::TCL_INT_TYPE
+        || tp == &obj::TCL_LONG84_TYPE
+        || tp == &obj::TCL_WIDE84_TYPE
+        || tp == &TCL_BIGNUM_TYPE
+    {
         return false;
     }
     let bytes = obj::bytes_of(obj);

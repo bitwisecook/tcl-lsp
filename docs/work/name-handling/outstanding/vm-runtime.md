@@ -1,13 +1,15 @@
 # Outstanding work: vm-runtime agent
 
-## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+## Resume — 2026-10-27 resume (vm-runtime)
 
-USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+Snapshot only; history below is unchanged. Disk fell to 1.8 GB at the end of this pass, so the last runtime fix is UNBUILT.
 
-Latest actual7fd iRules complete69B is helper-presence query in expression substitution; blocking and resumable consumer paths require genuine custody. No repair is applied. C.1–C.2 fresh targets/reload/compat remain. Namespace121 user coverage choice unanswered: proposal HELD, never assume approval. Quoted-NUL decision already implemented; do not reopen.
-
-The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
-
+- **iRules 69B: root cause reproduced locally on WORK (executed).** Under the iRules simulation (C9 physical point, authored C8.4 name policy), compiling any *nested* bracket child inside a natively emitted command word refuses at `rust/tcl-compiler/src/codegen/statements.rs:2659` (`schedule_native_command` → `native_byte_command_plan` → `compiler_dialect` fails at `entry.name_policy_point`, because an authored policy never equals `NamePolicyProtocol::for_native_point(point)`). The result is `native_dependency_refusal` → `ProviderRequired` → `CompilationAdmission(NativePreflightRequired)`. The minimal reproduction is the top-level `set y [llength [info commands ::nope]]`, with no expression and no procedure involved. The same refusal hits the 69B expression command term (`scf_loader`), bootstrap `orch::reset` (`variable _assert_failures [list]` inside a 775B body) and pure_functions `reset` (39B). The fix is in compiler-codegen ownership (native bracket-child scheduling under authored logical naming) and needs a design decision. No VM-only custody can discharge it without a Native bypass. Probe: `scratchpad/packets/vm-irules-bracket-child-repro-v1/`.
+- **Third cause3 test** `tmm_word_boolean_operators…` is a distinct failure: `Eval("cannot continue bytecode after native invocation policy changed")` (`tcl-vm/src/exec.rs:801` / `interp.rs:30975`). It is untriaged.
+- **runtime/rust (WORK, executed before the fix):** 2272 PASS / 132 FAIL of the full lib (`--features engine`). The seven root-routed tests are absent on origin/rust ed694de4, so none is a PASS→FAIL against the baseline. Of these, all three control_expression tests have root cause C84 `TCL_LONG84_TYPE`, which `bignum::read_with_syntax`/`is_nan_operand` do not recognise. In addition, `expr::float_result` read-and-cached the result (stringifying 8.4 results and shimmering 8.5 folded literals). The fix is applied in `runtime/rust/src/bignum.rs` + `expr.rs` (new `bignum::result_double`, non-caching). It is UNBUILT and UNRUN.
+- **Jim inventory 3 + ensemble-holder 1:** these belong to a larger Jim namespace-helper cluster (~40 failing tests). The holder test shows `invalid command name "namespace delete"` where Jim 0.84 shows the `ensemble` usage error. The inventory tests leave the pattern with its probe type after the helper (Jim converts it to `string` through `string first` → `Jim_Utf8Length`), and the vars helper never reaches the pattern getter. Root cause is still open.
+- **SpecTcl C.1–C.2:** source inventory only; nothing was executed this pass (disk). `make test-spectcl-compat` is UNRUN.
+- Namespace121 is still unanswered: not implemented, not assumed.
 
 Last updated: 2026-10-27T09:44:54Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.

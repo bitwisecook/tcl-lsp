@@ -50,7 +50,8 @@ impl SelectedApplicationFold {
 }
 
 /// Select the fold request of every whole-word command substitution in the
-/// top-level commands of `source`. Procedures are refused, and a command whose
+/// top-level commands of `source`. Source declaring a procedure or other
+/// lowered body is refused, and a command whose
 /// retained substitution inventory is unavailable selects nothing.
 ///
 /// # Errors
@@ -72,7 +73,10 @@ pub fn select_application_folds(
     }
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile);
     let module = &cu.ir_module;
-    if !module.procedures.is_empty() || module.source_metadata_input.is_none() {
+    if !module.procedures.is_empty()
+        || module.body_lowerings().next().is_some()
+        || module.source_metadata_input.is_none()
+    {
         return Err(ClosedSourceRefusal::Source);
     }
     let retained = crate::registry_invocation::retained_module_metadata_context(registry, module)

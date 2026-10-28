@@ -23,7 +23,6 @@ use crate::TclVmEngine;
 /// `Host`, compiler or closed-consumer scope.
 pub struct PrivateApplicationHookHost {
     host: Rc<MemoryHost>,
-    numeric: NumericErrorState,
     abi: NativeCIntegerAbi,
 }
 
@@ -69,26 +68,36 @@ pub fn private_application_hook_engine(
         host_commands: Rc::new(RefCell::new(Vec::new())),
         unit_commands: Vec::new(),
     };
-    let numeric = host
-        .state()
-        .map_err(|_| ClosedSourceRefusal::NativeContext)?;
-    if numeric.range_error || numeric.domain_error {
+    if pending_numeric_error(&host)? {
         return Err(ClosedSourceRefusal::NativeContext);
     }
     let abi = host
         .c_integer_abi()
         .map_err(|_| ClosedSourceRefusal::NativeContext)?;
-    let retained = PrivateApplicationHookHost { host, numeric, abi };
+    let retained = PrivateApplicationHookHost { host, abi };
     retained.check_quiet_host()?;
     Ok((engine, retained))
+}
+
+fn pending_numeric_error(host: &MemoryHost) -> Result<bool, ClosedSourceRefusal> {
+    let state: NumericErrorState = host
+        .state()
+        .map_err(|_| ClosedSourceRefusal::NativeContext)?;
+    Ok(state.range_error || state.domain_error)
 }
 
 impl PrivateApplicationHookHost {
     /// Check the retained memory I/O and numeric context without clearing
     /// errors, replacing the host or taking a fresh snapshot.
     ///
+    /// `errno` is per-thread scratch that successful library calls on the
+    /// owner's thread may also set, so its exact value is not compared; a
+    /// pending range or domain error, which a native conversion would read, is
+    /// refused.
+    ///
     /// # Errors
-    /// Refuses busy/nonquiet sinks or changed/unavailable numerical state/ABI.
+    /// Refuses busy/nonquiet sinks, a pending or unavailable numeric error
+    /// state, or a changed/unavailable integer ABI.
     pub fn check_quiet_host(&self) -> Result<(), ClosedSourceRefusal> {
         let quiet = {
             let sinks = self
@@ -106,11 +115,7 @@ impl PrivateApplicationHookHost {
             .is_empty();
         if !quiet
             || !empty_environment
-            || self
-                .host
-                .state()
-                .map_err(|_| ClosedSourceRefusal::NativeContext)?
-                != self.numeric
+            || pending_numeric_error(&self.host)?
             || self
                 .host
                 .c_integer_abi()

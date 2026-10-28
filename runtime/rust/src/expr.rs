@@ -1230,12 +1230,8 @@ pub fn eval_expr<Text: tcl_syntax::expr::ExprText>(
 /// not finite ([`tcl_syntax::expr::errors::float_result_error`]).
 fn float_result(value: Owned) -> Result<Owned, ExprError> {
     let release = tcl_syntax::expr::errors::ambient_release();
-    let refused = if bignum::is_integer(value.ptr()) {
-        None
-    } else {
-        bignum::read_double(value.ptr())
-            .and_then(|f| tcl_syntax::expr::errors::float_result_error(f, release))
-    };
+    let refused = bignum::result_double(value.ptr())
+        .and_then(|f| tcl_syntax::expr::errors::float_result_error(f, release));
     match refused {
         Some((message, code)) => Err(ExprError::with_code(message.as_bytes(), code.as_bytes())),
         None => Ok(value),

@@ -7,6 +7,7 @@
 use super::{
     Backend, DocumentPathAdmission, DocumentSourceResult, LibraryPublicationSource, with_pack_hooks,
 };
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use tcl_compiler::analyser::{AnalysisResult, ResolvedAnalysisInput};
 use tcl_lsp_core::original_declaration::{OriginalDeclarationIdentity, ReadonlyReferenceCoverage};
@@ -168,6 +169,9 @@ pub(super) const fn is_source_census(coverage: ReadonlyReferenceCoverage) -> boo
         ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
     )
 }
+
+/// Fresh whole-report captures after a refused final currency transaction.
+const READONLY_REFERENCE_REPORT_ATTEMPTS: usize = 3;
 
 /// A source occurrence census covers its own document only: any other
 /// retained document, or an unavailable inventory, may hold references it
@@ -1771,12 +1775,40 @@ impl Backend {
     /// Source-only occurrences join the original declaration in its real URI.
     /// All participants retain their actual `SourceFile` and full checked input;
     /// this report cannot be consumed as call edges or editable occurrences.
+    ///
+    /// A refused final currency transaction recaptures every participant from
+    /// scratch: a concurrent input write elsewhere is indistinguishable there
+    /// from drift, and each fresh attempt re-runs every capture and currency
+    /// guard. Capture and ownership refusals stay terminal.
     pub(super) async fn readonly_original_declaration_reference_report(
         &self,
         identity: &OriginalDeclarationIdentity,
         selected: &Uri,
         include_declaration: bool,
     ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceReport>> {
+        for _ in 0..READONLY_REFERENCE_REPORT_ATTEMPTS {
+            if let ControlFlow::Break(report) = self
+                .readonly_original_declaration_reference_attempt(
+                    identity,
+                    selected,
+                    include_declaration,
+                )
+                .await?
+            {
+                return Ok(report);
+            }
+        }
+        self.trace_host_navigation(selected, "references.final-transaction-refused", "")
+            .await;
+        Ok(None)
+    }
+
+    async fn readonly_original_declaration_reference_attempt(
+        &self,
+        identity: &OriginalDeclarationIdentity,
+        selected: &Uri,
+        include_declaration: bool,
+    ) -> DocumentSourceResult<ControlFlow<Option<OriginalReadonlyReferenceReport>>> {
         let inputs_epoch = self.diag_inputs_epoch();
         let factory_generation = *self.class_factory_generation.read().await;
         let documents = self.original_declaration_documents(selected).await?;
@@ -1788,7 +1820,7 @@ impl Backend {
             else {
                 self.trace_host_navigation(selected, "references.document-capture-unavailable", "")
                     .await;
-                return Ok(None);
+                return Ok(ControlFlow::Break(None));
             };
             retained.push(document);
         }
@@ -1798,17 +1830,17 @@ impl Backend {
         else {
             self.trace_host_navigation(selected, "references.owner-unavailable", "")
                 .await;
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         if !identity.is_current(identity.uri(), &owner.source, &owner.analysis) {
             self.trace_host_navigation(selected, "references.identity-not-current", "")
                 .await;
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         }
         if !original_declaration_owner_is_unique(identity, &retained) {
             self.trace_host_navigation(selected, "references.owner-not-unique", "")
                 .await;
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         }
         let Some(report) = tcl_lsp_core::original_declaration::readonly_reference_report(
             identity,
@@ -1818,7 +1850,7 @@ impl Backend {
         ) else {
             self.trace_host_navigation(selected, "references.core-report-unavailable", "")
                 .await;
-            return Ok(None);
+            return Ok(ControlFlow::Break(None));
         };
         let inventory = retained
             .iter()
@@ -1849,14 +1881,18 @@ impl Backend {
         }
         super::dedup_span_targets(&mut targets);
         let coverage = single_document_coverage(report.coverage(), retained.len());
-        self.finish_readonly_reference_report(
-            &retained,
-            targets,
-            coverage,
-            inputs_epoch,
-            factory_generation,
-        )
-        .await
+        Ok(self
+            .finish_readonly_reference_report(
+                &retained,
+                targets,
+                coverage,
+                inputs_epoch,
+                factory_generation,
+            )
+            .await?
+            .map_or(ControlFlow::Continue(()), |report| {
+                ControlFlow::Break(Some(report))
+            }))
     }
 
     pub(super) async fn readonly_original_method_reference_locations_at(

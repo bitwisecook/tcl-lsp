@@ -1,13 +1,15 @@
 # Outstanding work: compiler-codegen agent
 
-## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
+## Resume — 2026-10-27T23:45Z (H5 slice 1 in tree, WIP-committed by root)
 
-USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+N17 genuine capability, slice 1: owned evaluator plus private request dispatch (V2+V3, reviewed beforeimages exact) are in tree and wired to the real compiler selection path. Nothing executes or rewrites source; no MAP/RANGE gain is claimed. Draft beforeimage table: scratchpad `ccg-draft-status-20261027.md`.
 
-Latest strict7fd two Clippy findings, exactCprep2bf two E0425; all owner captures closed. H5 compiler/VM/static-loader/preparation/plan-flow sources are preserved OFF-TREE drafts, incomplete/unbuilt, not capability. Resume genuine code/effect/owner/backend closure and optimiser fixture wiring with independent review; do not grant permission from source pins/opcode list.
-
-The older owner timestamp and history below are preserved; this entry does not assert a fresh run, gate pass or owner activity.
-
+- In tree: `pack_hooks` exact-receiver identity/retirement and default-false uncached dispatch; `tcl-registry` uncached private profile store (`private_profile_store_with_overlay`); `const_subst` split into select/run (ordinary path unchanged); `optimiser/closed_consumer/application.rs` top-level fold-request selection; `tcl-engine-tclvm` private hook engine (V2); `tcl-spec-hooks::private_application` (keeps the engine named only in tcl-spec-hooks); `tcl-spectcl` `owned_hook_registry` lineage (V3) and `hooks::fold_owned_application_source`.
+- Deviations from the drafts, for review: unarmed dispatch abstains without evaluation instead of retiring the evaluator; no `catch_unwind` (HookHost is total); raw `errno` equality replaced by a pending ERANGE/EDOM refusal (raw errno drifted under legitimate same-thread work); V3 registry clone did not typecheck and is replaced by the uncached store.
+- Executed (WORK tree at 23:3x): spectcl lib owned_evaluator+lineage 9/9 PASS; registry pack_hooks 17/17 PASS; engine closed_native_execution 7/7 PASS; clippy -D warnings clean on registry/engine/spec-hooks/spectcl lib+tests; tcl-compiler lib clippy clean, lib-test clippy blocked only by another role's `command_binding/invocation_reads.rs:318`.
+- UNRUN: tcl-compiler lib tests after the body_lowerings refusal fix (older binary: selection 1 PASS, procedure refusal FAIL before fix); pack_source_e2e and spec_corpus first-gates regression; clippy recheck of the last two small edits. Disk below 2 GB stopped builds.
+- Observed, not mine: older tcl-compiler binary (23:23) fails all 7 `o129` propagation tests at `builtin-metadata present=false`, upstream of const_subst.
+- Still open for H5: private application VM/compiler/candidate execution and transcript, returned code/auxiliary/literal/getter/cache/COW/observer closure, installed-program lineage into executed modules, optimiser fixture wiring and MAP/RANGE (MAP blocked by opaque `subst`, RANGE needs interprocedural constants), per-call leak of private registry specs.
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
