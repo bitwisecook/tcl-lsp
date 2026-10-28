@@ -391,11 +391,95 @@ fn report_trace_native_read_part(
         if left.variable_context == right.variable_context {
             "native_reads.context_fingerprint.equal_context"
         } else {
-            "native_reads.context_fingerprint.different_context"
+            report_trace_context_field(&left.variable_context, &right.variable_context)
         }
     } else {
         "native_reads.variable_context"
     }
+}
+
+#[cfg(test)]
+fn report_trace_context_field(
+    left: &crate::var_resolve::ResolveContext,
+    right: &crate::var_resolve::ResolveContext,
+) -> &'static str {
+    macro_rules! first_field {
+        ($($field:ident),+ $(,)?) => {
+            $(if left.$field != right.$field {
+                return concat!("native_reads.context.", stringify!($field));
+            })+
+        };
+    }
+    first_field!(
+        namespace,
+        namespace_identity,
+        namespace_identities,
+        namespace_addressable_identities,
+        namespace_inventory,
+        namespace_name_protocol,
+        execution_name_policy,
+        namespace_objects,
+        authored_tmm_static,
+        namespace_known,
+        invocation_dialect,
+        source_read_configuration,
+        selected_frame,
+        activation,
+        globals,
+        ns_vars,
+        upvar_aliases,
+        traced,
+        trace_registrations,
+        trace_registration_receivers,
+        possible_trace_registrations,
+        untracked_traces,
+        instance_vars,
+        instance_owner,
+        frame_kind,
+        interpreter,
+        hosted_execution_context,
+        execution,
+        alias_bindings,
+        namespace_alias_bindings,
+        name_alias_bindings,
+        namespace_name_alias_bindings,
+        outward_namespace_destructions,
+        pending_namespace_retirements,
+        raw_bindings,
+        captured_cells,
+        caller,
+        constant_values,
+        closed_literal_contents,
+        original_formal_topology,
+        original_native_compiler_formals,
+        original_receiver_variable_candidates,
+        original_name_values,
+        dictionary_scopes,
+        value_representations,
+        representation_epoch,
+        representation_epoch_high_water,
+        original_contents_epoch,
+        original_contents_epoch_high_water,
+        contents_origins,
+        contents_source_proofs,
+        contents_presence,
+        contents_presence_slots,
+        contents_kinds,
+        contents_world,
+        activation_contents_world,
+        closed_observer_allocations,
+        contents_unknown_namespaces,
+        contents_unknown_arrays,
+        closed_array_roots,
+        unknown_bindings,
+        dynamic_bindings,
+        known_namespaces,
+        namespace_cells,
+        generations,
+        binding_identity,
+        dynamic_traces,
+    );
+    "native_reads.context.private_observer_inventory"
 }
 
 #[cfg(test)]

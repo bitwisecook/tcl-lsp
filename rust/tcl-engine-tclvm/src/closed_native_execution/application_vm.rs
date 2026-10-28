@@ -231,6 +231,19 @@ mod tests {
             let vm = private(candidate, &["puts", "set"], &["y"]);
             // Admission already proves every PUSH literal under the closure.
             let prepared = vm.prepare(candidate).expect("admitted");
+            // A plain top-level module carries only its structural labels.
+            for labels in [
+                &prepared.module().top_level.labels,
+                &prepared.module().top_level_body.labels,
+            ] {
+                let mut kinds = labels
+                    .keys()
+                    .map(|label| label.trim_end_matches(|c: char| c.is_ascii_digit()))
+                    .collect::<Vec<_>>();
+                kinds.sort_unstable();
+                kinds.dedup();
+                assert_eq!(kinds, ["cmd_end_", "entry_", "exit_"]);
+            }
             let transcript = vm.execute(prepared).expect("executed");
             assert_eq!(transcript.stdout, b"3\na b\n");
         });

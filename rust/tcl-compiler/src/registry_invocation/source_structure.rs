@@ -3156,6 +3156,15 @@ fn registered_original_words_at<'a>(
         super::original_native_compiler_words(&image, tokens.words(), offset, config)?
     } else if let Some(original) = realm.original_authored_jim_parent_words(input, offset) {
         original
+    } else if let Some(segment) = realm.original_source_catalogue_segment_at(input, offset) {
+        // The retained catalogue bounds a command inside a body script, as in
+        // `source_registry_words_at`; a parsed suffix would run past its brace.
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &segment,
+        );
+        super::original_native_compiler_words(&image, tokens.words(), offset, config)?
     } else {
         // The original tape remains the body/source-role authority below.
         // Parsing a suffix only supplies unchanged word geometry for that join.

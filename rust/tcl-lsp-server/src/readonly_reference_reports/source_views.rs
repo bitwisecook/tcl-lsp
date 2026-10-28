@@ -3622,6 +3622,9 @@ mod completed_world_owner_controls {
         let main = Uri::from_file_path(root.join("main.tcl")).unwrap();
         let host = Uri::from_file_path(root.join("host.tcl")).unwrap();
         let backend = crate::tests::test_backend();
+        // Production admits closed workspace sources through the folder scan.
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await.unwrap();
         open(&backend, &main, &source).await;
         open(&backend, &host, host_source).await;
         let documents = backend.original_declaration_documents(&host).await.unwrap();

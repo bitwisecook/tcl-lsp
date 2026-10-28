@@ -309,6 +309,20 @@ impl BytecodeCompileService {
         }
     }
 
+    /// A service over exactly `registry`, fixed to `profile`. Its modules are
+    /// compiled against that store itself, never a projection of it.
+    #[must_use]
+    pub fn for_shared_registry(
+        profile: &'static DialectProfile,
+        registry: Arc<CommandRegistry>,
+    ) -> Self {
+        Self {
+            registry: RegistryTarget::Shared { profile, registry },
+            config: LexerConfig::from_grammar(profile.grammar),
+            profile: Some(profile),
+        }
+    }
+
     /// Build a service for one resolved dialect profile whose registry
     /// carries the workspace pack overlay `overlay` — the key the packs'
     /// owner installed them under, which the editor's queries thread as
@@ -324,20 +338,6 @@ impl BytecodeCompileService {
     ///
     /// [`OverlayMiss`] when `overlay` is non-zero and its packs are not
     /// installed for `profile`.
-    /// A service over exactly `registry`, fixed to `profile`. Its modules are
-    /// compiled against that store itself, never a projection of it.
-    #[must_use]
-    pub fn for_shared_registry(
-        profile: &'static DialectProfile,
-        registry: Arc<CommandRegistry>,
-    ) -> Self {
-        Self {
-            registry: RegistryTarget::Shared { profile, registry },
-            config: LexerConfig::from_grammar(profile.grammar),
-            profile: Some(profile),
-        }
-    }
-
     pub fn for_profile_with_overlay(
         profile: &'static DialectProfile,
         overlay: u64,

@@ -1,25 +1,22 @@
 # Outstanding work: vm-runtime agent
 
-## Resume — round 2 (2026-10-28, vm-runtime)
+## Resume — round 3 (2026-10-28, vm-runtime)
 
-Snapshot only; history below is unchanged. All cargo goes through the safe-cargo wrapper.
+Snapshot only; history below is unchanged. All cargo goes through safe-cargo.sh.
 
-- **runtime/rust LONG84 fix (executed):** the full lib went from 2272 PASS / 132 FAIL to 2275 / 129, with no newly failing test. Newly passing: `compiled_expression_storage_matches_40_original_native_windows`, `folded_logical_literal_ownership_matches_eight_native_collisions` and `expr::tests::c84_reached_expression_matches_seven_original_cache_controls`. `c84_logical_storage_and_short_circuit_match_eight_native_controls` now passes rows 0–4 and fails at 8.4.20/5 (`expr {$x && (0x10+010)}`) with ScalarNumericInputUnavailable. The first refusal is `report_expr_error` from `execute_body_expression`. That row was masked by row 0 before the fix; still open.
-- **SpecTcl parity packet (applied):**
-  - Command- and subcommand-level `completion {CODE …}` (loader, row vocabulary, authoring property). The studio GAPS entry is now `DraftOpaque`, and spec-packs.md is updated.
-  - `proc::state_transitions.resolver` binds the shipped `DEFINES_PROCEDURE` resolver in `STATE_TRANSITION_RESOLVER_NATIVE`, with a catalogue label.
-  - The Jim `proc` pack declares `completion {Ok Error}` and the full DEFINES_PROCEDURE `state_transitions` block.
-  - Results: jim_own_surface 11/11, jim_core_metadata_identity 1/1. jim_document is 29 PASS / 6 FAIL, and the three target tests still FAIL on pre-existing compiler-names causes (W307 `$s`, W210 statics, missing W123 in a statics body).
-- **iRules (executed, after the compiler-codegen bracket route):**
-  - `pure_functions` now PASSES after the `cmd_dict.rs` fix (the selected name policy, including the authored simulation, formats diagnostics).
-  - The harness and scf_loader tests are refused in `authored_package::namespace_member_in_original` → `OriginalAuthoredOperandScope::list`. The members list carries a different sealed compound string protocol (`Value::seal_compound_string_protocol`) from the authored C8.4 materialisation. This host/logical object-boundary question needs a design decision.
-  - The tmm word-boolean test is unchanged; its stale-policy source is not yet located.
-- Jim namespace-helper cluster (~40 runtime tests, including holder/inventory) is queued. The lead is the namespace-aware `info commands` helper relay (`native_jim_lookup.rs`).
-- **test-spectcl-compat** (run through the wrapper at 4.7 GB free, against the pinned tclsh9.0):
-  - eval_loader 28/28, golden_packs 3/3, pack_is_real_tcl 1/1.
-  - pack_source_e2e is 9/10: `a_derived_body_runs_under_the_release_the_call_is_analysed_under` gets None where `format %x` under 8.6 should give `ffffffffffffffff`.
-  - spec_corpus is 4/6. The string pack's first gates are vacuous: 0 attempts for length/map/range. The corpus run also hit the 600 s budget watchdog while the machine was heavily loaded.
-  - This gate is still FAIL.
+- **runtime/rust (executed):** full lib 2276 PASS / 128 FAIL, no new failures. All 3 control_expression tests now PASS. The c84 row-5 cause was C8.4 JUMP truth (`native_jump_boolean84`) reached without the host numeric environment; it now receives `host.numeric_environment()`.
+- **iRules (executed):**
+  - pure_functions PASS.
+  - `::tmm::_logical_namespace_member` operands use the authored C8.4 materialisation in both realms, from the pinned logical profile (`logical_execution_profile`).
+  - `FrameworkBuiltinCapability` settles deferred catch/eval bodies inside its host scope. That removes the stale-policy failure.
+  - Remaining: harness fails at `lindex` in the namespace-override `switch` (StringAccess ProtocolUnavailable seal split: physical-C9 list producers vs authored-C8.4 consumers; design question sent to root). scf_loader fails at `store_original_c_array_member` ("original C array variable name owner"). tmm_word_boolean fails on admission: `regexp --` native recipe refusal in `::tmm::expr_ops::rewrite_expr`, which belongs to compiler-codegen.
+- **SpecTcl:**
+  - required_generation and refine PASS: the static fast path rejects incomplete scripts, and the refine notice names its key.
+  - The 2 discovery tests exist on ed694de4. Baseline source scans on an unreadable manifest; WORK fails closed. Design conflict, sent to root.
+  - templated_single_word (new on WORK, open, mine) still fails.
+  - String-pack first gate (new on WORK) is vacuous; owner compiler-codegen (N17 hooks).
+  - The corpus watchdog is covered by the ci.yml spectcl-compat job.
+- Jim namespace-helper cluster still queued.
 
 Last updated: 2026-10-27T09:44:54Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.

@@ -949,6 +949,82 @@ mod tests {
         ).is_none());
     }
 
+    fn cut_rename_edits(fixture: &Fixture) -> Result<usize, OriginalCommandRenameRefusal> {
+        let documents = fixture.documents();
+        let identity = fixture.identity();
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            original_command_rename_edits_with_source_views(
+                &documents, &identity, "host_new", &worlds, views,
+            )
+            .map(|edits| edits.len())
+        })
+    }
+
+    /// tclsh 8.6/9.0: each option form changes the completion code or level,
+    /// `return a b` reads `a b` as an option, and `uplevel`/`eval` move the
+    /// return into another script; none is modelled for a cut procedure body.
+    #[test]
+    fn single_cut_body_return_option_forms_stay_refused() {
+        let child = "proc helper {} {return VALUE}";
+        for body in [
+            "return -code error E",
+            "return -code break",
+            "return -code continue",
+            "return -code return R",
+            "return -code 7 N",
+            "return -level 2 L",
+            "return -options {-code error} O",
+            "return -errorcode X E",
+            "return a b",
+            "uplevel 1 {return U}",
+            "eval {return EV}",
+        ] {
+            let source: &'static str =
+                Box::leak(format!("source child.tcl; proc run {{}} {{{body}}}").into_boxed_str());
+            assert_eq!(
+                cut_rename_edits(&Fixture::new(source, child)),
+                Err(OriginalCommandRenameRefusal::IncompleteCoverage),
+                "{body}"
+            );
+        }
+    }
+
+    /// tclsh 8.6/9.0: a top-level `return` in the sourced file ends `source`
+    /// with its value and the issuing script continues; that propagation into
+    /// the issuing point is unmodelled, so no rename world is issued from it.
+    #[test]
+    fn single_cut_child_top_level_return_stays_refused() {
+        let source = "source child.tcl; proc run {} {return VALUE}";
+        let child_source = "proc helper {} {return VALUE}\nreturn done";
+        let prefix = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
+        let outcome =
+            tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                source, &prefix, offset,
+            )
+            .and_then(|load| {
+                let point = load.source_point_entry(&prefix)?;
+                let child = Analyser::new().analyse_with_source_point_entry(
+                    child_source,
+                    "tcl8.6",
+                    &point,
+                )?;
+                load.conditional_continuation(&prefix, &child)?
+                    .source_regions(&prefix, &child)?
+                    .normal_outcome()
+            });
+        if outcome.is_some() {
+            assert_eq!(
+                cut_rename_edits(&Fixture::new(source, child_source)),
+                Err(OriginalCommandRenameRefusal::IncompleteCoverage)
+            );
+        }
+    }
+
     #[test]
     fn single_cut_source_coverage_surveys_actual_child_and_issued_suffix() {
         let fixture = Fixture::new(

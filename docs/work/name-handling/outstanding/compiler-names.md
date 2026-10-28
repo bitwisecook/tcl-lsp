@@ -1,5 +1,18 @@
 # Outstanding work: compiler-names agent
 
+## Resume — 2026-10-28 round 2 (compiler-names)
+
+Logs: `/tmp/claude-0/-home-user-tcl-lsp/ecf365c5-6571-597f-97b7-b7fbb7d1acfb/scratchpad/logs/compiler-names-*.log`; callgrind data in `.../scratchpad/cg/`.
+
+- Jim unknown hook (item 2): registry `NativeLookupFallbackPolicy.default_handler_bound` (C true, Jim 0.84 false). `original_unresolved_handler_may_run` keeps the handler possible in unclosed, opaque or unknown-entry worlds and when any lookup slot is not definitely Missing. jim_stock_class all pass. jim_document is 29P/6F; the old rule gives the same 6 plus the loop test.
+- puts rule: `completed_normal_world` counts only `Route::Tcl(Error)` as errors-only, so an `Unknown` route keeps the world withheld. The LSP test exact_original_opaque… passes. In analyser/types.rs the puts rows are now false and a non-puts procedure row stays true. original_opaque_jim_callable_name_does_not_gate_ascii_static_capture now needs the Jim 4-word proc completion (vm-runtime item 3).
+- Source4: the cut-suffix purpose comes from the region's issuing point (`SourceConditionalRegionEntry::issuing_point`, `OriginalSourcePointEntry::issuing_continuation_state`, `OriginalCompilationLookupAdvice::source_purpose_state`). The plain `return` in a cut body is still refused, because unreached declaration metadata exists only for Logical purpose (declaration_layout.rs `original_declaration_metadata_for_source`). The narrow admission was reverted; tclsh-checked refusal tests remain.
+- Source4 namespace: `registered_original_words_at` now uses the retained catalogue segment, so it no longer parses past `}`. Still open: under logical input the `namespace eval ::` body has no dispatch points, so no source point is minted (design decision).
+- Startup cost: call counts are linear. A large per-command constant comes from nested re-segmentation and repeated SourceImage/LineIndex builds. The superlinear part comes from per-call whole-document work: tail segmentation in registered_original_words_at and source_registry_words_at, and SourceImage::document in selected_registry_words and others. Not fixed yet.
+- Corpus invocation_reads: offset 194 (`lappend ::log` in the trace callback body of 70_var_traces.tcl), field `ResolveContext.captured_cells`. Cause: `captured_cell.rs` allocates `CapturedCellLeaseId` from a process-global `static NEXT_RECEIPT: AtomicU64`, so two cold analyses of identical input hold different lease ids at the callback read. Proposed fix (not applied, needs the owner's review): a deterministic per-arena receipt counter carried with the arena lineage (clone/relocate/join takes the max), with no Eq relaxation.
+
+Last updated: 2026-10-28
+
 ## Resume — 2026-10-27 resumed session (compiler-names)
 
 Scratch evidence (not repository state): `/tmp/claude-0/-home-user-tcl-lsp/ecf365c5-6571-597f-97b7-b7fbb7d1acfb/scratchpad/fixture-cleanup/<family>/manifest.json`, logs under `.../scratchpad/logs/compiler-names-*.log`, proposal `.../scratchpad/proposals/names-invocation-reads-trace-part-v1/`.

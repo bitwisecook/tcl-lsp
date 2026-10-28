@@ -3229,10 +3229,6 @@ impl ModuleCommandBindings {
     /// 0.84), only a handler definitely absent from every lookup slot ends in
     /// an error. An unclosed or opaque world may hold unrecorded commands.
     fn original_unresolved_handler_may_run(&self, namespace: &SourceNamespaceKey) -> bool {
-        // TEMP-AB
-        if std::env::var_os("TEMP_AB_OLD").is_some() {
-            return true;
-        }
         if self.unclosed_command_world
             || self.opaque_domain
             || self.baseline.unknown_entry

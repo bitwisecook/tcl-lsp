@@ -100,11 +100,19 @@ fn owned_execution(
     let installed = crate::install::bounded_owned_hook_registry(profile, packs)
         .ok_or(ClosedSourceRefusal::Budget)?;
     let registry = Arc::clone(installed.registry());
-    let (answers, receipt) = answer_phase(installed, source, profile)?;
-    execution_phase(&registry, profile, source, &answers, receipt)
+    let answered = answer_phase(installed, source, profile)?;
+    execution_phase(&registry, profile, source, answered)
 }
 
 type Answers = Vec<(SelectedApplicationFold, String)>;
+
+/// Phase one's result: the answers, their receipt and the exact store that
+/// answered them. Content-equal stores are not interchangeable.
+struct Answered {
+    answers: Answers,
+    receipt: OwnedApplicationReceipt,
+    store: *const CommandRegistry,
+}
 
 /// Phase one: select, answer and record lineage, then retire the evaluator
 /// and prove the thread holds no hook host.
@@ -112,7 +120,7 @@ fn answer_phase(
     installed: Arc<OwnedHookRegistry>,
     source: &str,
     profile: &'static tcl_dialect::DialectProfile,
-) -> Result<(Answers, OwnedApplicationReceipt), ClosedSourceRefusal> {
+) -> Result<Answered, ClosedSourceRefusal> {
     let owner = OwnedApplicationEvaluator::new(installed, HostConfig::default())?;
     let selected = select_application_folds(source, owner.registry(), profile)?;
     let mut answers = Vec::new();
@@ -125,19 +133,21 @@ fn answer_phase(
     }
     owner.check_current()?;
     let registry = owner.registry().snapshot().semantic_key();
+    let store = std::ptr::from_ref(owner.registry());
     drop(owner);
     if pack_hooks::has_host() {
         return Err(ClosedSourceRefusal::NativeContext);
     }
-    Ok((
+    Ok(Answered {
         answers,
-        OwnedApplicationReceipt {
+        receipt: OwnedApplicationReceipt {
             registry,
             folds,
             authority: FoldAuthority::O129GatesWithQuietHost,
             runtime_cross_checked: false,
         },
-    ))
+        store,
+    })
 }
 
 /// Phase two: deny every evaluator on this thread, plan and restrict the
@@ -146,10 +156,10 @@ fn execution_phase(
     registry: &Arc<CommandRegistry>,
     profile: &'static tcl_dialect::DialectProfile,
     source: &str,
-    answers: &Answers,
-    receipt: OwnedApplicationReceipt,
+    answered: Answered,
 ) -> Result<OwnedApplicationExecution, ClosedSourceRefusal> {
-    let backend = application_backend(registry, profile, source, answers, &receipt)?;
+    let backend = application_backend(registry, profile, source, &answered)?;
+    let receipt = answered.receipt;
     let candidate = backend.plan.candidate().to_owned();
     let output = {
         let owner = ClosedNativeConsumerOwner::new(backend)?;
@@ -164,16 +174,17 @@ fn application_backend(
     registry: &Arc<CommandRegistry>,
     profile: &'static tcl_dialect::DialectProfile,
     source: &str,
-    answers: &Answers,
-    receipt: &OwnedApplicationReceipt,
+    answered: &Answered,
 ) -> Result<ApplicationBackend, ClosedSourceRefusal> {
     if pack_hooks::has_host() || !pack_hooks::deny_external_evaluators_on_private_thread() {
         return Err(ClosedSourceRefusal::NativeContext);
     }
-    if registry.snapshot().semantic_key() != receipt.registry {
+    if !std::ptr::eq(Arc::as_ptr(registry), answered.store)
+        || registry.snapshot().semantic_key() != answered.receipt.registry
+    {
         return Err(ClosedSourceRefusal::Currency);
     }
-    let plan = ApplicationRewritePlan::new(source, registry, profile, answers)?;
+    let plan = ApplicationRewritePlan::new(source, registry, profile, &answered.answers)?;
     // The candidate's inventory restricts the VM before the owner exists.
     let vm = PrivateApplicationVm::new(
         registry,
@@ -396,89 +407,106 @@ mod tests {
         );
     }
 
+    /// A hook that tries to write output or raises abstains, so nothing folds
+    /// and the source is unsupported. The hook sandbox exposes no command
+    /// that reaches the private host's output; a write that did would leave
+    /// it non-quiet and retire the evaluator (`check_quiet_host`).
     #[test]
-    fn a_hook_that_writes_output_retires_the_evaluator() {
-        let packs = hook_pack("noisy", "puts noise\nfold 1");
-        assert_eq!(
-            executed(&packs, "puts [owner::f q]\n").err(),
-            Some(ClosedSourceRefusal::Currency)
-        );
+    fn a_hook_that_writes_or_errors_folds_nothing() {
+        for (name, body) in [
+            ("noisy", "puts noise\nfold 1"),
+            ("noisy-channel", "puts stdout noise\nfold 1"),
+            ("raising", "error boom"),
+        ] {
+            let packs = hook_pack(name, body);
+            assert_eq!(
+                executed(&packs, "puts [owner::f q]\n").err(),
+                Some(ClosedSourceRefusal::Source),
+                "{body}"
+            );
+        }
     }
 
-    fn answered(
-        packs: &PackSet,
-        source: &str,
-    ) -> (Arc<CommandRegistry>, Answers, OwnedApplicationReceipt) {
+    fn on_worker(body: impl FnOnce() + Send + 'static) {
+        std::thread::Builder::new()
+            .stack_size(usize::try_from(MIN_CLOSED_STACK_BYTES).unwrap())
+            .spawn(body)
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    fn answered(packs: &PackSet, source: &str) -> (Arc<CommandRegistry>, Answered) {
         let profile = owned_profile().unwrap();
         let installed = crate::install::bounded_owned_hook_registry(profile, packs).unwrap();
         let registry = Arc::clone(installed.registry());
-        let (answers, receipt) = answer_phase(installed, source, profile).unwrap();
-        (registry, answers, receipt)
+        (registry, answer_phase(installed, source, profile).unwrap())
     }
 
     #[test]
     fn the_original_corresponds_but_is_never_executed() {
         let packs = length_pack();
-        std::thread::Builder::new()
-            .stack_size(usize::try_from(MIN_CLOSED_STACK_BYTES).unwrap())
-            .spawn(move || {
-                let source = "puts [owner::f abc]\n";
-                let (registry, answers, receipt) = answered(&packs, source);
-                let profile = owned_profile().unwrap();
-                let backend =
-                    application_backend(&registry, profile, source, &answers, &receipt).unwrap();
-                assert_eq!(
-                    backend.plan.accepts("puts 4\n", &registry),
-                    Err(ClosedSourceRefusal::Source),
-                    "byte drift"
-                );
-                let owner = ClosedNativeConsumerOwner::new(backend).unwrap();
-                let scope = owner.scope().unwrap();
-                let original = scope.select(source.to_owned()).unwrap();
-                assert_eq!(
-                    owner.execute(original).err(),
-                    Some(ClosedSourceRefusal::Selection)
-                );
-            })
-            .unwrap()
-            .join()
-            .unwrap();
+        on_worker(move || {
+            let source = "puts [owner::f abc]\n";
+            let (registry, answered) = answered(&packs, source);
+            let profile = owned_profile().unwrap();
+            let backend = application_backend(&registry, profile, source, &answered).unwrap();
+            assert_eq!(
+                backend.plan.accepts("puts 4\n", &registry),
+                Err(ClosedSourceRefusal::Source),
+                "byte drift"
+            );
+            let owner = ClosedNativeConsumerOwner::new(backend).unwrap();
+            let scope = owner.scope().unwrap();
+            let original = scope.select(source.to_owned()).unwrap();
+            assert_eq!(
+                owner.execute(original).err(),
+                Some(ClosedSourceRefusal::Selection)
+            );
+        });
+    }
+
+    /// A store built again from the same packs did not answer the folds; it
+    /// cannot stand in for the one that did, whatever its key.
+    #[test]
+    fn a_content_equal_store_other_than_the_answering_one_is_refused() {
+        let packs = length_pack();
+        on_worker(move || {
+            let source = "puts [owner::f abc]\n";
+            let (registry, answered) = answered(&packs, source);
+            let profile = owned_profile().unwrap();
+            let other = Arc::clone(crate::install::owned_hook_registry(profile, &packs).registry());
+            assert!(!Arc::ptr_eq(&registry, &other));
+            assert_eq!(
+                execution_phase(&other, profile, source, answered).err(),
+                Some(ClosedSourceRefusal::Currency)
+            );
+        });
+    }
+
+    struct Silent;
+    impl pack_hooks::PackHookHost for Silent {
+        fn invoke(
+            &self,
+            _: pack_hooks::HookSlot,
+            _: &pack_hooks::HookCall<'_>,
+        ) -> pack_hooks::HookAnswer {
+            pack_hooks::HookAnswer::Abstain
+        }
     }
 
     #[test]
     fn a_host_installed_before_the_execution_phase_is_refused() {
         let packs = length_pack();
-        std::thread::Builder::new()
-            .stack_size(usize::try_from(MIN_CLOSED_STACK_BYTES).unwrap())
-            .spawn(move || {
-                let source = "puts [owner::f abc]\n";
-                let (registry, answers, receipt) = answered(&packs, source);
-                struct Silent;
-                impl pack_hooks::PackHookHost for Silent {
-                    fn invoke(
-                        &self,
-                        _: pack_hooks::HookSlot,
-                        _: &pack_hooks::HookCall<'_>,
-                    ) -> pack_hooks::HookAnswer {
-                        pack_hooks::HookAnswer::Abstain
-                    }
-                }
-                pack_hooks::install_host(std::rc::Rc::new(Silent));
-                assert_eq!(
-                    execution_phase(
-                        &registry,
-                        owned_profile().unwrap(),
-                        source,
-                        &answers,
-                        receipt
-                    )
-                    .err(),
-                    Some(ClosedSourceRefusal::NativeContext)
-                );
-                pack_hooks::clear_host();
-            })
-            .unwrap()
-            .join()
-            .unwrap();
+        on_worker(move || {
+            let source = "puts [owner::f abc]\n";
+            let (registry, answered) = answered(&packs, source);
+            pack_hooks::install_host(std::rc::Rc::new(Silent));
+            assert_eq!(
+                execution_phase(&registry, owned_profile().unwrap(), source, answered).err(),
+                Some(ClosedSourceRefusal::NativeContext)
+            );
+            pack_hooks::clear_host();
+        });
     }
 }

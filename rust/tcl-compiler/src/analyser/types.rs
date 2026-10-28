@@ -5725,17 +5725,18 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
         // naming.source.closed-leaf-handler-completion
         // The completed command world is the world after the document runs
-        // to normal completion: a command that may raise (`puts`, `list`
-        // arity) only adds a path that never reaches it. `exit` or an
-        // unknown command keeps it withheld.
+        // to normal completion: a command that may raise a catalogued error
+        // (`list` arity) only adds a path that never reaches it. `exit`, an
+        // unknown command or `puts` (whose channel may run handler scripts)
+        // keeps it withheld.
         let declaration = "proc greet {} { return hi }\n";
         let mut mismatches = Vec::new();
         for dialect in ["tcl8.6", "tcl9.0"] {
             for (use_site, completed) in [
                 ("", true),
                 ("greet\ngreet\n", true),
-                ("puts hi\n", true),
-                ("puts [greet]\nputs [greet]\n", true),
+                ("puts hi\n", false),
+                ("puts [greet]\nputs [greet]\n", false),
                 ("set a [list [greet]]\n", true),
                 ("set a [string length x]\n", true),
                 ("missing_command\n", false),
@@ -5743,7 +5744,8 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 ("exit 0\n", false),
                 // A procedure whose analysed body closes the world, and one
                 // whose body runs an unknown command.
-                ("proc say {} { puts hi }\nsay\n", true),
+                ("proc say {} { return [greet] }\nsay\n", true),
+                ("proc say {} { puts hi }\nsay\n", false),
                 ("proc bad {} { missing_command }\nbad\n", false),
                 // Incomplete descriptors: a re-entrant callback, a subcommand
                 // the registry cannot select, and a dynamically chosen script.

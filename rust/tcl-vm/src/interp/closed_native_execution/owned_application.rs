@@ -152,6 +152,9 @@ impl Vm {
         {
             return Err(ClosedSourceRefusal::Execution);
         }
+        // The preparation is single use: it retires with this execution.
+        drop(completion);
+        drop(prepared);
         Ok(())
     }
 }
@@ -173,9 +176,7 @@ pub(super) fn check_function(
         literals,
         lvt: _,
         instructions,
-        // Structural entry/command-end/exit labels; inert, since no jump
-        // opcode is admitted below.
-        labels: _,
+        labels,
         loop_targets,
         body_base_line: _,
         proc_body_src,
@@ -185,7 +186,10 @@ pub(super) fn check_function(
         procedure_bindings,
         site_claims,
     } = function;
-    if native_compilation_failure.is_some()
+    // Only the emitter's structural entry/command-end/exit labels; they are
+    // inert because no jump opcode is admitted below.
+    if !labels.keys().all(|label| structural_label(label))
+        || native_compilation_failure.is_some()
         || native_math_table_prerequisite.is_some()
         || !native_compiler_prerequisites.is_empty()
         || required_compiled_local_layout.is_some()
@@ -209,6 +213,14 @@ pub(super) fn check_function(
         }
     }
     Ok(())
+}
+
+fn structural_label(label: &str) -> bool {
+    ["entry_", "cmd_end_", "exit_"].iter().any(|prefix| {
+        label.strip_prefix(prefix).is_some_and(|ordinal| {
+            !ordinal.is_empty() && ordinal.bytes().all(|b| b.is_ascii_digit())
+        })
+    })
 }
 
 fn instruction_is_closed(instruction: &Instruction, body: bool) -> bool {
@@ -391,6 +403,28 @@ mod tests {
         assert!(check_function(&function, false, config).is_err());
         let plain = FunctionAsm::default();
         assert!(check_function(&plain, false, config).is_err());
+    }
+
+    #[test]
+    fn only_structural_labels_without_jumps_are_admitted() {
+        let config = tcl_lexer::LexerConfig::default();
+        let labelled = |labels: &[&str], op: Op| {
+            let mut function = FunctionAsm {
+                plain_command_dispatch: true,
+                ..FunctionAsm::default()
+            };
+            for (index, label) in labels.iter().enumerate() {
+                function.labels.insert((*label).to_owned(), index);
+            }
+            function.instructions.push(Instruction::new(op, vec![]));
+            check_function(&function, false, config).is_ok()
+        };
+        assert!(labelled(&["entry_1", "cmd_end_0", "exit_2"], Op::DONE));
+        for labels in [&["loop_1"][..], &["cmd_end_"], &["entry_x"], &["catch_0"]] {
+            assert!(!labelled(labels, Op::DONE), "{labels:?}");
+        }
+        assert!(!labelled(&["cmd_end_0"], Op::JUMP4));
+        assert!(!labelled(&["cmd_end_0"], Op::JUMP_TRUE4));
     }
 
     #[test]

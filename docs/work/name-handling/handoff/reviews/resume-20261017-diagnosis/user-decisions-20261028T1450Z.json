@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-28T14:50Z",
+  "source": "User answer in chat (structured question)",
+  "evidence": "origin/rust ed694de4 collect_beside_manifests maps an unreadable/unparseable manifest to None and scans the directory (dependency at Transitive floor); WORK collect_beside_manifests_observed maps it to ManifestDirectiveObservation::Unavailable and collects nothing. tcl-spectcl tests a_directive_that_does_not_read_leaves_the_scan_in_place and an_unreadable_manifest_or_lockfile_is_transitive pass on origin/rust and fail on WORK.",
+  "decisions": {
+    "spectcl_discovery_unreadable_selected_input": {
+      "choice": "Keep fail-closed",
+      "meaning": "An unreadable or unparseable selected manifest or lockfile yields no packs from that input and drops the dependency pack; the selection issue is recorded. The two tests and the documented discovery semantics are updated to this contract (an intended behaviour change, not a regression); release notes state it."
+    }
+  }
+}

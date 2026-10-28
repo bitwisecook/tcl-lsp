@@ -1,18 +1,14 @@
 # Outstanding work: compiler-codegen agent
 
-## Resume — 2026-10-28 round 3 (review notes A1–B2; slice 1 unfreezes when green)
+## Resume — 2026-10-28 slice 2 (owned application backend; Astra APPROVE-WITH-CHANGES implemented)
 
-Independent review: slice 1 (Scope A) and the authored bracket-child route (Scope B) CLEAR-WITH-NOTES, no HOLD. Notes handled this round: A1 `SelectedConstFold` fields private with accessors (only const_subst constructs one); A5 private-store docs state the shared un-overlaid read for overlay != 0; A4 private/cached store parity test (`install::tests::private_and_cached_stores_expose_the_same_surface`); B1 authored VM rebind test (`an_authored_bracket_child_never_runs_a_superseded_builtin`); B2 foreign Native-authority policy control.
+H5 slice 2 is in tree: `hooks::execute_owned_application_source` answers selected pack-hook folds with the owned evaluator (phase 1), retires it, denies evaluators, then admits the rewritten candidate and runs it once in a private C9.1 VM (phase 2) through `ClosedNativeConsumerOwner`. Design deltas from the Astra review: scratchpad `ccg-h5-slice2-design-v2.md`.
 
-Executed under safe-cargo: tcl-compiler lib `native_authored_bracket` + `closed_consumer::application` 5/5 PASS (incl. B1); tcl-spectcl lib `owned_evaluator` + `install::tests::private` 10/10 PASS (incl. A4). Clippy `-D warnings` clean on tcl-registry, tcl-compiler lib, tcl-engine-tclvm, tcl-spec-hooks, tcl-spectcl lib+tests; tcl-compiler lib-test clippy UNRUN this round (another role's uncommitted `original_command_table.rs:3291` E0609). H5 slice 2 design for Astra review: scratchpad `ccg-h5-slice2-design-v1.md`.
-
-Preconditions recorded (must hold before any consumer uses the selection or owned evaluator):
-- **A2:** `select_application_folds` walks every top-level statement kind with retained tokens, wider than the ordinary O129 visitor (Call/AssignValue). Before any rewrite consumer, either narrow selection to the ordinary visitor's sites or document the broader site set, and render answers with `render_propagation_word`.
-- **A3:** each owned call installs into a fresh private store and leaks its installed specs once. Bound the call rate (or cache by pack key under the same lineage) before production wiring.
-
-Round 2 state still holds: bracket route executed (compiler 4/4), iRules bootstrap+cause3 now stop at vm-runtime protocol refusals (`cmd_dict.rs:50-56`; StringAccess ProtocolUnavailable) and `tmm_word_boolean` policy-transition refusal; pack_source_e2e 9/10 (`format %x -1` under 8.6); spec first gates LENGTH1/1 MAP0/0 RANGE0/0.
-
-Next: H5 slice 2 (private VM execution, candidate admission, returned-code/literal closure) — design first, Astra review before adoption.
+- Inventory: exactly two registry semantic operations (`Set` with a literal plain-scalar target, `ChannelWrite` to stdout); Body/CommandPrefix-capable specs refused. The original is correspondence only (execute → Selection).
+- tcl-vm (granted hunks): domain-parameterised closure checker, `prepare/execute_owned_application_preparation` with compiler-generation + service-pointer pin, `owned_application_cache_scope_is_empty` (eval_cache, eval_cache_plain, module_procs). Only structural `entry_/cmd_end_/exit_` labels are admitted; every PUSH is verbatim+Verbatim or LiteralValue.
+- Deviations accepted provisionally by root, for Astra: `BytecodeCompileService::for_shared_registry` (exact `Arc` store, fixed profile, other profiles refused); structural labels; hook output (the sandbox has no output command, so a writing or erroring hook abstains → Source; quiet-host proof stays the V2 engine test). The answering store is pinned by identity (a content-equal rebuilt store → Currency; its semantic key also differs, since keys carry spec allocations). A3 cap raised to 64 stores per process.
+- Executed (safe-cargo): tcl-vm 4/4, tcl-compiler 11/11, tcl-engine-tclvm 12/12, tcl-spectcl 23/23 (12 end-to-end). Clippy: see report.
+- Open after slice 2: runtime-backed original cross-check, MAP/RANGE, non-plain dispatch, nested scripts/templates, interpolation sites, optimiser fixture wiring, final backend/candidate join, detached metrics.
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 

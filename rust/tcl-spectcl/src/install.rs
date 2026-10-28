@@ -304,7 +304,7 @@ pub(crate) fn owned_hook_registry(
 /// Distinct private stores one process may build. Each build leaks its
 /// installed specs once, so stores are kept by pack key and the count is
 /// capped rather than evicted: eviction would not reclaim them.
-const MAX_OWNED_HOOK_REGISTRIES: usize = 16;
+const MAX_OWNED_HOOK_REGISTRIES: usize = 64;
 
 /// Private stores by profile and pack key, built at most once each.
 pub(crate) struct OwnedHookRegistryMemo {

@@ -7003,7 +7003,7 @@ impl SourceOutcomes {
     }
 
     /// The completed command world is the world on the normal-completion
-    /// path of the whole document. A possible error never reaches it, so it
+    /// path of the whole document. A catalogued error never reaches it, so it
     /// does not withhold that world; any other abrupt route (a top-level
     /// `return`, `break`, exit or tail call) may also finish the document
     /// elsewhere and keeps it withheld. Unknown normal-return
@@ -7014,14 +7014,13 @@ impl SourceOutcomes {
             "root.normal-state",
             self.normal.as_ref(),
         )?;
-        // `Unknown` is a handler's uncatalogued residue beside a possible
-        // normal return (`puts`'s channel error). A document-finishing
-        // `return`, `exit` or tail call keeps its own route; a script whose
-        // text is unknown also marks the normal state opaque.
+        // An `Unknown` route (`puts` on a reflected or transformed channel)
+        // may have run handler scripts that redefined commands, so only
+        // catalogued errors leave the normal-path world complete.
         let errors_only = self.abrupt.iter().all(|(route, _)| {
             matches!(
                 route,
-                Route::Tcl(tcl_registry::completion::CompletionCode::Error) | Route::Unknown
+                Route::Tcl(tcl_registry::completion::CompletionCode::Error)
             )
         });
         // `original_completed_command_world` separately refuses a withdrawn
