@@ -62,16 +62,8 @@ impl Write for Capture {
 /// Compile + run `src`; return `(ok, stdout)`, mirroring
 /// `command_resolution_conformance.rs`'s helper of the same shape.
 fn run(src: &str) -> (bool, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-    let cap = Capture::default();
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let c = vm.run_module(&asm);
-    let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
-    (c.code.is_ok(), out)
+    // The suite's release is the default VM's Tcl 9.0.
+    run_at(TclVersion::V9_0, src)
 }
 
 /// [`run`] with the VM (and its compiler) pinned to a Tcl release, so a
@@ -80,18 +72,12 @@ fn run(src: &str) -> (bool, String) {
 fn run_at(version: TclVersion, src: &str) -> (bool, String) {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
-    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-    let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-        src,
-        registry,
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-        Some(profile),
-    );
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
+    let service = BytecodeCompileService::for_profile(profile);
+    let asm = tcl_vm::CompileService::compile_for_profile(&service, src, profile)
+        .expect("test script compiles for its selected profile");
     let cap = Capture::default();
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(cap.clone()));
-    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    vm.set_compiler(Box::new(service));
     let c = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
     (c.code.is_ok(), out)

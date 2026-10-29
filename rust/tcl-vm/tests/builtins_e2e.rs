@@ -130,14 +130,21 @@ impl tcl_platform::Host for SyntheticHost {
     }
 }
 
+/// The suite's release: the default VM's Tcl 9.0.
+const RELEASE: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_0;
+
 fn run(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    // A unit compiled without a Tcl version selects no native plan, so the
+    // script is compiled for the release it runs on.
+    let profile = tcl_registry::model::ingress::resolve_environment(RELEASE.dialect_name())
+        .analyser_profile();
+    let service = BytecodeCompileService::for_profile(profile);
+    let asm = tcl_vm::CompileService::compile_for_profile(&service, src, profile)
+        .expect("test script compiles for its selected profile");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    let mut vm =
+        tcl_vm::test_support::native_vm_for_release(RELEASE, Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(service));
     let c = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8");
     (c.code.is_ok(), c.result.to_str().to_string(), out)

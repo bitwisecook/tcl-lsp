@@ -44,16 +44,26 @@ impl Write for Capture {
     }
 }
 
+/// The suite's release: the default VM's Tcl 9.0.
+const RELEASE: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_0;
+
+/// Compile `src` for the release it runs on, and a VM of that release.
+fn compiled_for_release(src: &str, out: Box<dyn Write>) -> (tcl_bytecode::ModuleAsm, tcl_vm::Vm) {
+    // A unit compiled without a Tcl version selects no native plan.
+    let profile = tcl_registry::model::ingress::resolve_environment(RELEASE.dialect_name())
+        .analyser_profile();
+    let service = BytecodeCompileService::for_profile(profile);
+    let asm = tcl_vm::CompileService::compile_for_profile(&service, src, profile)
+        .expect("test script compiles for its selected profile");
+    let mut vm = tcl_vm::test_support::native_vm_for_release(RELEASE, out);
+    vm.set_compiler(Box::new(service));
+    (asm, vm)
+}
+
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 fn run(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    let (asm, mut vm) = compiled_for_release(src, Box::new(Capture(Rc::clone(&buf))));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -68,14 +78,8 @@ fn run(src: &str) -> (bool, String, String) {
 /// this file predate that split and intentionally retain `run`; deferred
 /// control-flow regressions must exercise the runtime-call shapes.
 fn run_bytecode(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir_for_bytecode(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    let (asm, mut vm) = compiled_for_release(src, Box::new(Capture(Rc::clone(&buf))));
     let completion = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
     (
