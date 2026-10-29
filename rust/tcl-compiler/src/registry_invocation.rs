@@ -635,21 +635,22 @@ fn authored_simulation_structure_is_supported(
         || selected.written_argument_roles(),
         StructuredSourceRoles::argument_roles,
     );
-    let bodiless = reached
-        && roles.iter().all(|(_, role)| {
-            !matches!(
-                role,
-                tcl_registry::ArgRole::Body
-                    | tcl_registry::ArgRole::OpaqueScript
-                    | tcl_registry::ArgRole::LoopVarList
-                    | tcl_registry::ArgRole::ParamList
-                    | tcl_registry::ArgRole::StaticVarList
-            )
-        });
+    let bodiless = roles.iter().all(|(_, role)| {
+        !matches!(
+            role,
+            tcl_registry::ArgRole::Body
+                | tcl_registry::ArgRole::OpaqueScript
+                | tcl_registry::ArgRole::LoopVarList
+                | tcl_registry::ArgRole::ParamList
+                | tcl_registry::ArgRole::StaticVarList
+        )
+    });
     // Simulated words must be static. A reached bodiless command's values
     // were evaluated at its point; only its head and role words must be.
     let simulated = |index: usize| {
-        !bodiless || index == 0 || roles.iter().any(|(argument, _)| argument + 1 == index)
+        !(reached && bodiless)
+            || index == 0
+            || roles.iter().any(|(argument, _)| argument + 1 == index)
     };
     if tokens.words().iter().enumerate().any(|(index, word)| {
         simulated(index)

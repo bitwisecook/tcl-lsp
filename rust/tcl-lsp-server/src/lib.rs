@@ -4258,6 +4258,9 @@ struct DiagInputs {
     client: Client,
     diagnostic_publisher: Arc<DiagnosticPublisher>,
     registry: Arc<CommandRegistry>,
+    /// Scheduled runs leave the checked open-document registry to the drain,
+    /// which already holds the document map: the scheduler must not take it.
+    registry_at_drain: bool,
     /// The exact pack publication selected with the registry for this run.
     pack_seq: u64,
     pack_set: Arc<tcl_spectcl::PackSet>,
@@ -4300,7 +4303,7 @@ struct DiagInputs {
     /// Package database for the W120 workspace-refinement post-filter.
     package_resolver: Arc<RwLock<PackageResolver>>,
     package_prefer: tcl_lsp_core::package_resolver::PackagePrefer,
-    provider_dialects: provider_source::ProviderDialectInputs,
+    provider_dialects: provider_source::ProviderDialectSources,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
     /// set (see [`RecoveryNameCache`]).
     recovery_names: Arc<Mutex<RecoveryNameCache>>,
@@ -5922,6 +5925,39 @@ async fn stable_diagnostics_generation(
 /// **respawn itself for a peer document**: refreshing cross-file call-site
 /// evidence here can invalidate another file's diagnostics, and that file's
 /// own worker has to be (re)started to republish them.
+/// See [`Backend::session_dialect`].
+async fn session_dialect_from(
+    session_override: &Mutex<Option<String>>,
+    default_dialect: &Mutex<String>,
+) -> String {
+    if let Some(over) = session_override.lock().await.clone() {
+        return over;
+    }
+    default_dialect.lock().await.clone()
+}
+
+/// See [`Backend::folder_dialect_overrides`].
+async fn merged_folder_dialect_overrides(
+    folder_dialects: &Mutex<Vec<(Uri, String)>>,
+    folder_configs: &Mutex<Vec<(Uri, FolderConfig)>>,
+) -> Vec<(Uri, String)> {
+    let mut merged = folder_dialects.lock().await.clone();
+    let from_config: Vec<(Uri, String)> = {
+        let configs = folder_configs.lock().await;
+        configs
+            .iter()
+            .filter_map(|(folder, fc)| fc.dialect.clone().map(|d| (folder.clone(), d)))
+            .collect()
+    };
+    for (folder, dialect) in from_config {
+        if merged.iter().any(|(u, _)| u.as_str() == folder.as_str()) {
+            continue;
+        }
+        merged.push((folder, dialect));
+    }
+    merged
+}
+
 fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri) {
     crate::rt::spawn(async move {
         loop {
@@ -5950,7 +5986,7 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // `latest_inputs` is set alongside `dirty`, so this is `Some` unless
             // `Backend::evict_diag_slot` cleared it while we were draining;
             // either way there is nothing to analyse, so retire.
-            let Some(inputs) = inputs else {
+            let Some(mut inputs) = inputs else {
                 retire_slot(&mut *slots.lock().await, &uri);
                 return;
             };
@@ -5978,6 +6014,14 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                 }
                 return;
             };
+            if inputs.registry_at_drain
+                && let Some(registry) = job
+                    .diagnostic_pass
+                    .as_ref()
+                    .and_then(|pass| pass.checked_registry())
+            {
+                inputs.registry = registry;
+            }
             let settled = run_diagnostics_core(inputs, &uri, job).await;
             if !settled {
                 // Cancelled mid-flight — re-mark dirty so we retry the latest
@@ -9609,7 +9653,7 @@ pub struct Backend {
     /// ``workspace/didChangeConfiguration`` has been received yet.
     /// Updated by ``did_change_configuration`` so editor reconfigures
     /// take effect for subsequently-opened documents.
-    default_dialect: Mutex<String>,
+    default_dialect: Arc<Mutex<String>>,
     /// Whether [`Backend::default_dialect`] was set by an explicit
     /// `tclLsp.dialect` — a pulled/pushed configuration value or the
     /// `tcl-lsp.setDialect` command — rather than still being the built-in
@@ -9637,7 +9681,7 @@ pub struct Backend {
     /// explicit language id, a BIG-IP basename, and a folder override — so
     /// setting one changes nothing about which documents it can reach; it only
     /// changes how long it lasts.
-    session_dialect_override: Mutex<Option<String>>,
+    session_dialect_override: Arc<Mutex<Option<String>>>,
     /// Deliberate per-document dialect overrides, keyed by document URI
     /// string, installed by `tcl-lsp.setDocumentDialectOverride`.
     ///
@@ -9657,7 +9701,7 @@ pub struct Backend {
     /// is removed only by a `null` argument to the command that set it.
     /// A per-document override is an analyser input even for a closed URI;
     /// mutations join the same epoch/gate as all other analyser inputs.
-    document_dialect_overrides: Mutex<HashMap<String, String>>,
+    document_dialect_overrides: Arc<Mutex<HashMap<String, String>>>,
     /// Coalescing state for `workspace/didChangeConfiguration` — see
     /// [`Backend::coalesced_config_reload`].
     config_reload: Mutex<ConfigReloadSlot>,
@@ -9675,13 +9719,13 @@ pub struct Backend {
     /// with mixed dialects to parse correctly by selecting the
     /// longest-prefix folder's dialect when a document is
     /// opened.
-    folder_dialects: Mutex<Vec<(Uri, String)>>,
+    folder_dialects: Arc<Mutex<Vec<(Uri, String)>>>,
     /// Per-folder editor configuration overrides (diagnostics, optimiser,
     /// formatting, feature toggles), keyed by folder URI and resolved by
     /// longest prefix at read time.  Populated by the per-folder
     /// `workspace/configuration` pull.  Empty in a single-root workspace, where
     /// every read falls back to the process-global fields below.
-    folder_configs: Mutex<Vec<(Uri, FolderConfig)>>,
+    folder_configs: Arc<Mutex<Vec<(Uri, FolderConfig)>>>,
     /// Per-folder salsa `AnalyserConfig` input handles, present only for folders
     /// that override the disabled-diagnostics set or non-ASCII mode.  The
     /// diagnostics path resolves the handle by longest prefix so a folder's
@@ -11416,15 +11460,15 @@ impl Backend {
             ),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
-            default_dialect: Mutex::new(DEFAULT_SESSION_DIALECT.to_owned()),
+            default_dialect: Arc::new(Mutex::new(DEFAULT_SESSION_DIALECT.to_owned())),
             default_dialect_explicit: Mutex::new(false),
             warned_session_dialect: Mutex::new(None),
-            session_dialect_override: Mutex::new(None),
-            document_dialect_overrides: Mutex::new(HashMap::new()),
+            session_dialect_override: Arc::new(Mutex::new(None)),
+            document_dialect_overrides: Arc::new(Mutex::new(HashMap::new())),
             config_reload: Mutex::new(ConfigReloadSlot::default()),
             workspace_folders: Mutex::new(Vec::new()),
-            folder_dialects: Mutex::new(Vec::new()),
-            folder_configs: Mutex::new(Vec::new()),
+            folder_dialects: Arc::new(Mutex::new(Vec::new())),
+            folder_configs: Arc::new(Mutex::new(Vec::new())),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
@@ -14928,10 +14972,7 @@ impl Backend {
     /// The one read point for that tier, so a configuration pull rewriting
     /// `default_dialect` cannot silently revert an override.
     async fn session_dialect(&self) -> String {
-        if let Some(over) = self.session_dialect_override.lock().await.clone() {
-            return over;
-        }
-        self.default_dialect.lock().await.clone()
+        session_dialect_from(&self.session_dialect_override, &self.default_dialect).await
     }
 
     /// Every per-folder dialect override in effect, as the
@@ -14955,21 +14996,7 @@ impl Backend {
     /// still picks the longest matching folder prefix, so a nested folder
     /// shadows its parent whichever source each of them came from.
     async fn folder_dialect_overrides(&self) -> Vec<(Uri, String)> {
-        let mut merged = self.folder_dialects.lock().await.clone();
-        let from_config: Vec<(Uri, String)> = {
-            let configs = self.folder_configs.lock().await;
-            configs
-                .iter()
-                .filter_map(|(folder, fc)| fc.dialect.clone().map(|d| (folder.clone(), d)))
-                .collect()
-        };
-        for (folder, dialect) in from_config {
-            if merged.iter().any(|(u, _)| u.as_str() == folder.as_str()) {
-                continue;
-            }
-            merged.push((folder, dialect));
-        }
-        merged
+        merged_folder_dialect_overrides(&self.folder_dialects, &self.folder_configs).await
     }
 
     /// Pure core of [`Self::dialect_for_open`] (and so of
@@ -27618,6 +27645,15 @@ impl Backend {
         uri: &Uri,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> DiagInputs {
+        self.diag_inputs_with(uri, dialect, false).await
+    }
+
+    async fn diag_inputs_with(
+        &self,
+        uri: &Uri,
+        dialect: &'static tcl_dialect::DialectProfile,
+        registry_at_drain: bool,
+    ) -> DiagInputs {
         let epoch = self.diag_inputs_epoch();
         let (disabled, non_ascii_mode) = self.resolved_analysis_settings(uri).await;
         let policy_layers = self.resolved_policy_layers(uri).await;
@@ -27625,8 +27661,11 @@ impl Backend {
             let published = self.spec_packs.lock().await;
             (published.seq, Arc::clone(&published.packs))
         };
-        let (registry, registry_is_current) =
-            self.diagnostic_registry(uri, dialect, &pack_set).await;
+        let (registry, registry_is_current) = if registry_at_drain {
+            (Self::fallback_diagnostic_registry(dialect, &pack_set), true)
+        } else {
+            self.diagnostic_registry(uri, dialect, &pack_set).await
+        };
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let cross_file_resolution = self.cross_file_resolution_enabled(uri).await;
         let extra_commands = self
@@ -27647,6 +27686,7 @@ impl Backend {
             client: self.client.clone(),
             diagnostic_publisher: Arc::clone(&self.diagnostic_publisher),
             registry,
+            registry_at_drain,
             pack_seq: pack_generation,
             pack_set: Arc::clone(&pack_set),
             spec_packs: Arc::clone(&self.spec_packs),
@@ -27664,7 +27704,7 @@ impl Backend {
             live_publication_gate: Arc::clone(&self.live_publication_gate),
             package_resolver: Arc::clone(&self.package_resolver),
             package_prefer: self.default_package_prefer().await,
-            provider_dialects: provider_source::ProviderDialectInputs::capture(self).await,
+            provider_dialects: provider_source::ProviderDialectSources::of(self),
             recovery_names: Arc::clone(&self.recovery_names),
             entry_points,
             folder_root,
@@ -28234,7 +28274,7 @@ impl Backend {
             let registry = self.registry_for_dialect(inputs.dialect.name).await;
             settle_cross_file_calls(&index, analysis, &registry, uri.as_str())
         };
-        let dialects = provider_source::ProviderDialectInputs::capture(self).await;
+        let dialects = provider_source::ProviderDialectSources::of(self);
         let provider_sources = provider_source::ProviderCaptureInputs {
             db: &self.db,
             files: &self.db_files,
@@ -28479,7 +28519,7 @@ impl Backend {
             // Resolving first means `dirty` and `latest_inputs` are published
             // together, atomically, so the worker never observes one without the
             // other.
-            let inputs = self.diag_inputs(&uri, profile).await;
+            let inputs = self.diag_inputs_with(&uri, profile, true).await;
             if self.diag_inputs_epoch() == epoch && inputs.inputs_epoch == Some(epoch) {
                 resolved = Some((inputs, epoch));
                 break;
@@ -29621,7 +29661,7 @@ impl Backend {
             return Err(DocumentSourceUnavailable::ConditionalAdvice { uri });
         };
         let guard = self.rehoming_gate.lock().await;
-        if !self.original_source_view_settlement_is_indexed(&settlement) {
+        if !self.original_source_view_settlement_views_are_indexed(&settlement) {
             let uri = self
                 .workspace_index
                 .read()
@@ -48956,15 +48996,15 @@ info exists ::N::v\uD800";
             ),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
-            default_dialect: Mutex::new("tcl8.6".to_owned()),
+            default_dialect: Arc::new(Mutex::new("tcl8.6".to_owned())),
             default_dialect_explicit: Mutex::new(false),
             warned_session_dialect: Mutex::new(None),
-            session_dialect_override: Mutex::new(None),
-            document_dialect_overrides: Mutex::new(HashMap::new()),
+            session_dialect_override: Arc::new(Mutex::new(None)),
+            document_dialect_overrides: Arc::new(Mutex::new(HashMap::new())),
             config_reload: Mutex::new(ConfigReloadSlot::default()),
             workspace_folders: Mutex::new(Vec::new()),
-            folder_dialects: Mutex::new(Vec::new()),
-            folder_configs: Mutex::new(Vec::new()),
+            folder_dialects: Arc::new(Mutex::new(Vec::new())),
+            folder_configs: Arc::new(Mutex::new(Vec::new())),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
@@ -49961,7 +50001,7 @@ info exists ::N::v\uD800";
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .commands();
-        let dialects = provider_source::ProviderDialectInputs::capture(&backend).await;
+        let dialects = provider_source::ProviderDialectSources::of(&backend);
         let providers = provider_source::ProviderCaptureInputs {
             db: &backend.db,
             files: &backend.db_files,

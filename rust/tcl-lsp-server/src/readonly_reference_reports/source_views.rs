@@ -1563,24 +1563,6 @@ impl OriginalSourceViewSettlement {
         scopes.join("; ")
     }
 
-    pub(crate) fn tmp_probe_aggregate_complete(&self) -> bool {
-        self.aggregate_complete()
-    }
-    pub(crate) fn tmp_probe_scopes(&self) -> String {
-        self.scopes
-            .iter()
-            .map(|scope| {
-                format!(
-                    "[{} complete={} conditional={} root={}]",
-                    scope.root_uri.as_str(),
-                    scope.complete,
-                    scope.conditional_obligations,
-                    scope.root.is_some()
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
     fn aggregate_complete(&self) -> bool {
         self.scopes
             .iter()
@@ -2899,28 +2881,17 @@ impl Backend {
         Ok(self.original_source_view_settlement_is_indexed(&capture.settlement))
     }
 
-    pub(crate) fn tmp_probe_indexed_without_aggregate(
+    pub(crate) fn original_source_view_settlement_is_indexed(
         &self,
         settlement: &OriginalSourceViewSettlement,
     ) -> bool {
-        let Ok(table) = self.original_source_views.try_lock() else {
-            return false;
-        };
-        let Ok(index) = self.workspace_index.try_read() else {
-            return false;
-        };
-        table.current_revision() == Some(settlement.revision) && settlement.scopes.iter().all(|scope| {
-            scope.ids.iter().all(|id| table.by_id.get(id).is_some_and(|view| {
-            table.contains_actual(view) && view.is_indexed(&index)
-                && index.original_source_views(view.draft.physical.uri.as_str()).iter().any(|row| {
-                    Arc::ptr_eq(row.analysis(), &view.draft.producer.seed.analysis)
-                        && row.publication() == &tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(*id)
-                })
-            }))
-        })
+        settlement.aggregate_complete()
+            && self.original_source_view_settlement_views_are_indexed(settlement)
     }
 
-    pub(crate) fn original_source_view_settlement_is_indexed(
+    /// Every view of the current settlement is still published to the index.
+    /// Completeness stays with the projections and the world capture.
+    pub(crate) fn original_source_view_settlement_views_are_indexed(
         &self,
         settlement: &OriginalSourceViewSettlement,
     ) -> bool {
@@ -2931,7 +2902,7 @@ impl Backend {
             return false;
         };
         table.current_revision() == Some(settlement.revision)
-            && settlement.aggregate_complete() && settlement.scopes.iter().all(|scope| {
+            && settlement.scopes.iter().all(|scope| {
             scope.ids.iter().all(|id| table.by_id.get(id).is_some_and(|view| {
             table.contains_actual(view) && view.is_indexed(&index)
                 && index.original_source_views(view.draft.physical.uri.as_str()).iter().any(|row| {
