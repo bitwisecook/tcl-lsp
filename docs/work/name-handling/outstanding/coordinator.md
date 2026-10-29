@@ -4,6 +4,17 @@ Last updated: 2026-10-29T16:05Z
 
 ## Resume
 
+STOPPED BY USER at ~16:15Z 29 Oct. All five roles and the 30-minute reminder stopped; no builds or hosted jobs running. Everything in WORK committed and pushed, including in-flight TEMP_*/TMP_* probes (remove before any CI dispatch or release carry). On resume: restart the five roles from their latest reports (the role rows in [current-state.md](../current-state.md) list each role's assigned-but-unfinished items), re-arm 30-minute reporting, depth-1 fetch before every push.
+
+Assigned at the stop but not yet implemented:
+- compiler-names: narrow Proc/definition admission in the AuthoredSimulation structure gate (root cause of empty cu.procedures); compatibility_name Debug spelling; value_transfer.rs AssignExpr gate; `proc continue` over-breadth; stack frame size.
+- compiler-codegen: 9.0 registry select gaps (format, info errorstack, string is, string map, tailcall, clock+clockRead); branch-condition folds (scope note in user-decisions-20261029T1125Z.json); dict incr/with fallback; unused-set fold.
+- vm-runtime: 3 deopt tests to an explicit profile (decision standalone_unit_tests_explicit_dialect) and the native_vm_with_output doc; clockRead opcode; registry index differential test and timings; mutation checks; lifetime bug; tcl-vm lib 271.
+- lsp: reload_spec_packs(Config) never returning (did_change_configuration); 3 publish-path Elapsed; cross-file `source` references restore; classify 14 legacy rehoming tests; e2e sampling.
+- compiler: taint correction-comment audit; class_factories definer slots; Tk facts; irules realm; chan configure taint.
+
+## Resume (16:05Z refresh)
+
 RUNNING (fourth restart resumed 08:00Z 29 Oct). WORK `/home/user/tcl-lsp` (`work`), release shallow clone `/home/user/release/tcl-lsp` (`release/lsp-naming` `83c8e08`, fixture cleanup 51/51). On user request at 16:05Z everything in the WORK tree was committed, including roles' in-flight TEMP_*/TMP_* diagnosis probes; remove them before any CI dispatch or release carry.
 
 - Gate status: zero pass-to-fail NOT met. CI 5248 (`83a0b2351`) vs origin/rust 5203: 2,835 pass-to-fail, 10,299 unobserved, 216 absent; per-role lists in the session scratchpad `ci5248/roles/`, summary in `handoff/reviews/merge-inventory-20261019/coordinator-20261027/ci5248-vs-origin-rust-5203-pass-to-fail-summary.md`.

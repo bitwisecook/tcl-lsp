@@ -207,7 +207,11 @@ impl SourceCommandBindings {
         // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
         #[cfg(debug_assertions)]
         if std::env::var_os("ZZ_PROBE_OO").is_some() {
-            eprintln!("ZZ_OO select offset={} selected={}", native.segment.span.start(), select_bounded_method_definition(native, state, context, facts).is_some()); // ZZPROBE
+            eprintln!(
+                "ZZ_OO select offset={} selected={}",
+                native.segment.span.start(),
+                select_bounded_method_definition(native, state, context, facts).is_some()
+            ); // ZZPROBE
         }
         let Some(BoundedMethodDefinition {
             grammar,
@@ -627,16 +631,18 @@ impl ModuleCommandBindings {
                 !self.tainted_object_dispatch.contains("*")
                     && !self.tainted_object_dispatch.contains(&base.command)
                     && self.retained_target_is_current(base)
-                    && (self.stock_inherited_class(base).is_some()
-                        || base
-                            .identity
-                            .as_ref()
-                            .and_then(|identity| self.class_definitions.get(identity))
-                            .is_some_and(|receipt| {
-                                receipt.dispatcher.is_none()
-                                    && receipt.implementation_generation
-                                        == base.implementation_generation
-                            }))
+                    && (definition.original_factory.as_ref().is_some_and(|factory| {
+                        self.stock_inherited_class(factory.recipe().grammar(), base)
+                            .is_some()
+                    }) || base
+                        .identity
+                        .as_ref()
+                        .and_then(|identity| self.class_definitions.get(identity))
+                        .is_some_and(|receipt| {
+                            receipt.dispatcher.is_none()
+                                && receipt.implementation_generation
+                                    == base.implementation_generation
+                        }))
             })
     }
 
@@ -657,7 +663,30 @@ impl ModuleCommandBindings {
         #[cfg(debug_assertions)]
         if std::env::var_os("ZZ_PROBE_OO").is_some() {
             let binding = source_binding(self, name, &context.namespace_identity()); // ZZPROBE
-            eprintln!("ZZ_OO inherited name={name} original={} closed={} unknown={} absent={} targets={:?}", original_definition_member(grammar, member, tcl_registry::definer::DefinitionReceiver::Instance, self, context), self.source_lookup_is_closed(name, &context.namespace_identity()), binding.unknown, binding.may_be_absent, binding.targets.iter().map(|t| (t.command.clone(), t.registry_backed, t.kind, t.identity.is_some(), self.retained_target_is_current(t))).collect::<Vec<_>>()); // ZZPROBE
+            eprintln!(
+                "ZZ_OO inherited name={name} original={} closed={} unknown={} absent={} targets={:?}",
+                original_definition_member(
+                    grammar,
+                    member,
+                    tcl_registry::definer::DefinitionReceiver::Instance,
+                    self,
+                    context
+                ),
+                self.source_lookup_is_closed(name, &context.namespace_identity()),
+                binding.unknown,
+                binding.may_be_absent,
+                binding
+                    .targets
+                    .iter()
+                    .map(|t| (
+                        t.command.clone(),
+                        t.registry_backed,
+                        t.kind,
+                        t.identity.is_some(),
+                        self.retained_target_is_current(t)
+                    ))
+                    .collect::<Vec<_>>()
+            ); // ZZPROBE
         }
         if !original_definition_member(
             grammar,
@@ -672,7 +701,7 @@ impl ModuleCommandBindings {
         let binding = source_binding(self, name, &context.namespace_identity());
         let base = binding.proved_target()?;
         if base.registry_backed {
-            return self.stock_inherited_class(base);
+            return self.stock_inherited_class(grammar, base);
         }
         let identity = base.identity.as_ref()?;
         // An inherited class is an actual object command, not an alias to one.
@@ -714,11 +743,19 @@ impl ModuleCommandBindings {
     /// source does not declare, so the child's instance method set stays open.
     fn stock_inherited_class(
         &self,
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
         base: &super::SourceCommandTarget,
     ) -> Option<(super::SourceCommandTarget, super::ClassDefinitionReceipt)> {
         if !base.registry_backed
-            || base.kind != super::BindingKind::Class
             || !base.prepended.is_empty()
+            || base.implementation_generation != 0
+            || !grammar
+                .default_construction_lookup_dependencies()
+                .is_some_and(|stock| {
+                    stock.iter().any(|command| {
+                        tcl_registry::command_descriptor_labels_match(&base.command, command)
+                    })
+                })
             || self.tainted_object_dispatch.contains("*")
             || self.tainted_object_dispatch.contains(&base.command)
             || !self.retained_target_is_current(base)
@@ -1249,7 +1286,11 @@ fn closed_bounded_method_segments(
         let closed = closed_definition_member(grammar, definition, map, segment, state, context);
         #[cfg(debug_assertions)]
         if std::env::var_os("ZZ_PROBE_OO").is_some() {
-            eprintln!("ZZ_OO member offset={} keyword={} closed={closed}", segment.span.start(), segment.name()); // ZZPROBE
+            eprintln!(
+                "ZZ_OO member offset={} keyword={} closed={closed}",
+                segment.span.start(),
+                segment.name()
+            ); // ZZPROBE
         }
         #[cfg(test)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {

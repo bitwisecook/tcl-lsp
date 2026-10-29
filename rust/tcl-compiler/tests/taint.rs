@@ -4468,5 +4468,24 @@ fn zz_probe_realm() {
             eprintln!("ZZREALM {label} {head}@{at} fact={:?}", realm.binding_at(head, at));
         }
     }
+    let env = tcl_registry::model::ingress::resolve_environment(&dialect);
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        env.analyser_profile(),
+        env.unit_profile(),
+        env.default_context_registry(),
+        tcl_lexer::LexerConfig::for_file_grammar(env.unit_profile().grammar),
+    );
+    let analysis = tcl_compiler::analyser::Analyser::new()
+        .with_resolved_input(input)
+        .analyse(&src, &dialect);
+    if let Some(realm) = analysis.retained_command_realm() {
+        for item in std::env::var("ZZ_HEADS").unwrap_or_default().split(',').filter(|s| !s.is_empty()) {
+            let (head, at) = item.rsplit_once('@').unwrap();
+            let at: u32 = at.parse().unwrap();
+            eprintln!("ZZREALM supplied {head}@{at} fact={:?}", realm.binding_at(head, at));
+        }
+    } else {
+        eprintln!("ZZREALM supplied none");
+    }
 }
 // ZZPROBE-END

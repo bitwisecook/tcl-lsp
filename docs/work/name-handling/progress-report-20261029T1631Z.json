@@ -1,0 +1,55 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T16:31:41.138580+00:00",
+  "scheduled_report_utc": "2026-10-29T16:15:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "STOPPED_BY_USER",
+  "change_since_previous_report": [
+    "User asked to stop: all five roles and the 30-minute reminder stopped; no builds running. State documents updated; everything committed and pushed, including in-flight diagnosis probes.",
+    "Last findings before the stop: top-level `proc` lowers to a plain Call because the AuthoredSimulation structure gate refuses the Proc hook (cause of empty cu.procedures); 9.0 registry select gaps identified for format/info errorstack/string is/string map/tailcall/clock; deopt profile-less tests fall under the standalone-units decision; lsp did_change_configuration hangs in reload_spec_packs(Config).",
+    "Branch-condition fold scope note recorded (not implemented)."
+  ],
+  "admissions": [],
+  "in_progress": [],
+  "pending_user_decisions": [
+    "Tk taint under the open tk policy (facts not yet gathered)"
+  ],
+  "next_report_utc": null,
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
