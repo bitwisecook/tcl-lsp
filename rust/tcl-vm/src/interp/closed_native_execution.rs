@@ -244,8 +244,10 @@ impl Vm {
         commands: &[String],
         scalars: &[String],
     ) -> bool {
-        self.observe_closed_native_state(commands, scalars, &prepared.entry)
-            .is_ok_and(|current| current == prepared.entry)
+        let current = self.observe_closed_native_state(commands, scalars, &prepared.entry);
+        #[cfg(debug_assertions)]
+        note_entry_drift(current.as_ref().ok(), &prepared.entry);
+        current.is_ok_and(|current| current == prepared.entry)
     }
 
     /// Execute only a freshly checked plain preparation. No completion value
@@ -283,6 +285,39 @@ fn original_binding(entry: &NativeCompilationEntry, name: &str) -> Result<(), Cl
         return Err(ClosedSourceRefusal::NativeContext);
     }
     Ok(())
+}
+
+/// First drifted entry axis of a stale preparation, for the owned debug
+/// observation marker only.
+#[cfg(debug_assertions)]
+fn note_entry_drift(current: Option<&NativeCompilationEntry>, retained: &NativeCompilationEntry) {
+    let Some(current) = current else {
+        tcl_runtime_api::diagnostic_output::note_closed_native_refusal(50, 0, 0);
+        return;
+    };
+    let same = [
+        current.interpreter == retained.interpreter,
+        current.epoch == retained.epoch,
+        current.profile == retained.profile,
+        current.commands == retained.commands,
+        current.namespaces == retained.namespaces,
+        current.namespace_variable_tables == retained.namespace_variable_tables,
+        current.empty_literal_world == retained.empty_literal_world,
+        current.compiler_pass_environment == retained.compiler_pass_environment,
+        current.ensemble_target_objects == retained.ensemble_target_objects,
+        current.oo_classes == retained.oo_classes,
+        current.command_resolvers == retained.command_resolvers,
+        current.variable_observers == retained.variable_observers,
+        current.math_functions == retained.math_functions,
+        current == retained,
+    ];
+    if let Some(axis) = same.iter().position(|same| !same) {
+        tcl_runtime_api::diagnostic_output::note_closed_native_refusal(
+            51,
+            u16::try_from(axis + 1).unwrap_or(u16::MAX),
+            0,
+        );
+    }
 }
 
 fn check_module(
