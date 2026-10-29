@@ -77,6 +77,39 @@ impl Asm {
         self
     }
 
+    /// The stream behind C's `global` prologue (`push ::`, then `push name;
+    /// nsupvar slot` per variable, `pop`) for every slot the stream does not
+    /// link itself.
+    fn global_linked_body(self) -> FunctionAsm {
+        let linked: Vec<i32> = self
+            .instrs
+            .iter()
+            .filter(|instr| matches!(instr.op, Op::VARIABLE | Op::UPVAR | Op::NSUPVAR))
+            .filter_map(|instr| match instr.operands.first() {
+                Some(Operand::Imm(slot)) => Some(*slot),
+                _ => None,
+            })
+            .collect();
+        let mut prologue = Asm {
+            lits: self.lits,
+            lvt: self.lvt,
+            instrs: Vec::new(),
+        };
+        prologue.push("::");
+        for (slot, name) in prologue.lvt.native_slot_names().into_iter().enumerate() {
+            let slot = bytecode_imm(slot);
+            if let Some(name) = name
+                && !linked.contains(&slot)
+            {
+                let text = String::from_utf8(name.as_bytes().to_vec()).expect("test variable name");
+                prologue.push(&text).op(Op::NSUPVAR, &[slot]);
+            }
+        }
+        prologue.op(Op::POP, &[]);
+        prologue.instrs.extend(self.instrs);
+        prologue.build()
+    }
+
     /// Finish the function, assigning byte offsets the way `codegen_module`
     /// does (`resolve_layout`) so the executor's offset→index map is valid.
     fn build(mut self) -> FunctionAsm {
@@ -107,7 +140,14 @@ impl Asm {
 
 /// Run a hand-built function on `vm`.
 fn run(vm: &mut Vm, asm: Asm) -> Completion<Value> {
-    vm.run_function(&asm.build())
+    if asm.lvt.is_empty() {
+        return vm.run_function(&asm.build());
+    }
+    // C keeps LVT slots only in a procedure frame, so an LVT stream runs as a proc body whose slots `global` links.
+    vm.set_compiler(Box::new(compiler::seeded_proc(asm.global_linked_body())));
+    vm.eval_source(compiler::SEEDED_PROC_DEF)
+        .expect("proc defines");
+    vm.eval_source("p").expect("compiles")
 }
 
 /// Run a hand-built function on a fresh `Vm`, returning `(vm, completion)`.
@@ -515,18 +555,7 @@ fn check_empty_lappend(profile: &str, op: Op, initial: Option<&str>, action: &st
         &words.into_iter().map(Value::string).collect::<Vec<_>>(),
     );
     assert!(trace.code.is_ok(), "{profile} {op:?}: {trace:?}");
-    let module = tcl_bytecode::ModuleAsm {
-        profile: vm.dialect_profile(),
-        source: tcl_lexer::SourceImage::default(),
-        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
-        plain_command_dispatch: false,
-        top_level: empty_lappend_asm(op).build(),
-        top_level_body: FunctionAsm::default(),
-        procedures: HashMap::new(),
-        procedure_provenance: HashMap::new(),
-        manifest: None,
-    };
-    let result = vm.run_module(&module);
+    let result = run(&mut vm, empty_lappend_asm(op));
     if array && matches!(action, "unset" | "recreate") {
         assert_eq!(
             err_str(&result),
@@ -2401,6 +2430,8 @@ mod compiler {
 
     pub const SEEDED_METHOD_BODY: &str = "string length native_opcode_body";
 
+    pub const SEEDED_PROC_BODY: &str = "this body is replaced by the seeded one";
+
     pub const SEEDED_PROC_DEF: &str = "proc p {} {this body is replaced by the seeded one}";
 
     /// Test compiler that replaces exactly one compiler-produced procedure
@@ -2415,21 +2446,9 @@ mod compiler {
 
     impl SeededProcCompileService {
         fn inject(&self, src: &[u8], mut module: ModuleAsm) -> ModuleAsm {
-            if src == SEEDED_PROC_DEF.as_bytes() {
-                assert_eq!(module.procedures.len(), 1, "one seed procedure");
-                let id = *module
-                    .procedures
-                    .keys()
-                    .next()
-                    .expect("compiler-issued seed body");
-                let original = module.procedures.get(&id).expect("seed body");
-                assert_eq!(original.name, "::p", "seed reporting name");
-                let mut body = self.body.clone();
-                body.plain_command_dispatch = module.plain_command_dispatch;
-                body.command_bindings.clear();
-                module.procedures.insert(id, body);
-            }
-            if src == SEEDED_METHOD_BODY.as_bytes() {
+            // C compiles a procedure body when it is first called, so the
+            // seed replaces that compilation.
+            if src == SEEDED_PROC_BODY.as_bytes() || src == SEEDED_METHOD_BODY.as_bytes() {
                 let mut body = self.body.clone();
                 body.plain_command_dispatch = module.plain_command_dispatch;
                 body.command_bindings.clear();
