@@ -468,7 +468,7 @@ mod tests {
         version: &str,
         expression: &str,
     ) -> std::sync::Arc<tcl_registry::runtime_expr_validation::PreparedExpressionWitness> {
-        let source = format!("set result [expr {{{expression}}}]");
+        let source = format!("set a 1\nset result [expr {{{expression}}}]");
         let owner = tcl_registry::model::ingress::static_context_for(version);
         let registry = owner.commands();
         let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
@@ -477,12 +477,20 @@ mod tests {
             false,
             registry.profile().unwrap(),
         );
-        let crate::ir::Statement::AssignExpr { span, .. } = &unit.ir_module.top_level.statements[0]
-        else {
-            panic!("original retained expression {expression}");
-        };
-        let bindings =
-            ExpressionMathBindings::for_module_statement(&unit.ir_module, *span).unwrap();
+        let span = unit
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                crate::ir::Statement::AssignExpr { name, span, .. } if name == "result" => {
+                    Some(*span)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("original retained expression {expression}"));
+        let bindings = ExpressionMathBindings::for_module_statement(&unit.ir_module, span)
+            .unwrap_or_else(|| panic!("whole-expression mapping {expression}"));
         bindings
             .preparation_for_context(
                 &FoldPolicy::from_registry(registry)

@@ -4412,15 +4412,48 @@ mod tests {
 
     #[test]
     fn native_result_protocols_do_not_become_contents_only_execution_constants() {
-        for selected in ["tcl8.4", "tcl8.6", "jim"] {
+        // An integer result has one canonical spelling, so it may become an
+        // execution constant. A double from an executed operator keeps its
+        // operation (C 8.6 spells it under `tcl_precision` when its string is
+        // generated); a C 8.5+ constant tree is already a pooled literal.
+        for (selected, source, contents, constant) in [
+            (
+                "tcl8.4",
+                "set result [expr {2 + 2}]",
+                ConstValue::Int(4),
+                true,
+            ),
+            (
+                "tcl8.6",
+                "set result [expr {2 + 2}]",
+                ConstValue::Int(4),
+                true,
+            ),
+            ("jim", "set result [expr {2 + 2}]", ConstValue::Int(4), true),
+            (
+                "tcl8.4",
+                "set result [expr {1 / 4.0}]",
+                ConstValue::Float(0.25),
+                false,
+            ),
+            (
+                "jim",
+                "set result [expr {1 / 4.0}]",
+                ConstValue::Float(0.25),
+                false,
+            ),
+            (
+                "tcl8.6",
+                "set result [expr {1 / 4.0}]",
+                ConstValue::Float(0.25),
+                true,
+            ),
+        ] {
             let owner = tcl_registry::model::ingress::static_context_for(selected);
             let registry = owner.commands();
             let profile = registry.profile().expect("actual selected native profile");
             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
-                "set result [expr {2 + 2}]",
-                registry,
-                false,
-                profile,
+                source, registry, false, profile,
             );
             let semantic = semantic_facts_for_unit(&unit, registry);
             let producer = unit
@@ -4438,15 +4471,16 @@ mod tests {
                 let key = (symbol, version);
                 assert_eq!(
                     semantic.contents(key),
-                    Some(&LatticeValue::Const(ConstValue::Int(4))),
-                    "numeric contents remain available for {selected}",
+                    Some(&LatticeValue::Const(contents.clone())),
+                    "numeric contents remain available for {selected} {source}",
                 );
-                assert!(
-                    !matches!(
+                assert_eq!(
+                    matches!(
                         unit.top_level.sccp.values.get(&key),
                         Some(LatticeValue::Const(_))
                     ),
-                    "native arithmetic/pool result cannot become a raw literal for {selected}",
+                    constant,
+                    "execution constant for {selected} {source}",
                 );
             }
         }

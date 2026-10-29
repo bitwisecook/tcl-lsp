@@ -624,22 +624,23 @@ fn cmd_subst_string_equal_compare_invoke_replace_forms() {
     // route through `INVOKE_REPLACE` (against the `::tcl::string::…` FQN),
     // distinct from the bare 2-arg `STR_EQ` / `STR_CMP` fast ops.
     assert!(
-        inline_ops(true, &["a", "b"], "[string equal -nocase $a $b]").contains(&Op::INVOKE_REPLACE),
+        inline_ops_at_8_6(true, &["a", "b"], "[string equal -nocase $a $b]")
+            .contains(&Op::INVOKE_REPLACE),
         "string equal -nocase → invokeReplace",
     );
     assert!(
-        inline_ops(true, &["a", "b"], "[string compare -nocase $a $b]")
+        inline_ops_at_8_6(true, &["a", "b"], "[string compare -nocase $a $b]")
             .contains(&Op::INVOKE_REPLACE),
         "string compare -nocase → invokeReplace",
     );
     assert!(
-        inline_ops(true, &["a", "b"], "[string compare -length 3 $a $b]")
+        inline_ops_at_8_6(true, &["a", "b"], "[string compare -length 3 $a $b]")
             .contains(&Op::INVOKE_REPLACE),
         "string compare -length → invokeReplace",
     );
     // The bare 2-arg forms stay on the dedicated fast opcodes (control).
-    assert!(inline_ops(true, &["a", "b"], "[string equal $a $b]").contains(&Op::STR_EQ));
-    assert!(inline_ops(true, &["a", "b"], "[string compare $a $b]").contains(&Op::STR_CMP));
+    assert!(inline_ops_at_8_6(true, &["a", "b"], "[string equal $a $b]").contains(&Op::STR_EQ));
+    assert!(inline_ops_at_8_6(true, &["a", "b"], "[string compare $a $b]").contains(&Op::STR_CMP));
 }
 
 #[test]
@@ -647,18 +648,20 @@ fn cmd_subst_array_names_size_and_exists() {
     // `emit_inline_array`: `names`/`size` route through a startCommand-wrapped
     // `::tcl::array::<sub>` invoke; `exists` on a proc-local takes the dedicated
     // `ARRAY_EXISTS_IMM` immediate opcode.
-    let names = inline_ops(true, &["a"], "[array names a]");
+    let names = inline_ops_at_8_6(true, &["a"], "[array names a]");
     assert!(
         names.contains(&Op::START_CMD) && names.contains(&Op::INVOKE_STK1),
         "array names → fqn invoke: {names:?}",
     );
-    let size = inline_ops(true, &["a"], "[array size a]");
+    let size = inline_ops_at_8_6(true, &["a"], "[array size a]");
     assert!(
         size.contains(&Op::INVOKE_STK1),
         "array size → fqn invoke: {size:?}"
     );
 
-    let reg = registry();
+    let profile =
+        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 is a catalogue profile");
+    let reg = registry().project_for_profile(profile);
     let mut ctx = CodegenCtx::new(true, &["a"], &reg);
     let tokens = command_tokens("array exists a");
     ctx.emit_inline_cmd_subst_with_tokens("[array exists a]", Some(&tokens));
@@ -726,11 +729,11 @@ fn cmd_subst_lindex_multi_index_form() {
     // `emit_inline_lindex`: a single immediate index → `LIST_INDEX_IMM`; a
     // multi-index path → `LINDEX_MULTI`.
     assert!(
-        inline_ops(true, &["l"], "[lindex $l 0]").contains(&Op::LIST_INDEX_IMM),
+        inline_ops_at_8_6(true, &["l"], "[lindex $l 0]").contains(&Op::LIST_INDEX_IMM),
         "single immediate index → LIST_INDEX_IMM",
     );
     assert!(
-        inline_ops(true, &["m"], "[lindex $m 0 1]").contains(&Op::LINDEX_MULTI),
+        inline_ops_at_8_6(true, &["m"], "[lindex $m 0 1]").contains(&Op::LINDEX_MULTI),
         "multi-index → LINDEX_MULTI",
     );
     // tclsh: lindex {a b c} 1 → b ; lindex {{a b} c} 0 0 → a  (8.6 + 9.0)
