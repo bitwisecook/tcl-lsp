@@ -1681,13 +1681,6 @@ impl<'a> CfgBuilder<'a> {
                 .1;
         let source_opaque_upvar = direct_upvar.opaque_arguments;
         let opaque_variable_write = self.variable_write_projection(stmt).opaque_variable_frame;
-        #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_LOWER").is_some() {
-            eprintln!(
-                "ZZ_CALL_BARRIER {command} unresolvable={unresolvable_upvar} source_opaque={source_opaque_upvar} global={opaque_global} variable={opaque_variable_write} original_tokens={}",
-                self.original_tokens_for_statement(stmt).is_some()
-            );
-        }
         if !unresolvable_upvar && !source_opaque_upvar && !opaque_global && !opaque_variable_write {
             return None;
         }
@@ -1806,21 +1799,6 @@ impl<'a> CfgBuilder<'a> {
             self.registry,
         );
         embedded_opaque_global |= writes.opaque;
-        #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_LOWER").is_some() {
-            eprintln!(
-                "ZZ_EMBEDDED stmt={:?} embedded_opaque={} upvar_opaque={} global_opaque={opaque} writes_opaque={} commands={:?}",
-                stmt.span(),
-                embedded.opaque,
-                upvar.opaque_arguments,
-                writes.opaque,
-                embedded
-                    .commands
-                    .iter()
-                    .map(|command| format!("{command:?}").chars().take(160).collect::<String>())
-                    .collect::<Vec<_>>()
-            );
-        }
         for d in writes.names {
             if !embedded_extras.contains(&d) {
                 embedded_extras.push(d);

@@ -1295,15 +1295,6 @@ fn select_target(
             return;
         }
     }
-    #[cfg(test)]
-    if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
-        eprintln!(
-            "ZZ_SELECT_TARGET head={} offset={} registered={:?}",
-            selected.head,
-            selected.offset,
-            registered.as_ref().map(|registered| registered.admission)
-        );
-    }
     let Some(registered) = registered else {
         result.compiler_name_preservation = super::SourceCompilerNameClosure::Unknown;
         result.unknown = true;
@@ -1405,17 +1396,6 @@ fn registered_compiler_selection(
         state,
         context,
     );
-    #[cfg(test)]
-    if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
-        eprintln!(
-            "ZZ_REGISTERED head={} offset={} descriptor={} facts_native={} subcommand={:?}",
-            selected.head,
-            selected.offset,
-            descriptor.is_some(),
-            facts.native_compilation.is_some(),
-            facts.subcommand
-        );
-    }
     let (spec, argument_offset) = descriptor?;
     let original =
         original_registered_compiler_preparation(spec, selected, state, context, argument_offset);

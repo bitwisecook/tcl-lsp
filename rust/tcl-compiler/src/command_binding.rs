@@ -4866,25 +4866,6 @@ impl ModuleCommandBindings {
             .native_root_namespace_key()
             .unwrap_or_else(|| SourceNamespaceKey::Authored("::".to_owned()));
         let binding = source_binding_projection(self, "::unknown", &root);
-        #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-            eprintln!(
-                "ZZ_UNKNOWN_HANDLER unknown={} absent={} targets={:?}",
-                binding.unknown,
-                binding.may_be_absent,
-                binding
-                    .targets
-                    .iter()
-                    .map(|target| (
-                        &target.command,
-                        target.registry_backed,
-                        target.kind,
-                        target.implementation_generation,
-                        target.implementation_allocation.is_some()
-                    ))
-                    .collect::<Vec<_>>()
-            );
-        }
         // The stock handler is the interpreter's own; any source-allocated
         // or redefined implementation is a hook.
         !binding.unknown
@@ -7061,23 +7042,6 @@ impl SourceOutcomes {
                 "root.original-unknown-handler",
                 normal.unknown_handler_is_original(),
             ));
-        #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-            eprintln!(
-                "ZZ_COMPLETED_WORLD complete={} closed={} unclosed={} opaque={} unknown_handler={} step={} observed={} routes={:?}",
-                self.normal_completion.is_some(),
-                closed,
-                normal.unclosed_command_world,
-                normal.has_opaque_domain(),
-                normal.unknown_handler_is_original(),
-                normal.source_step_observed(),
-                normal.source_execution_observed(None),
-                self.abrupt
-                    .iter()
-                    .map(|(route, _)| route)
-                    .collect::<Vec<_>>()
-            );
-        }
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
@@ -9707,28 +9671,9 @@ impl SourceCommandBindings {
                 outcomes.normal_completion.is_some(),
             );
             let prefix_complete = outcomes.normal_completion;
-            #[cfg(test)]
-            let zz_before = continuing.opaque_domain;
             #[cfg(debug_assertions)]
             let n17_before = source_world_observer::before_command(&continuing);
             let command = self.walk_source_command(image, base, &mut continuing, segment, context);
-            #[cfg(test)]
-            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-                eprintln!(
-                    "ZZ_COMMAND {:?} ns={:?} opaque_before={zz_before} opaque_after={} abrupt={:?}",
-                    segment.texts,
-                    context.namespace_identity(),
-                    command
-                        .normal
-                        .as_ref()
-                        .is_some_and(|normal| normal.opaque_domain),
-                    command
-                        .abrupt
-                        .iter()
-                        .map(|(route, _)| route)
-                        .collect::<Vec<_>>(),
-                );
-            }
             #[cfg(debug_assertions)]
             source_world_observer::observe_command(
                 self,
@@ -11358,27 +11303,6 @@ impl SourceCommandBindings {
         self.walk_prepared_source_target(native, &prepared, effective, state, context, &incoming)
     }
 
-    #[cfg(test)]
-    fn trace_unclosed_prepared_source_early(
-        native: &SourceNativeInvocation<'_>,
-        facts: &InvocationFacts,
-    ) {
-        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-            eprintln!(
-                "ZZ_UNCLOSED_EARLY {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
-                native.segment.texts,
-                facts.state_transitions,
-                native.target.kind,
-                native.target.registry_backed,
-                facts.arg_roles_complete,
-                facts.subcommand,
-                facts.effects.callback(),
-                facts.effects.legacy().command_table_mutation,
-                facts.traits
-            );
-        }
-    }
-
     #[cfg(debug_assertions)]
     fn trace_prepared_source_receiver(
         native: &SourceNativeInvocation<'_>,
@@ -11417,27 +11341,6 @@ impl SourceCommandBindings {
         }
     }
 
-    #[cfg(test)]
-    fn trace_unclosed_prepared_source(
-        native: &SourceNativeInvocation<'_>,
-        facts: &InvocationFacts,
-    ) {
-        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-            eprintln!(
-                "ZZ_UNCLOSED {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
-                native.segment.texts,
-                facts.state_transitions,
-                native.target.kind,
-                native.target.registry_backed,
-                facts.arg_roles_complete,
-                facts.subcommand,
-                facts.effects.callback(),
-                facts.effects.legacy().command_table_mutation,
-                facts.traits
-            );
-        }
-    }
-
     fn walk_prepared_source_target(
         &mut self,
         native: SourceNativeInvocation<'_>,
@@ -11462,8 +11365,6 @@ impl SourceCommandBindings {
                     )))
                 && let Some(normal) = outcomes.normal.as_mut()
             {
-                #[cfg(test)]
-                Self::trace_unclosed_prepared_source_early(&native, facts);
                 normal.unclosed_command_world = true;
             }
             return *outcomes;
@@ -11537,8 +11438,6 @@ impl SourceCommandBindings {
                 )))
             && let Some(normal) = outcomes.normal.as_mut()
         {
-            #[cfg(test)]
-            Self::trace_unclosed_prepared_source(&native, facts);
             normal.unclosed_command_world = true;
         }
         outcomes.publish(state);
