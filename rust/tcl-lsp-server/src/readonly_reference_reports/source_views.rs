@@ -2869,6 +2869,20 @@ impl Backend {
         Ok(self.original_source_view_settlement_is_indexed(&capture.settlement))
     }
 
+    pub(crate) fn tmp_probe_indexed_without_aggregate(&self, settlement: &OriginalSourceViewSettlement) -> bool {
+        let Ok(table) = self.original_source_views.try_lock() else { return false; };
+        let Ok(index) = self.workspace_index.try_read() else { return false; };
+        table.current_revision() == Some(settlement.revision) && settlement.scopes.iter().all(|scope| {
+            scope.ids.iter().all(|id| table.by_id.get(id).is_some_and(|view| {
+            table.contains_actual(view) && view.is_indexed(&index)
+                && index.original_source_views(view.draft.physical.uri.as_str()).iter().any(|row| {
+                    Arc::ptr_eq(row.analysis(), &view.draft.producer.seed.analysis)
+                        && row.publication() == &tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(*id)
+                })
+            }))
+        })
+    }
+
     pub(crate) fn original_source_view_settlement_is_indexed(
         &self,
         settlement: &OriginalSourceViewSettlement,
