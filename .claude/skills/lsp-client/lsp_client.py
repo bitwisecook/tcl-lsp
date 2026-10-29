@@ -559,8 +559,10 @@ class LspClient:
                     self._stderr_lines.append(line)
                 if (
                     not diagnostic_marker_forwarded
-                    and line == 'SOURCE_POINT_MEMO_DIAGNOSTIC bypass=source-point-only otherwise_eligible=true fresh_process_required=true acceptance=forbidden'
-                    and os.environ.get('TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS') == "1"
+                    and line
+                    == "SOURCE_POINT_MEMO_DIAGNOSTIC bypass=source-point-only otherwise_eligible=true fresh_process_required=true acceptance=forbidden"
+                    and os.environ.get("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS")
+                    == "1"
                 ):
                     print(line, file=sys.stderr, flush=True)
                     diagnostic_marker_forwarded = True

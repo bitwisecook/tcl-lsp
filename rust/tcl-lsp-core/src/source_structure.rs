@@ -3135,4 +3135,3 @@ mod original_hover_word_geometry_tests {
         assert!(original_complete_cursor_word(source, &analysis, offset).is_none());
     }
 }
-

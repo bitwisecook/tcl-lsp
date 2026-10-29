@@ -1,0 +1,61 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T08:31:24.722062+00:00",
+  "scheduled_report_utc": "2026-10-29T08:37:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "CI 40739740045 (WORK 83a0b2351) per-test comparison against origin/rust CI 5203: 10,962 pass->pass, 2,835 pass->fail, 10,299 unobserved (shards 1/2/4 runner loss/cancel, lsp-e2e hangs), 216 absent. Runtime-rust 125 FAILED; spectcl-compat 2; wasm-real-link 1.",
+    "pass->fail routed by owner: lsp 920 (e2e 525), compiler-codegen 759 (codegen/optimiser/inlining/var_escape/type_propagation; shared body_identity fixture-absent site), compiler-names 672 (analyser::diagnostics 257), vm-runtime 260 nextest + 125 runtime (NativePreflightRequired, StringUpdater), compiler 224 (class_factories 84, taint 105, irules).",
+    "Rust fmt drift fixed on 7 files (taint.rs left to its active owner); ruff format fixed on 2 Python files.",
+    "Three lsp-e2e tests hung for hours; diagnosing them precedes a clean full-CI rerun."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "pass->fail root-cause clusters in all five roles",
+    "lsp option (a) NoCut world",
+    "seal-split selector + namespace121",
+    "optimiser set lowering",
+    "taint G1-G4",
+    "regexp native plan"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T09:07:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

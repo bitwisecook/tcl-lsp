@@ -76,8 +76,8 @@ PINNED_HARNESS_FILES = {
     ".claude/skills/lsp-client/lsp_client.py": "72fa92435d43a53fd5a4a3b42e1450db8d38090e6caa10202840bcd22e3324dc",
     "scripts/perf/MANIFEST.toml": "956a8a562484da5356bfe340ec82531f699a18c65a7ea4a9e4efbdd9540b1f58",
 }
-DIAGNOSTIC_FLAG = 'TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS'
-DIAGNOSTIC_MARKER = 'SOURCE_POINT_MEMO_DIAGNOSTIC bypass=source-point-only otherwise_eligible=true fresh_process_required=true acceptance=forbidden'
+DIAGNOSTIC_FLAG = "TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS"
+DIAGNOSTIC_MARKER = "SOURCE_POINT_MEMO_DIAGNOSTIC bypass=source-point-only otherwise_eligible=true fresh_process_required=true acceptance=forbidden"
 FAILURE_STATE: dict[str, object] = {"out": None, "meta": None, "phase": "startup"}
 
 
@@ -375,7 +375,9 @@ def load_result(path: Path, scope: str) -> dict:
     return d
 
 
-def diagnostic_benchmark_env(env: dict[str, str], side: str, enabled: bool) -> dict[str, str]:
+def diagnostic_benchmark_env(
+    env: dict[str, str], side: str, enabled: bool
+) -> dict[str, str]:
     """Keep baseline/build inputs exact; only the fixed candidate experiment opts in."""
     if side not in ("baseline", "candidate"):
         raise Invalid("unknown benchmark side")
@@ -399,7 +401,9 @@ def mark_diagnostic_nonacceptance(meta: dict[str, Any], enabled: bool) -> None:
 def diagnostic_marker_observed(process: dict[str, Any]) -> bool:
     # run_bounded already caps the entire retained stream at LOG_CAP.
     with Path(process["streams"]["stderr"]["path"]).open("rb") as stream:
-        return any(line.rstrip(b"\r\n") == DIAGNOSTIC_MARKER.encode() for line in stream)
+        return any(
+            line.rstrip(b"\r\n") == DIAGNOSTIC_MARKER.encode() for line in stream
+        )
 
 
 def main() -> int:
@@ -431,7 +435,9 @@ def main() -> int:
     FAILURE_STATE["meta"] = meta
     FAILURE_STATE["phase"] = "validate inputs"
     if DIAGNOSTIC_FLAG in os.environ:
-        raise Invalid("memo diagnostic flag must not be inherited by baseline/build parent")
+        raise Invalid(
+            "memo diagnostic flag must not be inherited by baseline/build parent"
+        )
     for s in (a.baseline_sha, a.candidate_sha):
         if not re.fullmatch(r"[0-9a-fA-F]{40}", s):
             raise Invalid("SHAs must be exactly 40 hex characters")
@@ -677,7 +683,9 @@ def main() -> int:
             pr = run_bounded(
                 argv,
                 cwd=harness,
-                env=diagnostic_benchmark_env(env, side, a.diagnostic_source_point_memo_bypass),
+                env=diagnostic_benchmark_env(
+                    env, side, a.diagnostic_source_point_memo_bypass
+                ),
                 out=out / "logs",
                 stem=label,
                 timeout_s=a.bench_deadline + 60,
@@ -724,7 +732,9 @@ def main() -> int:
                     observed = diagnostic_marker_observed(pr)
                     rec["otherwise_eligible_bypass_observed"] = observed
                     if not observed:
-                        meta["invalid_reasons"].append(f"{label}: diagnostic bypass UNOBSERVED")
+                        meta["invalid_reasons"].append(
+                            f"{label}: diagnostic bypass UNOBSERVED"
+                        )
             meta["runs"].append(rec)
             raw_runs[(pair, side)] = parsed
             if not require_group_closed(pr, label, meta, out):
@@ -863,7 +873,10 @@ def main() -> int:
     ]
     if a.diagnostic_source_point_memo_bypass:
         lines[0] = f"# DIAGNOSTIC ONLY source-point memo bypass: {a.scope}"
-        lines.insert(2, "NONACCEPTANCE: this experiment cannot certify production behavior or performance; accepted pairs=0.")
+        lines.insert(
+            2,
+            "NONACCEPTANCE: this experiment cannot certify production behavior or performance; accepted pairs=0.",
+        )
     for cmp in comparisons:
         ag = cmp["paired_delta_summary"]
 
