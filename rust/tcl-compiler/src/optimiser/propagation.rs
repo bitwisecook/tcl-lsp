@@ -82,8 +82,9 @@ mod declared_body;
 macro_rules! ccg_row24_trace {
     ($ctx:expr, $($arg:tt)*) => {
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
-            && $ctx.source == "set x 1\nputs [expr {$x + 1}]\nputs $x\n"
+        if std::env::var_os("TCL_LSP_TEMP_CCG_ANY").is_some() // TEMP-OPT
+            || (std::env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
+            && $ctx.source == "set x 1\nputs [expr {$x + 1}]\nputs $x\n")
         {
             eprintln!($($arg)*);
         }

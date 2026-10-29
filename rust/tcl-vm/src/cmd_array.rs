@@ -431,10 +431,9 @@ fn array_set_original(
         );
     };
     let dialect = vm.actual_native_invocation_dialect();
-    let (Some(selected), Some(strings)) = (
-        dialect.native_array_set_protocol(),
-        dialect.native_string_protocol(),
-    ) else {
+    let (Some(selected), Some(strings)) =
+        (dialect.native_array_set_protocol(), vm.object_protocol())
+    else {
         return completion_from_cmd_error(
             vm,
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array set worker")

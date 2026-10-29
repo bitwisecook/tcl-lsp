@@ -4406,6 +4406,15 @@ fn zz_probe_env() {
                 let profile = (mode == "tk86").then(|| tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile());
                 find_taint_warnings_for_cu(&cu, registry, profile)
             }
+            Ok("lsp") => {
+                let env = tcl_registry::model::ingress::resolve_environment(&dialect);
+                let profile = env.analyser_profile();
+                let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, env.unit_profile(), env.default_context_registry(), if std::env::var_os("ZZ_NESTED").is_some() { tcl_lexer::LexerConfig::for_file_grammar(env.unit_profile().grammar).nested().normalized() } else { tcl_lexer::LexerConfig::for_file_grammar(env.unit_profile().grammar) });
+                let registry = input.borrowed_context_registry().commands();
+                let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(registry, &input, input.lexer_config(), Some(input.unit_profile()));
+                let cu = CompilationUnit::build_with_analysis_input(src, tcl_compiler::compilation_unit::UnitBuildOptions { registry, defer_top_level: std::env::var_os("ZZ_DEFER").is_some(), config: input.lexer_config(), dialect: Some(input.unit_profile()), external_call_sites: None, declared_commands: None }, Some(&entry), &input);
+                find_taint_warnings_for_cu(&cu, registry, Some(profile))
+            }
             _ => dialect_warns(src, &dialect),
         };
         eprintln!("ZZPROBE {index} {src:?}");

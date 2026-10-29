@@ -101,7 +101,7 @@ impl OriginalPackage<'_> {
     pub(super) fn list(&mut self, value: &Value) -> Result<crate::NativeListItems, CmdError> {
         self.check()?;
         let ops = OriginalNumericOps::in_original_scope(self.vm, &self.operation)?;
-        let protocol = ops.dialect().native_string_protocol().ok_or(
+        let protocol = ops.object_protocol().ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("package List protocol"),
         )?;
         let reached = ops.list(value, protocol);

@@ -6296,7 +6296,7 @@ impl Vm {
                 let result = match vals.split_first() {
                     None => Vec::new(),
                     Some((list_v, _)) => {
-                        let items = match self.object_list(&list_v) {
+                        let items = match self.object_list(list_v) {
                             Ok(l) => (*l).clone(),
                             Err(e) => {
                                 return Tick::Return(crate::command::completion_from_tcl_error(

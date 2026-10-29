@@ -102,6 +102,21 @@ impl InterpState {
 }
 
 impl crate::Vm {
+    /// The recipe that materialises `value` as a string: a list or dictionary
+    /// is an object of the selected purpose, anything else the physical
+    /// engine's.
+    pub(crate) fn materialization_protocol(
+        &self,
+        value: &crate::Value,
+    ) -> Option<NativeStringProtocol> {
+        if value.is_native_compound() {
+            self.object_protocol()
+        } else {
+            self.actual_native_invocation_dialect()
+                .native_string_protocol()
+        }
+    }
+
     /// `value` as a list under the selected object recipe.
     pub(crate) fn object_list(
         &self,
@@ -351,7 +366,7 @@ mod tests {
         vm
     }
 
-    fn answer(completion: tcl_runtime_api::Completion<Value>, script: &str) -> String {
+    fn answer(completion: &tcl_runtime_api::Completion<Value>, script: &str) -> String {
         assert_eq!(completion.code, tcl_runtime_api::Code::Ok, "{script}");
         completion.result.try_to_str().unwrap().to_string()
     }
@@ -374,17 +389,17 @@ mod tests {
                 .map(ObjectMaterialization::protocol),
             Some(NativeStringProtocol::C(TclVersion::V8_4))
         );
-        answer(vm.try_eval_source(DEFINE).unwrap(), DEFINE);
+        answer(&vm.try_eval_source(DEFINE).unwrap(), DEFINE);
         let mut framework = simulation();
         answer(
-            framework.try_eval_native_host_source(DEFINE).unwrap(),
+            &framework.try_eval_native_host_source(DEFINE).unwrap(),
             DEFINE,
         );
         let mut differences = Vec::new();
         for (script, tcl84, tcl90) in CASES {
-            let authored = answer(vm.try_eval_source(script).unwrap(), script);
+            let authored = answer(&vm.try_eval_source(script).unwrap(), script);
             let host = answer(
-                framework.try_eval_native_host_source(script).unwrap(),
+                &framework.try_eval_native_host_source(script).unwrap(),
                 script,
             );
             if (authored.as_str(), host.as_str()) != (*tcl84, *tcl90) {
@@ -398,7 +413,7 @@ mod tests {
     fn a_list_sealed_by_one_realm_is_refused_by_the_other() {
         let mut vm = simulation();
         answer(
-            vm.try_eval_native_host_source("set ::crossing [list a b]; llength $::crossing")
+            &vm.try_eval_native_host_source("set ::crossing [list a b]; llength $::crossing")
                 .unwrap(),
             "host list",
         );

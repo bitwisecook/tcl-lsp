@@ -304,6 +304,12 @@ pub(crate) fn owned_hook_registry(
 /// Distinct private stores one process may build. Each build leaks its
 /// installed specs once, so stores are kept by pack key and the count is
 /// capped rather than evicted: eviction would not reclaim them.
+///
+/// Measured 2026-10-28 on `x86_64`: a store leaks one `CommandSpec` of 1824
+/// bytes per installed pack command (the two-command fixture leaks 3648),
+/// plus a copied subcommand slice only where shipped compilers are
+/// re-attached; the store itself is `Arc`-owned and freed. The cap bounds
+/// the leak at 64 × 1824 bytes ≈ 114 KiB per installed pack command.
 const MAX_OWNED_HOOK_REGISTRIES: usize = 64;
 
 /// Private stores by profile and pack key, built at most once each.
@@ -606,11 +612,6 @@ mod tests {
                 .installed
                 .iter()
                 .all(|row| row.installed.subcommands.is_empty())
-        );
-        assert_eq!(
-            store.installed.len() * std::mem::size_of::<CommandSpec>(),
-            0,
-            "MEASURE"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

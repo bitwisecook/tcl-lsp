@@ -264,95 +264,46 @@ mod tests {
         NativeCompilerWordOperand::Original(index)
     }
 
-    // Each expectation is the tclsh 9.0.4 `disassemble lambda` listing.
-    #[test]
-    fn c9_regexp_compiler_matches_the_release_disassembly() {
-        use NativeRegexpMatcher::{Equal, Regexp};
-        fn glob(pattern: &[u8], nocase: bool) -> NativeRegexpMatcher {
-            NativeRegexpMatcher::Glob {
-                pattern: pattern.to_vec(),
-                nocase,
-            }
+    fn glob(pattern: &[u8], nocase: bool) -> NativeRegexpMatcher {
+        NativeRegexpMatcher::Glob {
+            pattern: pattern.to_vec(),
+            nocase,
         }
-        let cases: [(&[u8], NativeRegexpMatcher, usize); 25] = [
+    }
+
+    fn regexp(pattern: usize, nocase: bool) -> NativeRegexpMatcher {
+        NativeRegexpMatcher::Regexp {
+            pattern: word(pattern),
+            nocase,
+        }
+    }
+
+    // Each expectation is the tclsh 9.0.4 `disassemble lambda` listing.
+    fn release_cases() -> [(&'static [u8], NativeRegexpMatcher, usize); 25] {
+        use NativeRegexpMatcher::Equal;
+        [
             // loadScalar re; loadScalar s; regexp +3
-            (
-                b"regexp -- $re $s",
-                Regexp {
-                    pattern: word(2),
-                    nocase: false,
-                },
-                3,
-            ),
-            (
-                b"regexp $re $s",
-                Regexp {
-                    pattern: word(1),
-                    nocase: false,
-                },
-                2,
-            ),
+            (b"regexp -- $re $s", regexp(2, false), 3),
+            (b"regexp $re $s", regexp(1, false), 2),
             // regexp +11
-            (
-                b"regexp -nocase $re $s",
-                Regexp {
-                    pattern: word(2),
-                    nocase: true,
-                },
-                3,
-            ),
-            (
-                b"regexp -no -- $re $s",
-                Regexp {
-                    pattern: word(3),
-                    nocase: true,
-                },
-                4,
-            ),
+            (b"regexp -nocase $re $s", regexp(2, true), 3),
+            (b"regexp -no -- $re $s", regexp(3, true), 4),
             // push "*abc*"; strmatch +0
             (b"regexp abc $s", glob(b"*abc*", false), 2),
             (b"regexp \"abc\" $s", glob(b"*abc*", false), 2),
             // push "^abc$" (two TEXT tokens); regexp +3
-            (
-                b"regexp ^abc$ $s",
-                Regexp {
-                    pattern: word(1),
-                    nocase: false,
-                },
-                2,
-            ),
-            (
-                b"regexp \"a$\" $s",
-                Regexp {
-                    pattern: word(1),
-                    nocase: false,
-                },
-                2,
-            ),
+            (b"regexp ^abc$ $s", regexp(1, false), 2),
+            (b"regexp \"a$\" $s", regexp(1, false), 2),
             // push "*"; strmatch +0: a lone `$` is one TEXT token.
             (b"regexp $ $s", glob(b"*", false), 2),
             (b"regexp {a$} $s", glob(b"*a", false), 2),
             // push "ax" (BS token); regexp +3
-            (
-                b"regexp a\\x $s",
-                Regexp {
-                    pattern: word(1),
-                    nocase: false,
-                },
-                2,
-            ),
+            (b"regexp a\\x $s", regexp(1, false), 2),
             // push "abc"; streq / strmatch +1
             (b"regexp {^abc$} $s", Equal(b"abc".to_vec()), 2),
             (b"regexp -nocase {^abc$} $s", glob(b"abc", true), 3),
             (b"regexp {^a.*b$} $s", glob(b"a*b", false), 2),
-            (
-                b"regexp {a+} $s",
-                Regexp {
-                    pattern: word(1),
-                    nocase: false,
-                },
-                2,
-            ),
+            (b"regexp {a+} $s", regexp(1, false), 2),
             (b"regexp {***=a*b} $s", glob(b"*a\\*b*", false), 2),
             (b"regexp {} $s", glob(b"*", false), 2),
             (b"regexp \"\" $s", glob(b"*", false), 2),
@@ -361,16 +312,14 @@ mod tests {
             (b"regexp -- -- $s", glob(b"*--*", false), 3),
             (b"regexp -n abc $s", glob(b"*abc*", true), 3),
             (b"regexp {a\\.b} $s", glob(b"*a.b*", false), 2),
-            (
-                b"regexp {a.*b.*c} $s",
-                Regexp {
-                    pattern: word(1),
-                    nocase: false,
-                },
-                2,
-            ),
+            (b"regexp {a.*b.*c} $s", regexp(1, false), 2),
             (b"regexp {a.+} $s", glob(b"*a?*", false), 2),
-        ];
+        ]
+    }
+
+    #[test]
+    fn c9_regexp_compiler_matches_the_release_disassembly() {
+        let cases = release_cases();
         for version in [TclVersion::V9_0, TclVersion::V9_1] {
             for (source, matcher, subject) in &cases {
                 let recipe = select(source, version)

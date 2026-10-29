@@ -3038,6 +3038,10 @@ fn selected_sink_schema<'a>(
         return None;
     }
     let tokens = call.tokens?;
+    #[cfg(debug_assertions)]
+    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
+        eprintln!("ZZ_SCHEMA command={} authored={} selected={} binding={}", call.command, call.source_read.is_some_and(|read| matches!(read.metadata.invocation_metadata(), SourceWarningMetadata::Authored(_))), crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(call.registry, Some(context), tokens).is_some(), tokens.source_binding.as_ref().map_or("none".to_owned(), |b| format!("unknown={} absent={} targets={:?}", b.unknown, b.may_be_absent, b.targets.iter().map(|t| t.command.clone()).collect::<Vec<_>>()))); // ZZPROBE
+    }
     let selected = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         call.registry,
         Some(context),
@@ -6148,20 +6152,31 @@ fn build_isolated_taint_unit<H>(
             },
         ));
     }
-    let input = context.source.metadata?.source_analysis_input()?;
+    // The replay is an extracted body in its own source coordinates.
+    let input = context
+        .source
+        .metadata?
+        .source_analysis_input()?
+        .for_nested_source();
+    let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+        context.registry,
+        &input,
+        input.lexer_config(),
+        Some(input.unit_profile()),
+    );
     Some(
         crate::compilation_unit::CompilationUnit::build_with_analysis_input(
             source,
             crate::compilation_unit::UnitBuildOptions {
                 registry: context.registry,
                 defer_top_level: true,
-                config: context.source.config,
+                config: input.lexer_config(),
                 dialect: Some(input.unit_profile()),
                 external_call_sites: None,
                 declared_commands: None,
             },
-            None,
-            input,
+            Some(&entry),
+            &input,
         ),
     )
 }

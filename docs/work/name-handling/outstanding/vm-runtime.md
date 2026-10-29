@@ -1,24 +1,25 @@
 # Outstanding work: vm-runtime agent
 
-## Resume — round 3 (2026-10-28, vm-runtime)
+## Resume — round 4 (2026-10-28, vm-runtime)
 
 Snapshot only; history below is unchanged. All cargo goes through safe-cargo.sh.
 
-- **runtime/rust (executed):** full lib 2276 PASS / 128 FAIL, no new failures. All 3 control_expression tests now PASS. The c84 row-5 cause was C8.4 JUMP truth (`native_jump_boolean84`) reached without the host numeric environment; it now receives `host.numeric_environment()`.
-- **iRules (executed):**
-  - pure_functions PASS.
-  - `::tmm::_logical_namespace_member` operands use the authored C8.4 materialisation in both realms, from the pinned logical profile (`logical_execution_profile`).
-  - `FrameworkBuiltinCapability` settles deferred catch/eval bodies inside its host scope. That removes the stale-policy failure.
-  - Remaining: harness fails at `lindex` in the namespace-override `switch` (StringAccess ProtocolUnavailable seal split: physical-C9 list producers vs authored-C8.4 consumers; design question sent to root). scf_loader fails at `store_original_c_array_member` ("original C array variable name owner"). tmm_word_boolean fails on admission: `regexp --` native recipe refusal in `::tmm::expr_ops::rewrite_expr`, which belongs to compiler-codegen.
-- **SpecTcl:**
-  - required_generation and refine PASS: the static fast path rejects incomplete scripts, and the refine notice names its key.
-  - The 2 discovery tests exist on ed694de4. Baseline source scans on an unreadable manifest; WORK fails closed. Design conflict, sent to root.
-  - templated_single_word (new on WORK, open, mine) still fails.
-  - String-pack first gate (new on WORK) is vacuous; owner compiler-codegen (N17 hooks).
-  - The corpus watchdog is covered by the ci.yml spectcl-compat job.
-- Jim namespace-helper cluster still queued.
+- **SpecTcl discovery fail-closed (user decision 1450Z), executed:**
+  - An unreadable or unparseable project lockfile, root manifest or dependency manifest drops the dependency's packs and records a selection issue (`assign_dependency_tiers` / `TierReader`). The workspace's own packs stay the root's.
+  - Tests renamed: `an_unreadable_manifest_or_lockfile_selects_nothing`, `a_directive_that_does_not_read_selects_nothing`. spec-packs.md states the change.
+  - `discovery::` 34/34 PASS.
+- **templated_single_word, root cause:** `pure` is a subcommand row. At command scope even a static `command one {pure}` drops it as an unknown property. Templated evaluation works. The test now uses the command row `unsafe_command`. PASS.
+- **iRules one object selector (Astra option (a), user decision 1740Z):**
+  - `object_protocol()` / `materialization_protocol()` / `object_list()` derive from `ObjectMaterialization`. `OriginalNumericOps` captures the object recipe beside its numeric dialect.
+  - ListIndex/range/copy/member issuers, switch, tailcall, compiled list ops and fallbacks, each loops (recipe by object version), formal lists, package/info/regexp lists, array set, script images and the literal pool all take that recipe.
+  - Authored `array set` stores members through byte names.
+  - The `object-recipe-gate` xtask is OK.
+- **iRules state:** `each_realm_keeps_its_own_list_recipe` passes. In the two-test probe runs, harness and scf_loader now get past the seal split:
+  - harness next stops at `::tmm::_orig_dict` admission (NativePreflightRequired);
+  - scf_loader next stops at a "native string cache origin" refusal on the string axis.
+- Next: string-axis selector; `as_list` and the other physical string-protocol consumers outside the gate's reach; Jim namespace-helper cluster.
 
-Last updated: 2026-10-27T09:44:54Z
+Last updated: 2026-10-28T21:30:00Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 

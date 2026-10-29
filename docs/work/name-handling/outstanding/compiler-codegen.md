@@ -1,5 +1,12 @@
 # Outstanding work: compiler-codegen agent
 
+## Resume — 2026-10-28 C9 regexp compiler + slice-2 review notes
+
+- C9 `TclCompileRegexpCmd` is modelled in the registry (`native_regexp_compilation`): V9_0/V9_1 accepted shapes select Inline; a SIMPLE pattern is reduced via `TclReToGlob` to STR_EQ/STR_MATCH, any other pattern word compiles before `REGEXP 3|8`; a SIMPLE `-…` pattern without `--` stays Generic. SIMPLE_WORD follows ParseTokens (a non-variable `$` or NUL beside text splits the word). Plan `NativeInstructionPlan::Regexp`; codegen emits via versioned SwitchOperation; preflight walks its original operands. Versions below 9.0 stay Unknown. Oracle: tclsh 9.0.4 disassembly pinned in registry (5) and codegen (2) tests.
+- The `regexp` preflight refusal in `::tmm::expr_ops::rewrite_expr` is gone; the iRules tests now stop on later VM-runtime refusals (see report).
+- Astra slice-2 notes: application `lvt` closed (top-level function slot-free; body slots plain source scalars, LOAD_SCALAR operands bound); per-store leak measured beside `MAX_OWNED_HOOK_REGISTRIES` (1824 B per installed command).
+- Open: runtime/rust has only a decline arm for `Regexp` (vm-runtime); C8.5/8.6 regexp compilers unmodelled; the SIMPLE_WORD `$` split is not in the shared word-shape model (string match/switch may share the gap).
+
 ## Resume — 2026-10-28 slice 2 (owned application backend; Astra APPROVE-WITH-CHANGES implemented)
 
 H5 slice 2 is in tree: `hooks::execute_owned_application_source` answers selected pack-hook folds with the owned evaluator (phase 1), retires it, denies evaluators, then admits the rewritten candidate and runs it once in a private C9.1 VM (phase 2) through `ClosedNativeConsumerOwner`. Design deltas from the Astra review: scratchpad `ccg-h5-slice2-design-v2.md`.

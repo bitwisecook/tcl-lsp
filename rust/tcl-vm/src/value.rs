@@ -6049,6 +6049,14 @@ impl Value {
         value
     }
 
+    /// Whether the primary representation is a list or a dictionary.
+    pub(crate) fn is_native_compound(&self) -> bool {
+        matches!(
+            &*self.0.intrep.borrow(),
+            IntRep::List { .. } | IntRep::Dict(_)
+        )
+    }
+
     /// Retain a physical compound recipe without materializing members or bytes.
     ///
     /// # Errors

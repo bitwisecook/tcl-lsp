@@ -564,13 +564,24 @@ mod tests {
         .map(|o| o.code.as_str().to_owned())
         .collect();
         eprintln!("TEMP_OPT codes={codes:?}");
-        let source = "set a 1\nset b [expr {$a + 2}]";
+        let source = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(source, registry, false, profile)
             .with_interprocedural(registry, Some(profile));
         let raw = crate::optimiser::manager::optimise_unit_raw_report(&cu, registry, Some(profile));
         eprintln!("TEMP_OPT raw={:?}", raw.members().iter().map(|o| o.code.as_str().to_owned()).collect::<Vec<_>>());
-        let text = format!("{:?}", cu.ir_module.top_level);
-        eprintln!("TEMP_OPT ir={}", &text[..text.len().min(4000)]);
+        let finals = crate::optimiser::manager::finalise_original_optimiser_report(&raw, &cu, registry, Some(profile));
+        eprintln!("TEMP_OPT final={:?}", finals.iter().map(|o| (o.code.as_str().to_owned(), o.replacement.clone())).collect::<Vec<_>>());
+        let plain = crate::optimiser::manager::finalise_optimisations(raw.members(), &cu, registry, Some(profile));
+        eprintln!("TEMP_OPT plain={:?}", plain.iter().map(|o| o.code.as_str().to_owned()).collect::<Vec<_>>());
+        for src in ["set x 1\nputs [expr {$x + 1}]\n"] {
+            eprintln!("TEMP_OPT ---- {src:?}");
+            let cu = crate::compilation_unit::CompilationUnit::build_for_profile(src, registry, false, profile)
+                .with_interprocedural(registry, Some(profile));
+            let raw = crate::optimiser::manager::optimise_unit_raw_report(&cu, registry, Some(profile));
+            eprintln!("TEMP_OPT src={src:?} raw={:?}", raw.members().iter().map(|o| o.code.as_str().to_owned()).collect::<Vec<_>>());
+        }
+        let text = format!("{:?}", cu.top_level.sccp);
+        eprintln!("TEMP_OPT sccp={}", &text[..text.len().min(3000)]);
     }
 
     #[test]

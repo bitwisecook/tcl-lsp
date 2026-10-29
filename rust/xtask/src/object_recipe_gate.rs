@@ -341,15 +341,67 @@ fn initialiser_end(tokens: &[Tok<'_>], start: usize, conditional: bool) -> usize
     let mut position = start;
     while let Some(token) = tokens.get(position) {
         match token.kind {
-            TokenKind::OpenParen | TokenKind::OpenBracket => position = closing(tokens, position),
             TokenKind::OpenBrace if conditional => return position,
-            TokenKind::OpenBrace => position = closing(tokens, position),
+            TokenKind::OpenParen | TokenKind::OpenBracket | TokenKind::OpenBrace => {
+                position = closing(tokens, position);
+            }
             TokenKind::Semi | TokenKind::CloseBrace => return position,
             TokenKind::Ident if token.text == "else" => return position,
             _ => position += 1,
         }
     }
     position
+}
+
+/// The end of the item a `#[cfg(test)]` guards, from `start`, and whether it
+/// is a block: a bodiless item (`mod name;`) or a field (`name: value,`) has
+/// none.
+fn guarded_item_end(tokens: &[Tok<'_>], start: usize) -> (usize, bool) {
+    let mut position = start;
+    while let Some(token) = tokens.get(position) {
+        match token.kind {
+            TokenKind::OpenParen | TokenKind::OpenBracket => position = closing(tokens, position),
+            TokenKind::OpenBrace => return (position, true),
+            TokenKind::Semi | TokenKind::Comma | TokenKind::CloseBrace | TokenKind::CloseParen => {
+                return (position, false);
+            }
+            _ => position += 1,
+        }
+    }
+    (position, false)
+}
+
+/// The end of a signature from `start`: its body's `{` or its `;`, past an
+/// array type's own `;`.
+fn signature_end(tokens: &[Tok<'_>], start: usize) -> usize {
+    let mut position = start;
+    while let Some(token) = tokens.get(position) {
+        match token.kind {
+            TokenKind::OpenParen | TokenKind::OpenBracket => position = closing(tokens, position),
+            TokenKind::OpenBrace | TokenKind::Semi => break,
+            _ => position += 1,
+        }
+    }
+    position
+}
+
+/// The names a `let` at `index` binds and whether its initialiser reads a
+/// physical protocol.
+fn let_binding(tokens: &[Tok<'_>], index: usize, conditional: bool) -> (Vec<String>, bool) {
+    let equals = tokens[index..]
+        .iter()
+        .position(|next| next.kind == TokenKind::Eq)
+        .map_or(tokens.len(), |offset| index + offset);
+    let end = initialiser_end(tokens, equals + 1, conditional);
+    let names = tokens[index + 1..equals.min(tokens.len())]
+        .iter()
+        .filter(|next| next.kind == TokenKind::Ident)
+        .map(|next| next.text.to_owned())
+        .collect();
+    (
+        names,
+        equals < end && reads_physical_protocol(&tokens[equals + 1..end]),
+    )
 }
 
 /// The production functions, by their outermost `fn`, in which a list or
@@ -369,27 +421,11 @@ fn physical_recipe_functions(text: &str) -> Vec<String> {
         if skip_from.is_none()
             && let Some(length) = cfg_test_len(&tokens, index)
         {
-            index += length;
-            // The guarded item: a block is skipped whole, while a bodiless
-            // item (`mod name;`) or a field (`name: value,`) has none.
-            let mut probe = index;
-            while let Some(token) = tokens.get(probe) {
-                match token.kind {
-                    TokenKind::OpenParen | TokenKind::OpenBracket => {
-                        probe = closing(&tokens, probe);
-                    }
-                    TokenKind::OpenBrace => {
-                        skip_from = Some(depth);
-                        break;
-                    }
-                    TokenKind::Semi
-                    | TokenKind::Comma
-                    | TokenKind::CloseBrace
-                    | TokenKind::CloseParen => break,
-                    _ => probe += 1,
-                }
+            let (end, block) = guarded_item_end(&tokens, index + length);
+            if block {
+                skip_from = Some(depth);
             }
-            index = probe;
+            index = end;
             continue;
         }
         let token = &tokens[index];
@@ -421,34 +457,14 @@ fn physical_recipe_functions(text: &str) -> Vec<String> {
                     .filter(|next| next.kind == TokenKind::Ident)
                     .map(|next| next.text.to_owned());
                 if pending.is_some() {
-                    // Skip the signature: an array type's `;` is not an end.
-                    let mut position = index + 2;
-                    while let Some(next) = tokens.get(position) {
-                        match next.kind {
-                            TokenKind::OpenParen | TokenKind::OpenBracket => {
-                                position = closing(&tokens, position);
-                            }
-                            TokenKind::OpenBrace | TokenKind::Semi => break,
-                            _ => position += 1,
-                        }
-                    }
-                    index = position;
+                    index = signature_end(&tokens, index + 2);
                     continue;
                 }
             }
             TokenKind::Ident if token.text == "let" && skip_from.is_none() => {
                 let conditional = index > 0 && matches!(tokens[index - 1].text, "if" | "while");
-                let equals = tokens[index..]
-                    .iter()
-                    .position(|next| next.kind == TokenKind::Eq)
-                    .map_or(tokens.len(), |offset| index + offset);
-                let end = initialiser_end(&tokens, equals + 1, conditional);
-                let names: Vec<String> = tokens[index + 1..equals.min(tokens.len())]
-                    .iter()
-                    .filter(|next| next.kind == TokenKind::Ident)
-                    .map(|next| next.text.to_owned())
-                    .collect();
-                if equals < end && reads_physical_protocol(&tokens[equals + 1..end]) {
+                let (names, physical) = let_binding(&tokens, index, conditional);
+                if physical {
                     if conditional {
                         scoped = Some(Binding { names, depth: 0 });
                     } else {
@@ -496,7 +512,7 @@ mod tests {
 
     #[test]
     fn a_physical_protocol_beside_a_sink_is_flagged_and_a_selected_one_is_not() {
-        let source = r#"
+        let source = r"
             fn physical(vm: &Vm, items: Vec<Value>) -> Value {
                 let protocol = vm.actual_native_invocation_dialect().native_string_protocol().unwrap();
                 Value::native_list_constructor(items, protocol)
@@ -514,7 +530,7 @@ mod tests {
                     Value::native_list_constructor(items, p)
                 }
             }
-        "#;
+        ";
         assert_eq!(
             physical_recipe_functions(source),
             vec!["physical".to_owned()]

@@ -2962,13 +2962,9 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::StringTrim(recipe) => {
                 return Self::append_native_string_trim_tasks(command, recipe, version, operations);
             }
-            NativeInstructionPlan::StringMatch(recipe) => {
-                return Self::append_native_string_match_tasks(
-                    command, recipe, version, operations,
-                );
-            }
-            NativeInstructionPlan::Regexp(recipe) => {
-                return Self::append_native_regexp_tasks(command, recipe, version, operations);
+            selected @ (NativeInstructionPlan::StringMatch(_)
+            | NativeInstructionPlan::Regexp(_)) => {
+                return Self::append_native_matcher_tasks(command, selected, version, operations);
             }
             NativeInstructionPlan::Upvar(recipe) => {
                 return Self::append_native_upvar_tasks(command, recipe, operations);

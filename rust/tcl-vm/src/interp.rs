@@ -18201,7 +18201,7 @@ impl Vm {
                 "native procedure definition",
             ))?;
         if activation.formal_list_precedes_body_capture() {
-            let protocol = dialect.native_string_protocol().ok_or(
+            let protocol = ops.object_protocol().ok_or(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "native procedure formal list",
                 ),
@@ -28081,12 +28081,11 @@ impl Vm {
     ) -> Result<tcl_runtime_api::SourceImage, TclError> {
         // Materialize the original physical object independently of word
         // decoding, variable naming and expression parser providers.
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        let protocol = self.materialization_protocol(value).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native script object string materialization",
-            ))?;
+            ),
+        )?;
         let bytes = value.native_string_bytes(protocol).map_err(|error| {
             tcl_syntax::value::ValueError::NativeStringAccess(
                 tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),

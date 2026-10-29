@@ -159,11 +159,12 @@ impl Vm {
     }
 }
 
-/// The application closure over one prepared top-level function: plain
-/// dispatch of literal words and stack-named scalar reads, with no local slot
-/// and every auxiliary field empty.
+/// The application closure over one prepared function: plain dispatch of
+/// literal words and scalar reads, with every auxiliary field empty. Only
+/// the top-level body has local slots, each a plain source scalar.
 pub(super) fn check_function(
     function: &FunctionAsm,
+    body: bool,
     config: tcl_lexer::LexerConfig,
 ) -> Result<(), ClosedSourceRefusal> {
     let FunctionAsm {
@@ -193,7 +194,7 @@ pub(super) fn check_function(
         || native_math_table_prerequisite.is_some()
         || !native_compiler_prerequisites.is_empty()
         || required_compiled_local_layout.is_some()
-        || !lvt.is_empty()
+        || !slots_are_plain_scalars(lvt, body)
         || !loop_targets.is_empty()
         || proc_body_src.is_some()
         || !error_regions.is_empty()
@@ -206,14 +207,35 @@ pub(super) fn check_function(
         return Err(ClosedSourceRefusal::Source);
     }
     for instruction in instructions {
-        if !instruction_is_closed(instruction)
+        if !instruction_is_closed(instruction, body)
             || (matches!(instruction.op, Op::PUSH1 | Op::PUSH4)
                 && !push_is_literal(instruction, literals, config))
+            || (matches!(instruction.op, Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4)
+                && !slot_operand_is_bound(instruction, lvt.len()))
         {
             return Err(ClosedSourceRefusal::Source);
         }
     }
     Ok(())
+}
+
+fn slots_are_plain_scalars(lvt: &tcl_bytecode::LocalVarTable, body: bool) -> bool {
+    (body || lvt.is_empty())
+        && lvt.native_slot_names().iter().all(|name| {
+            name.as_ref().is_some_and(|name| {
+                let bytes = name.as_bytes();
+                !bytes.is_empty()
+                    && !bytes.contains(&b'(')
+                    && !bytes.windows(2).any(|pair| pair == b"::")
+            })
+        })
+}
+
+fn slot_operand_is_bound(instruction: &Instruction, slots: usize) -> bool {
+    matches!(
+        instruction.operands.as_slice(),
+        [Operand::Imm(slot)] if usize::try_from(*slot).is_ok_and(|slot| slot < slots)
+    )
 }
 
 fn structural_label(label: &str) -> bool {
@@ -224,7 +246,7 @@ fn structural_label(label: &str) -> bool {
     })
 }
 
-fn instruction_is_closed(instruction: &Instruction) -> bool {
+fn instruction_is_closed(instruction: &Instruction, body: bool) -> bool {
     // Exhaustive: a new executable field must be classified here.
     let Instruction {
         op,
@@ -285,7 +307,7 @@ fn instruction_is_closed(instruction: &Instruction) -> bool {
             | Op::INVOKE_STK4
             | Op::DONE
             | Op::START_CMD
-    );
+    ) || (body && matches!(op, Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4));
     allowed
         && jump_table.is_none()
         && native_switch_bytes.is_none()
@@ -370,7 +392,7 @@ mod tests {
             (b"abc".as_slice(), true, LiteralRep::Word, false),
         ] {
             assert_eq!(
-                check_function(&function_with(literal, verbatim, rep), config).is_ok(),
+                check_function(&function_with(literal, verbatim, rep), true, config).is_ok(),
                 admitted,
                 "{:?} verbatim={verbatim} {rep:?}",
                 String::from_utf8_lossy(literal)
@@ -392,7 +414,7 @@ mod tests {
                 ..FunctionAsm::default()
             };
             function.instructions.push(Instruction::new(op, vec![]));
-            assert!(check_function(&function, config).is_err(), "{op:?}");
+            assert!(check_function(&function, true, config).is_err(), "{op:?}");
         }
         let mut function = FunctionAsm {
             plain_command_dispatch: true,
@@ -401,35 +423,48 @@ mod tests {
         let mut invoke = Instruction::new(Op::INVOKE_STK1, vec![Operand::Imm(1)]);
         invoke.script_command = true;
         function.instructions.push(invoke);
-        assert!(check_function(&function, config).is_err());
+        assert!(check_function(&function, false, config).is_err());
         let plain = FunctionAsm::default();
-        assert!(check_function(&plain, config).is_err());
+        assert!(check_function(&plain, false, config).is_err());
     }
 
     #[test]
-    fn local_slots_and_slot_loads_are_refused() {
+    fn only_plain_source_slots_are_admitted_and_read() {
         let config = tcl_lexer::LexerConfig::default();
-        let plain = || FunctionAsm {
+        let load = |names: &[&str], synthetic: bool, slot: i32, body: bool| {
+            let mut function = FunctionAsm {
+                plain_command_dispatch: true,
+                ..FunctionAsm::default()
+            };
+            for name in names {
+                function.lvt.intern(name);
+            }
+            if synthetic {
+                function.lvt.intern_synthetic("#tmp");
+            }
+            function
+                .instructions
+                .push(Instruction::new(Op::LOAD_SCALAR1, vec![Operand::Imm(slot)]));
+            check_function(&function, body, config).is_ok()
+        };
+        assert!(load(&["y"], false, 0, true));
+        assert!(
+            !load(&["y"], false, 0, false),
+            "top-level function has no slots"
+        );
+        assert!(!load(&["y"], false, 1, true), "unbound slot");
+        assert!(!load(&["y"], false, -1, true), "negative slot");
+        assert!(!load(&["y"], true, 0, true), "compiler temporary");
+        assert!(!load(&["::y"], false, 0, true), "qualified name");
+        assert!(!load(&["a(1)"], false, 0, true), "element name");
+        assert!(!load(&[""], false, 0, true), "empty name");
+        let mut slotted = FunctionAsm {
             plain_command_dispatch: true,
             ..FunctionAsm::default()
         };
-        let mut stack_read = plain();
-        stack_read
-            .instructions
-            .push(Instruction::new(Op::LOAD_STK, vec![]));
-        assert!(check_function(&stack_read, config).is_ok());
-        let mut slotted = plain();
-        slotted.lvt.intern("x");
-        slotted
-            .instructions
-            .push(Instruction::new(Op::LOAD_STK, vec![]));
-        assert!(check_function(&slotted, config).is_err());
-        for op in [Op::LOAD_SCALAR1, Op::LOAD_SCALAR4] {
-            let mut load = plain();
-            load.instructions
-                .push(Instruction::new(op, vec![Operand::Imm(0)]));
-            assert!(check_function(&load, config).is_err(), "{op:?}");
-        }
+        slotted.lvt.intern("y");
+        assert!(check_function(&slotted, true, config).is_ok());
+        assert!(check_function(&slotted, false, config).is_err());
     }
 
     #[test]
@@ -444,7 +479,7 @@ mod tests {
                 function.labels.insert((*label).to_owned(), index);
             }
             function.instructions.push(Instruction::new(op, vec![]));
-            check_function(&function, config).is_ok()
+            check_function(&function, false, config).is_ok()
         };
         assert!(labelled(&["entry_1", "cmd_end_0", "exit_2"], Op::DONE));
         for labels in [&["loop_1"][..], &["cmd_end_"], &["entry_x"], &["catch_0"]] {

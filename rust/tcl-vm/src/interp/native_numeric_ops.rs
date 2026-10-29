@@ -233,7 +233,7 @@ impl<'a> OriginalNumericOps<'a> {
         current: impl Fn(&Value) -> Result<(), E>,
     ) -> Result<crate::NativeListItems, E> {
         current(value)?;
-        if self.dialect.native_string_protocol() != Some(protocol) {
+        if self.objects != Some(protocol) {
             return Err(ValueError::CommandProtocolUnavailable("original VM List protocol").into());
         }
         self.bind_jim_using(value, || current(value))?;
@@ -327,7 +327,7 @@ impl<'a> OriginalNumericOps<'a> {
             currency.check(&mut self.vm.borrow_mut())
         };
         current(original)?;
-        if self.dialect.native_string_protocol() != Some(protocol) {
+        if self.objects != Some(protocol) {
             return Err(
                 ValueError::CommandProtocolUnavailable("original VM compound protocol").into(),
             );
@@ -615,7 +615,10 @@ impl<'a> OriginalNumericOps<'a> {
         current: impl Fn(&Value) -> Result<(), E>,
     ) -> Result<Rc<[u8]>, E> {
         current(value)?;
-        if self.dialect.native_string_protocol() != Some(protocol) {
+        // A scalar takes the physical recipe; a list or dictionary member the
+        // object recipe entered with this operation.
+        if self.dialect.native_string_protocol() != Some(protocol) && self.objects != Some(protocol)
+        {
             return Err(
                 ValueError::CommandProtocolUnavailable("original VM String protocol").into(),
             );

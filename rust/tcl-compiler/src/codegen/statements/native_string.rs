@@ -13,7 +13,25 @@ use tcl_registry::native_string_compilation::{
 mod native_regexp_tests;
 
 impl CodegenCtx<'_> {
-    pub(super) fn append_native_string_match_tasks(
+    pub(super) fn append_native_matcher_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        match instruction {
+            NativeInstructionPlan::StringMatch(recipe) => {
+                Self::append_native_string_match_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::Regexp(recipe) => {
+                Self::append_native_regexp_tasks(command, recipe, version, operations)
+            }
+            _ => false,
+        }
+    }
+
+    fn append_native_string_match_tasks(
         command: &tcl_lexer::NativeScriptCommandWords,
         recipe: NativeStringMatchInstruction,
         version: tcl_dialect::TclVersion,
@@ -39,7 +57,7 @@ impl CodegenCtx<'_> {
 }
 
 impl CodegenCtx<'_> {
-    pub(super) fn append_native_regexp_tasks(
+    fn append_native_regexp_tasks(
         command: &tcl_lexer::NativeScriptCommandWords,
         recipe: NativeRegexpInstruction,
         version: tcl_dialect::TclVersion,

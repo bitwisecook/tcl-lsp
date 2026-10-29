@@ -199,13 +199,17 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
             ),
         );
     }
-    let dialect = vm.actual_native_invocation_dialect();
-    let Some(protocol) = dialect.native_each_loop_protocol(kind) else {
-        return vm.refuse_host_command("native generic each-loop protocol is unavailable".into());
-    };
-    let Some(strings) = dialect.native_string_protocol() else {
+    let Some(strings) = vm.object_protocol() else {
         return vm
             .refuse_host_command("native each-loop List storage protocol is unavailable".into());
+    };
+    // The loop copies or refetches its lists by the recipe of the objects it walks.
+    let dialect = strings.tcl_version().map_or_else(
+        || vm.actual_native_invocation_dialect(),
+        tcl_registry::InvocationDialect::for_version,
+    );
+    let Some(protocol) = dialect.native_each_loop_protocol(kind) else {
+        return vm.refuse_host_command("native generic each-loop protocol is unavailable".into());
     };
     let recipe = protocol.recipe();
     let mut groups = Vec::new();
