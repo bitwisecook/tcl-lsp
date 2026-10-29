@@ -360,6 +360,12 @@ The command's `-flag` switches and the literal values specific argument position
 
 Argument positions whose legal values are *exactly* the ones declared under argument values — a closed set, like an enum. A value outside the set is then a diagnostic, not just a missing completion. Only close a position when the real command genuinely accepts nothing else.
 
+### `arg_values_accept_prefix` — Values accept a prefix
+
+*command and subcommand* — Whether a closed value is accepted as a unique prefix rather than an exact match.
+
+Whether this command's closed argument values accept unique prefixes rather than requiring exact spellings. This is the command-level twin of the subcommand value policy; it is independent of option/subcommand prefix matching.
+
 ### `options` — Options
 
 *command and subcommand* — Declared option flags, their values, roles, and dialect gates.
@@ -421,12 +427,6 @@ Which template mini-language the command's format argument uses: printf-style (`
 *subcommand only* — Documented minimum abbreviation length for this subcommand's name, when longer than uniqueness alone requires. Unset = uniqueness only.
 
 Unique-prefix abbreviation is computed automatically; this field is only for the rare subcommand whose *documented* minimum abbreviation is longer than uniqueness requires. Leave unset almost always.
-
-### `arg_values_accept_prefix` — Values accept a prefix
-
-*subcommand only* — Whether a closed value is accepted as a unique prefix rather than an exact match.
-
-Whether this subcommand's closed argument values accept unique prefixes the way keyword tables do — `persist add u` for `uie`. Off means exact spellings only.
 
 ### `max_leading_option_words` — Max leading option words
 
@@ -998,6 +998,12 @@ iRules only: emissions for specific argument spellings, when `CMD mode-a` raises
 
 iRules only: for the `collect`/`release`/payload family — which protocol, which action, when payload data is available, and how release behaves. Drives the collect/release pairing diagnostics and their quick fixes.
 
+### `irules_source_flow` — iRules source flow
+
+*command only* — Conditional source flow grammar for connection drops, DNS returns or event control. No handler, reached effect or body entry is granted.
+
+iRules source warning grammar: possible connection drops and DNS returns require following guards; event-control operands identify an all-event guard. This is conditional source metadata, independent of dispatch, actual connection state and successful effects.
+
 ### `side_switch_target` — Side-switch target
 
 *command only* — Connection-side context selected while evaluating this command's body.
@@ -1303,6 +1309,7 @@ Ways a command changes which commands exist: defining a procedure, renaming or d
 | `DefinesProcedure` | defines a new procedure (`proc`) |
 | `RenamesCommands` | moves or deletes a command (`rename`) |
 | `CreatesAliases` | creates an alias (`interp alias`) |
+| `CreatesCallerAliases` | creates a Jim caller-namespace alias (`alias`) |
 
 ### Connection sides
 
@@ -1664,6 +1671,7 @@ Registry-owned source operand grammars for configuration objects. DataGroupCompa
 | Value | Meaning |
 |---|---|
 | `DataGroupComparison` | data-group operand after a comparison item and operator |
+| `DataGroupLookup` | data-group operand after a literal or dynamic lookup key |
 
 ### Source deprecation advice
 
@@ -1867,3 +1875,13 @@ Where a variable-name option resolves an unqualified name. Use `CurrentFrame` fo
 |---|---|
 | `CurrentFrame` | unqualified names resolve in the invocation's current Tcl frame |
 | `Global` | unqualified names resolve from the interpreter's global namespace |
+
+### iRules source flow grammars
+
+Select the source operation grammar. Original operands and command bindings remain necessary; the declaration supplies no reached handler, body entry or successful effect.
+
+| Value | Meaning |
+|---|---|
+| `DropsConnection` | Possible source connection drop requiring a following guard |
+| `ReturnsDnsPacket` | Possible source DNS return requiring a following script return |
+| `EventControl` | Effective source operands choose later event suppression |
