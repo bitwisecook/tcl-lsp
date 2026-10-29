@@ -1,0 +1,60 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T10:12:46.621826+00:00",
+  "scheduled_report_utc": "2026-10-29T10:07:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "lsp: the three hung lsp-e2e tests are lock-order deadlocks introduced on WORK (scheduler now takes documents/default_dialect locks the tests hold); fix approved: capture registry and dialect inputs at worker drain, keeping currency re-checks. Rehoming-guard ConditionalAdvice cluster (16) awaits a probe; any narrowing gets review. Completed-world None for ordinary files (rename refusals) routed to compiler-names.",
+    "vm-runtime: seal-split selector and object-recipe gate done; namespace121 applied (110/14, failure set unchanged; 8 now typed lifetime refusals - real teardown lifetime bug queued). Clusters: compiled-local slots unavailable for hand-built/global-frame functions (decision per C semantics pending), iRules authored-realm local-name ownership (approved fix).",
+    "compiler: class_factories 83 share one cause (user metaclass body routes Unknown, world closes opaque) - assigned to compiler; analyser stack abort root-caused (31.2 KB/level vs 24 KiB budget) - compiler-names to shrink frames; taint 6 more fixed; mro_lattice 6 corrected, 2 need a registry 'result is class/object handle' trait (approved).",
+    "compiler-codegen: regexp review fixes in progress."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "CI 5248 pass->fail clusters (all roles)",
+    "lsp scheduler deadlock fix",
+    "class_factories metaclass routes",
+    "regexp review fixes",
+    "unknown-mutation accessor"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T10:37:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
