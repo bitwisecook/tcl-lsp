@@ -3741,6 +3741,20 @@ impl AnalysisResult {
         self.command_realm.as_ref()
     }
 
+    /// Whether the root's final modelled command world holds an unknown
+    /// command-binding mutation (for example `eval $script`). `None` when no
+    /// command realm was retained. This is narrower than an absent
+    /// [`Self::original_completed_command_world`], which any possible
+    /// abrupt or unknown route also withholds.
+    #[must_use]
+    pub fn root_unknown_command_mutation(&self) -> Option<bool> {
+        Some(
+            self.retained_command_realm()?
+                .source_bindings_ref()
+                .final_world_has_unknown_command_mutation(),
+        )
+    }
+
     /// Independently completed Normal source publication world. This is final
     /// source liveness advice, separate from positioned invocation lookup and
     /// physical interpreter existence. Unknown or abrupt source stays absent.
@@ -5722,30 +5736,54 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     }
 
     #[test]
+    fn root_unknown_command_mutation_reports_only_unknown_table_changes() {
+        let mut mismatches = Vec::new();
+        for (source, expected) in [
+            ("eval [gets stdin]\n", true),
+            ("set script [gets stdin]\neval $script\n", true),
+            ("set n [gets stdin]\neval \"proc $n {} {}\"\n", true),
+            ("puts hello\n", false),
+            ("set x $missing\n", false),
+            // C Tcl's init.tcl `::unknown` may auto_load and source files, and
+            // `package require` runs package scripts: both can define commands.
+            ("package require http\n", true),
+            ("catch {unknowncmd}\n", true),
+            ("unknowncmd arg\n", true),
+            ("rename unknown {}\ncatch {unknowncmd}\n", false),
+        ] {
+            let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            if result.root_unknown_command_mutation() != Some(expected) {
+                mismatches.push((source, result.root_unknown_command_mutation()));
+            }
+        }
+        assert!(mismatches.is_empty(), "{mismatches:?}");
+    }
+
+    #[test]
     fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
         // naming.source.closed-leaf-handler-completion
         // The completed command world is the world after the document runs
-        // to normal completion: a command that may raise a catalogued error
-        // (`list` arity) only adds a path that never reaches it. `exit`, an
-        // unknown command or `puts` (whose channel may run handler scripts)
-        // keeps it withheld.
+        // to normal completion: a command that may raise (`puts`, `list`
+        // arity) only adds a path that never reaches it. `exit` or an
+        // unknown command keeps it withheld.
         let declaration = "proc greet {} { return hi }\n";
         let mut mismatches = Vec::new();
         for dialect in ["tcl8.6", "tcl9.0"] {
             for (use_site, completed) in [
                 ("", true),
                 ("greet\ngreet\n", true),
-                ("puts hi\n", false),
-                ("puts [greet]\nputs [greet]\n", false),
+                ("puts hi\n", true),
+                ("puts [greet]\nputs [greet]\n", true),
                 ("set a [list [greet]]\n", true),
                 ("set a [string length x]\n", true),
                 ("missing_command\n", false),
                 ("puts [missing_command]\n", false),
+                ("puts [undefined_cmd]\n", false),
                 ("exit 0\n", false),
                 // A procedure whose analysed body closes the world, and one
                 // whose body runs an unknown command.
                 ("proc say {} { return [greet] }\nsay\n", true),
-                ("proc say {} { puts hi }\nsay\n", false),
+                ("proc say {} { puts hi }\nsay\n", true),
                 ("proc bad {} { missing_command }\nbad\n", false),
                 // Incomplete descriptors: a re-entrant callback, a subcommand
                 // the registry cannot select, and a dynamically chosen script.
