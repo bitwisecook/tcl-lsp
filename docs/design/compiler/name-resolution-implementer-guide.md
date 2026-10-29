@@ -2504,8 +2504,11 @@ object identity or representation proof. Verify the selected pooling policy,
 original stored-result recipe and rewrite eligibility independently.
 
 Stored and returned expression constants need their output protocol too.
-`ConstValue` preserves contents, so strict SCCP cannot replace a retained
-normalisation, numeric operation or pooled-result instruction with a raw literal.
+`ConstValue` preserves contents, so strict SCCP replaces a retained result
+instruction with a raw literal only where
+`expression_rewrite::contents_only_result_equivalence` admits it: a pooled
+constant tree, or an arithmetic operator whose evaluated result is an integer.
+Normalisation, double, comparison and logical results keep their instruction.
 Semantic values and consumed branch truth have separate purposes; faithful
 codegen can retain the original selected native instruction recipe.
 `expression_rewrite_equivalence` additionally compares the original and proposed
@@ -4179,9 +4182,17 @@ rather than borrowing the paired-list selector.
 `expression_rewrite::expression_result_protocol_equivalence` compares the
 retained prepared result instruction family separately from mathematical
 values and operand effects. A contents-only replacement carries no native
-normalisation, fresh result allocation or pooled-object reuse, so the query
-refuses it. SCCP stored/returned execution constants and the optimiser's
-whole-expression fold entry use this query. Partial expression rewrites keep
+normalisation or fresh result allocation, so the query admits it only where
+the difference is confined to object identity and representation: a pooled
+constant tree, which C already compiles to the same literal, or an operator
+that always yields an integer. `contents_only_result_equivalence` also admits
+an arithmetic result whose evaluated value is an integer (wide or bignum),
+whose canonical spelling C generates identically. A double stays refused: in
+C 8.6 its spelling follows `tcl_precision` when its string is generated.
+Comparison, logical and normalised-operand results stay refused. SCCP
+stored/returned execution constants and the optimiser's whole-expression fold
+entry evaluate first and then use this query; operand conversion, read-trace
+and command-world proofs remain separate obligations. Partial expression rewrites keep
 the native expression wrapper and still prove operand, error and value
 obligations independently. Native codegen remains a consumer of the selected
 compiler recipe rather than of this source-edit licence.

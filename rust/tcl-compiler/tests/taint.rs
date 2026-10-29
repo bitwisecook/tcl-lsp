@@ -485,6 +485,7 @@ mod tcl_taint_sources {
 
     #[test]
     fn eval_braced_nested_command_substitution_reaches_inner_sink() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         for source in [
             "set x [gets stdin]\neval {[eval $x]}",
             r"set x [gets stdin]
@@ -492,7 +493,7 @@ mod tcl_taint_sources {
             "set x [gets stdin]\n[{eval} $x]",
             "set x [gets stdin]\n[\"eval\" $x]",
         ] {
-            let ws = of_code(source, D, "T100");
+            let ws = dialect_of_code(source, D, "T100");
             assert!(
                 ws.iter().any(|warning| warning.variable == "x"),
                 "a variable in a nested statically-headed eval reaches its sink: {source:?}: {ws:?}"
@@ -510,7 +511,8 @@ mod tcl_taint_sources {
 
     #[test]
     fn quoted_whole_command_substitution_reaches_inner_sink() {
-        let ws = of_code("set x [gets stdin]\n\"[eval $x]\"", D, "T100");
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code("set x [gets stdin]\n\"[eval $x]\"", D, "T100");
         assert!(
             ws.iter().any(|warning| warning.variable == "x"),
             "quotes do not suppress a whole command substitution in command position: {ws:?}"
@@ -519,14 +521,15 @@ mod tcl_taint_sources {
 
     #[test]
     fn escaped_static_command_head_obeys_release_grammar() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         let source = r"set x [gets stdin]
 [e\x76al $x]";
         assert!(
-            of_code(source, "tcl8.4", "T100").is_empty(),
+            dialect_of_code(source, "tcl8.4", "T100").is_empty(),
             "Tcl 8.4 consumes more than two hex digits, so this command is not eval"
         );
         assert!(
-            of_code(source, "tcl8.6", "T100")
+            dialect_of_code(source, "tcl8.6", "T100")
                 .iter()
                 .any(|warning| warning.variable == "x"),
             "Tcl 8.6 consumes two hex digits, so this command is eval"
@@ -535,35 +538,38 @@ mod tcl_taint_sources {
 
     #[test]
     fn static_expanded_command_head_preserves_argv_semantics() {
-        let positive = of_code("set x [gets stdin]\n{*}{{eval} safe} $x", "tcl9.0", "T100");
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let positive = dialect_of_code("set x [gets stdin]\n{*}{{eval} safe} $x", "tcl9.0", "T100");
         assert!(
             positive.iter().any(|warning| warning.variable == "x"),
             "the first expanded list element is the command and the rest prefix its argv: {positive:?}"
         );
         assert!(
-            of_code("set x [gets stdin]\n{*}{{puts} safe} $x", "tcl9.0", "T100",).is_empty(),
+            dialect_of_code("set x [gets stdin]\n{*}{{puts} safe} $x", "tcl9.0", "T100",)
+                .is_empty(),
             "an expanded non-sink command head must stay clean"
         );
         assert!(
-            !of_code("set x [gets stdin]\n{*}{} eval $x", "tcl9.0", "T100",).is_empty(),
+            !dialect_of_code("set x [gets stdin]\n{*}{} eval $x", "tcl9.0", "T100",).is_empty(),
             "an empty leading expansion removes itself and exposes the next command word"
         );
     }
 
     #[test]
     fn reaching_list_value_expands_into_command_and_argv() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         for source in [
             "set prefix [list eval safe]\nset x [gets stdin]\n{*}$prefix $x",
             "set prefix {}\nset x [gets stdin]\n{*}$prefix eval $x",
             "if {$flag} {set prefix [list eval safe]} else {set prefix [list puts safe]}\nset x [gets stdin]\n{*}$prefix $x",
         ] {
             assert!(
-                !of_code(source, "tcl9.0", "T100").is_empty(),
+                !dialect_of_code(source, "tcl9.0", "T100").is_empty(),
                 "a reaching list constant must retain expanded dispatch semantics: {source}"
             );
         }
         assert!(
-            of_code(
+            dialect_of_code(
                 "set prefix [list puts safe]\nset x [gets stdin]\n{*}$prefix $x",
                 "tcl9.0",
                 "T100",
@@ -603,13 +609,14 @@ set x [gets stdin]
 
     #[test]
     fn whole_command_substitution_classifies_each_executed_inner_sink() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         for (source, code) in [
             ("set x [gets stdin]\n[puts $x]", "T101"),
             ("set x [gets stdin]\n[puts safe; eval $x]", "T100"),
             ("set x [gets stdin]\nprefix[eval $x]", "T100"),
             ("set x [gets stdin]\n\"[puts safe][eval $x]\"", "T100"),
         ] {
-            let ws = of_code(source, D, code);
+            let ws = dialect_of_code(source, D, code);
             assert!(
                 ws.iter().any(|warning| warning.variable == "x"),
                 "every inner command receives only its own substituted arguments: {source:?}: {ws:?}"
@@ -619,24 +626,25 @@ set x [gets stdin]
 
     #[test]
     fn nested_script_sink_distinguishes_deferred_from_literal_arguments() {
-        let ws = of_code("set x [gets stdin]\n[eval {$x}]", D, "T100");
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
+        let ws = dialect_of_code("set x [gets stdin]\n[eval {$x}]", D, "T100");
         assert!(
             ws.iter().any(|warning| warning.variable == "x"),
             "eval reparses its braced argument as Tcl source: {ws:?}"
         );
 
         assert!(
-            of_code("set x [gets stdin]\n[exec {$x}]", D, "T100").is_empty(),
+            dialect_of_code("set x [gets stdin]\n[exec {$x}]", D, "T100").is_empty(),
             "exec receives a literal dollar spelling; it does not evaluate Tcl source"
         );
 
-        let ws = of_code("set x [gets stdin]\n[interp eval child {$x}]", D, "T105");
+        let ws = dialect_of_code("set x [gets stdin]\n[interp eval child {$x}]", D, "T105");
         assert!(
             ws.iter().any(|warning| warning.variable == "x"),
             "interp eval reparses only its registry-declared body tail: {ws:?}"
         );
         assert!(
-            of_code(
+            dialect_of_code(
                 "set x [gets stdin]\n[interp eval {$x} {set y safe}] $x",
                 D,
                 "T105",
@@ -645,13 +653,13 @@ set x [gets stdin]
             "a braced interpreter path and an outer argument are not child-interpreter code"
         );
 
-        let ws = of_code("set x [gets stdin]\n[set y $x; eval {$y}]", D, "T100");
+        let ws = dialect_of_code("set x [gets stdin]\n[set y $x; eval {$y}]", D, "T100");
         assert!(
             ws.iter().any(|warning| warning.variable == "y"),
             "inner commands must propagate taint in Tcl evaluation order: {ws:?}"
         );
         assert!(
-            of_code(
+            dialect_of_code(
                 "set x [gets stdin]\n[eval {set x safe; puts $x}]",
                 D,
                 "T100",
@@ -660,7 +668,7 @@ set x [gets stdin]
             "a script-local clean overwrite must cut off the enclosing tainted version"
         );
         assert!(
-            of_code(
+            dialect_of_code(
                 "proc eval args {}\nset x [gets stdin]\n[eval $x]",
                 D,
                 "T100",
@@ -668,7 +676,7 @@ set x [gets stdin]
             .is_empty(),
             "a nested call inherits the enclosing user-proc rebinding"
         );
-        let ws = of_code(
+        let ws = dialect_of_code(
             "interp alias {} myEval {} eval\nset x [gets stdin]\n[myEval $x]",
             D,
             "T100",
@@ -682,7 +690,7 @@ set x [gets stdin]
             "set x [gets stdin]\nset script {$x}\n[eval $script]",
         ] {
             assert!(
-                !of_code(source, D, "T100").is_empty(),
+                !dialect_of_code(source, D, "T100").is_empty(),
                 "nested analysis inherits phase-correct outer constants: {source}"
             );
         }
@@ -703,8 +711,10 @@ set x [gets stdin]
 
     #[test]
     fn variable_command_head_warns_when_any_reaching_literal_is_a_sink() {
-        let ws = of_code(
-            "if {$flag} {set command eval} else {set command puts}\n\
+        // Dialect build with a defined `flag`: tclsh errors on the undefined one.
+        let ws = dialect_of_code(
+            "set flag [expr {rand() < 0.5}]\n\
+             if {$flag} {set command eval} else {set command puts}\n\
              set line [gets stdin]\n$command $line",
             D,
             "T100",
@@ -717,8 +727,10 @@ set x [gets stdin]
 
     #[test]
     fn equivalent_variable_command_head_spellings_emit_one_warning() {
-        let ws = of_code(
-            "if {$flag} {set command eval} else {set command ::eval}\n\
+        // Dialect build with a defined `flag`: tclsh errors on the undefined one.
+        let ws = dialect_of_code(
+            "set flag [expr {rand() < 0.5}]\n\
+             if {$flag} {set command eval} else {set command ::eval}\n\
              set line [gets stdin]\n$command $line",
             D,
             "T100",
@@ -748,8 +760,10 @@ set x [gets stdin]
 
     #[test]
     fn namespace_shadowed_catch_cannot_hijack_nested_analysis_scaffolding() {
-        let ws = of_code(
-            "proc ::ns::catch args {}\n\
+        // Dialect build with the `::ns` namespace: tclsh cannot create `::ns::catch` without it.
+        let ws = dialect_of_code(
+            "namespace eval ::ns {}\n\
+             proc ::ns::catch args {}\n\
              proc ::ns::run {} {set x [gets stdin]; [catch {}; eval $x]}\n\
              ::ns::run",
             D,
@@ -789,10 +803,11 @@ set x [gets stdin]
 
     #[test]
     fn chan_configure_does_not_taint() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `chan configure $fd` returns channel options, not I/O content —
         // not a taint source.
         assert_eq!(
-            codes("set x [chan configure $fd]\neval $x", D),
+            channel_codes("set x [chan configure $fd]\neval $x", D),
             Vec::<String>::new()
         );
     }
@@ -1851,11 +1866,12 @@ mod output_sinks {
 
     #[test]
     fn puts_tainted_data_span_is_tight_around_argument() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // The diagnostic must underline just the tainted `$x` argument word,
         // not the whole `puts $x` statement — precise highlighting is what
         // lets the developer see exactly which value is the problem.
-        let src = "set x [read $fd]\nputs $x";
-        let ws = of_code(src, D, "T101");
+        let src = "set fd stdin\nset x [read $fd]\nputs $x";
+        let ws = dialect_of_code(src, D, "T101");
         assert_eq!(ws.len(), 1);
         let want_start = u32::try_from(src.find("$x").unwrap()).unwrap();
         let want_end = want_start + 2; // "$x" is 2 bytes.
@@ -1923,16 +1939,18 @@ mod output_sinks {
 
     #[test]
     fn t100_tainted_direct_expr_operand_still_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // Control: $data as a DIRECT expr operand IS the injection vector.
-        let ws = of_code("set data [read $fd]\nset v [expr {$data + 1}]", D, "T100");
+        let ws = channel_of_code("set data [read $fd]\nset v [expr {$data + 1}]", D, "T100");
         assert_eq!(ws.len(), 1);
         assert_eq!(ws[0].variable, "data");
     }
 
     #[test]
     fn t100_tainted_expr_func_arg_still_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `abs($data)` — a math-func arg is a direct expr operand → T100 fires.
-        let ws = of_code("set data [read $fd]\nset v [expr {abs($data)}]", D, "T100");
+        let ws = channel_of_code("set data [read $fd]\nset v [expr {abs($data)}]", D, "T100");
         assert_eq!(ws.len(), 1);
     }
 
@@ -1989,12 +2007,13 @@ mod output_sinks {
 
     #[test]
     fn puts_inside_tcloo_method_body_still_fires() {
+        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // TclOO method bodies are analysable functions like any proc — the
         // sink check must not be limited to top-level / plain-proc bodies.
         // Qualify the core heads because an instance method executes in its
         // runtime-selected object namespace: a relative `puts` may denote an
         // object-local command, for which deep analysis correctly abstains.
-        let ws = of_code(
+        let ws = dialect_of_code(
             "oo::class create Foo {\n\
              method bar {} {\n\
              ::set x [::read $fd]\n\
@@ -3191,8 +3210,9 @@ mod interprocedural_colours {
 
     #[test]
     fn helper_passthrough_generic_taint_fires_t102() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let source = "proc identity {x} { return $x }\nset raw [read $fd]\nset x [identity $raw]\nregexp $x test\n";
-        assert!(!of_code(source, D, "T102").is_empty());
+        assert!(!channel_of_code(source, D, "T102").is_empty());
     }
 
     #[test]
@@ -4391,36 +4411,3 @@ mod special_variable_sources {
         assert!(of_code("eval $env(CMD)", IR, "T100").is_empty());
     }
 }
-
-// ZZPROBE-START (temporary compiler-role probe; removed before hand-back)
-#[test]
-#[ignore = "temporary probe"]
-fn zz_probe_env() {
-    let dialect = std::env::var("ZZ_PROBE_DIALECT").unwrap_or_else(|_| D.to_owned());
-    let path = std::env::var("ZZ_PROBE_FILE").expect("ZZ_PROBE_FILE");
-    for (index, src) in std::fs::read_to_string(path).expect("probe file").split("\n----\n").enumerate() {
-        let ws = match std::env::var("ZZ_PROBE_MODE").as_deref() {
-            Ok(mode @ ("tk86" | "tknone")) => {
-                let registry = static_context_for("tk").commands();
-                let cu = CompilationUnit::build_for_dialect(src, registry, false, "tk");
-                let profile = (mode == "tk86").then(|| tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile());
-                find_taint_warnings_for_cu(&cu, registry, profile)
-            }
-            Ok("lsp") => {
-                let env = tcl_registry::model::ingress::resolve_environment(&dialect);
-                let profile = env.analyser_profile();
-                let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, env.unit_profile(), env.default_context_registry(), if std::env::var_os("ZZ_NESTED").is_some() { tcl_lexer::LexerConfig::for_file_grammar(env.unit_profile().grammar).nested().normalized() } else { tcl_lexer::LexerConfig::for_file_grammar(env.unit_profile().grammar) });
-                let registry = input.borrowed_context_registry().commands();
-                let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(registry, &input, input.lexer_config(), Some(input.unit_profile()));
-                let cu = CompilationUnit::build_with_analysis_input(src, tcl_compiler::compilation_unit::UnitBuildOptions { registry, defer_top_level: std::env::var_os("ZZ_DEFER").is_some(), config: input.lexer_config(), dialect: Some(input.unit_profile()), external_call_sites: None, declared_commands: None }, Some(&entry), &input);
-                find_taint_warnings_for_cu(&cu, registry, Some(profile))
-            }
-            _ => dialect_warns(src, &dialect),
-        };
-        eprintln!("ZZPROBE {index} {src:?}");
-        for w in &ws {
-            eprintln!("ZZPROBE   {} var={} span={:?} msg={}", w.code, w.variable, w.span, w.message);
-        }
-    }
-}
-// ZZPROBE-END

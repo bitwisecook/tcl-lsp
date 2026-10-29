@@ -432,11 +432,6 @@ impl<'a> PassContext<'a> {
         if row24_trace {
             eprintln!("CCG24 stage=eval-preparation");
         }
-        crate::expression_rewrite::expression_result_protocol_equivalence(
-            &preparation.witness,
-            None,
-        )
-        .ok()?;
         #[cfg(debug_assertions)]
         if row24_trace {
             eprintln!("CCG24 stage=eval-result-equivalence");
@@ -464,7 +459,7 @@ impl<'a> PassContext<'a> {
             environment.extend(native.clone());
         }
         let empty = crate::tcl_expr_eval::NativeOperandProofs::new();
-        crate::tcl_expr_eval::eval_tcl_expr_with_proved_operands(
+        let value = crate::tcl_expr_eval::eval_tcl_expr_with_proved_operands(
             preparation.witness.tree(),
             &environment,
             policy,
@@ -474,7 +469,11 @@ impl<'a> PassContext<'a> {
                     .map(|call| call.target())
             },
             numeric.as_ref().map_or(&empty, |(_, operands)| operands),
-        )
+        )?;
+        // The folded literal replaces the original result object.
+        crate::expression_rewrite::contents_only_result_equivalence(&preparation.witness, &value)
+            .ok()?;
+        Some(value)
     }
 
     /// License an executable expression rewrite from its original source tree.

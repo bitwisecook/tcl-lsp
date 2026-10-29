@@ -3970,7 +3970,8 @@ mod completed_world_owner_controls {
                 settlement
                     .scopes
                     .iter()
-                    .any(|scope| scope.required.contains(&fixture.host) && !scope.complete),
+                    .any(|scope| scope.required.contains(&fixture.host)
+                        && (!scope.complete || scope.root_world_uncertain)),
                 "source_host={source_host} scope_count={} census(main,host,published,complete,conditional,ids,host_required,required,associations)={:?}",
                 settlement.scopes.len(),
                 reference_scope_census(&settlement, &fixture),

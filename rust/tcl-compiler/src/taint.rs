@@ -3038,10 +3038,6 @@ fn selected_sink_schema<'a>(
         return None;
     }
     let tokens = call.tokens?;
-    #[cfg(debug_assertions)]
-    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
-        eprintln!("ZZ_SCHEMA command={} authored={} selected={} binding={}", call.command, call.source_read.is_some_and(|read| matches!(read.metadata.invocation_metadata(), SourceWarningMetadata::Authored(_))), crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(call.registry, Some(context), tokens).is_some(), tokens.source_binding.as_ref().map_or("none".to_owned(), |b| format!("unknown={} absent={} targets={:?}", b.unknown, b.may_be_absent, b.targets.iter().map(|t| t.command.clone()).collect::<Vec<_>>()))); // ZZPROBE
-    }
     let selected = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         call.registry,
         Some(context),
@@ -5844,14 +5840,6 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
         return;
     };
     let (candidates, native_source) = retained_sink_candidates(tokens, context);
-    if std::env::var_os("ZZ_SOL49_ANY").is_some() {
-        eprintln!(
-            "ZZ_COMPILER_TAINT {:?} native={} candidates={}",
-            tokens.argv_texts,
-            native_source,
-            candidates.len()
-        );
-    }
     for (command, effective, source_metadata) in candidates {
         let original_reads = (!context.source.allows_nominal_metadata())
             .then(|| {
@@ -6152,31 +6140,20 @@ fn build_isolated_taint_unit<H>(
             },
         ));
     }
-    // The replay is an extracted body in its own source coordinates.
-    let input = context
-        .source
-        .metadata?
-        .source_analysis_input()?
-        .for_nested_source();
-    let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
-        context.registry,
-        &input,
-        input.lexer_config(),
-        Some(input.unit_profile()),
-    );
+    let input = context.source.metadata?.source_analysis_input()?;
     Some(
         crate::compilation_unit::CompilationUnit::build_with_analysis_input(
             source,
             crate::compilation_unit::UnitBuildOptions {
                 registry: context.registry,
                 defer_top_level: true,
-                config: input.lexer_config(),
+                config: context.source.config,
                 dialect: Some(input.unit_profile()),
                 external_call_sites: None,
                 declared_commands: None,
             },
-            Some(&entry),
-            &input,
+            None,
+            input,
         ),
     )
 }
@@ -6208,10 +6185,6 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         return;
     };
     let entry = nested_script_entry_site(script, source_span, context.source.config);
-    #[cfg(debug_assertions)]
-    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
-        eprintln!("ZZ_SCAFFOLD entry={entry} span={source_span:?} nested={:?}", ssa_stmt.statement.tokens().map(|t| t.nested_bindings.iter().map(|(o, b)| (*o, b.unknown, b.may_be_absent, b.targets.iter().map(|t| t.command.clone()).collect::<Vec<_>>())).collect::<Vec<_>>())); // ZZPROBE
-    }
     let command_setup = command_head_ctx.map_or_else(
         || Ok(String::new()),
         |head_context| {
@@ -6269,10 +6242,6 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
             command_head_ctx,
         );
     }
-    #[cfg(debug_assertions)]
-    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
-        eprintln!("ZZ_NESTED warnings={:?} unavailable={}", nested_report.warnings.iter().map(|w| (w.code, w.variable.clone())).collect::<Vec<_>>(), nested_report.replays.unavailable_replays().len()); // ZZPROBE
-    }
     for residual in nested_report.replays.unavailable_replays() {
         context.unavailable_replay(source_span, residual.reason, command_head_ctx);
     }
@@ -6290,7 +6259,11 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
 /// executing: its first command's dispatch site, where the ambient command
 /// table is the one the nested script observes. The substitution's own start
 /// is the enclosing command's dispatch site instead.
-fn nested_script_entry_site(script: &str, source_span: Span, config: tcl_lexer::LexerConfig) -> u32 {
+fn nested_script_entry_site(
+    script: &str,
+    source_span: Span,
+    config: tcl_lexer::LexerConfig,
+) -> u32 {
     let at = source_span.start();
     let Some(base) = at
         .checked_add(1)
@@ -6379,12 +6352,16 @@ fn nested_script_replay<S: std::hash::BuildHasher>(
     let mut invocation = Vec::with_capacity(bindings.len() + 1);
     invocation.push(proc_name.clone());
     let mut assignments = String::new();
+    let mut globals = String::new();
     let mut seeds = HashMap::new();
     for (index, (name, symbol, version)) in bindings.into_iter().enumerate() {
         let param = fresh_nested_name(&collision_text, &format!("__tcl_lsp_arg_{index}"));
         let seed = fresh_nested_name(&collision_text, &format!("__tcl_lsp_seed_{index}"));
         params.push(param.clone());
         invocation.push(format!("${{::{seed}}}"));
+        // C Tcl rejects reading an unset global, so the closed-world unit
+        // would never enter the replay body; the seed carries the taint.
+        let _ = writeln!(globals, "::set ::{seed} {{}}");
         let _ = writeln!(
             assignments,
             "set {} ${param}",
@@ -6401,7 +6378,7 @@ fn nested_script_replay<S: std::hash::BuildHasher>(
     // script they are meant to model.
     let body = format!("{assignments}{constant_setup}{command_setup}{inner}");
     let source = format!(
-        "::proc {proc_name} {{{}}} {}\n{}",
+        "{globals}::proc {proc_name} {{{}}} {}\n{}",
         params.join(" "),
         tcl_syntax::list::list_element(&body),
         invocation.join(" "),
@@ -6515,13 +6492,6 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
         if shadowed_builtins.contains(&head) {
             rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
             continue;
-        }
-        #[cfg(debug_assertions)]
-        if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
-            let zz = tcl_registry::model::ingress::static_context_for("tcl8.6"); // ZZPROBE
-            eprintln!("ZZ_SCAFFOLD at={at} head={head:?} fact={:?} knowledge={:?}", identities.binding_at(&head, at), identities.knowledge_at(zz.context(), zz.commands(), &head, at)); // ZZPROBE
-            for zo in [0, at.saturating_sub(1), at, at + 1] { let p = identities.source_bindings_ref().projection_at_source(&head, zo); eprintln!("ZZ_SCAFFOLD   proj@{zo} unknown={} absent={} targets={:?}", p.unknown, p.may_be_absent, p.targets.iter().map(|t| (&t.command, t.registry_backed)).collect::<Vec<_>>()); } // ZZPROBE
-            let p = identities.invocation_at_source(&head, at); eprintln!("ZZ_SCAFFOLD   exact@{at} unknown={} absent={} targets={:?}", p.unknown, p.may_be_absent, p.targets.iter().map(|t| (&t.command, t.registry_backed)).collect::<Vec<_>>()); // ZZPROBE
         }
         match identities.binding_at(&head, at) {
             crate::realm::RealmBindingFact::Unchanged => {}
@@ -7045,12 +7015,6 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     } else {
         None
     };
-    #[cfg(debug_assertions)]
-    if std::env::var_os("ZZ_PROBE_SCAFFOLD").is_some() {
-        let mut zz = Vec::new(); // ZZPROBE
-        if let Some((code, sink_label)) = &classified { emit_sink_warnings(&env, span, *code, sink_label, &sink_call, &mut zz); }
-        eprintln!("ZZ_SINK site={} command={command} classified={:?} tokens={} emitted={}", span.start(), classified.as_ref().map(|c| c.0), sink_call.tokens.is_some(), zz.len()); // ZZPROBE
-    }
     if let Some((code, sink_label)) = classified {
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }

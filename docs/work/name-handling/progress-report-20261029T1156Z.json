@@ -1,0 +1,61 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T11:56:19.333963+00:00",
+  "scheduled_report_utc": "2026-10-29T11:51:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "User decision recorded (user-decisions-20261029T1125Z.json): admit integer expression folds everywhere (PooledValue and Int results, shared check covering optimiser folds and SCCP stored/returned constants); doubles, operand normalisation, unknown and boolean results stay refused. compiler-codegen implementing, with the check moved after evaluation so `+ - * /` folds with an evaluated Int value are admitted; implementer guide and contract updated.",
+    "compiler-codegen: C SIMPLE_WORD split for non-variable `$` applied via the C-only registry capture path; regexp review F1/F4 rows pass (registry 35/35, compiler 10/10). Engine Currency flake passed 6/6 in isolation but stays open.",
+    "Optimiser targets still 63/63 red before the gate change; many rows are dead-store/sinking/LICM, to be re-clustered after it.",
+    "Disk 3.1 GB free."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "integer fold implementation",
+    "registry completion descriptors",
+    "lsp scheduler deadlock fix",
+    "class_factories metaclass routes",
+    "opcode_c_parity harness correction",
+    "authored-realm local-name ownership"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T12:21:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

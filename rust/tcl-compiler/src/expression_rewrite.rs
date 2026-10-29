@@ -28,23 +28,60 @@ pub enum ExpressionRewriteDecline {
 }
 
 /// Compare native result protocols independently of their mathematical values.
-/// `None` represents a contents-only replacement, which cannot retain a numeric
-/// conversion, fresh result allocation or reuse of the original pooled object.
+/// `None` represents a contents-only replacement: a pooled literal in place of
+/// the original result object. That is admitted where C pools the result
+/// itself, or where the selected operator always yields an integer, whose
+/// canonical spelling leaves only object identity and representation changed.
 /// Keeping an expression requires the same selected result instruction family;
 /// operand, error and value equivalence remain separate obligations.
 pub fn expression_result_protocol_equivalence(
     original: &tcl_registry::runtime_expr_validation::PreparedExpressionWitness,
     replacement: Option<&tcl_registry::runtime_expr_validation::PreparedExpressionWitness>,
 ) -> Result<(), ExpressionRewriteDecline> {
-    use tcl_registry::runtime_expr_validation::NativeExpressionResultRecipe;
+    use tcl_registry::runtime_expr_validation::NativeExpressionResultRecipe as Recipe;
     let recipe = original.numeric_result_recipe();
-    if recipe == NativeExpressionResultRecipe::Unknown {
+    if recipe == Recipe::Unknown {
         return Err(ExpressionRewriteDecline::PreparationUnknown);
     }
-    if replacement.is_some_and(|replacement| replacement.numeric_result_recipe() == recipe) {
+    let equivalent = match replacement {
+        Some(replacement) => replacement.numeric_result_recipe() == recipe,
+        None => match recipe {
+            Recipe::PooledValue => true,
+            Recipe::NumericOperation => original
+                .normal_numeric_result_production()
+                .is_some_and(|production| production.result_type() == tcl_registry::TclType::Int),
+            Recipe::NormalizeOperand | Recipe::Unknown => false,
+        },
+    };
+    if equivalent {
         Ok(())
     } else {
         Err(ExpressionRewriteDecline::NativeResultAllocation)
+    }
+}
+
+/// A contents-only replacement for an evaluated normal result. Beyond
+/// [`expression_result_protocol_equivalence`], an arithmetic operator whose
+/// evaluated result is an integer is admitted: C then produces an integer
+/// object with the same canonical spelling. A double keeps its operation,
+/// since its spelling follows `tcl_precision` when its string is generated;
+/// comparison and logical results, operand normalisation and unknown
+/// recipes keep theirs too.
+pub fn contents_only_result_equivalence(
+    original: &tcl_registry::runtime_expr_validation::PreparedExpressionWitness,
+    value: &crate::tcl_expr_eval::TclValue,
+) -> Result<(), ExpressionRewriteDecline> {
+    use crate::tcl_expr_eval::TclValue;
+    use tcl_registry::runtime_expr_validation::NativeExpressionResultRecipe as Recipe;
+    match expression_result_protocol_equivalence(original, None) {
+        Err(ExpressionRewriteDecline::NativeResultAllocation)
+            if original.numeric_result_recipe() == Recipe::NumericOperation
+                && original.normal_numeric_result_production().is_some()
+                && matches!(value, TclValue::Int(_) | TclValue::Big(_)) =>
+        {
+            Ok(())
+        }
+        result => result,
     }
 }
 
@@ -425,5 +462,115 @@ mod tests {
             expression_rewrite_equivalence(&literal, "3", &Env::new(), policy, None, None,),
             Err(ExpressionRewriteDecline::ValueChanged)
         );
+    }
+
+    fn witness(
+        version: &str,
+        expression: &str,
+    ) -> tcl_registry::runtime_expr_validation::PreparedExpressionWitness {
+        let source = format!("set result [expr {{{expression}}}]");
+        let owner = tcl_registry::model::ingress::static_context_for(version);
+        let registry = owner.commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            &source,
+            registry,
+            false,
+            registry.profile().unwrap(),
+        );
+        let crate::ir::Statement::AssignExpr { span, .. } = &unit.ir_module.top_level.statements[0]
+        else {
+            panic!("original retained expression {expression}");
+        };
+        let bindings =
+            ExpressionMathBindings::for_module_statement(&unit.ir_module, *span).unwrap();
+        bindings
+            .preparation_for_context(
+                &FoldPolicy::from_registry(registry)
+                    .preparation_context()
+                    .unwrap(),
+            )
+            .unwrap()
+            .witness
+            .clone()
+    }
+
+    // tclsh 8.6.18 and 9.0.4, `tcl::unsupported::representation [expr {E}]`
+    // with `set a 1`: every arithmetic E below is "a int ... no string
+    // representation"; `$a * 1.0` is a double; `$a == 1` is an int.
+    #[test]
+    fn an_integer_arithmetic_result_may_become_its_literal() {
+        use crate::tcl_expr_eval::TclValue;
+        for version in ["tcl8.6", "tcl9.0"] {
+            for (expression, value) in [
+                ("$a + 2", TclValue::Int(3)),
+                ("$a - 2", TclValue::Int(-1)),
+                ("$a * 2", TclValue::Int(2)),
+                ("$a / 2", TclValue::Int(0)),
+                ("$a ** 2", TclValue::Int(1)),
+                ("0x10 + $a", TclValue::Int(17)),
+                ("0o10 + $a", TclValue::Int(9)),
+                (
+                    "$a ** 64 + 2 ** 64",
+                    TclValue::Big(num_bigint::BigInt::from(2u8).pow(64) + 1u8),
+                ),
+            ] {
+                assert_eq!(
+                    contents_only_result_equivalence(&witness(version, expression), &value),
+                    Ok(()),
+                    "{version} {expression}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_double_comparison_or_normalised_result_keeps_its_operation() {
+        use crate::tcl_expr_eval::TclValue;
+        for version in ["tcl8.6", "tcl9.0"] {
+            // 8.6: with `tcl_precision 3` set before its string is generated,
+            // `expr {$a / 3.0}` reads back as 0.333 and the literal as
+            // 0.3333333333333333.
+            for (expression, value) in [
+                ("$a / 3.0", TclValue::Float(1.0 / 3.0)),
+                ("1.0 + $a", TclValue::Float(2.0)),
+                ("$a == 1", TclValue::Int(1)),
+                ("$a < 2", TclValue::Int(1)),
+                ("!$a", TclValue::Int(0)),
+                ("$a", TclValue::Int(1)),
+            ] {
+                assert_eq!(
+                    contents_only_result_equivalence(&witness(version, expression), &value),
+                    Err(ExpressionRewriteDecline::NativeResultAllocation),
+                    "{version} {expression}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_contents_only_replacement_follows_the_result_recipe() {
+        for version in ["tcl8.6", "tcl9.0"] {
+            // Pooled: C precomputes the constant tree into a literal.
+            assert_eq!(
+                expression_result_protocol_equivalence(&witness(version, "2 + 2"), None),
+                Ok(())
+            );
+            // Integer-only operators.
+            for expression in ["$a % 3", "$a << 1", "$a & 1", "~$a"] {
+                assert_eq!(
+                    expression_result_protocol_equivalence(&witness(version, expression), None),
+                    Ok(()),
+                    "{version} {expression}"
+                );
+            }
+            // A numeric or normalised result needs its evaluated value.
+            for expression in ["$a + 2", "$a"] {
+                assert_eq!(
+                    expression_result_protocol_equivalence(&witness(version, expression), None),
+                    Err(ExpressionRewriteDecline::NativeResultAllocation),
+                    "{version} {expression}"
+                );
+            }
+        }
     }
 }

@@ -2329,18 +2329,27 @@ fn retained_result_needs_native_protocol(
     preparation: Option<&crate::command_binding::SourceExpressionPreparation>,
     point: Option<ExpressionEvaluationPoint>,
     analysis: bool,
+    value: Option<&FoldedExpressionContents>,
 ) -> bool {
     if analysis || matches!(point, Some(ExpressionEvaluationPoint::Branch { .. })) {
         return false;
     }
-    // ConstValue retains contents only. A retained result instruction also
-    // carries normalisation, allocation or pool-reuse semantics that this
+    // ConstValue retains contents only. A retained result instruction may also
+    // carry normalisation, allocation or pool-reuse semantics that this
     // projection cannot preserve. Consumed branch values have no output object.
     preparation.is_some_and(|preparation| {
-        crate::expression_rewrite::expression_result_protocol_equivalence(
-            &preparation.witness,
-            None,
-        )
+        match value {
+            Some(FoldedExpressionContents::Numeric(value)) => {
+                crate::expression_rewrite::contents_only_result_equivalence(
+                    &preparation.witness,
+                    value,
+                )
+            }
+            _ => crate::expression_rewrite::expression_result_protocol_equivalence(
+                &preparation.witness,
+                None,
+            ),
+        }
         .is_err()
     })
 }
@@ -2363,9 +2372,7 @@ fn fold_math_expression(
             .bindings
             .preparation_for_context(&policy.preparation_context()?)
     });
-    if context.is_some_and(|context| context.bindings.is_positioned()) && preparation.is_none()
-        || retained_result_needs_native_protocol(preparation, point, analysis_purpose)
-    {
+    if context.is_some_and(|context| context.bindings.is_positioned()) && preparation.is_none() {
         return None;
     }
     let expression = preparation.map_or(expression, |preparation| preparation.witness.tree());
@@ -2423,6 +2430,9 @@ fn fold_math_expression(
         analysis_purpose,
         matches!(point, Some(ExpressionEvaluationPoint::Branch { .. })),
     )?;
+    if retained_result_needs_native_protocol(preparation, point, analysis_purpose, value.as_ref()) {
+        return None;
+    }
     let consumed = consumed.into_inner();
     if let Some(ledger) = ledger {
         let preparations: &[crate::command_binding::SourceExpressionPreparation] =

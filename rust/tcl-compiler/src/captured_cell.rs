@@ -73,6 +73,13 @@ impl std::hash::Hash for CapturedCellArena {
 }
 
 impl CapturedCellArena {
+    /// Begin a receipt lineage for one analysis entry. Numbering continues
+    /// after the receipts it already holds, so it depends only on this state.
+    pub(crate) fn start_lineage(&mut self) {
+        let held = self.leases.keys().map(|id| id.0).max().unwrap_or(0);
+        self.issued = Arc::new(AtomicU64::new(held));
+    }
+
     /// Capture a proved receiver for one reached operation.
     /// The unique receipt does not claim uniqueness of its allocation family.
     pub fn capture(&mut self, receiver: &Place) -> Option<CapturedCellLeaseId> {

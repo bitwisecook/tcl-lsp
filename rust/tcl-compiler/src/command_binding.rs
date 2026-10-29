@@ -4983,6 +4983,9 @@ fn initial_source_interpretation_state(
     options: SourceAnalysisOptions<'_>,
 ) -> ModuleCommandBindings {
     let mut state = ModuleCommandBindings::initial_with_options(registry, options, Some(config));
+    Arc::make_mut(&mut state.source_variables)
+        .captured_cells
+        .start_lineage();
     state.current_source_origin = Some(Arc::new(match options.source_point_entry {
         Some(parent) => SourceOriginId::from_kind(SourceOriginKind::InheritedPoint {
             parent: parent.source_origin(),

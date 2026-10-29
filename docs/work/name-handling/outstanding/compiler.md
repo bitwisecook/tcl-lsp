@@ -1,5 +1,30 @@
 # Outstanding work: compiler agent
 
+## Resume — compiler role, rounds 4–5 (2026-10-28/29, CI 5248 routing)
+
+- **Tk-profile corrections withdrawn.**
+  - A `tk` build seeds no taint at all, not even `set v [gets stdin]; eval $v`.
+  - The tk environment is `open_policy`, and the CU's exact dispatch proofs after the first command come back `unknown`; the realm projection still answers `Must(eval)`.
+  - So the 22 positive tests fail and the 6 emptiness tests would pass only vacuously. All 28 keep their original form, pending a decision on a closed-world Tk build.
+- **Undefined-variable fixtures.** `interp_eval_literal_clean` (defined child) passes non-vacuously. The expansion `flag` fixture is reverted because the test still fails: the realm reports `{*}$command` heads as unknown.
+- **Taint nested-replay product fixes (`taint.rs`).** All are fail-closed.
+  - The ambient table is read at the nested script's entry dispatch site.
+  - No self-alias is emitted; tclsh deletes `eval` on `interp alias {} eval {} eval`.
+  - Synthetic marker heads are skipped.
+  - Replay seed globals are defined before the invocation. C Tcl errors on an unset global, so the closed world never entered the replay body.
+- **Taint tests corrected (6).** Dialect builds, plus tclsh-proven fixtures (`set fd stdin`, `namespace eval ::ns {}`, `set flag …`).
+- **Remaining G3 rows** trace to realm `unknown` facts: eval-body nested sites, `{*}` heads, may-target variable heads, and `expr {abs($x)}` inside `set`. G4: `chan configure $fd`/`fconfigure $fd` take a normal-invocation source colour.
+- **mro_lattice.**
+  - 6 of 8 corrected: dialect build, with tclsh-proven `x`/`other`/`flag` fixtures.
+  - Registry trait `TCLOO_RUNTIME_HANDLE_RESULT` added on `oo::copy`.
+  - `classify_bound_rhs` now consults that trait and dynamic-head manufacturer methods.
+- **class_factories (83), not fixed.** In a class body, `superclass X` and `method {*}{…}` return `routes=[Unknown]`. The completed world goes unclosed and opaque, so `Meta create X` is never recorded.
+- **Stack abort.** The source-binding loop chain costs 31,200 B per level against the 24 KiB budget, so it overflows 2 MiB at about 62 levels (compiler-names).
+- **tcl-irules (27).**
+  - The realm answers Rebound for `::when` at offset 0 and for `pool` inside handler bodies, so when-discovery and object refs come back empty.
+  - Event emission is empty.
+  - Undefined-variable fixtures: `rename $old p`.
+
 ## Resume — compiler role, round 3 (2026-10-28, standalone-unit decision 20261028T0920Z)
 
 Per-test classification JSON: scratchpad `r4/standalone-correction-classification.json` (taint, taint_depth, o129, sweep). Classification built each failing test three ways (as is, profile dialect, dialect + `set fd stdin`; tclsh 8.6/9.0 probe `r4/fd-probe.txt` shows the undefined `$fd` errors). Corrected only tests whose unchanged assertions pass non-vacuously; tests that pass only because the dialect proves an earlier non-profile command (Tk, URI::/SSL::, `file` in iRules) errors keep their form.
