@@ -1534,6 +1534,14 @@ impl SourceCommandBindings {
         })
     }
 
+    /// Whether the root's final modelled command world holds an unknown
+    /// command-binding mutation. Possible errors, unknown commands reaching a
+    /// handler and closed effects are not mutations of the command table.
+    #[must_use]
+    pub(crate) fn final_world_has_unknown_command_mutation(&self) -> bool {
+        self.final_state.opaque_binding_mutation
+    }
+
     /// Completed original root publication ledger. Partial fallback states,
     /// unknown mutations and observed execution do not supply final liveness.
     #[must_use]

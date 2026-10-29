@@ -1,0 +1,61 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T09:08:47.297033+00:00",
+  "scheduled_report_utc": "2026-10-29T09:07:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "compiler-codegen: C9 regexp inline compile plan (9.0/9.1 only, oracle-pinned against tclsh 9.0.4 disassembly) and H5 slice-2 notes (closed lvt, 1824 B/command leak measured) done. Independent review CHANGES-REQUIRED: two registry tests still expect Unknown on 9.x (F1), SIMPLE_WORD split must be gated to C Tcl in registry_invocation (F2), missing oracle rows (F4); all routed.",
+    "Real C divergence found and being fixed: bare/quoted words holding a non-variable `$` are not SIMPLE_WORD in C (string match emits strmatch, switch invokes generically); grant given for the two shape producers.",
+    "lsp: option (a) reverted (completed command world is None for ordinary files such as `puts hello`; would break workspace scan). Replacement approved: compiler-names adds a root unknown-command-mutation accessor; lsp consumes it only in positive reference projection.",
+    "iRules tests now pass the preflight and fail in tcl-vm (canonical local name unavailable; native string cache origin; NativePreflightRequired) - routed to vm-runtime.",
+    "Temporary diagnosis probes captured by the 08:05 snapshot: removed from five files; seven files still carry live probes and are kept out of commits."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "CI 5248 pass->fail clusters (all roles)",
+    "regexp review fixes",
+    "unknown-mutation accessor",
+    "seal-split selector + namespace121",
+    "optimiser set lowering"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T09:37:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

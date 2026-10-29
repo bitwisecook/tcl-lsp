@@ -259,7 +259,7 @@ mod tests {
     }
 
     // Each expectation is the tclsh 9.0.4 `disassemble lambda` listing.
-    fn release_cases() -> [(&'static [u8], NativeRegexpMatcher, usize); 25] {
+    fn release_cases() -> [(&'static [u8], NativeRegexpMatcher, usize); 30] {
         use NativeRegexpMatcher::Equal;
         [
             // loadScalar re; loadScalar s; regexp +3
@@ -294,6 +294,15 @@ mod tests {
             (b"regexp {a\\.b} $s", glob(b"*a.b*", false), 2),
             (b"regexp {a.*b.*c} $s", regexp(1, false), 2),
             (b"regexp {a.+} $s", glob(b"*a?*", false), 2),
+            // push "a b" (backslash-newline in braces); regexp +3
+            (b"regexp {a\\\nb} $s", regexp(1, false), 2),
+            // loadScalar re; push "abc"; regexp +3
+            (b"regexp $re abc", regexp(1, false), 2),
+            // push ""; streq
+            (b"regexp {^$} $s", Equal(Vec::new()), 2),
+            // push "a\*b"; strmatch +0
+            (b"regexp {^a\\*b$} $s", glob(b"a\\*b", false), 2),
+            (b"regexp {a.+b.+c} $s", regexp(1, false), 2),
         ]
     }
 
@@ -328,6 +337,14 @@ mod tests {
             b"regexp -nocase -- $s",
             b"regexp $s",
             b"regexp {*}$args",
+            b"regexp -nocasex abc $s",
+            b"regexp -N abc $s",
+            b"regexp - abc $s",
+            b"regexp -- -nocase abc $s",
+            b"regexp -noc\\x61se abc $s",
+            b"regexp -n$ abc $s",
+            // A backslash member keeps EXPAND_WORD: invokeExpanded.
+            b"regexp {*}{a\\.b} $s",
         ] {
             assert_eq!(
                 select(source, TclVersion::V9_0).unwrap_err(),

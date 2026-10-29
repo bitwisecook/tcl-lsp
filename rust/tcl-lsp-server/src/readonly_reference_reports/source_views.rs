@@ -1558,6 +1558,8 @@ impl OriginalSourceViewSettlement {
         scopes.join("; ")
     }
 
+    pub(crate) fn tmp_probe_aggregate_complete(&self) -> bool { self.aggregate_complete() }
+    pub(crate) fn tmp_probe_scopes(&self) -> String { self.scopes.iter().map(|scope| format!("[{} complete={} conditional={} root={}]", scope.root_uri.as_str(), scope.complete, scope.conditional_obligations, scope.root.is_some())).collect::<Vec<_>>().join(" ") }
     fn aggregate_complete(&self) -> bool {
         self.scopes
             .iter()

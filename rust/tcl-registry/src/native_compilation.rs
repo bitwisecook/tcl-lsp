@@ -5629,10 +5629,16 @@ fn regexp_grammar(
         .checked_sub(1)
         .and_then(|last| words.arguments().literal_at(last))
         == Some("--");
+    // An analysis shape keeps a bare `a$` Literal; C splits it (see
+    // `splits_into_text_tokens`), so it is no SIMPLE pattern here either.
     let pattern = crate::native_regexp_compilation::simple_word_bytes(
         shapes[index],
         words.arguments().literal_at(index).map(str::as_bytes),
-    );
+    )
+    .filter(|pattern| {
+        shapes[index] == NativeCompilationWordShape::BracedLiteral
+            || !splits_into_text_tokens(pattern)
+    });
     if literal_shape(shapes[index]) && words.arguments().literal_at(index).is_none() {
         Selection::Unknown
     } else if pattern.is_some_and(|pattern| pattern.first() == Some(&b'-')) && !saw_last {
@@ -7854,9 +7860,26 @@ mod tests {
                         Some(InvocationDialect::for_version(version)),
                         context(NativeCompilationFrame::ProcedureCode),
                     ),
-                    NativeCompilationSelection::Unknown,
+                    regexp_selection(native, version),
+                    "{version:?} {arguments:?}",
                 );
             }
+        }
+    }
+
+    // tclsh 9.0.4/9.1.0 `regexp $re $s`: loadScalar1; loadScalar1; regexp +3.
+    // The pre-9 regexp compilers are unmodelled.
+    fn regexp_selection(
+        native: NativeCompilationSpec,
+        version: TclVersion,
+    ) -> NativeCompilationSelection {
+        if version >= TclVersion::V9_0 {
+            NativeCompilationSelection::Inline {
+                operation: native.operation,
+                guard: NativeCompilationGuard::BeforeArguments,
+            }
+        } else {
+            NativeCompilationSelection::Unknown
         }
     }
 
@@ -7876,7 +7899,8 @@ mod tests {
             let dialect = Some(InvocationDialect::for_version(version));
             assert_eq!(
                 native.select(words, &shapes, dialect, compilation),
-                NativeCompilationSelection::Unknown
+                regexp_selection(native, version),
+                "{version:?}"
             );
             assert_eq!(
                 native.operand_layout(words, &shapes, dialect, compilation),
