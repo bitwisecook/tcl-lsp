@@ -148,6 +148,18 @@ fn inline_ops_at_8_6(is_proc: bool, params: &[&str], text: &str) -> Vec<Op> {
     ctx.instructions.iter().map(|i| i.op).collect()
 }
 
+/// `inline_ops_at_8_6` for a command substitution whose original command
+/// tokens are retained, as the native list compilers require.
+fn tokened_ops_at_8_6(params: &[&str], command: &str) -> Vec<Op> {
+    let profile =
+        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 is a catalogue profile");
+    let reg = registry().project_for_profile(profile);
+    let mut ctx = CodegenCtx::new(true, params, &reg);
+    let tokens = command_tokens(command);
+    ctx.emit_inline_cmd_subst_with_tokens(&format!("[{command}]"), Some(&tokens));
+    ctx.instructions.iter().map(|i| i.op).collect()
+}
+
 /// Opcodes emitted by `emit_value(value, interpolate)`.
 fn value_ops(is_proc: bool, params: &[&str], value: &str, interpolate: bool) -> Vec<Op> {
     let reg = registry();
@@ -620,6 +632,7 @@ fn cmd_subst_string_replace_fast_path_and_fallback() {
 
 #[test]
 fn cmd_subst_string_equal_compare_invoke_replace_forms() {
+    // A standalone unit needs its release: the release-blind registry selects no compiler.
     // The `-nocase` / `-length` flag forms of `string equal` / `string compare`
     // route through `INVOKE_REPLACE` (against the `::tcl::string::…` FQN),
     // distinct from the bare 2-arg `STR_EQ` / `STR_CMP` fast ops.
@@ -645,6 +658,7 @@ fn cmd_subst_string_equal_compare_invoke_replace_forms() {
 
 #[test]
 fn cmd_subst_array_names_size_and_exists() {
+    // A standalone unit needs its release: the release-blind registry selects no compiler.
     // `emit_inline_array`: `names`/`size` route through a startCommand-wrapped
     // `::tcl::array::<sub>` invoke; `exists` on a proc-local takes the dedicated
     // `ARRAY_EXISTS_IMM` immediate opcode.
@@ -726,14 +740,15 @@ fn cmd_subst_regexp_nocase_glob_and_plain_forms() {
 
 #[test]
 fn cmd_subst_lindex_multi_index_form() {
+    // A standalone unit needs its release: the release-blind registry selects no compiler.
     // `emit_inline_lindex`: a single immediate index → `LIST_INDEX_IMM`; a
     // multi-index path → `LINDEX_MULTI`.
     assert!(
-        inline_ops_at_8_6(true, &["l"], "[lindex $l 0]").contains(&Op::LIST_INDEX_IMM),
+        tokened_ops_at_8_6(&["l"], "lindex $l 0").contains(&Op::LIST_INDEX_IMM),
         "single immediate index → LIST_INDEX_IMM",
     );
     assert!(
-        inline_ops_at_8_6(true, &["m"], "[lindex $m 0 1]").contains(&Op::LINDEX_MULTI),
+        tokened_ops_at_8_6(&["m"], "lindex $m 0 1").contains(&Op::LINDEX_MULTI),
         "multi-index → LINDEX_MULTI",
     );
     // tclsh: lindex {a b c} 1 → b ; lindex {{a b} c} 0 0 → a  (8.6 + 9.0)
