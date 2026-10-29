@@ -41,6 +41,83 @@ fn quiet(state: &ModuleCommandBindings) -> bool {
         && state.command_observers.is_quiet()
 }
 
+/// Whether the selected intrinsic `namespace eval` handler, in a quiet world,
+/// declares nothing beyond its own script callback and namespace Ensure.
+fn admits_delegation(
+    native: SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+) -> bool {
+    use tcl_registry::{
+        hooks::{AnalyserHookId, LoweringHookId},
+        world_effect::{CallbackKinds, EffectAccessMode, Reentrancy, WorldStateDomain},
+    };
+    quiet(state)
+        && facts.arity_accepts_frozen_arguments() == Some(true)
+        && facts.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(LoweringHookId::NamespaceEval)
+        && facts.analyser_hook == Some(AnalyserHookId::NamespaceEval)
+        && native.target.registry_backed
+        && native.target.kind == super::BindingKind::Builtin
+        && native.target.implementation_generation == 0
+        && native.target.runtime_implementation_generation.is_none()
+        && native.target.prepended.is_empty()
+        && state.retained_target_is_current(native.target)
+        && facts.effects.callback().kinds == CallbackKinds::SCRIPT
+        && facts.effects.callback().reentrancy == Reentrancy::CurrentInterpreter
+        && !facts.effects.accesses().iter().any(|access| {
+            matches!(
+                access.domain,
+                WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
+            ) && access.mode != EffectAccessMode::Read
+        })
+}
+
+/// The C namespace scope of the single declared named Ensure, read under the
+/// body operand's own name policy.
+fn ensured_namespace_scope(
+    native: SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    body_policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> Option<SignatureNamespaceScope> {
+    use tcl_registry::{NamespaceTransition, NamespaceTransitionTarget, StateTransition};
+    let transitions = facts.state_transitions.declared()?;
+    let [fact] = transitions.facts() else {
+        return None;
+    };
+    let StateTransition::Namespace(NamespaceTransition::Ensure {
+        namespace: NamespaceTransitionTarget::Named(subject),
+    }) = &fact.transition
+    else {
+        return None;
+    };
+    let input = super::original_command_table::original_operand(native, subject, state, context)?;
+    let policy = input.policy();
+    input.original_word_key()?;
+    let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
+        return None;
+    };
+    if body_policy != policy {
+        return None;
+    }
+    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let spec = context.registry.get_for_surface(
+        native.target.registry_identity()?,
+        Some(dialect.authoring_query()?.with_realm(context.realm())),
+    )?;
+    if tcl_registry::registry::spec_pack_of(spec) != Some("tcl") {
+        return None;
+    }
+    let scope = state.original_namespace_geometry(&context.namespace_identity(), policy)?;
+    let path = policy
+        .recipe()
+        .namespace_address_path(scope.context()?, input.bytes())
+        .ok()?;
+    Some(SignatureNamespaceScope::C(path))
+}
+
 impl OriginalNamespaceBodyDelegation {
     fn capture(
         native: SourceNativeInvocation<'_>,
@@ -49,34 +126,8 @@ impl OriginalNamespaceBodyDelegation {
         context: SourceExecutionContext<'_>,
         variables: &crate::var_resolve::ResolveContext,
     ) -> Option<Self> {
-        use tcl_registry::{
-            NamespaceTransition, NamespaceTransitionTarget, StateTransition,
-            hooks::{AnalyserHookId, LoweringHookId},
-            script_body_flow::ScriptBodyFlow,
-            world_effect::{CallbackKinds, EffectAccessMode, Reentrancy, WorldStateDomain},
-        };
-        if !quiet(state)
-            || facts.arity_accepts_frozen_arguments() != Some(true)
-            || facts.operation
-                != tcl_registry::SemanticOperationId::StructuredLowering(
-                    LoweringHookId::NamespaceEval,
-                )
-            || facts.analyser_hook != Some(AnalyserHookId::NamespaceEval)
-            || !native.target.registry_backed
-            || native.target.kind != super::BindingKind::Builtin
-            || native.target.implementation_generation != 0
-            || native.target.runtime_implementation_generation.is_some()
-            || !native.target.prepended.is_empty()
-            || !state.retained_target_is_current(native.target)
-            || facts.effects.callback().kinds != CallbackKinds::SCRIPT
-            || facts.effects.callback().reentrancy != Reentrancy::CurrentInterpreter
-            || facts.effects.accesses().iter().any(|access| {
-                matches!(
-                    access.domain,
-                    WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
-                ) && access.mode != EffectAccessMode::Read
-            })
-        {
+        use tcl_registry::script_body_flow::ScriptBodyFlow;
+        if !admits_delegation(native, facts, state) {
             return None;
         }
         // The own namespace Ensure is accounted by the selected transition.
@@ -107,39 +158,8 @@ impl OriginalNamespaceBodyDelegation {
             native.segment.span.start(),
             context.config,
         )?;
-        let transitions = facts.state_transitions.declared()?;
-        let [fact] = transitions.facts() else {
-            return None;
-        };
-        let StateTransition::Namespace(NamespaceTransition::Ensure {
-            namespace: NamespaceTransitionTarget::Named(subject),
-        }) = &fact.transition
-        else {
-            return None;
-        };
-        let input =
-            super::original_command_table::original_operand(native, subject, state, context)?;
-        let policy = input.policy();
-        input.original_word_key()?;
-        let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
-            return None;
-        };
-        if body_input.policy() != policy {
-            return None;
-        }
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
-        let spec = context.registry.get_for_surface(
-            native.target.registry_identity()?,
-            Some(dialect.authoring_query()?.with_realm(context.realm())),
-        )?;
-        if tcl_registry::registry::spec_pack_of(spec) != Some("tcl") {
-            return None;
-        }
-        let scope = state.original_namespace_geometry(&context.namespace_identity(), policy)?;
-        let path = policy
-            .recipe()
-            .namespace_address_path(scope.context()?, input.bytes())
-            .ok()?;
+        let namespace_scope =
+            ensured_namespace_scope(native, facts, state, context, body_input.policy())?;
         Some(Self {
             site: CommandAllocationSite {
                 source: Arc::clone(state.current_source_origin.as_ref()?),
@@ -150,7 +170,7 @@ impl OriginalNamespaceBodyDelegation {
             handler: native.target.clone(),
             body,
             argument: argument_offset,
-            namespace_scope: SignatureNamespaceScope::C(path),
+            namespace_scope,
         })
     }
 }
