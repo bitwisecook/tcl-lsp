@@ -559,6 +559,8 @@ enum SourceViewPublicationMode {
     AppendRegions,
 }
 
+macro_rules! tmp_view_probe { ($($arg:tt)*) => { if std::env::var_os("TCL_LSP_TMP_VIEW_PROBE").is_some() { eprintln!("TMP_VIEW_PROBE {}", format_args!($($arg)*)); } }; }
+
 impl Backend {
     /// Commit all interpretations of one physical source in the same index
     /// transaction. Pending/unavailable required drafts never call this method.
@@ -1563,6 +1565,24 @@ impl OriginalSourceViewSettlement {
         scopes.join("; ")
     }
 
+    pub(crate) fn tmp_probe_scopes(&self) -> String {
+        self.scopes
+            .iter()
+            .map(|scope| {
+                format!(
+                    "[{} root={} complete={} conditional={} uncertain={} ids={} required={:?}]",
+                    scope.root_uri.as_str(),
+                    scope.root.is_some(),
+                    scope.complete,
+                    scope.conditional_obligations,
+                    scope.root_world_uncertain,
+                    scope.ids.len(),
+                    scope.required.iter().map(|uri| uri.as_str()).collect::<Vec<_>>()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
     fn aggregate_complete(&self) -> bool {
         self.scopes
             .iter()
@@ -2663,11 +2683,13 @@ impl Backend {
         };
         while let Some(task) = state.tasks.pop() {
             if state.membership.len() > 4096 {
+                tmp_view_probe!("scope.incomplete site=1 root={}", root_uri.as_str());
                 return Ok(state.finish_scope(root_id, root_uri, false));
             }
             match task {
                 SourceViewWork::Enter(parent) => {
                     if !self.visit_original_source_view(parent, &mut state).await? {
+                        tmp_view_probe!("scope.incomplete site=2 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     }
                 }
@@ -2677,6 +2699,7 @@ impl Backend {
                     load,
                 } => {
                     let Some(completed_child) = state.finished.get(&child.id) else {
+                        tmp_view_probe!("scope.incomplete site=3 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     let Some(work) = self
@@ -2688,6 +2711,7 @@ impl Backend {
                         )
                         .await?
                     else {
+                        tmp_view_probe!("scope.incomplete site=4 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     state
@@ -2697,6 +2721,7 @@ impl Backend {
                         .reconcile_issued_region_frontiers(&work, &mut state)
                         .await?
                     {
+                        tmp_view_probe!("scope.incomplete site=5 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     }
                     if let Some(completion) = work.completion() {
@@ -2707,6 +2732,7 @@ impl Backend {
                         // last issued frame region. It cannot skip to an outer
                         // suffix or manufacture whole-prefix completion.
                         let Some(last) = work.views.last().cloned() else {
+                            tmp_view_probe!("scope.incomplete site=6 root={}", root_uri.as_str());
                             return Ok(state.finish_scope(root_id, root_uri, false));
                         };
                         state.tasks.push(SourceViewWork::AfterRegion {
@@ -2718,9 +2744,11 @@ impl Backend {
                 }
                 SourceViewWork::AfterRegion { work, region } => {
                     let Some(Some(completed)) = state.finished.get(&region.id) else {
+                        tmp_view_probe!("scope.incomplete site=7 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     let Some(completion) = work.completion_through_region(completed) else {
+                        tmp_view_probe!("scope.incomplete site=8 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     state.active.remove(&work.parent.id);
@@ -2731,6 +2759,7 @@ impl Backend {
         // Finishing a real first cut cannot silently discharge unrelated or
         // held Unknown cards outside the actual replayed region inventory.
         if !state.unknown.is_empty() {
+            tmp_view_probe!("scope.incomplete site=9 root={}", root_uri.as_str());
             return Ok(state.finish_scope(root_id, root_uri, false));
         }
         let no_cut = matches!(state.finished.get(&root_id), Some(None));

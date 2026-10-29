@@ -1,0 +1,921 @@
+binary_id	selector	job	panic_site
+tcl-diagram	data::tests::dynamic_return_forms_keep_their_distinct_possible_completions	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::exact_custom_return_codes_keep_their_integer_payload	rust-tests-shard (4/5)	rust/tcl-diagram/src/data.rs:14
+tcl-diagram	data::tests::exit_statuses_project_release_specific_errors_and_typed_dynamic_outcomes	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::handler_completion_codes_use_the_dialect_numeric_grammar	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::invalid_known_terminator_arity_projects_as_catchable_error	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::literal_invalid_return_forms_project_as_catchable_errors	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::literal_return_options_and_exit_keep_distinct_try_outcomes	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::loop_nodes_carry_their_compiler_exit_reason	rust-tests-shard (4/5)	rust/tcl-diagram/src/data.rs:1084
+tcl-diagram	data::tests::numeric_return_codes_project_as_their_canonical_completions	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::procedure_aliases_and_rebound_registry_heads_stay_source_sensitive	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::procedure_calls_resolve_qualified_names_in_the_callers_namespace	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::registry_actions_resolve_relative_names_in_the_callers_namespace	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::return_completion_preserves_source_word_shape	rust-tests-shard (4/5)	rust/tcl-diagram/src/data.rs:1370
+tcl-diagram	data::tests::return_projection_is_an_explicit_completion_not_a_renderer_guess	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::trailing_return_option_words_are_results_not_missing_values	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::trap_pattern_projection_preserves_the_dialect_escape_value	rust-tests-shard (4/5)	
+tcl-diagram	data::tests::trap_patterns_are_projected_as_tcl_list_elements	rust-tests-shard (4/5)	rust/tcl-diagram/src/data.rs:1489
+tcl-diagram	data::tests::try_projection_carries_exact_completions_and_handler_fallthrough	rust-tests-shard (4/5)	
+tcl-diagram	graph::tests::flowchart_handles_irule_brace_chain	rust-tests-shard (4/5)	rust/tcl-diagram/src/graph.rs:324
+tcl-explorer	asm::tests::synthetic_ops_have_null_range	rust-tests-shard (3/5)	rust/tcl-explorer/src/asm.rs:454
+tcl-explorer	formatters::tests::a_lattice_constant_is_spelled_as_the_fold_spells_it	rust-tests-shard (3/5)	
+tcl-explorer	render::tests::aot_text_follows_the_pass_selection	rust-tests-shard (3/5)	rust/tcl-explorer/src/render.rs:406
+tcl-explorer	render::tests::sccp_text_prints_each_edge_refinement	rust-tests-shard (3/5)	rust/tcl-explorer/src/render.rs:321
+tcl-explorer	render::tests::sccp_text_prints_each_enumerated_loop	rust-tests-shard (3/5)	rust/tcl-explorer/src/render.rs:341
+tcl-explorer	render::tests::sccp_text_prints_the_route_of_each_cell_update	rust-tests-shard (3/5)	rust/tcl-explorer/src/render.rs:271
+tcl-explorer	serialise::tests::annotations_collect_callouts_and_group_by_line	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::asm_emits_structured_instructions_for_top_level	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::cfg_post_ssa_optimised_present_when_source_changes	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::dead_stores_surface_from_o109	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:4745
+tcl-explorer	serialise::tests::durable_compiler_views_are_present_and_cover_extra_units	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::interproc_summarises_procs_with_arity_and_return_shape	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::ir_expands_if_clauses_and_collects_procs	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:468
+tcl-explorer	serialise::tests::optimisations_reports_constant_fold_with_range	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::optimised_ir_and_cfg_present_when_source_changes	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::optimised_source_reflects_constant_fold	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:4701
+tcl-explorer	serialise::tests::sccp_reports_each_statements_completion_paths	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::sccp_reports_each_statements_route_and_answer	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::sccp_reports_folded_types	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:5216
+tcl-explorer	serialise::tests::sccp_reports_the_route_tally	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:5122
+tcl-explorer	serialise::tests::sccp_reports_the_selection	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:5145
+tcl-explorer	serialise::tests::sccp_reports_the_unreached_arms	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:5174
+tcl-explorer	serialise::tests::shimmer_reports_intrep_conversion	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:5368
+tcl-explorer	serialise::tests::stats_reports_function_and_block_counts	rust-tests-shard (3/5)	rust/tcl-explorer/src/serialise.rs:5255
+tcl-explorer	serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence	rust-tests-shard (3/5)	
+tcl-explorer	serialise::tests::wasm_view_exposes_the_native_tier_lowering_record	rust-tests-shard (3/5)	
+tcl-explorer	tests::run_pipeline_collects_procedures_in_order	rust-tests-shard (3/5)	rust/tcl-explorer/src/lib.rs:503
+tcl-explorer	view_tree::tests::ir_view_has_top_level_and_proc_nodes	rust-tests-shard (3/5)	rust/tcl-explorer/src/view_tree.rs:2233
+tcl-lsp-core::authoring_dialect_completion	a_body_with_no_grammar_falls_back_to_ordinary_completion	rust-tests-shard (3/5)	
+tcl-lsp-core::code_actions_depth	an_unrelated_string_map_does_not_clear_t101	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:1421
+tcl-lsp-core::code_actions_depth	check_actions_surface_irule5004_dns_return_fix	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:883
+tcl-lsp-core::code_actions_depth	context_t101_strip_crlf_fix_clears_its_own_diagnostic	rust-tests-shard (4/5)	
+tcl-lsp-core::code_actions_depth	context_t103_regex_quote_fix_clears_its_own_diagnostic	rust-tests-shard (4/5)	
+tcl-lsp-core::code_actions_depth	demorgan_forward_recognises_irules_word_operators	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:5
+tcl-lsp-core::code_actions_depth	demorgan_reverse_collapses_disjunction_of_negations	rust-tests-shard (4/5)	
+tcl-lsp-core::code_actions_depth	demorgan_reverse_recognises_irules_word_operators	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:6
+tcl-lsp-core::code_actions_depth	inline_braced_expr_body_keeps_closing_brace	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:793
+tcl-lsp-core::code_actions_depth	inline_single_command_proc_substitutes_args	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:714
+tcl-lsp-core::code_actions_depth	invert_comparison_flips_equality_operator	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:440
+tcl-lsp-core::code_actions_depth	invert_comparison_flips_relational_operator	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/code_actions_depth.rs:470
+tcl-lsp-core::code_actions_depth	invert_comparison_flips_tip461_string_ordering_operator	rust-tests-shard (4/5)	
+tcl-lsp-core::code_actions_depth	switch_to_dict_offered_for_uniform_assignment_switch	rust-tests-shard (4/5)	
+tcl-lsp-core::command_prefix_integration	bibtex_recordcommand_option_is_a_callback_edge	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	braced_multi_word_prefix_dynamic_head_is_not_recorded	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	call_graph_has_callback_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/command_prefix_integration.rs:39
+tcl-lsp-core::command_prefix_integration	chan_copy_command_option_matches_fcopy	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/command_prefix_integration.rs:841
+tcl-lsp-core::command_prefix_integration	chan_push_handler_is_version_gated_but_still_a_reference	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	copy_callbacks_fire_w123_only_when_unknown	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	coroprobe_records_reference_but_never_arity_checks	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	fcopy_command_option_is_a_callback_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/command_prefix_integration.rs:812
+tcl-lsp-core::command_prefix_integration	find_references_includes_callback_site	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/command_prefix_integration.rs:73
+tcl-lsp-core::command_prefix_integration	halfpipe_write_command_option_records_callback	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	hook_bind_binding_is_a_callback_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/command_prefix_integration.rs:540
+tcl-lsp-core::command_prefix_integration	hook_bind_query_form_is_not_a_callback	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/command_prefix_integration.rs:555
+tcl-lsp-core::command_prefix_integration	list_quoted_prefix_records_head_span_and_baked_count	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	mime_getbody_command_option_is_a_callback_edge	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	namespace_unknown_handler_is_a_callback_edge	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	processman_onexit_script_body_is_recursed_not_a_prefix	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	regsub_command_prefix_fires_w123_only_when_unknown	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	smtp_tlspolicy_option_fires_w123_only_when_unknown	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	struct_graph_walk_command_records_callback_with_arity	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	struct_graph_walk_command_var_handle_fires_w123_only_when_unknown	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	struct_tree_walkproc_trailing_prefix_is_recorded	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	tcllib_struct_list_split_is_a_callback_edge	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	tk_scale_command_bareword_head_is_a_callback_edge	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	tk_scroll_callback_bareword_undefined_head_fires_w123	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	tk_scroll_callback_braced_widget_path_does_not_fire_w123	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	trace_add_variable_write_list_prefix_is_a_reference	rust-tests-shard (5/5)	
+tcl-lsp-core::command_prefix_integration	w123_fires_on_unknown_callback_but_not_a_defined_one	rust-tests-shard (5/5)	
+tcl-lsp-core::command_table_mutation	tn_definition_declines_an_argument_prepending_alias	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tn_lens_count_on_the_shadowed_original_is_zero	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tn_namespace_code_does_not_double_count_a_braced_callback	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tn_references_do_not_merge_two_commands_split_by_a_rename	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tn_references_exclude_a_call_written_before_the_alias	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tn_rename_of_the_shadowed_original_does_not_touch_the_call_site	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_alias_onto_a_live_command_still_resolves_when_written_first	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_definition_follows_a_rename_from_another_bodys_statement	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_lens_counts_each_namespace_code_callback_shape_once	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_references_agree_from_either_declaration_of_a_redefined_proc	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_references_follow_the_latest_binding_not_the_first_map_read	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_references_from_the_alias_name_offer_the_targets_sites	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_references_include_call_sites_spelled_through_an_alias	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_references_on_an_alias_target_reach_the_shadowing_call_site	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_references_reach_a_namespace_code_bareword_callback	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_references_reach_a_namespace_code_list_wrapped_callback	rust-tests-shard (4/5)	
+tcl-lsp-core::command_table_mutation	tp_rename_of_the_alias_target_rewrites_the_declaration_and_alias_word	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	call_completion_lists_user_procs_under_irules	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/completion_residual.rs:824
+tcl-lsp-core::completion_residual	event_name_completion_documents_event_from_registry_props	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	event_name_completion_empty_partial_lists_many_events	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	http_respond_status_lists_all_options_with_empty_partial	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	http_respond_status_offers_bareword_option_values	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	irules_dialect_runs_event_segmentation_for_snippets	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	var_brace_trigger_emits_braced_text_edit	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/completion_residual.rs:127
+tcl-lsp-core::completion_residual	var_completion_cross_namespace_offers_qualified_name	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	var_completion_replace_range_swallows_existing_braced_reference	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	workspace_completion_dedupes_against_local_and_builtins	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	workspace_proc_detail_uses_singular_for_one_param	rust-tests-shard (4/5)	
+tcl-lsp-core::completion_residual	workspace_proc_zero_params_is_plural	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/completion_residual.rs:908
+tcl-lsp-core::datagroup_residual	if_double_equals_operator_is_parsed	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/datagroup_residual.rs:364
+tcl-lsp-core::datagroup_residual	nested_if_inside_when_body_resolves_at_cursor	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/datagroup_residual.rs:615
+tcl-lsp-core::folding	a_retained_opaque_script_still_folds	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/folding.rs:323
+tcl-lsp-core::folding	tcl9_leading_bom_does_not_suppress_the_first_body_fold	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/folding.rs:268
+tcl-lsp-core::force_import_shadow_consumers	code_actions_offer_the_reached_body_for_inlining	rust-tests-shard (5/5)	
+tcl-lsp-core::force_import_shadow_consumers	inline_proc_inlines_the_reached_body_not_the_shadowed_local	rust-tests-shard (5/5)	
+tcl-lsp-core::force_import_shadow_consumers	prepare_rename_offers_the_reached_definition	rust-tests-shard (5/5)	
+tcl-lsp-core::force_import_shadow_consumers	rename_retargets_with_the_shadow	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:572
+tcl-lsp-core::formatting_keywords	a_boolean_option_a_release_in_the_range_lacks_is_not_normalised	rust-tests-shard (4/5)	
+tcl-lsp-core::formatting_keywords	a_boolean_option_present_across_the_range_still_normalises	rust-tests-shard (4/5)	
+tcl-lsp-core::formatting_keywords	a_declared_boolean_option_value_normalises	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/formatting_keywords.rs:219
+tcl-lsp-core::formatting_keywords	a_prefix_unique_across_the_whole_range_still_expands	rust-tests-shard (4/5)	
+tcl-lsp-core::formatting_keywords	a_vendor_dialect_has_no_core_range_and_behaves_as_before	rust-tests-shard (4/5)	
+tcl-lsp-core::formatting_keywords	an_irules_document_gets_the_same_rewrite	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/formatting_keywords.rs:302
+tcl-lsp-core::formatting_keywords	an_option_prefix_is_checked_over_the_range_too	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/formatting_keywords.rs:442
+tcl-lsp-core::formatting_keywords	the_declared_role_reaches_the_whole_boolean_option_surface	rust-tests-shard (4/5)	
+tcl-lsp-core::hover_residual	residual_hover_option_word_of_command	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/hover_residual.rs:407
+tcl-lsp-core::hover_residual	residual_hover_regexp_literal_pattern_notes_no_metacharacters	rust-tests-shard (3/5)	
+tcl-lsp-core::hover_residual	residual_hover_regexp_pattern_anchors_and_class	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/hover_residual.rs:266
+tcl-lsp-core::lsp_core_residual	inline_command_substitution_value_standalone	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/lsp_core_residual.rs:308
+tcl-lsp-core::lsp_core_residual	inline_declines_when_reassigned_later	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/lsp_core_residual.rs:349
+tcl-lsp-core::lsp_core_residual	minify_switch_regexp_case_list_preserved	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/lsp_core_residual.rs:766
+tcl-lsp-core::lsp_core_residual	st_diff_appends_a_single_token_via_provider	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/lsp_core_residual.rs:641
+tcl-lsp-core::lsp_edit_workspace	linked_editing_links_namespace_relative_self_call	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:8
+tcl-lsp-core::lsp_lens_links_symbols	actions_demorgan_rewrite_on_expression_selection	rust-tests-shard (3/5)	
+tcl-lsp-core::lsp_lens_links_symbols	actions_extract_proc_on_selection_is_well_formed	rust-tests-shard (3/5)	
+tcl-lsp-core::lsp_lens_links_symbols	links_literal_file_join_source_resolves	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:753
+tcl-lsp-core::lsp_lens_links_symbols	symbols_oo_configurable_emits_property	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:385
+tcl-lsp-core::lsp_lens_links_symbols	tp_a_single_set_constant_propagates_into_the_join	rust-tests-shard (3/5)	
+tcl-lsp-core::lsp_lens_links_symbols	tp_info_script_based_paths_resolve_through_the_source_graph_evaluator	rust-tests-shard (3/5)	
+tcl-lsp-core::lsp_navigation	declaration_var_jumps_to_upvar_alias_site	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/lsp_navigation.rs:564
+tcl-lsp-core::lsp_navigation	definition_mixin_overrides_the_class_in_dispatch_order_945	rust-tests-shard (4/5)	
+tcl-lsp-core::lsp_navigation	definition_my_call_reaches_unexported_method_945	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/lsp_navigation.rs:195
+tcl-lsp-core::lsp_navigation	definition_proc_body_bare_var_keeps_the_lenient_walk_m11	rust-tests-shard (4/5)	
+tcl-lsp-core::lsp_navigation	definition_through_tailcall_and_coroutine_command_prefix	rust-tests-shard (4/5)	
+tcl-lsp-core::lsp_navigation	implementation_classmethod_is_an_implementation	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/lsp_navigation.rs:851
+tcl-lsp-core::lsp_navigation	implementation_method_outside_class_returns_all_definers	rust-tests-shard (4/5)	
+tcl-lsp-core::lsp_navigation	type_definition_instance_var_jumps_to_inferred_class	rust-tests-shard (4/5)	rust/tcl-lsp-core/tests/lsp_navigation.rs:65
+tcl-lsp-core::lsp_navigation	type_definition_method_word_in_class_body_jumps_to_owning_class	rust-tests-shard (4/5)	
+tcl-lsp-core::lsp_providers	code_lens_count_matches_forward_reference	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/lsp_providers.rs:274
+tcl-lsp-core::lsp_providers	declaration_upvar_alias_is_a_declaration	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/lsp_providers.rs:792
+tcl-lsp-core::lsp_providers	implementation_method_outside_class_returns_all_definers	rust-tests-shard (5/5)	
+tcl-lsp-core::lsp_providers	linked_editing_cursor_inside_body_also_links	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/lsp_providers.rs:1091
+tcl-lsp-core::lsp_providers	linked_editing_links_recursive_self_call	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/lsp_providers.rs:1074
+tcl-lsp-core::lsp_providers	type_definition_method_word_in_class_body_jumps_to_class	rust-tests-shard (5/5)	
+tcl-lsp-core::lsp_providers	type_definition_var_jumps_to_inferred_class	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/lsp_providers.rs:862
+tcl-lsp-core::mathfunc_and_word_recognition	completion_math_functions_are_version_gated	rust-tests-shard (5/5)	
+tcl-lsp-core::mathfunc_and_word_recognition	tp_completion_offers_math_functions_in_if_and_while_conditions	rust-tests-shard (5/5)	
+tcl-lsp-core::mathfunc_and_word_recognition	tp_completion_offers_math_functions_inside_expr	rust-tests-shard (5/5)	
+tcl-lsp-core::mathfunc_and_word_recognition	tp_hover_and_completion_agree_with_the_sweep	rust-tests-shard (5/5)	
+tcl-lsp-core::mathfunc_and_word_recognition	tp_hover_on_max_and_min_in_expr	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/mathfunc_and_word_recognition.rs:142
+tcl-lsp-core::mathfunc_and_word_recognition	tp_hover_type_inference_uses_the_documents_dialect	rust-tests-shard (5/5)	
+tcl-lsp-core::mathfunc_and_word_recognition	tp_idx48_bare_declaring_token_resolves	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/mathfunc_and_word_recognition.rs:5
+tcl-lsp-core::mathfunc_and_word_recognition	tp_idx54_residual_name_after_a_substitution_resolves	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	aggressive_aliases_argument_inside_braced_body	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/minify_residual.rs:423
+tcl-lsp-core::minify_residual	aggressive_constant_interpolation_in_bare_arg_folds_to_literal	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	aggressive_constant_interpolation_in_set_value_preserves_value	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	braced_var_ref_kept_when_next_token_extends_name_in_quotes	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	clock_subcommand_abbreviated_in_irules_dialect	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/minify_residual.rs:660
+tcl-lsp-core::minify_residual	expect_case_lists_minify_without_a_generic_body_role	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/minify_residual.rs:5
+tcl-lsp-core::minify_residual	expect_case_lists_preserve_comment_and_separator_patterns	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	expr_de_morgan_forward_on_or	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/minify_residual.rs:616
+tcl-lsp-core::minify_residual	expr_ternary_operands_are_recursed	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/minify_residual.rs:626
+tcl-lsp-core::minify_residual	isolated_compact_renames_global_and_round_trips_value	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	switch_double_dash_terminator_in_case_list	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/minify_residual.rs:484
+tcl-lsp-core::minify_residual	switch_double_dash_uses_document_dialect_without_a_registry_profile	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	switch_matchvar_option_consumes_value_and_minifies_bodies	rust-tests-shard (5/5)	
+tcl-lsp-core::minify_residual	switch_quoted_body_keeps_quotes	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/minify_residual.rs:542
+tcl-lsp-core::name_resolution	itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc	rust-tests-shard (3/5)	
+tcl-lsp-core::name_resolution	itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc	rust-tests-shard (3/5)	
+tcl-lsp-core::name_resolution	itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference	rust-tests-shard (3/5)	
+tcl-lsp-core::name_resolution	itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration	rust-tests-shard (3/5)	
+tcl-lsp-core::name_resolution	namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed	rust-tests-shard (3/5)	
+tcl-lsp-core::name_resolution	pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	a_locally_declared_method_is_unchanged_by_the_shared_walk	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	declaration_side_query_agrees_with_the_call_site_query	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/oo_mro_parity.rs:1
+tcl-lsp-core::oo_mro_parity	idx53_a_readable_sibling_class_keeps_its_method_checks	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/oo_mro_parity.rs:6
+tcl-lsp-core::oo_mro_parity	idx53_reflectively_installed_members_abstain_instead_of_warning	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	idx97_next_resolves_through_a_metaclass_made_chain	rust-tests-shard (3/5)	rust/tcl-lsp-core/tests/oo_mro_parity.rs:580
+tcl-lsp-core::oo_mro_parity	initialize_block_variables_do_not_leak_between_sibling_classes	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	my_call_to_a_mixin_provided_method_resolves_in_all_three_providers	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	my_call_to_an_inherited_method_resolves_in_all_three_providers	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	next_inside_a_constructor_resolves_in_all_three_providers	rust-tests-shard (3/5)	
+tcl-lsp-core::oo_mro_parity	self_wrapped_mixin_is_a_class_reference_in_all_three_providers	rust-tests-shard (3/5)	
+tcl-lsp-core::semantic_tokens_residual	st_binary_non_format_subcommand_has_no_field_override	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_expr_math_function_carries_default_library	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_irules_custom_registry_proc_is_a_declaration	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_irules_declaration_body_shape_gates_event_and_proc_definition_tokens	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_irules_event_fallback_survives_generic_tcl_registry	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_regexp_double_dash_ends_options_before_pattern	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_switch_case_list_is_list_parsed_not_script_segmented	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_switch_hash_pattern_is_not_a_comment_and_has_no_overlap	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_switch_plain_case_list_recurses_bodies_without_regex_tokens	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_switch_regexp_case_list_subtokenises_patterns_and_recurses_bodies	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_switch_regexp_default_keyword_is_not_a_regex	rust-tests-shard (5/5)	
+tcl-lsp-core::semantic_tokens_residual	st_switch_regexp_literal_pattern_without_metachars_is_plain_regexp	rust-tests-shard (5/5)	
+tcl-lsp-core::stub_arg_roles	a_barrier_stub_fences_its_scope_from_renaming	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:744
+tcl-lsp-core::stub_arg_roles	a_deferred_registry_body_is_a_call_graph_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:231
+tcl-lsp-core::stub_arg_roles	a_mutator_stub_keeps_the_store_it_reads	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:710
+tcl-lsp-core::stub_arg_roles	a_pure_stub_keeps_its_caller_pure	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:664
+tcl-lsp-core::stub_arg_roles	a_scope_alias_stub_aliases_its_local	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:818
+tcl-lsp-core::stub_arg_roles	a_stated_mutation_narrows_an_extension_stub_and_a_stated_barrier_survives_it	rust-tests-shard (5/5)	
+tcl-lsp-core::stub_arg_roles	a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety	rust-tests-shard (5/5)	
+tcl-lsp-core::stub_arg_roles	a_stub_callback_naming_another_proc_leaves_the_fold_standing	rust-tests-shard (5/5)	
+tcl-lsp-core::stub_arg_roles	a_stub_declared_body_is_analysed_as_a_script	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:185
+tcl-lsp-core::stub_arg_roles	a_stub_that_redeclares_a_catalogued_command_answers_nearest_wins	rust-tests-shard (5/5)	
+tcl-lsp-core::stub_arg_roles	an_extension_stub_fences_its_scope_from_renaming	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:875
+tcl-lsp-core::stub_arg_roles	an_extension_stub_is_hidden_in_a_safe_interpreter	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:889
+tcl-lsp-core::stub_arg_roles	an_omitted_optional_slot_shifts_the_body_role	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:388
+tcl-lsp-core::stub_arg_roles	an_unsafe_stub_is_hidden_in_a_safe_interpreter	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:835
+tcl-lsp-core::stub_arg_roles	registry_body_role_is_a_call_graph_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:98
+tcl-lsp-core::stub_arg_roles	registry_command_prefix_role_is_a_call_graph_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:271
+tcl-lsp-core::stub_arg_roles	stub_body_role_is_a_call_graph_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:119
+tcl-lsp-core::stub_arg_roles	stub_command_prefix_role_is_a_call_graph_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:289
+tcl-lsp-core::stub_arg_roles	stub_expr_role_is_a_call_graph_edge	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:219
+tcl-lsp-core::stub_arg_roles	stub_var_role_suppresses_only_the_name_it_declares	rust-tests-shard (5/5)	rust/tcl-lsp-core/tests/stub_arg_roles.rs:463
+tcl-lsp-db	tests::a_completing_callee_reaches_the_optimiser_memo	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:8568
+tcl-lsp-db	tests::body_edit_recomputes_one_item	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:7849
+tcl-lsp-db	tests::check_diagnostics_rerun_whole_file_on_body_edit	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:11499
+tcl-lsp-db	tests::compiler_check_memo_covers_method_and_body_unit_checks	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:8035
+tcl-lsp-db	tests::compiler_check_o122_tailrec_memo_matches_uncached	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:5812
+tcl-lsp-db	tests::cross_file_call_sites::an_unreadable_dispatch_in_a_sourced_library_clears_the_sourcing_files_fold	rust-tests-shard (4/5)	
+tcl-lsp-db	tests::cross_file_call_sites::an_unreadable_dispatch_in_an_unlinked_file_leaves_the_fold_alone	rust-tests-shard (4/5)	
+tcl-lsp-db	tests::cross_file_call_sites::an_unrelated_file_reusing_a_proc_name_does_not_poison_the_seed	rust-tests-shard (4/5)	
+tcl-lsp-db	tests::cross_file_call_sites::caller_in_another_file_agreeing_still_folds	rust-tests-shard (4/5)	
+tcl-lsp-db	tests::cross_file_call_sites::caller_in_another_file_with_a_differing_literal_retracts_the_fold	rust-tests-shard (4/5)	
+tcl-lsp-db	tests::cross_file_call_sites::slice_carries_only_other_files_calls_to_this_files_procs	rust-tests-shard (4/5)	
+tcl-lsp-db	tests::cross_file_in_proc_instance_method_callback_arity	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:9810
+tcl-lsp-db	tests::cross_file_object_dispatch_resolves_via_project_index	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:7507
+tcl-lsp-db	tests::file_analysis_incremental_carries_bigip_version_override	rust-tests-shard (4/5)	rust/tcl-lsp-db/src/lib.rs:7749
+tcl-lsp-db	tests::file_analysis_incremental_matches_full	rust-tests-shard (4/5)	
+tcl-lsp-db::interned_gc	interned_slots_stay_bounded_across_an_edit_session	rust-tests-shard (3/5)	
+tcl-lsp-db::interned_gc	raising_input_durability_disables_the_collector	rust-tests-shard (3/5)	
+tcl-lsp-server	policy_truth_table::every_rewrite_row_applies_through_optimise_document	lsp-e2e-partition (2/3)	
+tcl-lsp-server	policy_truth_table::every_row_offers_fixes_for_shown_findings_only	lsp-e2e-partition (2/3)	
+tcl-lsp-server	policy_truth_table::every_row_publishes_its_shown_set	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::a_constants_only_edit_reschedules_both_children	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:43542
+tcl-lsp-server	tests::a_cross_file_metaclass_resolves_after_the_workspace_scan	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:54
+tcl-lsp-server	tests::a_dynamic_metaclass_head_abstains_even_with_the_scan_index	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::a_global_source_site_converges_without_touching_the_index_1297	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::a_snapshot_resolved_across_a_config_change_is_discarded_not_committed	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::a_source_site_moving_to_global_scope_restores_the_standalone_view_1297	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::a_versioned_require_indexes_the_release_it_asks_for	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:48248
+tcl-lsp-server	tests::a_wish_document_reads_the_workspace_packs_like_any_other	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:56
+tcl-lsp-server	tests::an_invocation_profile_overrules_the_project_file	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:45091
+tcl-lsp-server	tests::auto_source_graph_inherits_entry_requires	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:42939
+tcl-lsp-server	tests::autoload_merge_makes_references_reach_the_library_m8	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:60007
+tcl-lsp-server	tests::autoload_merge_makes_rename_reach_the_library_m8	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:60525
+tcl-lsp-server	tests::classmethod_rename_reaches_subclass_only_document	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:65958
+tcl-lsp-server	tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::code_lens_resolve_disambiguates_same_named_methods_on_different_classes	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::code_lens_resolve_for_inherited_method_counts_subclass_dispatch	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::code_lens_resolve_for_unused_method_is_clickable_with_zero_locations	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::code_lens_resolve_wires_show_references_command	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:65334
+tcl-lsp-server	tests::code_lens_resolve_wires_show_references_command_for_classmethod	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::code_lens_resolve_wires_show_references_command_for_method	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::computed_source_paths_fold_statically_m9	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:65101
+tcl-lsp-server	tests::cross_document_definition_follows_namespace_path_not_collision	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::cross_document_definition_prefers_class_creation_over_define_stub	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::cross_document_definition_resolves_wildcard_imported_proc	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:5
+tcl-lsp-server	tests::cross_document_references_finds_sibling_call_sites	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:59660
+tcl-lsp-server	tests::cross_document_references_follow_namespace_import	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:65257
+tcl-lsp-server	tests::cross_document_references_from_imported_call_reach_source	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:6
+tcl-lsp-server	tests::cross_document_references_reach_caller_from_nested_self_redefinition	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::cross_document_references_reach_caller_from_shadowed_duplicate_decl	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::cross_document_references_resolve_namespace_path_collision	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::cross_document_rename_reaches_caller_from_nested_self_redefinition	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::cross_document_rename_reaches_caller_from_shadowed_duplicate_decl	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::cross_file_arity_survives_w123_disabled_on_pull_path	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:56213
+tcl-lsp-server	tests::cross_file_consumer_bare_dispatch_is_namespace_scoped	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:66293
+tcl-lsp-server	tests::cross_file_consumer_excludes_subclass_dispatch_of_a_self_method	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::cross_file_consumer_finds_classmethod_bare_dispatch	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:66235
+tcl-lsp-server	tests::cross_file_consumer_finds_inheriting_subclass_classmethod_dispatch	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::cross_file_definition_selects_the_dispatch_entry_945	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:66586
+tcl-lsp-server	tests::cross_file_drops_disk_backed_file_when_gone	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:56160
+tcl-lsp-server	tests::cross_file_evidence_sync_settles_after_one_pass	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:50555
+tcl-lsp-server	tests::cross_file_method_definition_jumps_to_inherited_declaration	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::cross_file_method_references_exclude_declaration	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:66097
+tcl-lsp-server	tests::cross_file_method_references_reach_inheritor_document	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:66137
+tcl-lsp-server	tests::cross_file_method_references_reach_inheritor_document_for_classmethod	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::cross_file_method_references_span_override_family	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:66062
+tcl-lsp-server	tests::cross_file_rename_of_a_self_method_leaves_subclass_dispatch_alone	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::cross_file_resolves_against_disk_backed_file	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:56109
+tcl-lsp-server	tests::default_off_w242_hidden_by_default_enableable_via_config	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:44
+tcl-lsp-server	tests::definition_lands_in_the_package_release_tcl_would_load	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:4803
+tcl-lsp-server	tests::definition_resolves_through_a_document_auto_path_package	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:47
+tcl-lsp-server	tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:6
+tcl-lsp-server	tests::diagram_data_command_extracts_structured_flow	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:44535
+tcl-lsp-server	tests::dialect_change_invalidates_rehoming_seed_before_reconciliation_1854	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::did_change_configuration_applies_inline_settings	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:51474
+tcl-lsp-server	tests::did_close_badge_reflects_on_disk_not_discarded_buffer	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:49749
+tcl-lsp-server	tests::did_close_retains_diagnostics_for_on_disk_file_with_problems	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::did_open_waiting_for_db_leaves_requests_serviceable_1849	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:55
+tcl-lsp-server	tests::did_rename_forgets_the_autoloaded_library_record_1298	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:68566
+tcl-lsp-server	tests::did_rename_forgets_the_source_rehoming_seed_1298	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:68412
+tcl-lsp-server	tests::did_rename_of_an_unrelated_file_keeps_other_seeds_1298	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:6852
+tcl-lsp-server	tests::dropping_one_factory_reindexes_its_consumers_while_retaining_others	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::fix_all_safe_issues_analyses_under_the_documents_layers	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:523
+tcl-lsp-server	tests::fix_all_safe_issues_applies_only_shown_fixes	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:52229
+tcl-lsp-server	tests::fresh_open_index_seed_carries_workspace_class_factories_1854	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::goto_definition_follows_inherited_method_cross_file	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:66554
+tcl-lsp-server	tests::goto_definition_from_consumer_cursor_finds_cross_file_method	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::method_rename_reaches_subclass_only_document	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:65904
+tcl-lsp-server	tests::method_rename_spans_override_family_across_documents	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:65851
+tcl-lsp-server	tests::mixed_global_and_namespaced_source_sites_reach_a_fixed_point_1297	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::multi_seeded_declaration_unions_every_runtime_identity_945	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::no_code_lens_ever_carries_an_inert_empty_command	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:65565
+tcl-lsp-server	tests::open_index_publish_does_not_wedge_an_index_reader_needing_documents_1849	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::open_index_publish_releases_documents_while_an_index_reader_drains_1854	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::open_index_seed_retries_after_factory_oracle_change_1854	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:63
+tcl-lsp-server	tests::optimise_document_command_honours_noqa_issue_2119	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:45041
+tcl-lsp-server	tests::optimise_document_command_honours_the_optimiser_policy_issue_2119	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::pending_new_workspace_symbols_use_project_factory_oracle_1854	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::publish_analyser_diagnostics_caches_tcl_diagnostics	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:49086
+tcl-lsp-server	tests::pull_path_honours_folder_generic_variable_patterns	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:47187
+tcl-lsp-server	tests::range_tokens_read_the_unit_under_the_workspace_pack_overlay	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::references_handler_bigip_conf_finds_path_occurrences	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:65630
+tcl-lsp-server	tests::references_handler_from_consumer_cursor_finds_family	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:66682
+tcl-lsp-server	tests::references_handler_includes_cross_file_method_sites	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:66490
+tcl-lsp-server	tests::references_handler_reaches_own_calls_in_a_pure_consumer_document	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::references_reach_pure_consumer_document	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:66655
+tcl-lsp-server	tests::rehomed_symbol_snapshot_does_not_hold_its_gate_while_waiting_for_scan	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::rehoming_gate_dedups_concurrent_reconciliation_passes	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:60997
+tcl-lsp-server	tests::rehoming_never_waits_for_live_publication_that_needs_its_gate_1854	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::rehoming_snapshot_releases_documents_and_rechecks_open_1854	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_oracle	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::rename_disambiguates_method_and_classmethod_of_the_same_name	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::rename_edits_span_multiple_documents	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:65743
+tcl-lsp-server	tests::rename_from_a_consumer_document_rewrites_the_defining_sibling	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::rename_to_builtin_blocked_cross_document	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:68090
+tcl-lsp-server	tests::renaming_a_sourced_pair_restores_the_rehoming_early_return_1298	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::scan_workspace_folders_does_not_build_deep_tier_for_unopened_files	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::scan_workspace_folders_indexes_unopened_files	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/src/lib.rs:54279
+tcl-lsp-server	tests::scan_workspace_folders_skips_open_documents	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:54708
+tcl-lsp-server	tests::source_fact_changes_select_ancestors_and_descendants_not_siblings	lsp-e2e-partition (1/3)	
+tcl-lsp-server	tests::sourced_file_declaration_finds_qualified_callers_m9	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:60719
+tcl-lsp-server	tests::sourced_file_defs_rehome_through_a_same_file_constant_variable_idx_46	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::sourced_file_defs_rehome_under_the_source_site_namespace_m9	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::superseded_open_index_replacement_is_rolled_back_1907	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:62211
+tcl-lsp-server	tests::the_pass_count_follows_the_profile_in_force	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/src/lib.rs:45151
+tcl-lsp-server	tests::the_report_surfaces_compiler_check_codes	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:44083
+tcl-lsp-server	tests::watched_change_refreshes_closed_file_badge	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/src/lib.rs:50214
+tcl-lsp-server	tests::watched_delete_cancels_queued_live_source_publications_1854	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::watched_delete_keeps_pending_buffer_below_salsa_readiness_1854	lsp-e2e-partition (3/3)	
+tcl-lsp-server	tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles	lsp-e2e-partition (2/3)	
+tcl-lsp-server	tests::workspace_resolved_references_reaches_the_current_documents_own_calls	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	code_actions::an_optimiser_rewrite_is_offered_as_a_quick_fix	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	code_actions::test_demorgan_forward	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/code_actions.rs:759
+tcl-lsp-server::e2e	code_actions::test_demorgan_reverse	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/code_actions.rs:776
+tcl-lsp-server::e2e	code_actions::test_e004_dangling_elseif_offers_remove_clause_fix	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	code_actions::test_e100_offers_insert_bracket_before_user_proc	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	code_actions::test_extract_proc_attaches_rename_command	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	code_actions::test_extract_proc_available_without_diagnostics	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	code_actions::test_extract_proc_carries_a_caller_write_through_upvar	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	code_actions::test_extract_proc_refuses_a_selection_containing_return	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	code_actions::test_extract_proc_refuses_a_selection_inside_a_namespace_eval	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	code_actions::test_extract_proc_snippets	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/code_actions.rs:517
+tcl-lsp-server::e2e	code_actions::test_if_to_switch_offered_inside_an_apply_lambda_body	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	code_actions::test_inline_proc_available	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/code_actions.rs:700
+tcl-lsp-server::e2e	code_actions::test_inline_proc_binds_a_declared_default	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	code_actions::test_inline_proc_refuses_a_braced_argument_with_a_reason	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	code_actions::test_invert_expression	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/code_actions.rs:793
+tcl-lsp-server::e2e	code_actions::test_package_suggestion_offered_on_an_unresolved_command_head	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	code_actions::test_s100_eq_numeric_offers_no_numeric_comparison_fix	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	code_actions::test_t102_fires_for_assign_value_wrapped_call	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	code_actions::test_w003_offers_string_compare_fix_for_lt	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	code_actions::test_w004_offers_remove_option_fix	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/code_actions.rs:42
+tcl-lsp-server::e2e	code_actions::test_w123_no_harmful_exit_replacement_for_dict_ensemble_bare_exists	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	code_actions::test_w201_no_rewrite_for_mixed_segment	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	code_actions::test_w201_offers_file_join_rewrite	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/code_actions.rs:13
+tcl-lsp-server::e2e	code_actions::test_w216_offers_fix_for_brace_wrapped_index_substitution	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	commands::diagram_data_serialises_completion_contract_for_clients	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	commands::diagram_extracts_irule_events	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/commands.rs:401
+tcl-lsp-server::e2e	commands::fix_all_safe_issues_braces_a_substitution_free_expression	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	commands::fix_all_safe_issues_reports_the_safety_class_it_applied	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	commands::minimize_diagnostic_shrinks_to_the_lines_that_still_report_it	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	completion::command_form_locals_complete_in_the_vscode_fixture	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	completion::dollar_auto_braces_var_name_with_hyphen	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/completion.rs:2
+tcl-lsp-server::e2e	completion::dollar_completion_offers_dict_for_loop_vars	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	completion::dollar_completion_offers_dict_update_aliases	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	completion::dollar_completion_offers_dict_with_keys_from_const_literal	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	completion::dollar_completion_offers_try_on_error_bindings	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	completion::dollar_completion_offers_upvar_alias	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/completion.rs:548
+tcl-lsp-server::e2e	completion::dollar_completion_uplevel_one_abstains_from_proc_scope	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	completion::dollar_completion_uplevel_zero_uses_global_scope	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	completion::dollar_global_var_from_namespace_offers_qualified	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	completion::dollar_text_edit_brace_form	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/completion.rs:181
+tcl-lsp-server::e2e	completion::dollar_text_edit_brace_form_consumes_existing_close	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	completion::dollar_text_edit_brace_form_empty_with_close	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	completion::dollar_text_edit_brace_midword_with_hyphenated_name	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	completion::dollar_text_edit_midword_brace_form_replaces_full_token	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	completion::fuzzy_method_fallback_does_not_hijack_prefix_match	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	completion::math_functions_complete_in_an_if_condition_974	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	completion::math_functions_complete_inside_expr_974	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/completion.rs:8
+tcl-lsp-server::e2e	config::diagnostic_severity_override_is_per_code	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/config.rs:529
+tcl-lsp-server::e2e	config::diagnostic_severity_override_relevels_a_diagnostic	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	config::disabling_signature_help_suppresses_provider	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/config.rs:266
+tcl-lsp-server::e2e	config::watched_delete_retires_an_open_documents_index_entry	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	config::watched_upper_case_extension_round_trips_through_the_index	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::a_call_before_the_forget_still_resolves_cross_document	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	definition::a_forced_import_from_a_wholly_foreign_namespace_shadows_end_to_end	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::a_forced_import_of_an_unexported_name_keeps_the_local_end_to_end	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::a_forced_import_shadows_the_local_command_cross_document	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	definition::a_forced_import_shadows_when_another_file_exports_the_name_end_to_end	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::a_wildcard_import_chain_follows_to_the_original_source_cross_document	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::an_export_sourced_before_the_import_resolves_end_to_end	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::class_instantiation_resolves_cross_document_via_wildcard_import	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::find_references_agrees_with_the_source_order	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	definition::foreach_generated_ensemble_subcommands_navigate_and_outline_923_idx43	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::foreach_rename_reinstall_idiom_resolves_to_the_wrapper_not_the_stale_original	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::global_call_fallback_is_deterministic_across_repeats	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::global_call_with_single_namespaced_proc_uses_fallback	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::jump_to_var_definition	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/definition.rs:236
+tcl-lsp-server::e2e	definition::multi_list_foreach_name_resolves_to_its_own_loop_not_a_later_unrelated_one	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	definition::my_dispatch_resolves_when_class_extended_via_separate_oo_define	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::opt_proc_call_site_resolves_to_its_declaration_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	definition::recursive_call_navigates_to_definition	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/definition.rs:12
+tcl-lsp-server::e2e	definition::the_server_hands_call_hierarchy_the_shadow_answer	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::the_server_hands_code_actions_the_shadow_answer	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	definition::the_server_hands_definition_and_hover_the_same_shadow_answer	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::the_server_hands_inlay_hints_the_shadow_answer	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::the_server_hands_signature_help_the_shadow_answer	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	definition::tk_ensemble_configure_splice_resolves_to_the_real_target_not_a_decoy	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	definition::wildcard_import_survives_a_later_export_clear_cross_document	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	definition::wildcard_namespace_import_resolves_cross_document_proc	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::constant_expr_folds	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs:412
+tcl-lsp-server::e2e	diagnostic_matrix::expr_not_redefined_still_folds	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::i230_fires_on_defect	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs:188
+tcl-lsp-server::e2e	diagnostic_matrix::irules_dialect_leading_zero_folds_as_octal	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::o103_folds_implicit_return_proc_end_to_end	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::s102_fires_for_numeric_shimmer_masked_by_int_entry	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::s102_fires_for_rename_indirection	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::s102_fires_for_same_array_element_oscillation	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::s102_fires_for_scalar_loop_oscillation	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::s102_fires_for_self_referential_branchy_oscillation	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::s102_fires_on_defect	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs:188
+tcl-lsp-server::e2e	diagnostic_matrix::s102_span_anchors_inside_loop_not_pre_loop_initialiser	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::top_level_constant_untouched_by_any_proc_still_folds	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::untouched_proc_in_same_file_still_folds	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::variadic_args_proc_returning_args_directly_folds	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostic_matrix::w124_fires_on_defect	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs:188
+tcl-lsp-server::e2e	diagnostic_matrix::w128_fires_on_defect	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs:188
+tcl-lsp-server::e2e	diagnostic_matrix::w211_fires_on_defect	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs:188
+tcl-lsp-server::e2e	diagnostic_matrix::w220_fires_on_defect	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs:188
+tcl-lsp-server::e2e	diagnostics::a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::an_unrelated_file_reusing_a_proc_name_does_not_clear_i230	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::an_unrelated_local_still_draws_read_before_set_end_to_end	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::analyser_noqa_suppresses_an_analyser_code	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::apply_wrapped_pkgindex_declaration_suppresses_w123	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::autoload_library_command_go_to_definition_m8	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::autoload_library_command_not_unknown_issue_832	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::autoload_library_command_references_and_rename_m8	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::both_arms_of_a_version_branch_declaring_the_package_suppress_w123_923_idx42	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::callback_from_a_sourced_file_clears_i230_in_the_sourcing_file	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::caller_in_a_sourcing_file_with_a_differing_literal_clears_i230	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::caller_in_another_file_agreeing_on_the_literal_still_fires_i230	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::commit_dataflow_path_dependent_merge_message	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::commit_dataflow_second_conversion_fires_s100_with_committed_from_type	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::composite_body_still_fires	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/diagnostics.rs:1786
+tcl-lsp-server::e2e	diagnostics::consumer_rename_resolves_through_a_real_workspace_folder_m8	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::defstyle_body_typo_still_w123	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/diagnostics.rs:2636
+tcl-lsp-server::e2e	diagnostics::disabled_command_is_w002_with_a_tight_span	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::disabled_subcommand_is_w002_with_a_command_plus_subcommand_span	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::dynamic_dispatch_agreeing_on_the_literal_still_fires_i230	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::dynamic_dispatch_to_a_different_proc_still_fires_i230	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::execution_trace_callback_exact_arities_reach_lsp_diagnostics	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::file_link_hard_has_no_arity_error	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/diagnostics.rs:296
+tcl-lsp-server::e2e	diagnostics::file_link_symbolic_has_no_arity_error	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/diagnostics.rs:2
+tcl-lsp-server::e2e	diagnostics::guarded_pkgindex_available_on_target_suppresses_w123_issue_1017	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::iapps_86_core_still_draws_w123_end_to_end	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::iapps_embedded_84_trunk_gates_the_85_core_end_to_end	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::info_exists_still_fires_i230_after_safe_rooted_command_in_method	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::irules_banned_commands_still_flag_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::itcl_method_bodies_are_analysed_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::large_file_publishes_fast_tier_before_deep_tier	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::method_body_unbound_sibling_parameter_read_flags_w210_end_to_end	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::mixed_execution_trace_accepts_defaulted_and_variadic_callbacks	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::o102_still_fires_when_the_callees_uplevel_hash_zero_writes_nothing	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::objdefine_method_body_w210_reaches_the_client	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::own_proc_in_a_private_namespace_is_not_w143	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::patch_level_guarded_pkgindex_suppresses_w123	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::quoted_interpolated_body_still_fires	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/diagnostics.rs:17
+tcl-lsp-server::e2e	diagnostics::regexp_expanded_clean_literal_still_fires	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::s103_fires_on_shared_copy_mutation_as_hint_with_tight_range	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::same_file_tcloo_forward_via_my_arity_is_shifted_by_prepended_args	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::same_file_tcloo_nextto_call_arity_checks_named_target	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::shimmer_fires_inside_tcloo_method_body	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::snit_method_bodies_are_analysed_end_to_end	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::switch_flat_unpaired_pattern_is_checked	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::tmsh_first_class_gates_both_directions_end_to_end	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::try_body_earlier_conditional_throw_fires	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::two_callers_with_uniform_literal_still_fires_i230	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::unbraced_expr_inside_tcltest_body_is_w100	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::uniform_literal_arg_still_binds_silent	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::unrelated_project_file_does_not_clear_i230	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::unresolved_word_without_an_unknown_handler_still_fires_i230	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::uplevel_unbraced_substituted_body_fires_w105_through_server	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::value_position_still_fires_w216	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/diagnostics.rs:1625
+tcl-lsp-server::e2e	diagnostics::w123_unreached_mutual_recursion_cycle_still_flags_issue_1015	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::w210_still_fires_across_a_two_hop_plain_call_wrapper_chain_923_idx18	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::w210_still_fires_for_a_plain_call_wrapper_923_idx18	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::w210_still_fires_when_wrapper_does_not_pass_its_own_params_through_923_idx18	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::w210_still_published_when_nothing_writes_the_outer_frame	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::w214_nested_proc_names_its_defining_namespace_and_anchors_on_the_param	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	diagnostics::w214_two_unused_params_get_separate_tight_ranges	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::w214_unused_param_anchors_on_the_param_name	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::w220_dead_store_fires	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/diagnostics.rs:1458
+tcl-lsp-server::e2e	diagnostics::w220_dead_store_inside_dict_for_body_fires	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::w220_still_fires_for_a_genuinely_brace_quoted_value_923_idx125	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	diagnostics::w300_w103_silent_when_var_provably_literal	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	diagnostics::w307_silent_for_create_named_objects_iterated	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	document_symbols::class_detail_shows_metaclass	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	document_symbols::classmethod_detail	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/document_symbols.rs:300
+tcl-lsp-server::e2e	document_symbols::event_handler_is_a_workspace_symbol	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	document_symbols::irule_event_handlers_are_outline_symbols	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	document_symbols::property_symbol	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/document_symbols.rs:247
+tcl-lsp-server::e2e	document_symbols::tcltest_constraint_and_match_mode_are_symbols	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	document_symbols::tcltest_imported_test_name_is_a_symbol	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	document_symbols::tcltest_test_case_is_a_workspace_symbol	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	document_symbols::variables_set_in_a_handler_nest_under_it	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	document_symbols::workspace_symbol_finds_a_just_opened_documents_proc	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	document_symbols::workspace_symbol_waits_out_a_slow_start_to_the_scan	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	document_symbols::workspace_symbol_waits_out_the_startup_scan	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	edit_tracking_stress::invariants_hold_throughout_random_storm_29	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	edit_tracking_stress::random_incremental_edits_match_fresh_open_1024	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	editor_features::test_classmethod_lens_resolves_to_clickable_command	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	editor_features::test_count_matches_reference_list_for_forward_call	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	editor_features::test_find_references_on_classmethod_finds_bare_class_command_dispatch	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	editor_features::test_method_lens_counts_external_obj_dispatch_issue_864	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	editor_features::test_method_lens_zero_when_uncalled	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	editor_features::test_proc_gets_reference_count_lens	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	editor_features::test_property_lens_counts_my_dispatch_and_resolves_clickable	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	editor_features::test_property_lens_zero_when_unused	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	editor_features::test_property_method_constructor_and_class_all_get_lenses_issue_992	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	editor_features::test_two_positionals_label_channel_then_string	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	editor_features::test_unresolved_call_scoped_to_namespace	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	hover::a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	hover::global_call_hover_fallback_is_deterministic	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:358
+tcl-lsp-server::e2e	hover::hover_does_not_resolve_an_argument_word_across_documents_1018	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	hover::hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	hover::hover_resolves_a_proc_defined_in_a_sourced_sibling_1018	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	hover::hover_resolves_an_autoloaded_library_proc_1018	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	hover::my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	hover::namespace_var_hover	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:397
+tcl-lsp-server::e2e	hover::regexp_literal_no_metachar	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:587
+tcl-lsp-server::e2e	hover::regexp_pattern_hover	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:547
+tcl-lsp-server::e2e	hover::regexp_pattern_hover_char_class	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:558
+tcl-lsp-server::e2e	hover::regsub_pattern_hover	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:577
+tcl-lsp-server::e2e	hover::socket_server_option_hover_ignores_semicolon_in_quoted_arg	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	hover::var_hover	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:371
+tcl-lsp-server::e2e	hover::var_hover_shows_refs	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/hover.rs:380
+tcl-lsp-server::e2e	invariants::test_rename_edits_do_not_overlap	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	irules::binary_scan_fix_silent	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:1234
+tcl-lsp-server::e2e	irules::braced_variable_wrapped	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:546
+tcl-lsp-server::e2e	irules::clean_payload_writeback_silent	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	irules::diameter_payload_roundtrip_fires_s110_without_collect_warning	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	irules::i230_fires_on_irules_word_operator_condition	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:1407
+tcl-lsp-server::e2e	irules::irule1005_adds_only_registered_collect_bootstrap	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	irules::irule1006_bootstrap_action_is_deduplicated	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:870
+tcl-lsp-server::e2e	irules::irule1006_prefers_server_ssl_handshake_bootstrap	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	irules::irule3001_inserts_html_encode_proc	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:728
+tcl-lsp-server::e2e	irules::irule3001_no_proc_insert_when_already_defined	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:919
+tcl-lsp-server::e2e	irules::irule3001_wrap_html_encode	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:416
+tcl-lsp-server::e2e	irules::irule3002_wrap_uri_encode	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:442
+tcl-lsp-server::e2e	irules::irule3003_wrap_strip_crlf	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:598
+tcl-lsp-server::e2e	irules::irule6001_global_import_form_offers_no_fix	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:958
+tcl-lsp-server::e2e	irules::irule6001_global_write_offers_static_namespace_replacement	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	irules::irule6001_rule_init_implicit_global_offers_static_replacement	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	irules::irules_event_valid_command_ranked_before_invalid	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	irules::mqtt_payload_roundtrip_fires_s110	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:1234
+tcl-lsp-server::e2e	irules::payload_string_range_transparent_silent	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:1234
+tcl-lsp-server::e2e	irules::payload_string_roundtrip_fires_s110	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:1234
+tcl-lsp-server::e2e	irules::recollect_inside_http_data_event_reports_irule1007_end_to_end	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	irules::t100_subst_add_nocommands	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:520
+tcl-lsp-server::e2e	irules::t101_wrap_strip_crlf	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:571
+tcl-lsp-server::e2e	irules::t102_insert_double_dash	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:494
+tcl-lsp-server::e2e	irules::t103_inserts_regex_quote_proc	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:704
+tcl-lsp-server::e2e	irules::t103_no_proc_insert_when_already_defined	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:894
+tcl-lsp-server::e2e	irules::t103_wrap_regex_quote	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:468
+tcl-lsp-server::e2e	irules::t106_remove_redundant_encode	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:656
+tcl-lsp-server::e2e	irules::when_body_is_analysed_under_irules	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:1382
+tcl-lsp-server::e2e	irules::when_priority_and_timing_after_priority_value	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/irules.rs:317
+tcl-lsp-server::e2e	issue1019_proc_args::tp_cross_file_mixin_method_hover	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1019_proc_args::tp_next_in_a_constructor_resolves_to_the_superclass_constructor	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1019_proc_args::tp_references_reach_a_bare_list_built_trace_callback	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1088_namespace_symbols::tp_empty_literal_is_the_global_namespace_at_global_scope	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1137_call_site_resolution::a_bare_helper_call_in_a_method_body_resolves_across_files	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1214_uri_canonicalisation::a_scanned_file_and_the_same_open_file_are_one_document	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1281_ensemble_rename::a_dynamic_map_keeps_its_dispatch_word_unattributed_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1281_ensemble_rename::find_references_reports_the_dispatch_site_under_both_provenances_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1281_ensemble_rename::renaming_a_map_target_leaves_the_dispatch_word_alone_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1281_ensemble_rename::renaming_a_subcommands_target_from_the_dispatch_site_rewrites_it_too_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1281_ensemble_rename::renaming_a_subcommands_target_still_rewrites_the_dispatch_word_end_to_end	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1296_metaclass_chain::a_five_level_chain_resolves_too	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1296_metaclass_chain::a_three_level_cross_file_metaclass_chain_resolves_from_a_call_site	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1296_metaclass_chain::literal_call_resolves_a_computed_metaclass_name	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1296_metaclass_chain::the_same_chain_in_two_documents_still_resolves	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1296_metaclass_chain::typing_the_middle_link_makes_the_chain_resolve	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1296_metaclass_chain::unknown_dispatch_factory_result_resolves_its_instance_method	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1296_metaclass_chain::unopened_factory_documents_feed_an_open_consumer	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1302_import_builtin_shadow::fn_guard_an_operator_name_still_binds_into_the_global_namespace	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1302_import_builtin_shadow::fp_guard_importing_a_builtin_name_into_a_sub_namespace_still_resolves	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1302_import_builtin_shadow::tn_a_forced_import_does_shadow_the_builtin_and_the_call_is_a_reference	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1302_import_builtin_shadow::tn_a_non_builtin_exported_name_still_resolves_through_the_import	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1305_renamed_metaclass::go_to_definition_resolves_through_the_renamed_metaclass	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1305_renamed_metaclass::go_to_definition_resolves_without_a_rename	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1312_named_object_dispatch::named_object_completion_offers_the_declared_method	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1312_named_object_dispatch::named_object_unknown_method_draws_w308	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1331_crossfile_diagnostics::a_cross_file_call_resolves_and_reports_its_arity	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1331_crossfile_diagnostics::a_genuinely_unknown_command_still_draws_w123	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1331_crossfile_diagnostics::a_sourced_files_procs_resolve_in_the_sourcing_file	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1331_crossfile_diagnostics::an_opted_in_exact_cross_file_arity_is_reported_once_on_push_and_pull	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1331_crossfile_diagnostics::definition_edits_republish_open_callers_and_invalidate_their_pull_cache	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1331_crossfile_diagnostics::definition_still_resolves_the_same_cross_file_call	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1331_crossfile_diagnostics::sourced_child_package_edits_republish_the_open_parent	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1333_diagnostic_tags::w211_unused_variable_carries_tags_1_on_the_wire	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1333_diagnostic_tags::w214_keeps_hint_severity_once_tagged	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1333_diagnostic_tags::w214_unused_parameter_carries_tags_1_on_the_wire	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1362_configurable_property_accessors::configure_word_is_a_method_token	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue1367_template_method_self_dispatch::a_sibling_file_subclass_clears_w308_on_the_base_template_dispatch	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1556_diagnostics_exclude::project_ini_exclude_live_reloads	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue1707_ilx_methods::references_span_both_languages_from_either_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue2021_workspace_scan_cap::configured_budget_bounds_the_startup_scan	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue2021_workspace_scan_cap::default_budget_scans_the_whole_tree	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue2021_workspace_scan_cap::raising_the_budget_rescans_without_a_restart	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue923_class_refs::fp_same_named_class_in_another_namespace_not_cross_linked	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue923_class_refs::tp_inline_oo_define_superclass_cross_file_reference_and_rename	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue923_class_refs::tp_itcl_inherit_cross_file_reference	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue923_class_refs::tp_mixin_cross_file_reference	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue923_class_refs::tp_superclass_cross_file_go_to_definition	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue923_class_refs::tp_superclass_cross_file_reference_and_rename	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue923_crossdoc::tp_cross_file_rooted_namespace_head_reaches_its_proc_923_idx44	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue923_crossdoc::tp_cross_file_superclass_through_split_nested_namespace	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue923_crossdoc::tp_split_nested_namespace_eval_homes_the_class_fully_923_idx19	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue923_idx80_mathfunc::a_plain_cross_file_proc_call_resolves_by_default	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue923_idx80_mathfunc::cross_file_resolution_on_clears_a_bare_tail_match_and_its_quick_fix	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue923_idx80_mathfunc::cross_file_resolution_on_keeps_the_mathfunc_verdict_and_the_action_agrees	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue923_idx80_mathfunc::default_config_clears_w123_for_a_cross_file_mathfunc	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue923_idx80_mathfunc::default_config_offers_no_command_rewrite_over_a_cross_file_mathfunc	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue923_idx80_mathfunc::workspace_scan_clears_w123_for_a_cross_file_mathfunc	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::body_call_deleted_before_definition_still_draws_w123_issue_973	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::branch_joined_dispatch_definition_offers_both_targets_945	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::command_probe_navigates_without_asserting_existence_945	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::const_dispatch_rename_rewrites_the_defining_literal_and_executes_945	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::const_dispatch_still_references_a_proc_reestablished_after_deletion_1009	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::eval_of_a_dynamic_unresolvable_var_body_produces_no_edits_923_idx94	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::eval_of_a_list_computed_var_rewrites_the_defining_literal_and_executes_923_idx94	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::method_definition_selects_the_dispatch_entry_945	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::multi_seeded_source_declaration_unions_every_view_945	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue945::rename_rewrites_a_method_reached_through_a_var_headed_constructor_923_idx121	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue945::unexported_method_is_not_externally_resolvable_945	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue954_followup::test_pkgindex_list_quoted_apply_body_highlights	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue996_stack_overflow::formatting_survives_deep_nesting	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue996_stack_overflow::irules_semantic_tokens_survive_deep_command_substitution	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue996_stack_overflow::minify_survives_deep_nesting	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	issue996_stack_overflow::mixed_control_flow_nesting_survives	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	issue996_stack_overflow::nested_if_at_reported_crash_depth_survives_and_returns_diagnostics	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	issue996_stack_overflow::nested_if_far_past_analyser_cap_survives	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	jim::the_jim_program_draws_only_hints_as_a_tcl_jim_document	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	name_resolution::my_method_dispatch::fp_control_flow_nested_other_method_not_counted	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	name_resolution::my_method_dispatch::fp_my_other_method_not_counted	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	name_resolution::my_method_dispatch::tp_my_dispatch_nested_in_control_flow_reference_and_lens	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	name_resolution::my_method_dispatch::tp_original_issue_957_repro_reference_and_lens	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	name_resolution::obj_method_dispatch::tn_uncalled_method_zero_references	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	name_resolution::obj_method_dispatch::tp_obj_dispatch_reference_and_lens	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	name_resolution::pkgindex_dir::fp_other_undefined_in_pkgindex_fires_w210	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::a_fully_qualified_upvar_target_cross_references_between_procs	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::a_fully_qualified_upvar_target_defines_from_word_and_read	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::a_fully_qualified_upvar_target_hovers_from_word_and_read	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::an_unbound_dollar_read_never_resolves_to_a_same_named_method	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::definition_on_a_mixin_dispatch_caller_frame_read_reaches_the_dispatch	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::dispatch_table_literal_resolves_to_the_proc_m7	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::hover_on_a_mixin_dispatch_caller_frame_read_names_the_creating_call	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	navigation::my_call_returns_enclosing_class	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/navigation.rs:51
+tcl-lsp-server::e2e	navigation::references_link_the_call_site_word_and_the_caller_frame_read	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	navigation::references_on_a_literal_upvar_target_link_the_call_and_the_read	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	navigation::references_on_a_mixin_dispatch_link_the_dispatch_and_the_read	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	navigation::sourced_file_resolves_under_the_source_site_namespace_m9	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	navigation_extras::bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	navigation_extras::classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	navigation_extras::recursive_self_calls_linked_with_declaration	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	precision_review::constructor_of_a_deleted_class_does_not_draw_misleading_w308	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	precision_review::coroutine_created_command_is_known	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	precision_review::i230_message_spells_bare_var_like_the_source	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	precision_review::interpolated_head_folding_to_a_deleted_proc_keeps_w123	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	precision_review::namespace_import_glob_suppresses_only_matching_names	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	precision_review::rename_target_is_known_and_old_name_flags_w128	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	precision_review::renamed_away_builtin_fires_w123_only_after_the_rename	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	precision_review::s101_range_is_tight_on_in_loop_expr_operand	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	precision_review::s102_intra_iteration_oscillation_matrix	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	precision_review::set_var_constructor_of_a_reestablished_class_still_draws_w308	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	precision_review::tclpkg_manifest_directives_resolve	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	precision_review::w210_silent_on_cross_event_read_but_fires_on_undefined	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	precision_review::w308_anchors_method_word_with_mro_suggestion	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	recovery::absolute_namespace_qualified_proc_call_recovers_the_tail	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	recovery::absolute_sibling_workspace_file_proc_call_recovers_the_tail	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	recovery::c2_bare_set_after_break_still_arity_errors	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/recovery.rs:25
+tcl-lsp-server::e2e	recovery::c2_if_with_unterminated_expr_brace_flags_its_own_malformed_clause	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	recovery::c2_proc_after_multiple_breaks_is_a_symbol	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/recovery.rs:241
+tcl-lsp-server::e2e	recovery::c2_proc_after_unterminated_brace_body_is_a_symbol	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	recovery::c2_proc_after_unterminated_bracket_is_a_symbol	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	recovery::c3_crlf_document_recovers	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/recovery.rs:357
+tcl-lsp-server::e2e	recovery::inert_brace_word_break_no_duplicate_diagnostics	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	recovery::inert_brace_word_break_still_flags_and_recovers	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	recovery::inert_midword_delimiter_still_recovers	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/recovery.rs:448
+tcl-lsp-server::e2e	recovery::namespace_qualified_proc_call_recovers_the_tail	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	recovery::package_required_library_command_recovers_the_tail	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	recovery::renamed_command_recovers_the_tail	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/recovery.rs:652
+tcl-lsp-server::e2e	recovery::sibling_workspace_file_proc_recovers_the_tail	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	recovery::undefined_name_with_package_required_falls_back_honestly	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	recovery::user_defined_class_recovers_the_tail	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/recovery.rs:575
+tcl-lsp-server::e2e	recovery::user_defined_proc_recovers_the_tail_like_a_builtin	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	references::ensemble_dispatch_call_sites_are_found_from_both_directions_923_idx85	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	references::find_namespace_var_refs	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/references.rs:352
+tcl-lsp-server::e2e	references::find_proc_call_in_nested_braced_body	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/references.rs:173
+tcl-lsp-server::e2e	references::find_references_from_a_foreach_loop_variable_bareword_declaration	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	references::find_references_from_catch_resultvar_bareword_include_the_original_declaration	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	references::find_references_reaches_an_unopened_tcltest_file_923_idx27	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	references::find_unbraced_if_body_bareword_call_site	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	references::find_unbraced_uplevel_body_bareword_call_site	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	references::find_var_refs	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/references.rs:323
+tcl-lsp-server::e2e	references::issue_923_bind_callback_qualified_and_bare_both_resolve	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	references::references_from_the_alias_target_still_reach_the_redirected_call	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	references::references_object_variable_unify_across_methods	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	references::references_reach_a_call_through_a_folded_cmd_subst_constant	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	references::references_reach_a_my_dispatch_call_inside_a_switch_arm	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	references::references_reach_a_namespace_code_list_wrapped_callback	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	references::references_reach_a_parameter_read_inside_a_list_built_namespace_body	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	references::references_reach_instance_variable_declared_in_a_non_last_variable_statement	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	references::references_reach_the_current_documents_own_call_when_it_has_no_local_declaration	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	references::superclass_and_mixin_references	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/references.rs:387
+tcl-lsp-server::e2e	references::the_shadowed_call_references_the_import_source_when_another_file_exports_it	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	references::the_unshadowed_call_references_the_local_proc_when_nothing_exports_it	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename::definition_uplevel_zero_var_resolves_global	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/rename.rs:461
+tcl-lsp-server::e2e	rename::did_rename_files_retires_the_old_path_and_keeps_source_rehoming	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename::prepare_rename_proc_name	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/rename.rs:66
+tcl-lsp-server::e2e	rename::prepare_rename_variable	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/rename.rs:76
+tcl-lsp-server::e2e	rename::rejects_invalid_new_symbol_name	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	rename::rejects_proc_collision	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	rename::rejects_proc_rename_to_builtin	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	rename::rejects_var_collision_in_same_scope	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	rename::rename_definition_and_calls	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	rename::rename_does_not_rewrite_call_sites_that_go_through_an_alias	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename::rename_from_a_superseded_declaration_rewrites_every_site	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename::rename_from_call_site	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	rename::rename_from_callsite_does_not_touch_same_named_proc_in_other_namespace	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename::rename_from_proc_param_bareword_declaration_rewrites_every_use_e2e	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename::rename_from_shadowed_duplicate_proc_decl_reaches_cross_document_caller	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename::rename_mathfunc_override_updates_call_site_and_skips_unrelated_proc	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename::rename_namespaced_proc_preserves_qualifier	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:85
+tcl-lsp-server::e2e	rename::rename_of_an_alias_shadowed_proc_leaves_the_redirected_call_alone	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename::rename_of_the_alias_target_rewrites_the_declaration_and_the_alias_word	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename::rename_preserves_array_index	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/rename.rs:332
+tcl-lsp-server::e2e	rename::rename_proc_in_two_level_nested_namespace_does_not_leak_across_namespaces	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename::rename_qualified_var_braced_form	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/rename.rs:321
+tcl-lsp-server::e2e	rename::rename_qualified_var_preserves_namespace	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:855
+tcl-lsp-server::e2e	rename::rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename::rename_rewrites_the_renames_own_old_word_too	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename::rename_rewrites_unbraced_if_body_bareword_call_site	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename::rename_tcloo_instance_variable_does_not_rewrite_body	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename::rename_var	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/rename.rs:213
+tcl-lsp-server::e2e	rename::rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename::rename_var_applying_the_dir_view_idiom_reference_edit_does_not_corrupt_the_source	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename::rename_var_preserves_braced_form	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/rename.rs:234
+tcl-lsp-server::e2e	rename_safety::fn_guard_a_fully_tracked_member_renames_from_every_trigger_position	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::fn_guard_namespace_variable_rename_ignores_a_computed_alias_of_another_cell	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::fn_guard_rename_still_applies_across_tracked_consumer_documents	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename_safety::fn_guard_rename_still_applies_for_a_member_the_untracked_receiver_never_names	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename_safety::fp_namespace_rename_refuses_a_collision_with_an_existing_namespace	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::fp_namespace_rename_refuses_an_unattributed_embedded_name	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::fp_namespace_variable_rename_refuses_beside_a_computed_alias_cell	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename_safety::fp_namespace_variable_rename_refuses_beside_a_computed_variable_name	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename_safety::fp_rename_refuses_a_consumer_that_never_constructs_the_class	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::fp_rename_refuses_a_hazard_that_lives_only_in_a_consumer_document	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename_safety::fp_rename_refuses_a_member_dispatched_on_an_untracked_receiver	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::fp_rename_refuses_the_untracked_receiver_from_the_call_site_trigger	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename_safety::fp_rename_refuses_the_untracked_receiver_from_the_declaration_trigger	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename_safety::fp_rename_refuses_the_untracked_receiver_from_the_export_bareword_trigger	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::fp_rename_verdict_is_the_same_from_every_occurrence_of_a_hazardous_member	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::tn_namespace_rename_leaves_a_same_tailed_sibling_alone	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename_safety::tn_namespace_variable_rename_ignores_a_dynamic_name_under_another_namespace	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename_safety::tn_object_command_rename_does_not_cross_namespaces	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	rename_safety::tp_namespace_rename_spans_documents	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	rename_safety::tp_namespace_variable_rename_reaches_an_alias_in_another_namespace	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	rename_safety::tp_rename_rewrites_the_export_list_with_the_method	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	semantic_tokens::test_expect_clause_list_braced_flag_pattern_is_literal	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	semantic_tokens::test_expect_clause_list_patterns_and_bodies	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	semantic_tokens::test_issue_898_default_library_modifier	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	semantic_tokens::test_regex_source_variable_highlights_def_site_literal	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	semantic_tokens::test_switch_plain_braced_case_list_recurses_bodies	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	semantic_tokens::test_switch_regexp_braced_case_list	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	semantic_tokens_reference_client::large_file_first_semantic_tokens_response_is_prompt	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	semantic_tokens_reference_client::large_file_range_semantic_tokens_converges_via_refresh	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	semantic_tokens_reference_client::large_file_range_semantic_tokens_response_is_prompt	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	semantic_tokens_reference_client::large_file_semantic_tokens_refresh_delivers_enriched_result	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	semantic_tokens_reference_client::range_semantic_tokens_no_spurious_refresh_when_converged	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	signature_help::proc_first_arg	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/signature_help.rs:80
+tcl-lsp-server::e2e	signature_help::proc_with_defaults_marks_optional	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	spec_packs::a_closed_file_under_a_pack_extension_is_indexed	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	spec_packs::a_dropped_property_offers_a_did_you_mean_fix	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	spec_packs::a_pack_added_after_startup_reloads_and_re_analyses_open_documents	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	spec_packs::a_pack_const_fold_body_folds_a_call_site_in_the_optimiser	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	spec_packs::a_pack_outlines_as_its_own_declarations	lsp-e2e-partition (3/3)	rust/tcl-lsp-server/tests/e2e/spec_packs.rs:1
+tcl-lsp-server::e2e	spec_packs::a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	spec_packs::a_pack_statement_word_hovers_from_the_spectcl_surface	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	spec_packs::a_packs_blocks_are_folding_ranges	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/spec_packs.rs:1589
+tcl-lsp-server::e2e	spec_packs::an_open_pack_keeps_its_notices_while_it_is_edited	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	spec_packs::granting_trust_reloads_and_installs_the_bodies	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	sslictcl::an_excluded_document_publishes_nothing	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/common/mod.rs:1450
+tcl-lsp-server::e2e	sslictcl::declaration_words_paint_as_keywords_and_a_predicate_body_does_not	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	sslictcl::the_outline_names_the_declarations	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/sslictcl.rs:368
+tcl-lsp-server::e2e	structure::empty_query_returns_all	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/structure.rs:188
+tcl-lsp-server::e2e	structure::find_proc	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/structure.rs:163
+tcl-lsp-server::e2e	structure::partial_match	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/structure.rs:204
+tcl-lsp-server::e2e	tcl91::callback_is_unknown_in_86_core	lsp-e2e-partition (2/3)	rust/tcl-lsp-server/tests/e2e/tcl91.rs:318
+tcl-lsp-server::e2e	tcl91::class_init_body_still_offers_and_hovers_my	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/e2e/tcl91.rs:587
+tcl-lsp-server::e2e	tcl91::top_level_link_has_no_hover_but_a_method_body_one_does	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_an_inner_namespaced_class_shadows_the_global_one	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_cross_file_self_unexport_leaves_the_instance_method_dispatchable	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_declaring_document_dispatch_survives_without_suppressing_evidence	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_declaring_document_instance_dispatch_survives_a_class_side_flip	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_itcl_two_word_object_creation_is_not_a_class_proc_dispatch	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_method_with_no_cross_file_references_still_reads_zero	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_renaming_a_moved_member_onto_a_cross_side_name_is_allowed	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_renaming_a_moved_member_onto_an_earlier_deleted_name_is_allowed	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_renaming_a_moved_member_to_a_fresh_name_still_works	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_second_classes_bare_dispatch_untouched_by_classmethod_rename	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_second_classes_instance_dispatch_untouched_by_method_rename	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tn_unrelated_same_named_proc_document_untouched_by_method_rename	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_classmethod_lens_click_and_count_reach_a_consumer_document	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_classmethod_rename_reaches_consumer_bare_class_dispatch	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_consumer_rename_and_references_agree_on_the_same_sites	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_cross_file_inherited_self_callback_agrees_everywhere	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_cross_file_inherited_wrapped_my_callback_agrees_everywhere	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_cross_file_receiver_reexport_revives_the_inherited_callback	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_cross_file_self_deletemethod_suppresses_in_the_declaring_document	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_cross_file_self_unexport_suppresses_in_the_declaring_document	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_inherited_list_built_self_callback_joins_the_provider_family	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_itcl_class_proc_colon_dispatch_navigates_end_to_end	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_lattice_typed_receiver_agrees_across_references_lens_and_rename	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_list_built_self_bind_callback_is_a_method_reference_everywhere	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_member_declaration_hovers_in_both_class_blocks	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_method_lens_click_and_count_match_find_all_references	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_method_rename_reaches_pure_consumer_document	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_namespace_wrapped_my_callback_agrees_across_navigation_providers	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_non_identifier_method_names_navigate_end_to_end	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_overriding_receiver_keeps_its_callback_in_its_own_family	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_per_object_export_revives_an_unexported_member	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_per_object_unexport_masks_the_objects_own_dispatch	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_pure_consumer_resolves_a_cross_file_class_side_member	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_pure_consumer_resolves_an_imported_class	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_renamed_member_is_navigable_under_its_new_name	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_renaming_a_moved_member_onto_a_live_sibling_is_refused	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_renaming_a_moved_member_to_its_source_is_refused	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_renaming_a_sibling_onto_a_later_rename_destination_is_refused	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	tcloo_navigation::tp_stored_callback_prefix_agrees_across_navigation_providers	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	vscode_parity::test_applicable_optimisation_diagnostic_carries_apply_payload	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	vscode_parity::test_command_context_binders_are_completed	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	vscode_parity::test_diagnostics_master_switch_clears_all	lsp-e2e-partition (2/3)	
+tcl-lsp-server::e2e	vscode_parity::test_global_is_colon_qualified_from_namespace_proc	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	vscode_parity::test_hint_only_optimisation_diagnostic_carries_no_apply_payload	lsp-e2e-partition (3/3)	
+tcl-lsp-server::e2e	vscode_parity::test_local_shadowing_global_stays_bare	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	vscode_parity::test_optimiser_toggle_suppresses_o_codes	lsp-e2e-partition (1/3)	
+tcl-lsp-server::e2e	vscode_parity::test_w216_fires_inside_command_substitution	lsp-e2e-partition (2/3)	
+tcl-lsp-server::preview_tickets_e2e	a_pack_declared_configuration_member_declares_no_method	lsp-e2e-partition (1/3)	
+tcl-lsp-server::preview_tickets_e2e	a_pack_declared_member_spelling_reaches_every_provider	lsp-e2e-partition (2/3)	
+tcl-lsp-server::preview_tickets_e2e	apply_lambda_param_definition_resolves_to_name_for_second_param_e2e	lsp-e2e-partition (2/3)	
+tcl-lsp-server::preview_tickets_e2e	class_member_bareword_call_requires_link_e2e	lsp-e2e-partition (1/3)	rust/tcl-lsp-server/tests/preview_tickets_e2e.rs:121
+tcl-lsp-server::preview_tickets_e2e	classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e	lsp-e2e-partition (3/3)	
+tcl-lsp-server::preview_tickets_e2e	closed_on_disk_file_retains_diagnostics_badge_e2e	lsp-e2e-partition (3/3)	
+tcl-lsp-server::preview_tickets_e2e	dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e	lsp-e2e-partition (1/3)	
+tcl-lsp-server::preview_tickets_e2e	dynamic_namespace_eval_targets_never_cross_resolve_e2e	lsp-e2e-partition (1/3)	
+tcl-lsp-server::preview_tickets_e2e	interp_handle_eval_isolates_from_a_sibling_interpreter_e2e	lsp-e2e-partition (2/3)	
+tcl-mcp::bin/tcl-mcp	irule_gen::tests::executable_inventory_includes_proc_bodies_and_excludes_invalid_regions	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	irule_gen::tests::generated_inventory_keeps_quoted_substitutions_before_an_expr_error	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	irule_gen::tests::object_refs_ignore_unavailable_aliases_and_keep_qualified_commands	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	irule_gen::tests::scaffold_deduplicates_events_and_sets_up_registry_classified_pools	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	irule_gen::tests::unknown_events_and_malformed_procs_are_inert_for_generated_inventory	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::a_lone_cr_source_optimises_and_acts_like_its_lf_twin	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::analyze_honours_the_noqa_fixture_as_tcl_diag_does	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::analyze_seeds_the_default_off_codes_and_enable_reaches_them	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::code_actions_offer_a_shown_rewrite_as_a_quickfix	rust-tests-shard (5/5)	rust/tcl-mcp/src/tools.rs:3
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::every_rewrite_row_renders_through_optimize	rust-tests-shard (5/5)	rust/tcl-mcp/src/tools.rs:3665
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::every_row_renders_through_analyze	rust-tests-shard (5/5)	rust/tcl-mcp/src/tools.rs:3560
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::optimize_a_named_profile_overrules_the_global_file	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::optimize_applies_only_the_rewrites_the_directives_leave_shown	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::optimize_honours_the_profile_the_overrides_and_the_global_file	rust-tests-shard (5/5)	
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::optimize_keeps_a_store_a_noqa_o109_marks	rust-tests-shard (5/5)	rust/tcl-mcp/src/tools.rs:3251
+tcl-mcp::bin/tcl-mcp	tools::policy_tests::review_reports_the_compiler_check_families	rust-tests-shard (5/5)	rust/tcl-mcp/src/tools.rs:2899

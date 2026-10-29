@@ -1,0 +1,61 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T16:02:45.424566+00:00",
+  "scheduled_report_utc": "2026-10-29T15:58:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Full state refresh and commit-everything on user request (16:05Z): current-state banner/snapshot/agent table and coordinator Resume rewritten; CI 5248 per-role routing lists and the origin/rust value_transfers_cli baseline durations copied into the coordinator evidence directory. The commit includes in-flight TEMP_*/TMP_* diagnosis probes that must be removed before any CI dispatch or release carry.",
+    "CLI start-up cost: vm-runtime traced 17-19 s per tcl invocation to O(specs x commands) registry prerequisite scans during bundled SpecTcl pack loading; prerequisite index applied (differential test and timings pending). origin/rust 5203 shard 2 ran 5234 tests in 881 s; value_transfers_cli tests 7-523 s each.",
+    "New defect routed: 8.4 `set result [expr {1 / 4.0}]` AssignExpr execution constants bypass the fold gate (compiler-names).",
+    "Two shared-tree compile breaks from temporary probes fixed by root (elimination.rs:767, original_command_table.rs:511)."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "empty cu.procedures + top-level facts",
+    "source references restore",
+    "dict 9.0 fallback + 11 preflight rows",
+    "CLI pack cost",
+    "class_factories definer slots",
+    "Tk taint facts"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T16:35:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

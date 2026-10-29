@@ -635,7 +635,8 @@ fn authored_simulation_structure_is_supported(
         || selected.written_argument_roles(),
         StructuredSourceRoles::argument_roles,
     );
-    let bodiless = roles.iter().all(|(_, role)| {
+    let bodiless = std::env::var_os("TEMP_GATE_BASE").is_none_or(|_| reached) // TEMP-GATE
+        && roles.iter().all(|(_, role)| {
         !matches!(
             role,
             tcl_registry::ArgRole::Body

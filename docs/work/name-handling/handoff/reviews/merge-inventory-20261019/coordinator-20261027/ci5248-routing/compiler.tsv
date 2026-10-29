@@ -1,0 +1,225 @@
+binary_id	selector	job	panic_site
+tcl-compiler::analyser	class_factories::a_bare_name_inside_the_metaclass_namespace_does_resolve	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_braced_variable_command_head_resolves_through_its_constant	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_collection_loop_in_the_dominating_prefix_preserves_provenance	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_computed_metaclass_name_resolves_through_a_literal_call_site	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_cross_file_factory_keeps_method_checks_live_when_it_can	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_declaration_body_the_walk_cannot_read_is_not_a_blocker	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_deferred_tk_option_body_is_not_a_load_time_blocker	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_define_stub_replaces_a_member_the_creation_body_also_declared	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_define_stub_that_wins_the_join_still_sheds_its_stub_provenance	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_factory_made_class_with_a_readable_override_is_not_opaque	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_factory_without_a_create_override_keeps_the_builtin_layout	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_head_the_walk_knew_only_as_a_define_stub_is_still_deferred	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_later_define_stub_does_not_cost_the_metaclass_its_factory	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_metaclass_file_publishes_exactly_one_factory	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_metaclass_without_unknown_dispatch_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_post_pass_metaclass_classifies_a_creation_in_its_own_file	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_provably_direct_body_keeps_method_checks_live	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_provably_direct_body_still_yields_a_known_empty_injection	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_readable_body_that_runs_now_and_completes_is_not_a_blocker	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_readable_lambda_that_falls_through_is_not_a_blocker	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_relative_superclass_prefers_its_own_namespace_over_a_decoy	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_relative_superclass_reaches_the_metaclass_in_its_own_namespace	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_renamed_metaclass_still_manufactures_its_class	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_replayed_creation_can_itself_prove_the_next_one	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_replayed_creation_keeps_the_members_its_define_stub_already_held	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_replayed_creation_with_a_relative_name_homes_where_it_was_written	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_stored_body_that_cannot_fall_through_is_still_not_a_blocker	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_string_built_prologue_is_opaque_not_empty	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_whole_word_variable_head_is_left_to_the_flow_sensitive_engine	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::a_workspace_indexed_metaclass_creates_real_classes	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::an_unreadable_cross_file_prologue_marks_inheritance_unknown	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::an_unreadable_manufacturer_override_marks_inheritance_unknown	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::computed_creation_declines_a_delimited_fallthrough_body_on_91	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::computed_creation_in_try_finally_is_selected_but_handler_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::computed_creation_materialises_only_the_selected_if_arm	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::computed_creation_materialises_only_the_selected_switch_arm	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::computed_creation_requires_the_load_time_call_path_to_execute	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::computed_creation_switch_supports_registry_modes_and_fallthrough	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::computed_creation_uses_default_proc_formals	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::disjoint_dynamic_command_table_names_preserve_provenance	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::dormant_dynamic_command_table_words_do_not_mutate_load_time_identity	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::each_literal_call_site_proves_its_own_metaclass	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::foreach_installed_procs_are_enumerated_per_literal_element	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::four_hundred_nested_foreach_bodies_do_not_abort_the_process	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::helper_proc_branch_result_drives_computed_creation	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::load_time_call_requires_every_dominating_prefix_to_fall_through	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::load_time_call_requires_nested_control_to_reach_its_end	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::load_time_switch_and_try_paths_select_only_executed_factory_calls	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::oo_define_after_the_fact_extends_a_chained_factory_made_class	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::oo_define_over_a_dynamic_list_still_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::oo_define_over_a_literal_foreach_list_extends_every_named_class	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::oo_define_resolves_a_dominating_constant_target	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::the_control_without_a_rename_records_the_same_class	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::the_cross_file_result_matches_the_same_file_result	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::the_incremental_path_records_the_same_classes_as_a_full_analysis	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::the_per_item_walk_agrees_with_the_whole_file_walk_cross_file	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::the_third_link_records_the_class_and_its_members	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::two_creations_naming_one_class_under_different_metaclasses_abstain	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_cannot_combine_evidence_from_different_branches	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_cannot_construct_after_return_completion	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_constructing_a_derived_word_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_dynamic_arm_cannot_leave_a_normal_fallthrough_path	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_ignores_an_unselected_construction_arm	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_next_abstains_on_a_cyclic_hierarchy	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_next_abstains_on_an_incomplete_hierarchy	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_next_to_a_normally_returning_provider_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_nextto_uses_its_registry_declared_anchor	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_non_normal_return_does_not_prove_a_handle	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_proof_survives_the_cross_document_rehome	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_rejects_a_malformed_if_path	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_requires_construction_on_every_dynamic_return_path	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_returning_a_derived_word_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_returning_something_else_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_stops_at_an_earlier_terminating_command	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_that_constructs_and_returns_the_word_is_proved	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_that_does_not_construct_abstains	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::unknown_dispatch_with_no_return_abstains	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:490
+tcl-compiler::analyser	class_factories::unrelated_multi_arm_writes_preserve_provenance	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::user_metaclass_body_argument_is_read_from_the_create_override	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::user_metaclass_creates_real_classes	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:4538
+tcl-compiler::analyser	class_factories::user_metaclass_splices_its_own_and_the_callers_superclasses	rust-tests-shard (4/5)	
+tcl-compiler::analyser	class_factories::w308_abstains_on_a_class_whose_members_are_installed_reflectively	rust-tests-shard (4/5)	
+tcl-compiler::mro_lattice_adversarial	concrete_binding_resolves	rust-tests-shard (4/5)	rust/tcl-compiler/tests/mro_lattice_adversarial.rs:169
+tcl-compiler::mro_lattice_adversarial	control_flow_join_resolves_the_set_correctly	rust-tests-shard (4/5)	rust/tcl-compiler/tests/mro_lattice_adversarial.rs:1
+tcl-compiler::mro_lattice_adversarial	factory_return_abstains	rust-tests-shard (4/5)	rust/tcl-compiler/tests/mro_lattice_adversarial.rs:94
+tcl-compiler::mro_lattice_adversarial	introspection_dynamic_class_abstains	rust-tests-shard (4/5)	rust/tcl-compiler/tests/mro_lattice_adversarial.rs:101
+tcl-compiler::mro_lattice_adversarial	oo_copy_abstains	rust-tests-shard (4/5)	rust/tcl-compiler/tests/mro_lattice_adversarial.rs:110
+tcl-compiler::mro_lattice_adversarial	per_object_mixin_abstains	rust-tests-shard (4/5)	rust/tcl-compiler/tests/mro_lattice_adversarial.rs:121
+tcl-compiler::mro_lattice_adversarial	reassigned_to_string_abstains_dynamic	rust-tests-shard (4/5)	rust/tcl-compiler/tests/mro_lattice_adversarial.rs:69
+tcl-compiler::mro_lattice_adversarial	unknown_method_on_known_class_is_resolved_not_abstained	rust-tests-shard (4/5)	
+tcl-compiler::taint	html_escaped::html_encode_double_encode_detected	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2963
+tcl-compiler::taint	interprocedural_colours::helper_passthrough_generic_taint_fires_t102	rust-tests-shard (3/5)	
+tcl-compiler::taint	irule3103_edge_cases::glob_question_mark_is_wildcard_not_query	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4
+tcl-compiler::taint	irule3103_edge_cases::nested_boolean_expression_emits_one_hit_per_uri_use	rust-tests-shard (3/5)	
+tcl-compiler::taint	irule3103_edge_cases::phi_both_branches_uri_still_warns	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4351
+tcl-compiler::taint	irule3103_edge_cases::split_separator_from_constant_variable	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:429
+tcl-compiler::taint	irule3103_edge_cases::split_separator_from_copied_constant_variable	rust-tests-shard (3/5)	
+tcl-compiler::taint	irule3103_edge_cases::string_first_with_ampersand_in_if_condition	rust-tests-shard (3/5)	
+tcl-compiler::taint	irule3103_edge_cases::string_match_nocase_in_if_condition	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4285
+tcl-compiler::taint	irule3103_expr_operators::starts_with_via_variable	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4030
+tcl-compiler::taint	irule3103_string_match::string_first_in_if_condition	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4191
+tcl-compiler::taint	irule3103_string_match::string_first_question_mark	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4149
+tcl-compiler::taint	irule3103_string_match::string_match_in_if_condition	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4180
+tcl-compiler::taint	irule3103_string_match::string_match_path_pattern	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4127
+tcl-compiler::taint	irule3103_string_match::string_match_query_pattern	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:4138
+tcl-compiler::taint	irule3103_uri_split::copy_propagation	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3984
+tcl-compiler::taint	irule3103_uri_split::inline_command_substitution	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3944
+tcl-compiler::taint	irule3103_uri_split::split_uri_on_ampersand	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3925
+tcl-compiler::taint	irule3103_uri_split::split_uri_on_question_and_ampersand	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3936
+tcl-compiler::taint	irule3103_uri_split::split_uri_on_question_mark	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3913
+tcl-compiler::taint	non_dash_prefixed_interpolation::literal_dash_prefix_warns	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3159
+tcl-compiler::taint	object_instance_taint_sources::argument_sensitive_widget_getters_taint_only_user_state_forms	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::callback_replay_scaffold_ignores_user_catch_and_proc_commands	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::callback_replays_isolate_abnormal_completion_and_handler_locals	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::destroy_kills_local_instance_class_and_recreate_restores_it	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::instance_configure_adds_a_phase_correct_external_input_definition	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::instance_method_abbreviations_resolve_only_when_unique	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::instance_taint_sources_follow_the_resolved_widget_lifecycle	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::mixed_widget_links_taint_only_the_user_editable_variable	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::overloaded_treeview_and_notebook_getters_only_taint_zero_arg_queries	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::receiver_rebinding_and_branch_joins_use_reaching_classes	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::rename_moves_local_and_global_instance_class_facts	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::resolved_widget_instance_callbacks_replay_registry_declared_inputs	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::top_level_widget_is_a_source_inside_callback_procedure	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_callback_direct_input_diagnostic_hides_synthetic_state	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_callback_percent_source_survives_braced_quoted_and_embedded_words	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_callback_replay_decodes_static_non_head_backslashes	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_callback_replay_input_name_cannot_collide_with_program_variables	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_callback_replay_preserves_argument_expansion	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_callback_replay_preserves_later_word_substitutions	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_callback_seed_ignores_shadowed_scaffolding_commands	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_list_prefix_builder_uses_source_position_command_identity	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_list_prefix_taints_a_named_proc_parameter	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_percent_value_in_command_position_is_dynamic_dispatch	rust-tests-shard (3/5)	
+tcl-compiler::taint	object_instance_taint_sources::validation_percent_values_taint_inline_and_list_prefix_callbacks	rust-tests-shard (3/5)	
+tcl-compiler::taint	output_sinks::puts_inside_tcloo_method_body_still_fires	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2027
+tcl-compiler::taint	output_sinks::puts_tainted_data_span_is_tight_around_argument	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:18
+tcl-compiler::taint	output_sinks::t100_tainted_direct_expr_operand_still_fires	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:1948
+tcl-compiler::taint	output_sinks::t100_tainted_expr_func_arg_still_fires	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:1956
+tcl-compiler::taint	path_normalised_setter_constraint::path_normalised_suppresses_irule3101	rust-tests-shard (3/5)	
+tcl-compiler::taint	path_normalised_setter_constraint::path_prefixed_still_suppresses_irule3101	rust-tests-shard (3/5)	
+tcl-compiler::taint	setter_constraints::irule3101_reads_the_proven_path	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2505
+tcl-compiler::taint	setter_constraints::irule3103_reads_a_proven_operand	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2519
+tcl-compiler::taint	setter_constraints::path_prefixed_var_clean	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2475
+tcl-compiler::taint	setter_constraints::path_to_path_clean	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2497
+tcl-compiler::taint	sink_suppression_matrix::t102_not_suppressed_by_crlf_free	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3387
+tcl-compiler::taint	sink_suppression_matrix::t102_not_suppressed_by_html_escaped	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:339
+tcl-compiler::taint	t102_suppression::http_header_still_warns	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2372
+tcl-compiler::taint	t102_suppression::literal_dash_prefix_concat_still_warns	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2358
+tcl-compiler::taint	t102_suppression::phi_generic_with_coloured_loses	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:2451
+tcl-compiler::taint	t106_double_encoding::double_encode_nested_no_intermediate_fires	rust-tests-shard (3/5)	
+tcl-compiler::taint	t106_double_encoding::double_encode_through_copy	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3738
+tcl-compiler::taint	t106_double_encoding::double_html_encode	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3700
+tcl-compiler::taint	t106_double_encoding::double_regex_quote	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3718
+tcl-compiler::taint	t106_double_encoding::double_uri_encode	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3709
+tcl-compiler::taint	t106_double_encoding::message_format	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:3777
+tcl-compiler::taint	tcl_taint_sources::chan_configure_does_not_taint	rust-tests-shard (3/5)	rust/tcl-compiler/tests/taint.rs:808
+tcl-compiler::taint	tcl_taint_sources::equivalent_variable_command_head_spellings_emit_one_warning	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::escaped_static_command_head_obeys_release_grammar	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::eval_braced_nested_command_substitution_reaches_inner_sink	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::namespace_shadowed_catch_cannot_hijack_nested_analysis_scaffolding	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::nested_script_sink_distinguishes_deferred_from_literal_arguments	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::quoted_whole_command_substitution_reaches_inner_sink	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::reaching_list_value_expands_into_command_and_argv	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::static_expanded_command_head_preserves_argv_semantics	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::unknown_expansion_arms_do_not_erase_a_reaching_sink	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::variable_command_head_warns_when_any_reaching_literal_is_a_sink	rust-tests-shard (3/5)	
+tcl-compiler::taint	tcl_taint_sources::whole_command_substitution_classifies_each_executed_inner_sink	rust-tests-shard (3/5)	
+tcl-compiler::taint	transform_colour_edge_cases::uri_encode_with_untainted_no_colour	rust-tests-shard (3/5)	
+tcl-compiler::taint_depth	dialect_gating::generic_t100_t101_work_in_both_dialects	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:16
+tcl-compiler::taint_depth	exec_shell_atom::fqdn_atom_clears_exec_t100	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:492
+tcl-compiler::taint_depth	exec_shell_atom::ip_atom_clears_exec_t100	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:480
+tcl-compiler::taint_depth	exec_shell_atom::port_atom_clears_exec_t100	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:486
+tcl-compiler::taint_depth	interproc_depth::passthrough_conservatively_loses_source_option_safety_colour	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	irule3101_depth::file_normalised_var_suppresses	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:1232
+tcl-compiler::taint_depth	t100_sink_family::eval_embedded_in_assignment_rhs_fires	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:42
+tcl-compiler::taint_depth	t100_sink_family::expr_braced_operand_message_mentions_coercion	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t100_sink_family::same_var_twice_in_eval_dedups_to_one	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:466
+tcl-compiler::taint_depth	t100_sink_family::subst_embedded_in_assignment_rhs_fires	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:4
+tcl-compiler::taint_depth	t100_sink_family::two_distinct_tainted_vars_in_eval_each_warn	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t102_scan_region::brace_star_expansion_is_option_capable	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:5
+tcl-compiler::taint_depth	t104_network_sinks::http_geturl_fqdn_clears	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:762
+tcl-compiler::taint_depth	t104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t104_network_sinks::socket_validated_port_clears_slot_one	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t106_double_encode_breadth::html_encode_double_warns_with_label	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t106_double_encode_breadth::html_escape_alias_double_warns	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t106_double_encode_breadth::regexp_quote_double_warns_with_label	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t106_double_encode_breadth::uri_encode_component_double_warns	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	t106_double_encode_breadth::uri_escape_double_warns	rust-tests-shard (4/5)	rust/tcl-compiler/tests/taint_depth.rs:862
+tcl-compiler::taint_depth	t106_double_encode_breadth::url_then_url_via_mixed_spellings_warns	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	transform_propagation::url_encoded_copy_then_double_encode_still_detected	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	w313_destructive_file::first_path_variable_is_deterministic	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	w313_destructive_file::span_covers_first_offending_path_argument_of_rename	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	w313_destructive_file::span_covers_only_the_path_argument	rust-tests-shard (4/5)	
+tcl-compiler::taint_depth	w313_destructive_file::span_skips_force_flag_to_the_path_argument	rust-tests-shard (4/5)	
+tcl-irules	executable::tests::event_closure_selects_every_matching_handler_and_only_registry_call_edges	rust-tests-shard (4/5)	
+tcl-irules	executable::tests::inventory_matches_tcl86_and_tcl9_word_substitution_before_expr_errors	rust-tests-shard (4/5)	
+tcl-irules	executable::tests::inventory_obeys_irules_execution_boundaries	rust-tests-shard (4/5)	
+tcl-irules	executable::tests::inventory_requires_braced_declaration_bodies	rust-tests-shard (4/5)	
+tcl-irules	executable::tests::inventory_uses_complete_live_expression_spans_without_walking_expr_data	rust-tests-shard (4/5)	
+tcl-irules	walker::tests::deeply_nested_command_substitution_does_not_crash	rust-tests-shard (4/5)	
+tcl-irules	walker::tests::object_refs_abstain_for_a_dynamic_binding	rust-tests-shard (4/5)	rust/tcl-irules/src/walker.rs:430
+tcl-irules	walker::tests::object_refs_follow_only_reachable_valid_execution_regions	rust-tests-shard (4/5)	
+tcl-irules	walker::tests::unavailable_irules_alias_does_not_create_object_ref_command	rust-tests-shard (4/5)	
+tcl-irules	when_block::tests::a_rebound_when_spelling_is_not_an_event_handler	rust-tests-shard (4/5)	
+tcl-irules	when_block::tests::nested_when_is_not_an_irules_event_handler	rust-tests-shard (4/5)	rust/tcl-irules/src/when_block.rs:2
+tcl-irules	when_block::tests::nested_when_remains_the_only_valid_event_after_unavailable_aliases	rust-tests-shard (4/5)	
+tcl-irules	when_block::tests::recognises_canonical_global_when_spellings	rust-tests-shard (4/5)	rust/tcl-irules/src/when_block.rs:1
+tcl-irules	when_block::tests::top_level_discovery_does_not_execute_braced_or_quoted_data	rust-tests-shard (4/5)	
+tcl-irules	when_block::tests::unavailable_irules_mutators_do_not_change_when_identity	rust-tests-shard (4/5)	
+tcl-irules::event_emission	a_literal_notify_request_reaches_the_user_request_handler	rust-tests-shard (3/5)	
+tcl-irules::event_emission	a_literal_notify_response_reaches_the_user_response_handler	rust-tests-shard (3/5)	
+tcl-irules::event_emission	a_name_lookup_reaches_the_resolved_handler_and_its_helpers	rust-tests-shard (3/5)	
+tcl-irules::event_emission	a_possible_emission_is_not_reported_as_definite	rust-tests-shard (3/5)	rust/tcl-irules/tests/event_emission.rs:191
+tcl-irules::event_emission	a_procedure_called_from_two_events_emits_under_both	rust-tests-shard (3/5)	rust/tcl-irules/tests/event_emission.rs:258
+tcl-irules::event_emission	an_arity_invalid_call_raises_no_edge	rust-tests-shard (3/5)	rust/tcl-irules/tests/event_emission.rs:224
+tcl-irules::object_refs	extract_irules_refs_for_pool_snatpool_and_datagroup	rust-tests-shard (3/5)	rust/tcl-irules/tests/object_refs.rs:71
+tcl-irules::object_refs	extract_irules_refs_nested_in_body_and_command_substitution	rust-tests-shard (3/5)	
+tcl-irules::script_bearing_args	a_pool_used_only_in_a_switch_arm_is_referenced	rust-tests-shard (3/5)	rust/tcl-irules/tests/script_bearing_args.rs:225
+tcl-irules::script_bearing_args	every_body_argument_of_every_irules_command_is_walked	rust-tests-shard (3/5)	
+tcl-irules::script_bearing_args	every_clause_list_body_is_walked	rust-tests-shard (3/5)	rust/tcl-irules/tests/script_bearing_args.rs:187
+tcl-irules::walker	walker_matches_golden	rust-tests-shard (4/5)	rust/tcl-irules/tests/walker.rs:85

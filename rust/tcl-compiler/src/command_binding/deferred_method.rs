@@ -205,6 +205,10 @@ impl SourceCommandBindings {
     ) -> bool {
         // naming.tcloo.original-lexical-member-context
         // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
+        #[cfg(debug_assertions)]
+        if std::env::var_os("ZZ_PROBE_OO").is_some() {
+            eprintln!("ZZ_OO select offset={} selected={}", native.segment.span.start(), select_bounded_method_definition(native, state, context, facts).is_some()); // ZZPROBE
+        }
         let Some(BoundedMethodDefinition {
             grammar,
             original_factory,
@@ -650,6 +654,11 @@ impl ModuleCommandBindings {
             .collect::<Option<Vec<_>>>()?;
         let (_, name) =
             grammar.single_native_inherited_class(member, &arguments, self.baseline.dialect)?;
+        #[cfg(debug_assertions)]
+        if std::env::var_os("ZZ_PROBE_OO").is_some() {
+            let binding = source_binding(self, name, &context.namespace_identity()); // ZZPROBE
+            eprintln!("ZZ_OO inherited name={name} original={} closed={} unknown={} absent={} targets={:?}", original_definition_member(grammar, member, tcl_registry::definer::DefinitionReceiver::Instance, self, context), self.source_lookup_is_closed(name, &context.namespace_identity()), binding.unknown, binding.may_be_absent, binding.targets.iter().map(|t| (t.command.clone(), t.registry_backed, t.kind, t.identity.is_some(), self.retained_target_is_current(t))).collect::<Vec<_>>()); // ZZPROBE
+        }
         if !original_definition_member(
             grammar,
             member,
@@ -1238,6 +1247,10 @@ fn closed_bounded_method_segments(
 ) -> bool {
     segments.iter().all(|segment| {
         let closed = closed_definition_member(grammar, definition, map, segment, state, context);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("ZZ_PROBE_OO").is_some() {
+            eprintln!("ZZ_OO member offset={} keyword={} closed={closed}", segment.span.start(), segment.name()); // ZZPROBE
+        }
         #[cfg(test)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(

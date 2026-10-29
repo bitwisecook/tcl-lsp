@@ -9431,3 +9431,22 @@ mod pack_declared_transitions {
         assert!(!plain.is_readable_at_startup("sim_home", query));
     }
 }
+
+// ZZPROBE-START (temporary compiler-role probe; removed before hand-back)
+#[test]
+#[ignore = "temporary probe"]
+fn zz_probe_analyser_env() {
+    let path = std::env::var("ZZ_PROBE_FILE").expect("ZZ_PROBE_FILE");
+    for (index, src) in std::fs::read_to_string(path)
+        .expect("probe file")
+        .split("\n----\n")
+        .enumerate()
+    {
+        let result = Analyser::new().analyse(src, "tcl9.0");
+        eprintln!(
+            "ZZPROBE {index} {src:?} classes={:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+}
+// ZZPROBE-END

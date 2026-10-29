@@ -485,6 +485,132 @@ mod tests {
     use super::*;
     use crate::signature_scan::scope::SignatureSourceNameKey;
 
+    // TEMP-DS
+    #[test]
+    fn temp_ds_probe() {
+        let src = std::env::var("TEMP_DS_SRC")
+            .unwrap_or_else(|_| "proc f {} { set i 0\n set i 5\n return $i }".to_owned());
+        let src = src.as_str();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
+            src, registry, false, profile,
+        );
+        for (name, procedure) in &cu.ir_module.procedures {
+            for statement in &procedure.body.statements {
+                let text = format!("{statement:?}");
+                eprintln!("TEMP_DS {name:?} stmt={}", &text[..text.len().min(220)]);
+            }
+        }
+        let codes: Vec<_> = crate::compiler_checks::run_all_checks(&cu, registry, Some(profile))
+            .iter()
+            .map(|d| d.code.to_string())
+            .collect();
+        eprintln!("TEMP_DS codes={codes:?}");
+        for ((symbol, version), ty) in cu.top_level.types.iter() {
+            eprintln!(
+                "TEMP_DS type {}@{version} = {ty}",
+                cu.top_level.ssa.var_name(*symbol)
+            );
+        }
+        eprintln!(
+            "TEMP_DS procs={} body_units={} authored={} logical={} native={} cu_procs={}",
+            cu.ir_module.procedures.len(),
+            cu.ir_module.body_units.len(),
+            cu.ir_module.original_authored_declaration_body_units.len(),
+            cu.ir_module.original_logical_declaration_body_units.len(),
+            cu.ir_module.original_native_declaration_body_units.len(),
+            cu.procedures.len()
+        );
+        for (id, unit) in &cu.ir_module.body_units {
+            eprintln!(
+                "TEMP_DS body_unit {id:?} kind={:?} name={} stmts={}",
+                unit.body_kind,
+                unit.qualified_name,
+                unit.body.statements.len()
+            );
+        }
+        for statement in &cu.ir_module.top_level.statements {
+            let text = format!("{statement:?}");
+            eprintln!("TEMP_DS top stmt={}", &text[..text.len().min(300)]);
+            let tokens = match statement {
+                crate::ir::Statement::Call { tokens, .. }
+                | crate::ir::Statement::Barrier { tokens, .. } => tokens.as_ref(),
+                _ => None,
+            };
+            let Some(tokens) = tokens else { continue };
+            let binding = tokens.source_binding.as_ref();
+            eprintln!(
+                "TEMP_DS binding={} synthetic={} argv_match={}",
+                binding.is_some(),
+                tokens.synthetic.is_some(),
+                tokens.original_words_match_argv_text()
+            );
+            eprintln!(
+                "TEMP_DS authored_card={} structured={}",
+                crate::registry_invocation::original_authored_procedure_body(tokens, registry)
+                    .is_some(),
+                crate::registry_invocation::original_structured_invocation(registry, tokens)
+                    .is_some()
+            );
+            if let Some(binding) = binding {
+                let input = binding.original_written_name_input(tokens, 1);
+                eprintln!("TEMP_DS input={input:?}");
+                eprintln!(
+                    "TEMP_DS words={} compiler_words={} site={}",
+                    binding.original_written_words.is_some(),
+                    binding.original_compiler_words.is_some(),
+                    binding.invocation_site().is_some()
+                );
+                if let Some(input) = input {
+                    eprintln!(
+                        "TEMP_DS scope={:?}",
+                        binding.original_operand_naming_scope(&input)
+                    );
+                }
+            }
+        }
+    }
+
+    // TEMP-STACK
+    #[test]
+    fn temp_stack_probe() {
+        let (Ok(bytes), Ok(depth)) = (
+            std::env::var("TEMP_STACK_BYTES"),
+            std::env::var("TEMP_STACK_DEPTH"),
+        ) else {
+            return;
+        };
+        let bytes: usize = bytes.parse().unwrap();
+        let depth: usize = depth.parse().unwrap();
+        let source: String = (0..depth)
+            .map(|i| format!("foreach v{i} {{a b}} {{\n"))
+            .chain(std::iter::once("set inner 1\n".to_owned()))
+            .chain((0..depth).map(|_| "}\n".to_owned()))
+            .collect();
+        let registry = tcl_registry::CommandRegistry::build_default();
+        std::thread::Builder::new()
+            .stack_size(bytes)
+            .spawn(move || {
+                let _ = super::super::SourceCommandBindings::analyse_with_options(
+                    &source,
+                    tcl_lexer::LexerConfig::default(),
+                    &registry,
+                    super::super::SourceAnalysisOptions {
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                            tcl_dialect::TclVersion::V9_0,
+                        )),
+                        ..super::super::SourceAnalysisOptions::default()
+                    },
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        eprintln!("TEMP_STACK ok bytes={bytes} depth={depth}");
+    }
+
     #[test]
     fn original_initial_table_selects_the_registered_handler() {
         for version in tcl_dialect::TclVersion::ALL {
@@ -3225,9 +3351,10 @@ impl ModuleCommandBindings {
 
     /// Whether a missing command can reach an unresolved-command handler in
     /// this world. The registry's native fallback policy names the handler and
-    /// says whether a fresh interpreter binds it; where it starts unbound (Jim
-    /// 0.84), only a handler definitely absent from every lookup slot ends in
-    /// an error. An unclosed or opaque world may hold unrecorded commands.
+    /// says whether a fresh interpreter binds it (C's init.tcl `::unknown`,
+    /// none in Jim 0.84). Only a handler definitely absent from every lookup
+    /// slot ends in an error. An unclosed or opaque world may hold unrecorded
+    /// commands.
     fn original_unresolved_handler_may_run(&self, namespace: &SourceNamespaceKey) -> bool {
         if self.unclosed_command_world
             || self.opaque_domain
@@ -3245,18 +3372,20 @@ impl ModuleCommandBindings {
         }) else {
             return true;
         };
-        if policy.default_handler_bound {
-            return true;
-        }
         let Ok(keys) = self.source_keys_checked(policy.default_handler, namespace) else {
             return true;
         };
+        // A handler the fresh interpreter binds stays possible until this
+        // world changes its slot; an explicit removal is definite.
         keys.is_empty()
             || keys.iter().any(|key| {
                 self.original_bindings_for_key(key).is_none_or(|bindings| {
                     bindings
                         .iter()
                         .any(|binding| *binding != MayBinding::Missing)
+                        || (policy.default_handler_bound
+                            && self.original_initial_bindings_for_key(key).as_ref()
+                                == Some(&bindings))
                 })
             })
     }

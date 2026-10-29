@@ -1166,6 +1166,13 @@ struct PublishedSourcePath {
 }
 type PublishedSourcePaths = std::sync::Mutex<HashMap<Uri, PublishedSourcePath>>;
 
+/// Document-map holder labels for one index publication.
+struct IndexPublicationSites {
+    currency: &'static str,
+    complete: &'static str,
+    commit: &'static str,
+}
+
 #[derive(Clone)]
 struct FreshAnalysisSeed {
     path_admission: Arc<DocumentPathAdmission>,
@@ -12713,61 +12720,21 @@ impl Backend {
         text: &str,
         dialect: &str,
         version: i32,
-        mut seed: FreshAnalysisSeed,
+        seed: FreshAnalysisSeed,
     ) -> DocumentSourceResult<bool> {
-        seed.path_admission.check_for(uri, self.store.as_ref())?;
-        let uri_generation = self.live_publication_uri_generation(uri);
-        loop {
-            let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
-            let rehoming_guard = self.rehoming_gate.lock().await;
-            let class_factory_generation = self.class_factory_generation.read().await;
-            if self.diag_inputs_epoch() != seed.analyser_inputs_epoch
-                || *class_factory_generation != seed.class_factory_generation
-            {
-                drop(class_factory_generation);
-                drop(rehoming_guard);
-                drop(analyser_inputs_guard);
-                seed = self
-                    .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
-                    .await?;
-                continue;
-            }
-            let mut seeds = self.rehomed_source_seeds.lock().await;
-            let mut documents = self.documents.lock("did_open_publish_complete").await;
-            if !documents
-                .get(uri)
-                .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
-                || self.live_publication_uri_generation(uri) != uri_generation
-            {
-                return Ok(false);
-            }
-            let Ok(mut index) = self.workspace_index.try_write() else {
-                drop(documents);
-                drop(seeds);
-                drop(self.workspace_index.write().await);
-                continue;
-            };
-            // No await separates authenticating the selected provider mapping
-            // from publishing the matching index and document revision.
-            DocumentPathAdmission::with_current(
-                &[seed.path_admission.as_ref()],
-                self.store.as_ref(),
-                || {
-                    index.replace_document_with_revision(uri.as_str(), &seed.analysis);
-                    seeds.remove(uri.as_str());
-                    documents.retag("did_open_publish_complete: commit");
-                    documents
-                        .get_mut(uri)
-                        .expect("the document map remains locked")
-                        .publication = DocumentPublication::Indexed;
-                },
-            )?;
-            drop(index);
-            drop(documents);
-            drop(seeds);
-            self.live_publication_advanced.notify_waiters();
-            return Ok(true);
-        }
+        self.publish_index_if_current(
+            uri,
+            text,
+            dialect,
+            seed,
+            |doc| doc.matches_open_publication(text, dialect, version),
+            IndexPublicationSites {
+                currency: "did_open_index_currency",
+                complete: "did_open_publish_complete",
+                commit: "did_open_publish_complete: commit",
+            },
+        )
+        .await
     }
 
     /// Publish an edited revision's replacement index view without retaining
@@ -12778,7 +12745,34 @@ impl Backend {
         text: &str,
         dialect: &str,
         revision: u64,
+        seed: FreshAnalysisSeed,
+    ) -> DocumentSourceResult<bool> {
+        self.publish_index_if_current(
+            uri,
+            text,
+            dialect,
+            seed,
+            |doc| doc.matches_live_publication(text, dialect, revision),
+            IndexPublicationSites {
+                currency: "did_change_index_currency",
+                complete: "did_change_publish_complete",
+                commit: "did_change_publish_complete: commit",
+            },
+        )
+        .await
+    }
+
+    /// The document map is never held while the index writer is awaited. The
+    /// replacement reaches the index first; a revision superseded before the
+    /// final check removes its own records.
+    async fn publish_index_if_current(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
         mut seed: FreshAnalysisSeed,
+        matches: impl Fn(&DocumentState) -> bool,
+        sites: IndexPublicationSites,
     ) -> DocumentSourceResult<bool> {
         seed.path_admission.check_for(uri, self.store.as_ref())?;
         let uri_generation = self.live_publication_uri_generation(uri);
@@ -12797,39 +12791,50 @@ impl Backend {
                     .await?;
                 continue;
             }
-            let mut seeds = self.rehomed_source_seeds.lock().await;
-            let mut documents = self.documents.lock("did_change_publish_complete").await;
-            if !documents
-                .get(uri)
-                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
-                || self.live_publication_uri_generation(uri) != uri_generation
-            {
+            let current = |documents: &HashMap<Uri, DocumentState>| {
+                documents.get(uri).is_some_and(&matches)
+                    && self.live_publication_uri_generation(uri) == uri_generation
+            };
+            if !current(&*self.documents.lock(sites.currency).await) {
                 return Ok(false);
             }
-            let Ok(mut index) = self.workspace_index.try_write() else {
-                drop(documents);
-                drop(seeds);
-                drop(self.workspace_index.write().await);
-                continue;
-            };
-            // No await separates authenticating the selected provider mapping
-            // from publishing the matching index and document revision.
-            DocumentPathAdmission::with_current(
+            let mut index = self.workspace_index.write().await;
+            if self.live_publication_uri_generation(uri) != uri_generation {
+                return Ok(false);
+            }
+            let index_revision = DocumentPathAdmission::with_current(
                 &[seed.path_admission.as_ref()],
                 self.store.as_ref(),
-                || {
-                    index.replace_document_with_revision(uri.as_str(), &seed.analysis);
-                    seeds.remove(uri.as_str());
-                    documents.retag("did_change_publish_complete: commit");
-                    documents
-                        .get_mut(uri)
-                        .expect("the document map remains locked")
-                        .publication = DocumentPublication::Indexed;
-                },
+                || index.replace_document_with_revision(uri.as_str(), &seed.analysis),
             )?;
             drop(index);
+            self.rehomed_source_seeds.lock().await.remove(uri.as_str());
+            let mut documents = self.documents.lock(sites.complete).await;
+            let committed = if current(&*documents) {
+                // The provider mapping is authenticated with the document commit.
+                DocumentPathAdmission::with_current(
+                    &[seed.path_admission.as_ref()],
+                    self.store.as_ref(),
+                    || {
+                        documents.retag(sites.commit);
+                        documents
+                            .get_mut(uri)
+                            .expect("the document map remains locked")
+                            .publication = DocumentPublication::Indexed;
+                    },
+                )
+                .map(|()| true)
+            } else {
+                Ok(false)
+            };
             drop(documents);
-            drop(seeds);
+            if !matches!(committed, Ok(true)) {
+                self.workspace_index
+                    .write()
+                    .await
+                    .remove_document_if_revision(uri.as_str(), index_revision);
+                return committed;
+            }
             self.live_publication_advanced.notify_waiters();
             return Ok(true);
         }
@@ -26289,13 +26294,16 @@ impl Backend {
     /// dialects, re-run diagnostics, and ask the client to refresh the
     /// on-demand providers.
     async fn run_config_reload(&self) -> DocumentSourceResult<()> {
+        let tmp_start = std::time::Instant::now();
         self.pull_and_apply_config().await?;
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "pulled", tmp_start.elapsed()); }
         // `tclLsp.specPacks` is part of what was just applied: if it moved, the
         // pack set — and therefore the registry every open document resolves
         // against — moves with it.  The reload is content-keyed, so a settings
         // burst that does not touch `specPacks` costs one discovery walk and
         // nothing else.
         self.reload_spec_packs(ReloadTrigger::Config).await?;
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "packs", tmp_start.elapsed()); }
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
         // changes a document's dialect (the dialect the re-pull *does* resolve
@@ -26305,11 +26313,13 @@ impl Backend {
         // master switch goes off, dropping O-codes when the optimiser goes off)
         // rather than lingering until the next keystroke.
         self.reschedule_all_open_documents().await;
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "open", tmp_start.elapsed()); }
         // The same toggles govern closed files that still carry a badge:
         // a master-switch-off must clear their squiggles too, and a disabled-code
         // change must re-lint them — the open-document reschedule alone would
         // leave a closed file's badge frozen at its pre-toggle set.
         self.reschedule_closed_file_diagnostics().await;
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "closed", tmp_start.elapsed()); }
         // On-demand providers cache their last result client-side and only
         // re-request on a document edit — a bare config change (e.g. toggling
         // `features.folding` off) would otherwise leave stale folding ranges /
@@ -26320,6 +26330,7 @@ impl Backend {
         let _ = bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
             .await;
         let _ = bounded_client_request(self.client.code_lens_refresh()).await;
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "refresh", tmp_start.elapsed()); }
 
         Ok(())
     }
@@ -26377,6 +26388,7 @@ impl Backend {
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
         self.warn_configured_dialect(dialect_warning).await;
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "apply-before-rescan", rescan_workspace); }
         let _: () = if rescan_workspace {
             self.scan_workspace_folders().await?;
         };
@@ -33188,7 +33200,9 @@ impl LanguageServer for Backend {
         {
             self.reschedule_all_open_documents().await;
         }
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "before-warn", std::time::Instant::now()); }
         self.warn_configured_dialect(dialect_warning).await;
+        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "after-warn", std::time::Instant::now()); }
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -59612,6 +59626,64 @@ proc p {} {
             .await
             .expect("the edit must finish once its tail can take the diag_slots lock")
             .expect("did_change panicked");
+    }
+
+    #[tokio::test]
+    async fn tmp_probe_sourced_view_routes() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\nhelper\n").await;
+        let a_src = "namespace eval ::x { source b.tcl }\n::x::helper\n";
+        register(&backend, &a, a_src).await;
+        let settlement = backend.refresh_original_source_view_graph().await;
+        match &settlement {
+            Ok(Some(settlement)) => {
+                eprintln!("TMP_PROBE settlement {}", settlement.tmp_probe_scopes())
+            }
+            other => eprintln!("TMP_PROBE settlement unavailable ok={}", other.is_ok()),
+        }
+        for (uri, line, character, references) in [
+            (&a, 1, 6, Some(true)),
+            (&a, 1, 6, None),
+            (&b, 0, 6, Some(false)),
+            (&b, 1, 2, Some(true)),
+        ] {
+            let route = backend
+                .original_source_view_navigation_route(
+                    uri,
+                    Position::new(line, character),
+                    references,
+                )
+                .await;
+            let shown = match route {
+                Ok(std::ops::ControlFlow::Break(Some(locations))) => format!(
+                    "Break(Some({:?}))",
+                    locations
+                        .iter()
+                        .map(|l| (
+                            l.uri.as_str().to_owned(),
+                            l.range.start.line,
+                            l.range.start.character
+                        ))
+                        .collect::<Vec<_>>()
+                ),
+                Ok(std::ops::ControlFlow::Break(None)) => "Break(None)".to_owned(),
+                Ok(std::ops::ControlFlow::Continue(())) => "Continue".to_owned(),
+                Err(error) => format!("Err({error})"),
+            };
+            eprintln!(
+                "TMP_PROBE route uri={} pos={line}:{character} refs={references:?} -> {shown}",
+                uri.as_str()
+            );
+        }
+        let index = backend.workspace_index.read().await;
+        eprintln!(
+            "TMP_PROBE index ::x::helper defs={} ::helper defs={} views_b={}",
+            index.proc_definitions_qualified("::x::helper", "").len(),
+            index.proc_definitions_qualified("::helper", "").len(),
+            index.original_source_views(b.as_str()).len()
+        );
     }
 
     async fn register(backend: &Backend, uri: &Uri, src: &str) {

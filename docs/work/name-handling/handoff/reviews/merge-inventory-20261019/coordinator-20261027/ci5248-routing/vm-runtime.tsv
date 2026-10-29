@@ -1,0 +1,261 @@
+binary_id	selector	job	panic_site
+tcl-cshim	doors::tests::a_command_the_c_code_created_is_published_before_the_script_that_calls_it	rust-tests-shard (3/5)	
+tcl-cshim	doors::tests::a_value_read_is_a_new_object_that_outlives_later_calls	rust-tests-shard (3/5)	
+tcl-cshim	load::tests::a_failing_entry_point_is_the_error_load_reports_and_can_be_tried_again	rust-tests-shard (3/5)	
+tcl-cshim	obj::tests::the_declared_prefix_is_the_layout_the_header_declares	rust-tests-shard (3/5)	rust/tcl-cshim/src/obj.rs:1736
+tcl-cshim	tests::a_c_command_returning_break_is_a_break_completion	rust-tests-shard (3/5)	rust/tcl-cshim/src/lib.rs:1349
+tcl-cshim	tests::a_code_that_is_not_a_return_carries_no_options_whatever_the_evaluation_left	rust-tests-shard (3/5)	
+tcl-cshim	tests::a_command_an_engine_runs_without_a_door_reaches_no_variable	rust-tests-shard (3/5)	rust/tcl-cshim/src/lib.rs:1379
+tcl-cshim	tests::an_evaluation_that_did_not_end_in_a_return_leaves_no_options_for_a_later_one	rust-tests-shard (3/5)	
+tcl-cshim	tests::deleting_a_command_reaches_the_engine_and_runs_the_delete_proc	rust-tests-shard (3/5)	rust/tcl-cshim/src/lib.rs:1
+tcl-cshim::completion	a_break_or_a_continue_outside_a_loop_is_what_tcl_says_of_it	rust-tests-shard (5/5)	rust/tcl-cshim/tests/completion.rs:13
+tcl-cshim::doors_e2e	a_budget_a_command_swallows_still_fails_the_invocation	rust-tests-shard (5/5)	rust/tcl-cshim/tests/doors_e2e.rs:618
+tcl-cshim::doors_e2e	every_call_answers_what_c_tcl_answers	rust-tests-shard (5/5)	rust/tcl-cshim/tests/doors_e2e.rs:76
+tcl-cshim::doors_e2e	where_the_error_code_differs_from_c_tcl_the_difference_is_the_recorded_one	rust-tests-shard (5/5)	
+tcl-cshim::pkga_e2e	client_data_and_delete_procs_work_across_calls	rust-tests-shard (3/5)	rust/tcl-cshim/tests/pkga_e2e.rs:451
+tcl-cshim::pkga_e2e	load_through_the_host_bridge_defines_the_commands	rust-tests-shard (3/5)	rust/tcl-cshim/tests/pkga_e2e.rs:247
+tcl-cshim::pkga_e2e	results_and_errors_match_c_tcl_byte_for_byte	rust-tests-shard (3/5)	rust/tcl-cshim/tests/pkga_e2e.rs:167
+tcl-cshim::pkga_e2e	the_same_vectors_run_through_the_host_load_bridge	rust-tests-shard (3/5)	rust/tcl-cshim/tests/pkga_e2e.rs:167
+tcl-spec-hooks::containment_e2e	a_body_with_a_global_counter_answers_identically_on_every_call	rust-tests-shard (3/5)	
+tcl-spec-hooks::containment_e2e	a_declared_budget_above_the_hosts_runs_under_the_hosts	rust-tests-shard (3/5)	
+tcl-spec-hooks::containment_e2e	a_declared_budget_narrows_the_host_for_its_call_only	rust-tests-shard (3/5)	
+tcl-spec-hooks::containment_e2e	the_generator_is_refused_under_every_pinned_release	rust-tests-shard (3/5)	
+tcl-spec-hooks::families_e2e	a_literal_validator_sees_kinds_and_reports_a_typed_issue::runtime	rust-tests-shard (3/5)	
+tcl-spec-hooks::families_e2e	a_release_pinned_hook_runs_under_the_calls_release::runtime	rust-tests-shard (3/5)	
+tcl-spec-hooks::families_e2e	a_release_pinned_hook_runs_under_the_calls_release::tclvm	rust-tests-shard (3/5)	
+tcl-spec-hooks::families_e2e	a_silent_target_declines_the_whole_answer::tclvm	rust-tests-shard (3/5)	rust/tcl-spec-hooks/tests/families_e2e.rs:625
+tcl-spec-hooks::families_e2e	a_state_transition_body_emits_alias_facts_only::runtime	rust-tests-shard (3/5)	
+tcl-spec-hooks::families_e2e	a_state_transition_body_emits_alias_facts_only::tclvm	rust-tests-shard (3/5)	rust/tcl-spec-hooks/tests/families_e2e.rs:7
+tcl-spec-hooks::families_e2e	an_option_arity_hook_reads_its_option_keys_and_consumes::tclvm	rust-tests-shard (3/5)	
+tcl-spec-hooks::families_e2e	command_prefix_resolver_emits_positions_and_appended_arity::runtime	rust-tests-shard (3/5)	
+tcl-spec-studio	coverage::tests::command_spec_is_fully_surfaced	rust-tests-shard (5/5)	rust/tcl-spec-studio/src/coverage.rs:1724
+tcl-spec-studio	examples::tests::every_catalogue_and_variant_has_a_valid_example	rust-tests-shard (5/5)	
+tcl-spec-studio	examples::tests::every_group_and_field_has_a_valid_example	rust-tests-shard (5/5)	rust/tcl-spec-studio/src/examples.rs:4
+tcl-spec-studio	help::tests::every_schema_field_has_help	rust-tests-shard (5/5)	rust/tcl-spec-studio/src/help.rs:1872
+tcl-spec-studio	help::tests::field_help_keys_are_unique	rust-tests-shard (5/5)	rust/tcl-spec-studio/src/help.rs:1896
+tcl-spec-studio	infer::extension::tests::a_probe_alone_names_the_package_the_version_and_every_command	rust-tests-shard (5/5)	
+tcl-spec-studio	infer::extension::tests::pkga_is_described_at_the_default_fact_with_its_proposals	rust-tests-shard (5/5)	
+tcl-spec-studio	infer::tests::a_bodys_effects_answer_and_callbacks_are_read_from_the_summary	rust-tests-shard (5/5)	
+tcl-spec-studio	infer::tests::an_import_carries_the_bodys_facts_as_proposals	rust-tests-shard (5/5)	rust/tcl-spec-studio/src/infer.rs:10
+tcl-spec-studio	relations::tests::every_field_is_clustered_or_declared_standalone	rust-tests-shard (5/5)	
+tcl-spec-studio	render_spectcl::tests::the_header_and_the_body_agree_on_their_vocabulary	rust-tests-shard (5/5)	
+tcl-spec-studio	sample::tests::a_shipped_command_reports_its_own_declaration	rust-tests-shard (5/5)	rust/tcl-spec-studio/src/sample.rs:1
+tcl-spec-studio	tests::pack_formatting_uses_the_shared_spectcl_profile	rust-tests-shard (5/5)	rust/tcl-spec-studio/src/lib.rs:744
+tcl-spec-studio::schema_coverage	schema_covers_every_command_spec_field	rust-tests-shard (5/5)	rust/tcl-spec-studio/tests/schema_coverage.rs:118
+tcl-spec-studio::schema_coverage	schema_covers_every_subcommand_field	rust-tests-shard (5/5)	rust/tcl-spec-studio/tests/schema_coverage.rs:118
+tcl-spec-studio::spectcl_ports	every_port_loads_and_matches_its_shipped_spec	rust-tests-shard (3/5)	
+tcl-spectcl::codegen_stamps	a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	a_body_with_a_return_before_its_end_answers_through_the_splice	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	a_braced_literal_stays_literal_through_the_wrap	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:1872
+tcl-spectcl::codegen_stamps	a_braced_word_in_an_inlined_body_stays_literal	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:1637
+tcl-spectcl::codegen_stamps	a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	a_changed_pack_invalidates_the_site	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:610
+tcl-spectcl::codegen_stamps	a_definition_in_a_namespace_resolves_its_commands_as_it_did	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	a_direct_dependencys_reference_body_is_dropped_at_load	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:1
+tcl-spectcl::codegen_stamps	a_function_claims_a_splice_only_where_it_emits_it	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:1760
+tcl-spectcl::codegen_stamps	a_host_native_backing_never_defines_a_proc	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:985
+tcl-spectcl::codegen_stamps	a_pack_fold_is_admitted_only_under_its_pack_s_facts	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:658
+tcl-spectcl::codegen_stamps	a_pack_text_body_that_diverges_turns_the_site_plain	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:1014
+tcl-spectcl::codegen_stamps	a_package_source_body_is_read_at_load_through_the_store	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	a_proc_at_the_pack_name_recompiles_plain	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:808
+tcl-spectcl::codegen_stamps	a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	a_site_compiled_through_the_service_stamps_the_bases_overlay_generation	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	a_tcl_body_backed_command_is_inlined_and_admitted	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:896
+tcl-spectcl::codegen_stamps	a_workspace_stamp_is_refused_and_specialises_nothing	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:502
+tcl-spectcl::codegen_stamps	an_admitted_alias_stamp_records_the_targets_identity	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:525
+tcl-spectcl::codegen_stamps	an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	an_inlined_body_inside_a_static_eval_keeps_its_value	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:147
+tcl-spectcl::codegen_stamps	every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site	rust-tests-shard (5/5)	
+tcl-spectcl::codegen_stamps	the_vm_admits_it_through_the_alias_hop	rust-tests-shard (5/5)	rust/tcl-spectcl/tests/codegen_stamps.rs:559
+tcl-spectcl::workspace_packs	a_manifest_that_places_nothing_does_not_lift_its_pack	rust-tests-shard (3/5)	rust/tcl-spectcl/tests/workspace_packs.rs:6
+tcl-spectcl::workspace_packs	a_warm_cache_produces_the_identical_load	rust-tests-shard (3/5)	rust/tcl-spectcl/tests/workspace_packs.rs:218
+tcl-vm-cli::bin/tclvm	tests::tcl_version_flag_gates_grammar_and_command_surface	rust-tests-shard (5/5)	
+tcl-vm-cli::script_errors	a_nested_error_logs_each_level_the_release_evaluates	rust-tests-shard (3/5)	rust/tcl-vm-cli/tests/script_errors.rs:381
+tcl-vm::builtins_e2e	an_escaped_bracket_in_an_expr_operand_is_data	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	bootstrap_globals_present	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	bootstrap_platform_schema_comes_from_the_shared_owner	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	clock_shared_core	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	dict_for_compiled_inline_executes	rust-tests-shard (5/5)	rust/tcl-vm/tests/builtins_e2e.rs:150
+tcl-vm::builtins_e2e	explicit_return_errorinfo_retains_the_prior_error_stack	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	foreach_accumulate	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	foreach_empty_list	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	foreach_multi_var	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	foreach_single	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	foreach_two_lists	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	foreach_uneven_pads_empty	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	interp_subcommand_words_resolve_like_tcl_get_index_from_obj	rust-tests-shard (5/5)	rust/tcl-vm/tests/builtins_e2e.rs:903
+tcl-vm::builtins_e2e	namespace_code_inscope	rust-tests-shard (5/5)	rust/tcl-vm/tests/builtins_e2e.rs:149
+tcl-vm::builtins_e2e	package_badresult_preserves_ancillary_options_and_pending_error_stack	rust-tests-shard (5/5)	
+tcl-vm::builtins_e2e	package_badresult_resets_non_error_traces_and_preserves_carried_error_info	rust-tests-shard (5/5)	
+tcl-vm::builtins_e2e	package_forget_clears_active_loader_marker	rust-tests-shard (5/5)	rust/tcl-vm/tests/builtins_e2e.rs:149
+tcl-vm::builtins_e2e	package_ifneeded_non_error_completions_become_badresult_and_can_be_retried	rust-tests-shard (5/5)	
+tcl-vm::builtins_e2e	package_loader_generated_failures_name_the_loader_in_error_info	rust-tests-shard (5/5)	
+tcl-vm::builtins_e2e	package_unknown_non_error_completions_become_badresult	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	string_is_failindex_is_written	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	switch_glob_and_default	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	switch_shared_core	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::builtins_e2e	variable_trace_errors_retain_error_stack	rust-tests-shard (5/5)	rust/tcl-vm/tests/builtins_e2e.rs:149
+tcl-vm::builtins_e2e	variable_traces	rust-tests-shard (5/5)	rust/tcl-vm/tests/builtins_e2e.rs:1302
+tcl-vm::c_error_paths_e2e	error_stack_inner_names_the_failing_instruction	rust-tests-shard (3/5)	rust/tcl-vm/tests/c_error_paths_e2e.rs:35
+tcl-vm::c_error_paths_e2e	execution_trace_errors_name_the_trace	rust-tests-shard (3/5)	rust/tcl-vm/tests/c_error_paths_e2e.rs:35
+tcl-vm::c_error_paths_e2e	lsort_comparator_error_logs_the_callback	rust-tests-shard (3/5)	rust/tcl-vm/tests/c_error_paths_e2e.rs:50
+tcl-vm::c_error_paths_e2e	regsub_command_error_logs_the_callback	rust-tests-shard (3/5)	rust/tcl-vm/tests/c_error_paths_e2e.rs:35
+tcl-vm::c_error_paths_e2e	sourced_file_frames_and_returns	rust-tests-shard (3/5)	rust/tcl-vm/tests/c_error_paths_e2e.rs:35
+tcl-vm::cmd_control_e2e	a_deferred_parse_error_is_raised_before_the_activation_is_torn_down	rust-tests-shard (3/5)	
+tcl-vm::cmd_control_e2e	an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:226
+tcl-vm::cmd_control_e2e	deeply_nested_command_substitution_is_unaffected	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:75
+tcl-vm::cmd_control_e2e	foreach_runtime_var_write_failure	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:75
+tcl-vm::cmd_control_e2e	switch_runtime_matchvar_write_failure	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:75
+tcl-vm::cmd_control_e2e	try_dash_fallthrough	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:75
+tcl-vm::cmd_control_e2e	try_handler_var_bind_failure_chains_during	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:75
+tcl-vm::cmd_control_e2e	try_trap_errorcode_prefix	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:75
+tcl-vm::cmd_control_e2e	try_trap_no_match_propagates	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_control_e2e.rs:75
+tcl-vm::cmd_math_expr_e2e	expr_runtime_operand_type_errors	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_math_expr_e2e.rs:992
+tcl-vm::cmd_math_expr_e2e	expr_stk_dynamic_evaluation	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60
+tcl-vm::cmd_oo_e2e	private_instance_variable_on_a_class_matches_var_29_3	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::cmd_oo_e2e	private_instance_variable_on_an_object_matches_var_29_6	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::cmd_oo_e2e	retained_and_recreated_tcloo_commands_have_distinct_identity	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:1114
+tcl-vm::cmd_oo_e2e	tcl_oo_package_and_version_vars	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:340
+tcl-vm::cmd_oo_e2e	tip558_configurable_configure_get_set_list	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:88
+tcl-vm::cmd_oo_e2e	tip558_configurable_inheritance_and_next	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:88
+tcl-vm::cmd_oo_e2e	tip558_configurable_kind_readable_and_writable	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:474
+tcl-vm::cmd_oo_e2e	tip558_configurable_not_on_plain_class	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:88
+tcl-vm::cmd_oo_e2e	tip558_configurable_per_object_property	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:88
+tcl-vm::cmd_oo_e2e	tip558_configurable_property_abbreviates	rust-tests-shard (3/5)	rust/tcl-vm/tests/cmd_oo_e2e.rs:518
+tcl-vm::command_mutation_deopt_e2e	a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	a_running_function_is_checked_against_its_manifest_when_the_pin_changes	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	active_inlined_namespaced_boundary_replays_in_its_defining_namespace	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	active_proc_frame_revalidates_a_cfg_consumed_eval_head	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_command	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	escaped_head_stays_on_live_dispatch_after_replacement	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	exact_static_proc_provenance_preserves_the_precompiled_body	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	final_native_compiler_swap_cannot_settle_old_deferred_bytecode	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	foreign_proc_provenance_name_must_match_its_module_entry	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	function_handle_reoptimises_after_running_plain_during_a_builtin_replacement	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	fused_expr_keeps_its_entered_token_when_an_operand_mutates_expr	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	inlined_bare_procedure_call_revalidates_resolution_after_local_shadow	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	inlined_namespaced_body_revalidates_commands_in_its_defining_namespace	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	mutation_recovery_fails_closed_without_plain_dispatch_capability	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	mutation_recovery_rejects_a_dishonest_plain_compiler	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	native_replacement_fails_closed_when_no_plain_compiler_exists	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::command_mutation_deopt_e2e	proc_reoptimises_after_running_plain_during_a_builtin_replacement	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	procedure_consumers_preserve_a_missing_typed_compiler_capability	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	procedure_recovery_rejects_a_dishonest_plain_compiler	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	reusable_consumers_revalidate_command_execution_traces	rust-tests-shard (5/5)	rust/tcl-vm/src/embed.rs:770
+tcl-vm::command_mutation_deopt_e2e	source_less_vm_admits_multiple_exact_bodies_for_one_foreign_proc_name	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:179
+tcl-vm::command_mutation_deopt_e2e	source_less_vm_runs_a_self_contained_foreign_module_proc_as_supplied	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::command_mutation_deopt_e2e	source_less_vm_uses_each_foreign_modules_same_source_proc_artifact	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::command_mutation_deopt_e2e	stale_coroutine_teardown_does_not_run_queued_injection	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	tcloo_method_reoptimises_after_running_plain_during_a_builtin_replacement	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace	rust-tests-shard (5/5)	
+tcl-vm::command_mutation_deopt_e2e	top_level_dict_fold_replay_skips_stale_verification_and_payload	rust-tests-shard (5/5)	rust/tcl-vm/src/embed.rs:546
+tcl-vm::command_traces_e2e	native_invoke_uses_the_post_enter_trace_owner_snapshot	rust-tests-shard (3/5)	rust/tcl-vm/tests/command_traces_e2e.rs:96
+tcl-vm::command_traces_e2e	vectors_match_real_tclsh	rust-tests-shard (3/5)	rust/tcl-vm/tests/command_traces_e2e.rs:993
+tcl-vm::command_traces_e2e	vm_matches_the_pinned_trace_vectors	rust-tests-shard (3/5)	rust/tcl-vm/tests/common/mod.rs:72
+tcl-vm::cross_interp_alias_e2e	vectors_match_real_tclsh	rust-tests-shard (3/5)	rust/tcl-vm/tests/cross_interp_alias_e2e.rs:237
+tcl-vm::cross_interp_alias_e2e	vm_matches_the_pinned_cross_interp_alias_vectors	rust-tests-shard (3/5)	rust/tcl-vm/tests/common/mod.rs:72
+tcl-vm::cross_version_escapes_e2e	escape_grammar_follows_the_emulated_release	rust-tests-shard (5/5)	rust/tcl-vm/src/value.rs:6781
+tcl-vm::cross_version_info_surface_e2e	representation_reports_the_value_as_each_release_does	rust-tests-shard (3/5)	
+tcl-vm::cross_version_info_surface_e2e	tcloo_info_ensembles_follow_the_selected_release	rust-tests-shard (3/5)	
+tcl-vm::cross_version_info_surface_e2e	tcloo_info_vectors_match_real_tclsh_when_available	rust-tests-shard (3/5)	
+tcl-vm::embed_api_e2e	an_inlined_loop_dispatches_nothing_and_so_is_not_charged	rust-tests-shard (3/5)	rust/tcl-vm/tests/embed_api_e2e.rs:339
+tcl-vm::embed_api_e2e	native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles	rust-tests-shard (3/5)	
+tcl-vm::embed_api_e2e	retain_commands_reduces_the_table_to_a_whitelist	rust-tests-shard (3/5)	rust/tcl-vm/tests/embed_api_e2e.rs:400
+tcl-vm::literal_index_encoding_e2e	a_literal_index_reads_as_the_release_compiles_it	rust-tests-shard (3/5)	
+tcl-vm::mathfunc_derivation_e2e	expr_canonicalises_a_preserved_integer	rust-tests-shard (3/5)	rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:539
+tcl-vm::mathfunc_derivation_e2e	tip745_functions_are_gated_to_tcl91	rust-tests-shard (3/5)	rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:220
+tcl-vm::namespace_surface_e2e	a_command_deleted_from_a_retained_frame_reports_its_own_namespace	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::namespace_surface_e2e	a_deferred_namespace_is_unpublished_for_every_caller	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::namespace_surface_e2e	a_deferred_teardown_keeps_tcl_hash_order	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::namespace_surface_e2e	a_relative_namespace_eval_enters_the_retained_child	rust-tests-shard (3/5)	rust/tcl-vm/tests/namespace_surface_e2e.rs:54
+tcl-vm::namespace_surface_e2e	a_renamed_tcloo_root_still_gates_by_its_registry_identity	rust-tests-shard (3/5)	
+tcl-vm::namespace_surface_e2e	a_suspended_coroutine_releases_its_retained_namespace_on_completion	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::namespace_surface_e2e	an_active_child_defers_while_its_parent_tears_down	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::namespace_surface_e2e	command_delete_traces_wait_for_the_last_activation	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::namespace_surface_e2e	ensemble_default_target_miss_names_the_rewritten_subcommand	rust-tests-shard (3/5)	
+tcl-vm::namespace_surface_e2e	ensemble_unknown_deleted_seeds_the_handler_errorinfo_frame	rust-tests-shard (3/5)	
+tcl-vm::namespace_surface_e2e	ensemble_unknown_exceptional_codes_and_malformed_results_match_c	rust-tests-shard (3/5)	
+tcl-vm::namespace_surface_e2e	inscope_and_apply_frames_defer_their_own_deletion	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::namespace_surface_e2e	retained_and_recreated_namespace_variables_have_distinct_cells	rust-tests-shard (3/5)	
+tcl-vm::namespace_surface_e2e	retained_command_rename_mutates_the_exact_token_table	rust-tests-shard (3/5)	rust/tcl-vm/src/value.rs:7237
+tcl-vm::opcode_c_parity	array_make_imm_creates_empty_array	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	array_make_over_scalar_errors	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:690
+tcl-vm::opcode_c_parity	const_imm_defines_and_redefines_silently	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	const_stk_defines_and_reports_conflicts	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:1013
+tcl-vm::opcode_c_parity	coro_name_outside_and_inside_a_coroutine	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2419
+tcl-vm::opcode_c_parity	exist_array_fires_read_traces	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	exist_array_forms_never_error	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	expr_stk_still_evaluates_a_valid_expression	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	incr_array_forms	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	irule_glob_and_regex_matching	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::opcode_c_parity	irule_operators_agree_with_the_core_commands	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:1415
+tcl-vm::opcode_c_parity	irule_word_not_negates_truthiness	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:1361
+tcl-vm::opcode_c_parity	lappend_list_array_forms	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	load_array4_missing_element_errors	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	load_store_array4_round_trip	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	return_imm_merges_literal_options_dict	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2268
+tcl-vm::opcode_c_parity	return_imm_positive_level_raises_tcl_return	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2203
+tcl-vm::opcode_c_parity	str_map_matches_string_map_command	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:1125
+tcl-vm::opcode_c_parity	tcloo_next_and_next_class_invoke_the_chain	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2419
+tcl-vm::opcode_c_parity	tcloo_next_at_the_end_of_the_chain_and_underflow	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2419
+tcl-vm::opcode_c_parity	tcloo_self_pushes_the_current_object	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2419
+tcl-vm::opcode_c_parity	unset_array_complain_flag_errors	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	unset_array_flag_clear_is_silent	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	unset_array_stk_complain_flag_errors	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	unset_array_stk_nocomplain	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	unset_array_trace_only_miss_kind_precedes_callback_mutation	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	variable_links_local_to_namespace_var	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	variable_rejects_a_missing_parent_namespace	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_c_parity	yield_opcode_still_rejects_a_yield_across_a_host_re_entry	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:24
+tcl-vm::opcode_c_parity	yield_opcode_suspends_and_takes_the_resume_value	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2419
+tcl-vm::opcode_c_parity	yield_to_invoke_runs_the_command_list_in_the_resumer	rust-tests-shard (5/5)	rust/tcl-vm/tests/opcode_c_parity.rs:2419
+tcl-vm::opcode_catch_parity	inline_catch_absorbs_break_and_continue	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_catch_parity	inline_catch_absorbs_child_proc_error	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_catch_parity	inline_catch_absorbs_return	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_catch_parity	inline_catch_error_path_binds_result_and_opts	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_catch_parity	inline_catch_ok_path	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_catch_parity	inline_catch_publishes_error_info	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::opcode_catch_parity	sequential_catch_does_not_inherit_earlier_error_options	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1905
+tcl-vm::release_number_semantics_e2e	doubles_overflow_and_divide_by_zero_per_release	rust-tests-shard (3/5)	
+tcl-vm::release_number_semantics_e2e	expr_syntax_errors_per_release	rust-tests-shard (3/5)	rust/tcl-vm/tests/release_number_semantics_e2e.rs:37
+tcl-vm::release_number_semantics_e2e	integers_wrap_at_64_bits_on_8_4	rust-tests-shard (3/5)	rust/tcl-vm/tests/release_number_semantics_e2e.rs:49
+tcl-vm::release_number_semantics_e2e	math_functions_follow_the_release	rust-tests-shard (3/5)	rust/tcl-vm/tests/release_number_semantics_e2e.rs:49
+tcl-vm::release_number_semantics_e2e	operand_errors_per_release	rust-tests-shard (3/5)	rust/tcl-vm/tests/release_number_semantics_e2e.rs:37
+tcl-vm::release_number_semantics_e2e	string_bytelength_counts_internal_utf8	rust-tests-shard (3/5)	rust/tcl-vm/tests/release_number_semantics_e2e.rs:37
+tcl-vm::release_number_semantics_e2e	string_follows_the_release	rust-tests-shard (3/5)	rust/tcl-vm/tests/release_number_semantics_e2e.rs:37
+tcl-vm::release_running_bytecode_e2e	running_bytecode_sees_a_command_table_change_as_its_release_does	rust-tests-shard (3/5)	
+tcl-vm::rename_return_source_e2e	source_settles_a_return_and_records_where_an_error_occurred	rust-tests-shard (3/5)	
+tcl-vm::run_script	a_proc_runs_the_body_the_compiler_emitted_for_it	rust-tests-shard (3/5)	rust/tcl-vm/tests/run_script.rs:2338
+tcl-vm::run_script	a_top_level_completion_settles_as_tclsh_reports_it	rust-tests-shard (3/5)	rust/tcl-vm/tests/run_script.rs:2628
+tcl-vm::run_script	break_continue_reject_arguments	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::run_script	encoding_command	rust-tests-shard (3/5)	rust/tcl-vm/tests/run_script.rs:2018
+tcl-vm::run_script	inline_cmd_subst_review_fixes	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::run_script	loop_body_redefining_continue_is_honoured	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::run_script	nan_operand_error_wording	rust-tests-shard (3/5)	rust/tcl-vm/tests/run_script.rs:222
+tcl-vm::run_script	raw_backslash_cr_is_data_not_a_line_continuation	rust-tests-shard (3/5)	rust/tcl-vm/tests/run_script.rs:482
+tcl-vm::run_script	string_map_three_args_bad_option	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::run_script	subst_backslash_escapes_handle_multibyte_and_hex	rust-tests-shard (3/5)	rust/tcl-vm/tests/run_script.rs:750
+tcl-vm::run_script	tailcall_exec_trace_timing_and_ownership	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::run_script	the_proc_command_that_runs_is_the_one_whose_body_is_installed	rust-tests-shard (3/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::safe_interp_e2e	clock_remains_callable_in_a_safe_child	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::safe_interp_e2e	hidden_command_via_eval_of_built_string_raises_invalid_command_name	rust-tests-shard (5/5)	rust/tcl-vm/src/exec.rs:1792
+tcl-vm::step_trace_inline_e2e	a_recompiled_retained_procedure_is_not_republished	rust-tests-shard (5/5)	rust/tcl-vm/tests/common/mod.rs:72
+tcl-vm::step_trace_inline_e2e	step_trace_vectors_match_real_tclsh	rust-tests-shard (5/5)	rust/tcl-vm/tests/step_trace_inline_e2e.rs:324
+tcl-vm::step_trace_inline_e2e	vm_matches_the_pinned_step_trace_vectors	rust-tests-shard (5/5)	rust/tcl-vm/tests/common/mod.rs:72
+tcl-vm::tclsh_parity_e2e	the_vm_reads_each_script_as_each_tclsh_does	rust-tests-shard (3/5)	
+tcl-vm::variable_name_resolution_e2e	release_invariant_vectors_hold_at_every_release	rust-tests-shard (3/5)	
+tcl-vm::variable_name_resolution_e2e	vectors_match_real_tclsh	rust-tests-shard (3/5)	rust/tcl-vm/tests/variable_name_resolution_e2e.rs:557
+tcl-vm::variable_name_resolution_e2e	vm_matches_the_pinned_variable_name_vectors	rust-tests-shard (3/5)	rust/tcl-vm/tests/common/mod.rs:72
+tcl-vm::variable_trace_semantics_e2e	alias_wrappers_begin_a_fresh_completion_option_scope	rust-tests-shard (3/5)	
+tcl-vm::variable_trace_semantics_e2e	array_for_tracks_structural_revision_and_read_trace_deletion	rust-tests-shard (3/5)	rust/tcl-vm/tests/common/mod.rs:72
+tcl-vm::variable_trace_semantics_e2e	array_operation_reference_preserves_same_binding_recreation	rust-tests-shard (3/5)	rust/tcl-vm/tests/common/mod.rs:72
+tcl-vm::variable_trace_semantics_e2e	array_trace_resolution_distinguishes_direct_and_linked_elements	rust-tests-shard (3/5)	rust/tcl-vm/tests/common/mod.rs:7
+tcl-vm::variable_trace_semantics_e2e	array_trace_resolution_handles_undefined_scalar_and_alias_cells	rust-tests-shard (3/5)	
+tcl-vm::variable_trace_semantics_e2e	unset_element_miss_kind_survives_parent_mutation_in_its_callback	rust-tests-shard (3/5)	
+tcl-vm::variable_trace_semantics_e2e	unset_from_an_active_write_trace_fires_the_taken_unset_list	rust-tests-shard (3/5)	
+tcl-vm::variable_trace_semantics_e2e	unsetting_a_trace_only_array_element_fires_then_reports_it_missing	rust-tests-shard (3/5)	
+tcl-vm::variable_trace_semantics_e2e	vectors_match_real_tclsh	rust-tests-shard (3/5)	rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1284
+tcl-vm::variable_trace_semantics_e2e	vm_matches_the_pinned_trace_vectors	rust-tests-shard (3/5)	
+tcl-vm::variable_trace_semantics_e2e	whole_array_unset_retargets_live_alias_and_preserves_const_error	rust-tests-shard (3/5)	

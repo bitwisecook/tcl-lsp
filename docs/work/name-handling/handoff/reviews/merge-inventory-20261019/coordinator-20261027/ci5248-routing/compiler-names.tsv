@@ -1,0 +1,673 @@
+binary_id	selector	job	panic_site
+tcl-compiler	analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::w241_for_step_provably_infinite	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::w242_counter_not_modified	rust-tests-shard (1/5)	
+tcl-compiler	analyser::bounds_checks::tests::w242_severity_is_hint	rust-tests-shard (1/5)	
+tcl-compiler	analyser::class_hierarchy::tests::bare_superclass_links_via_unique_tail_across_namespaces	rust-tests-shard (1/5)	
+tcl-compiler	analyser::commands::tests::bareword_widget_constructor_binds_instance_class	rust-tests-shard (1/5)	
+tcl-compiler	analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once	rust-tests-shard (1/5)	
+tcl-compiler	analyser::commands::tests::expr_function_call_honours_namespace_path	rust-tests-shard (1/5)	
+tcl-compiler	analyser::commands::tests::process_proc_records_at_global	rust-tests-shard (1/5)	
+tcl-compiler	analyser::commands::tests::simple_widget_without_subcommands_still_binds_instance_class	rust-tests-shard (1/5)	
+tcl-compiler	analyser::commands::tests::var_captured_widget_constructor_binds_instance_class	rust-tests-shard (1/5)	
+tcl-compiler	analyser::commands::tests::w125_fires_for_orphaned_else	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::bnd::fp_bnd_01_loop_index_past_append_slot_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::bnd::fp_bnd_04_const_zero_divisor_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::bnd::fp_bnd_04_literal_div_zero_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::bnd::fp_bnd_04_literal_mod_zero_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::bnd::fp_bnd_06_float_guard_forces_arm_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::bnd::fp_bnd_06_unary_constant_guard_forces_arm_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::bnd::fp_bnd_06_uppercase_bool_guard_forces_arm_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_01_genuine_dead_store_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_02_no_expr_cmdsub_read_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_03_eval_body_without_read_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_04_untraced_unrelated_var_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_06_same_element_overwrite_fires_w220	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_07_ns_eval_param_unused_through_rebuild_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_09_interproc_mixed_callers_conservative_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_10_dead_store_inside_dict_for_body_now_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_10_real_dead_store_before_dict_for_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_10_write_only_local_in_dict_for_body_still_flags	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_11_braced_body_only_read_is_a_frame_shifted_dead_store	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_11_real_dead_store_outside_uplevel_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_12_genuine_unused_and_dead_store_still_fire	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_12_literal_subst_template_is_not_a_dynamic_read	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_13_overwritten_store_beside_a_quoted_read_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::ds::fp_ds_14_brace_quoted_name_keeps_unrelated_diagnostics_live	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::inj::fp_inj_04_generic_taint_still_warns	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::inj::fp_inj_06_split_lindex_strips_path_prefixed_proof	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::inj::fp_inj_07_exec_encoding_does_not_mask_option_scan	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::nab::fp_nab_07_destructive_variable_path_fires_w313	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_05_snit_create_auto_no_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_05_snit_create_named_no_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_05_snit_create_shorthand_no_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_06_private_proc_body_analysed	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_09_const_string_multi_dispatch_fires_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_10_const_string_callback_suffix_fires_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_10_const_string_dash_prefix_fires_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_11_factory_dispatch_no_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_11_transitive_factory_no_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_13_my_method_returns_object_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_14_unregistered_external_namespaced_still_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_17_callback_array_holds_noncommand_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_18_interproc_dict_with_known_command_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_obj_19_created_names_via_list_foreach_no_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_var_as_cmd_phi_two_commands_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_w307_itcl_created_instance_dispatch_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_w307_oo_class_bare_name_factory_propagates	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::obj::fp_w307_oo_class_method_local_literal_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_01_genuine_simplification_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_04_genuine_dead_store_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_05_o126_pure_rhs_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_06_o100_does_not_propagate_past_cmd_sub_write	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_07_pure_user_proc_rhs_is_folded_not_deleted	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_08_unrelated_set_still_eligible_for_o126	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_09_provably_numeric_var_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_10_provably_int_var_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_11_non_numeric_literal_still_rewrites	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::opt::fp_opt_12_pure_user_proc_via_my_dispatch_handled_at_word_level	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_02_regexp_in_negated_condition_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_02_regexp_safe_switch_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_02_scan_provably_no_match_fires_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_02_unrelated_read_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_03_genuine_unset_in_body_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_04_unrelated_tail_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_06_catch_inside_expr_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_10_genuine_unused_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_10_namespace_eval_does_not_recover_reads	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_12_regexp_in_negated_if_arm_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_17_continue_before_set_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_18_break_before_set_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_19_nested_loop_accumulator_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_20_condition_unset_is_not_a_definition	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_20_genuine_read_before_set_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_21_tp_a_genuinely_unset_read_in_an_expanded_loop_body_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_call_by_name_info_exists_dynamic_target_not_caller_read	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_callbyname_lassign_target_not_caller_alias	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_callbyname_regexp_target_not_caller_alias	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_callbyname_regsub_target_not_caller_alias	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_callbyname_scan_target_not_caller_alias	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::fp_rbs_dispatch_protocol_requires_dispatcher_evidence	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::idx24_tp_global_and_own_frame_levels_do_not_silence_the_caller	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::idx24_tp_level_one_does_not_propagate_through_a_plain_call	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::idx24_tp_without_the_uplevel_the_read_is_still_unset	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::issue_1078_braced_double_store_matches_the_plain_control	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::issue_1078_braced_write_alone_is_not_a_read_of_the_plain_name	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::issue_1078_unbraced_substituted_target_still_behaves_dynamically	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::issue_1142_unclassified_braced_word_free_read_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::issue_1237_quoted_use_still_keeps_the_variable_live	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::issue_1260_braced_loop_value_word_keeps_the_store_live	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rbs::issue_1266_quoted_arm_mention_keeps_the_store_live	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rch::fp_rch_02_handler_var_not_unset	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rch::fp_rch_03_on_ok_reads_body_var	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rch::fp_rch_04_infinite_loop_dead_code_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rch::fp_rch_05_dynamic_array_element_key_still_folds	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rch::fp_rch_05_parameter_without_dynamic_unset_still_folds	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::rch::fp_rch_05_static_write_still_folds	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_03_genuine_phi_string_int_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_05_real_iter_foreach_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_06_real_oscillation_within_one_loop_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_12_untraced_control_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_13_same_element_oscillation_fires_s102	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_13_scalar_control_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_14_self_referential_branchy_oscillation_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_15_interp_alias_indirection_fires_s102	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_15_namespaced_rename_indirection_fires_s102	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_15_rename_indirection_fires_s102	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_15_unaliased_method_local_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_16_unaliased_sibling_local_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_18_numeric_shimmer_masked_by_int_entry_fires_s102	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_19_coercing_string_ops_on_payload_still_fire	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_22_merge_use_matching_neither_arm_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_22_second_conversion_after_expr_commit_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_23_bignum_folds_are_exact	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_24_braced_expr_operand_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::fp_sh_24_substituting_list_argument_spellings_still_fire	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sh::tp_sh_15_parameter_seeded_oscillation_fires_s102	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_01_grid_pathname_no_w001	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_01_pack_pathname_no_w001	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_01_place_pathname_no_w001	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_02_concatenated_dollar_in_quoted_pattern_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_02_live_cmdsub_in_quoted_pattern_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_08_bare_keyword_param_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_08_non_empty_body_unused_param_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_09_arity_incompatible_dispatcher_does_not_suppress	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_10_scan_genuine_no_match_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_12_value_position_still_fires_w216	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_14_composite_body_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_14_quoted_interpolated_body_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_14_uplevel_body_participates_in_w105_like_eval	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_16_genuine_path_concat_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::sty::fp_sty_16_path_with_command_sub_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::tnt::fp_tnt_01_direct_operand_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::tnt::fp_tnt_01_function_arg_direct_operand_still_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::fp::tnt::fp_tnt_05_tainted_url_fires_t104	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::a_concatenated_script_writes_through_the_documents_registry	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::a_guard_holds_where_the_rung_refines_nothing	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::a_nested_index_reads_the_proven_container	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::a_nested_unbind_is_an_existence_read	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::a_read_after_code_the_module_cannot_see_is_no_read_before_set	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::a_second_unset_is_a_definite_w213	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::an_index_site_is_reported_once	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::an_opaque_switch_reports_the_arms_it_never_selects	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::an_option_heavy_document_is_checked_with_no_vm_entry	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_i230_constant_if_branch	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_irule4005_racy_static_emitted_for_per_request_writes	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w123_dispatch_target_from_unknown_proc_suppresses	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w123_emits_did_you_mean_suggestion	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w307_fires_for_tainted_dispatch_despite_multi_use	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w307_suppressed_for_known_class_constructor_chain	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w307_suppressed_for_my_self_dispatch	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w308_1330_cmd_site_spans_are_exact	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w308_1330_quick_fix_span_matches_the_diagnostic	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w308_emitted_for_unknown_method_on_known_class_constructor	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w308_tp_1324_bare_self_receiver_unknown_method	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w308_tp_1324_self_object_receiver_unknown_method	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w308_tp_1329_bareword_my_unknown_method	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyse_w308_tp_1329_object_command_cannot_reach_unexported_builtins	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::analyser_recurses_into_irules_nesting_script_bodies	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::apply_lambda_arity_fires_and_stays_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::apply_lambda_arity_still_checked_when_apply_is_not_shadowed	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::apply_lambda_body_in_command_substitution_is_walked	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::branch_joined_const_dispatch_records_every_may_target_945	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::catch_and_try_body_writes_join_never_last_write_945	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::const_cmd_head_abstains_on_unknown_or_dynamic_values_m7	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::const_cmd_head_resolves_in_the_dispatch_namespace_m7	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::const_cmd_head_resolves_through_a_pure_copy_chain_m7	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::dict_set_table_value_becomes_a_reference_when_consumed_m7	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::disabled_definer_nested_in_catch_reports_w002_once_without_cascade	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::dispatch_table_value_becomes_a_reference_when_consumed_m7	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_arity_is_dialect_aware_via_expand_syntax	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_falls_back_to_whole_command_on_expansion	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_highlights_only_the_surplus_arguments	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_namespace_which_extra_positional_fires	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_shadow_is_namespace_scoped	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_silent_for_subcommand_leading_options	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_source_nopkg_is_tcl9_only	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_static_rename_onto_builtin_name_suppresses_arity	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::e003_switch_options_are_dialect_filtered	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_read_after_unset	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dead_store_overwritten	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::expanded_head_list_prefix_keeps_the_exact_writable_component_945	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::fn_e001_cmd_head_factory_with_method_word_no_w307	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::fp_rbs_13_tailcall_is_a_terminator	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::fp_rbs_17_guaranteed_foreach_defines_body_vars	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i230_existence_fold_abstains_on_interpreter_globals_at_top_level	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i230_message_keeps_braced_var_spelling	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i230_message_quotes_bare_var_as_source_spells_it	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_call_the_module_cannot_see	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i230_never_reports_a_condition_across_unseen_code_in_a_body_a_substitution_runs	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i230_never_reports_a_condition_over_a_name_a_switch_arm_may_write	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i231_names_the_command_of_the_case_list	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::i231_reads_a_switch_words_by_their_values	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_element_fold_survives_an_unrelated_array	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_fold_survives_unrelated_scope_alias	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_an_unset_parameter_false	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_false_for_dynamic_element_of_never_touched_array	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_false_for_element_of_never_touched_array	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_false_for_never_defined_local	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_true_for_an_apply_lambda_parameter	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_true_for_method_parameter_shadowing_an_instance_var	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_true_for_parameter	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_folds_true_not_false_for_method_parameter	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_frame_facts_survive_a_proc_method_qname_collision	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_read_outside_guard_still_flags_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_still_abstains_on_the_non_shadowed_instance_vars	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::info_exists_still_folds_never_set_non_instance_local_in_method	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::irules_4b_disabled_split_pins_two_diagnostic_severities	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::irules_4b_policy_warning_follows_the_4c_lexical_scan	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::irules_alias_dialect_string_behaves_like_canonical	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::irules_arity_accepts_documented_pool_log_and_class_iteration_forms	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::irules_stays_subtractive_under_the_profile	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::issue_703_backslash_escaped_dash_no_false_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::issue_703_genuine_dash_command_in_handler_still_flagged	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::issue_703_no_false_w210_on_fallthrough_group_var	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::itcl_method_body_unbound_read_now_flags_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::literal_only_checks_read_proven_words	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::memoized_compilation_unit_diagnostics_match_whole_file	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::memoized_compilation_unit_shift_correctness	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::method_body_ordinary_unused_local_still_flags_w211	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::method_body_read_before_set_now_flags_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::method_body_unbound_read_inside_switch_arm_still_flags_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::namespace_qualified_const_value_resolves_absolutely_945	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::objdefine_method_body_unbound_read_now_flags_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::oo_helpers_builtin_without_a_user_helper_still_reports	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::plain_body_argument_in_command_substitution_still_walked	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::same_file_deleted_alias_call_is_unknown_command	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::same_file_dynamic_but_resolvable_rename_target_checks_arity	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::same_file_relative_qualified_call_prefers_current_namespace_over_global	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::same_file_relative_qualified_call_resolves_against_current_namespace	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::snit_method_body_unbound_read_now_flags_w210	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::switch_and_loop_joined_const_dispatch_records_every_may_target_945	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::switch_unpaired_pattern_fires_e005	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_create_mandatory_name_is_checked_even_without_a_constructor	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_forward_arity_is_shifted_by_prepended_args	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_forward_via_my_resolves_inherited_method_arity	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_forward_via_my_resolves_sibling_method_arity	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_loop_installed_method_arity_abstains	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_method_arity_fires_and_stays_silent	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_method_with_default_and_trailing_args_is_unbounded	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_next_arity_checked_against_superclass_override	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tcloo_nextto_arity_checked_against_named_target	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directive_arity_checked	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directives_resolve_cleanly	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tclpkg_manifest_env::manifest_typo_directive_fires_w123	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tclpkg_manifest_env::plain_tcl_document_still_flags_directives	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::the_ensemble_option_scan_consumes_values_only_for_the_operations_own_options	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::the_existence_branch_fact_is_stored_once	rust-tests-shard (1/5)	
+tcl-compiler	analyser::diagnostics::tests::tmsh_first_class_resolves_its_surface_and_gates_later_core	rust-tests-shard (1/5)	
+tcl-compiler::alias_scoping	alias_escapes_lifecycle::plain_local_still_flagged	rust-tests-shard (2/5)	
+tcl-compiler::alias_scoping	alias_lattice_merge::aliased_write_visible_through_alias	rust-tests-shard (2/5)	
+tcl-compiler::alias_scoping	alias_lattice_merge::independent_callers_stay_separate	rust-tests-shard (2/5)	
+tcl-compiler::alias_scoping	alias_lattice_merge::two_upvars_to_one_caller_share_an_alias_set	rust-tests-shard (2/5)	
+tcl-compiler::alias_scoping	alias_lattice_merge::two_upvars_to_same_caller_merge	rust-tests-shard (2/5)	
+tcl-compiler::alias_scoping	alias_lattice_merge::upvar_pair_is_materialised_in_one_alias_set	rust-tests-shard (2/5)	
+tcl-compiler::alias_scoping	taint_through_alias::direct_sink_still_warns	rust-tests-shard (2/5)	
+tcl-compiler::alias_scoping	taint_through_alias::taint_through_expr_command_substitution_still_warns	rust-tests-shard (2/5)	
+tcl-compiler::analyser	braced_word_elements_are_literal::fp_foreach_simulation_still_abstains_on_a_substituting_list	rust-tests-shard (4/5)	
+tcl-compiler::analyser	canonicalisation_matrix::w211_set_bare_and_qualified_both_fire	rust-tests-shard (4/5)	
+tcl-compiler::analyser	canonicalisation_matrix::w213_qualified_and_aliased_do_not_fire_rust_behaviour	rust-tests-shard (4/5)	
+tcl-compiler::analyser	canonicalisation_matrix::w216_brace_array_with_dollar_index	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:4
+tcl-compiler::analyser	canonicalisation_matrix::w216_funny_name_falls_back_to_set_indirection	rust-tests-shard (4/5)	
+tcl-compiler::analyser	const_cmd_subst_set_rhs::a_constant_namespace_qualifiers_rhs_folds_and_resolves_the_head	rust-tests-shard (4/5)	
+tcl-compiler::analyser	const_cmd_subst_set_rhs::a_dominating_constant_argument_folds_through_the_lattice	rust-tests-shard (4/5)	
+tcl-compiler::analyser	const_cmd_subst_set_rhs::a_self_class_chain_folds_inside_an_instance_method	rust-tests-shard (4/5)	
+tcl-compiler::analyser	const_cmd_subst_set_rhs::a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured	rust-tests-shard (4/5)	
+tcl-compiler::analyser	const_cmd_subst_set_rhs::per_item_path_folds_and_abstains_identically_to_the_whole_file_walk	rust-tests-shard (4/5)	
+tcl-compiler::analyser	const_dominated_namespace_eval::tp_a_constant_target_homes_the_blocks_procs_to_the_real_namespace	rust-tests-shard (4/5)	
+tcl-compiler::analyser	const_dominated_namespace_eval::tp_the_word_is_recorded_as_a_declaring_occurrence	rust-tests-shard (4/5)	
+tcl-compiler::analyser	control_flow::dict_for_body_analysed	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1436
+tcl-compiler::analyser	diagnostics::dead_assignment_detected_w220	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1223
+tcl-compiler::analyser	diagnostics::dict_proc_at_conventional_location_without_ensemble_patch_is_an_accepted_false_negative	rust-tests-shard (4/5)	
+tcl-compiler::analyser	diagnostics::dynamically_mapped_dict_ensemble_fix_is_not_overfit_to_getnull	rust-tests-shard (4/5)	
+tcl-compiler::analyser	diagnostics::paste_error_hint_for_duplicate_static_assignment_h300	rust-tests-shard (4/5)	
+tcl-compiler::analyser	diagnostics::puts_arity_options_not_counted	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:812
+tcl-compiler::analyser	diagnostics::unused_assigned_variable_hint_w211	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1207
+tcl-compiler::analyser	eval_uplevel_indirect_dispatch::eval_of_a_list_computed_var_resolves_the_real_head	rust-tests-shard (4/5)	
+tcl-compiler::analyser	eval_uplevel_indirect_dispatch::resolves_identically_inside_a_proc_body	rust-tests-shard (4/5)	
+tcl-compiler::analyser	eval_uplevel_indirect_dispatch::uplevel_hash_zero_of_a_var_headed_script_resolves_the_real_head	rust-tests-shard (4/5)	
+tcl-compiler::analyser	interp_alias::real_world_safe_and_cross_interp_aliases_945	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:19
+tcl-compiler::analyser	interp_value_flow::braced_path_binding_links_a_later_literal_eval_issue_1025	rust-tests-shard (4/5)	
+tcl-compiler::analyser	interp_value_flow::braced_path_value_flow_key_matches_the_direct_handler_issue_1025	rust-tests-shard (4/5)	
+tcl-compiler::analyser	interp_value_flow::explicit_literal_name_variant_records_no_spurious_w140	rust-tests-shard (4/5)	
+tcl-compiler::analyser	interp_value_flow::nested_path_value_flow_key_matches_the_direct_handler_issue_1025	rust-tests-shard (4/5)	
+tcl-compiler::analyser	interp_value_flow::synthetic_autoname_key_used_for_pathless_interp_create	rust-tests-shard (4/5)	
+tcl-compiler::analyser	interp_value_flow::two_procs_sharing_a_variable_name_never_collide	rust-tests-shard (4/5)	
+tcl-compiler::analyser	issue_1312_named_object_dispatch::named_object_and_handle_object_draw_the_same_w308_message	rust-tests-shard (4/5)	
+tcl-compiler::analyser	issue_1312_named_object_dispatch::named_object_draws_w308_on_an_unknown_method	rust-tests-shard (4/5)	
+tcl-compiler::analyser	issue_1312_named_object_dispatch::per_item_analysis_agrees_with_whole_file_analysis	rust-tests-shard (4/5)	
+tcl-compiler::analyser	issue_1367_template_method_self_dispatch::self_command_dispatch_to_a_subclass_method_still_draws_w308	rust-tests-shard (4/5)	
+tcl-compiler::analyser	list_quoted_script_arguments::tp_a_list_built_namespace_body_declares_in_the_namespace	rust-tests-shard (4/5)	
+tcl-compiler::analyser	list_quoted_script_arguments::tp_a_list_built_uplevel_body_declares_in_the_uplevel_frame	rust-tests-shard (4/5)	
+tcl-compiler::analyser	oo_helpers_namespace_path::tn_an_ordinary_builtin_still_settles_globally_from_a_method_body	rust-tests-shard (4/5)	
+tcl-compiler::analyser	oo_helpers_scoping::an_unlinked_sibling_method_bareword_still_draws_w123	rust-tests-shard (4/5)	
+tcl-compiler::analyser	pack_declared_transitions::a_pack_declared_scope_alias_binds_its_local	rust-tests-shard (4/5)	
+tcl-compiler::analyser	regex_patterns::a_rooted_set_propagates_its_constant_pattern	rust-tests-shard (4/5)	
+tcl-compiler::analyser	regex_patterns::literal_and_variable_patterns_mixed	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1610
+tcl-compiler::analyser	regex_patterns::multiple_regex_commands_in_one_file	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1543
+tcl-compiler::analyser	regex_patterns::regexp_simple_records_pattern_and_command	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:148
+tcl-compiler::analyser	regex_patterns::regexp_with_options_and_terminator_and_start	rust-tests-shard (4/5)	
+tcl-compiler::analyser	regex_patterns::regsub_simple_and_with_options	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1501
+tcl-compiler::analyser	regex_patterns::set_then_regexp_and_regsub_propagate_constant_pattern	rust-tests-shard (4/5)	
+tcl-compiler::analyser	regex_patterns::set_then_switch_regexp_propagates	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1588
+tcl-compiler::analyser	regex_patterns::variable_pattern_in_proc_scope	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1602
+tcl-compiler::analyser	rename::concatenated_var_new_name_resolves_via_constant_folding	rust-tests-shard (4/5)	
+tcl-compiler::analyser	rename::foreach_loop_variable_over_a_literal_list_is_constant_folded	rust-tests-shard (4/5)	
+tcl-compiler::analyser	rename::foreach_over_a_braced_list_element_is_not_mis_split_on_whitespace	rust-tests-shard (4/5)	
+tcl-compiler::analyser	rename::rename_target_set_straight_line_still_resolves	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:2391
+tcl-compiler::analyser	rename::resolvable_dynamic_rename_no_longer_widens_has_dynamic_providers	rust-tests-shard (4/5)	
+tcl-compiler::analyser	rename::single_var_old_name_resolves_via_constant_folding	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:228
+tcl-compiler::analyser	rename::two_concatenated_vars_in_same_straight_line_scope_resolve	rust-tests-shard (4/5)	
+tcl-compiler::analyser	report_scoped_commands::fn_scoped_command_unknown_outside_body	rust-tests-shard (4/5)	
+tcl-compiler::analyser	report_scoped_commands::fp_core_commands_still_checked_in_body	rust-tests-shard (4/5)	
+tcl-compiler::analyser	report_scoped_commands::tp_bare_ensemble_requires_operation_e001	rust-tests-shard (4/5)	
+tcl-compiler::analyser	report_scoped_commands::tp_operation_too_few_args_e002	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:4394
+tcl-compiler::analyser	report_scoped_commands::tp_plain_command_too_many_args_e003	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:4
+tcl-compiler::analyser	report_scoped_commands::tp_typo_command_flagged	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:4360
+tcl-compiler::analyser	tcloo_classes::metaclass_variants	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:3177
+tcl-compiler::analyser	tcloo_classes::oo_define_inline_and_partial_class	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:3177
+tcl-compiler::analyser	trace_callbacks::unrelated_proc_unused_param_still_flagged	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:18
+tcl-compiler::analyser	unresolved_command::alias_command_no_w123_and_alias_in_did_you_mean	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::coroutine_name_is_a_known_command	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:2813
+tcl-compiler::analyser	unresolved_command::dynamic_providers_suppress_w123	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:2663
+tcl-compiler::analyser	unresolved_command::glob_namespace_import_suppresses_matching_tail_only	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::known_builtin_and_user_proc_no_w123	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:2631
+tcl-compiler::analyser	unresolved_command::list_wrapped_namespace_unknown_requires_the_exact_shape	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::list_wrapped_namespace_unknown_via_concat_is_a_known_remaining_gap	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::literal_namespace_import_suppresses_exactly_that_name	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::multiple_unknown_procs_last_wins	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:3044
+tcl-compiler::analyser	unresolved_command::namespace_unknown_handler_suppresses_w123	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::renamed_away_builtin_call_fires_w123	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:2837
+tcl-compiler::analyser	unresolved_command::tcl_unknown_qualified_recognised	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:3095
+tcl-compiler::analyser	unresolved_command::unknown_glob_switch_sets_pattern_dispatch_flag	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::unknown_if_else_chains_original_suppresses	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::unknown_proc_empty_stub_does_not_suppress	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::unknown_proc_info_populated_for_switch_dispatch	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unresolved_command::unknown_proc_switch_dispatch_covers_targets	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unused_proc_parameters::multiple_unused_params_each_flagged	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1
+tcl-compiler::analyser	unused_proc_parameters::pure_write_to_param_inside_opaque_body_still_flags	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unused_proc_parameters::return_expr_and_cmd_subst_do_not_false_flag	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unused_proc_parameters::underscore_prefixed_param_is_still_flagged_rust_behaviour	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unused_proc_parameters::unrelated_namespaced_for_does_not_get_dict_body_fallback	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unused_proc_parameters::unused_param_alongside_used_in_dict_for_still_flagged	rust-tests-shard (4/5)	
+tcl-compiler::analyser	unused_proc_parameters::unused_param_detected	rust-tests-shard (4/5)	rust/tcl-compiler/tests/analyser.rs:1685
+tcl-compiler::analyser	var_read_role_references::tp_a_brace_quoted_name_word_reads_the_literal_cell	rust-tests-shard (4/5)	
+tcl-compiler::caller_frame_effects	control_a_literal_eval_body_is_not_a_barrier	rust-tests-shard (4/5)	rust/tcl-compiler/tests/caller_frame_effects.rs:338
+tcl-compiler::caller_frame_effects	idx1019_control_a_plain_call_wrapper_does_not_forward	rust-tests-shard (4/5)	
+tcl-compiler::caller_frame_effects	idx38_absolute_constructed_set_resolves_to_the_exact_name	rust-tests-shard (4/5)	
+tcl-compiler::caller_frame_effects	idx57_control_an_unrelated_local_still_reports	rust-tests-shard (4/5)	rust/tcl-compiler/tests/caller_frame_effects.rs:11
+tcl-compiler::caller_frame_effects	idx59_control_a_name_the_opaque_call_never_spells_still_reports	rust-tests-shard (4/5)	
+tcl-compiler::caller_frame_effects	idx59_control_a_substituted_argument_names_nothing_resolvable	rust-tests-shard (4/5)	
+tcl-compiler::caller_frame_effects	idx7_control_a_proc_without_argparse_still_reports	rust-tests-shard (4/5)	
+tcl-compiler::caller_frame_effects	uplevel_of_an_unreadable_script_blinds_the_callers_frame_not_its_own	rust-tests-shard (4/5)	
+tcl-compiler::caller_frame_effects	upvar_hash_zero_raises_no_caller_frame_barrier	rust-tests-shard (4/5)	rust/tcl-compiler/tests/caller_frame_effects.rs:38
+tcl-compiler::checks	call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store	rust-tests-shard (5/5)	
+tcl-compiler::checks	channel_validation::int_and_list_typed_values_fire	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1754
+tcl-compiler::checks	channel_validation::non_channel_string_literal_fires	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1764
+tcl-compiler::checks	dead_store_and_unused::eval_braced_body_read_keeps_init_live	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:27
+tcl-compiler::checks	dead_store_and_unused::genuine_dead_store_still_flagged	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2794
+tcl-compiler::checks	dead_store_and_unused::genuinely_unused_element_and_scalar_dead_store_fire	rust-tests-shard (5/5)	
+tcl-compiler::checks	destructive_file_ops::variable_path_destructive_ops_fire	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2268
+tcl-compiler::checks	integration::security_critical_patterns_all_fire	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2939
+tcl-compiler::checks	interp_eval_injection::braced_and_list_clean	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2232
+tcl-compiler::checks	literal_expected::concatenated_var_pattern_no_w306_rust_behaviour	rust-tests-shard (5/5)	
+tcl-compiler::checks	mistyped_ipv4::ssa_traced_in_proc_and_top_level	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1713
+tcl-compiler::checks	name_vs_value::unset_dollar_vars_fire_through_options	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1382
+tcl-compiler::checks	namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered	rust-tests-shard (5/5)	
+tcl-compiler::checks	namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused	rust-tests-shard (5/5)	
+tcl-compiler::checks	non_literal_command::foreach_over_known_commands_is_suppressed	rust-tests-shard (5/5)	
+tcl-compiler::checks	orphaned_keyword::multiple_orphaned_keywords	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1857
+tcl-compiler::checks	orphaned_keyword::orphaned_keywords_each_fire	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1819
+tcl-compiler::checks	path_concatenation::file_join_transform_does_not_masquerade_as_normalisation	rust-tests-shard (5/5)	
+tcl-compiler::checks	path_concatenation::genuine_two_var_path_fires	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:610
+tcl-compiler::checks	path_concatenation::path_with_var_fires	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:598
+tcl-compiler::checks	private_tcl_namespace::file_defining_the_command_suppresses_the_warning	rust-tests-shard (5/5)	
+tcl-compiler::checks	private_tcl_namespace::genuine_chan_ensemble_backing_still_fires	rust-tests-shard (5/5)	
+tcl-compiler::checks	private_tcl_namespace::package_require_in_scope_suppresses_the_warning	rust-tests-shard (5/5)	
+tcl-compiler::checks	private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call	rust-tests-shard (5/5)	
+tcl-compiler::checks	read_before_set_correct::info_exists_guard_is_not_read_before_set	rust-tests-shard (5/5)	
+tcl-compiler::checks	read_before_set_correct::proc_written_global_suppresses_top_level_read	rust-tests-shard (5/5)	
+tcl-compiler::checks	read_before_set_correct::try_handler_versions_are_correct	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2534
+tcl-compiler::checks	script_concatenation::namespace_eval_fp_mangled_body_word_keeps_its_proc_scopes_1051	rust-tests-shard (5/5)	
+tcl-compiler::checks	script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051	rust-tests-shard (5/5)	
+tcl-compiler::checks	script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051	rust-tests-shard (5/5)	
+tcl-compiler::checks	structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope	rust-tests-shard (5/5)	
+tcl-compiler::checks	unbraced_body::if_unbraced_quoted_body_with_var_is_error	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1262
+tcl-compiler::checks	undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns	rust-tests-shard (5/5)	
+tcl-compiler::checks	unset_nocomplain::unset_undefined_var_fires	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:1567
+tcl-compiler::checks	unset_option_only::bare_terminator_and_repeated_flags_fire	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:964
+tcl-compiler::checks	unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace	rust-tests-shard (5/5)	
+tcl-compiler::checks	unused_proc_parameters::real_body_unused_params_still_fire	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2381
+tcl-compiler::checks	unused_proc_parameters::switch_subject_counts_as_use	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2394
+tcl-compiler::checks	unused_proc_parameters::three_peers_without_dispatcher_still_fire	rust-tests-shard (5/5)	
+tcl-compiler::checks	unused_proc_parameters::two_peers_without_protocol_still_fire	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2
+tcl-compiler::checks	unused_proc_parameters::unique_signature_still_fires	rust-tests-shard (5/5)	rust/tcl-compiler/tests/checks.rs:2465
+tcl-compiler::checks	unused_proc_parameters::unqualified_and_absolute_nested_names_keep_their_fqn	rust-tests-shard (5/5)	
+tcl-compiler::command_resolution_conformance	analyser_settlement_matches_every_vector	rust-tests-shard (3/5)	
+tcl-compiler::compiler_analysis_residual	a_shadowing_module_is_served_a_lattice_keyed_by_its_trust	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	an_unseen_call_preserves_dead_prior_and_future_definitions	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	brace_expression_handler_barrier_blocks_following_scalar_fold	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	braced_expression_rebinding_precedes_later_sibling_and_statement	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	braced_foreach_list_does_not_create_handler_barrier	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	braced_nested_substitution_text_does_not_execute	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	conditional_expression_binding_replay_keeps_skipped_paths	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	constructor_effects_and_redefinitions_withdraw_collection_type_precision	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	embedded_alias_to_user_proc_does_not_borrow_code_running_traits	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	embedded_shadowed_builtin_does_not_borrow_code_running_traits	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	expression_alias_created_by_earlier_substitution_replays_nested_effects	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	expression_alias_roles_use_bindings_before_substitution	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	global_script_and_unseen_call_both_widen_seeded_parameter	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	inline_classify_no_summary_is_never	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	inline_classify_side_effecting_proc_is_never	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	inline_classify_small_pure_leaf_is_always_large_is_count_dependent	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	inline_count_statements_foreach_and_catch	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	inline_count_statements_try_and_switch	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	inline_recursive_proc_does_not_loop	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	inline_v3_semantics_preserved_value	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	known_safe_registry_handler_preserves_scalar_constant_branch	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	place_array_element_write_no_kill_is_observed	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	place_dict_set_defs_variable_and_dollar_read_observes_it	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	place_must_alias_kill_suppresses_dead_element	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	place_namespace_upvar_alias_resolves	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	place_trace_target_marks_observed	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rch_code_after_break_in_loop_is_dead	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rch_code_after_continue_in_loop_is_dead	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rch_code_after_error_is_dead	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rch_code_after_return_is_dead	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rch_constant_false_guard_is_constant_branch_not_o107	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rch_constant_true_guard_body_is_reachable	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rch_while1_no_break_post_loop_is_dead	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rebase_shifted_unit_spans_match_fresh	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rebase_switch_and_while_shift	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	rebase_zero_delta_is_noop	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	registry_handler_widens_array_element_read_by_terminator	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	registry_handler_widens_collection_classes_before_later_updates	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	registry_value_clobber_preserves_branch_before_and_widens_branch_after	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	registry_value_clobber_preserves_seeded_parameter_before_handler	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	safe_registry_call_keeps_seeded_parameter_constant	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	scan_predicate_w210_end_to_end_fires_and_silent	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	scan_predicate_w210_hex_and_binary	rust-tests-shard (2/5)	
+tcl-compiler::compiler_analysis_residual	try_header_handler_barrier_blocks_scalar_constant_branch	rust-tests-shard (2/5)	
+tcl-compiler::complexity_guard	normal_proc_is_not_guarded	rust-tests-shard (3/5)	rust/tcl-compiler/tests/complexity_guard.rs:211
+tcl-compiler::core_analyses	analysis_level::constant_branch_recorded_for_absent_local	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	analysis_level::no_constant_branch_for_global	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::fp_array_exists_never_defined_local_still_folds_false	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::fp_info_exists_parameter_still_folds_true	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::tn_array_parameter_with_upvar_alias_abstains	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::tn_dynamic_destroy_abstains	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::tp_array_exists_parameter_folds_false	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::tp_negated_array_exists_parameter_folds_true	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::tp_o101_folds_the_dead_arm_not_the_live_one	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	array_exists_parameter_is_false::unset_parameter_follows_the_rung	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	brace_quoted_name_words::tp_a_braced_name_word_does_not_credit_the_plain_cell	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	catch_narrowing::catch_success_branch_reads_are_not_narrowed_rust_behaviour	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	catch_narrowing::failed_branch_is_ambiguous_and_still_flagged	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	catch_narrowing::non_pure_body_is_not_narrowed	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	core_analyses::analysis_runs_for_lowered_procedures	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	core_analyses::constant_branch_marks_not_taken_target_unreachable	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	core_analyses::dead_store_for_overwritten_assignment	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	core_analyses::liveness_ignores_intrablock_def_use	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	core_analyses::sccp_does_not_propagate_nan_as_constant	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	core_analyses::sccp_propagates_expression_constants	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	core_analyses::static_for_loop_feeds_branch_constant_folding	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	flow_sensitive_narrowing::and_impure_right_drops_left_fact	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	flow_sensitive_narrowing::false_branch_read_is_flagged	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	info_vars_narrowing::glob_pattern_is_not_narrowed	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	info_vars_narrowing::info_globals_is_not_narrowed	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	info_vars_narrowing::info_vars_membership_idioms_are_not_narrowed_rust_behaviour	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	info_vars_narrowing::info_vars_ne_empty_false_branch_flagged	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	info_vars_narrowing::lsearch_regexp_is_not_narrowed	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	interpolation_folding::incr_with_string_const_increment_diverges_overdefined	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	interpolation_folding::interpolation_folds_in_proc_diverges	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	interpolation_folding::interpolation_folds_to_string_const_diverges	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	interpolation_folding::interpolation_result_typed_as_string	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	interpolation_folding::shimmer_preserved_after_folding	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	no_read_before_set::array_get_is_a_value_read_still_flagged	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	no_read_before_set::cmd_sub_set_in_return_value_is_a_definition	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	no_read_before_set::dict_for_body_local_set_recovered	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	no_read_before_set::dict_for_loop_vars_are_not_read_before_set	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	no_read_before_set::dict_map_body_local_set_recovered	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	provably_absent_folds_false::array_exists_absent_folds_false	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	provably_absent_folds_false::issue_example_body_never_executes	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	provably_absent_folds_false::lazy_init_reuse_branch_is_dead_for_local	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	provably_absent_folds_false::negated_check_folds	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	provably_present_folds_true::parameter_always_exists	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	provably_present_folds_true::set_before_check_folds_true	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	soundness_gates::array_element_of_never_touched_array_folds_false	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	soundness_gates::mutation_free_value_command_still_folds	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	soundness_gates::nested_command_sub_assignment_is_not_folded_as_absent	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::braced_array_like_name_flows_as_base_array_symbol	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::fold_format	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::fold_string_length	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::fold_with_variable_resolution_diverges_overdefined	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::foreach_braced_list_constset	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::foreach_list_cmd_folds_to_constset	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::foreach_single_element_is_const	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::foreach_with_var_ref_resolves_through_lattice	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::list_cmd_with_const_vars_folds_through_the_lattice	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::namespaced_array_element_flows_as_base_array_name	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::namespaced_scalar_flows_with_qualified_name	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::set_list_cmd_folds_to_const	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::set_list_cmd_through_foreach	rust-tests-shard (2/5)	
+tcl-compiler::core_analyses	variable_shape::unbraced_array_ref_flows_as_base_array_symbol	rust-tests-shard (2/5)	
+tcl-compiler::dialect_threading	build_for_dialect_folds_a_word_operator_branch	rust-tests-shard (2/5)	
+tcl-compiler::dialect_threading	build_for_profile_folds_a_word_operator_branch	rust-tests-shard (2/5)	
+tcl-compiler::dialect_threading	i230_fires_on_a_constant_word_operator_condition_under_irules	rust-tests-shard (2/5)	
+tcl-compiler::dialect_threading	lowering_parses_a_word_operator_condition_under_the_irules_dialect	rust-tests-shard (2/5)	
+tcl-compiler::dialect_threading	n5_else_line_lowers_into_the_if_under_the_f5_grammar	rust-tests-shard (2/5)	
+tcl-compiler::fix_safety	fn_the_equivalent_class_is_actually_reachable	rust-tests-shard (4/5)	rust/tcl-compiler/tests/fix_safety.rs:226
+tcl-compiler::fix_safety	fp_w100_brace_fix_over_a_substituted_operand_is_not_equivalent	rust-tests-shard (4/5)	
+tcl-compiler::fix_safety	fp_w105_brace_fix_over_a_substituted_body_is_not_equivalent	rust-tests-shard (4/5)	
+tcl-compiler::fix_safety	tp_w100_brace_fix_over_a_substitution_free_operand_is_equivalent	rust-tests-shard (4/5)	
+tcl-compiler::per_item_corpus	per_item_matches_analyse_over_repo_samples	rust-tests-shard (4/5)	
+tcl-compiler::real_job_fixtures	real_jobs_lower_and_keep_semantics_around_boundary_regions	rust-tests-shard (5/5)	
+tcl-compiler::side_effects_binding	binding_alias_records_target	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1121
+tcl-compiler::side_effects_binding	binding_builtin_rename_away_then_redefine_is_proc	rust-tests-shard (3/5)	
+tcl-compiler::side_effects_binding	binding_builtins_are_builtin	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:986
+tcl-compiler::side_effects_binding	binding_proc_call_rename_call	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1040
+tcl-compiler::side_effects_binding	binding_proc_named_like_mathfunc_is_proc_not_builtin	rust-tests-shard (3/5)	
+tcl-compiler::side_effects_binding	binding_proc_redefined_stays_proc	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1092
+tcl-compiler::side_effects_binding	binding_rename_deletion_is_opaque_not_error	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1059
+tcl-compiler::side_effects_binding	binding_rename_on_both_arms_agrees	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1149
+tcl-compiler::side_effects_binding	binding_undefined_name_is_opaque	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1016
+tcl-compiler::side_effects_binding	binding_user_proc_is_proc	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1002
+tcl-compiler::side_effects_binding	module_scan_dynamic_rename_in_proc_distrusts_everything	rust-tests-shard (3/5)	
+tcl-compiler::side_effects_binding	module_scan_nested_rename_in_proc_is_caught	rust-tests-shard (3/5)	rust/tcl-compiler/tests/side_effects_binding.rs:1191
+tcl-compiler::tcl_namespace_probe	mathop_prefix_commands_are_unavailable_before_tcl85	rust-tests-shard (5/5)	
+tcl-compiler::tcl_namespace_probe	tcl_build_info_is_gated_to_tcl90_plus	rust-tests-shard (5/5)	rust/tcl-compiler/tests/tcl_namespace_probe.rs:144
+tcl-compiler::tcl_namespace_probe	tcl_tm_path_is_gated_to_tcl85_plus	rust-tests-shard (5/5)	rust/tcl-compiler/tests/tcl_namespace_probe.rs:164
+tcl-compiler::tcl_namespace_probe	tcl_unsupported_corotype_is_gated_to_tcl86_plus	rust-tests-shard (5/5)	rust/tcl-compiler/tests/tcl_namespace_probe.rs:11
+tcl-compiler::unused_var_tricky_features	already_modelled_surfaces::tn_scan_writes_vars_by_name_then_read	rust-tests-shard (5/5)	
+tcl-compiler::unused_var_tricky_features	cross_scope_globals::tp_bare_local_unused_still_fires	rust-tests-shard (5/5)	
+tcl-compiler::unused_var_tricky_features	cross_scope_globals::tp_genuine_top_level_dead_store_still_fires	rust-tests-shard (5/5)	
+tcl-compiler::unused_var_tricky_features	cross_scope_globals::tp_namespaced_read_does_not_mask_unrelated_bare_global	rust-tests-shard (5/5)	
+tcl-compiler::unused_var_tricky_features	read_before_set_tps::profileless_registry_abstains_in_the_lowered_ir	rust-tests-shard (5/5)	
+tcl-compiler::unused_var_tricky_features	read_before_set_tps::safe_on_uninit_is_lowered_from_the_active_dialect_profile	rust-tests-shard (5/5)	
+bigip-report-gen-rust	model::app_tests::rule_events_ignore_when_text_stored_as_data	rust-tests-shard (2/5)	
+bigip-report-gen-rust	model::app_tests::rule_events_use_top_level_rooted_normalised_owner	rust-tests-shard (2/5)	
+bigip-report-gen-rust::certs	constrained_pattern_filters_orphans_by_name	rust-tests-shard (4/5)	rust/bigip-report-gen/rust/tests/certs.rs:314
+bigip-report-gen-rust::certs	irule_flowchart_is_graph_json	rust-tests-shard (4/5)	rust/bigip-report-gen/rust/tests/certs.rs:556
+bigip-report-gen-rust::certs	orphan_reachability_is_partition_aware	rust-tests-shard (4/5)	rust/bigip-report-gen/rust/tests/certs.rs:374
+bigip-report-gen-rust::report	the_estate_model_has_the_shape_the_report_renders_from	rust-tests-shard (5/5)	
+bpf-tcl-codegen	ebpf::emit::tests::port_filter_has_branches	rust-tests-shard (2/5)	
+bpf-tcl-codegen	ebpf::verifier::tests::xdp_packet_read_verifies	rust-tests-shard (2/5)	
+bpf-tcl-ir	frontend::tests::bpf_structured_bodies_ignore_an_ambient_tcl85_runtime	rust-tests-shard (2/5)	
+bpf-tcl-ir	frontend::tests::next_is_a_valid_handler_outcome	rust-tests-shard (2/5)	
+bpf-tcl-ir	frontend::tests::port_filter_compiles	rust-tests-shard (2/5)	
+bpf-tcl-ir	semantic_bridge::tests::non_bpf_lowered_statement_retains_a_typed_shape_decline	rust-tests-shard (2/5)	
+bpf-tcl::composition	composition_order_is_priority_not_source_order	rust-tests-shard (4/5)	rust/bpf-tcl/tests/composition.rs:47
+bpf-tcl::composition	continuation_reaches_the_later_handler	rust-tests-shard (4/5)	rust/bpf-tcl/tests/composition.rs:47
+bpf-tcl::composition	early_deny_handler_terminates_the_chain	rust-tests-shard (4/5)	rust/bpf-tcl/tests/composition.rs:47
+bpf-tcl::deploy	attach_does_not_disturb_the_program_body	rust-tests-shard (3/5)	rust/bpf-tcl/tests/deploy.rs:99
+bpf-tcl::diagnostics	rejects_concurrency_primitives	rust-tests-shard (3/5)	rust/bpf-tcl/tests/diagnostics.rs:99
+bpf-tcl::diagnostics	rejects_unbounded_while	rust-tests-shard (3/5)	rust/bpf-tcl/tests/diagnostics.rs:41
+bpf-tcl::diagnostics	rejects_unknown_command	rust-tests-shard (3/5)	rust/bpf-tcl/tests/diagnostics.rs:61
+bpf-tcl::hardening	big_endian_load_reads_network_order	rust-tests-shard (2/5)	
+bpf-tcl::hardening	every_path_terminated_compiles	rust-tests-shard (2/5)	
+bpf-tcl::hardening	missing_verdict_on_a_path_is_rejected	rust-tests-shard (2/5)	
+bpf-tcl::kernel_codegen	network_order_16bit_ethertype_matches_fixture	rust-tests-shard (4/5)	rust/bpf-tcl/tests/kernel_codegen.rs:44
+bpf-tcl::kernel_codegen	network_order_16bit_tcp_port_drop	rust-tests-shard (4/5)	rust/bpf-tcl/tests/kernel_codegen.rs:44
+bpf-tcl::kernel_codegen	readelf_accepts_kernel_map_object	rust-tests-shard (4/5)	rust/bpf-tcl/tests/kernel_codegen.rs:39
+bpf-tcl::kernel_codegen	verifier_model_accepts_socket_filter_length_verdict	rust-tests-shard (4/5)	rust/bpf-tcl/tests/kernel_codegen.rs:39
+bpf-tcl::kernel_codegen	verifier_model_accepts_xdp_map_filter	rust-tests-shard (4/5)	rust/bpf-tcl/tests/kernel_codegen.rs:39
+bpf-tcl::loops	native_while_still_rejected	rust-tests-shard (2/5)	
+bpf-tcl::profiles	ipv4_tcp_drops_ssh	rust-tests-shard (5/5)	rust/bpf-tcl/tests/profiles.rs:30
+bpf-tcl::profiles	ipv4_tcp_passes_http	rust-tests-shard (5/5)	rust/bpf-tcl/tests/profiles.rs:30
+bpf-tcl::profiles	ipv4_tcp_passes_non_tcp	rust-tests-shard (5/5)	rust/bpf-tcl/tests/profiles.rs:30
+bpf-tcl::profiles	user_profile_field_drops	rust-tests-shard (5/5)	rust/bpf-tcl/tests/profiles.rs:30
+bpf-tcl::profiles	user_profile_field_passes	rust-tests-shard (5/5)	rust/bpf-tcl/tests/profiles.rs:30
+bpf-tcl::profiles	user_profile_little_endian_field	rust-tests-shard (5/5)	rust/bpf-tcl/tests/profiles.rs:30
+bpf-tcl::socket_filter	block_ssh_accepts_port_80	rust-tests-shard (5/5)	rust/bpf-tcl/tests/socket_filter.rs:27
+bpf-tcl::socket_filter	block_ssh_drops_port_22	rust-tests-shard (5/5)	rust/bpf-tcl/tests/socket_filter.rs:27
+bpf-tcl::socket_filter	block_ssh_drops_short_packet	rust-tests-shard (5/5)	rust/bpf-tcl/tests/socket_filter.rs:27
+bpf-tcl::templates	template_param_controls_flow	rust-tests-shard (3/5)	rust/bpf-tcl/tests/templates.rs:30
+bpf-tcl::templates	template_param_drops_when_over_limit	rust-tests-shard (3/5)	rust/bpf-tcl/tests/templates.rs:30
+bpf-tcl::xdp	xdp_drops_port_22	rust-tests-shard (5/5)	rust/bpf-tcl/tests/xdp.rs:28
+bpf-tcl::xdp	xdp_passes_port_80	rust-tests-shard (5/5)	rust/bpf-tcl/tests/xdp.rs:28
+f5-xc::differential	rust_translator_matches_golden_fixture	rust-tests-shard (4/5)	
+f5-xc::model	else_body_keeps_enclosing_criteria	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:203
+f5-xc::model	switch_exact_path_with_star_is_literal	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:237
+f5-xc::model	switch_fallthrough_arm_routes_all_patterns	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:288
+f5-xc::model	switch_fallthrough_into_default_routes_pattern_and_catch_all	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:305
+f5-xc::model	switch_glob_host_is_regex	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:249
+f5-xc::model	switch_nocase_glob_host_is_case_insensitive_regex	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:261
+f5-xc::model	switch_path_glob_yields_prefix_matches	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:62
+f5-xc::model	switch_regexp_path_is_regex_not_prefix	rust-tests-shard (4/5)	rust/f5-xc/tests/model.rs:225
+tcl-bigip	lint::tests::irule_empty_when_and_deprecated	rust-tests-shard (2/5)	
+tcl-bigip	lint::tests::unknown_event_fires	rust-tests-shard (2/5)	
+tcl-bigip	tls::tests::factory_profile_materialises_available_default_certificate	rust-tests-shard (2/5)	
+tcl-bigip::integration	cleanup::cleanup	rust-tests-shard (2/5)	
+tcl-bigip::integration	stats::stats	rust-tests-shard (2/5)	
+tcl-cli	commands::graphs::tests::event_symbols_ignore_inert_braced_and_quoted_when_text	rust-tests-shard (4/5)	
+tcl-cli	commands::graphs::tests::event_symbols_use_top_level_rooted_normalised_owner	rust-tests-shard (4/5)	
+tcl-cli::cli	analyser_only_verbs_install_the_current_projects_spec_pack_overlay	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:203
+tcl-cli::cli	cli_publishes_project_pack_hooks	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:265
+tcl-cli::cli	diag_accepts_an_environment_a_workspace_pack_declares	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:2491
+tcl-cli::cli	diag_accepts_the_jim_program_under_the_jim_dialect	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:2605
+tcl-cli::cli	diag_analyses_a_jimsh_shebang_document_as_jim	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:2627
+tcl-cli::cli	diag_analysis_changes_when_the_current_projects_spec_pack_is_present	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:16
+tcl-cli::cli	diag_honours_noqa_directives_the_way_the_editor_does	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:723
+tcl-cli::cli	diag_seeds_the_default_off_codes_like_the_editor	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:1536
+tcl-cli::cli	diag_shares_call_sites_across_cr_terminated_inputs	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:994
+tcl-cli::cli	diag_shares_call_sites_across_inputs	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:533
+tcl-cli::cli	diag_show_suppressed_lists_every_hidden_finding_with_its_reason	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:1716
+tcl-cli::cli	diff_treats_a_lone_cr_document_as_identical_to_its_lf_twin	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:1218
+tcl-cli::cli	every_dialect_flag_reaches_the_one_resolver	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:68
+tcl-cli::cli	explore_sccp_and_interprocedural_spell_a_constant_alike	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:348
+tcl-cli::cli	explore_uses_the_current_projects_active_spec_pack_registry	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:234
+tcl-cli::cli	minimize_reduces_a_cr_terminated_document_the_way_the_editor_does	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:1149
+tcl-cli::cli	opt_a_named_profile_overrules_the_project_file	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:2087
+tcl-cli::cli	opt_applies_only_the_rewrites_the_policy_shows	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:2040
+tcl-cli::cli	opt_detects_the_irules_dialect_without_the_flag	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:593
+tcl-cli::cli	opt_folds_the_wide_edges_only_where_the_release_computes_them	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:2765
+tcl-cli::cli	opt_keeps_a_store_a_noqa_o109_marks	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:1953
+tcl-cli::cli	opt_keeps_in_range_doubles_and_declines_an_8_4_range_error_literal	rust-tests-shard (4/5)	
+tcl-cli::cli	opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:643
+tcl-cli::cli	opt_runs_the_passes_of_the_profile_in_force	rust-tests-shard (4/5)	rust/tcl-cli/tests/cli.rs:2126
+tcl-cli::cli	samples_optimiser_profiles_are_regenerated	rust-tests-shard (4/5)	
+tcl-cli::cli	truth_table_rewrite_rows_render_through_tcl_opt	rust-tests-shard (4/5)	
+tcl-cli::cli	truth_table_rows_render_through_tcl_diag	rust-tests-shard (4/5)	
+tcl-cli::compile_verbs	compwasm_codegen_passes_natively_lower_a_hot_loop	rust-tests-shard (3/5)	rust/tcl-cli/tests/compile_verbs.rs:231
+tcl-cli::compile_verbs	dis_lowers_word_operators_for_the_detected_dialect	rust-tests-shard (3/5)	rust/tcl-cli/tests/compile_verbs.rs:81
+tcl-cli::explorer_gui	post_ssa_card_words_selected_facts_and_lists_selections	rust-tests-shard (5/5)	rust/tcl-cli/tests/explorer_gui.rs:153
+tcl-cli::pkg_verbs	pkg_discover_add_is_idempotent_and_skips_dependency_trees	rust-tests-shard (5/5)	rust/tcl-cli/tests/pkg_verbs.rs:421
+tcl-cli::pkg_verbs	pkg_discover_uses_analysis_and_optimisation	rust-tests-shard (5/5)	rust/tcl-cli/tests/pkg_verbs.rs:316
+tcl-cli::spec_verbs	spec_import_describes_one_extension_per_entry_point	rust-tests-shard (5/5)	rust/tcl-cli/tests/spec_verbs.rs:1624
+tcl-cli::spec_verbs	spec_import_merges_the_scan_and_the_probe_by_command	rust-tests-shard (5/5)	rust/tcl-cli/tests/spec_verbs.rs:1793
+tcl-cli::spec_verbs	spec_import_probe_lists_the_commands_a_package_adds	rust-tests-shard (5/5)	rust/tcl-cli/tests/spec_verbs.rs:123
+tcl-cli::spec_verbs	spec_import_probe_reports_the_version_the_package_provided	rust-tests-shard (5/5)	rust/tcl-cli/tests/spec_verbs.rs:1843
+tcl-lexer::lexer_depth	expr_unterminated_brace_falls_back_to_a_one_char_string	rust-tests-shard (4/5)	rust/tcl-lexer/tests/lexer_depth.rs:959
+tcl-registry	commands::tcl::tests::every_native_variable_writer_says_how_it_writes	rust-tests-shard (5/5)	
+tcl-registry	registry::tests::dynamic_role_capabilities_cover_every_resolver_and_representative_output	rust-tests-shard (5/5)	
+tcl-registry	registry::tests::dynamic_role_capabilities_cover_every_resolver_argument_shape	rust-tests-shard (5/5)	
+tcl-registry	registry::tests::every_command_has_hover_with_manpage_source	rust-tests-shard (5/5)	rust/tcl-registry/src/registry.rs:12
+tcl-registry::registry_commands	an_explicitly_empty_operation_table_does_not_inherit_the_parents	rust-tests-shard (3/5)	
+tcl-registry::registry_commands	namespace_subcommands_declare_their_namespace_name_arguments	rust-tests-shard (3/5)	
+tcl-registry::registry_commands	source_nopkg_is_version_gated	rust-tests-shard (3/5)	rust/tcl-registry/tests/registry_commands.rs:1643
+tcl-registry::registry_sweep	a_spec_outside_the_core_set_declares_no_backing	rust-tests-shard (5/5)	rust/tcl-registry/tests/registry_sweep.rs:1413
+tcl-registry::registry_sweep	derived_queries_agree_with_the_by_name_answers	rust-tests-shard (5/5)	rust/tcl-registry/tests/registry_sweep.rs:1084
+tcl-registry::registry_sweep	sweep_nested_dialects_are_subsets_of_parent	rust-tests-shard (5/5)	rust/tcl-registry/tests/registry_sweep.rs:1568
+tcl-registry::registry_sweep	sweep_referentially_transparent_specs_declare_closed_dispatch_surface	rust-tests-shard (5/5)	
+tcl-registry::sslictcl_pack	block_statements_claim_their_body_word	rust-tests-shard (5/5)	rust/tcl-registry/tests/sslictcl_pack.rs:300

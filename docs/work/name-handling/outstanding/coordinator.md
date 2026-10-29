@@ -1,8 +1,20 @@
 # Outstanding work: coordinator
 
-Last updated: 2026-10-27T21:50Z
+Last updated: 2026-10-29T16:05Z
 
 ## Resume
+
+RUNNING (fourth restart resumed 08:00Z 29 Oct). WORK `/home/user/tcl-lsp` (`work`), release shallow clone `/home/user/release/tcl-lsp` (`release/lsp-naming` `83c8e08`, fixture cleanup 51/51). On user request at 16:05Z everything in the WORK tree was committed, including roles' in-flight TEMP_*/TMP_* diagnosis probes; remove them before any CI dispatch or release carry.
+
+- Gate status: zero pass-to-fail NOT met. CI 5248 (`83a0b2351`) vs origin/rust 5203: 2,835 pass-to-fail, 10,299 unobserved, 216 absent; per-role lists in the session scratchpad `ci5248/roles/`, summary in `handoff/reviews/merge-inventory-20261019/coordinator-20261027/ci5248-vs-origin-rust-5203-pass-to-fail-summary.md`.
+- User decisions this resume: MAY fixture correction; standalone units "correct all affected tests"; SpecTcl discovery fail-closed; iRules Tcl 8.4 objects; namespace121 approved; integer expression folds admitted everywhere (user-decisions-20261029T1125Z.json, with coordinator scope note for operand conversion; the user may narrow it).
+- Root causes established: lsp scheduler lock-order deadlocks (fixed); path-admission db lock (fixed); rehoming guard aggregate-completeness (narrowed, pending review) exposing cross-file `source` reference loss (restore on source-view graph, no recorded decision retired it); empty `cu.procedures` and missing top-level IR/SSA facts (compiler-names); puts/IO completion domain Any (descriptors added); engine Currency compared per-thread errno (fixed); standalone-unit harnesses without a Tcl version (corrected via profile API); CLI start-up registry prerequisite scans (index applied, unmeasured).
+- Possible user decisions pending facts: Tk taint under the open tk policy (28 rows); whether profile-less foreign modules must still run (3 deopt tests).
+- Independent review batch before release: LSP B/B2/A, AuthoredSimulation admissions (compiler-names review note), integer/operand folds, completion descriptors, Currency fix, registry prerequisite index, C9 regexp follow-ups.
+- Release cleanup: remove branch-only env-gated eprintln trace hooks (LOWER_SOURCE_PHASE, ORIGINAL_SOURCE_JOIN, SOURCE_CATALOGUE, N17G_LIVE, current_diagnostics and others), leftover committed probes (`zz_sol49_*`, `ZZ_NATIVE_PREFLIGHT_ASSESSMENT`), and all in-flight TEMP_*/TMP_* probes.
+- Next: collect role fixes, compile-clean probe-free cohort, then pin refresh and hosted diagnostics, then a clean full ci.yml rerun; carry functional fixes to release and re-run release prep; final gates (section F, zero pass-to-fail, shipping Tcl performance, docs/comments, formatting/generated/packaging/squash-tree). No PR until every gate passes; no merge, tag or publish.
+
+## Resume (2026-10-27 resume)
 
 RESUMED 21:05Z in a fresh container. WORK `/home/user/tcl-lsp` (`work`), release shallow clone `/home/user/release/tcl-lsp` (`release/lsp-naming`). Packets restored and verified in the session scratchpad from the paused-checkpoint archive; /workspace and naming-proof-storage are absent.
 

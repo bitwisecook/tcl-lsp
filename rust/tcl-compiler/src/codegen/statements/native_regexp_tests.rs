@@ -177,3 +177,53 @@ fn c9_regexp_declined_shapes_invoke_the_command() {
         );
     }
 }
+
+// TEMP_CCG probe: top-level dict emission at 9.0.
+#[test]
+fn temp_ccg_dict_toplevel_dump() {
+    let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+    let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
+    for source in [
+        b"dict incr d a 5".as_slice(),
+        b"dict with d x {incr a 5}",
+        b"dict incr c n 3",
+    ] {
+        let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+        let parsed = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::native(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+        .unwrap();
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.native_entry = Some(&entry);
+        context.invocation_dialect = Some(dialect);
+        context.source_string_protocol = entry.source_string_protocol;
+        context.compiled_variable_protocol = entry.compiled_variable_protocol;
+        context.native_compilation.frame =
+            tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode;
+        context.emit_native_words(&parsed.commands[0].words);
+        eprintln!(
+            "TEMP_CCG {:?} refusal={}",
+            String::from_utf8_lossy(source),
+            context.native_dependency_refusal
+        );
+        for instruction in &context.instructions {
+            let literal = match (instruction.op, instruction.operands.as_slice()) {
+                (Op::PUSH1 | Op::PUSH4, [Operand::Imm(index)]) => context
+                    .literals
+                    .entries()
+                    .get(usize::try_from(*index).unwrap())
+                    .and_then(|literal| literal.byte_payload())
+                    .map(|bytes| String::from_utf8_lossy(bytes).into_owned()),
+                _ => None,
+            };
+            eprintln!(
+                "TEMP_CCG   {:?} {:?} {:?}",
+                instruction.op, instruction.operands, literal
+            );
+        }
+    }
+}

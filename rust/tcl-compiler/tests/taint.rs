@@ -4405,3 +4405,68 @@ mod special_variable_sources {
         assert!(of_code("eval $env(CMD)", IR, "T100").is_empty());
     }
 }
+
+// ZZPROBE-START (temporary compiler-role probe; removed before hand-back)
+#[test]
+#[ignore = "temporary probe"]
+fn zz_probe_bindings() {
+    let dialect = std::env::var("ZZ_PROBE_DIALECT").unwrap_or_else(|_| D.to_owned());
+    let path = std::env::var("ZZ_PROBE_FILE").expect("ZZ_PROBE_FILE");
+    for src in std::fs::read_to_string(path)
+        .expect("probe file")
+        .split("\n----\n")
+    {
+        let registry = static_context_for(&dialect).commands();
+        let cu = CompilationUnit::build_for_dialect(src, registry, false, &dialect);
+        eprintln!("ZZPROBE {src:?}");
+        let mut rows = Vec::new();
+        for block in cu.top_level.ssa.blocks.values() {
+            for statement in &block.statements {
+                if let Some(tokens) = statement.statement.tokens() {
+                    rows.push((
+                        statement.statement.span().start(),
+                        format!("{:?}", tokens.synthetic),
+                        match &statement.statement {
+                            tcl_compiler::ir::Statement::Barrier { reason, command, .. } => format!("barrier {command}: {reason}"),
+                            tcl_compiler::ir::Statement::Call { command, .. } => format!("call {command}"),
+                            _ => "other".to_owned(),
+                        },
+                        tokens.argv_texts.clone(),
+                        tokens.source_binding.as_ref().map(|b| {
+                            (
+                                b.unknown,
+                                b.may_be_absent,
+                                b.targets.iter().map(|t| t.command.clone()).collect::<Vec<_>>(),
+                            )
+                        }),
+                    ));
+                }
+            }
+        }
+        rows.sort();
+        for row in rows {
+            eprintln!("ZZPROBE   {row:?}");
+        }
+    }
+}
+#[test]
+#[ignore = "temporary probe"]
+fn zz_probe_realm() {
+    let dialect = std::env::var("ZZ_PROBE_DIALECT").unwrap_or_else(|_| D.to_owned());
+    let path = std::env::var("ZZ_PROBE_FILE").expect("ZZ_PROBE_FILE");
+    let src = std::fs::read_to_string(path).expect("probe file");
+    let registry = static_context_for(&dialect).commands();
+    let config = tcl_lexer::LexerConfig::for_file_dialect(&dialect);
+    let profile = tcl_registry::model::ingress::resolve_environment(&dialect).unit_profile();
+    for (label, realm) in [
+        ("with_config", tcl_compiler::realm::document_realm_bindings_with_config(&src, config, registry)),
+        ("with_profile", tcl_compiler::realm::document_realm_bindings(&src, profile, registry)),
+    ] {
+        for item in std::env::var("ZZ_HEADS").unwrap_or_default().split(',').filter(|s| !s.is_empty()) {
+            let (head, at) = item.rsplit_once('@').unwrap();
+            let at: u32 = at.parse().unwrap();
+            eprintln!("ZZREALM {label} {head}@{at} fact={:?}", realm.binding_at(head, at));
+        }
+    }
+}
+// ZZPROBE-END
