@@ -79,39 +79,19 @@ pub const fn modelled(version: TclVersion) -> bool {
 }
 
 /// The bytes of a `TCL_TOKEN_SIMPLE_WORD`, or `None` for any other token.
-///
-/// `ParseTokens` gives a `$` that starts no variable, and a raw NUL, a TEXT
-/// token of its own, so an unbraced word holding one beside other text has
-/// several components. A parser-expanded list member is always simple.
 pub(crate) fn simple_word_bytes(
     shape: NativeCompilationWordShape,
     value: Option<&[u8]>,
-    parser_expanded: bool,
 ) -> Option<&[u8]> {
     use NativeCompilationWordShape as Shape;
-    let value = value?;
     match shape {
-        Shape::BracedLiteral => Some(value),
-        Shape::Literal | Shape::QuotedLiteral
-            if parser_expanded
-                || value.len() == 1
-                || !value.iter().any(|byte| matches!(byte, b'$' | 0)) =>
-        {
-            Some(value)
-        }
+        Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => value,
         _ => None,
     }
 }
 
 fn projected_simple(word: &NativeProjectedCompilerWord) -> Option<&[u8]> {
-    simple_word_bytes(
-        word.shape,
-        word.literal.as_deref(),
-        matches!(
-            word.operand,
-            NativeCompilerWordOperand::LiteralExpansion { .. }
-        ),
-    )
+    simple_word_bytes(word.shape, word.literal.as_deref())
 }
 
 /// Option prefix accepted by the compiler, and whether it ends the options.

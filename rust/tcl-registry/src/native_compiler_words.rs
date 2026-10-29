@@ -435,6 +435,8 @@ fn capture_word(
         let shape = if parts
             .iter()
             .any(|part| matches!(part.part, ExecutablePart::Text(ExecutableText::Decoded(_))))
+            || (matches!(protocol, NativeStringProtocol::C(_))
+                && crate::native_compilation::splits_into_text_tokens(&value))
         {
             Shape::BackslashLiteral
         } else if word.group().kind == WordKind::Quoted {

@@ -5632,7 +5632,6 @@ fn regexp_grammar(
     let pattern = crate::native_regexp_compilation::simple_word_bytes(
         shapes[index],
         words.arguments().literal_at(index).map(str::as_bytes),
-        false,
     );
     if literal_shape(shapes[index]) && words.arguments().literal_at(index).is_none() {
         Selection::Unknown
@@ -5664,8 +5663,7 @@ fn regexp_compiler_pattern_index(
             return Err(Selection::Unknown);
         };
         index += 1;
-        match simple_word_bytes(shapes[index - 1], Some(option.as_bytes()), false)
-            .and_then(regexp_option)
+        match simple_word_bytes(shapes[index - 1], Some(option.as_bytes())).and_then(regexp_option)
         {
             Some(RegexpOption::Last) => break,
             Some(RegexpOption::Nocase) => {}
@@ -5932,6 +5930,14 @@ fn conditional_steps(
         }
     }
     NativeCompilationSteps::Known(steps)
+}
+
+/// `ParseTokens` gives a `$` that starts no variable, and a raw NUL, a TEXT
+/// token of its own, so an unbraced word holding one beside other text has
+/// several components and is not a `SIMPLE_WORD`.
+#[must_use]
+pub fn splits_into_text_tokens(value: &[u8]) -> bool {
+    value.len() > 1 && value.iter().any(|byte| matches!(byte, b'$' | 0))
 }
 
 fn literal_shape(shape: NativeCompilationWordShape) -> bool {
@@ -9224,6 +9230,88 @@ mod named_operand_layout_tests {
                     NativeCompilationSelection::Generic
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod simple_word_split_tests {
+    use super::*;
+    use crate::native_compiler_words::NativeCompilerWords;
+    use crate::native_string_compilation::{NativeStringMatchOperation, NativeStringMatchScope};
+
+    fn words(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
+        let profile =
+            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+        tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::native(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        )
+        .unwrap()
+        .commands
+        .remove(0)
+        .words
+    }
+
+    // tclsh 9.0.4 and 8.6.18 `disassemble lambda {s} ...`: `string match W $s`
+    // gives streq only for a SIMPLE W, and `switch -exact -- $s W {..} b {..}`
+    // compiles a jumpTable only for a SIMPLE W (otherwise invokeStk).
+    #[test]
+    fn a_dollar_beside_text_is_not_a_simple_word() {
+        for version in [TclVersion::V8_6, TclVersion::V9_0] {
+            let protocol = tcl_syntax::native_string::NativeStringProtocol::C(version);
+            for (word, simple) in [
+                ("a$", false),
+                ("\"a$\"", false),
+                ("$$", false),
+                ("\"$$\"", false),
+                ("$", true),
+                ("\"$\"", true),
+                ("{a$}", true),
+            ] {
+                let source = format!("string match {word} $s");
+                let parsed = words(source.as_bytes(), version);
+                let captured = NativeCompilerWords::capture(&parsed, protocol).unwrap();
+                let recipe = crate::native_string_compilation::instruction(
+                    &captured,
+                    1,
+                    NativeStringMatchScope::PublicMember,
+                    version,
+                )
+                .unwrap();
+                assert_eq!(
+                    recipe.operation == NativeStringMatchOperation::Equal,
+                    simple,
+                    "{version:?} {source}"
+                );
+                let source = format!("switch -exact -- $s {word} {{return 1}} b {{return 2}}");
+                let parsed = words(source.as_bytes(), version);
+                let captured = NativeCompilerWords::capture(&parsed, protocol).unwrap();
+                assert_eq!(
+                    crate::native_switch_compilation::native_switch_instruction(
+                        &captured, 1, version
+                    )
+                    .is_ok(),
+                    simple,
+                    "{version:?} {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn text_token_splits_follow_parse_tokens() {
+        for (value, split) in [
+            (b"a$".as_slice(), true),
+            (b"$$", true),
+            (b"$", false),
+            (b"\0", false),
+            (b"a\0", true),
+            (b"abc", false),
+            (b"", false),
+        ] {
+            assert_eq!(splits_into_text_tokens(value), split, "{value:?}");
         }
     }
 }
