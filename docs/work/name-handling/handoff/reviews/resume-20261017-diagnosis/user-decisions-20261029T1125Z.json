@@ -1,0 +1,20 @@
+{
+  "recorded_utc": "2026-10-29T11:37:58.898950+00:00",
+  "source": "Explicit user answer in chat (AskUserQuestion), coordinator session 2026-10-29",
+  "decisions": {
+    "expression_fold_result_protocol": {
+      "answer": "Admit int folds everywhere",
+      "meaning": "expression_result_protocol_equivalence admits a contents-only (literal) replacement when the original result recipe is PooledValue (constant operator tree, already a pooled literal in C >= 8.5) or a NumericOperation whose normal result type is Int. This applies inside the shared check, so both the optimiser fold entry (optimiser/mod.rs eval_expression_at) and SCCP stored/returned constants (sccp/original_value_facts.rs) are admitted. The accepted difference is object identity/representation and literal sharing only, observable solely via tcl::unsupported::representation.",
+      "still_refused": [
+        "Double/other numeric results (8.6 tcl_precision spelling differs)",
+        "NormalizeOperand (operand spelling)",
+        "Unknown recipe",
+        "Boolean-typed results unless the model proves C's int result"
+      ],
+      "unchanged_obligations": "Operand read/trace, command-world and execution-trace proofs remain separate and required; format_tcl_value_with_policy unchanged.",
+      "evidence": "compiler-codegen fact-finding 2026-10-29: gate origin 944d156922; tclsh 8.6.18/9.0.4 probes fold.tcl, fold2.tcl, fold3.tcl (coordinator scratchpad regexp/)",
+      "documentation": "Update docs/design/compiler/name-resolution-implementer-guide.md (~l.2505-2522, ~l.4179) and docs/design/contracts/shared-utility-contracts-rust.md:209 to record this decision.",
+      "implementation_status": "APPROVED; assigned to compiler-codegen."
+    }
+  }
+}
