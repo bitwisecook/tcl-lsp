@@ -581,4 +581,36 @@ mod tests {
             }
         }
     }
+
+    fn optimised_8_6(source: &str) -> String {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let optimisations =
+            crate::optimiser::manager::optimise_with_dialect(source, registry, Some(profile));
+        crate::optimiser::manager::apply_optimisations(source, &optimisations)
+    }
+
+    // tclsh 8.6.18 and 9.0.4: `expr {$a + 2}` is 18 for `set a 0x10`, 3 for
+    // `set a " 1 "` and 3.5 for `set a 1.5`; the operand keeps its string.
+    #[test]
+    fn a_converted_operand_admits_an_integer_fold_and_not_a_double() {
+        for (source, folded) in [
+            ("set a 0x10\nset c [expr {$a + 2}]\nputs $c\n", "18"),
+            ("set a \" 1 \"\nset c [expr {$a + 2}]\nputs $c\n", "3"),
+        ] {
+            let optimised = optimised_8_6(source);
+            assert!(
+                optimised.contains(&format!("puts {folded}"))
+                    || optimised.contains(&format!("set c {folded}")),
+                "{source:?} -> {optimised:?}"
+            );
+        }
+        let double = optimised_8_6("set a 1.5\nset c [expr {$a + 2}]\nputs $c\n");
+        assert!(!double.contains("3.5"), "{double:?}");
+        let traced = optimised_8_6(
+            "trace add variable a read {apply {args {}}}\nset a 1\nset c [expr {$a + 2}]\nputs $c\n",
+        );
+        assert!(traced.contains("[expr {$a + 2}]"), "{traced:?}");
+    }
 }

@@ -4191,8 +4191,10 @@ whose canonical spelling C generates identically. A double stays refused: in
 C 8.6 its spelling follows `tcl_precision` when its string is generated.
 Comparison, logical and normalised-operand results stay refused. SCCP
 stored/returned execution constants and the optimiser's whole-expression fold
-entry evaluate first and then use this query; operand conversion, read-trace
-and command-world proofs remain separate obligations. Partial expression rewrites keep
+entry evaluate first and then use this query. A proved operand conversion
+that succeeds during that evaluation changes only the operand's internal
+representation, so it does not block the fold; a failed conversion leaves no
+value to fold. Read-trace and command-world proofs remain separate obligations. Partial expression rewrites keep
 the native expression wrapper and still prove operand, error and value
 obligations independently. Native codegen remains a consumer of the selected
 compiler recipe rather than of this source-edit licence.

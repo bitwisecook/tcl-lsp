@@ -445,15 +445,10 @@ impl<'a> PassContext<'a> {
                 numeric.as_ref().map_or(0, |(_, operands)| operands.len())
             );
         }
-        // A literal replacement requires result-object equivalence as well as
-        // input conversion proof. Partial arithmetic rewrites use the separate
-        // expression equivalence gate and retain a numeric result operation.
-        if numeric
-            .as_ref()
-            .is_some_and(|(_, operands)| !operands.is_empty())
-        {
-            return None;
-        }
+        // The proved operand conversions are evaluated with the expression; a
+        // successful one changes only the operand's internal representation.
+        // Partial arithmetic rewrites use the separate expression equivalence
+        // gate and retain a numeric result operation.
         let mut environment = env.clone();
         if let Some((native, _)) = &numeric {
             environment.extend(native.clone());
