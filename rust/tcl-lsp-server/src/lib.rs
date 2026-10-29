@@ -11635,7 +11635,30 @@ impl Backend {
                     },
                 );
         }
+        Self::debug_assert_published_paths_in_step(db, files, published_paths);
         membership_changed
+    }
+
+    /// `published_document_path_admission` reads the admission map under
+    /// `db_files` alone. That is sound only while every writer keeps both maps
+    /// and each source's Salsa path in step before releasing `db_files`.
+    fn debug_assert_published_paths_in_step(
+        db: &tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        published_paths: &PublishedSourcePaths,
+    ) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        let published = published_paths
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        debug_assert_eq!(published.len(), files.len());
+        for (uri, file) in files {
+            let retained = published.get(uri);
+            debug_assert!(retained.is_some_and(|retained| retained.file == *file
+                && file.path(db).as_deref() == retained.admission.analyser_path()));
+        }
     }
 
     /// Retire sources with all salsa maps already locked, returning whether
@@ -11832,6 +11855,7 @@ impl Backend {
         file.set_text(db).to(String::new());
         file.set_external_call_sites(db).to(None);
         tombstones.insert(uri.clone(), file);
+        Self::debug_assert_published_paths_in_step(db, files, published_paths);
         true
     }
 
@@ -14521,8 +14545,10 @@ impl Backend {
         &self,
         uri: &Uri,
     ) -> DocumentSourceResult<Option<Arc<DocumentPathAdmission>>> {
+        // Writers update `db_files` and `source_path_admissions` together under
+        // `db` and `db_files` (see `debug_assert_published_paths_in_step`), so
+        // `db_files` alone yields a consistent pair without waiting on `db`.
         let selected = {
-            let db = self.db.lock().await;
             let files = self.db_files.lock().await;
             let Some(file) = files.get(uri) else {
                 return Ok(None);
@@ -14536,9 +14562,7 @@ impl Backend {
                 .ok_or_else(|| DocumentSourceUnavailable::PublishedPathUnavailable {
                     uri: uri.clone(),
                 })?;
-            if retained.file != *file
-                || file.path(&*db).as_deref() != retained.admission.analyser_path()
-            {
+            if retained.file != *file {
                 return Err(DocumentSourceUnavailable::PublishedPathUnavailable {
                     uri: uri.clone(),
                 });

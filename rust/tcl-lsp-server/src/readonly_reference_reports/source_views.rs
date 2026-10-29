@@ -3637,7 +3637,7 @@ mod completed_world_owner_controls {
         std::fs::write(&child, "proc helper {value} {return $value}\n").unwrap();
         let source = if opaque {
             let source =
-                "proc host_old {value} { return $value }\nputs \"🧪 café\"; puts [host_old 7]\n";
+                "proc host_old {value} { return $value }\nputs [nop \"🧪\"]; puts [host_old 7]\n";
             assert_eq!(source.len(), 77);
             source.to_owned()
         } else {
@@ -3928,10 +3928,10 @@ mod completed_world_owner_controls {
             let host = if source_host {
                 REFERENCE_SOURCE
             } else {
-                "proc host_old {value} {return $value}\neval $unknown\nhost_old 7\n"
+                "proc host_old {value} {return $value}\neval [gets stdin]\nhost_old 7\n"
             };
             let (fixture, backend) =
-                reference_fixture(source_host, "eval $unknown\nhost_old 9\n", host).await;
+                reference_fixture(source_host, "eval [gets stdin]\nhost_old 9\n", host).await;
             let settlement = backend
                 .refresh_original_source_view_graph()
                 .await

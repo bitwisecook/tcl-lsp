@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 
 export const HOST_NAMING_SOURCE = 'proc host_old {value} { return $value }\nset host_marker "🧪 café"; proc host_caller {} {return [host_old 7]}\n';
-export const OPAQUE_PUTS_NAMING_SOURCE = 'proc host_old {value} { return $value }\nputs "🧪 café"; puts [host_old 7]\n';
+export const OPAQUE_PUTS_NAMING_SOURCE = 'proc host_old {value} { return $value }\nputs [nop "🧪"]; puts [host_old 7]\n';
 
 function offsetAt(source, position) {
     const lines = source.split("\n");
