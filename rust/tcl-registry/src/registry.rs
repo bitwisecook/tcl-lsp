@@ -976,7 +976,23 @@ struct NativeRegistrationCache {
         (crate::InvocationDialect, String),
         Option<crate::native_compilation::NativeCompilerImplementationLookup>,
     >,
+    /// Each dialect's implementation-path entries by unrooted slot, in the
+    /// registry's own iteration order, so a registration reads its slot's
+    /// entries instead of every visible spec.
+    prerequisites: FxHashMap<crate::InvocationDialect, Arc<PrerequisiteIndex>>,
 }
+
+/// One implementation-path step a visible compilation names.
+#[derive(Clone, Copy)]
+struct PrerequisiteEntry {
+    compilation: crate::native_compilation::NativeCompilationSpec,
+    lookup: crate::native_compilation::NativeCompilerImplementationLookup,
+    /// The path's last step of a `WithImplementationPath` compilation, which
+    /// owns its descriptor.
+    terminal: bool,
+}
+
+type PrerequisiteIndex = FxHashMap<&'static str, Vec<PrerequisiteEntry>>;
 
 /// Immutable registry snapshot for incremental consumers. Equality checks the
 /// complete structural identity; a hash is only a table index. Specs and body
@@ -3953,6 +3969,51 @@ impl CommandRegistry {
         let mut mapping = None;
         let mut selected = None;
         let mut found = false;
+        let index = self.prerequisite_index(dialect, query);
+        for entry in index.get(key).into_iter().flatten() {
+            if mapping.is_some_and(|previous| previous != entry.lookup) {
+                return None;
+            }
+            mapping = Some(entry.lookup);
+            let candidate = if entry.terminal {
+                // The terminal registration owns a compiler descriptor
+                // even when its semantic operand offset cannot be rebased.
+                entry.compilation
+            } else {
+                // Registration owns this descriptor independently of
+                // invocation argc; selecting a member needs no fake argv.
+                self.native_registration_compiler_descriptor(identity, dialect)?
+            };
+            if found && selected != Some(candidate) {
+                return None;
+            }
+            selected = Some(candidate);
+            found = true;
+        }
+        selected.or_else(|| self.native_registration_compiler_descriptor(identity, dialect))
+    }
+
+    /// The selection before the prerequisite index, scanning every visible spec.
+    #[cfg(test)]
+    fn native_compilation_for_registration_full_scan(
+        &self,
+        identity: &str,
+        dialect: crate::InvocationDialect,
+    ) -> Option<crate::native_compilation::NativeCompilationSpec> {
+        let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
+        let query = dialect.authoring_query()?;
+        if let Some(spec) = self.native_registration_exact_descriptor(identity, dialect) {
+            return spec
+                .native_compilation
+                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect));
+        }
+        if let Some(compilation) = crate::native_tcloo_registration::compilation(identity, dialect)
+        {
+            return Some(compilation);
+        }
+        let mut mapping = None;
+        let mut selected = None;
+        let mut found = false;
         for specs in self.by_name.values() {
             let Some(spec) = self.best_visible(specs, Some(query)) else {
                 continue;
@@ -4006,6 +4067,73 @@ impl CommandRegistry {
             }
         }
         selected.or_else(|| self.native_registration_compiler_descriptor(identity, dialect))
+    }
+
+    /// The implementation-path entries of every visible compilation for
+    /// `dialect`, built once per registry and dialect.
+    fn prerequisite_index(
+        &self,
+        dialect: crate::InvocationDialect,
+        query: SurfaceQuery<'_>,
+    ) -> Arc<PrerequisiteIndex> {
+        if let Some(index) = self
+            .native_registrations
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .prerequisites
+            .get(&dialect)
+        {
+            return Arc::clone(index);
+        }
+        let mut index = PrerequisiteIndex::default();
+        for specs in self.by_name.values() {
+            let Some(spec) = self.best_visible(specs, Some(query)) else {
+                continue;
+            };
+            if spec.owning_package().is_some() {
+                continue;
+            }
+            let compilations =
+                spec.native_compilation
+                    .into_iter()
+                    .chain(spec.subcommands.iter().flat_map(|member| {
+                        member.native_compilation.into_iter().chain(
+                            member
+                                .sub_subcommands
+                                .iter()
+                                .filter_map(|worker| worker.native_compilation),
+                        )
+                    }));
+            for compilation in compilations {
+                let Some(path) = compilation.implementation_prerequisites(dialect) else {
+                    continue;
+                };
+                let owns = matches!(
+                    compilation.grammar,
+                    crate::native_compilation::NativeCompilationGrammar::WithImplementationPath { .. }
+                );
+                for lookup in &path {
+                    index
+                        .entry(
+                            tcl_syntax::naming::unroot_rooted_key(lookup.slot)
+                                .unwrap_or(lookup.slot),
+                        )
+                        .or_default()
+                        .push(PrerequisiteEntry {
+                            compilation,
+                            lookup: *lookup,
+                            terminal: owns && path.last() == Some(lookup),
+                        });
+                }
+            }
+        }
+        let index = Arc::new(index);
+        self.native_registrations
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .prerequisites
+            .insert(dialect, Arc::clone(&index));
+        index
     }
 
     /// Select the exact authored registration key, without written-name fallback.
@@ -20348,5 +20476,55 @@ mod fallback_projection_compiler_tests {
                 .native_compilation_for_registration("catch", dialect)
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod prerequisite_index_tests {
+    /// The indexed registration selection equals the full scan for every
+    /// spec, member and implementation slot, on every dialect.
+    #[test]
+    fn the_prerequisite_index_selects_what_the_full_scan_selects() {
+        let mut compared = 0usize;
+        for environment in [
+            "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim", "irules",
+        ] {
+            let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            for registry in [
+                crate::model::ingress::static_context_for_profile(profile).commands(),
+                &super::CommandRegistry::build_default(),
+            ] {
+                let mut identities: Vec<String> = Vec::new();
+                for specs in registry.by_name.values() {
+                    for spec in specs {
+                        identities.push(spec.name.to_owned());
+                        identities.push(tcl_syntax::naming::root_unrooted_key(spec.name));
+                        let compilations = spec.native_compilation.into_iter().chain(
+                            spec.subcommands
+                                .iter()
+                                .flat_map(|member| member.native_compilation),
+                        );
+                        for compilation in compilations {
+                            for lookup in compilation
+                                .implementation_prerequisites(dialect)
+                                .unwrap_or_default()
+                            {
+                                identities.push(lookup.slot.to_owned());
+                            }
+                        }
+                    }
+                }
+                for identity in identities {
+                    assert_eq!(
+                        registry.native_compilation_for_registration_uncached(&identity, dialect),
+                        registry.native_compilation_for_registration_full_scan(&identity, dialect),
+                        "{environment}: {identity}"
+                    );
+                    compared += 1;
+                }
+            }
+        }
+        assert!(compared > 1000, "{compared} identities compared");
     }
 }
