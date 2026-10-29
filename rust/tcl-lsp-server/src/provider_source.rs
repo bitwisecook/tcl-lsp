@@ -5,9 +5,10 @@
 //! Each package implementation keeps its own configured source owner.
 
 use super::{
-    Analyser, AnalysisResult, Arc, Backend, DocumentPathAdmission, HashMap, HashSet, Mutex,
-    NonAsciiMode, PackageResolver, Path, PathBuf, PublishedSourcePath, PublishedSourcePaths,
-    ResourceAnalyserInputs, RwLock, TrackedMutex, Uri, longest_folder_match, vfs,
+    Analyser, AnalysisResult, Arc, Backend, DocumentPathAdmission, FolderConfig, HashMap,
+    HashSet, Mutex, NonAsciiMode, PackageResolver, Path, PathBuf, PublishedSourcePath,
+    PublishedSourcePaths, ResourceAnalyserInputs, RwLock, TrackedMutex, Uri, longest_folder_match,
+    merged_folder_dialect_overrides, session_dialect_from, vfs,
 };
 #[cfg(test)]
 use super::{
@@ -19,20 +20,45 @@ use tcl_compiler::analyser::ResolvedAnalysisInput;
 use tcl_registry::model::OverlayMiss;
 
 #[derive(Clone)]
-pub(super) struct ProviderDialectInputs {
+struct ProviderDialectInputs {
     document_overrides: Arc<HashMap<String, String>>,
     folders: Vec<(Uri, String)>,
     default: String,
 }
 
-impl ProviderDialectInputs {
-    pub(super) async fn capture(backend: &Backend) -> Self {
+/// The session's dialect settings, read when a provider capture runs rather
+/// than when its diagnostics run is scheduled.
+#[derive(Clone)]
+pub(super) struct ProviderDialectSources {
+    document_overrides: Arc<Mutex<HashMap<String, String>>>,
+    folder_dialects: Arc<Mutex<Vec<(Uri, String)>>>,
+    folder_configs: Arc<Mutex<Vec<(Uri, FolderConfig)>>>,
+    session_override: Arc<Mutex<Option<String>>>,
+    default_dialect: Arc<Mutex<String>>,
+}
+
+impl ProviderDialectSources {
+    pub(super) fn of(backend: &Backend) -> Self {
         Self {
-            document_overrides: backend.document_dialect_override_snapshot().await,
-            folders: backend.folder_dialect_overrides().await,
-            default: backend.session_dialect().await,
+            document_overrides: Arc::clone(&backend.document_dialect_overrides),
+            folder_dialects: Arc::clone(&backend.folder_dialects),
+            folder_configs: Arc::clone(&backend.folder_configs),
+            session_override: Arc::clone(&backend.session_dialect_override),
+            default_dialect: Arc::clone(&backend.default_dialect),
         }
     }
+
+    async fn capture(&self) -> ProviderDialectInputs {
+        ProviderDialectInputs {
+            document_overrides: Arc::new(self.document_overrides.lock().await.clone()),
+            folders: merged_folder_dialect_overrides(&self.folder_dialects, &self.folder_configs)
+                .await,
+            default: session_dialect_from(&self.session_override, &self.default_dialect).await,
+        }
+    }
+}
+
+impl ProviderDialectInputs {
 
     fn dialect(&self, uri: &Uri, source: &str, target: Option<tcl_dialect::TclVersion>) -> String {
         // The resolver's release pin is independent of the provider's own
@@ -56,7 +82,7 @@ pub(super) struct ProviderCaptureInputs<'a> {
     pub folders: &'a Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
     pub store: &'a Arc<dyn vfs::SourceStore>,
     pub source_path_admissions: &'a PublishedSourcePaths,
-    pub dialects: &'a ProviderDialectInputs,
+    pub dialects: &'a ProviderDialectSources,
     pub proposal: Option<&'a ProposalProviderSources>,
 }
 
@@ -295,8 +321,9 @@ impl ProviderCaptureInputs<'_> {
                 needed.then(|| resolver.provider_source_files()),
             )
         };
+        let dialects = self.dialects.capture().await;
         if !needed {
-            return self.retain_capture(resolver_revision, HashMap::new());
+            return self.retain_capture(resolver_revision, HashMap::new(), dialects);
         }
         let paths = paths.unwrap_or_default();
         // Configuration handles are copied before taking the DB lock. Source
@@ -375,19 +402,20 @@ impl ProviderCaptureInputs<'_> {
                 })
                 .collect()
         };
-        self.retain_capture(resolver_revision, rows)
+        self.retain_capture(resolver_revision, rows, dialects)
     }
 
     fn retain_capture(
         &self,
         resolver_revision: u64,
         rows: HashMap<PathBuf, ProviderRow>,
+        dialects: ProviderDialectInputs,
     ) -> Arc<ConfiguredProviderSources> {
         let sources = Arc::new(ConfiguredProviderSources {
             resolver_revision,
             rows,
             store: Arc::clone(self.store),
-            dialects: self.dialects.clone(),
+            dialects,
             inventories: std::sync::Mutex::new(HashMap::new()),
             proposal_selected: self.proposal.map(|proposal| proposal.selected.clone()),
             proposal_captures: self

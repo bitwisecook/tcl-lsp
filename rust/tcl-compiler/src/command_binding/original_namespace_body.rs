@@ -77,7 +77,7 @@ impl OriginalNamespaceBodyDelegation {
                 ) && access.mode != EffectAccessMode::Read
             })
         {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=1"); } return None; // TEMP-NSB
+            return None;
         }
         // The own namespace Ensure is accounted by the selected transition.
         // Any unexplained name write or additional callback remains terminal;
@@ -89,19 +89,17 @@ impl OriginalNamespaceBodyDelegation {
                 native.invocation.arguments(),
             )
         else {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=2"); } return None; // TEMP-NSB
+            return None;
         };
         if native.invocation.arguments().exact_argv_len()? != argument_offset.checked_add(1)? {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=3"); } return None; // TEMP-NSB
+            return None;
         }
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=a-body-input"); } // TEMP-NSB
         let body_input = native
             .original_variable_operands
             .input(argument_offset, variables)?;
         let SignatureSourceNameInput::OriginalWord(_) = body_input else {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=4"); } return None; // TEMP-NSB
+            return None;
         };
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=b-retained-body"); } // TEMP-NSB
         let body = super::retained_script_operand(
             argument_offset,
             native.script_operands(),
@@ -109,45 +107,39 @@ impl OriginalNamespaceBodyDelegation {
             native.segment.span.start(),
             context.config,
         )?;
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=c-transitions"); } // TEMP-NSB
         let transitions = facts.state_transitions.declared()?;
         let [fact] = transitions.facts() else {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=5"); } return None; // TEMP-NSB
+            return None;
         };
         let StateTransition::Namespace(NamespaceTransition::Ensure {
             namespace: NamespaceTransitionTarget::Named(subject),
         }) = &fact.transition
         else {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=6"); } return None; // TEMP-NSB
+            return None;
         };
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=d-operand"); } // TEMP-NSB
         let input =
             super::original_command_table::original_operand(native, subject, state, context)?;
         let policy = input.policy();
         input.original_word_key()?;
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=e-policy policy={:?}", policy); } // TEMP-NSB
         let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=7"); } return None; // TEMP-NSB
+            return None;
         };
         if body_input.policy() != policy {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=8"); } return None; // TEMP-NSB
+            return None;
         }
         let dialect = tcl_registry::InvocationDialect::for_version(version);
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=f-spec"); } // TEMP-NSB
         let spec = context.registry.get_for_surface(
             native.target.registry_identity()?,
             Some(dialect.authoring_query()?.with_realm(context.realm())),
         )?;
         if tcl_registry::registry::spec_pack_of(spec) != Some("tcl") {
-            if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB refuse=9"); } return None; // TEMP-NSB
+            return None;
         }
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=g-scope"); } // TEMP-NSB
         let scope = state.original_namespace_geometry(&context.namespace_identity(), policy)?;
         let path = policy
             .recipe()
             .namespace_address_path(scope.context()?, input.bytes())
             .ok()?;
-        if std::env::var_os("TCL_LSP_TEMP_NSB").is_some() { eprintln!("TEMP_NSB stage=h-done"); } // TEMP-NSB
         Some(Self {
             site: CommandAllocationSite {
                 source: Arc::clone(state.current_source_origin.as_ref()?),

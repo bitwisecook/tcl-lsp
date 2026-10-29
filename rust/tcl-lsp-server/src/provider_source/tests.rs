@@ -7,7 +7,7 @@ use salsa::Setter as _;
 use tcl_lsp_core::package_resolver::{PackagePrefer, PackageRequirementAdvice};
 
 async fn capture(backend: &Backend) -> Arc<ConfiguredProviderSources> {
-    let dialects = ProviderDialectInputs::capture(backend).await;
+    let dialects = ProviderDialectSources::of(backend);
     ProviderCaptureInputs {
         db: &backend.db,
         files: &backend.db_files,
@@ -454,7 +454,7 @@ async fn proposal_selected_provider_refuses_old_schema_before_inventory_and_keep
     let (backend, _, _, path) = proposal_provider_fixture(true).await;
     let uri = Uri::from_file_path(&path).unwrap();
     let proposal = proposal_provider_mode(&backend, &uri).await;
-    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let dialects = ProviderDialectSources::of(&backend);
     let inputs = ProviderCaptureInputs {
         db: &backend.db,
         files: &backend.db_files,
@@ -489,7 +489,7 @@ async fn proposal_selected_provider_refuses_old_schema_before_inventory_and_keep
 async fn actual_recovery_and_cache_hit_provider_receipts_survive_empty_deep_capture() {
     let (backend, uri, _, provider_path) = proposal_provider_fixture(true).await;
     let proposal = proposal_provider_mode(&backend, &uri).await;
-    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let dialects = ProviderDialectSources::of(&backend);
     let providers = ProviderCaptureInputs {
         db: &backend.db,
         files: &backend.db_files,
@@ -592,7 +592,7 @@ async fn actual_recovery_and_cache_hit_provider_receipts_survive_empty_deep_capt
 async fn proposal_unversioned_disk_provider_remains_unavailable_even_with_readable_bytes() {
     let (backend, uri, _, path) = proposal_provider_fixture(false).await;
     let proposal = proposal_provider_mode(&backend, &uri).await;
-    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let dialects = ProviderDialectSources::of(&backend);
     let sources = ProviderCaptureInputs {
         db: &backend.db,
         files: &backend.db_files,
@@ -626,7 +626,7 @@ async fn proposal_unversioned_disk_provider_remains_unavailable_even_with_readab
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn lost_proposal_capture_owner_cannot_become_an_empty_source_report() {
     let (backend, uri, _, _) = proposal_provider_fixture(true).await;
-    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let dialects = ProviderDialectSources::of(&backend);
     let sources = {
         let proposal = proposal_provider_mode(&backend, &uri).await;
         ProviderCaptureInputs {
@@ -657,7 +657,7 @@ async fn poisoned_proposal_inventory_cannot_issue_empty_or_populated_source_comp
     for populated in [false, true] {
         let (backend, uri, _, provider_path) = proposal_provider_fixture(true).await;
         let proposal = proposal_provider_mode(&backend, &uri).await;
-        let dialects = ProviderDialectInputs::capture(&backend).await;
+        let dialects = ProviderDialectSources::of(&backend);
         let sources = ProviderCaptureInputs {
             db: &backend.db,
             files: &backend.db_files,

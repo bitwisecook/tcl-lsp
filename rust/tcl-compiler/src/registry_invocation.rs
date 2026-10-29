@@ -623,14 +623,13 @@ fn authored_simulation_structure_is_supported(
     let realm = match &advice {
         Some(advice) => {
             if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
-                if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT asim refuse=1"); } return None; // TEMP-OPT
+                return None;
             }
             advice.realm()
         }
         None if reached => binding.invocation_realm()?,
         None => return None,
     };
-    if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT asim reached={reached} advice={}", advice.is_some()); } // TEMP-OPT
     let config = context.source_analysis_input()?.lexer_config();
     let roles = source_roles.map_or_else(
         || selected.written_argument_roles(),
@@ -689,14 +688,14 @@ fn authored_simulation_structure_is_supported(
             || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
             || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
         {
-            if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT asim refuse=3"); } return None; // TEMP-OPT
+            return None;
         }
         for &(argument, role) in &roles {
             if role == tcl_registry::ArgRole::Body
                 && schema.authored_source_script_timing_at(argument)?
                     != tcl_registry::ScriptTiming::SameInvocation
             {
-                if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT asim refuse=4"); } return None; // TEMP-OPT
+                return None;
             }
         }
         Some(())
@@ -912,7 +911,6 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
         trace_original_structure("argument_entry", tokens, false);
         return None;
     }
-    if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT lsi pre-select"); } // TEMP-OPT
     let selected = original_structured_source_selection(registry, context, tokens, bindings)?;
     let source_roles = if logical_source {
         let binding = tokens.source_binding.as_ref()?;
@@ -966,7 +964,6 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     } else {
         None
     };
-    if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT lsi pre-authored"); } // TEMP-OPT
     if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
     {
         authored_simulation_structure_is_supported(
@@ -977,9 +974,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
             source_roles.as_ref(),
         )?;
     }
-    if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT lsi pre-operands"); } // TEMP-OPT
     original_structured_operands_are_supported(registry, &selected, source_roles.as_ref(), tokens)?;
-    if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() { eprintln!("TEMP_OPT lsi done"); } // TEMP-OPT
     Some(LogicalStructuredInvocation {
         invocation: selected,
         source_roles,

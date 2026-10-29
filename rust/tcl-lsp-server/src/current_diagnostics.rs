@@ -670,6 +670,19 @@ impl DiagInputs {
         };
         trace_diagnostic_context_check(uri, "capture.input_present", input.is_some());
         drop(db);
+        let f5_model =
+            Backend::is_bigip_dialect(&job.dialect) || is_apl_source(uri, &job.language_id);
+        // A scheduled run defers the checked open-document registry to this
+        // drain: without the document's current input the pass is withheld.
+        let registry = if self.registry_at_drain && !f5_model {
+            input
+                .as_ref()?
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+        } else {
+            self.registry.snapshot()
+        };
         let slot_generation = self
             .diag_slots
             .lock()
@@ -692,9 +705,8 @@ impl DiagInputs {
             slot_generation,
             class_factory_generation: generation,
             input,
-            registry: self.registry.snapshot(),
-            f5_model: Backend::is_bigip_dialect(&job.dialect)
-                || is_apl_source(uri, &job.language_id),
+            registry,
+            f5_model,
         }))
     }
 }
@@ -1746,18 +1758,26 @@ impl Backend {
     ) -> (Arc<tcl_registry::CommandRegistry>, bool) {
         match self.checked_open_diagnostic_registry(uri).await {
             Ok(Some(registry)) => (registry, true),
-            other => {
-                let registry = if packs.is_empty() {
-                    Arc::clone(
-                        tcl_lsp_core::environment_for_dialect(dialect.name)
-                            .default_context_registry()
-                            .commands(),
-                    )
-                } else {
-                    tcl_spectcl::install::registry_for_dialect_with_packs(dialect.name, packs)
-                };
-                (registry, other.is_ok())
-            }
+            other => (
+                Self::fallback_diagnostic_registry(dialect, packs),
+                other.is_ok(),
+            ),
+        }
+    }
+
+    /// The dialect and pack registry used when no checked open input applies.
+    pub(super) fn fallback_diagnostic_registry(
+        dialect: &'static tcl_dialect::DialectProfile,
+        packs: &tcl_spectcl::pack::PackSet,
+    ) -> Arc<tcl_registry::CommandRegistry> {
+        if packs.is_empty() {
+            Arc::clone(
+                tcl_lsp_core::environment_for_dialect(dialect.name)
+                    .default_context_registry()
+                    .commands(),
+            )
+        } else {
+            tcl_spectcl::install::registry_for_dialect_with_packs(dialect.name, packs)
         }
     }
 
@@ -2397,6 +2417,16 @@ struct ProducedDirectDiagnosticReport {
 }
 
 impl DiagnosticPass {
+    /// The checked open-document registry this pass's input carries.
+    pub(super) fn checked_registry(&self) -> Option<Arc<CommandRegistry>> {
+        if self.f5_model {
+            return None;
+        }
+        self.input
+            .as_ref()
+            .map(|input| Arc::clone(input.borrowed_context_registry().commands()))
+    }
+
     fn trace_context_check(&self, stage: &str, accepted: bool) -> bool {
         trace_diagnostic_context_check(self.path_admission.uri(), stage, accepted)
     }

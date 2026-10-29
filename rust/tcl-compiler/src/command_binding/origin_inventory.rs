@@ -77,19 +77,8 @@ impl SourceInvocationBinding {
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<OriginalInvocationSourcePurpose> {
         if !metadata.matches_registry(registry) || tokens.source_binding.as_ref() != Some(self) {
-            if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-                eprintln!("TEMP_OPT inv refuse=1");
-            }
-            return None; // TEMP-OPT
+            return None;
         }
-        if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-            eprintln!(
-                "TEMP_OPT inv enter input={} standalone={} lookup={}",
-                metadata.source_analysis_input().is_some(),
-                metadata.is_standalone(),
-                self.lookup_state.is_some()
-            );
-        } // TEMP-OPT
         let original_input = if let Some(input) = metadata.source_analysis_input() {
             self.original_invocation_metadata_for_input(tokens, input, registry)?
                 .source_analysis_input()
@@ -103,9 +92,6 @@ impl SourceInvocationBinding {
             .ok()?;
             None
         };
-        if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-            eprintln!("TEMP_OPT inv metadata-ok");
-        } // TEMP-OPT
         let declaration = if self.lookup_state.is_none() {
             Some(
                 self.declaration_operand_layout_advice(tokens)
@@ -122,10 +108,7 @@ impl SourceInvocationBinding {
         if state.current_source_origin.as_ref() != Some(&self.invocation_site()?.source)
             || state.variable_frame != self.variable_frame
         {
-            if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-                eprintln!("TEMP_OPT inv refuse=2");
-            }
-            return None; // TEMP-OPT
+            return None;
         }
         if original_input.is_some()
             && declaration
@@ -133,27 +116,8 @@ impl SourceInvocationBinding {
                 .is_some_and(|advice| !advice.closed_logical_source_lookup())
             && state.baseline.native_entry.is_none()
         {
-            if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-                eprintln!("TEMP_OPT inv refuse=3");
-            }
-            return None; // TEMP-OPT
+            return None;
         }
-        if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-            eprintln!(
-                "TEMP_OPT inv retained={:?} orig_input={} orig_standalone={} point={} native={} unknown={} policy={:?}",
-                state.retained_original_source_purpose(metadata, registry),
-                state
-                    .baseline
-                    .metadata_context
-                    .source_analysis_input()
-                    .is_some(),
-                state.baseline.metadata_context.is_standalone(),
-                state.baseline.source_point_entry.is_some(),
-                state.baseline.native_entry.is_some(),
-                state.baseline.unknown_entry,
-                state.baseline.execution_name_policy
-            );
-        } // TEMP-OPT
         state.retained_original_source_purpose(metadata, registry)
     }
 
@@ -1725,10 +1689,7 @@ impl super::ModuleCommandBindings {
         if !metadata.matches_registry(registry)
             || self.baseline.registry_snapshot.as_ref() != Some(&registry.snapshot().semantic_key())
         {
-            if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-                eprintln!("TEMP_OPT ret refuse=1");
-            }
-            return None; // TEMP-OPT
+            return None;
         }
         let original = &self.baseline.metadata_context;
         match (
@@ -1738,28 +1699,17 @@ impl super::ModuleCommandBindings {
             (Some(original), Some(input))
                 if original == input || original == &input.for_nested_source() => {}
             (None, None) if original.is_standalone() && metadata.is_standalone() => {}
-            _ => {
-                if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-                    eprintln!("TEMP_OPT ret refuse=input");
-                }
-                return None;
-            } // TEMP-OPT
+            _ => return None,
         }
         if self.baseline.source_point_entry.is_some() {
             // Inherited naming state supplies no implicit invocation purpose.
-            if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-                eprintln!("TEMP_OPT ret refuse=2");
-            }
-            return None; // TEMP-OPT
+            return None;
         }
         if self.baseline.native_entry.is_some() {
             return Some(OriginalInvocationSourcePurpose::Execution);
         }
         if self.baseline.unknown_entry {
-            if std::env::var_os("TCL_LSP_TEMP_OPT").is_some() {
-                eprintln!("TEMP_OPT ret refuse=3");
-            }
-            return None; // TEMP-OPT
+            return None;
         }
         if let Some(input) = metadata.source_analysis_input() {
             if self.baseline.logical_source_input.is_some() {
