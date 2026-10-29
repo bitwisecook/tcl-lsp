@@ -635,8 +635,7 @@ fn authored_simulation_structure_is_supported(
         || selected.written_argument_roles(),
         StructuredSourceRoles::argument_roles,
     );
-    let bodiless = std::env::var_os("TEMP_GATE_BASE").is_none_or(|_| reached) // TEMP-GATE
-        && roles.iter().all(|(_, role)| {
+    let bodiless = roles.iter().all(|(_, role)| {
         !matches!(
             role,
             tcl_registry::ArgRole::Body
@@ -674,6 +673,18 @@ fn authored_simulation_structure_is_supported(
     selected.with_metadata_schema(registry, context, realm, |schema| {
         use tcl_registry::hooks::LoweringHookId;
         let hook = schema.facts().lowering_hook?;
+        // A definition stores its body for later calls in the procedure's own
+        // frame, so only a fully static name, parameter list and body is modelled.
+        if hook == LoweringHookId::Proc {
+            return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+                && tokens.words().iter().all(|word| {
+                    matches!(
+                        word,
+                        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+                    )
+                }))
+            .then_some(());
+        }
         if !(bodiless
             || matches!(
                 hook,
