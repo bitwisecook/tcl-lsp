@@ -1,0 +1,57 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T08:09:51.091016+00:00",
+  "scheduled_report_utc": "2026-10-28T21:37:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Fourth container restart (~21:40 to 08:00Z). Concurrent coordinator session committed fc971754d recording namespace121 as approved (user-decisions-20261028T203718Z.json); merged normally (f63a0bbca, no force). The user then confirmed the approval directly in this session; the archived proposal's master (ddd7fa25) and qualification (df107f98) hashes match the record. Assigned to vm-runtime.",
+    "WIP snapshot a39e9d493; pruned 772 build files (6.3 GB). Roles resumed: compiler, compiler-names, compiler-codegen, vm-runtime, lsp.",
+    "lsp round 7: source_views stale-root interpreted-membership bug fixed (completed_world_owner_controls 6P/1F, clippy clean); for the remaining case root chose option (a): a NoCut root's scope also requires its own completed command world (fail-closed for eval $unknown).",
+    "Full ci.yml 40739740045 on 83a0b2351 completed (failure, ~6.3 h); per-test pass->fail comparison against origin/rust CI 5203 being extracted by an analysis agent."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "CI 5248 vs 5203 comparison",
+    "all five roles"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T08:37:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
