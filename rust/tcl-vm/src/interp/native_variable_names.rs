@@ -64,6 +64,20 @@ impl Vm {
         .then_some(protocol)
     }
 
+    /// The C variable-name recipe of the authored simulation's own policy.
+    pub(crate) fn authored_c_variable_name_protocol(
+        &self,
+    ) -> Option<tcl_syntax::native_variable_name::NativeVariableNameProtocol> {
+        let selected = self.execution_name_policy()?.native_recipe()?;
+        if selected.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation {
+            return None;
+        }
+        let tcl_syntax::naming::NativeNameProtocol::C(version) = selected.recipe() else {
+            return None;
+        };
+        tcl_registry::InvocationDialect::for_version(version).native_variable_name_protocol()
+    }
+
     /// The authored simulation's C variable names: an authored recipe with no
     /// native authority, kept by the byte-name owners rather than the
     /// physical engine's object-name getter.
@@ -177,7 +191,12 @@ impl Vm {
         procedure: &Rc<crate::command::ProcDef>,
         body: &crate::compiled::CompiledUnit,
     ) -> Result<(), Completion<Value>> {
-        let Some(protocol) = self.native_c_variable_name_protocol() else {
+        // A frame the authored simulation activates owns its names under that
+        // simulation's own C recipe.
+        let Some(protocol) = self
+            .native_c_variable_name_protocol()
+            .or_else(|| self.authored_c_variable_name_protocol())
+        else {
             return Ok(());
         };
         procedure.retain_native_compiled_names(body.asm.lvt.native_slot_names());
@@ -366,6 +385,16 @@ impl Vm {
     ) -> Result<(), tcl_cmd_core::CmdError> {
         let (level, slot) = coordinates;
         let (protocol, dialect) = selected;
+        // The procedure owns the names of a frame activated under another
+        // realm's recipe; this realm installs no cache in it.
+        if !protocol.local_cache_owns_procedure()
+            && self
+                .frames
+                .get(level)
+                .is_some_and(|frame| frame.native_c_procedure.is_some())
+        {
+            return Ok(());
+        }
         if protocol.local_cache_owns_procedure() {
             return self.install_original_procedure_variable_cache(
                 original,

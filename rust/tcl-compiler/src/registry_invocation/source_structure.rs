@@ -157,16 +157,6 @@ pub fn original_single_source_command_substitution_in_plan(
 /// Lexing runs left to right, so once a prefix holds two complete commands
 /// before any syntax failure, the first can no longer change; F5's `else`
 /// lookahead joins later lines, so that grammar always parses the whole tail.
-// TEMP-STARTUP
-#[cfg(test)]
-pub(crate) fn temp_first_tail_command(
-    tail: &str,
-    offset: u32,
-    config: tcl_lexer::LexerConfig,
-) -> Option<crate::segmenter::SegmentedCommand> {
-    first_tail_command(tail, offset, config)
-}
-
 fn first_tail_command(
     tail: &str,
     offset: u32,

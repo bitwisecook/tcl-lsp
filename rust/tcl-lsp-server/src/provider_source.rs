@@ -5,9 +5,9 @@
 //! Each package implementation keeps its own configured source owner.
 
 use super::{
-    Analyser, AnalysisResult, Arc, Backend, DocumentPathAdmission, FolderConfig, HashMap,
-    HashSet, Mutex, NonAsciiMode, PackageResolver, Path, PathBuf, PublishedSourcePath,
-    PublishedSourcePaths, ResourceAnalyserInputs, RwLock, TrackedMutex, Uri, longest_folder_match,
+    Analyser, AnalysisResult, Arc, Backend, DocumentPathAdmission, FolderConfig, HashMap, HashSet,
+    Mutex, NonAsciiMode, PackageResolver, Path, PathBuf, PublishedSourcePath, PublishedSourcePaths,
+    ResourceAnalyserInputs, RwLock, TrackedMutex, Uri, longest_folder_match,
     merged_folder_dialect_overrides, session_dialect_from, vfs,
 };
 #[cfg(test)]
@@ -59,7 +59,6 @@ impl ProviderDialectSources {
 }
 
 impl ProviderDialectInputs {
-
     fn dialect(&self, uri: &Uri, source: &str, target: Option<tcl_dialect::TclVersion>) -> String {
         // The resolver's release pin is independent of the provider's own
         // document, source and folder dialect choices.

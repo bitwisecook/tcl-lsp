@@ -425,4 +425,14 @@ mod tests {
             "an authored reader cannot reparse a host-sealed list"
         );
     }
+
+    #[test]
+    fn a_framework_read_of_an_authored_frame_uses_the_frame_names() {
+        let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let mut vm = simulation();
+        assert!(vm.register_framework_builtin("::host_uplevel", "uplevel", host));
+        let script = "proc p {} {set x 1; set y [::host_uplevel 0 {set x}]; incr x; list $x $y}
+            p";
+        assert_eq!(answer(&vm.try_eval_source(script).unwrap(), script), "2 1");
+    }
 }

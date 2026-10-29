@@ -1414,6 +1414,7 @@ impl OriginalSourceViewWorkState {
             completion,
             eligibility: HashSet::new(),
             conditional_obligations: self.conditional_obligations,
+            root_world_uncertain: false,
         }
     }
 }
@@ -1449,6 +1450,9 @@ struct OriginalSourceRootScope {
     completion: Option<OriginalSourceViewCompletion>,
     eligibility: HashSet<Uri>,
     conditional_obligations: bool,
+    /// A root without a source cut whose own command world may hold an
+    /// unknown mutation. Only positive references consume it.
+    root_world_uncertain: bool,
 }
 
 impl OriginalSourceRootScope {
@@ -1463,6 +1467,7 @@ impl OriginalSourceRootScope {
             completion: None,
             eligibility: HashSet::new(),
             conditional_obligations: false,
+            root_world_uncertain: false,
         }
     }
 }
@@ -1558,8 +1563,24 @@ impl OriginalSourceViewSettlement {
         scopes.join("; ")
     }
 
-    pub(crate) fn tmp_probe_aggregate_complete(&self) -> bool { self.aggregate_complete() }
-    pub(crate) fn tmp_probe_scopes(&self) -> String { self.scopes.iter().map(|scope| format!("[{} complete={} conditional={} root={}]", scope.root_uri.as_str(), scope.complete, scope.conditional_obligations, scope.root.is_some())).collect::<Vec<_>>().join(" ") }
+    pub(crate) fn tmp_probe_aggregate_complete(&self) -> bool {
+        self.aggregate_complete()
+    }
+    pub(crate) fn tmp_probe_scopes(&self) -> String {
+        self.scopes
+            .iter()
+            .map(|scope| {
+                format!(
+                    "[{} complete={} conditional={} root={}]",
+                    scope.root_uri.as_str(),
+                    scope.complete,
+                    scope.conditional_obligations,
+                    scope.root.is_some()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
     fn aggregate_complete(&self) -> bool {
         self.scopes
             .iter()
@@ -1588,9 +1609,9 @@ impl OriginalSourceViewSettlement {
             .filter(|scope| scope.required.contains(uri))
             .collect::<Vec<_>>();
         (!required.is_empty()
-            && required
-                .iter()
-                .all(|scope| scope.complete && !scope.conditional_obligations))
+            && required.iter().all(|scope| {
+                scope.complete && !scope.conditional_obligations && !scope.root_world_uncertain
+            }))
         .then_some(())?;
         let mut ids = Vec::new();
         for scope in &self.scopes {
@@ -2647,6 +2668,7 @@ impl Backend {
     ) -> DocumentSourceResult<OriginalSourceRootScope> {
         let root_id = root.id;
         let root_uri = root.draft.physical.uri.clone();
+        let root_analysis = Arc::clone(&root.draft.producer.seed.analysis);
         let mut state = OriginalSourceViewWorkState {
             visited: HashSet::from([root.draft.physical.uri.clone()]),
             association_owners: Vec::new(),
@@ -2729,7 +2751,15 @@ impl Backend {
         if !state.unknown.is_empty() {
             return Ok(state.finish_scope(root_id, root_uri, false));
         }
-        Ok(state.finish_scope(root_id, root_uri, true))
+        let no_cut = matches!(state.finished.get(&root_id), Some(None));
+        let mut scope = state.finish_scope(root_id, root_uri, true);
+        // `eval $unknown` can rebind any name the root reaches. Without a
+        // retained realm the answer is unknown unless the root's world completed.
+        scope.root_world_uncertain = no_cut
+            && root_analysis
+                .root_unknown_command_mutation()
+                .unwrap_or_else(|| root_analysis.original_completed_command_world().is_none());
+        Ok(scope)
     }
 
     pub(crate) async fn command_source_documents(
@@ -2869,9 +2899,16 @@ impl Backend {
         Ok(self.original_source_view_settlement_is_indexed(&capture.settlement))
     }
 
-    pub(crate) fn tmp_probe_indexed_without_aggregate(&self, settlement: &OriginalSourceViewSettlement) -> bool {
-        let Ok(table) = self.original_source_views.try_lock() else { return false; };
-        let Ok(index) = self.workspace_index.try_read() else { return false; };
+    pub(crate) fn tmp_probe_indexed_without_aggregate(
+        &self,
+        settlement: &OriginalSourceViewSettlement,
+    ) -> bool {
+        let Ok(table) = self.original_source_views.try_lock() else {
+            return false;
+        };
+        let Ok(index) = self.workspace_index.try_read() else {
+            return false;
+        };
         table.current_revision() == Some(settlement.revision) && settlement.scopes.iter().all(|scope| {
             scope.ids.iter().all(|id| table.by_id.get(id).is_some_and(|view| {
             table.contains_actual(view) && view.is_indexed(&index)
