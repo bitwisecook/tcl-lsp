@@ -1,0 +1,62 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T14:49:13.790163+00:00",
+  "scheduled_report_utc": "2026-10-29T14:28:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "Shared cause found for optimiser DSE and analyser diagnostics clusters: `proc` bodies produce no cu.procedures entries (procs=0); producer fix is compiler-names' top item. 75 further sccp lib failures (new since CI 5248) routed with it.",
+    "Engine Currency flake root-caused: closed native currency compared per-thread C errno, which successful syscalls also set under contention; fixed (pending ERANGE/EDOM still refused at capture); temporary drift note removed.",
+    "Integer-fold decision extended by coordinator scope note to the operand-conversion gate (operand intrep change only; tclsh-proven); user may narrow it. Optimiser targets: optimiser 0/63, optimiser_coverage 6/55, optimiser_codegen_residual 0/30 before the procedure fix.",
+    "compiler round 5: taint 294/79 (6 more pass; vacuous Tk corrections withdrawn), mro 8/1 via new registry trait TCLOO_RUNTIME_HANDLE_RESULT, class_factories 61/83 (definer slot completion modelling next), tcl-irules 27/16 lib. Tk taint (28) needs precise facts before a possible user decision.",
+    "Disk 3.6 GB free."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "empty cu.procedures producer fix",
+    "operand-conversion fold",
+    "codegen residual shapes",
+    "class_factories definer slots",
+    "tcl-vm harness corrections",
+    "lsp B2 + rehoming reruns"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T15:20:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
