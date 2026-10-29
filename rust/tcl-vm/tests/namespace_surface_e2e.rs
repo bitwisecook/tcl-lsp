@@ -50,11 +50,19 @@ fn run_at(src: &str, release: &str) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture::default()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm.try_eval_source(src)
-        .expect("the VM's own compile entry")
-        .result
-        .to_str()
-        .to_string()
+    let completion = vm.try_eval_source(src).expect("the VM's own compile entry");
+    let original = vm
+        .capture_original_operand_projection()
+        .expect("the actual VM result projection");
+    let text = vm
+        .original_operand_unicode(&original, &completion.result)
+        .expect("the original result Unicode worker");
+    drop(completion);
+    vm.check_original_operand_projection(&original)
+        .expect("result projection current after completion retirement");
+    vm.finish_original_operand_projection(original)
+        .expect("result projection settlement");
+    text
 }
 
 /// [`run_at`] at the VM's default release (9.0), for the vectors tclsh 8.6.16
@@ -3355,5 +3363,33 @@ fn namespace_upvar_keeps_the_resolved_retained_namespace_token() {
              namespace eval a {namespace eval :b {variable v RIGHT}}
              namespace eval a: {hold}"),
         "LEFT"
+    );
+}
+
+#[test]
+fn standalone_compound_projection_does_not_acquire_the_vm_result_scope() {
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture::default()));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let completion = vm
+        .try_eval_source(
+            r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 proc q {} {return [namespace current]}
+                 proc p {} {namespace delete ::N; set a [q]; set b $::log; list $a $b}
+             }
+             trace add command ::N::q delete rec
+             set a [::N::p]
+             list $a $log",
+        )
+        .expect("the same actual VM source entry");
+    assert_eq!(
+        completion
+            .result
+            .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::C(
+                tcl_dialect::TclVersion::V9_0
+            )),
+        Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
     );
 }
