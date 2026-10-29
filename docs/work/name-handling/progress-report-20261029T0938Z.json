@@ -1,0 +1,58 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T09:38:02.581663+00:00",
+  "scheduled_report_utc": "2026-10-29T09:37:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "All five roles running; no new role reports since 09:07. Work in progress: regexp review fixes (compiler-codegen), unknown-mutation accessor (compiler-names), CI 5248 triage (lsp, compiler incl. mro_lattice_adversarial, vm-runtime).",
+    "Disk 3.9 GB free; no build active at the check. Probe-free WIP snapshotted; nine files with live diagnosis prints remain uncommitted."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "CI 5248 pass->fail clusters (all roles)",
+    "regexp review fixes",
+    "unknown-mutation accessor",
+    "seal-split selector + namespace121",
+    "optimiser set lowering"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T10:07:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

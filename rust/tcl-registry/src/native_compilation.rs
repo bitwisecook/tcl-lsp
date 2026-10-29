@@ -5938,12 +5938,12 @@ fn conditional_steps(
     NativeCompilationSteps::Known(steps)
 }
 
-/// `ParseTokens` gives a `$` that starts no variable, and a raw NUL, a TEXT
-/// token of its own, so an unbraced word holding one beside other text has
-/// several components and is not a `SIMPLE_WORD`.
+/// `ParseTokens` gives a `$` that starts no variable a TEXT token of its
+/// own, so an unbraced word holding one beside other text has several
+/// components and is not a `SIMPLE_WORD`.
 #[must_use]
 pub fn splits_into_text_tokens(value: &[u8]) -> bool {
-    value.len() > 1 && value.iter().any(|byte| matches!(byte, b'$' | 0))
+    value.len() > 1 && value.contains(&b'$')
 }
 
 fn literal_shape(shape: NativeCompilationWordShape) -> bool {
@@ -9330,8 +9330,7 @@ mod simple_word_split_tests {
             (b"a$".as_slice(), true),
             (b"$$", true),
             (b"$", false),
-            (b"\0", false),
-            (b"a\0", true),
+            (b"a\0", false),
             (b"abc", false),
             (b"", false),
         ] {

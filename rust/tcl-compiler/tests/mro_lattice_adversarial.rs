@@ -19,16 +19,16 @@ use tcl_compiler::analyser::class_lattice::{
 };
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_registry::CommandRegistry;
 
 /// Analyse `src`, then run the resolver over its `$obj method` sites with
 /// the full model against the file's own class index.
 fn resolve(src: &str) -> Vec<SiteReport> {
-    let reg = CommandRegistry::build_default();
+    // Dialect build: a standalone unit without an invocation dialect stays opaque.
+    let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut a = Analyser::new();
     let result = a.analyse(src, "tcl8.6");
-    let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(
-        &reg,
+    let cu = CompilationUnit::build_for_dialect(src, reg, false, "tcl8.6").with_interprocedural(
+        reg,
         Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
     );
     let ns = NsContext::from_result(&result);
@@ -97,7 +97,9 @@ fn factory_return_abstains() {
 
 #[test]
 fn introspection_dynamic_class_abstains() {
-    let src = with_classes("set cls [info object class $x]\nset o [$cls new]\n$o speak");
+    // tclsh errors on the undefined `x`; define it.
+    let src =
+        with_classes("set x [Dog new]\nset cls [info object class $x]\nset o [$cls new]\n$o speak");
     assert_eq!(
         verdict_for(&src, "o", "speak"),
         DispatchVerdict::Abstain(TopReason::Introspection),
@@ -106,7 +108,8 @@ fn introspection_dynamic_class_abstains() {
 
 #[test]
 fn oo_copy_abstains() {
-    let src = with_classes("set o [oo::copy $other]\n$o speak");
+    // tclsh errors on the undefined `other`; define it.
+    let src = with_classes("set other [Dog new]\nset o [oo::copy $other]\n$o speak");
     assert_eq!(
         verdict_for(&src, "o", "speak"),
         DispatchVerdict::Abstain(TopReason::Introspection),
@@ -137,7 +140,10 @@ fn bare_parameter_receiver_abstains_unknown() {
 fn control_flow_join_resolves_the_set_correctly() {
     // The one case the lattice is *designed* to nail: a join of two known
     // classes, both of which implement the method.
-    let src = with_classes("if {$flag} { set o [Dog new] } else { set o [Cat new] }\n$o speak");
+    // tclsh errors on the undefined `flag`; define it.
+    let src = with_classes(
+        "set flag [expr {rand() < 0.5}]\nif {$flag} { set o [Dog new] } else { set o [Cat new] }\n$o speak",
+    );
     match verdict_for(&src, "o", "speak") {
         DispatchVerdict::Resolved {
             classes,
