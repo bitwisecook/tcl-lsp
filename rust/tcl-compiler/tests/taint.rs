@@ -485,7 +485,6 @@ mod tcl_taint_sources {
 
     #[test]
     fn eval_braced_nested_command_substitution_reaches_inner_sink() {
-        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         for source in [
             "set x [gets stdin]\neval {[eval $x]}",
             r"set x [gets stdin]
@@ -493,7 +492,7 @@ mod tcl_taint_sources {
             "set x [gets stdin]\n[{eval} $x]",
             "set x [gets stdin]\n[\"eval\" $x]",
         ] {
-            let ws = dialect_of_code(source, D, "T100");
+            let ws = of_code(source, D, "T100");
             assert!(
                 ws.iter().any(|warning| warning.variable == "x"),
                 "a variable in a nested statically-headed eval reaches its sink: {source:?}: {ws:?}"
@@ -538,38 +537,35 @@ mod tcl_taint_sources {
 
     #[test]
     fn static_expanded_command_head_preserves_argv_semantics() {
-        // Dialect build: a standalone unit without an invocation dialect stays opaque.
-        let positive = dialect_of_code("set x [gets stdin]\n{*}{{eval} safe} $x", "tcl9.0", "T100");
+        let positive = of_code("set x [gets stdin]\n{*}{{eval} safe} $x", "tcl9.0", "T100");
         assert!(
             positive.iter().any(|warning| warning.variable == "x"),
             "the first expanded list element is the command and the rest prefix its argv: {positive:?}"
         );
         assert!(
-            dialect_of_code("set x [gets stdin]\n{*}{{puts} safe} $x", "tcl9.0", "T100",)
-                .is_empty(),
+            of_code("set x [gets stdin]\n{*}{{puts} safe} $x", "tcl9.0", "T100",).is_empty(),
             "an expanded non-sink command head must stay clean"
         );
         assert!(
-            !dialect_of_code("set x [gets stdin]\n{*}{} eval $x", "tcl9.0", "T100",).is_empty(),
+            !of_code("set x [gets stdin]\n{*}{} eval $x", "tcl9.0", "T100",).is_empty(),
             "an empty leading expansion removes itself and exposes the next command word"
         );
     }
 
     #[test]
     fn reaching_list_value_expands_into_command_and_argv() {
-        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         for source in [
             "set prefix [list eval safe]\nset x [gets stdin]\n{*}$prefix $x",
             "set prefix {}\nset x [gets stdin]\n{*}$prefix eval $x",
             "if {$flag} {set prefix [list eval safe]} else {set prefix [list puts safe]}\nset x [gets stdin]\n{*}$prefix $x",
         ] {
             assert!(
-                !dialect_of_code(source, "tcl9.0", "T100").is_empty(),
+                !of_code(source, "tcl9.0", "T100").is_empty(),
                 "a reaching list constant must retain expanded dispatch semantics: {source}"
             );
         }
         assert!(
-            dialect_of_code(
+            of_code(
                 "set prefix [list puts safe]\nset x [gets stdin]\n{*}$prefix $x",
                 "tcl9.0",
                 "T100",
@@ -626,25 +622,24 @@ set x [gets stdin]
 
     #[test]
     fn nested_script_sink_distinguishes_deferred_from_literal_arguments() {
-        // Dialect build: a standalone unit without an invocation dialect stays opaque.
-        let ws = dialect_of_code("set x [gets stdin]\n[eval {$x}]", D, "T100");
+        let ws = of_code("set x [gets stdin]\n[eval {$x}]", D, "T100");
         assert!(
             ws.iter().any(|warning| warning.variable == "x"),
             "eval reparses its braced argument as Tcl source: {ws:?}"
         );
 
         assert!(
-            dialect_of_code("set x [gets stdin]\n[exec {$x}]", D, "T100").is_empty(),
+            of_code("set x [gets stdin]\n[exec {$x}]", D, "T100").is_empty(),
             "exec receives a literal dollar spelling; it does not evaluate Tcl source"
         );
 
-        let ws = dialect_of_code("set x [gets stdin]\n[interp eval child {$x}]", D, "T105");
+        let ws = of_code("set x [gets stdin]\n[interp eval child {$x}]", D, "T105");
         assert!(
             ws.iter().any(|warning| warning.variable == "x"),
             "interp eval reparses only its registry-declared body tail: {ws:?}"
         );
         assert!(
-            dialect_of_code(
+            of_code(
                 "set x [gets stdin]\n[interp eval {$x} {set y safe}] $x",
                 D,
                 "T105",
@@ -653,13 +648,13 @@ set x [gets stdin]
             "a braced interpreter path and an outer argument are not child-interpreter code"
         );
 
-        let ws = dialect_of_code("set x [gets stdin]\n[set y $x; eval {$y}]", D, "T100");
+        let ws = of_code("set x [gets stdin]\n[set y $x; eval {$y}]", D, "T100");
         assert!(
             ws.iter().any(|warning| warning.variable == "y"),
             "inner commands must propagate taint in Tcl evaluation order: {ws:?}"
         );
         assert!(
-            dialect_of_code(
+            of_code(
                 "set x [gets stdin]\n[eval {set x safe; puts $x}]",
                 D,
                 "T100",
@@ -668,7 +663,7 @@ set x [gets stdin]
             "a script-local clean overwrite must cut off the enclosing tainted version"
         );
         assert!(
-            dialect_of_code(
+            of_code(
                 "proc eval args {}\nset x [gets stdin]\n[eval $x]",
                 D,
                 "T100",
@@ -676,7 +671,7 @@ set x [gets stdin]
             .is_empty(),
             "a nested call inherits the enclosing user-proc rebinding"
         );
-        let ws = dialect_of_code(
+        let ws = of_code(
             "interp alias {} myEval {} eval\nset x [gets stdin]\n[myEval $x]",
             D,
             "T100",
@@ -690,7 +685,7 @@ set x [gets stdin]
             "set x [gets stdin]\nset script {$x}\n[eval $script]",
         ] {
             assert!(
-                !dialect_of_code(source, D, "T100").is_empty(),
+                !of_code(source, D, "T100").is_empty(),
                 "nested analysis inherits phase-correct outer constants: {source}"
             );
         }
@@ -2007,13 +2002,12 @@ mod output_sinks {
 
     #[test]
     fn puts_inside_tcloo_method_body_still_fires() {
-        // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // TclOO method bodies are analysable functions like any proc — the
         // sink check must not be limited to top-level / plain-proc bodies.
         // Qualify the core heads because an instance method executes in its
         // runtime-selected object namespace: a relative `puts` may denote an
         // object-local command, for which deep analysis correctly abstains.
-        let ws = dialect_of_code(
+        let ws = of_code(
             "oo::class create Foo {\n\
              method bar {} {\n\
              ::set x [::read $fd]\n\
