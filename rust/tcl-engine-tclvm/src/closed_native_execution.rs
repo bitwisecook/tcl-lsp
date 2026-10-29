@@ -190,10 +190,13 @@ impl<'plan> PrivateBackend<'plan> {
     }
 }
 
+/// `errno` is per-thread scratch that successful library calls on the owner's
+/// thread may also set, so its exact value is not part of the currency; a
+/// pending range or domain error, which a native conversion would read, is
+/// refused when the state is captured.
 #[derive(Clone, PartialEq, Eq)]
 struct PrivateCurrency {
     registry: RegistrySemanticKey,
-    numeric: NumericErrorState,
     abi: NativeCIntegerAbi,
 }
 
@@ -245,7 +248,6 @@ impl ClosedNativeBackend for PrivateBackend<'_> {
             entry,
             currency: PrivateCurrency {
                 registry: self.registry.snapshot().semantic_key(),
-                numeric,
                 abi,
             },
         })
