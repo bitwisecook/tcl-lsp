@@ -623,15 +623,16 @@ impl ModuleCommandBindings {
                 !self.tainted_object_dispatch.contains("*")
                     && !self.tainted_object_dispatch.contains(&base.command)
                     && self.retained_target_is_current(base)
-                    && base
-                        .identity
-                        .as_ref()
-                        .and_then(|identity| self.class_definitions.get(identity))
-                        .is_some_and(|receipt| {
-                            receipt.dispatcher.is_none()
-                                && receipt.implementation_generation
-                                    == base.implementation_generation
-                        })
+                    && (self.stock_inherited_class(base).is_some()
+                        || base
+                            .identity
+                            .as_ref()
+                            .and_then(|identity| self.class_definitions.get(identity))
+                            .is_some_and(|receipt| {
+                                receipt.dispatcher.is_none()
+                                    && receipt.implementation_generation
+                                        == base.implementation_generation
+                            }))
             })
     }
 
@@ -661,6 +662,9 @@ impl ModuleCommandBindings {
         }
         let binding = source_binding(self, name, &context.namespace_identity());
         let base = binding.proved_target()?;
+        if base.registry_backed {
+            return self.stock_inherited_class(base);
+        }
         let identity = base.identity.as_ref()?;
         // An inherited class is an actual object command, not an alias to one.
         let raw = self
@@ -695,6 +699,43 @@ impl ModuleCommandBindings {
             return None;
         }
         Some((base.clone(), definition.clone()))
+    }
+
+    /// A shipped base class (`oo::object`, `oo::class`) inherits members the
+    /// source does not declare, so the child's instance method set stays open.
+    fn stock_inherited_class(
+        &self,
+        base: &super::SourceCommandTarget,
+    ) -> Option<(super::SourceCommandTarget, super::ClassDefinitionReceipt)> {
+        if !base.registry_backed
+            || base.kind != super::BindingKind::Class
+            || !base.prepended.is_empty()
+            || self.tainted_object_dispatch.contains("*")
+            || self.tainted_object_dispatch.contains(&base.command)
+            || !self.retained_target_is_current(base)
+        {
+            return None;
+        }
+        Some((
+            base.clone(),
+            super::ClassDefinitionReceipt {
+                factory: base.command.clone(),
+                original_factory: None,
+                implementation_generation: base.implementation_generation,
+                dispatcher: None,
+                dispatcher_methods: Arc::default(),
+                instance_methods: None,
+                instance_variables: None,
+                constructor_entry: None,
+                constructor_provider: None,
+                destructor_entry: None,
+                destructor_provider: None,
+                lifecycle_entries_closed: false,
+                receiver_method_entries: Arc::default(),
+                forward_method_entries: Arc::default(),
+                inherited_classes: Arc::default(),
+            },
+        ))
     }
 
     fn inherit_class_entries(
@@ -757,10 +798,10 @@ impl ModuleCommandBindings {
             let dependencies = Arc::make_mut(&mut entries.inherited_classes);
             dependencies.push(base);
             dependencies.extend(inherited.inherited_classes.iter().cloned());
-            if let (Some(local), Some(base)) =
-                (&mut entries.instance_methods, inherited.instance_methods)
-            {
-                Arc::make_mut(local).extend(base.iter().cloned());
+            match (&mut entries.instance_methods, inherited.instance_methods) {
+                (Some(local), Some(base)) => Arc::make_mut(local).extend(base.iter().cloned()),
+                (local, None) => *local = None,
+                (None, Some(_)) => {}
             }
             // Implicit variables belong to the selected implementation's
             // declaring class. Inheriting a method does not merge its local

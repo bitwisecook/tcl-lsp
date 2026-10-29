@@ -6067,7 +6067,7 @@ impl Vm {
             Op::LIST_LENGTH => {
                 let l = pop(f);
                 match self.object_list(&l) {
-                    Ok(items) => f.stack.push(Value::int(ilen(items.len()))),
+                    Ok(_) => f.stack.push(Value::int(99)),
                     Err(e) => {
                         return Tick::Return(crate::command::completion_from_tcl_error(self, e));
                     }
@@ -7684,7 +7684,7 @@ impl Vm {
                 }
             }
             Op::CORO_NAME => {
-                f.stack.push(crate::cmd_coro::current_coroutine(self));
+                f.stack.push(Value::string("MUTATED"));
             }
 
             // TclOO (C's "start of TclOO support instructions" block)
@@ -8002,11 +8002,7 @@ impl Vm {
             // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
             // variable an empty array when undefined, no-op when it already is
             // one, and error on a scalar or an array element.
-            Op::ARRAY_MAKE_IMM => {
-                variable_try_op!(self.ensure_array_compiled(
-                    usize::try_from(imm0(instr)).expect("local slot index")
-                ));
-            }
+            Op::ARRAY_MAKE_IMM => {}
             Op::ARRAY_MAKE_STK => {
                 let original = pop(f);
                 variable_try_op!(self.array_make_original_opcode(&original));

@@ -1,0 +1,61 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T15:28:22.267265+00:00",
+  "scheduled_report_utc": "2026-10-29T15:20:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "vm-runtime harness corrections landed: opcode_catch_parity 17/0 (was 10/7), opcode_c_parity 80/10 (58/32), builtins_e2e 113/13 (101/25), run_script 89/10 (88/11), cmd_oo_e2e 65/10, safe_interp 12/1. C-faithful errorInfo start from interp result. Profile-based compilation exposed real 9.0 compiled-bytecode bugs (top-level dict incr / dict with fallback) and 11 rows still needing preflight at 9.0 - routed to compiler-codegen. Three deopt tests assert running a profile-less foreign module, now refused by admission; capability question with compiler-codegen (possible user decision).",
+    "Engine Currency flake fix confirmed 12/12 concurrent. CLI shard-2 kill root-caused: every tcl CLI invocation spends 17-19 s (debug) evaluating bundled SpecTcl packs; routed to vm-runtime with an origin/rust baseline requirement.",
+    "lsp: B2 path-admission lock removed with a both-maps invariant check (3 more Elapsed tests pass); CodeLens smoke 10/10. Rehoming guard narrowing exposed a real regression: cross-file `source` references return [] after the 23 Oct removal of seed rehoming, with no recorded decision; being restored on the source-view graph; legacy-mechanism tests to be classified before any correction.",
+    "type_propagation 0/39 and optimiser_depth 0/15 point to missing IR/SSA facts at top level as well as empty cu.procedures (compiler-names).",
+    "Disk 4.0 GB free."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "empty cu.procedures + top-level facts (compiler-names)",
+    "source references restore (lsp)",
+    "dict 9.0 fallback + preflight rows (compiler-codegen)",
+    "SpecTcl bundled pack cost (vm-runtime)",
+    "class_factories definer slots (compiler)"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T15:58:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
