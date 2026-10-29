@@ -539,10 +539,24 @@ fn classify_bound_rhs<S: std::hash::BuildHasher + Clone>(
                     tokens,
                 )
             && assistance.candidates.iter().any(|candidate| {
-                candidate
-                    .possible_traits
-                    .contains(tcl_registry::Traits::TCLOO_INTROSPECTION)
+                candidate.possible_traits.intersects(
+                    tcl_registry::Traits::TCLOO_INTROSPECTION
+                        | tcl_registry::Traits::TCLOO_RUNTIME_HANDLE_RESULT,
+                )
             })
+        {
+            return AssignKind::Introspection;
+        }
+        // `[$cls new]`: a manufacturer method on a computed class value.
+        if let Some(tokens) = commands.last()
+            && tokens.words().first().is_some_and(|head| {
+                head.sole_variable_substitution().is_some()
+                    || matches!(head, WordExpr::CommandSubstitution { .. })
+            })
+            && tokens
+                .argv_texts
+                .get(1)
+                .is_some_and(|method| registry.is_manufacturer_method(method))
         {
             return AssignKind::Introspection;
         }

@@ -910,6 +910,12 @@ declare_traits! {
     /// the query consumers use instead of a literal name test.
     TclooIntrospection => TCLOO_INTROSPECTION, Objects, "introspects the current TclOO method context";
 
+    /// The result is a `TclOO` object or class handle that only exists at
+    /// run time (`oo::copy`), so a receiver bound from it has no statically
+    /// named class. Consumers abstain on such a receiver rather than reading
+    /// the command spelling.
+    TclooRuntimeHandleResult => TCLOO_RUNTIME_HANDLE_RESULT, Objects, "returns a run-time TclOO object or class handle";
+
     /// Each body argument runs only when this command's own run-time
     /// selection picks it, and the command performs no iteration — `if`
     /// (at most one clause body plus an optional `else`) and `try` (handler
@@ -1385,6 +1391,7 @@ declare_trait_examples! {
     TclooNextChain => flow!("oo::class create Base { method run {} {return base} }\noo::class create Child { superclass Base; method run {} { return [next] } }\nputs [[Child new] run]"; (1, "next"); (0, "method run", "defines the superclass implementation"), (1, "next", "dispatches to the next method in the chain"), (2, "run", "returns base"));
     TclooSelfDispatch => flow!("oo::class create Widget { method render {} {return ok}; method run {} {return [my render]} }\nputs [[Widget new] run]"; (0, "my"); (0, "my render", "dispatches on the current object"), (1, "run", "observes the delegated result"));
     TclooIntrospection => flow!("oo::class create Widget { method describe {} { return [self class] } }\nputs [[Widget new] describe]"; (0, "self"); (0, "self class", "introspects the current method context"), (1, "describe", "returns the declaring class"));
+    TclooRuntimeHandleResult => flow!("oo::class create Dog { method speak {} { return woof } }\nset copy [oo::copy [Dog new]]\nputs [$copy speak]"; (1, "oo::copy"); (1, "oo::copy", "returns a run-time object handle"), (2, "$copy speak", "dispatches on the copy, which prints woof"));
     BranchSelectedBody => flow!("set enabled [gets stdin]\nif {$enabled} { set value on } else { set value off }\nputs $value"; (1, "if"); (0, "[gets stdin]", "supplies the branch input"), (1, "if {$enabled}", "selects at most one body"), (2, "$value", "joins the selected definition"));
     CatchableThrow => flow!("set status [catch {error failure} message]\nputs [list $status $message]"; (0, "catch"); (0, "error failure", "throws a catchable Tcl error"), (0, "catch", "intercepts the error edge"), (1, "$status $message", "observes code 1 and the message"));
     BreaksLoop => flow!("set seen {}\nforeach item {a stop c} { if {$item eq {stop}} break; lappend seen $item }\nputs $seen"; (1, "break"); (1, "$item eq {stop}", "selects the loop exit"), (1, "break", "jumps to the post-loop target"), (2, "$seen", "contains only a"));

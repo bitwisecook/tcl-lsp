@@ -196,6 +196,7 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::SCRIPT_APPENDS_LIST_ARGS,
     Traits::TCLOO_SELF_DISPATCH,
     Traits::TCLOO_INTROSPECTION,
+    Traits::TCLOO_RUNTIME_HANDLE_RESULT,
     Traits::BRANCH_SELECTED_BODY,
 ];
 

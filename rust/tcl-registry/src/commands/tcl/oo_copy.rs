@@ -178,6 +178,7 @@ pub fn spec() -> CommandSpec {
         // `oo::copy $src $dst $ns` form.
         arity: Arity::new(1, 3),
         return_type: Some(TclType::String),
+        traits: Traits::TCLOO_RUNTIME_HANDLE_RESULT,
         // `oo::copy sourceObject targetObject` binds targetObject as the
         // copy's command (`targetObject <method> …` then dispatches on
         // it) when given literally. Index 1 is after sourceObject; an

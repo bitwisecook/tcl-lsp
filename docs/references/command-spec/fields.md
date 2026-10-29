@@ -1812,6 +1812,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `TCLOO_NEXT_CHAIN` | participates in the TclOO next chain |
 | `TCLOO_SELF_DISPATCH` | dispatches on the current TclOO object |
 | `TCLOO_INTROSPECTION` | introspects the current TclOO method context |
+| `TCLOO_RUNTIME_HANDLE_RESULT` | returns a run-time TclOO object or class handle |
 | `BRANCH_SELECTED_BODY` | its bodies run at most once, chosen by a branch |
 | `CATCHABLE_THROW` | throws a catchable error |
 | `BREAKS_LOOP` | breaks out of a loop |
