@@ -924,6 +924,9 @@ pub enum NativeCompilationGrammar {
     Expression,
     /// Regexp compiler declines capture variables and unsupported option shapes.
     Regexp,
+    /// C8.6+ regsub compiler: only `-all ?--? simpleRE string simpleReplacement`
+    /// becomes a string map; every other form invokes the command.
+    Regsub,
     /// Native for requires literal condition/next/body, with any initial word.
     ForLoop,
     /// Native while requires a simple condition and body, with Boolean pruning.
@@ -2119,6 +2122,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringMap(_)
             | NativeCompilationGrammar::StringRange(_)
             | NativeCompilationGrammar::HookFrom(_)
+            | NativeCompilationGrammar::Regsub
             | NativeCompilationGrammar::ProcedureHookFrom(_)
             | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
             | NativeCompilationGrammar::Array { .. }
@@ -2292,6 +2296,7 @@ impl NativeCompilationSpec {
                     compiler.grammar,
                     NativeCompilationGrammar::NoHook
                         | NativeCompilationGrammar::HookFrom(_)
+                        | NativeCompilationGrammar::Regsub
                         | NativeCompilationGrammar::NamespaceWhich
                         | NativeCompilationGrammar::TclOoHelper(_)
                         | NativeCompilationGrammar::StringTrim { .. }
@@ -2439,6 +2444,7 @@ impl NativeCompilationSpec {
         }
         Some(match self.grammar {
             NativeCompilationGrammar::NoHook => false,
+            NativeCompilationGrammar::Regsub => version >= TclVersion::V8_6,
             NativeCompilationGrammar::MathOperator(operator) => version >= operator.first_version(),
             NativeCompilationGrammar::Dictionary { command, .. } => version >= command.hook_from(),
             NativeCompilationGrammar::HookFrom(first)
@@ -4260,6 +4266,7 @@ impl NativeCompilationSpec {
                 )
             }
             NativeCompilationGrammar::HookFrom(first) => unmodelled_hook_selection(version, first),
+            NativeCompilationGrammar::Regsub => regsub_grammar(words, shapes, version),
             NativeCompilationGrammar::NamespaceWhich => namespace_which_selection(
                 shapes,
                 words.arguments().literal_at(0).map(str::as_bytes),
@@ -5648,6 +5655,108 @@ fn regexp_grammar(
             operation,
             guard: NativeCompilationGuard::BeforeArguments,
         }
+    }
+}
+
+// TclCompileRegsubCmd (C8.6-9.1) emits INST_STR_MAP only for
+// `regsub -all ?--? simpleRE string simpleReplacement`: a compile-time pattern
+// whose TclReToGlob form is `*text*` with no other metacharacters and is
+// neither exact nor quantified, and a compile-time replacement without `\` or
+// `&`. Every other form returns TCL_ERROR and invokes the command. That one
+// accepted form's emission is unmodelled.
+fn regsub_grammar(
+    words: InvocationWords<'_>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+) -> NativeCompilationSelection {
+    use NativeCompilationSelection as Selection;
+    use NativeCompilationWordShape as Shape;
+    if version < TclVersion::V8_6 {
+        return Selection::Generic;
+    }
+    if shapes.contains(&Shape::Opaque) {
+        return Selection::Unknown;
+    }
+    if shapes.contains(&Shape::Expanded) || !(4..=5).contains(&shapes.len()) {
+        return Selection::Generic;
+    }
+    // A word known at compile time; `Err` carries the selection when it is not.
+    let known = |index: usize| -> Result<&str, Selection> {
+        match shapes[index] {
+            Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => words
+                .arguments()
+                .literal_at(index)
+                .ok_or(Selection::Unknown),
+            Shape::BackslashLiteral => Err(Selection::Unknown),
+            _ => Err(Selection::Generic),
+        }
+    };
+    let select = || -> Result<Selection, Selection> {
+        if crate::native_regexp_compilation::simple_word_bytes(
+            shapes[0],
+            words.arguments().literal_at(0).map(str::as_bytes),
+        ) != Some(b"-all".as_slice())
+        {
+            return Ok(Selection::Generic);
+        }
+        let mut pattern_index = 1;
+        let mut pattern = known(pattern_index)?;
+        if pattern.starts_with('-') {
+            if pattern != "--" || shapes.len() == 4 {
+                return Ok(Selection::Generic);
+            }
+            pattern_index = 2;
+            pattern = known(pattern_index)?;
+        } else if shapes.len() == 5 {
+            return Ok(Selection::Generic);
+        }
+        let replacement = known(pattern_index + 2)?;
+        Ok(
+            if regsub_simple_glob(pattern.as_bytes())
+                && !replacement.bytes().any(|byte| matches!(byte, b'\\' | b'&'))
+            {
+                Selection::Unknown
+            } else {
+                Selection::Generic
+            },
+        )
+    };
+    select().unwrap_or_else(|selection| selection)
+}
+
+/// `TclReToGlob` succeeds without exact or quantified matching and yields
+/// `*text*` whose non-empty text has no glob metacharacter.
+fn regsub_simple_glob(pattern: &[u8]) -> bool {
+    let quantified = !pattern.starts_with(b"***=") && {
+        let mut index = 0;
+        let mut found = false;
+        while index < pattern.len() {
+            match pattern[index] {
+                b'\\' => index += 1,
+                b'.' if matches!(pattern.get(index + 1), Some(b'*' | b'+')) => {
+                    found = true;
+                    break;
+                }
+                _ => {}
+            }
+            index += 1;
+        }
+        found
+    };
+    let Some((glob, exact)) = tcl_syntax::glob::re_to_glob(pattern) else {
+        return false;
+    };
+    if exact || quantified {
+        return false;
+    }
+    match glob.as_slice() {
+        [b'*', text @ .., b'*'] => {
+            !text.is_empty()
+                && !text
+                    .iter()
+                    .any(|byte| matches!(byte, b'*' | b'?' | b'[' | b'\\'))
+        }
+        _ => false,
     }
 }
 
@@ -7864,6 +7973,92 @@ mod tests {
                     "{version:?} {arguments:?}",
                 );
             }
+        }
+    }
+
+    // tclsh 8.6.18/9.0.4 disassembly of `proc p {s} {...}`: every form below
+    // except the last pushes "regsub" and invokes it; `regsub -all {x} $s y`
+    // compiles to push "x"; push "y"; loadScalar; strmap, which stays unmodelled.
+    #[test]
+    fn regsub_invokes_every_form_its_compiler_declines() {
+        use NativeCompilationWordShape::{BracedLiteral, Literal, Substituted};
+        let registry = crate::CommandRegistry::build_default();
+        let native = registry.get("regsub").unwrap().native_compilation.unwrap();
+        let select = |version, arguments: &[&str], shapes: &[NativeCompilationWordShape]| {
+            native.select(
+                InvocationWords::literals("regsub", arguments),
+                shapes,
+                Some(InvocationDialect::for_version(version)),
+                context(NativeCompilationFrame::ProcedureCode),
+            )
+        };
+        for version in TclVersion::ALL {
+            for (arguments, shapes) in [
+                (
+                    &["x", "$s", "y", "a"][..],
+                    &[BracedLiteral, Substituted, Literal, Literal][..],
+                ),
+                (
+                    &["-all", "x", "$s", "y", "a"][..],
+                    &[Literal, BracedLiteral, Substituted, Literal, Literal][..],
+                ),
+                (
+                    &["-all", "--", "x", "$s", "y", "a"][..],
+                    &[
+                        Literal,
+                        Literal,
+                        BracedLiteral,
+                        Substituted,
+                        Literal,
+                        Literal,
+                    ][..],
+                ),
+                (
+                    &["x", "$s", "y"][..],
+                    &[BracedLiteral, Substituted, Literal][..],
+                ),
+                (
+                    &["-nocase", "-all", "x", "$s", "y"][..],
+                    &[Literal, Literal, BracedLiteral, Substituted, Literal][..],
+                ),
+                (
+                    &["-all", "a.c", "$s", "y"][..],
+                    &[Literal, BracedLiteral, Substituted, Literal][..],
+                ),
+                (
+                    &["-all", "^x$", "$s", "y"][..],
+                    &[Literal, BracedLiteral, Substituted, Literal][..],
+                ),
+                (
+                    &["-all", ".*x", "$s", "y"][..],
+                    &[Literal, BracedLiteral, Substituted, Literal][..],
+                ),
+                (
+                    &["-all", "x", "$s", "&"][..],
+                    &[Literal, BracedLiteral, Substituted, Literal][..],
+                ),
+                (
+                    &["-all", "$p", "$s", "y"][..],
+                    &[Literal, Substituted, Substituted, Literal][..],
+                ),
+            ] {
+                assert_eq!(
+                    select(version, arguments, shapes),
+                    NativeCompilationSelection::Generic,
+                    "{version:?} {arguments:?}"
+                );
+            }
+            let accepted = select(
+                version,
+                &["-all", "x", "$s", "y"],
+                &[Literal, BracedLiteral, Substituted, Literal],
+            );
+            let expected = if version < TclVersion::V8_6 {
+                NativeCompilationSelection::Generic
+            } else {
+                NativeCompilationSelection::Unknown
+            };
+            assert_eq!(accepted, expected, "{version:?}");
         }
     }
 

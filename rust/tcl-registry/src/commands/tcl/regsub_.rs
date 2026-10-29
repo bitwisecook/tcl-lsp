@@ -239,9 +239,7 @@ pub fn spec() -> CommandSpec {
         name: "regsub",
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
-                tcl_dialect::TclVersion::V8_6,
-            ),
+            grammar: crate::native_compilation::NativeCompilationGrammar::Regsub,
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
@@ -315,6 +313,14 @@ pub fn spec() -> CommandSpec {
         const_fold: Some(fold_regsub),
         const_fold_versioned: Some(fold_regsub_versioned),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::regex::REGSUB),
+        // tclsh 8.4-9.1: bad patterns, arity and options raise errors, a write
+        // trace returning any other code surfaces as an error, and a 9.x
+        // `-command` callback's code never escapes, so the command completes
+        // only normally or with an error.
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         ..CommandSpec::DEFAULT
     }
 }

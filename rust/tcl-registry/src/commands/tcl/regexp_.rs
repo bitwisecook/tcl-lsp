@@ -352,6 +352,13 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver_roles: &[ArgRole::Pattern, ArgRole::VarWrite],
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::regex::REGEXP),
+        // tclsh 8.4-9.1: bad patterns, arity and options raise errors, and a
+        // write trace returning any other code surfaces as an error, so the
+        // command completes only normally or with an error.
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         ..CommandSpec::DEFAULT
     }
 }
