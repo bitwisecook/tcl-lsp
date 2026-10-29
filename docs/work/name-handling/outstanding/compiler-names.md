@@ -1,5 +1,17 @@
 # Outstanding work: compiler-names agent
 
+## Review note — AuthoredSimulation structure admission (2026-10-29, held for independent review)
+
+Where: `rust/tcl-compiler/src/registry_invocation.rs` `authored_simulation_structure_is_supported` (~606); `SourceInvocationBinding::reached_in_closed_world` (command_binding.rs ~2235); `OriginalCompilationLookupAdvice::closed_authored_simulation_source_lookup` (declaration_layout.rs ~3198). Uncommitted on WORK.
+Predicate. Let `bodiless` mean that no selected role is Body, OpaqueScript, LoopVarList, ParamList or StaticVarList. Let `reached` mean that the binding has a lookup state in a world that is neither opaque nor unclosed, and that its proved handler target is registry-backed. A structure under AuthoredSimulation purpose is admitted only when (1) and (2) hold, plus the unchanged schema checks in (3):
+1. Either the declaration or compiler advice exists and passes `closed_authored_simulation_source_lookup`, or there is no advice and `reached` holds.
+2. Every word that must be simulated is static: a literal, braced literal or sole whole-scalar variable. For `reached && bodiless` that means only the head word and the role-bearing words; otherwise it means every word.
+3. The lowering hook is `bodiless` or one of If, Switch, While, For, Foreach, Lmap, Catch or Try, with no frame effect, a Plain body, the Current interpreter, and Body roles timed SameInvocation (unchanged).
+Why this is sufficient. The closed authored lookup already proves the following at the declaration-time state: the head resolves to registry-backed builtins at generation 0, none of them source- or runtime-executed, and the observers are quiet. The namespace is authored and present, and the world is neither opaque nor unclosed. A bodiless command has no script body whose timing or frame needs simulating, so its structure (which written word plays which role) follows from the selected schema and the static words alone. At a reached point the value words were already evaluated by the analysis, so only the role words (variable or name positions) and the head need to be static.
+Still refused: any command with a script, opaque script, loop-variable, parameter-list or static-variable role outside the control allowlist; non-static role words; expanded `{*}` words (they are not static words); unclosed lookup, opaque or unclosed worlds; source-point baselines without an issuing continuation; native-entry, hosted, logical and vendor inputs; frame effects; non-Plain bodies; and any other interpreter.
+Motivation: origin/rust lowered top-level `set` and analysed unentered proc bodies. Without this admission, `set x 42` lowered as a Call, and dead-store and bounds TPs inside procedures went silent (optimiser 63 and analyser::diagnostics 444 CI rows).
+Caveat for review: (1) relies on the declaration-time state. Later redefinition of `set` etc. is the same exposure the control allowlist already accepts; see the Source4 reviewer's note on rename, alias and import after declaration.
+
 ## Resume — 2026-10-28 round 2 (compiler-names)
 
 Logs: `/tmp/claude-0/-home-user-tcl-lsp/ecf365c5-6571-597f-97b7-b7fbb7d1acfb/scratchpad/logs/compiler-names-*.log`; callgrind data in `.../scratchpad/cg/`.

@@ -561,6 +561,37 @@ impl Vm {
         self.native_errors.native_error_info_len = bytes.len();
     }
 
+    /// C's `Tcl_AddObjErrorInfo` starts an absent `errorInfo` from the
+    /// interpreter result before appending, so a frame appended to an error no
+    /// command logged extends the error message itself.
+    fn start_native_error_info_from_result(&mut self) {
+        if self.native_errors.native_error_info.is_some() {
+            return;
+        }
+        let Some(result) = self
+            .native_errors
+            .native_error_result
+            .as_ref()
+            .and_then(crate::value::WeakNativeObject::upgrade)
+        else {
+            return;
+        };
+        let Some(message) = self
+            .materialization_protocol(&result)
+            .and_then(|protocol| result.native_string_bytes(protocol).ok())
+        else {
+            return;
+        };
+        let appended = self.native_errors.error_info.take().unwrap_or_default();
+        let info = if appended.starts_with(&message) {
+            appended
+        } else {
+            [message.as_ref(), appended.as_slice()].concat()
+        };
+        self.native_errors.error_info = Some(info);
+        self.seed_native_error_result_object(&message);
+    }
+
     pub(super) fn update_native_error_info(&mut self) {
         if self.uses_c84_global_error_info() {
             self.append_c84_global_error_info();
@@ -570,10 +601,13 @@ impl Vm {
         if dialect.native_error_variable_protocol().is_none() {
             return;
         }
-        let Some(bytes) = self.native_errors.error_info.as_ref() else {
+        if self.native_errors.error_info.is_none() {
+            return;
+        }
+        self.start_native_error_info_from_result();
+        let Some(bytes) = self.native_errors.error_info.clone() else {
             return;
         };
-        let bytes = bytes.clone();
         let outcome = bytes
             .get(self.native_errors.native_error_info_len..)
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

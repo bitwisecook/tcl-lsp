@@ -5839,7 +5839,7 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
     let Some(args) = tokens.argv_texts.get(1..) else {
         return;
     };
-    let (candidates, native_source) = retained_sink_candidates(tokens, context);
+    let (candidates, _) = retained_sink_candidates(tokens, context);
     for (command, effective, source_metadata) in candidates {
         let original_reads = (!context.source.allows_nominal_metadata())
             .then(|| {
