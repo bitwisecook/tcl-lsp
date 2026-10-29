@@ -1,0 +1,80 @@
+test string_write_chains_o104 ... FAILED
+test strlen_zero_check_o117 ... FAILED
+test pattern_match_simplification_negatives_hold ... ok
+test end_offset_o128_must_not_fire ... FAILED
+test structure_elimination_if_while_for ... FAILED
+test structure_elimination_nesting_via_multipass ... ok
+test string_compare_o120_conservative_non_rewrites ... ok
+test tcloo_method_body_survives_the_command_resolution_guard ... ok
+test tail_call_loop_conversion_o122 ... FAILED
+test tail_call_detection_o121_o122 ... FAILED
+test traced_global_store_is_not_a_dead_store_issue_1377 ... FAILED
+test the_no_match_prover_still_reports_an_uncreated_target ... ok
+test traced_list_chain_is_not_folded_issue_1377 ... ok
+test unused_irule_procs_o124_eval_suppression ... FAILED
+test unused_irule_procs_o124 ... FAILED
+test unused_variable_elimination_o126 ... ok
+test variable_shape_guardrails ... ok
+test structure_elimination_switch ... ok
+thread 'a_braced_word_that_is_not_an_expression_runs_nothing' (26028) panicked at rust/tcl-compiler/tests/optimiser.rs:2660:5:
+thread 'a_constant_in_the_empty_name_variable_inlines_cleanly' (26037) panicked at rust/tcl-compiler/tests/optimiser.rs:3735:9:
+thread 'a_dead_assignment_whose_value_cannot_raise_is_still_deleted' (26039) panicked at rust/tcl-compiler/tests/optimiser.rs:3019:9:
+thread 'a_conditional_writer_does_not_kill_the_store_it_may_preserve' (26033) panicked at rust/tcl-compiler/tests/optimiser.rs:2533:5:
+thread 'a_dead_copy_of_a_tcl9_writer_target_is_still_deleted' (26040) panicked at rust/tcl-compiler/tests/optimiser.rs:3040:9:
+thread 'a_direct_read_before_write_still_forwards_its_literal' (26042) panicked at rust/tcl-compiler/tests/optimiser.rs:2270:5:
+thread 'a_grapheme_cursor_carries_its_definedness' (26048) panicked at rust/tcl-compiler/tests/optimiser.rs:3091:5:
+thread 'a_nested_rmw_read_keeps_its_feeding_store_alive' (26050) panicked at rust/tcl-compiler/tests/optimiser.rs:2161:5:
+thread 'a_nested_rmw_read_on_a_call_host_keeps_its_feeding_store_alive' (26051) panicked at rust/tcl-compiler/tests/optimiser.rs:2179:5:
+thread 'a_quoted_expression_operand_is_folded_to_its_substituted_value' (26053) panicked at rust/tcl-compiler/tests/optimiser.rs:2779:9:
+thread 'a_store_does_not_sink_past_a_condition_that_reads_it' (26059) panicked at rust/tcl-compiler/tests/optimiser.rs:2443:5:
+thread 'a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store' (26066) panicked at rust/tcl-compiler/tests/optimiser.rs:2224:9:
+thread 'accumulator_hint_o123' (26068) panicked at rust/tcl-compiler/tests/optimiser.rs:1428:5:
+thread 'an_existence_query_is_neither_a_read_before_set_nor_a_write' (26070) panicked at rust/tcl-compiler/tests/optimiser.rs:2467:5:
+thread 'an_exit_reaches_no_finally' (26071) panicked at rust/tcl-compiler/tests/optimiser.rs:3309:9:
+thread 'an_overwritten_copy_of_a_startup_scalar_goes_only_at_top_level' (26072) panicked at rust/tcl-compiler/tests/optimiser.rs:3076:9:
+thread 'an_unconditional_writer_still_kills_its_dead_store' (26073) panicked at rust/tcl-compiler/tests/optimiser.rs:2556:9:
+thread 'branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word' (26075) panicked at rust/tcl-compiler/tests/optimiser.rs:748:5:
+thread 'code_sinking_o125_applies_both_grouped_edits_and_reparses' (26085) panicked at rust/tcl-compiler/tests/optimiser.rs:1667:9:
+thread 'code_sinking_o125_positive' (26087) panicked at rust/tcl-compiler/tests/optimiser.rs:1576:5:
+thread 'constant_propagation_into_commands_o100' (26091) panicked at rust/tcl-compiler/tests/optimiser.rs:828:5:
+thread 'constant_propagation_into_strings_o105' (26092) panicked at rust/tcl-compiler/tests/optimiser.rs:884:5:
+thread 'a_try_that_never_completes_does_not_fall_through_its_finally' (26065) panicked at rust/tcl-compiler/tests/optimiser.rs:3550:5:
+thread 'cross_event_dse::same_event_dead_store_still_eliminated' (26095) panicked at rust/tcl-compiler/tests/optimiser.rs:1848:9:
+thread 'dead_store_and_dead_code_elimination' (26097) panicked at rust/tcl-compiler/tests/optimiser.rs:355:5:
+thread 'a_try_finally_does_not_hide_the_names_bound_around_it' (26062) panicked at rust/tcl-compiler/tests/optimiser.rs:3501:9:
+thread 'end_offset_rewrites_o128' (26103) panicked at rust/tcl-compiler/tests/optimiser.rs:1213:9:
+thread 'incr_of_a_constant_folds_through_to_its_reads' (26105) panicked at rust/tcl-compiler/tests/optimiser.rs:788:9:
+thread 'instcombine_boolean_simplifications' (26107) panicked at rust/tcl-compiler/tests/optimiser.rs:400:5:
+thread 'instcombine_de_morgan' (26108) panicked at rust/tcl-compiler/tests/optimiser.rs:432:5:
+thread 'incr_idiom_o114' (26104) panicked at rust/tcl-compiler/tests/optimiser.rs:984:5:
+thread 'instcombine_reassociation_and_identity_annihilator' (26109) panicked at rust/tcl-compiler/tests/optimiser.rs:376:5:
+thread 'instcombine_ternary_and_boolean_context' (26111) panicked at rust/tcl-compiler/tests/optimiser.rs:480:5:
+thread 'instcombine_self_comparison_tautologies' (26110) panicked at rust/tcl-compiler/tests/optimiser.rs:470:5:
+thread 'licm_offers_no_hoist_inside_a_block_o112_deletes_issue_1385' (26114) panicked at rust/tcl-compiler/tests/optimiser.rs:1997:5:
+thread 'irules_word_operators_fold_through_sccp' (26113) panicked at rust/tcl-compiler/tests/optimiser.rs:532:5:
+thread 'list_and_lindex_folding' (26115) panicked at rust/tcl-compiler/tests/optimiser.rs:1031:5:
+thread 'load_forwarding_o127' (26116) panicked at rust/tcl-compiler/tests/optimiser.rs:1694:5:
+thread 'multi_set_packing_o119' (26118) panicked at rust/tcl-compiler/tests/optimiser.rs:1162:5:
+thread 'multipass_string_build_collapses_to_literal' (26119) panicked at rust/tcl-compiler/tests/optimiser.rs:1787:5:
+thread 'loop_constants_and_post_loop_folding' (26117) panicked at rust/tcl-compiler/tests/optimiser.rs:282:5:
+thread 'nested_expr_unwrap_o115' (26120) panicked at rust/tcl-compiler/tests/optimiser.rs:1002:5:
+thread 'o107_still_fires_on_genuinely_unreachable_method_code' (26121) panicked at rust/tcl-compiler/tests/optimiser.rs:2135:5:
+thread 'interprocedural_constant_folding' (26112) panicked at rust/tcl-compiler/tests/optimiser.rs:261:5:
+thread 'pre_offers_no_hoist_inside_a_block_o112_deletes_issue_1385' (26124) panicked at rust/tcl-compiler/tests/optimiser.rs:2019:5:
+thread 'o122_still_converts_past_a_nested_call_to_another_proc' (26122) panicked at rust/tcl-compiler/tests/optimiser.rs:2718:9:
+thread 'propagation_and_constant_folding_core' (26129) panicked at rust/tcl-compiler/tests/optimiser.rs:155:5:
+thread 'proc_call_inside_expr_argument' (26126) panicked at rust/tcl-compiler/tests/optimiser.rs:332:5:
+thread 'strength_reduction_o113' (26131) panicked at rust/tcl-compiler/tests/optimiser.rs:961:5:
+thread 'removed_and_replayed_statements_keep_their_closer' (26130) panicked at rust/tcl-compiler/tests/optimiser.rs:1746:9:
+thread 'string_compare_eq_ne_o120' (26132) panicked at rust/tcl-compiler/tests/optimiser.rs:1084:5:
+thread 'string_write_chains_o104' (26135) panicked at rust/tcl-compiler/tests/optimiser.rs:290:5:
+thread 'strlen_zero_check_o117' (26136) panicked at rust/tcl-compiler/tests/optimiser.rs:1059:5:
+thread 'end_offset_o128_must_not_fire' (26102) panicked at rust/tcl-compiler/tests/optimiser.rs:1265:5:
+thread 'structure_elimination_if_while_for' (26137) panicked at rust/tcl-compiler/tests/optimiser.rs:581:5:
+thread 'tail_call_loop_conversion_o122' (26141) panicked at rust/tcl-compiler/tests/optimiser.rs:1361:5:
+thread 'tail_call_detection_o121_o122' (26140) panicked at rust/tcl-compiler/tests/optimiser.rs:1334:9:
+thread 'traced_global_store_is_not_a_dead_store_issue_1377' (26144) panicked at rust/tcl-compiler/tests/optimiser.rs:1913:5:
+thread 'unused_irule_procs_o124_eval_suppression' (26147) panicked at rust/tcl-compiler/tests/optimiser.rs:1563:5:
+thread 'unused_irule_procs_o124' (26146) panicked at rust/tcl-compiler/tests/optimiser.rs:1477:5:
+test result: FAILED. 47 passed; 60 failed; 0 ignored; 0 measured; 0 filtered out; finished in 56.05s
+error: test failed, to rerun pass `-p tcl-compiler --test optimiser`

@@ -6,8 +6,10 @@ Last updated: 2026-10-29T16:05Z
 
 STOPPED BY USER at ~16:15Z 29 Oct. All five roles and the 30-minute reminder stopped; no builds or hosted jobs running. Everything in WORK committed and pushed, including in-flight TEMP_*/TMP_* probes (remove before any CI dispatch or release carry). On resume: restart the five roles from their latest reports (the role rows in [current-state.md](../current-state.md) list each role's assigned-but-unfinished items), re-arm 30-minute reporting, depth-1 fetch before every push.
 
+Proc fix applied by root after the stop (b6e3045b8): static `proc` definitions pass the AuthoredSimulation structure gate (optimiser target 47 pass / 60 fail). Next layer: body-command binding inside deferred procedure bodies (declaration advice absent).
+
 Assigned at the stop but not yet implemented:
-- compiler-names: narrow Proc/definition admission in the AuthoredSimulation structure gate (root cause of empty cu.procedures); compatibility_name Debug spelling; value_transfer.rs AssignExpr gate; `proc continue` over-breadth; stack frame size.
+- compiler-names: body-command binding in deferred procedure bodies; `namespace eval`/`oo::` definers on the same gate; compatibility_name Debug spelling; value_transfer.rs AssignExpr gate; `proc continue` over-breadth; stack frame size.
 - compiler-codegen: 9.0 registry select gaps (format, info errorstack, string is, string map, tailcall, clock+clockRead); branch-condition folds (scope note in user-decisions-20261029T1125Z.json); dict incr/with fallback; unused-set fold.
 - vm-runtime: 3 deopt tests to an explicit profile (decision standalone_unit_tests_explicit_dialect) and the native_vm_with_output doc; clockRead opcode; registry index differential test and timings; mutation checks; lifetime bug; tcl-vm lib 271.
 - lsp: reload_spec_packs(Config) never returning (did_change_configuration); 3 publish-path Elapsed; cross-file `source` references restore; classify 14 legacy rehoming tests; e2e sampling.
