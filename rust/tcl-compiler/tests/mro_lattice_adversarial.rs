@@ -97,9 +97,7 @@ fn factory_return_abstains() {
 
 #[test]
 fn introspection_dynamic_class_abstains() {
-    // tclsh errors on the undefined `x`; define it.
-    let src =
-        with_classes("set x [Dog new]\nset cls [info object class $x]\nset o [$cls new]\n$o speak");
+    let src = with_classes("set cls [info object class $x]\nset o [$cls new]\n$o speak");
     assert_eq!(
         verdict_for(&src, "o", "speak"),
         DispatchVerdict::Abstain(TopReason::Introspection),

@@ -22,10 +22,9 @@
 //! `returnCodeBranch`, and the C-ordered `returnStk`.
 //!
 //! The inline `catch` shape only fires for a value-position `catch` in a proc
-//! body (`InlineCodegenHookId::Catch`), so the compiled cases run the AOT
-//! `module.procedures` body directly through `run_function` — the same
-//! bytecode the explorer disassembles. Hand-built `FunctionAsm` cases pin the
-//! opcode-level contracts.
+//! body (`InlineCodegenHookId::Catch`), so the compiled cases define the proc
+//! and call it, running the body the compiler emits in the proc's own frame.
+//! Hand-built `FunctionAsm` cases pin the opcode-level contracts.
 
 use std::collections::HashMap;
 
@@ -38,53 +37,13 @@ use tcl_compiler::lowering::lower_to_ir_for_bytecode;
 use tcl_registry::CommandRegistry;
 use tcl_vm::Code;
 
-/// Select the final original declaration in these procedure-only fixtures.
-fn final_declared_body<'a>(
-    ir: &tcl_compiler::ir::Module,
-    module: &'a tcl_bytecode::ModuleAsm,
-    report_name: &str,
-) -> &'a FunctionAsm {
-    let declaration = ir
-        .top_level
-        .statements
-        .last()
-        .expect("original declaration")
-        .span();
-    let mut bodies = ir
-        .procedures
-        .iter()
-        .filter(|(_, procedure)| procedure.span == declaration);
-    let (id, procedure) = bodies
-        .next()
-        .expect("body of the final original declaration");
-    assert!(
-        bodies.next().is_none(),
-        "one body at this original declaration"
-    );
-    assert_eq!(
-        procedure.qualified_name, report_name,
-        "fixture reporting name"
-    );
-    module
-        .procedures
-        .get(id)
-        .expect("same-module compiled body")
-}
-
-/// Compile `src` and return the AOT body of its final original declaration.
-fn compiled_proc_body(src: &str, qname: &str) -> FunctionAsm {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir_for_bytecode(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-    final_declared_body(&ir, &module, qname).clone()
-}
-
-/// Run a proc body compiled by [`compiled_proc_body`] on a fresh VM.
+/// Define `src` on a fresh VM and call `qname`, whose body it compiles there.
 fn run_body(src: &str, qname: &str) -> (Code, String) {
-    let asm = compiled_proc_body(src, qname);
     let mut vm = tcl_vm::test_support::native_vm();
-    let c = vm.run_function(&asm);
+    // C runs a proc body only in its own frame, compiled at its first call.
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    assert!(vm.eval_source(src).expect("procedures define").code.is_ok());
+    let c = vm.eval_source(qname).expect("procedure call compiles");
     (c.code, c.result.to_str().to_string())
 }
 
@@ -199,9 +158,8 @@ fn inline_catch_absorbs_child_proc_error() {
     // route through the compiler exactly like the CLI embedders.
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert!(vm.run_module(&module).code.is_ok());
-    // Now run the AOT inline-catch body with `boom` registered.
-    let body = final_declared_body(&ir, &module, "::p");
-    let c = vm.run_function(body);
+    // Now run the inline-catch body with `boom` registered.
+    let c = vm.eval_source("p").expect("procedure call compiles");
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(&*c.result.to_str(), "1 kaboom");
 }
@@ -267,14 +225,11 @@ fn nested_ranges_fire_inner_then_outer_not_handler() {
 /// read runs in the same frame.
 #[test]
 fn inline_catch_publishes_error_info() {
-    let registry = CommandRegistry::build_default();
     let src = "proc p {} {\n  set r [catch {nosuchcmd} msg]\n  string match {invalid command name*} $::errorInfo\n}";
-    let ir = lower_to_ir_for_bytecode(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-    let body = final_declared_body(&ir, &module, "::p");
     let mut vm = tcl_vm::test_support::native_vm();
-    let c = vm.run_function(body);
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    assert!(vm.eval_source(src).expect("procedures define").code.is_ok());
+    let c = vm.eval_source("p").expect("procedure call compiles");
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(&*c.result.to_str(), "1");
 }

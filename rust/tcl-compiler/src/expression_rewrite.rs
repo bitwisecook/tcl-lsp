@@ -467,7 +467,7 @@ mod tests {
     fn witness(
         version: &str,
         expression: &str,
-    ) -> tcl_registry::runtime_expr_validation::PreparedExpressionWitness {
+    ) -> std::sync::Arc<tcl_registry::runtime_expr_validation::PreparedExpressionWitness> {
         let source = format!("set result [expr {{{expression}}}]");
         let owner = tcl_registry::model::ingress::static_context_for(version);
         let registry = owner.commands();

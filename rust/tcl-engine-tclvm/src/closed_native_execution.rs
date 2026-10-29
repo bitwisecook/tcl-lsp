@@ -617,6 +617,29 @@ mod tests {
     }
 
     #[test]
+    fn idle_time_before_execution_does_not_spend_the_execution_budget() {
+        owned_test_worker(|| {
+            let (plan, registry) = test_plan();
+            let profile = plan.profile().profile();
+            let owner = ClosedNativeConsumerOwner::new(
+                PrivateBackend::new(&plan, &registry, profile).unwrap(),
+            )
+            .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+            let selected = owner
+                .scope()
+                .unwrap()
+                .select(plan.rewritten_source().into())
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+            assert_eq!(
+                owner.execute(selected).unwrap().transcript.stdout,
+                b"2\n1\n"
+            );
+        });
+    }
+
+    #[test]
     fn private_consumer_preserves_the_complete_transcript() {
         let output = execute_optimised_closed_source(
             "set x 1\nputs [expr {$x + 1}]\nputs $x\n".into(),

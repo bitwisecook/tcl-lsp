@@ -2442,6 +2442,16 @@ mod compiler {
     pub struct SeededProcCompileService {
         inner: BytecodeCompileService,
         body: FunctionAsm,
+        consumed: std::cell::Cell<usize>,
+    }
+
+    /// A seed that never applies would let a seeded test pass vacuously.
+    impl Drop for SeededProcCompileService {
+        fn drop(&mut self) {
+            if !std::thread::panicking() {
+                assert_eq!(self.consumed.get(), 1, "the seeded body is compiled once");
+            }
+        }
     }
 
     impl SeededProcCompileService {
@@ -2453,6 +2463,7 @@ mod compiler {
                 body.plain_command_dispatch = module.plain_command_dispatch;
                 body.command_bindings.clear();
                 module.top_level = body;
+                self.consumed.set(self.consumed.get() + 1);
             }
             module
         }
@@ -2629,6 +2640,10 @@ mod compiler {
     }
 
     pub fn seeded_proc(body: FunctionAsm) -> SeededProcCompileService {
-        SeededProcCompileService { inner: svc(), body }
+        SeededProcCompileService {
+            inner: svc(),
+            body,
+            consumed: std::cell::Cell::new(0),
+        }
     }
 }
