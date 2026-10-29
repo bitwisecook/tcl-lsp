@@ -39,7 +39,7 @@ async fn recover_for_input(
         )
     };
     let registry = backend.registry_for_dialect("tcl8.6").await;
-    let dialects = provider_source::ProviderDialectInputs::capture(backend).await;
+    let dialects = provider_source::ProviderDialectSources::of(backend);
     let providers = ProviderCaptureInputs {
         db: &backend.db,
         files: &backend.db_files,
@@ -319,7 +319,7 @@ async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_so
     assert!(package_names(&backend).await.names.contains("provided"));
     assert_ne!(current.package_requires.len(), 0);
     let registry = backend.registry_for_dialect("tcl8.6").await;
-    let dialects = provider_source::ProviderDialectInputs::capture(&backend).await;
+    let dialects = provider_source::ProviderDialectSources::of(&backend);
     let providers = ProviderCaptureInputs {
         db: &backend.db,
         files: &backend.db_files,
@@ -486,7 +486,7 @@ async fn malformed_recovery_preserves_original_autoload_labels_and_root_marker()
 async fn detached_indexes_with_equal_generations_keep_recovery_names_separate() {
     let backend = crate::tests::test_backend();
     let registry = backend.registry_for_dialect("tcl8.6").await;
-    let dialects = crate::provider_source::ProviderDialectInputs::capture(&backend).await;
+    let dialects = crate::provider_source::ProviderDialectSources::of(&backend);
     let providers = ProviderCaptureInputs {
         db: &backend.db,
         files: &backend.db_files,

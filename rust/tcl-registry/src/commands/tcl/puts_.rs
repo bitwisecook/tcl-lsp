@@ -99,6 +99,13 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        // tclsh 8.6/9.0: a reflected channel or transform handler returning
+        // any other code still surfaces as an error ("chan handler returned
+        // bad code"), so `puts` completes only normally or with an error.
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         runtime_backing: RuntimeBacking::shipped("puts"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,

@@ -1,0 +1,60 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-29T11:20:50.982159+00:00",
+  "scheduled_report_utc": "2026-10-29T11:11:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "RESUMED",
+  "change_since_previous_report": [
+    "compiler-names: the completed-world withholding for plain `puts` files comes from the registry spec defaulting puts to CompletionCodeDomain::Any; tclsh 8.6/9.0 prove puts completes only Ok|Error (even through reflected channels/transforms). Grant given to add exact Ok|Error completion descriptors to puts and other probe-proven non-script commands (list, string, I/O); script-evaluating commands keep their routes. Undefined-command files correctly stay withheld (default unknown/auto_load can define commands).",
+    "compiler: registry trait for class/object-handle results (oo::copy etc.) in progress; class_factories metaclass routes in progress.",
+    "Probe-free WIP snapshotted; disk 4.2 GB free."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "registry completion descriptors (compiler-names)",
+    "lsp scheduler deadlock fix",
+    "class_factories metaclass routes",
+    "expression fold gate fact-finding",
+    "opcode_c_parity harness correction",
+    "authored-realm local-name ownership"
+  ],
+  "pending_user_decisions": [],
+  "next_report_utc": "2026-10-29T11:41:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

@@ -135,6 +135,12 @@ pub fn spec() -> CommandSpec {
         // Reached native value handler has no callbacks or variable-name writes.
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         name: "lreplace",
+        // tclsh 8.6/9.0: completes normally or with an error, including
+        // through variable traces and reflected channel handlers.
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
