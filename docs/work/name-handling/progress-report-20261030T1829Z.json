@@ -1,0 +1,58 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "LSP, necessary compiler/registry/syntax paths, SpecTcl VM/runtime and dedicated BIG-IP LSP units; see current-state.md for binding scope decisions.",
+  "stage_order": {
+    "current": "Coordinate LSP and required dependencies toward release gates.",
+    "next": "Resume roles, collect and review pending work, clean probes and validate release gates.",
+    "paused": "No agents or Cargo jobs active; no release carry or PR until prerequisites are met.",
+    "authority": "Current user decisions and standing rules."
+  },
+  "utc": "2026-10-30T18:29:28.031787+00:00",
+  "scheduled_report_utc": "2026-10-30T18:25:03Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "PAUSED_UNCOMMITTED",
+  "change_since_previous_report": [
+    "Scoped explicit-profile literal_scalar_types passed 1/1; uncommitted and awaiting review.",
+    "Off-tree isolated dictionary registry candidate passed 5/5; broader controls and review remain.",
+    "Namespace-shadowed taint fixture control passed 1/1; sanitiser positive control and VM teardown failed 0/1 each.",
+    "No role agents or Cargo jobs active; uncommitted product work and temporary probes remain."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Review pending candidates and resume role work; current-tree and all release gates remain open."
+  ],
+  "pending_user_decisions": [
+    "Tk taint facts if a policy decision is needed"
+  ],
+  "next_report_utc": null,
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
