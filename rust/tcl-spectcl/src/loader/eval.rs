@@ -1639,7 +1639,13 @@ fn drive_static(
         let in_command = matches!(state.borrow().scopes.last(), Some((ScopeKind::Command, _)));
         match stmt.word_text(0) {
             "speclib" => {
-                let args: Vec<String> = stmt.words.iter().skip(1).map(|w| w.text.clone()).collect();
+                let row = static_row(stmt);
+                let args: Vec<String> = row
+                    .words
+                    .iter()
+                    .skip(1)
+                    .map(|word| word.text.clone())
+                    .collect();
                 stage_speclib(drive.reborrow(), state, &args, stmt.line)?;
             }
             "command" if at_pack => {
@@ -2470,6 +2476,37 @@ fn fill_command_nodes(
 #[cfg(test)]
 mod original_head_namespace_tests {
     use super::*;
+
+    #[test]
+    fn static_speclib_body_folds_brace_continuations_like_interpreter() {
+        let source =
+            "speclib demo 2.0 {command demo {hover -summary {before\\\n  after}; arity 1}}";
+        assert!(drive_file_statically(source, None).is_some());
+        let static_pack = evaluate_pack_in(source, &EvalOptions::default(), None);
+        let interpreter_pack = evaluate_pack_in(
+            source,
+            &EvalOptions {
+                static_fast_path: false,
+                ..EvalOptions::default()
+            },
+            None,
+        );
+        assert_eq!(
+            crate::golden::render(&static_pack),
+            crate::golden::render(&interpreter_pack)
+        );
+        assert_eq!(
+            static_pack.commands[0].line,
+            interpreter_pack.commands[0].line
+        );
+        assert!(
+            drive_file_statically(
+                "speclib demo 2.0 {set name demo; command $name {arity 1}}",
+                None
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn original_static_rows_keep_rooted_and_tcl_namespace_heads_on_the_interpreter_path() {
