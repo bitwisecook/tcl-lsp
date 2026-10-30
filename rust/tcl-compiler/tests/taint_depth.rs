@@ -1658,6 +1658,13 @@ mod interproc_depth {
         // — avoided here by binding the result to a variable.)
         let src = "proc len {x} { return [string length $x] }\nset raw [read $fd]\nset n [len $raw]\nputs $n";
         assert!(channel_of_code(src, D, "T101").is_empty());
+        let control = "proc len {x} { return [string length $x] }\nset raw [read $fd]\nset n [len $raw]\nputs $raw";
+        let warnings = channel_of_code(control, D, "T101");
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.variable == "raw" && warning.sink_command.contains("puts"))
+        );
     }
 
     #[test]
