@@ -3825,22 +3825,37 @@ fn unrelated_mutation_does_not_deoptimise_a_reusable_artifact() {
 
 #[test]
 fn native_replacement_fails_closed_when_no_plain_compiler_exists() {
+    struct CountingOverride(Rc<Cell<usize>>);
+    impl NativeCommand for CountingOverride {
+        fn invoke(&self, _vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+            self.0.set(self.0.get() + 1);
+            Completion::new(Code::Ok, Value::string("NATIVE_OVERRIDE"), Value::empty())
+        }
+    }
+    let calls = Rc::new(Cell::new(0));
     let module = BytecodeCompileService::default()
         .compile("expr {1+2}")
         .expect("module compiles");
     let mut vm = tcl_vm::test_support::native_vm();
-    vm.register_native_command("expr", Rc::new(NativeOverride));
+    vm.register_native_command("expr", Rc::new(CountingOverride(Rc::clone(&calls))));
 
-    let completion = vm.run_module(&module);
-    assert_eq!(completion.code, Code::Error, "{completion:?}");
-    assert!(
-        completion
-            .result
-            .to_str()
-            .contains("requires a plain-dispatch CompileService"),
-        "{}",
-        completion.result.to_str()
+    // Missing native compilation capability is a host refusal, outside Tcl completion.
+    let error = vm
+        .try_run_module(&module)
+        .expect_err("stale module must be refused");
+    let tcl_runtime_api::NativeExecutionError::CompileServiceRefusal(refusal) = error else {
+        panic!("expected missing compiler refusal: {error:?}");
+    };
+    assert_eq!(
+        refusal.reason,
+        "eval / command substitution requires a byte CompileService"
     );
+    assert_eq!(
+        refusal.scope,
+        tcl_runtime_api::NativeCompilationAdmissionScope::Script
+    );
+    assert_eq!(refusal.source.bytes(), b"expr {1+2}");
+    assert_eq!(calls.get(), 0, "no replacement command ran before refusal");
 }
 
 #[test]
