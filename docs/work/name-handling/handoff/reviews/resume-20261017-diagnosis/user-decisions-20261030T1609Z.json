@@ -1,0 +1,10 @@
+{
+  "recorded_utc": "2026-10-30T16:09Z",
+  "source": "Explicit user answer in coordinator chat",
+  "decisions": {
+    "vm_stale_bytecode_missing_service": {
+      "choice": "Keep host refusal and correct the test",
+      "meaning": "For native_replacement_fails_closed_when_no_plain_compiler_exists, retain the typed host CompileServiceRefusal when stale bytecode cannot be recompiled, and correct this specific test to assert that refusal. Preserve the source, replacement and remaining mutation properties; do not generalise this test correction to other cases."
+    }
+  }
+}
