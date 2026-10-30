@@ -3876,10 +3876,19 @@ mod t105_interp_eval_sinks {
 
     #[test]
     fn interp_eval_literal_list_known_head_suppressed() {
-        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
-        // tclsh: literal `[list puts $x]` → puts is the cmd word, $x the arg.
-        let source = "set x [read $fd]\ninterp eval $child [list puts $x]";
-        assert!(channel_of_code(source, D, "T105").is_empty());
+        // Tcl requires a defined child and channel before the nested evaluation.
+        // A literal head makes the tainted value an argument, not the command.
+        let prefix = "set child [interp create]\nset x [read $fd]\n";
+        let source = format!("{prefix}interp eval $child [list puts $x]");
+        assert!(channel_of_code(&source, D, "T105").is_empty());
+        // A tainted command head in the same reached child evaluation must warn.
+        let control = format!("{prefix}interp eval $child [list $x marker]");
+        let warnings = channel_of_code(&control, D, "T105");
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.sink_command.contains("interp eval"))
+        );
     }
 
     #[test]
@@ -4405,87 +4414,3 @@ mod special_variable_sources {
         assert!(of_code("eval $env(CMD)", IR, "T100").is_empty());
     }
 }
-
-// ZZPROBE-START (temporary compiler-role probe; removed before hand-back)
-#[test]
-#[ignore = "temporary probe"]
-fn zz_probe_bindings() {
-    let dialect = std::env::var("ZZ_PROBE_DIALECT").unwrap_or_else(|_| D.to_owned());
-    let path = std::env::var("ZZ_PROBE_FILE").expect("ZZ_PROBE_FILE");
-    for src in std::fs::read_to_string(path)
-        .expect("probe file")
-        .split("\n----\n")
-    {
-        let registry = static_context_for(&dialect).commands();
-        let cu = CompilationUnit::build_for_dialect(src, registry, false, &dialect);
-        eprintln!("ZZPROBE {src:?}");
-        let mut rows = Vec::new();
-        for block in cu.top_level.ssa.blocks.values() {
-            for statement in &block.statements {
-                if let Some(tokens) = statement.statement.tokens() {
-                    rows.push((
-                        statement.statement.span().start(),
-                        format!("{:?}", tokens.synthetic),
-                        match &statement.statement {
-                            tcl_compiler::ir::Statement::Barrier { reason, command, .. } => format!("barrier {command}: {reason}"),
-                            tcl_compiler::ir::Statement::Call { command, .. } => format!("call {command}"),
-                            _ => "other".to_owned(),
-                        },
-                        tokens.argv_texts.clone(),
-                        tokens.source_binding.as_ref().map(|b| {
-                            (
-                                b.unknown,
-                                b.may_be_absent,
-                                b.targets.iter().map(|t| t.command.clone()).collect::<Vec<_>>(),
-                            )
-                        }),
-                    ));
-                }
-            }
-        }
-        rows.sort();
-        for row in rows {
-            eprintln!("ZZPROBE   {row:?}");
-        }
-    }
-}
-#[test]
-#[ignore = "temporary probe"]
-fn zz_probe_realm() {
-    let dialect = std::env::var("ZZ_PROBE_DIALECT").unwrap_or_else(|_| D.to_owned());
-    let path = std::env::var("ZZ_PROBE_FILE").expect("ZZ_PROBE_FILE");
-    let src = std::fs::read_to_string(path).expect("probe file");
-    let registry = static_context_for(&dialect).commands();
-    let config = tcl_lexer::LexerConfig::for_file_dialect(&dialect);
-    let profile = tcl_registry::model::ingress::resolve_environment(&dialect).unit_profile();
-    for (label, realm) in [
-        ("with_config", tcl_compiler::realm::document_realm_bindings_with_config(&src, config, registry)),
-        ("with_profile", tcl_compiler::realm::document_realm_bindings(&src, profile, registry)),
-    ] {
-        for item in std::env::var("ZZ_HEADS").unwrap_or_default().split(',').filter(|s| !s.is_empty()) {
-            let (head, at) = item.rsplit_once('@').unwrap();
-            let at: u32 = at.parse().unwrap();
-            eprintln!("ZZREALM {label} {head}@{at} fact={:?}", realm.binding_at(head, at));
-        }
-    }
-    let env = tcl_registry::model::ingress::resolve_environment(&dialect);
-    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
-        env.analyser_profile(),
-        env.unit_profile(),
-        env.default_context_registry(),
-        tcl_lexer::LexerConfig::for_file_grammar(env.unit_profile().grammar),
-    );
-    let analysis = tcl_compiler::analyser::Analyser::new()
-        .with_resolved_input(input)
-        .analyse(&src, &dialect);
-    if let Some(realm) = analysis.retained_command_realm() {
-        for item in std::env::var("ZZ_HEADS").unwrap_or_default().split(',').filter(|s| !s.is_empty()) {
-            let (head, at) = item.rsplit_once('@').unwrap();
-            let at: u32 = at.parse().unwrap();
-            eprintln!("ZZREALM supplied {head}@{at} fact={:?}", realm.binding_at(head, at));
-        }
-    } else {
-        eprintln!("ZZREALM supplied none");
-    }
-}
-// ZZPROBE-END
