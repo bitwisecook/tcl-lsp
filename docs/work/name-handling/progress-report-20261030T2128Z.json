@@ -1,0 +1,58 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "LSP, necessary compiler/registry/syntax paths, SpecTcl VM/runtime and dedicated BIG-IP LSP units; see current-state.md for binding scope decisions.",
+  "stage_order": {
+    "current": "Coordinate LSP and required dependencies toward release gates.",
+    "next": "Complete reviews and focused checks, clean probes, validate CI comparison and release preparation.",
+    "paused": "No release carry or PR until prerequisites are met.",
+    "authority": "Current user decisions and standing rules."
+  },
+  "utc": "2026-10-30T21:28:27.421580+00:00",
+  "scheduled_report_utc": "2026-10-30T21:32:23Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "IN_PROGRESS_UNCOMMITTED",
+  "change_since_previous_report": [
+    "Five roles resumed. LSP rehom filter 1 pass / 10 fail; functional missing references, navigation, autoload and publication timeout remain, solo timeout check queued.",
+    "Dictionary isolated registry 5/5, compiler guard 1/1, VM-owned retained handle 1/1; scoped independent review cleared; application queued under build lock. C8.6/9.1 runtime remains unproved.",
+    "Scoped type fixture 1/1 and independent review; direct namespace spelling test running. Sanitiser diagnosis points to expr continuation; temporary taint probe requires removal.",
+    "VM command trace state-save candidate has initial static review, adjustment and executable controls pending; C8.4 script handling remains open."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Role work and serialized focused tests; probe cleanup, current-tree checks and all release gates remain open."
+  ],
+  "pending_user_decisions": [
+    "Tk taint facts if a policy decision is needed"
+  ],
+  "next_report_utc": null,
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
