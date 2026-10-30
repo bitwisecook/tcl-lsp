@@ -1417,8 +1417,16 @@ mod w313_destructive_file {
 
     #[test]
     fn file_stat_non_destructive_subcommand_clean() {
-        // `file stat`/`file exists` are non-destructive reads → no W313.
-        assert!(of_code("set p [read $fd]\nfile exists $p", D, "W313").is_empty());
+        // Tcl requires the channel before the non-destructive read.
+        let source = "set p [read $fd]\nfile exists $p";
+        assert!(channel_of_code(source, D, "W313").is_empty());
+        let control = format!("{source}\nfile delete $p");
+        assert!(
+            channel_of_code(&control, D, "W313")
+                .iter()
+                .any(|warning| warning.variable == "p"
+                    && warning.sink_command.contains("file delete"))
+        );
     }
 }
 
