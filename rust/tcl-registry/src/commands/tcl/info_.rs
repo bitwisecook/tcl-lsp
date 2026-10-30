@@ -181,6 +181,13 @@ const INFO_NAMED_LOOKUPS: &[crate::native_compilation::NativeCompilerImplementat
         command: "info",
         prepended: &["consts"],
     },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::info",
+        member: "errorstack",
+        slot: "::tcl::info::errorstack",
+        command: "info",
+        prepended: &["errorstack"],
+    },
 ];
 
 const fn named_member_compilation(
@@ -1030,6 +1037,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "errorstack",
+        native_compilation: Some(named_member_compilation(
+            &INFO_NAMED_LOOKUPS[22],
+            Arity::new(0, 1),
+        )),
         traits: Traits::CURRENT_FRAME_INTROSPECTION,
         arity: Arity::new(0, 1),
         detail: "Returns an even-sized list of CALL/UP/INNER tokens and parameters describing the active command at each level from the call stack of the last error. Also available as the -errorstack entry of a 3-argument catch's options dictionary.",
@@ -1506,6 +1517,56 @@ mod tests {
                 assert_eq!(implementation_from, TclVersion::V9_0);
                 assert_eq!(hook_from, TclVersion::V9_0);
             }
+        }
+    }
+
+    #[test]
+    fn errorstack_uses_the_pinned_basic_zero_or_one_argument_compiler() {
+        let registry = crate::default_registry();
+        for (version, source) in [
+            (
+                TclVersion::V8_6,
+                include_str!(
+                    "../../../tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c"
+                ),
+            ),
+            (
+                TclVersion::V9_0,
+                include_str!(
+                    "../../../tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c"
+                ),
+            ),
+            (
+                TclVersion::V9_1,
+                include_str!(
+                    "../../../tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c"
+                ),
+            ),
+        ] {
+            let row = source
+                .lines()
+                .find(|line| line.trim_start().starts_with("{\"errorstack\","))
+                .unwrap();
+            assert_eq!(
+                row.split(',').nth(2).unwrap().trim(),
+                "TclCompileBasic0Or1ArgCmd"
+            );
+            let spec = registry
+                .native_compilation_for_registration(
+                    "::tcl::info::errorstack",
+                    crate::InvocationDialect::for_version(version),
+                )
+                .unwrap();
+            let crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup,
+                arity,
+                ..
+            } = spec.grammar
+            else {
+                panic!("{version:?}: missing named compiler");
+            };
+            assert_eq!(lookup.member, "errorstack");
+            assert_eq!(arity, Arity::new(0, 1));
         }
     }
 

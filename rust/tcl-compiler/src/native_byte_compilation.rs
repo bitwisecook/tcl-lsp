@@ -108,51 +108,6 @@ pub(crate) enum NativeByteCommandUnavailable {
     Recipe,
 }
 
-impl NativeByteCommandUnavailable {
-    /// Observe only this already-returned refusal under the existing diagnostic flag.
-    pub(crate) fn trace_factory_refusal(&self) {
-        self.trace_factory_refusal_stage(None);
-    }
-
-    fn trace_factory_refusal_stage(&self, detail: Option<&'static str>) {
-        static ROWS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1")
-        {
-            return;
-        }
-        if ROWS
-            .try_update(
-                std::sync::atomic::Ordering::Relaxed,
-                std::sync::atomic::Ordering::Relaxed,
-                |rows| (rows < 128).then_some(rows + 1),
-            )
-            .is_err()
-        {
-            return;
-        }
-        let stage = detail.unwrap_or(match self {
-            Self::Entry => "entry",
-            Self::Words(NativeCompilerWordsUnavailable::MissingHead) => "words.missing_head",
-            Self::Words(NativeCompilerWordsUnavailable::SourceOwnership) => "words.source_owner",
-            Self::Words(NativeCompilerWordsUnavailable::Word(_)) => "words.word",
-            Self::Words(NativeCompilerWordsUnavailable::Text(_)) => "words.text",
-            Self::Lookup(_) => "lookup",
-            Self::Registration => "registration",
-            Self::Dependencies => "dependencies",
-            Self::Recipe => "recipe",
-        });
-        eprintln!("CCG_NATIVE_BYTE_FACTORY_REFUSAL stage={stage}");
-    }
-}
-
-// Return the identical original error only after its existing predicate failed.
-// Detail and outer refusal share one diagnostic quota; no entry is inspected here.
-fn observed_entry_refusal(stage: &'static str) -> NativeByteCommandUnavailable {
-    let refusal = NativeByteCommandUnavailable::Entry;
-    refusal.trace_factory_refusal_stage(Some(stage));
-    refusal
-}
-
 /// Resolve one original compiler head and select its authenticated recipe.
 /// The physical point selects compiler grammar; `source_string_protocol` forms
 /// word values independently. Returned registration prerequisites must be
@@ -172,7 +127,7 @@ pub(crate) fn native_byte_command_plan(
     let dialect = compiler_dialect(entry)?;
     let protocol = entry
         .source_string_protocol
-        .ok_or_else(|| observed_entry_refusal("entry.source_string_protocol"))?;
+        .ok_or(NativeByteCommandUnavailable::Entry)?;
     let captured = NativeCompilerWords::capture(words, protocol)
         .map_err(NativeByteCommandUnavailable::Words)?;
     let head = captured.shapes()[0];
@@ -369,16 +324,16 @@ fn compiler_dialect(
 ) -> Result<InvocationDialect, NativeByteCommandUnavailable> {
     let point = entry
         .execution_point
-        .ok_or_else(|| observed_entry_refusal("entry.execution_point"))?;
+        .ok_or(NativeByteCommandUnavailable::Entry)?;
     let policy = entry
         .command_name_policy()
-        .ok_or_else(|| observed_entry_refusal("entry.command_name_policy"))?;
+        .ok_or(NativeByteCommandUnavailable::Entry)?;
     if tcl_syntax::naming::NamePolicyProtocol::for_native_point(point) != Some(policy) {
-        return Err(observed_entry_refusal("entry.name_policy_point"));
+        return Err(NativeByteCommandUnavailable::Entry);
     }
     point
         .tcl_version()
-        .ok_or_else(|| observed_entry_refusal("entry.tcl_version"))?;
+        .ok_or(NativeByteCommandUnavailable::Entry)?;
     Ok(InvocationDialect::of_point(point))
 }
 
@@ -1559,6 +1514,128 @@ mod tests {
                 ));
             }
         }
+    }
+
+    #[test]
+    fn info_errorstack_keeps_original_worker_and_wrong_arity_fallback() {
+        use tcl_registry::native_compilation::NativeNamedInvocationProtocol as Protocol;
+        use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use tcl_registry::native_instruction_plan::NativeNamedInvocationWord;
+        let registry = CommandRegistry::build_default();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode,
+            ..Default::default()
+        };
+        let mut entry = entry(tcl_dialect::TclVersion::V9_0);
+        let mut worker = binding(
+            &entry.namespaces[0],
+            b"private",
+            NativeCompilerHookPresence::Present,
+        );
+        worker.token = 12;
+        worker.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "::tcl::info::errorstack".into(),
+            ensemble: None,
+        });
+        let mut public = binding(
+            &entry.namespaces[0],
+            b"info",
+            NativeCompilerHookPresence::Present,
+        );
+        public.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "info".into(),
+            ensemble: Some(
+                tcl_runtime_api::native_compilation::NativeEnsembleCompiler {
+                    namespace_token: entry.current_namespace,
+                    map: vec![("errorstack".into(), vec![Some("private".into())])],
+                    subcommands: None,
+                    prefixes: true,
+                    parameters: vec![],
+                    unknown_handler: None,
+                },
+            ),
+        });
+        entry.commands.extend([public, worker.clone()]);
+        install_original_target_fixture(&mut entry);
+        for (source, protocol, operands) in [
+            (b"info errorstack".as_slice(), Protocol::Direct, 0),
+            (b"info errorstack $interp".as_slice(), Protocol::Direct, 1),
+            (
+                b"info errorstack [lappend ::seen first] [lappend ::seen second]".as_slice(),
+                Protocol::EnsembleRewrite,
+                4,
+            ),
+        ] {
+            let module = source_module(source, &entry);
+            let crate::ir::Statement::NativeCall { words, .. } = &module.top_level.statements[0]
+            else {
+                panic!("original native words")
+            };
+            let NativeByteCommandPlan::Named(selected) =
+                native_byte_command_plan(words, &entry, &registry, context).unwrap()
+            else {
+                panic!("selected worker")
+            };
+            assert_eq!(selected.recipe.protocol, protocol);
+            assert_eq!(selected.recipe.name, b"::private");
+            assert_eq!(selected.recipe.words.len(), operands);
+            assert_eq!(
+                selected.prerequisite.selected_worker.as_ref(),
+                Some(&worker)
+            );
+            if protocol == Protocol::EnsembleRewrite {
+                assert_eq!(
+                    selected.recipe.words,
+                    [
+                        NativeNamedInvocationWord::Original(Word::Original(0)),
+                        NativeNamedInvocationWord::Replacement(b"errorstack".to_vec()),
+                        NativeNamedInvocationWord::Original(Word::Original(2)),
+                        NativeNamedInvocationWord::Original(Word::Original(3)),
+                    ]
+                );
+            }
+            if source == b"info errorstack $interp" {
+                assert_eq!(
+                    selected.recipe.words,
+                    [NativeNamedInvocationWord::Original(Word::Original(2))]
+                );
+            }
+        }
+        let module = source_module(b"info errorstack $interp", &entry);
+        let crate::ir::Statement::NativeCall { words, .. } = &module.top_level.statements[0] else {
+            panic!("original native words")
+        };
+        let NativeByteCommandPlan::Named(original) =
+            native_byte_command_plan(words, &entry, &registry, context).unwrap()
+        else {
+            panic!("original worker")
+        };
+        entry.commands[1].token += 1;
+        let NativeByteCommandPlan::Named(rebound) =
+            native_byte_command_plan(words, &entry, &registry, context).unwrap()
+        else {
+            panic!("rebound worker")
+        };
+        assert_ne!(
+            original.prerequisite.selected_worker,
+            rebound.prerequisite.selected_worker
+        );
+        entry.commands[1].has_execution_trace = true;
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context).unwrap(),
+            NativeByteCommandPlan::Generic
+        );
+        entry.commands[1].has_execution_trace = false;
+        entry.commands[1]
+            .compiler
+            .as_mut()
+            .unwrap()
+            .registry_identity = "::foreign::errorstack".into();
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context),
+            Err(NativeByteCommandUnavailable::Recipe)
+        );
     }
 
     #[test]
