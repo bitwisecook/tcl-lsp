@@ -315,14 +315,10 @@ pub fn evaluate_pack_cached(source: &str, tier: Tier, trust: WorkspaceTrust) -> 
     pack
 }
 
-/// [`evaluate_pack_cached`] for a pack carrying `include` rows: the on-disk
-/// tier is skipped (its key hashes only *this* file's bytes and so cannot see
-/// an included file change under it), and so is the in-memory tier, for the
-/// same reason.
-///
-/// Not a second loader and not a second cache — the same door with the tier
-/// that cannot describe this input switched off, which is exactly what
-/// [`DISABLE_ENV`] does for a whole process.
+/// Evaluate with the actual include provider on every call. The finished-pack
+/// cache cannot describe included inputs, but the segmentation memo is keyed
+/// by each fragment's own text, line and BOM. It never skips provider reads or
+/// evaluation when an included file changes.
 #[must_use]
 pub fn evaluate_pack_including(
     source: &str,
@@ -330,7 +326,14 @@ pub fn evaluate_pack_including(
     trust: WorkspaceTrust,
     include: &Rc<IncludeContext>,
 ) -> Pack {
-    crate::loader::evaluate_pack_in(source, &options_for(tier, trust), Some(Rc::clone(include)))
+    let options = options_for(tier, trust);
+    if disabled() {
+        return crate::loader::evaluate_pack_in(source, &options, Some(Rc::clone(include)));
+    }
+    let key = eval_snapshot_key(source, &options);
+    through_disk(&key, || {
+        crate::loader::evaluate_pack_in(source, &options, Some(Rc::clone(include)))
+    })
 }
 
 /// Run `load` with this identity's on-disk entry seeded as the segmentation
@@ -384,16 +387,9 @@ pub fn clear() -> std::io::Result<()> {
 /// fast path re-segments each body it is handed — so the second and later
 /// asks for a given `(text, base_line)` are memo hits even on a cold cache.
 ///
-/// The BOM half of the key is **defensive rather than load-bearing**, which is
-/// worth saying plainly so nobody trims it believing it is covered. A memo is
-/// installed per *file* — [`evaluate_pack_cached`] wraps one load and seeds it
-/// from that file's own entry — so two files never share one. Within a single
-/// file the two dispositions cannot meet either: the file entry is keyed on
-/// the whole source, and every block's text is strictly inside it, so the two
-/// can never be equal. The key is still right, because one that omits
-/// something affecting the answer is a silent wrong parse waiting for the
-/// first caller that shares a memo more widely — but no test can reach it
-/// today, and none pretends to.
+/// The BOM disposition is part of the key because it changes segmentation.
+/// An include-aware load can visit multiple files under the same memo; each
+/// lookup still uses the actual fragment's text, line and BOM.
 #[derive(Debug, Default)]
 struct Memo {
     entries: FxHashMap<MemoKey, Vec<Stmt>>,
@@ -1073,6 +1069,70 @@ speclib mylib 1 {
         );
         assert_eq!(shape(&loaded), shape(&crate::loader::evaluate_pack(SOURCE)));
         assert!(cache.entries().is_empty(), "nothing was written");
+    }
+
+    #[test]
+    fn include_segmentation_memo_retains_current_provider_inputs() {
+        use std::sync::Arc;
+        use tcl_lsp_core::vfs::{MemoryStore, SourceStore};
+
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cache = CacheDir::new("include-provider");
+        let store = Arc::new(MemoryStore::new());
+        let root = "speclib demo 2.0 {include child}";
+        store.upsert("/one/child", b"command first {arity 1}".to_vec());
+        store.upsert("/two/child", b"command first {arity 1}".to_vec());
+        let load = |path: &str| {
+            let observations = Rc::new(RefCell::new(Vec::new()));
+            let reader: Arc<dyn SourceStore> = store.clone();
+            let include = Rc::new(IncludeContext::for_source_store(
+                Path::new(path),
+                reader,
+                Rc::clone(&observations),
+            ));
+            let pack =
+                evaluate_pack_including(root, Tier::Workspace, WorkspaceTrust::Trusted, &include);
+            let inputs = observations
+                .borrow()
+                .iter()
+                .map(|observation| {
+                    (
+                        observation.path.clone(),
+                        observation
+                            .origin
+                            .as_ref()
+                            .map(|origin| origin.path().to_path_buf()),
+                        observation.image.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let commands = pack
+                .commands
+                .iter()
+                .map(|command| (command.spec.name, command.line, command.content_hash))
+                .collect::<Vec<_>>();
+            (crate::golden::render(&pack), inputs, commands)
+        };
+        let first = load("/one/root.tclspec");
+        assert!(!cache.entries().is_empty());
+        let second_owner = load("/two/root.tclspec");
+        assert_eq!(first.0, second_owner.0);
+        assert_eq!(second_owner.1[0].0, PathBuf::from("/two/child"));
+        assert_eq!(
+            second_owner.1[0].1.as_deref(),
+            Some(Path::new("/two/child"))
+        );
+        assert_eq!(first.2, second_owner.2);
+        store.upsert("/one/child", b"command second {arity 2}".to_vec());
+        let changed = load("/one/root.tclspec");
+        assert_ne!(first.0, changed.0);
+        assert_eq!(changed.1[0].2.as_deref(), Ok("command second {arity 2}"));
+        assert_ne!(first.2, changed.2);
+        cache.disable();
+        assert_eq!(changed, load("/one/root.tclspec"));
+        assert_eq!(second_owner, load("/two/root.tclspec"));
     }
 
     #[test]
