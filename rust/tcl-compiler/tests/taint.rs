@@ -740,16 +740,20 @@ set x [gets stdin]
 
     #[test]
     fn namespace_shadowed_variable_command_head_is_not_a_builtin_sink() {
+        // Tcl requires the namespace before a qualified procedure definition.
+        let source = "namespace eval ::ns {}\n\
+                      proc ::ns::eval args {}\n\
+                      proc ::ns::run {} {set command eval; set line [gets stdin]; $command $line}\n\
+                      ::ns::run";
         assert!(
-            of_code(
-                "proc ::ns::eval args {}\n\
-                 proc ::ns::run {} {set command eval; set line [gets stdin]; $command $line}\n\
-                 ::ns::run",
-                D,
-                "T100",
-            )
-            .is_empty(),
+            dialect_of_code(source, D, "T100").is_empty(),
             "a namespace-local proc named eval must not inherit the builtin's sink semantics"
+        );
+        let control = format!("{source}\nset line [gets stdin]\n::eval $line");
+        assert!(
+            dialect_of_code(&control, D, "T100")
+                .iter()
+                .any(|warning| { warning.variable == "line" && warning.sink_command == "eval" })
         );
     }
 
