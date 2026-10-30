@@ -2847,3 +2847,19 @@ fn try_handler_receives_error_metadata() {
         "1 {INNER {returnImm boom {}}}\n",
     );
 }
+
+#[test]
+fn dictionary_original_fallback_preserves_order_and_rebinding() {
+    out_eq(
+        "set trace {}\nproc side {x} {global trace; lappend trace $x; return $x}\nset d {a 2}\ndict incr [side d] [side a] [side 5]\nputs [list $trace $d]\n",
+        "{d a 5} {a 7}\n",
+    );
+    out_eq(
+        "set trace {}\nproc side {x} {global trace; lappend trace $x; return $x}\nset code [catch {dict incr [side d] [side a] [error stop]} result]\nputs [list $code $result $trace]\n",
+        "1 stop {d a}\n",
+    );
+    out_eq(
+        "rename ::tcl::dict::incr ::tcl::dict::oldincr\nproc ::tcl::dict::incr args {return [list override {*}$args]}\nputs [dict incr d a 5]\n",
+        "override d a 5\n",
+    );
+}

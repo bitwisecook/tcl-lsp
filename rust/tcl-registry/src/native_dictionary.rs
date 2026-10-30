@@ -463,10 +463,11 @@ impl NativeDictionaryCommand {
         {
             return Some(NativeCompilationSelection::Generic);
         }
+        let selectors = from.checked_sub(1)?;
         Some(if self == Self::With {
-            self.named(from)
+            self.named(selectors)
         } else {
-            self.local_fallback(from, version)
+            self.local_fallback(selectors, version)
         })
     }
 
@@ -526,7 +527,7 @@ impl NativeDictionaryCommand {
             _ => operands.len() == 1,
         };
         Some(if accepted {
-            self.named(usize::from(ensemble))
+            self.named(from.checked_sub(1)?)
         } else {
             NativeCompilationSelection::Generic
         })
@@ -907,6 +908,184 @@ mod compiler_tests {
             TclVersion::V9_0
         );
         assert_eq!(NativeDictionaryCommand::Keys.hook_from(), TclVersion::V9_1);
+    }
+
+    #[test]
+    fn original_dictionary_named_fallback_counts_selectors_not_operands() {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use crate::native_compiler_words::NativeCompilerWords;
+        use crate::native_instruction_plan::{
+            NativeNamedInvocationWord, native_named_invocation_instruction,
+        };
+        let registry = crate::CommandRegistry::build_default();
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let context = NativeCompilationContext {
+                mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: NativeCompilationFrame::ScriptCode,
+                ..NativeCompilationContext::default()
+            };
+            let arguments = ["incr", "d", "a", "5"];
+            let invocation = InvocationWords::literals("dict", &arguments).with_dialect(dialect);
+            let facts = registry
+                .resolve_structured_invocation(invocation, dialect.authoring_query())
+                .resolved()
+                .unwrap()
+                .facts();
+            assert_eq!(
+                NativeDictionaryCommand::Incr
+                    .spec(true)
+                    .original_operand_from_for_facts(&facts),
+                Some(1)
+            );
+            for (source, command, ensemble, from, selectors, expected) in [
+                (
+                    "dict incr $d [side_effect] 5",
+                    NativeDictionaryCommand::Incr,
+                    true,
+                    1,
+                    1,
+                    vec![2, 3, 4],
+                ),
+                (
+                    "dict incr d a 5",
+                    NativeDictionaryCommand::Incr,
+                    false,
+                    2,
+                    1,
+                    vec![2, 3, 4],
+                ),
+                (
+                    "::tcl::dict::incr d a 5",
+                    NativeDictionaryCommand::Incr,
+                    false,
+                    1,
+                    0,
+                    vec![1, 2, 3],
+                ),
+                (
+                    "dict with d {set a 1}",
+                    NativeDictionaryCommand::With,
+                    true,
+                    1,
+                    1,
+                    vec![2, 3],
+                ),
+                (
+                    "dict keys $d",
+                    NativeDictionaryCommand::Keys,
+                    true,
+                    1,
+                    1,
+                    vec![2],
+                ),
+            ] {
+                if command == NativeDictionaryCommand::Keys && version < TclVersion::V9_1 {
+                    continue;
+                }
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let parsed = tcl_lexer::native_script_words_in(
+                    image,
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    dialect.native_string_protocol().unwrap(),
+                )
+                .unwrap();
+                let selection = command.spec(ensemble).select_native_words(
+                    &words,
+                    from,
+                    Some(dialect),
+                    context,
+                );
+                let NativeCompilationSelection::NamedInvocation {
+                    lookup,
+                    arguments_from,
+                    protocol,
+                } = selection
+                else {
+                    panic!("{version:?} {source}: {selection:?}");
+                };
+                assert_eq!(arguments_from, selectors, "{version:?} {source}");
+                let recipe = native_named_invocation_instruction(
+                    &words,
+                    dialect,
+                    lookup.slot.as_bytes(),
+                    arguments_from,
+                    protocol,
+                    &[],
+                )
+                .unwrap();
+                let expected: Vec<_> = expected
+                    .into_iter()
+                    .map(|index| NativeNamedInvocationWord::Original(Word::Original(index)))
+                    .collect();
+                assert_eq!(recipe.words, expected, "{version:?} {source}");
+            }
+            for source in [
+                "dict incr d a {*}$arguments",
+                "dict incr d",
+                "dict incr d a 1 extra",
+            ] {
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let parsed = tcl_lexer::native_script_words_in(
+                    image,
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    dialect.native_string_protocol().unwrap(),
+                )
+                .unwrap();
+                assert!(
+                    !matches!(
+                        NativeDictionaryCommand::Incr
+                            .spec(true)
+                            .select_native_words(&words, 1, Some(dialect), context),
+                        NativeCompilationSelection::NamedInvocation { .. }
+                    ),
+                    "{version:?} {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_dictionary_85_nonlocal_fallback_is_generic() {
+        let source = "dict incr d a 5";
+        let version = TclVersion::V8_5;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let parsed = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        )
+        .unwrap();
+        let words = crate::native_compiler_words::NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            dialect.native_string_protocol().unwrap(),
+        )
+        .unwrap();
+        let context = NativeCompilationContext {
+            mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
+            frame: NativeCompilationFrame::ScriptCode,
+            ..NativeCompilationContext::default()
+        };
+        assert_eq!(
+            NativeDictionaryCommand::Incr
+                .spec(true)
+                .select_native_words(&words, 1, Some(dialect), context,),
+            NativeCompilationSelection::Generic
+        );
     }
 
     #[test]

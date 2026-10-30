@@ -3589,25 +3589,33 @@ impl NativeCompilationSpec {
         }
         let retains_member = matches!(
             self.grammar,
-            NativeCompilationGrammar::StringIsAscii(
-                crate::native_scalar_compilation::NativeScalarScope::PublicMember
-            ) | NativeCompilationGrammar::StringEqual(
-                crate::native_scalar_compilation::NativeScalarScope::PublicMember
-            ) | NativeCompilationGrammar::StringLength(
-                crate::native_scalar_compilation::NativeScalarScope::PublicMember
-            ) | NativeCompilationGrammar::StringTrim {
-                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
-                ..
-            } | NativeCompilationGrammar::StringMatch(
-                crate::native_string_compilation::NativeStringMatchScope::PublicMember
-            ) | NativeCompilationGrammar::StringMap(
-                crate::native_scalar_compilation::NativeScalarScope::PublicMember
-            ) | NativeCompilationGrammar::StringRange(
-                crate::native_scalar_compilation::NativeScalarScope::PublicMember
-            ) | NativeCompilationGrammar::StringOperand {
-                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
-                ..
-            }
+            NativeCompilationGrammar::Dictionary { ensemble: true, .. }
+                | NativeCompilationGrammar::StringIsAscii(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringEqual(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringLength(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringTrim {
+                    scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                    ..
+                }
+                | NativeCompilationGrammar::StringMatch(
+                    crate::native_string_compilation::NativeStringMatchScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringMap(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringRange(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringOperand {
+                    scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                    ..
+                }
         );
         facts
             .argument_offset
