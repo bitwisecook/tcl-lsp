@@ -45,11 +45,11 @@ pub(crate) fn select(
     let Some(arguments) = shapes.len().checked_sub(1).filter(|count| *count <= 125) else {
         return Selection::Unknown;
     };
-    // C9's failed literal probe reaches the scan below and rejects %x before
-    // emitting any specialised instruction. The enclosing compiler then visits
+    // C9's failed literal probe reaches the scan below and rejects these
+    // conversions before emitting specialised instructions. The compiler visits
     // the original head, format and value words for an ordinary invocation.
     if version == TclVersion::V9_0
-        && format == b"%x"
+        && matches!(format, b"%x" | b"%d" | b"%f")
         && shapes.len() == 2
         && shapes[1] == Shape::Substituted
     {
@@ -170,7 +170,7 @@ mod tests {
         }
         let shapes = [Shape::Literal, Shape::Substituted];
         for format in [
-            b"%d".as_slice(),
+            b"%u".as_slice(),
             b"%2$s",
             b"%5s",
             b"%",
@@ -536,6 +536,101 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn dynamic_decimal_and_float_declines_keep_original_word_visits() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
+            NativeOriginalCompilerNameEffects,
+        };
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use crate::native_compiler_words::NativeCompilerWords;
+        use crate::native_control_compilation::NativeControlPreparationStep as Step;
+        use crate::native_instruction_plan::{NativeInstructionPlan, native_instruction_plan};
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        for format in [b"%d".as_slice(), b"%f".as_slice()] {
+            for version in [
+                TclVersion::V8_4,
+                TclVersion::V8_5,
+                TclVersion::V8_6,
+                TclVersion::V9_1,
+            ] {
+                assert_eq!(
+                    select(
+                        Some(format),
+                        &[
+                            NativeCompilationWordShape::Literal,
+                            NativeCompilationWordShape::Substituted
+                        ],
+                        version,
+                        context(),
+                        SemanticOperationId::Invoke
+                    ),
+                    NativeCompilationSelection::Unknown
+                );
+            }
+            for shapes in [
+                vec![NativeCompilationWordShape::Literal],
+                vec![
+                    NativeCompilationWordShape::Literal,
+                    NativeCompilationWordShape::Expanded,
+                ],
+                vec![
+                    NativeCompilationWordShape::Literal,
+                    NativeCompilationWordShape::Opaque,
+                ],
+                vec![
+                    NativeCompilationWordShape::Literal,
+                    NativeCompilationWordShape::Substituted,
+                    NativeCompilationWordShape::Literal,
+                ],
+            ] {
+                assert_eq!(
+                    select(
+                        Some(format),
+                        &shapes,
+                        TclVersion::V9_0,
+                        context(),
+                        SemanticOperationId::Invoke
+                    ),
+                    NativeCompilationSelection::Unknown
+                );
+            }
+        }
+        for source in ["format %d $x", "format %f [side]"] {
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::native(source.as_bytes()),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let spec = NativeCompilationSpec {
+                grammar: NativeCompilationGrammar::FormatStringConcat,
+                operation: SemanticOperationId::Invoke,
+                body: NativeBodyCompilation::Inherit,
+            };
+            let selection = spec.select_native_words(&words, 1, Some(dialect), context());
+            assert_eq!(selection, NativeCompilationSelection::Generic, "{source}");
+            assert_eq!(
+                spec.original_argument_name_effects_in_context(&words, 1, Some(dialect), context()),
+                NativeOriginalCompilerNameEffects::Visits(vec![
+                    Step::Word(Word::Original(0)),
+                    Step::Word(Word::Original(1)),
+                    Step::Word(Word::Original(2))
+                ])
+            );
+            assert_eq!(
+                native_instruction_plan(spec, selection, &words, 1, dialect, context()).unwrap(),
+                NativeInstructionPlan::GenericPreparation(Vec::new())
+            );
+        }
     }
 
     #[test]

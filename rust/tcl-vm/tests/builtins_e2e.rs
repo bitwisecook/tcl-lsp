@@ -2863,3 +2863,11 @@ fn dictionary_original_fallback_preserves_order_and_rebinding() {
         "override d a 5\n",
     );
 }
+
+#[test]
+fn format_dynamic_decimal_and_float_generic_fallback_preserves_dispatch() {
+    out_eq(
+        "set seen {}\nproc side {v} {global seen; lappend seen $v; return $v}\nputs [list [format %d [side 42]] [format %f [side 2]] $seen]\nputs [list [catch {format %d [error boom]} msg] $msg]\nrename format oldformat\nproc format args {return [list override {*}$args]}\nputs [format %d [side 7]]\n",
+        "42 2.000000 {42 2}\n1 boom\noverride %d 7\n",
+    );
+}
