@@ -8,6 +8,8 @@ STOPPED BY USER at ~16:15Z 29 Oct. All five roles and the 30-minute reminder sto
 
 Proc fix applied by root after the stop (b6e3045b8): static `proc` definitions pass the AuthoredSimulation structure gate (optimiser target 47 pass / 60 fail). Next layer: body-command binding inside deferred procedure bodies (declaration advice absent).
 
+Regsub follow-up applied by root (c6f2ed1c9): C8.6+ regsub compiler modelled, regsub/regexp Ok|Error completion. Open: user decision on the object-callback rule that makes `lassign` on unknown lists opaque; regsub result store not definite in proc bodies; delete tests/zz_root_proc_probe.rs.
+
 Assigned at the stop but not yet implemented:
 - compiler-names: body-command binding in deferred procedure bodies; `namespace eval`/`oo::` definers on the same gate; compatibility_name Debug spelling; value_transfer.rs AssignExpr gate; `proc continue` over-breadth; stack frame size.
 - compiler-codegen: 9.0 registry select gaps (format, info errorstack, string is, string map, tailcall, clock+clockRead); branch-condition folds (scope note in user-decisions-20261029T1125Z.json); dict incr/with fallback; unused-set fold.
