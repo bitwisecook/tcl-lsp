@@ -58,6 +58,10 @@ use tcl_registry::model::ingress::static_context_for;
 fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
     let registry = static_context_for("tcl8.6").commands();
     let cu = CompilationUnit::build_for(src, registry, false);
+    var_types_in_unit(&cu, qname, var)
+}
+
+fn var_types_in_unit(cu: &CompilationUnit, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
     let fu = if qname == "::top" {
         &cu.top_level
     } else {
@@ -95,6 +99,22 @@ fn tcl_type(src: &str, var: &str) -> TclType {
 
 #[test]
 fn literal_scalar_types() {
+    // Without an explicit dialect this standalone fixture leaves `set` opaque.
+    let var_type = |src: &str, var: &str| {
+        let registry = static_context_for("tcl8.6").commands();
+        let cu =
+            CompilationUnit::build_for_profile(src, registry, false, registry.profile().unwrap());
+        var_types_in_unit(&cu, "::top", var)
+            .into_iter()
+            .max_by_key(|(version, _)| *version)
+            .map(|(_, value)| value)
+    };
+    let tcl_type = |src: &str, var: &str| {
+        var_type(src, var)
+            .expect("type inferred")
+            .tcl_type()
+            .expect("known type")
+    };
     // tclsh: `set x 42` -> 42, `string is integer 42` = 1  => Int
     let t = var_type("set x 42", "x").expect("x typed");
     assert_eq!(t.kind(), TypeKind::Known);

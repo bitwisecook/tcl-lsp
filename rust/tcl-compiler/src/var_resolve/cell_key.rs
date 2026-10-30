@@ -93,7 +93,13 @@ impl VariableCellKey {
     pub fn compatibility_name(&self) -> String {
         match self {
             Self::Authored(name) => name.clone(),
-            Self::Namespace { identity, simple } => format!("{identity:?}::{}", byte_label(simple)),
+            Self::Namespace { identity, simple } => match identity {
+                SourceNamespaceKey::Authored(namespace) if namespace == "::" => byte_label(simple),
+                SourceNamespaceKey::Authored(namespace) => {
+                    format!("{namespace}::{}", byte_label(simple))
+                }
+                _ => format!("{identity:?}::{}", byte_label(simple)),
+            },
             Self::Activation { identity, simple } => {
                 format!(
                     "@frame:{}:{identity}:{}",
@@ -623,6 +629,17 @@ impl<'a> IntoIterator for &'a VariableNamespaceSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn authored_namespace_compatibility_names_use_tcl_spelling() {
+        let cell = |namespace: &str| VariableCellKey::Namespace {
+            identity: SourceNamespaceKey::authored(namespace),
+            simple: "x".into(),
+        };
+        assert_eq!(cell("::").compatibility_name(), "x");
+        assert_eq!(cell("::ns").compatibility_name(), "::ns::x");
+        assert_ne!(cell("::"), VariableCellKey::Authored("x".into()));
+    }
 
     #[test]
     fn namespace_advice_preserves_owner_geometry_and_authored_separation() {
