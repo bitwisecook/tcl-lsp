@@ -1,0 +1,57 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-30T13:09:54.061694+00:00",
+  "scheduled_report_utc": "2026-10-30T13:11:07Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "IN_PROGRESS_UNCOMMITTED",
+  "change_since_previous_report": [
+    "VM clock units test passed 1/1; compiler clock emission remains open with an off-tree typed draft. Wrong-arity string map restored to Unknown after review.",
+    "Expression constants 3/4: 8.4 double refusal and lambda controls pass; 8.4 proc integer remains overdefined, cause under diagnosis without relaxing guards.",
+    "Configuration timeout reaches bundled SpecTcl loading; per-pack trace queued. CLI timing is building. Temporary LSP and taint probes are uncommitted and must be removed before product commits or CI."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Five roles and independent review; current-tree checks and release gates remain open."
+  ],
+  "pending_user_decisions": [
+    "Tk taint facts if policy decision is needed"
+  ],
+  "next_report_utc": null,
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
