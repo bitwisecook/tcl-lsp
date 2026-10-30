@@ -938,7 +938,7 @@ mod tests {
         let registry = context.commands();
         let profile = environment.unit_profile();
         let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
-            "proc p {} {set local VALUE}",
+            "proc p {} \"set local VALUE\"",
             registry,
             false,
             profile,
@@ -968,6 +968,71 @@ mod tests {
         let mut missing = (*module).clone();
         missing.source_metadata_input = None;
         assert!(scan_module(&missing, registry).any);
+    }
+
+    #[test]
+    fn authored_procedure_body_is_not_a_callback_without_a_native_card() {
+        let environment = crate::environment_ingress::resolve_environment("tcl8.4");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "proc p {} {set result [expr {2 + 2}]; return $result}",
+            registry,
+            false,
+            environment.unit_profile(),
+        );
+        let module = &unit.ir_module;
+        assert_eq!(module.procedures.len(), 1);
+        assert!(module.original_native_declaration_body_units.is_empty());
+        assert!(scan_module(module, registry).is_clear());
+        let mut missing = (*module).clone();
+        missing.retained_source_bindings = None;
+        assert!(scan_module(&missing, registry).any);
+
+        let foreign_unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "proc other {} {set other VALUE}",
+            registry,
+            false,
+            environment.unit_profile(),
+        );
+        let mut foreign = (*module).clone();
+        foreign.retained_source_bindings = foreign_unit.ir_module.retained_source_bindings.clone();
+        assert!(scan_module(&foreign, registry).any);
+
+        let mut changed_header = (*module).clone();
+        changed_header
+            .procedures
+            .values_mut()
+            .next()
+            .unwrap()
+            .params_raw
+            .push_str(" stale");
+        assert!(scan_module(&changed_header, registry).any);
+        let mut changed_body = (*module).clone();
+        changed_body
+            .procedures
+            .values_mut()
+            .next()
+            .unwrap()
+            .body_source = Some("set changed 1".to_owned());
+        assert!(scan_module(&changed_body, registry).any);
+        let mut changed_site = (*module).clone();
+        changed_site
+            .procedures
+            .values_mut()
+            .next()
+            .unwrap()
+            .declaration_site = None;
+        assert!(scan_module(&changed_site, registry).any);
+
+        let callback_unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "proc p {} {after 10 {set ::done VALUE}}",
+            registry,
+            false,
+            environment.unit_profile(),
+        );
+        let effects = scan_module(&callback_unit.ir_module, registry);
+        assert!(effects.any || effects.names.contains("done"));
     }
 
     #[test]

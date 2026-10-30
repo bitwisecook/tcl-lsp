@@ -87,7 +87,8 @@ impl SourceScan<'_> {
         else {
             return false;
         };
-        self.original_frame_declarations
+        let native = self
+            .original_frame_declarations
             .get_or_init(|| {
                 self.module
                     .original_native_declaration_body_units
@@ -101,7 +102,19 @@ impl SourceScan<'_> {
                     })
                     .collect::<HashSet<_>>()
             })
-            .contains(site)
+            .contains(site);
+        native
+            || self.module.procedures.iter().any(|(id, procedure)| {
+                self.module.procedure_ids.owns(*id)
+                    && procedure.declaration_site.as_ref() == Some(site)
+                    && self
+                        .module
+                        .retained_source_bindings
+                        .as_ref()
+                        .is_some_and(|owner| {
+                            owner.matches_original_procedure_summary(*id, procedure)
+                        })
+            })
     }
 
     fn statement(&mut self, script: &Script, statement: &Statement) {
