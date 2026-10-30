@@ -1,0 +1,58 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "LSP, necessary compiler/registry/syntax paths, SpecTcl VM/runtime and dedicated BIG-IP LSP units; see current-state.md for binding scope decisions.",
+  "stage_order": {
+    "current": "Coordinate LSP and required dependencies toward release gates.",
+    "next": "Complete reviews and focused checks, clean probes, validate CI comparison and release preparation.",
+    "paused": "No release carry or PR until prerequisites are met.",
+    "authority": "Current user decisions and standing rules."
+  },
+  "utc": "2026-10-30T23:23:54.998661+00:00",
+  "scheduled_report_utc": "2026-10-30T23:24:54Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "status": "IN_PROGRESS_UNCOMMITTED",
+  "change_since_previous_report": [
+    "Reviewed C9 decimal format fallback 46773b5e and TclOO slot source regression db6e7e64 pushed with focused controls.",
+    "Unchanged structured-body stack test overflowed 1.5 MiB worker; boxed helper candidate and rerun pending.",
+    "VM policy/retired-owner unit passed 1/1; active-child deletion still fails typed world refusal. Tcl lifecycle sources and stale-entry safety under audit.",
+    "LSP child capture-stage diagnosis compiling; private string-is owner/context controls and taint fixture correction pending."
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Roles and serialized tests active; remove temporary probes, review candidates and satisfy all release gates."
+  ],
+  "pending_user_decisions": [
+    "Tk taint facts if a policy decision is needed"
+  ],
+  "next_report_utc": null,
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
