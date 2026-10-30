@@ -1728,6 +1728,89 @@ mod tests {
     }
 
     #[test]
+    fn string_map_dynamic_fallback_retains_worker_and_ordered_original_operands() {
+        use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use tcl_registry::native_instruction_plan::NativeNamedInvocationWord;
+        let registry = CommandRegistry::build_default();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            ..Default::default()
+        };
+        let version = tcl_dialect::TclVersion::V9_0;
+        let mut entry = entry(version);
+        let mut worker = binding(
+            &entry.namespaces[0],
+            b"private",
+            NativeCompilerHookPresence::Present,
+        );
+        worker.token = 12;
+        worker.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "::tcl::string::map".into(),
+            ensemble: None,
+        });
+        let mut public = binding(
+            &entry.namespaces[0],
+            b"ensemble",
+            NativeCompilerHookPresence::Present,
+        );
+        public.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "custom-ensemble".into(),
+            ensemble: Some(
+                tcl_runtime_api::native_compilation::NativeEnsembleCompiler {
+                    namespace_token: entry.current_namespace,
+                    map: vec![("member".into(), vec![Some("private".into())])],
+                    subcommands: None,
+                    prefixes: true,
+                    parameters: vec![],
+                    unknown_handler: None,
+                },
+            ),
+        });
+        entry.commands.extend([public, worker.clone()]);
+        install_original_target_fixture(&mut entry);
+        let module = source_module(b"ensemble member $mapping [side]", &entry);
+        let crate::ir::Statement::NativeCall { words, .. } = &module.top_level.statements[0] else {
+            panic!("original source")
+        };
+        let NativeByteCommandPlan::Named(original) =
+            native_byte_command_plan(words, &entry, &registry, context).unwrap()
+        else {
+            panic!("selected named fallback {version:?}")
+        };
+        assert_eq!(
+            original.recipe.words,
+            [2, 3].map(|i| NativeNamedInvocationWord::Original(Word::Original(i)))
+        );
+        assert_eq!(
+            original.prerequisite.selected_worker.as_ref(),
+            Some(&worker)
+        );
+        entry.commands[1].token += 1;
+        let NativeByteCommandPlan::Named(rebound) =
+            native_byte_command_plan(words, &entry, &registry, context).unwrap()
+        else {
+            panic!("rebound worker")
+        };
+        assert_ne!(
+            original.prerequisite.selected_worker,
+            rebound.prerequisite.selected_worker
+        );
+        entry.commands[1].has_execution_trace = true;
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context).unwrap(),
+            NativeByteCommandPlan::Generic
+        );
+        entry.commands[1].has_execution_trace = false;
+        entry.commands[1]
+            .compiler
+            .as_mut()
+            .unwrap()
+            .registry_identity = "::foreign::map".into();
+        assert!(native_byte_command_plan(words, &entry, &registry, context).is_err());
+    }
+
+    #[test]
     fn original_selected_worker_trace_veto_and_dictionary_operation_are_distinct() {
         let registry = CommandRegistry::build_default();
         let context = NativeCompilationContext {

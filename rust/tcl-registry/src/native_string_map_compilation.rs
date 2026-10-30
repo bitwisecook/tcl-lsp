@@ -54,6 +54,15 @@ pub(crate) fn select(
     {
         return Selection::Unknown;
     }
+    // C9 declines a map containing a substitution before attempting list
+    // conversion, and its private compiler selects the Basic2Arg fallback.
+    if operands[0] == Shape::Substituted && map.is_none() {
+        return Selection::NamedInvocation {
+            lookup: &STRING_MAP_IMPLEMENTATION,
+            arguments_from: from,
+            protocol: NativeNamedInvocationProtocol::Direct,
+        };
+    }
     let Some(map) = map else {
         return Selection::Unknown;
     };
@@ -152,11 +161,85 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_map_selects_the_private_basic_two_argument_fallback() {
+        for source in [
+            "string map $mapping $s",
+            "string map [side mapping] [side string]",
+        ] {
+            assert!(
+                matches!(selected(source, TclVersion::V9_0, NativeScalarScope::PublicMember),
+                NativeCompilationSelection::NamedInvocation { lookup, arguments_from: 1, protocol: NativeNamedInvocationProtocol::Direct } if *lookup == STRING_MAP_IMPLEMENTATION),
+                "{source}"
+            );
+        }
+        assert!(
+            matches!(selected("::tcl::string::map $mapping $s", TclVersion::V9_0, NativeScalarScope::PrivateOperands),
+            NativeCompilationSelection::NamedInvocation { lookup, arguments_from: 0, protocol: NativeNamedInvocationProtocol::Direct } if *lookup == STRING_MAP_IMPLEMENTATION)
+        );
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_1,
+        ] {
+            assert_eq!(
+                selected(
+                    "string map $mapping $s",
+                    version,
+                    NativeScalarScope::PublicMember
+                ),
+                NativeCompilationSelection::Unknown
+            );
+        }
+    }
+
+    #[test]
+    fn dynamic_map_preserves_fixed_lookup_and_ordered_original_visits() {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use crate::native_control_compilation::NativeControlPreparationStep as Step;
+        let source = "string map [side mapping] [side string]";
+        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let parsed = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::native(source.as_bytes()),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+        .unwrap();
+        let words = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            dialect.native_string_protocol().unwrap(),
+        )
+        .unwrap();
+        let spec = NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringMap(
+                NativeScalarScope::PublicMember,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        };
+        let NativeOriginalCompilerNameEffects::FixedLookupThenVisits { lookup, visits } = spec
+            .original_argument_name_effects_in_context(
+                &words,
+                1,
+                Some(dialect),
+                NativeCompilationContext::default(),
+            )
+        else {
+            panic!("dynamic map must select Basic2Arg effects")
+        };
+        assert_eq!(*lookup, STRING_MAP_IMPLEMENTATION);
+        assert_eq!(
+            visits,
+            vec![Step::Word(Word::Original(2)), Step::Word(Word::Original(3))]
+        );
+    }
+
+    #[test]
     fn inline_pair_options_unknown_words_and_other_releases_stay_residual() {
         for source in [
             "string map {a b} $s",
             "string map {{} x} $s",
-            "string map $mapping $s",
+            "string map {*}$mapping $s",
             "string map -nocase {a b c d} $s",
             "string map {a b c d}",
             "string map {a b c d} $s extra",
