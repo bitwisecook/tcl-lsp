@@ -42,19 +42,6 @@ pub(super) fn source_outline(
             .namespace_refs
             .iter()
             .any(|reference| reference.original_name_input.is_some());
-    #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_OUTLINE").is_some() {
-        eprintln!(
-            "ORIGINAL_OUTLINE inventories procs={} classes={} variables={} namespaces={} registry={} lexical={} original={}",
-            analysis.original_procedure_declarations().count(),
-            analysis.original_class_declarations().count(),
-            analysis.original_variable_symbols.len(),
-            analysis.namespace_refs.len(),
-            analysis.all_defined_symbols.len(),
-            analysis.allows_lexical_declaration_advice(),
-            original
-        );
-    }
     if !original {
         return Some(Vec::new());
     }
