@@ -596,7 +596,14 @@ mod t102_scan_region {
     fn literal_positional_before_tainted_subject_ends_scan() {
         // `regexp {fixed} $subject` — the literal `{fixed}` pattern is a definite
         // positional that ends scanning, so the later tainted subject is safe.
-        assert!(of_code("set s [read $fd]\nregexp {fixed} $s", D, "T102").is_empty());
+        let source = "set s [read $fd]\nregexp {fixed} $s";
+        assert!(channel_of_code(source, D, "T102").is_empty());
+        let control = format!("{source}\nregexp $s subject match");
+        assert!(
+            channel_of_code(&control, D, "T102")
+                .iter()
+                .any(|warning| warning.variable == "s" && warning.sink_command.contains("regexp"))
+        );
     }
 
     #[test]
