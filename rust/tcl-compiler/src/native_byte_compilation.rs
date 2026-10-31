@@ -1882,6 +1882,52 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_format_word_decline_keeps_original_dispatch_owner() {
+        let registry = CommandRegistry::build_default();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            ..Default::default()
+        };
+        let mut entry = entry(tcl_dialect::TclVersion::V9_0);
+        let mut format = binding(
+            &entry.namespaces[0],
+            b"format",
+            NativeCompilerHookPresence::Present,
+        );
+        format.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "format".into(),
+            ensemble: None,
+        });
+        entry.commands.push(format);
+        let module = source_module(b"format [side format] [side value]", &entry);
+        let crate::ir::Statement::NativeCall { words, .. } = &module.top_level.statements[0] else {
+            panic!("original format invocation")
+        };
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context),
+            Ok(NativeByteCommandPlan::Generic)
+        );
+        entry.commands[0].token += 1;
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context),
+            Ok(NativeByteCommandPlan::Generic)
+        );
+        entry.commands[0].has_execution_trace = true;
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context),
+            Ok(NativeByteCommandPlan::Generic)
+        );
+        entry.commands[0].has_execution_trace = false;
+        entry.commands[0]
+            .compiler
+            .as_mut()
+            .unwrap()
+            .registry_identity = "::foreign::format".into();
+        assert!(native_byte_command_plan(words, &entry, &registry, context).is_err());
+    }
+
+    #[test]
     fn original_selected_worker_trace_veto_and_dictionary_operation_are_distinct() {
         let registry = CommandRegistry::build_default();
         let context = NativeCompilationContext {

@@ -12,6 +12,31 @@ use crate::native_compilation::{
     NativeCompilationMode, NativeCompilationSelection, NativeCompilationWordShape,
 };
 
+/// C9 declines before emitting any word when the format word itself needs
+/// substitution. This proves only one original value operand, not an arbitrary
+/// dynamic format invocation.
+pub(crate) fn dynamic_format_word_declines(
+    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+    context: NativeCompilationContext,
+    operation: SemanticOperationId,
+    body: crate::native_compilation::NativeBodyCompilation,
+) -> bool {
+    use NativeCompilationWordShape as Shape;
+    version == TclVersion::V9_0
+        && context.mode == NativeCompilationMode::BytecodeObject
+        && context.frame != NativeCompilationFrame::Unknown
+        && operation == SemanticOperationId::Invoke
+        && body == crate::native_compilation::NativeBodyCompilation::Inherit
+        && words.source_protocol() == tcl_syntax::native_string::NativeStringProtocol::C(version)
+        && operand_from == 1
+        && words.shapes().len() == 3
+        && words.shapes()[1] == Shape::Substituted
+        && words.literal(1).is_none()
+        && !matches!(words.shapes()[2], Shape::Opaque | Shape::Expanded)
+}
+
 pub(crate) fn select(
     format: Option<&[u8]>,
     shapes: &[NativeCompilationWordShape],
@@ -629,6 +654,185 @@ mod tests {
             assert_eq!(
                 native_instruction_plan(spec, selection, &words, 1, dialect, context()).unwrap(),
                 NativeInstructionPlan::GenericPreparation(Vec::new())
+            );
+        }
+    }
+
+    #[test]
+    fn c90_dynamic_format_word_declines_before_other_compiler_visits() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
+            NativeOriginalCompilerNameEffects,
+        };
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use crate::native_compiler_words::NativeCompilerWords;
+        use crate::native_control_compilation::NativeControlPreparationStep as Step;
+        use crate::native_instruction_plan::{NativeInstructionPlan, native_instruction_plan};
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let spec = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::FormatStringConcat,
+            operation: SemanticOperationId::Invoke,
+            body: NativeBodyCompilation::Inherit,
+        };
+        for source in [
+            "format $fmt $value",
+            "format [side fmt] [side value]",
+            "format $fmt fixed",
+        ] {
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::native(source.as_bytes()),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let selection = spec.select_native_words(&words, 1, Some(dialect), context());
+            assert_eq!(selection, NativeCompilationSelection::Generic, "{source}");
+            assert_eq!(
+                spec.original_argument_name_effects_in_context(&words, 1, Some(dialect), context()),
+                NativeOriginalCompilerNameEffects::Visits(vec![
+                    Step::Word(Word::Original(0)),
+                    Step::Word(Word::Original(1)),
+                    Step::Word(Word::Original(2))
+                ])
+            );
+            assert_eq!(
+                native_instruction_plan(spec, selection, &words, 1, dialect, context()).unwrap(),
+                NativeInstructionPlan::GenericPreparation(Vec::new())
+            );
+        }
+    }
+
+    #[test]
+    fn c90_dynamic_format_word_decline_rejects_foreign_contracts() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
+            NativeOriginalCompilerNameEffects,
+        };
+        use crate::native_compiler_words::NativeCompilerWords;
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let spec = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::FormatStringConcat,
+            operation: SemanticOperationId::Invoke,
+            body: NativeBodyCompilation::Inherit,
+        };
+        let source = "format $fmt $value";
+        let parsed = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::native(source.as_bytes()),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+        .unwrap();
+        let words = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            dialect.native_string_protocol().unwrap(),
+        )
+        .unwrap();
+        for body in [
+            NativeBodyCompilation::Direct,
+            NativeBodyCompilation::ScriptObject,
+            NativeBodyCompilation::ProcedureObject,
+        ] {
+            let foreign = NativeCompilationSpec { body, ..spec };
+            assert_eq!(
+                foreign.select_native_words(&words, 1, Some(dialect), context()),
+                NativeCompilationSelection::Unknown
+            );
+            assert_eq!(
+                foreign.original_argument_name_effects_in_context(
+                    &words,
+                    1,
+                    Some(dialect),
+                    context()
+                ),
+                NativeOriginalCompilerNameEffects::Unknown
+            );
+        }
+        let unknown = NativeCompilationContext {
+            mode: NativeCompilationMode::Unknown,
+            ..context()
+        };
+        assert_eq!(
+            spec.select_native_words(&words, 1, Some(dialect), unknown),
+            NativeCompilationSelection::Unknown
+        );
+        let direct = NativeCompilationContext {
+            mode: NativeCompilationMode::Direct,
+            ..context()
+        };
+        assert!(!dynamic_format_word_declines(
+            &words,
+            1,
+            version,
+            direct,
+            spec.operation,
+            spec.body
+        ));
+        let foreign = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            tcl_syntax::native_string::NativeStringProtocol::C(TclVersion::V8_6),
+        )
+        .unwrap();
+        assert!(!dynamic_format_word_declines(
+            &foreign,
+            1,
+            version,
+            context(),
+            spec.operation,
+            spec.body
+        ));
+        for other in [TclVersion::V8_6, TclVersion::V9_1] {
+            assert_eq!(
+                spec.select_native_words(
+                    &words,
+                    1,
+                    Some(crate::InvocationDialect::for_version(other)),
+                    context()
+                ),
+                NativeCompilationSelection::Unknown
+            );
+        }
+    }
+
+    #[test]
+    fn c90_dynamic_format_word_decline_rejects_other_shapes() {
+        use crate::native_compilation::NativeBodyCompilation;
+        use crate::native_compiler_words::NativeCompilerWords;
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        for source in [
+            "format $fmt",
+            "format $fmt $a $b",
+            "format $fmt {*}$values",
+            "format %s $value",
+        ] {
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::native(source.as_bytes()),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            assert!(
+                !dynamic_format_word_declines(
+                    &words,
+                    1,
+                    version,
+                    context(),
+                    SemanticOperationId::Invoke,
+                    NativeBodyCompilation::Inherit
+                ),
+                "{source}"
             );
         }
     }

@@ -1926,6 +1926,16 @@ impl NativeCompilationSpec {
             return Visits(Self::original_generic_word_visits(words));
         }
         if self.grammar == NativeCompilationGrammar::FormatStringConcat {
+            if crate::native_format_compilation::dynamic_format_word_declines(
+                words,
+                operand_from,
+                version,
+                context,
+                self.operation,
+                self.body,
+            ) {
+                return Visits(Self::original_generic_word_visits(words));
+            }
             let selection = crate::native_format_compilation::select(
                 words.literal(operand_from),
                 &words.shapes()[operand_from..],
@@ -3026,6 +3036,16 @@ impl NativeCompilationSpec {
     ) -> Option<NativeCompilationSelection> {
         use NativeCompilationSelection as Selection;
         if self.grammar == NativeCompilationGrammar::FormatStringConcat {
+            if crate::native_format_compilation::dynamic_format_word_declines(
+                words,
+                operand_from,
+                version,
+                context,
+                self.operation,
+                self.body,
+            ) {
+                return Some(NativeCompilationSelection::Generic);
+            }
             return Some(crate::native_format_compilation::select(
                 words.literal(operand_from),
                 &words.shapes()[operand_from..],

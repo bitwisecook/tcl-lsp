@@ -2879,3 +2879,11 @@ fn private_string_is_dynamic_class_decline_preserves_dispatch() {
         "1 {class value}\n0 0 0 {class value}\n1 boom {}\nOVERRIDE {class value}\n",
     );
 }
+
+#[test]
+fn dynamic_format_word_decline_preserves_dispatch_and_operand_order() {
+    out_eq(
+        "set seen {}\nproc value {} {global seen; lappend seen value; return 7}\nproc fmt {} {global seen; lappend seen fmt; return %d}\nputs [list [format [fmt] [value]] $seen]\nset seen {}\nputs [list [catch {format [error boom] [value]} result] $result $seen]\nset seen {}\nrename fmt oldfmt\nproc fmt {} {global seen; lappend seen fmt; rename format oldformat; proc format args {return OVERRIDE}; return %d}\nputs [list [format [fmt] [value]] $seen]\n",
+        "7 {fmt value}\n1 boom {}\nOVERRIDE {fmt value}\n",
+    );
+}

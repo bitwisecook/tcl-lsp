@@ -738,6 +738,16 @@ fn original_decline_preparations(
         return Some(Ok(Vec::new()));
     }
     if spec.grammar == NativeCompilationGrammar::FormatStringConcat {
+        if crate::native_format_compilation::dynamic_format_word_declines(
+            words,
+            operand_from,
+            dialect.tcl_version?,
+            context,
+            spec.operation,
+            spec.body,
+        ) {
+            return Some(Ok(Vec::new()));
+        }
         let selection = crate::native_format_compilation::select(
             words.literal(operand_from),
             words.shapes().get(operand_from..)?,
