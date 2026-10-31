@@ -1026,7 +1026,8 @@ pub(super) fn original_command_head_input(
         owned = origin.original_lexical_command(words, offset, context.config)?;
         owned.native_words()
     };
-    (native.first()?.group().span.start() == offset).then_some(())?;
+    // The authenticated written extent includes any leading expansion marker.
+    (native.first()?.span().start() == offset).then_some(())?;
     for (ordinal, word) in written.iter().enumerate() {
         use crate::registry_invocation::EffectiveInvocationWord;
         if word.expansion_len() == Some(0) {
@@ -3206,6 +3207,39 @@ mod graph_tests {
                         config,
                     )
                     .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn expanded_dispatch_head_uses_its_original_written_extent() {
+        for dialect in dialects() {
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            if !config.expand_syntax {
+                continue;
+            }
+            for source in ["{*}{list value} extra", "{*}{} {*}{list value} extra"] {
+                let (bindings, config) = analyse(source, dialect);
+                let point = bindings
+                    .dispatch_points_at(0)
+                    .next()
+                    .expect("dispatch point");
+                let input = point.original_head_input.as_ref().expect("original head");
+                assert_eq!(input.bytes(), b"list", "{source}");
+                let original = tokens(source, config, 0);
+                let binding = bindings.invocation_at_source("list", 0);
+                assert!(binding.original_head_name_input(&original).is_some());
+                let mut stale = original.clone();
+                stale.argv_texts[0].push('x');
+                assert!(binding.original_head_name_input(&stale).is_none());
+                let foreign = tokens("{*}{puts value} extra", config, 0);
+                assert!(binding.original_head_name_input(&foreign).is_none());
+            }
+            let (bindings, _) = analyse("{*}$unknown extra", dialect);
+            assert!(
+                bindings
+                    .dispatch_points_at(0)
+                    .all(|point| point.original_head_input.is_none())
             );
         }
     }
