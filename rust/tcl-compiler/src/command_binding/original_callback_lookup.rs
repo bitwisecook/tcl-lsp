@@ -384,56 +384,10 @@ mod tests {
         let bindings = bindings(source, dialect, registry);
         let binding = bindings.invocation_at_source("", 0);
         let Some(mut tokens) = binding.original_recorded_command_tokens() else {
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CALLBACK").is_some() {
-                eprintln!(
-                    "ORIGINAL_CALLBACK source={source:?} dialect={:?} original_vector=false",
-                    dialect.execution_point()
-                );
-            }
             return None;
         };
         tokens.source_binding = Some(binding.clone());
         let result = binding.original_callback_prefix(&tokens, written, registry);
-        if result.is_none() && std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CALLBACK").is_some() {
-            let invocation =
-                crate::registry_invocation::original_callback_invocation(registry, &tokens);
-            let input = binding.original_written_name_input(&tokens, written);
-            let rows = binding
-                .declaration_layout_observations
-                .as_deref()
-                .and_then(super::super::declaration_layout::original_declaration_layouts);
-            eprintln!(
-                "ORIGINAL_CALLBACK source={source:?} dialect={:?} config={} metadata={} argument_normal={} input={} input_current={} rows={:?}",
-                dialect.execution_point(),
-                binding.original_lexer_config_for_tokens(&tokens).is_some(),
-                invocation.is_some(),
-                binding.original_argument_completion.is_normal(),
-                input.is_some(),
-                input
-                    .as_ref()
-                    .is_some_and(|input| input.is_current(&binding.variable_context)),
-                rows.as_ref().map(|rows| rows.clone().count())
-            );
-            if let Some(invocation) = invocation {
-                let argument = written - 1;
-                eprintln!(
-                    "ORIGINAL_CALLBACK effective={:?} scope={:?} arity={:?} body={:?} words={:?}",
-                    invocation.effective.origins,
-                    invocation.facts.script_lookup_scope(argument),
-                    invocation.facts.command_prefix_arity(argument),
-                    invocation.facts.body_execution,
-                    input
-                        .as_ref()
-                        .and_then(|prefix| original_callback_words(
-                            prefix,
-                            dialect,
-                            &invocation.facts,
-                            argument
-                        ))
-                        .map(|words| words.len())
-                );
-            }
-        }
         result
     }
 

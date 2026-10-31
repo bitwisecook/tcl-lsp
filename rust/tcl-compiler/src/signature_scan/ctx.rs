@@ -267,16 +267,6 @@ impl ScanCtx<'_> {
         if let Some(bindings) = self.original_bindings {
             let binding = bindings.invocation_at_source("", command.span.start());
             let recorded = binding.original_recorded_command();
-            #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CALLBACK").is_some() {
-                eprintln!(
-                    "ORIGINAL_CALLBACK_SCAN written={written} span={:?} recorded={:?}",
-                    command.span,
-                    recorded
-                        .as_ref()
-                        .map(|(original, _)| (original.span, original.argv == command.argv))
-                );
-            }
             let (original, mut tokens) = recorded?;
             if original.span != command.span || original.argv != command.argv {
                 return None;
