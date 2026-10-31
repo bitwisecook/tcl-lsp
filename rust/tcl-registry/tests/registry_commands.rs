@@ -3384,11 +3384,8 @@ fn an_explicitly_empty_operation_table_does_not_inherit_the_parents() {
     );
     assert_eq!(scope.sub_subcommand, Some("exists"));
 
-    // The other second-level operations in the registry declare nothing, so
-    // they still inherit — the default must stay "inherit", or every one of
-    // them silently loses its parent's options. Tcl 9.0's `properties` is the
-    // deliberate exception: its own three-option table must not be mistaken
-    // for the absent/inherit state.
+    // Methods and Tcl 9.0 properties own option tables. The other operations
+    // declare nothing and inherit; absent and explicitly empty stay distinct.
     let info = registry.get("info").expect("`info` is a core command");
     let object = info
         .resolve_subcommand("object")
@@ -3405,10 +3402,42 @@ fn an_explicitly_empty_operation_table_does_not_inherit_the_parents() {
             .collect::<Vec<_>>(),
         ["-all", "-readable", "-writable"]
     );
+    let methods = object
+        .resolve_sub_subcommand("methods")
+        .expect("`info object methods`");
+    let methods_options = methods.options.expect("`methods` declares its own table");
+    assert_eq!(
+        methods_options
+            .iter()
+            .map(|option| option.name)
+            .collect::<Vec<_>>(),
+        ["-all", "-localprivate", "-private", "-scope"]
+    );
+    // Tcl 8.6.18 accepts three method flags; Tcl 9.0.4 and 9.1.0 add -scope.
+    for (release, expected) in [
+        ("8.6", &["-all", "-localprivate", "-private"][..]),
+        ("9.0", &["-all", "-localprivate", "-private", "-scope"][..]),
+        ("9.1", &["-all", "-localprivate", "-private", "-scope"][..]),
+    ] {
+        let dialect = Some(SurfaceQuery::core(Family::Tcl, release));
+        let scope = object.option_scope(Some("methods"), dialect, None, info.surface);
+        assert_eq!(scope.sub_subcommand, Some("methods"));
+        assert!(std::ptr::eq(scope.options, methods_options));
+        assert_eq!(
+            scope
+                .options
+                .iter()
+                .filter(|option| option.supports_dialect(dialect, scope.surface))
+                .map(|option| option.name)
+                .collect::<Vec<_>>(),
+            expected,
+            "info object methods options in Tcl {release}",
+        );
+    }
     for op in object
         .sub_subcommands
         .iter()
-        .filter(|op| op.name != "properties")
+        .filter(|op| !matches!(op.name, "properties" | "methods"))
     {
         assert!(
             op.options.is_none(),
