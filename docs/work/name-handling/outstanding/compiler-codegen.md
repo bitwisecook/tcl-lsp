@@ -1,5 +1,10 @@
 # Outstanding work: compiler-codegen agent
 
+## Stopped — 31 October 08:18 UTC
+
+The queued isolated O123 diagnostic was stopped before it acquired the lock; inspect the isolated checkout and evidence before resuming. `3139e140` withholds O121/O122 pending proof; conflicting tests and O123 remain open.
+
+
 ## Checkpoint — 31 October 07:42 UTC
 
 O121/O122 recursive rewrite suppression is on work (`3139e140`) with C9 refusal regression 1/1; existing conflicting positive assertions remain. Hash-pinned C8.6.16 and source-built C9 factorial/arity oracle supports a narrow test correction, but its combined selector still fails unchanged O123. O123 inventory resolves one self call but lacks authenticated outer-return receipt. Isolated follow-up process may still be queued; inspect `/tmp/ccg-o123-detail.log` and the isolated tree for diagnostics before retry.

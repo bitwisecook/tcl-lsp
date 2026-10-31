@@ -1,5 +1,10 @@
 # Outstanding work: compiler-names agent
 
+## Stopped — 31 October 08:18 UTC
+
+Root terminated the surviving long-running Arc stack selector and queued observed selector on user stop; neither has a final result. The Arc experiment is preserved unreviewed in `2d626291`, and its completion selector remains 4 PASS / 2 FAIL. Stack budget and performance remain open.
+
+
 ## Checkpoint — 31 October 07:42 UTC
 
 Shared Arc completion-receipt experiment is applied but unaccepted. `/tmp/names-arc-completion.log` reports 4 PASS / 2 FAIL; the unobserved budget selector was still running over two hours and the observed selector queued at inspection. Check surviving processes before retry. Previous unchanged deep budgets SIGABRT; shallow observer witness passed. No stack gate closure or performance acceptance.

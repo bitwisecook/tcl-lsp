@@ -1,5 +1,10 @@
 # Outstanding work: vm-runtime agent
 
+## Stopped — 31 October 08:18 UTC
+
+No role or queued job remains active. The completed 2/2 C8.4 float sample remains valid, but its queued executable cleanup was stopped. VM deletion WIP and failing controls are preserved unreviewed in `2d626291`.
+
+
 ## Checkpoint — 31 October 07:42 UTC
 
 Filtered C8.4 float normalization sample passed 2/2 (`/tmp/vm-float-c84-control-v3.log`); executable cleanup was queued at inspection. Interpreter deletion/reentry controls remain failing against Tcl9; scoped deletion/alias backref receipt and cleanup debt designs are off-tree and unapproved. Clock and trace-state changes/tests in the worktree remain unreviewed WIP; C8.4 per-script preservation and owner/currentness controls remain open.

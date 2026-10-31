@@ -1,5 +1,10 @@
 # Outstanding work: compiler agent
 
+## Stopped — 31 October 08:18 UTC
+
+No role or queued job remains active. Unreviewed compiler work and its evidence are preserved in `2d626291`; method extraction, taint and class ownership blockers remain open.
+
+
 ## Checkpoint — 31 October 07:42 UTC
 
 TclOO routed taint lacks extracted method units: outer `classify_definer_call` refused despite metadata and binding; further stage diagnosis was queued but not inserted before interruption. Expanded-head span fix is on work; math-function taint and nested eval require actual selected-call/read receipts. Existing unreviewed taint/iRules/class work remains WIP; do not infer completion from fixture controls.

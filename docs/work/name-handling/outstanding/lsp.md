@@ -1,5 +1,10 @@
 # Outstanding work: lsp agent
 
+## Stopped — 31 October 08:18 UTC
+
+No role or queued job remains active. The unreviewed candidate and its controls are preserved in `2d626291`; a genuine duplicate-actual refusal and full release validation remain open.
+
+
 ## Checkpoint — 31 October 07:42 UTC
 
 Catalogue-only observer exclusion and N13 cleanup are unreviewed WIP. Original publication test, exact-query coexistence and genuine member-catalogue-only refusal passed; real duplicate-actual observation remains unproved. The condition-substitution duplicate fixture was not run because of the disk floor; inspect the tree and any surviving queued operation before retry. Existing branch-only traces and full e2e/startup gates remain open.
