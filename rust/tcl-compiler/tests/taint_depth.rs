@@ -1398,7 +1398,14 @@ mod w313_destructive_file {
         // the path stays inside the intended directory → W313 suppressed in the
         // guarded block.
         let src = "set raw [read $fd]\nset p [file normalize $raw]\nif {[string match \"/safe/*\" $p]} {\n  file delete $p\n}";
-        assert!(of_code(src, D, "W313").is_empty());
+        assert!(channel_of_code(src, D, "W313").is_empty());
+        let control = format!("{src}\nfile delete $p");
+        assert!(
+            channel_of_code(&control, D, "W313")
+                .iter()
+                .any(|warning| warning.variable == "p"
+                    && warning.sink_command.contains("file delete"))
+        );
     }
 
     #[test]
