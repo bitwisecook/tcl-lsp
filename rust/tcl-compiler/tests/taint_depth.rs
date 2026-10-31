@@ -574,7 +574,14 @@ mod t102_scan_region {
     fn terminator_in_arg_list_ends_scan() {
         // `regexp -nocase -- $x subject` — `--` ends switch scanning, so $x is a
         // definite positional (pattern), not an option. No T102.
-        assert!(of_code("set x [read $fd]\nregexp -nocase -- $x subject", D, "T102").is_empty());
+        let source = "set x [read $fd]\nregexp -nocase -- $x subject";
+        assert!(channel_of_code(source, D, "T102").is_empty());
+        let control = format!("{source}\nregexp $x subject match");
+        assert!(
+            channel_of_code(&control, D, "T102")
+                .iter()
+                .any(|warning| warning.variable == "x" && warning.sink_command.contains("regexp"))
+        );
     }
 
     #[test]
