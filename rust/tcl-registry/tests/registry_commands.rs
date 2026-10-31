@@ -1633,16 +1633,25 @@ fn regsub_switches_are_version_gated() {
 #[test]
 fn source_nopkg_is_version_gated() {
     let reg = CommandRegistry::build_default();
-    let source = reg.get("source").expect("source registered");
-    let in_86 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+    // Select the release's descriptor before reading its options: the default
+    // catalogue also contains Jim's independently registered source command.
+    let switches = |family, release| {
+        let query = Some(SurfaceQuery::core(family, release));
+        reg.get_for_surface("source", query)
+            .expect("source registered for the selected release")
+            .switch_names(query)
+    };
+    let in_86 = switches(Family::Tcl, "8.6");
     assert!(
         !in_86.contains(&"-nopkg"),
         "Tcl 9-only -nopkg leaked into 8.6: {in_86:?}"
     );
-    let in_90 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
+    let in_90 = switches(Family::Tcl, "9.0");
     assert!(in_90.contains(&"-nopkg"), "9.0: {in_90:?}");
-    let in_91 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.1")));
+    let in_91 = switches(Family::Tcl, "9.1");
     assert!(in_91.contains(&"-nopkg"), "9.1: {in_91:?}");
+    let in_jim = switches(Family::Jim, "0.84");
+    assert!(in_jim.is_empty(), "Jim source takes no options: {in_jim:?}");
 }
 
 /// C-Tcl: `const` is a Tcl 9.0 builtin, present in 9.0.
