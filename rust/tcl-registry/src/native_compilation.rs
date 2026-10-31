@@ -746,6 +746,19 @@ pub enum NativeArrayCommand {
     Unset,
 }
 
+/// Registered native clock reading compiler, independent of command spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeClockReading {
+    /// Clicks and its microseconds / milliseconds options.
+    Clicks,
+    /// Microsecond wall clock.
+    Microseconds,
+    /// Millisecond wall clock.
+    Milliseconds,
+    /// Second wall clock.
+    Seconds,
+}
+
 /// Native compiler-hook grammar, separate from a front-end lowering hook.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeCompilationGrammar {
@@ -781,6 +794,8 @@ pub enum NativeCompilationGrammar {
     /// C8.6+ dynamic `%s`/`%%` concatenation and exact C9.0 `%x` generic decline.
     /// Constant format evaluation and other conversion paths remain unresolved.
     FormatStringConcat,
+    /// Native clock reading operation.
+    ClockReading(NativeClockReading),
     /// No hook before this C release; an actual hook with unmodelled grammar thereafter.
     HookFrom(TclVersion),
     /// C8.5's monolithic namespace compiler only attempts original upvar syntax.
@@ -2110,6 +2125,7 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::NoHook
             | NativeCompilationGrammar::VariableAppend(_)
             | NativeCompilationGrammar::MathOperator(_)
+            | NativeCompilationGrammar::ClockReading(_)
             | NativeCompilationGrammar::TclOoHelper(_)
             | NativeCompilationGrammar::Tailcall
             | NativeCompilationGrammar::NamespaceLegacy
@@ -2320,6 +2336,7 @@ impl NativeCompilationSpec {
                     NativeCompilationGrammar::NoHook
                         | NativeCompilationGrammar::HookFrom(_)
                         | NativeCompilationGrammar::Regsub
+                        | NativeCompilationGrammar::ClockReading(_)
                         | NativeCompilationGrammar::NamespaceWhich
                         | NativeCompilationGrammar::TclOoHelper(_)
                         | NativeCompilationGrammar::StringTrim { .. }
@@ -2467,7 +2484,9 @@ impl NativeCompilationSpec {
         }
         Some(match self.grammar {
             NativeCompilationGrammar::NoHook => false,
-            NativeCompilationGrammar::Regsub => version >= TclVersion::V8_6,
+            NativeCompilationGrammar::Regsub | NativeCompilationGrammar::ClockReading(_) => {
+                version >= TclVersion::V8_6
+            }
             NativeCompilationGrammar::MathOperator(operator) => version >= operator.first_version(),
             NativeCompilationGrammar::Dictionary { command, .. } => version >= command.hook_from(),
             NativeCompilationGrammar::HookFrom(first)
@@ -2752,7 +2771,9 @@ impl NativeCompilationSpec {
         if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
             return compiler.operation_matches_grammar() && self.operation == compiler.operation;
         }
-        if self.grammar == NativeCompilationGrammar::FormatStringConcat {
+        if self.grammar == NativeCompilationGrammar::FormatStringConcat
+            || matches!(self.grammar, NativeCompilationGrammar::ClockReading(_))
+        {
             return self.operation == SemanticOperationId::Invoke;
         }
         if matches!(
@@ -3035,6 +3056,15 @@ impl NativeCompilationSpec {
         context: NativeCompilationContext,
     ) -> Option<NativeCompilationSelection> {
         use NativeCompilationSelection as Selection;
+        if let NativeCompilationGrammar::ClockReading(reading) = self.grammar {
+            return Some(clock_reading_selection(
+                reading,
+                words.literal(operand_from),
+                &words.shapes()[operand_from..],
+                version,
+                self.operation,
+            ));
+        }
         if self.grammar == NativeCompilationGrammar::FormatStringConcat {
             if crate::native_format_compilation::dynamic_format_word_declines(
                 words,
@@ -4320,6 +4350,13 @@ impl NativeCompilationSpec {
                     self.operation,
                 )
             }
+            NativeCompilationGrammar::ClockReading(reading) => clock_reading_selection(
+                reading,
+                words.arguments().literal_at(0).map(str::as_bytes),
+                shapes,
+                version,
+                self.operation,
+            ),
             NativeCompilationGrammar::HookFrom(first) => unmodelled_hook_selection(version, first),
             NativeCompilationGrammar::Regsub => regsub_grammar(words, shapes, version),
             NativeCompilationGrammar::NamespaceWhich => namespace_which_selection(
@@ -5710,6 +5747,56 @@ fn regexp_grammar(
             operation,
             guard: NativeCompilationGuard::BeforeArguments,
         }
+    }
+}
+
+pub(crate) fn clock_reading_value(
+    reading: NativeClockReading,
+    argument: Option<&[u8]>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+) -> Option<u8> {
+    use NativeClockReading as Reading;
+    if version != TclVersion::V9_0 {
+        return None;
+    }
+    match (reading, shapes) {
+        (Reading::Microseconds, []) => Some(1),
+        (Reading::Milliseconds, []) => Some(2),
+        (Reading::Seconds, []) => Some(3),
+        (Reading::Clicks, [shape]) => {
+            let bytes = crate::native_regexp_compilation::simple_word_bytes(*shape, argument)?;
+            if !(4..=13).contains(&bytes.len()) {
+                return None;
+            }
+            if b"-microseconds".starts_with(bytes) {
+                Some(1)
+            } else if b"-milliseconds".starts_with(bytes) {
+                Some(2)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn clock_reading_selection(
+    reading: NativeClockReading,
+    argument: Option<&[u8]>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    operation: SemanticOperationId,
+) -> NativeCompilationSelection {
+    if operation == SemanticOperationId::Invoke
+        && clock_reading_value(reading, argument, shapes, version).is_some()
+    {
+        NativeCompilationSelection::Inline {
+            operation,
+            guard: NativeCompilationGuard::BeforeArguments,
+        }
+    } else {
+        NativeCompilationSelection::Unknown
     }
 }
 
@@ -9585,6 +9672,109 @@ mod simple_word_split_tests {
             (b"", false),
         ] {
             assert_eq!(splits_into_text_tokens(value), split, "{value:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod clock_reading_compiler_tests {
+    use super::{
+        NativeClockReading as Reading, NativeCompilationWordShape as Shape, clock_reading_value,
+    };
+    use tcl_dialect::TclVersion;
+
+    #[test]
+    fn c90_clock_reading_selects_only_proven_forms() {
+        for (reading, selector) in [
+            (Reading::Microseconds, 1),
+            (Reading::Milliseconds, 2),
+            (Reading::Seconds, 3),
+        ] {
+            assert_eq!(
+                clock_reading_value(reading, None, &[], TclVersion::V9_0),
+                Some(selector)
+            );
+            assert_eq!(
+                clock_reading_value(reading, None, &[], TclVersion::V9_1),
+                None
+            );
+        }
+        assert_eq!(
+            clock_reading_value(Reading::Clicks, None, &[], TclVersion::V9_0),
+            None
+        );
+        for (word, selector) in [
+            (b"-mic".as_slice(), 1),
+            (b"-mil".as_slice(), 2),
+            (b"-microseconds".as_slice(), 1),
+        ] {
+            assert_eq!(
+                clock_reading_value(
+                    Reading::Clicks,
+                    Some(word),
+                    &[Shape::Literal],
+                    TclVersion::V9_0
+                ),
+                Some(selector)
+            );
+        }
+        for (word, shape) in [
+            (b"-mi".as_slice(), Shape::Literal),
+            (b"-mic".as_slice(), Shape::BackslashLiteral),
+            (b"-other".as_slice(), Shape::Literal),
+        ] {
+            assert_eq!(
+                clock_reading_value(Reading::Clicks, Some(word), &[shape], TclVersion::V9_0),
+                None
+            );
+        }
+    }
+    #[test]
+    fn registered_clock_worker_emits_the_pinned_c90_selectors() {
+        use crate::native_compiler_words::NativeCompilerWords;
+        use crate::native_instruction_plan::{
+            NativeInstructionPlan, native_registered_worker_instruction_plan,
+        };
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let registry = crate::CommandRegistry::build_default();
+        let context = super::NativeCompilationContext {
+            mode: super::NativeCompilationMode::BytecodeObject,
+            frame: super::NativeCompilationFrame::ProcedureCode,
+            ..super::NativeCompilationContext::default()
+        };
+        for (source, member, which) in [
+            ("clock clicks -mic", "clicks", 1),
+            ("clock clicks -mil", "clicks", 2),
+            ("clock seconds", "seconds", 3),
+        ] {
+            let source_image = tcl_lexer::SourceImage::native(source.as_bytes());
+            let parsed = tcl_lexer::native_script_words_in(
+                source_image,
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let spec = registry
+                .native_compilation_for_registration(&format!("::tcl::clock::{member}"), dialect)
+                .unwrap();
+            let selection =
+                spec.select_registered_worker_native_words(&words, 2, Some(dialect), context);
+            assert!(
+                matches!(selection, super::NativeCompilationSelection::Inline { .. }),
+                "{source}: {selection:?}"
+            );
+            assert_eq!(
+                native_registered_worker_instruction_plan(
+                    spec, selection, &words, 2, dialect, context
+                ),
+                Ok(NativeInstructionPlan::ClockRead(which))
+            );
         }
     }
 }

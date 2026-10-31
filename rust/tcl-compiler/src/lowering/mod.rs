@@ -78,52 +78,6 @@ enum LoweringMetadataOrigin {
     Supplied,
 }
 
-/// Optional test/debug timings expose counts without source payloads or
-/// physical addresses. They supply no semantic or native execution evidence.
-#[cfg(any(test, debug_assertions))]
-fn trace_source_lowering(
-    start: Option<std::time::Instant>,
-    phase: &str,
-    source_len: usize,
-    module: &Module,
-) {
-    if let Some(start) = start {
-        eprintln!(
-            "LOWER_SOURCE_PHASE bytes={} phase={} ms={} statements={} procedures={}",
-            source_len,
-            phase,
-            start.elapsed().as_millis(),
-            module.top_level.statements.len(),
-            module.procedures.len()
-        );
-    }
-}
-
-/// Debug timings of one original script descent, without source payloads.
-#[cfg(any(test, debug_assertions))]
-fn trace_source_script_lowering(
-    start: Option<std::time::Instant>,
-    phase: &str,
-    source_len: usize,
-    depth: u32,
-    commands: usize,
-    statements: usize,
-) {
-    if let Some(start) = start
-        && (depth <= 1 || depth.is_multiple_of(64))
-    {
-        eprintln!(
-            "LOWER_SCRIPT_PHASE bytes={} depth={} phase={} ms={} commands={} statements={}",
-            source_len,
-            depth,
-            phase,
-            start.elapsed().as_millis(),
-            commands,
-            statements
-        );
-    }
-}
-
 /// Stand-in `Script` for a body past [`MAX_LOWER_NEST_DEPTH`]: a single
 /// [`Statement::Barrier`] spanning `[base_offset, base_offset + len)`, so
 /// downstream passes treat the unanalysed region as having unknown effects
@@ -1713,17 +1667,10 @@ impl<'r> Lowerer<'r> {
 
     /// Lower a complete source string to an IR module.
     pub fn lower(&mut self, source: &str) -> &Module {
-        #[cfg(any(test, debug_assertions))]
-        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(std::time::Instant::now);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_lowering(trace_start, "entry", source.len(), &self.module);
         self.start_module();
         self.module.source =
             tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_lowering(trace_start, "configured", source.len(), &self.module);
+
         if self.source_point_entry.as_ref().is_some_and(|point| {
             self.target.is_bytecode()
                 || self.module.source_entry.unknown_entry
@@ -1741,8 +1688,7 @@ impl<'r> Lowerer<'r> {
         self.module.top_level_namespace.clone_from(&namespace);
         self.module.top_level =
             self.lower_script(source, &namespace, SourceSegmentationPurpose::WholeInput);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_lowering(trace_start, "lowered", source.len(), &self.module);
+
         self.retain_module_source_bindings();
         &self.module
     }
@@ -2437,10 +2383,7 @@ impl<'r> Lowerer<'r> {
             self.nest_depth -= 1;
             return over_depth_script(0, source.len());
         }
-        #[cfg(any(test, debug_assertions))]
-        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(std::time::Instant::now);
+
         // `source` starts a span space: its statements' offsets are relative
         // to it, whether it is the document or a literal materialised inside
         // one.  Swap it in for the descent and restore the enclosing one after
@@ -2501,36 +2444,12 @@ impl<'r> Lowerer<'r> {
             self.nest_depth -= 1;
             return over_depth_script(0, source.len());
         };
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "binding-analysis",
-            source.len(),
-            self.nest_depth,
-            0,
-            0,
-        );
+
         let enclosing_bindings = self.source_bindings.replace(bindings.into());
         let result = self.lower_script_inner(source, namespace, purpose);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "script",
-            source.len(),
-            self.nest_depth,
-            0,
-            result.statements.len(),
-        );
+
         self.restore_script_bindings(enclosing_bindings);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "restore",
-            source.len(),
-            self.nest_depth,
-            0,
-            result.statements.len(),
-        );
+
         self.source = enclosing_source;
         self.nest_depth -= 1;
         result
@@ -2588,35 +2507,15 @@ impl<'r> Lowerer<'r> {
         namespace: &str,
         purpose: SourceSegmentationPurpose,
     ) -> Script {
-        #[cfg(any(test, debug_assertions))]
-        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(std::time::Instant::now);
         let Some(commands) = self.segment_source(source, 0, purpose) else {
             return over_depth_script(0, source.len());
         };
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "segmented",
-            source.len(),
-            self.nest_depth,
-            commands.len(),
-            0,
-        );
+
         self.const_map_stack.push(HashMap::new());
         self.command_binding_site_stack.push(Vec::new());
         let stmts =
             self.in_word_space(source, 0, |this| this.lower_segmented(&commands, namespace));
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "commands",
-            source.len(),
-            self.nest_depth,
-            commands.len(),
-            stmts.len(),
-        );
+
         let command_binding_sites = self
             .command_binding_site_stack
             .pop()
@@ -2626,25 +2525,9 @@ impl<'r> Lowerer<'r> {
             Script::from_lowered_parts(stmts, command_binding_sites),
             0,
         );
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "admission",
-            source.len(),
-            self.nest_depth,
-            commands.len(),
-            script.statements.len(),
-        );
+
         let script = self.retain_script_source(script, source, 0);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "source",
-            source.len(),
-            self.nest_depth,
-            commands.len(),
-            script.statements.len(),
-        );
+
         script
     }
 
@@ -2759,39 +2642,19 @@ impl<'r> Lowerer<'r> {
     }
 
     fn lower_body_inner(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
-        #[cfg(any(test, debug_assertions))]
-        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(std::time::Instant::now);
         let Some(commands) =
             self.segment_source(text, base_offset, SourceSegmentationPurpose::NestedScript)
         else {
             return over_depth_script(base_offset, text.len());
         };
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "segmented",
-            text.len(),
-            self.nest_depth,
-            commands.len(),
-            0,
-        );
+
         let inherited = self.const_map_stack.last().cloned().unwrap_or_default();
         self.const_map_stack.push(inherited);
         self.command_binding_site_stack.push(Vec::new());
         let stmts = self.in_word_space(text, base_offset, |this| {
             this.lower_segmented(&commands, namespace)
         });
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "commands",
-            text.len(),
-            self.nest_depth,
-            commands.len(),
-            stmts.len(),
-        );
+
         let command_binding_sites = self
             .command_binding_site_stack
             .pop()
@@ -2801,25 +2664,9 @@ impl<'r> Lowerer<'r> {
             Script::from_lowered_parts(stmts, command_binding_sites),
             base_offset,
         );
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "admission",
-            text.len(),
-            self.nest_depth,
-            commands.len(),
-            script.statements.len(),
-        );
+
         let script = self.retain_script_source(script, text, base_offset);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_script_lowering(
-            trace_start,
-            "source",
-            text.len(),
-            self.nest_depth,
-            commands.len(),
-            script.statements.len(),
-        );
+
         script
     }
 

@@ -1,5 +1,120 @@
 # Outstanding work: compiler-codegen agent
 
+## Checkpoint — 31 October 07:42 UTC
+
+O121/O122 recursive rewrite suppression is on work (`3139e140`) with C9 refusal regression 1/1; existing conflicting positive assertions remain. Hash-pinned C8.6.16 and source-built C9 factorial/arity oracle supports a narrow test correction, but its combined selector still fails unchanged O123. O123 inventory resolves one self call but lacks authenticated outer-return receipt. Isolated follow-up process may still be queued; inspect `/tmp/ccg-o123-detail.log` and the isolated tree for diagnostics before retry.
+
+
+## Private ASCII failindex candidate — Tcl 9.0
+
+Pinned C9.0.4 resolves an exact compile-known `ascii` class in a fresh private
+object, then declines before emitting operands for direct private `-failindex`
+and `-strict -failindex` forms. The isolated candidate admits only those exact
+literal options, with C9 source protocol, private original coordinate, Inherit
+body, BytecodeObject context and unexpanded/nonopaque operands. Registry tests
+pass 3/3, captured direct/public/prefixed owner control 1/1, and VM-owned
+handle/order/error/rebinding/strict-empty controls 3/3. Independent scoped
+review found no blocker. Probe-free patch
+`/workspace/scratchpad/private-ascii-failindex-final-candidate.patch` passes
+worktree and cached preimage checks, formatting and virtual WIP-preservation
+checks; root alone applies it under the shared lock. Public ensemble cases,
+other classes and releases remain uncertain.
+
+## Dynamic format-word candidate — Tcl 9.0
+
+When the format word itself is substituted, C9.0.4's format compiler releases
+its private probe and declines before visiting value operands or emitting
+instructions. The isolated candidate models exactly one value operand, with
+C9 source protocol, original index 1, known frame, BytecodeObject context,
+Invoke/Inherit contract and no opaque or expanded word. Registry controls pass
+3/3, captured dispatch-owner controls pass 1/1, and VM side-effect, early-error
+and mid-operand command replacement control passes 1/1 against pinned Tcl.
+Independent scoped review cleared the candidate. Probe-free patch
+`/workspace/scratchpad/dynamic-format-word-reviewed.patch` passed formatting
+and shared preimage checks; root alone applies it under the shared lock.
+Strict ASCII StringIs remains Unknown: VM native STR_NEQ conversion, result
+ownership and registered-literal custody are not yet established.
+
+## Private StringIs dynamic-class candidate — Tcl 9.0
+
+For direct private C9 StringIs only, a substituted class and two to five
+unexpanded/nonopaque operands decline the native compiler before any operand
+emission. The isolated candidate admits ordinary Generic compilation only with
+an Inherit body, BytecodeObject context, C9 source protocol and original operand
+coordinate 1. Public or selected-worker-over-public vectors remain Unknown.
+Registry tests pass 2/2, including foreign body/context/protocol refusals; the
+captured direct/public/prefixed owner control passes 1/1; and a VM behavior
+control passes 1/1 for strict/failindex, early error and private-head replacement
+against pinned Tcl 9.0.4. Independent scoped review found no blocker. Probe-free
+patch `/workspace/scratchpad/private-string-is-candidate.patch` passed formatting
+and shared preimage checks; root alone applies it under the shared lock.
+
+## Dynamic decimal/float format candidate — Tcl 9.0
+
+For exactly one substituted value and literal `%d` or `%f`, Tcl 9.0.4's
+format compiler releases its private compile-known probe and declines before
+emitting specialised instructions or registering output literals. The isolated
+candidate extends the existing `%x` Generic path for these two formats only.
+Other formats, profiles, arities and opaque/expanded shapes retain their current
+selection. Registry controls pass 9/9; a VM control for ordinary operand
+effects, errors and later command replacement passes 1/1 against pinned Tcl.
+It does not establish retained-handle or mid-operand mutation behavior.
+Independent bounded review found no static blocker. Probe-free patch
+`/workspace/scratchpad/format-dynamic-decimal-candidate.patch` passed format and
+shared preimage checks; root alone applies it under the shared lock.
+
+## Dynamic string-map candidate — Tcl 9.0
+
+Pinned Tcl 9.0.4 selects `TclCompileBasic2ArgCmd` for a map word with a real
+substitution. The isolated candidate admits exactly that `Substituted` shape
+when no literal is present and arity is two; unsupported releases, expansion,
+wrong arity, invalid static lists and two-element inline recipes remain Unknown.
+Registry controls pass 5/5, the final captured-entry guard control passes 1/1,
+and VM-owned receipt/retained-handle and argument-time rebinding controls pass
+2/2 against the pinned C oracle. Independent bounded review found no static
+blocker. Probe-free patch `/workspace/scratchpad/string-map-dynamic-reviewed.patch`
+passed formatting and shared preimage checks; root alone applies it under the
+shared lock. Wider profiles and release gates remain open.
+
+## Branch-fold diagnostic — Tcl 9.0
+
+The recorded 29 Oct decision permits comparison/boolean folds only when the
+result is consumed solely as a branch decision, with read, trace and command
+world proofs retained. The decision blob is available locally in Git as
+`b189825b9e03becef89430bded6198b32b060610` even when the sparse worktree lacks
+its JSON file. A pinned Tcl 9.0.4 oracle confirms whole literal comparisons
+and short-circuit error behavior. In particular `set x not_boolean; expr
+{$x && 0}` errors, so an unknown operand cannot be discarded.
+
+The existing `instcombine_ternary_and_boolean_context` test fails first on a
+stored selected operand, before its branch assertions. A separate isolated
+probe preserving the original branch assertion fails to emit O110 for
+`if {($a > $b) ? 1 : 0} { puts yes }`; that is a partial rewrite and remains
+outside the reviewed whole-condition receipt scope. The probe was removed from
+the isolated test file after the run. No product guard or assertion changed.
+An isolated whole-literal diagnostic passed: `1 < 2` and `1 && 2` produced
+O112 for the true body, while `1 == 2` produced O101 `{0}`; the temporary
+probe was removed. These samples do not establish the general receipt.
+Independent static review found no explicit exclusive stock-consumer receipt in
+the SCCP Branch exemption. CFG Branch also represents synthetic foreach and
+switch dispatch; expression preparation alone does not prove its consumer.
+The source-edit span accessor returns the same terminator span, making its
+current debug equality check tautological, not a source currentness proof.
+
+## Resume — branch condition receipt
+
+Branch-only comparison and boolean result folds remain refused. The existing
+`branch_condition_source` maps a CFG terminator edit span and checks its
+expected span only with a debug assertion; it does not establish an exact,
+current source occurrence uniquely consumed by a selected stock branch handler.
+Add and review that exclusive consumer receipt before any branch-only result
+allocation exemption. Preserve preparation, coercion, read/trace, command-world,
+execution-count, short-circuit and error proofs; stored and returned results
+remain outside this scope. Review requires branch versus stored/returned,
+rebound handler, traced/side-effecting operands, short-circuit errors,
+foreign/stale occurrence and else-result controls across pinned releases.
+
+
 ## Resume — 2026-10-28 C9 regexp compiler + slice-2 review notes
 
 - C9 `TclCompileRegexpCmd` is modelled in the registry (`native_regexp_compilation`): V9_0/V9_1 accepted shapes select Inline; a SIMPLE pattern is reduced via `TclReToGlob` to STR_EQ/STR_MATCH, any other pattern word compiles before `REGEXP 3|8`; a SIMPLE `-…` pattern without `--` stays Generic. SIMPLE_WORD follows ParseTokens (a non-variable `$` or NUL beside text splits the word). Plan `NativeInstructionPlan::Regexp`; codegen emits via versioned SwitchOperation; preflight walks its original operands. Versions below 9.0 stay Unknown. Oracle: tclsh 9.0.4 disassembly pinned in registry (5) and codegen (2) tests.

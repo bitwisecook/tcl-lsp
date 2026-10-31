@@ -157,6 +157,73 @@ mod tests {
     }
 
     #[test]
+    fn unrelated_command_observer_keeps_structured_bodies_within_stack_budget() {
+        let levels = MAX_SOURCE_NEST_DEPTH.0 as usize - 2;
+        let source = format!(
+            "proc observed args {}\nproc cb args {}\ntrace add command observed delete cb\n{}",
+            "{}",
+            "{}",
+            nested_foreach(levels)
+        );
+        let lowered_levels = std::thread::Builder::new()
+            .stack_size(
+                usize::try_from(MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE)
+                    .expect("stack budget fits usize"),
+            )
+            .spawn(move || {
+                crate::command_binding::reset_observer_depth();
+                let registry =
+                    tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+                let module = crate::lowering::lower_to_ir_with_dialect(
+                    &source,
+                    registry,
+                    tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                    Some(tcl_dialect::DialectProfile::find("tcl9.0").expect("profile")),
+                );
+                assert!(
+                    crate::command_binding::max_observer_depth() >= 2,
+                    "the observer path must be active in nested source descent"
+                );
+                let mut script = &module.top_level;
+                let mut count = 0;
+                if let Some(crate::ir::Statement::Foreach { body, .. }) = script.statements.last() {
+                    count += 1;
+                    script = body;
+                }
+                while let Some(crate::ir::Statement::Foreach { body, .. }) =
+                    script.statements.first()
+                {
+                    count += 1;
+                    script = body;
+                }
+                count
+            })
+            .expect("spawn budget-sized thread")
+            .join()
+            .expect("observed descent must fit the shared budget");
+        assert_eq!(lowered_levels, levels);
+    }
+
+    #[test]
+    fn observer_depth_witness_detects_nested_source_descent() {
+        let source = format!(
+            "proc observed args {}\nproc cb args {}\ntrace add command observed delete cb\n{}",
+            "{}",
+            "{}",
+            nested_foreach(3)
+        );
+        crate::command_binding::reset_observer_depth();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let _module = crate::lowering::lower_to_ir_with_dialect(
+            &source,
+            registry,
+            tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+            Some(tcl_dialect::DialectProfile::find("tcl9.0").expect("profile")),
+        );
+        assert!(crate::command_binding::max_observer_depth() >= 2);
+    }
+
+    #[test]
     fn source_bindings_with_computed_conditions_fit_the_shared_stack_budget() {
         let source = format!(
             "set selected 1\n{}",

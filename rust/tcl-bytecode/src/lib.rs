@@ -29,15 +29,6 @@
 //! (whose only dependency is `tcl-syntax`, for [`BinOp`]/[`UnaryOp`]) lets the
 //! VM depend on the artifact without pulling in the whole compiler.
 
-// Host diagnostics cannot observe the private transcript worker.
-macro_rules! eprintln {
-    ($($arg:tt)*) => {
-        if ::tcl_runtime_api::diagnostic_output::host_diagnostics_enabled() {
-            ::std::eprintln!($($arg)*);
-        }
-    };
-}
-
 pub mod format;
 pub mod layout;
 
@@ -2649,7 +2640,6 @@ impl FunctionAsm {
             NativeCompilationAdmissionError as Error, NativeCompilationPreflight,
         };
         if self.native_compilation_preflight != NativeCompilationPreflight::NotRequired {
-            self.report_native_admission_decline("preflight_flag");
             return Err(Error::NativePreflightRequired);
         }
         if self
@@ -2657,7 +2647,6 @@ impl FunctionAsm {
             .iter()
             .any(|required| required.guard() != tcl_runtime_api::CommandBindingGuard::ChunkEntry)
         {
-            self.report_native_admission_decline("compiler_prerequisite_guard");
             return Err(Error::NativePreflightRequired);
         }
         if self
@@ -2665,11 +2654,9 @@ impl FunctionAsm {
             .as_ref()
             .is_some_and(|error| error.error_info_for_procedure(Some(&self.name)).is_none())
         {
-            self.report_native_admission_decline("invalid_error_presentation");
             return Err(Error::InvalidErrorPresentation);
         }
         if !self.native_operation_sites_valid() || !self.native_fixed_math_calls_valid() {
-            self.report_native_admission_decline("native_operation_or_fixed_math");
             return Err(Error::NativePreflightRequired);
         }
         if self.instructions.iter().any(|instruction| {
@@ -2678,25 +2665,9 @@ impl FunctionAsm {
                 .as_ref()
                 .is_some_and(|context| context.path() != &instruction.source_command_namespace)
         }) {
-            self.report_native_admission_decline("source_namespace_context");
             return Err(Error::NativePreflightRequired);
         }
         Ok(())
-    }
-    fn report_native_admission_decline(&self, predicate: &str) {
-        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1")
-        {
-            return;
-        }
-        eprintln!(
-            "\nZZ_NATIVE_ADMISSION_DECLINE predicate={predicate} preflight={:?} prerequisites={} instructions={} procedure_body={} failure={} math_prerequisite={}",
-            self.native_compilation_preflight,
-            self.native_compiler_prerequisites.len(),
-            self.instructions.len(),
-            self.proc_body_src.is_some(),
-            self.native_compilation_failure.is_some(),
-            self.native_math_table_prerequisite.is_some(),
-        );
     }
     fn native_fixed_math_calls_valid(&self) -> bool {
         use tcl_runtime_api::native_compilation::NativeMathFunctionResolution;

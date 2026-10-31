@@ -39,8 +39,9 @@ pub fn native_vm() -> Vm {
 /// is pinned to the permissive fallback profile
 /// ([`tcl_dialect::DialectProfile::plain_tcl`]) that a profile-less module —
 /// one lowered against `CommandRegistry::build_default()`, or compiled by
-/// `BytecodeCompileService::default()` — is compiled for, so such a module is
-/// admitted. A harness that compiles for a named release builds with
+/// `BytecodeCompileService::default()` — is compiled for. Native admission
+/// still requires its preflight capabilities. A harness that compiles for a
+/// named release builds with
 /// [`native_vm_for_release`] or [`native_vm_for_profile`] instead.
 #[must_use]
 pub fn native_vm_with_output(out: Box<dyn Write>) -> Vm {

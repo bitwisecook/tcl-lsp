@@ -1727,6 +1727,16 @@ mod interprocedural_taint {
             .collect();
         codes.sort();
         assert_eq!(codes, Vec::<String>::new());
+        let control = format!("{source}puts $raw\n");
+        let control_warnings = dialect_warns(&control, D);
+        assert!(
+            control_warnings.iter().any(|warning| {
+                warning.code.to_string() == "T101"
+                    && warning.variable == "raw"
+                    && warning.sink_command == "puts"
+            }),
+            "same-prefix positive control: {control_warnings:?}"
+        );
     }
 
     #[test]

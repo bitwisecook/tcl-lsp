@@ -9,102 +9,8 @@
 use crate::original_declaration::{
     OriginalDeclarationDocument, OriginalDeclarationIdentity, OriginalSourceViewPublication,
 };
-use std::fmt::Write as _;
 use tcl_compiler::command_binding::OriginalSourceProcedureCall;
 use tcl_lexer::Span;
-
-#[derive(Default)]
-struct PrepareHeldTrace {
-    detail: String,
-    heads_seen: usize,
-}
-
-thread_local! {
-    static PREPARE_REFUSAL_TRACE: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
-    static PREPARE_HELD_TRACE: std::cell::RefCell<PrepareHeldTrace> = const { std::cell::RefCell::new(PrepareHeldTrace { detail: String::new(), heads_seen: 0 }) };
-}
-
-fn trace_prepare_held(record: impl FnOnce(&mut PrepareHeldTrace)) {
-    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-        PREPARE_HELD_TRACE.with(|trace| record(&mut trace.borrow_mut()));
-    }
-}
-
-fn trace_prepare_inventory(owner: &OriginalSourceViewDocument<'_>, offset: u32, calls: usize) {
-    trace_prepare_held(|trace| {
-        let _ = write!(
-            trace.detail,
-            " offset={offset} calls={calls} selected_analysis={:p} selected_region={}",
-            owner.document.analysis,
-            owner.region.is_some(),
-        );
-    });
-}
-
-fn trace_prepare_head(span: Option<Span>, owned: bool, matches: bool) {
-    trace_prepare_held(|trace| {
-        trace.heads_seen += 1;
-        if trace.heads_seen <= 16 {
-            let _ = write!(
-                trace.detail,
-                " head[{}]={span:?}:owned={owned}:matches={matches}",
-                trace.heads_seen,
-            );
-        } else if trace.heads_seen == 17 {
-            trace.detail.push_str(" head_rows_truncated=true");
-        }
-    });
-}
-
-fn trace_prepare_uncertainty(operations: &[std::sync::Arc<[tcl_lexer::NativeWord]>]) {
-    trace_prepare_held(|trace| {
-        let _ = write!(trace.detail, " uncertainty_count={}", operations.len());
-        for (ordinal, operation) in operations.iter().take(16).enumerate() {
-            let first = operation.first();
-            let _ = write!(
-                trace.detail,
-                " debt[{ordinal}]=words:{}:head:{:?}:last:{:?}:image_bytes:{:?}",
-                operation.len(),
-                first.map(tcl_lexer::NativeWord::span),
-                operation.last().map(tcl_lexer::NativeWord::span),
-                first.map(|word| word.image().bytes().len()),
-            );
-        }
-        if operations.len() > 16 {
-            trace.detail.push_str(" debt_rows_truncated=true");
-        }
-    });
-}
-
-fn trace_prepare_refusal(stage: &'static str) {
-    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-        PREPARE_REFUSAL_TRACE.with(|trace| {
-            if trace.get().is_none() {
-                trace.set(Some(stage));
-            }
-        });
-    }
-}
-
-fn prepare_required<T>(value: Option<T>, stage: &'static str) -> Option<T> {
-    if value.is_none() {
-        trace_prepare_refusal(stage);
-    }
-    value
-}
-
-/// Drain the first refusal from the existing synchronous prepare computation.
-/// This observes no additional semantic query or currentness decision.
-#[must_use]
-pub fn take_prepare_refusal_trace() -> Option<String> {
-    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-        let stage = PREPARE_REFUSAL_TRACE.with(std::cell::Cell::take);
-        let held = PREPARE_HELD_TRACE.with(|trace| std::mem::take(&mut *trace.borrow_mut()));
-        stage.map(|stage| format!("{stage}{}", held.detail))
-    } else {
-        None
-    }
-}
 
 /// One exact retained interpretation and its genuine physical ancestor chain.
 pub struct OriginalSourceViewDocument<'a> {
@@ -319,65 +225,46 @@ pub fn prepare(
     offset: u32,
     documents: &[OriginalSourceViewDocument<'_>],
 ) -> Option<OriginalSourceViewDeclaration> {
-    let _ = take_prepare_refusal_trace();
     let mut owners = documents.iter().filter(|row| row.publication == selected);
-    let owner = prepare_required(owners.next(), "prepare.selected-owner")?;
-    prepare_required(
-        owners.next().is_none().then_some(()),
-        "prepare.unique-owner",
-    )?;
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(())?;
     let doc = &owner.document;
-    prepare_required(owner.current(), "prepare.current-owner")?;
-    let rows = prepare_required(
-        crate::original_declaration::declarations(doc.uri, doc.source, doc.analysis),
-        "prepare.declaration-inventory",
-    )?;
+    owner.current()?;
+    let rows = crate::original_declaration::declarations(doc.uri, doc.source, doc.analysis)?;
     let mut local = rows.into_iter().filter(|row| {
         owner.owns_declaration(row) && row.span().start() <= offset && offset < row.span().end()
     });
     if let Some(identity) = local.next() {
-        return prepare_required(
-            local
-                .next()
-                .is_none()
-                .then(|| OriginalSourceViewDeclaration {
-                    publication: selected.clone(),
-                    identity,
-                }),
-            "prepare.unique-local-declaration",
-        );
+        return local
+            .next()
+            .is_none()
+            .then(|| OriginalSourceViewDeclaration {
+                publication: selected.clone(),
+                identity,
+            });
     }
-    let calls = prepare_required(owner.procedure_calls(), "prepare.procedure-call-inventory")?;
-    trace_prepare_inventory(owner, offset, calls.len());
+    let calls = owner.procedure_calls()?;
+
     let mut matching = calls.iter().filter(|call| {
         let head = call.original_words().first();
-        if head.is_none() {
-            trace_prepare_head(None, false, false);
-        }
         head.is_some_and(|head| {
             let span = head.span();
             let call_is_owned = owner.owns_procedure_call(call);
             let matches = call_is_owned && span.start() <= offset && offset < span.end();
-            trace_prepare_head(Some(span), call_is_owned, matches);
+
             matches
         })
     });
-    let call = prepare_required(matching.next(), "prepare.matching-call")?;
-    prepare_required(
-        matching.all(|other| other == call).then_some(()),
-        "prepare.unique-call",
-    )?;
+    let call = matching.next()?;
+    matching.all(|other| other == call).then_some(())?;
     let uncertainty = call.uncertain_operations();
     if !uncertainty.is_empty() {
-        trace_prepare_uncertainty(uncertainty);
-        trace_prepare_refusal("prepare.call-uncertainty");
         return None;
     }
     if call.has_lookup_operand_effects() {
-        trace_prepare_refusal("prepare.lookup-operand-effects");
         return None;
     }
-    prepare_required(target(call, owner, documents), "prepare.target-owner")
+    target(call, owner, documents)
 }
 
 /// Positive conditional procedure edges. Missing coverage is unavailable; an

@@ -1400,8 +1400,17 @@ impl BodyWalk<'_, '_> {
             lineage: &lineage,
         };
         self.context.retain_arity_debt(graph, invocation, &schema)?;
-        self.context
-            .observe_source_point(graph, invocation.native, &schema);
+        #[cfg(test)]
+        self.context.note_source_point_body_walk(
+            invocation.native,
+            self.catalogue_body.is_some() || self.member_catalogue_body.is_some(),
+        );
+        // Catalogue walks record syntax under conditional applicability; they
+        // cannot issue an execution-point graph or veto an entered-body walk.
+        if self.catalogue_body.is_none() && self.member_catalogue_body.is_none() {
+            self.context
+                .observe_source_point(graph, invocation.native, &schema);
+        }
         self.retain_child_schema(graph, invocation, &schema)?;
         let retained_lifecycle = if let Some(tape) = &mut self.inventory {
             self.context.retain_c_source_lifecycle_inventory(

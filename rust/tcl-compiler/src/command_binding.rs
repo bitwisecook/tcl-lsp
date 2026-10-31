@@ -257,6 +257,8 @@ mod array_destruction;
 mod array_iteration;
 mod command_mutations;
 mod command_observers;
+#[cfg(test)]
+pub(crate) use command_observers::{max_observer_depth, reset_observer_depth};
 mod command_reference;
 mod declaration_lookup;
 mod linked_definition;
@@ -6837,8 +6839,8 @@ impl SourceConditionalHandlerNormal {
 #[derive(Clone, Default, PartialEq, Eq)]
 struct SourceOutcomes {
     normal_completion: Option<SourceNormalCompletion>,
-    native_normal_completion: Option<SourceNativeNormalCompletion>,
-    conditional_normal_completion: Option<SourceConditionalHandlerNormal>,
+    native_normal_completion: Option<Arc<SourceNativeNormalCompletion>>,
+    conditional_normal_completion: Option<Arc<SourceConditionalHandlerNormal>>,
     complete_procedure_return: Option<tcl_registry::completion_route::InvocationCompletionRoute>,
     normal: Option<Box<ModuleCommandBindings>>,
     normal_value: Option<Arc<native_result::EvaluatedSourceValue>>,
@@ -6881,6 +6883,7 @@ fn boxed_source_completion_receipt<T>(capture: impl FnOnce() -> Option<T>) -> Op
 fn boxed_source_outcomes() -> Box<SourceOutcomes> {
     Box::new(SourceOutcomes::default())
 }
+
 
 /// Construct the special empty result before returning to native body dispatch.
 #[inline(never)]
@@ -6934,7 +6937,7 @@ impl SourceOutcomes {
             self.retain_conditional_handler_completion(native, facts, context);
             return;
         }
-        self.native_normal_completion = Some(SourceNativeNormalCompletion {
+        self.native_normal_completion = Some(Arc::new(SourceNativeNormalCompletion {
             site: CommandAllocationSite {
                 source: Arc::clone(source),
                 offset: native.segment.span.start(),
@@ -6942,7 +6945,7 @@ impl SourceOutcomes {
             config: context.config,
             words: native.words.to_vec(),
             operation: facts.operation,
-        });
+        }));
         self.retain_complete_normal_evaluation();
     }
 
@@ -6970,7 +6973,7 @@ impl SourceOutcomes {
         let Some(source) = &normal.current_source_origin else {
             return;
         };
-        self.conditional_normal_completion = Some(SourceConditionalHandlerNormal {
+        self.conditional_normal_completion = Some(Arc::new(SourceConditionalHandlerNormal {
             site: CommandAllocationSite {
                 source: Arc::clone(source),
                 offset: native.segment.span.start(),
@@ -6979,7 +6982,7 @@ impl SourceOutcomes {
             words: native.words.to_vec(),
             operation: facts.operation,
             entry: entry.clone(),
-        });
+        }));
         self.retain_complete_normal_evaluation();
     }
 
@@ -9675,19 +9678,9 @@ impl SourceCommandBindings {
                 outcomes.normal_completion.is_some(),
             );
             let prefix_complete = outcomes.normal_completion;
-            #[cfg(debug_assertions)]
-            let n17_before = source_world_observer::before_command(&continuing);
             let command = self.walk_source_command(image, base, &mut continuing, segment, context);
             #[cfg(debug_assertions)]
-            source_world_observer::observe_command(
-                self,
-                context,
-                image,
-                segment,
-                n17_before,
-                &command,
-                prefix_complete.is_some(),
-            );
+            source_world_observer::observe_command(segment, &command, prefix_complete.is_some());
             #[cfg(debug_assertions)]
             command.trace_original_namespace_child("command_return", segment.span.start());
             outcomes.join(&command);
@@ -9747,22 +9740,6 @@ impl SourceCommandBindings {
                 assessment.compiler_invocations.len(),
                 assessment.compiled_children.len(),
                 self.declaration_preview_depth,
-            );
-        }
-        #[cfg(debug_assertions)]
-        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
-        {
-            eprintln!(
-                "ZZ_NATIVE_PREFLIGHT_ASSESSMENT base={base} source_len={} mode={:?} frame={:?} preview_depth={} possible_error={} native_entry_unavailable={} failure={} visits={} children={}",
-                image.len(),
-                context.compilation().mode,
-                context.compilation().frame,
-                self.declaration_preview_depth,
-                assessment.possible_error,
-                assessment.native_entry_unavailable,
-                assessment.failure.is_some(),
-                assessment.compiler_invocations.len(),
-                assessment.compiled_children.len(),
             );
         }
         #[cfg(any(test, debug_assertions))]

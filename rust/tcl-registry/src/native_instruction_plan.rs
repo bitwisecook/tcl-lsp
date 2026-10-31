@@ -92,6 +92,8 @@ pub enum NativeInstructionPlan {
     Concat(NativeConcatInstruction),
     /// Original format literal fragments and ordered value-word compiler visits.
     FormatStringConcat(NativeFormatStringInstruction),
+    /// C clockRead selector, as retained by the installed native compiler.
+    ClockRead(u8),
     /// Ordered root/current namespace bindings, including declined preparation.
     NamespaceBindings(
         crate::native_namespace_binding_compilation::NativeNamespaceBindingCompilation,
@@ -1262,6 +1264,16 @@ fn selected_nonvariable_instruction_plan(
         return Some(plan);
     }
     Some(match spec.grammar {
+        NativeCompilationGrammar::ClockReading(reading) => {
+            crate::native_compilation::clock_reading_value(
+                reading,
+                words.literal(operand_from),
+                words.shapes().get(operand_from..)?,
+                version,
+            )
+            .map(NativeInstructionPlan::ClockRead)
+            .ok_or(Unavailable::Selection)
+        }
         NativeCompilationGrammar::Break => Ok(NativeInstructionPlan::Break),
         NativeCompilationGrammar::Uplevel => {
             selected_uplevel_instruction(spec, words, operand_from, dialect)

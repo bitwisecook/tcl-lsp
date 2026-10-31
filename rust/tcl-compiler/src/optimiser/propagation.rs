@@ -78,35 +78,6 @@ use tcl_syntax::naming::whole_scalar_variable_reference_name;
 
 mod declared_body;
 
-// Off-tree diagnostic only: exact original row24, enabled explicitly.
-macro_rules! ccg_row24_trace {
-    ($ctx:expr, $($arg:tt)*) => {
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
-            && $ctx.source == "set x 1\nputs [expr {$x + 1}]\nputs $x\n"
-        {
-            eprintln!($($arg)*);
-        }
-    };
-}
-
-macro_rules! n17_live_trace {
-    ($($arg:tt)*) => {
-        #[cfg(debug_assertions)]
-        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
-            eprintln!("N17G_LIVE {}", format_args!($($arg)*));
-        }
-    };
-}
-
-macro_rules! n17_live_some {
-    ($value:expr, $gate:literal) => {{
-        let value = $value;
-        n17_live_trace!("gate={} present={}", $gate, value.is_some());
-        value
-    }};
-}
-
 /// Run the propagation pass across every function.
 ///
 /// Emits one `O100` per single-token `$var` argument that SCCP
@@ -116,8 +87,6 @@ macro_rules! n17_live_some {
 /// …) are skipped because substituting them as a bare word
 /// would change the command's interpretation.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    ccg_row24_trace!(ctx, "CCG24 stage=pass-enter");
-    n17_live_trace!("propagation-entry procedures={}", cu.procedures.len());
     run_oo_method_folds(ctx, cu);
     // The top-level body's extra escaping set (names some other procedure
     // declares `global`) — shared by the top-level constants projection
@@ -153,7 +122,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
     for (qname, proc) in cu.ir_module.original_source_procedure_bodies() {
         let Some(fu) = cu.function_for_body(Some(*qname)) else {
-            n17_live_trace!("decline=propagation-procedure-missing name={qname:?}");
             continue;
         };
         // The call-site namespace for O103 chain resolution is the proc's
@@ -164,10 +132,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             .as_deref()
             .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
         else {
-            n17_live_trace!("decline=propagation-namespace name={qname:?}");
             continue;
         };
-        n17_live_trace!("propagation-procedure name={qname:?} namespace={namespace}");
+
         run_function(ctx, cu, fu, &proc.body, &namespace, &no_extra_escaping);
     }
     declared_body::run(ctx, cu);
@@ -1490,44 +1457,30 @@ pub(crate) fn retained_substitution_calls(
     module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<Vec<crate::word_subst::LiftedCall>> {
-    n17_live_trace!("substitution-inventory-entry");
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     if module.source_metadata_input.is_none()
         && module.source_entry.metadata_context.is_standalone()
     {
-        return n17_live_some!(
-            crate::word_subst::checked_lifted_calls(
-                tokens,
-                tokens.native_lexer_config(module.lexer_config.nested()),
-            ),
-            "substitution-standalone-inventory"
+        return crate::word_subst::checked_lifted_calls(
+            tokens,
+            tokens.native_lexer_config(module.lexer_config.nested()),
         );
     }
     if !module
         .retained_source_bindings
-        .as_deref()
-        .or_else(|| {
-            n17_live_trace!("decline=substitution-retained-bindings");
-            None
-        })?
+        .as_deref()?
         .matches_module(module, registry)
     {
-        n17_live_trace!("decline=substitution-module-currency");
         return None;
     }
-    let metadata = n17_live_some!(
-        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module),
-        "substitution-metadata"
-    )?;
-    n17_live_some!(
-        crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-            tokens,
-            module.lexer_config.nested(),
-            registry,
-            metadata,
-        ),
-        "substitution-original-inventory"
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+    crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        tokens,
+        module.lexer_config.nested(),
+        registry,
+        metadata,
     )
 }
 
@@ -1552,8 +1505,7 @@ fn fold_retained_builtin(
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
-    n17_live_trace!("builtin-entry span={:?}", call.span);
-    let metadata = n17_live_some!(metadata, "builtin-metadata")?;
+    let metadata = metadata?;
     let release = dialect.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
         profile.vm_runtime_version
     });
@@ -1740,17 +1692,6 @@ fn run_function(
     namespace: &str,
     extra_escaping: &std::collections::HashSet<String>,
 ) {
-    ccg_row24_trace!(
-        ctx,
-        "CCG24 stage=function-enter authored={}",
-        script.is_authored_source()
-    );
-    n17_live_trace!(
-        "function-entry body={:?} authored={} statements={} namespace={namespace}",
-        fu.body_id,
-        script.is_authored_source(),
-        script.statements.len()
-    );
     // A computed or opaque variable name can rewrite any local binding under
     // a spelling absent from SCCP's per-name lattice.  Do not let its raw
     // constants reach the text-level folds below: unlike
@@ -1758,11 +1699,6 @@ fn run_function(
     // dynamic-name guard and could emit (for example) `return 1` after a
     // depth-capped nested substitution may have run `set $name 2`.
     if fu.dynamic_barrier_blocks_value_motion() {
-        n17_live_trace!(
-            "decline=propagation-dynamic-value-motion-barrier body={:?}",
-            fu.body_id
-        );
-        ccg_row24_trace!(ctx, "CCG24 stage=dynamic-barrier");
         // A local value-motion barrier withdraws lattice substitutions. Exact
         // original invocation receipts still independently authorise closed
         // constant calls that consume no such local facts.
@@ -1788,11 +1724,7 @@ fn run_function(
     // (below) is the one exception that still needs its own check, since it
     // runs an independent def-use-chain scan that never consults `fu.sccp`.
     let constants = constants_with_builtin_folds(ctx, cu, fu, extra_escaping);
-    ccg_row24_trace!(
-        ctx,
-        "CCG24 stage=projected-constants x={:?}",
-        constants.get("x")
-    );
+
     let numeric = operand_types(fu);
     walk_script(ctx, cu, script, &constants, Some(&numeric), namespace, 0);
 }
@@ -1898,22 +1830,7 @@ fn walk_script(
     namespace: &str,
     depth: u32,
 ) {
-    ccg_row24_trace!(
-        ctx,
-        "CCG24 stage=walk-script depth={depth} authored={} count={}",
-        script.is_authored_source(),
-        script.statements.len()
-    );
-    n17_live_trace!(
-        "walk-script depth={depth} authored={} statements={}",
-        script.is_authored_source(),
-        script.statements.len()
-    );
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
-        n17_live_trace!(
-            "decline=walk-script depth={depth} authored={}",
-            script.is_authored_source()
-        );
         return;
     }
     for stmt in &script.statements {
@@ -1954,11 +1871,6 @@ fn walk_statement(
             tokens,
             ..
         } => {
-            ccg_row24_trace!(
-                ctx,
-                "CCG24 stage=call span={span:?} tokens={}",
-                tokens.is_some()
-            );
             if let Some(t) = tokens {
                 visit_call_tokens(ctx, cu, t, constants);
                 visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace, *span);
@@ -2676,11 +2588,10 @@ fn try_o101_expr_arg_fold(
     call: &crate::word_subst::LiftedCall,
     constants: &std::collections::HashMap<String, String>,
 ) -> Option<String> {
-    ccg_row24_trace!(ctx, "CCG24 stage=expr-enter constants={constants:?}");
     let registry = ctx.registry?;
-    ccg_row24_trace!(ctx, "CCG24 stage=expr-registry");
+
     let input = cu.ir_module.source_metadata_input.as_ref()?;
-    ccg_row24_trace!(ctx, "CCG24 stage=expr-input");
+
     let context = PassContext {
         source: ctx.source,
         dialect: ctx.dialect,
@@ -2689,7 +2600,7 @@ fn try_o101_expr_arg_fold(
         ..PassContext::default()
     };
     let actual = context.retained_metadata_context()?;
-    ccg_row24_trace!(ctx, "CCG24 stage=expr-metadata");
+
     let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(input.unit_profile());
     parser.lexer_grammar = input.lexer_config().grammar_over(parser.lexer_grammar);
     let expression = crate::word_subst::lifted_source_expressions_with_metadata_context(
@@ -2701,7 +2612,7 @@ fn try_o101_expr_arg_fold(
     )
     .into_iter()
     .find(|expression| expression.span == call.span)?;
-    ccg_row24_trace!(ctx, "CCG24 stage=expr-lifted-match");
+
     let env = constants
         .iter()
         .map(|(name, value)| {
@@ -2712,7 +2623,7 @@ fn try_o101_expr_arg_fold(
         })
         .collect();
     let value = context.eval_expression_at(&expression.expression, &env, call.span)?;
-    ccg_row24_trace!(ctx, "CCG24 stage=expr-evaluated");
+
     crate::tcl_expr_eval::format_tcl_value_with_policy(&value, context.fold_policy())
         .and_then(|value| render_propagation_word(&value, input.lexer_config()))
 }
@@ -2725,7 +2636,6 @@ fn visit_call_cmd_subst_folds(
     _namespace: &str,
     statement_span: tcl_lexer::Span,
 ) {
-    n17_live_trace!("substitution-visit span={statement_span:?}");
     let Some(registry) = ctx.registry else {
         return;
     };
@@ -2733,11 +2643,9 @@ fn visit_call_cmd_subst_folds(
         crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
-        ccg_row24_trace!(ctx, "CCG24 stage=no-retained-calls");
         return;
     };
-    ccg_row24_trace!(ctx, "CCG24 stage=retained-calls count={}", calls.len());
-    n17_live_trace!("substitution-count count={}", calls.len());
+
     for word in tokens.words() {
         let crate::ir::WordExpr::CommandSubstitution { spelling, source } = word else {
             continue;
@@ -2776,7 +2684,7 @@ fn visit_call_cmd_subst_folds(
             continue;
         }
         let is_expr = retained_expr_call(call, registry, metadata);
-        ccg_row24_trace!(ctx, "CCG24 stage=expr-call selected={is_expr}");
+
         if is_expr && let Some(folded) = try_o101_expr_arg_fold(ctx, cu, tokens, call, constants) {
             ctx.report(Optimisation::new(
                 DiagCode::O101,

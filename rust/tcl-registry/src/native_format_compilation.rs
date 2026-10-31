@@ -54,10 +54,10 @@ pub(crate) fn select(
         )
         || context.mode != NativeCompilationMode::BytecodeObject
         || context.frame == NativeCompilationFrame::Unknown
-        || !matches!(
+        || !(matches!(
             shapes.first(),
             Some(Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral)
-        )
+        ) || (version == TclVersion::V9_0 && shapes.first() == Some(&Shape::BackslashLiteral)))
         || !shapes.contains(&Shape::Substituted)
         || shapes
             .iter()
@@ -354,6 +354,55 @@ mod tests {
         assert_eq!(
             spec.select(invocation, shapes, None, context()),
             NativeCompilationSelection::Unknown
+        );
+    }
+
+    #[test]
+    fn backslash_format_uses_decoded_original_word() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
+        };
+        use crate::native_compiler_words::NativeCompilerWords;
+        let version = TclVersion::V9_0;
+        let source = tcl_lexer::SourceImage::native(br"format x\n%s $value".as_slice());
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let parsed = tcl_lexer::native_script_words_in(
+            source.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        )
+        .unwrap();
+        let words = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            tcl_syntax::native_string::NativeStringProtocol::C(version),
+        )
+        .unwrap();
+        assert_eq!(words.literal(1), Some(b"x\n%s".as_slice()));
+        assert_eq!(
+            words.shapes()[1],
+            NativeCompilationWordShape::BackslashLiteral
+        );
+        let spec = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::FormatStringConcat,
+            operation: SemanticOperationId::Invoke,
+            body: NativeBodyCompilation::Inherit,
+        };
+        assert!(matches!(
+            spec.select_native_words(
+                &words,
+                1,
+                Some(crate::InvocationDialect::for_version(version)),
+                context()
+            ),
+            NativeCompilationSelection::Inline { .. }
+        ));
+        use crate::native_instruction_plan::NativeFormatStringPiece;
+        assert_eq!(
+            instruction(&words, 1, version, context()).unwrap().pieces,
+            vec![
+                NativeFormatStringPiece::Literal(b"x\n".to_vec()),
+                NativeFormatStringPiece::Value(2),
+            ]
         );
     }
 

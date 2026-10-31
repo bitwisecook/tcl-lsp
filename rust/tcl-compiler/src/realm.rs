@@ -869,6 +869,42 @@ pub fn document_realm_bindings_with_config(
     )
 }
 
+/// Build a fresh hosted source realm from its complete current input.
+///
+/// The environment and registry must belong to the selected unit profile.
+/// This selects an authored source entry and grants no native execution authority.
+#[must_use]
+pub fn document_realm_bindings_for_fresh_hosted_source(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Option<CommandBindingRealm> {
+    let context = input.context_registry();
+    let registry = context.commands();
+    let profile = input.unit_profile();
+    if !input.has_hosted_source_name_context()
+        || registry
+            .profile()
+            .is_none_or(|actual| actual.cache_key() != profile.cache_key())
+        || context.context().environment.id
+            != tcl_registry::model::ingress::context_for_profile(profile)
+                .context()
+                .environment
+                .id
+    {
+        return None;
+    }
+    let config = input.lexer_config();
+    let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    );
+    let bindings =
+        SourceCommandBindings::analyse_with_options(source, config, registry, entry.options());
+    Some(realm_from_source_bindings(bindings, registry).with_resolved_analysis_input(input.clone()))
+}
+
 /// Interpret source with the driver's retained execution target and full body
 /// configuration. The catalogue's convenience default supplies no replacement
 /// for this input; actual native entries use their independently sealed path.
@@ -1116,6 +1152,57 @@ fn realm_from_source_bindings(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fresh_hosted_realm_keeps_loader_event_and_source_owners() {
+        use std::sync::Arc;
+        let profile = tcl_dialect::DialectProfile::irules();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "::when HTTP_REQUEST {pool p}";
+        let realm = super::document_realm_bindings_for_fresh_hosted_source(source, &input).unwrap();
+        let loader = realm.invocation_at_source("::when", 0);
+        assert_eq!(
+            loader.invocation_realm(),
+            Some(tcl_dialect::model::InvocationRealm::RuleLoader)
+        );
+        assert!(
+            loader
+                .proved_target()
+                .is_some_and(|target| target.registry_backed && target.command == "::when")
+        );
+        let pool_at = u32::try_from(source.find("pool").unwrap()).unwrap();
+        let event = realm.invocation_at_source("pool", pool_at);
+        assert_eq!(
+            event.invocation_realm(),
+            Some(tcl_dialect::model::InvocationRealm::InterpreterRuntime)
+        );
+        assert!(
+            event
+                .proved_target()
+                .is_some_and(|target| target.registry_backed && target.command == "::pool")
+        );
+        assert!(
+            realm.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        );
+        assert!(!realm.matches_original_source_image(
+            &tcl_lexer::SourceImage::document("::when HTTP_REQUEST {pool q}"),
+            config
+        ));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let mismatched =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, foreign, config);
+        assert!(
+            super::document_realm_bindings_for_fresh_hosted_source(source, &mismatched).is_none()
+        );
+    }
 
     #[test]
     fn original_module_realm_reuses_positioned_inventory_across_native_engine_profiles() {

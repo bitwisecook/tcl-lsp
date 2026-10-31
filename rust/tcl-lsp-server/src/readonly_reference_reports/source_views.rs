@@ -559,8 +559,6 @@ enum SourceViewPublicationMode {
     AppendRegions,
 }
 
-macro_rules! tmp_view_probe { ($($arg:tt)*) => { if std::env::var_os("TCL_LSP_TMP_VIEW_PROBE").is_some() { eprintln!("TMP_VIEW_PROBE {}", format_args!($($arg)*)); } }; }
-
 impl Backend {
     /// Commit all interpretations of one physical source in the same index
     /// transaction. Pending/unavailable required drafts never call this method.
@@ -1546,43 +1544,6 @@ struct OriginalSourceScopeProjection {
 }
 
 impl OriginalSourceViewSettlement {
-    fn host_navigation_scope_detail(&self, uri: &Uri) -> String {
-        let mut scopes = self
-            .scopes
-            .iter()
-            .map(|scope| {
-                format!(
-                    "root={} complete={} conditional={} selected_required={} owners={}",
-                    scope.root_uri.as_str(),
-                    scope.complete,
-                    scope.conditional_obligations,
-                    scope.required.contains(uri),
-                    scope.ids.len(),
-                )
-            })
-            .collect::<Vec<_>>();
-        scopes.sort();
-        scopes.join("; ")
-    }
-
-    pub(crate) fn tmp_probe_scopes(&self) -> String {
-        self.scopes
-            .iter()
-            .map(|scope| {
-                format!(
-                    "[{} root={} complete={} conditional={} uncertain={} ids={} required={:?}]",
-                    scope.root_uri.as_str(),
-                    scope.root.is_some(),
-                    scope.complete,
-                    scope.conditional_obligations,
-                    scope.root_world_uncertain,
-                    scope.ids.len(),
-                    scope.required.iter().map(|uri| uri.as_str()).collect::<Vec<_>>()
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
     fn aggregate_complete(&self) -> bool {
         self.scopes
             .iter()
@@ -1766,13 +1727,9 @@ impl Backend {
             .prune_retired_original_source_view_presentations()
             .await
         {
-            self.trace_host_navigation_stage("graph.prune-refused")
-                .await;
             return Ok(None);
         }
         let Some(work) = self.original_source_root_work().await? else {
-            self.trace_host_navigation_stage("graph.root-work-unavailable")
-                .await;
             return Ok(None);
         };
         let mut reconciliation = OriginalSourceRootReconciliation {
@@ -1803,17 +1760,11 @@ impl Backend {
             .reconcile_excluded_original_roots(&mut reconciliation)
             .await?
         {
-            self.trace_host_navigation_stage("graph.excluded-reconciliation-refused")
-                .await;
             return Ok(None);
         }
         let result = self
             .finish_original_root_reconciliation(reconciliation)
             .await?;
-        if result.is_none() {
-            self.trace_host_navigation_stage("graph.final-reconciliation-refused")
-                .await;
-        }
         Ok(result)
     }
 
@@ -2683,13 +2634,11 @@ impl Backend {
         };
         while let Some(task) = state.tasks.pop() {
             if state.membership.len() > 4096 {
-                tmp_view_probe!("scope.incomplete site=1 root={}", root_uri.as_str());
                 return Ok(state.finish_scope(root_id, root_uri, false));
             }
             match task {
                 SourceViewWork::Enter(parent) => {
                     if !self.visit_original_source_view(parent, &mut state).await? {
-                        tmp_view_probe!("scope.incomplete site=2 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     }
                 }
@@ -2699,7 +2648,6 @@ impl Backend {
                     load,
                 } => {
                     let Some(completed_child) = state.finished.get(&child.id) else {
-                        tmp_view_probe!("scope.incomplete site=3 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     let Some(work) = self
@@ -2711,7 +2659,6 @@ impl Backend {
                         )
                         .await?
                     else {
-                        tmp_view_probe!("scope.incomplete site=4 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     state
@@ -2721,7 +2668,6 @@ impl Backend {
                         .reconcile_issued_region_frontiers(&work, &mut state)
                         .await?
                     {
-                        tmp_view_probe!("scope.incomplete site=5 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     }
                     if let Some(completion) = work.completion() {
@@ -2732,7 +2678,6 @@ impl Backend {
                         // last issued frame region. It cannot skip to an outer
                         // suffix or manufacture whole-prefix completion.
                         let Some(last) = work.views.last().cloned() else {
-                            tmp_view_probe!("scope.incomplete site=6 root={}", root_uri.as_str());
                             return Ok(state.finish_scope(root_id, root_uri, false));
                         };
                         state.tasks.push(SourceViewWork::AfterRegion {
@@ -2744,11 +2689,9 @@ impl Backend {
                 }
                 SourceViewWork::AfterRegion { work, region } => {
                     let Some(Some(completed)) = state.finished.get(&region.id) else {
-                        tmp_view_probe!("scope.incomplete site=7 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     let Some(completion) = work.completion_through_region(completed) else {
-                        tmp_view_probe!("scope.incomplete site=8 root={}", root_uri.as_str());
                         return Ok(state.finish_scope(root_id, root_uri, false));
                     };
                     state.active.remove(&work.parent.id);
@@ -2759,7 +2702,6 @@ impl Backend {
         // Finishing a real first cut cannot silently discharge unrelated or
         // held Unknown cards outside the actual replayed region inventory.
         if !state.unknown.is_empty() {
-            tmp_view_probe!("scope.incomplete site=9 root={}", root_uri.as_str());
             return Ok(state.finish_scope(root_id, root_uri, false));
         }
         let no_cut = matches!(state.finished.get(&root_id), Some(None));
@@ -3321,28 +3263,6 @@ impl Backend {
 }
 
 impl Backend {
-    async fn trace_host_navigation_stage(&self, stage: &str) {
-        if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-            self.client
-                .log_message(
-                    tower_lsp_server::ls_types::MessageType::LOG,
-                    format!("HOST_NAV_STAGE uri=* stage={stage}"),
-                )
-                .await;
-        }
-    }
-
-    pub(crate) async fn trace_host_navigation(&self, uri: &Uri, stage: &str, detail: &str) {
-        if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-            self.client
-                .log_message(
-                    tower_lsp_server::ls_types::MessageType::LOG,
-                    format!("HOST_NAV_STAGE uri={} stage={stage} {detail}", uri.as_str()),
-                )
-                .await;
-        }
-    }
-
     async fn await_original_source_navigation_readiness(
         &self,
         uri: &Uri,
@@ -3375,20 +3295,12 @@ impl Backend {
     > {
         self.await_original_source_navigation_readiness(uri).await?;
         let Some(settlement) = self.refresh_original_source_view_graph().await? else {
-            self.trace_host_navigation(uri, "graph.unavailable", "")
-                .await;
             return Ok(std::ops::ControlFlow::Break(None));
         };
         let Some(ids) = settlement.navigation_projection(uri, references) else {
-            if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-                let scopes = settlement.host_navigation_scope_detail(uri);
-                self.trace_host_navigation(uri, "projection.unavailable", &scopes)
-                    .await;
-            }
             return Ok(std::ops::ControlFlow::Break(None));
         };
         let aggregate_complete = settlement.aggregate_complete();
-        let trace_uri = uri.clone();
         let uri = uri.clone();
         let computed = self
             .compute_original_source_views(&ids, move |views| {
@@ -3401,20 +3313,9 @@ impl Backend {
                 ))
             })
             .await?;
-        let Some((
-            owners,
-            HostNavigationCalculation {
-                output,
-                stage,
-                detail,
-            },
-        )) = computed
-        else {
-            self.trace_host_navigation(&trace_uri, "views.current-scope-unavailable", "")
-                .await;
+        let Some((owners, output)) = computed else {
             return Ok(std::ops::ControlFlow::Break(None));
         };
-        self.trace_host_navigation(&trace_uri, stage, &detail).await;
         let Some(output) = output else {
             return Ok(std::ops::ControlFlow::Break(None));
         };
@@ -3425,41 +3326,11 @@ impl Backend {
                 output.take()
             })
             .await?;
-        if result.is_none() {
-            self.trace_host_navigation(&trace_uri, "views.final-current-scope-unavailable", "")
-                .await;
-        }
         Ok(result.unwrap_or(std::ops::ControlFlow::Break(None)))
     }
 }
 
 type HostNavigationRoute = std::ops::ControlFlow<Option<Vec<tower_lsp_server::ls_types::Location>>>;
-struct HostNavigationCalculation {
-    output: Option<HostNavigationRoute>,
-    stage: &'static str,
-    detail: String,
-}
-
-fn host_navigation_owner_detail(views: &[&Arc<PublishedOriginalSourceView>]) -> String {
-    if !matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-        return String::new();
-    }
-    views
-        .iter()
-        .map(|view| {
-            format!(
-                "owner={:?} analysis={:p} interpreted={} region={} bytes={}",
-                view.id,
-                view.draft.producer.seed.analysis.as_ref(),
-                view.draft.is_interpreted(),
-                view.draft.region.is_some(),
-                view.draft.physical.source.len(),
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("; ")
-}
-
 impl Backend {
     fn calculate_original_source_navigation(
         views: &[Arc<PublishedOriginalSourceView>],
@@ -3467,100 +3338,79 @@ impl Backend {
         position: tower_lsp_server::ls_types::Position,
         references: Option<bool>,
         aggregate_complete: bool,
-    ) -> HostNavigationCalculation {
+    ) -> Option<HostNavigationRoute> {
         let selected_views = views
             .iter()
             .filter(|view| &view.draft.physical.uri == uri)
             .collect::<Vec<_>>();
-        let mut detail = host_navigation_owner_detail(&selected_views);
-        let mut stage = "views.labels";
-        let output = (|| {
-            if aggregate_complete
-                && !selected_views
+        if aggregate_complete
+            && !selected_views
+                .iter()
+                .any(|view| view.draft.is_interpreted())
+        {
+            return Some(std::ops::ControlFlow::Continue(()));
+        }
+        let (publications, ancestors) = Self::original_source_view_labels(views)?;
+        let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
+        let mut result = Vec::new();
+
+        let first = selected_views.first()?;
+        let source = &first.draft.physical.source;
+        let offset = tcl_lexer::LineIndex::new(source).offset_at_utf16(
+            position.line,
+            tcl_lexer::Utf16Col::new(position.character),
+            source,
+        );
+
+        for publication in tcl_lsp_core::original_source_views::cursor_publications(
+            uri.as_str(),
+            offset,
+            &inventory,
+        )? {
+            let selected =
+                tcl_lsp_core::original_source_views::prepare(&publication, offset, &inventory);
+            let selected = selected?;
+            if references != Some(false) {
+                let target = inventory
                     .iter()
-                    .any(|view| view.draft.is_interpreted())
-            {
-                stage = "ordinary.continue";
-                return Some(std::ops::ControlFlow::Continue(()));
+                    .find(|row| row.publication == &selected.publication)?;
+                let range = tcl_lsp_core::definition::span_to_range(
+                    target.document.source,
+                    &tcl_lexer::LineIndex::new_lsp(target.document.source),
+                    selected.identity.span(),
+                );
+                result.push(tower_lsp_server::ls_types::Location {
+                    uri: selected.identity.uri().parse().ok()?,
+                    range: super::super::lift_lsp_range(range),
+                });
             }
-            let (publications, ancestors) = Self::original_source_view_labels(views)?;
-            let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
-            let mut result = Vec::new();
-            stage = "views.selected-first";
-            let first = selected_views.first()?;
-            let source = &first.draft.physical.source;
-            let offset = tcl_lexer::LineIndex::new(source).offset_at_utf16(
-                position.line,
-                tcl_lexer::Utf16Col::new(position.character),
-                source,
-            );
-            stage = "core.cursor-publications";
-            for publication in tcl_lsp_core::original_source_views::cursor_publications(
-                uri.as_str(),
-                offset,
-                &inventory,
-            )? {
-                stage = "core.prepare";
-                let selected =
-                    tcl_lsp_core::original_source_views::prepare(&publication, offset, &inventory);
-                if selected.is_none()
-                    && matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1"))
-                    && let Some(refusal) =
-                        tcl_lsp_core::original_source_views::take_prepare_refusal_trace()
+            if references.is_some() {
+                for reference in
+                    tcl_lsp_core::original_source_views::references(&selected, &inventory)
                 {
-                    detail.push_str(" core_prepare_refusal=");
-                    detail.push_str(&refusal);
-                }
-                let selected = selected?;
-                if references != Some(false) {
-                    stage = "core.target-owner";
-                    let target = inventory
+                    let caller = inventory
                         .iter()
-                        .find(|row| row.publication == &selected.publication)?;
+                        .find(|row| row.publication == &reference.publication)?;
                     let range = tcl_lsp_core::definition::span_to_range(
-                        target.document.source,
-                        &tcl_lexer::LineIndex::new_lsp(target.document.source),
-                        selected.identity.span(),
+                        caller.document.source,
+                        &tcl_lexer::LineIndex::new_lsp(caller.document.source),
+                        reference.span,
                     );
                     result.push(tower_lsp_server::ls_types::Location {
-                        uri: selected.identity.uri().parse().ok()?,
+                        uri: caller.document.uri.parse().ok()?,
                         range: super::super::lift_lsp_range(range),
                     });
                 }
-                if references.is_some() {
-                    for reference in
-                        tcl_lsp_core::original_source_views::references(&selected, &inventory)
-                    {
-                        stage = "core.reference-owner";
-                        let caller = inventory
-                            .iter()
-                            .find(|row| row.publication == &reference.publication)?;
-                        let range = tcl_lsp_core::definition::span_to_range(
-                            caller.document.source,
-                            &tcl_lexer::LineIndex::new_lsp(caller.document.source),
-                            reference.span,
-                        );
-                        result.push(tower_lsp_server::ls_types::Location {
-                            uri: caller.document.uri.parse().ok()?,
-                            range: super::super::lift_lsp_range(range),
-                        });
-                    }
-                }
             }
-            let mut unique = Vec::new();
-            for location in result {
-                if !unique.contains(&location) {
-                    unique.push(location);
-                }
-            }
-            stage = "core.complete";
-            Some(std::ops::ControlFlow::Break(Some(unique)))
-        })();
-        HostNavigationCalculation {
-            output,
-            stage,
-            detail,
         }
+        let mut unique = Vec::new();
+        for location in result {
+            if !unique.contains(&location) {
+                unique.push(location);
+            }
+        }
+
+        Some(std::ops::ControlFlow::Break(Some(unique)))
     }
 }
 
@@ -3898,6 +3748,39 @@ mod completed_world_owner_controls {
                 && location.range.start.character == start
                 && location.range.end.character == end));
         }
+    }
+
+    #[tokio::test]
+    async fn positive_references_from_root_follow_its_source_view() {
+        let (fixture, backend) = reference_fixture(true, "host_old 9\n", REFERENCE_SOURCE).await;
+        let route = backend
+            .original_source_view_navigation_route(
+                &fixture.main,
+                tower_lsp_server::ls_types::Position {
+                    line: 1,
+                    character: 2,
+                },
+                Some(true),
+            )
+            .await
+            .unwrap();
+        let locations = match route {
+            std::ops::ControlFlow::Break(Some(locations)) => locations,
+            other => panic!("source-view references unavailable: {other:?}"),
+        };
+        assert!(
+            locations
+                .iter()
+                .any(|location| location.uri == fixture.main && location.range.start.line == 1)
+        );
+        assert_reference_locations(
+            &fixture.host,
+            &locations
+                .iter()
+                .filter(|location| location.uri == fixture.host)
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
     }
 
     #[tokio::test]

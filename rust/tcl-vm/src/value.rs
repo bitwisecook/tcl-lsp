@@ -1299,13 +1299,6 @@ impl Value {
         if self.native_object_is_live() {
             Ok(())
         } else {
-            #[cfg(any(test, feature = "test-support"))]
-            if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
-                eprintln!(
-                    "retired-native-header-access: {}",
-                    std::backtrace::Backtrace::force_capture()
-                );
-            }
             Err(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "retired native object header",
@@ -1317,13 +1310,6 @@ impl Value {
     fn retire_native_header(&self) {
         if self.0.retired.replace(true) {
             return;
-        }
-        #[cfg(any(test, feature = "test-support"))]
-        if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
-            eprintln!(
-                "retired-native-header-release: {}",
-                std::backtrace::Backtrace::force_capture()
-            );
         }
         #[cfg(test)]
         observe_native_retirement(self);

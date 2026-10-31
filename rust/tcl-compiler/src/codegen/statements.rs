@@ -31,6 +31,9 @@ use crate::word_subst::whole_word_command_tokens;
 use tcl_registry::hooks::InlineCodegenHookId;
 #[path = "statements/native_array.rs"]
 mod native_array;
+#[cfg(test)]
+#[path = "statements/native_clock_tests.rs"]
+mod native_clock_tests;
 #[path = "native_control.rs"]
 mod native_control;
 #[path = "native_coroutine.rs"]
@@ -2936,6 +2939,10 @@ impl CodegenCtx<'_> {
                 return Self::append_native_uplevel_tasks(command, &recipe, operations);
             }
 
+            NativeInstructionPlan::ClockRead(which) => operations.push(Task::Operation(
+                Op::CLOCK_READ,
+                vec![Operand::Imm(i32::from(which))],
+            )),
             NativeInstructionPlan::Break => operations.push(Task::Operation(Op::BREAK, vec![])),
             NativeInstructionPlan::Continue => {
                 operations.push(Task::Operation(Op::CONTINUE, vec![]));

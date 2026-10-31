@@ -1712,26 +1712,6 @@ pub(super) fn original_registration_descriptor(
     tcl_registry::native_compilation::NativeCompilationSpec,
     usize,
 )> {
-    macro_rules! registration_some {
-        ($value:expr, $stage:literal) => {
-            match $value {
-                Some(value) => value,
-                None => {
-                    #[cfg(debug_assertions)]
-                    if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
-                        == Ok("first-decline-v1")
-                    {
-                        eprintln!(
-                            "ZZ_NATIVE_REGISTRATION_DECLINE stage={} head={head:?} offset={offset} words={}",
-                            $stage,
-                            words.len()
-                        );
-                    }
-                    return None;
-                }
-            }
-        };
-    }
     let compiler_state = context
         .compilation_snapshot
         .map_or(state, |snapshot| &snapshot.table.state);
@@ -1743,45 +1723,29 @@ pub(super) fn original_registration_descriptor(
     if let Some(registered) = registered
         && registered.compiler.ensemble.is_none()
     {
-        let origin = registration_some!(state.current_source_origin.as_ref(), "source-origin");
-        let original = registration_some!(
-            origin.original_lexical_command(words, offset, context.config),
-            "original-lexical-command"
-        );
-        let protocol = registration_some!(
-            super::compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state),
-            "source-string-protocol"
-        );
-        let captured = registration_some!(
-            tcl_registry::native_compiler_words::NativeCompilerWords::capture(
-                original.native_words(),
-                protocol,
-            )
-            .ok(),
-            "original-native-words"
-        );
-        let spec = registration_some!(
-            context
-                .registry
-                .native_compilation_for_original_registration(
-                    &registered.compiler.registry_identity,
-                    &captured,
-                    1,
-                    registration_some!(state.baseline.compilation_dialect(), "compiler-dialect"),
-                ),
-            "registered-compiler-descriptor"
-        );
+        let origin = state.current_source_origin.as_ref()?;
+        let original = origin.original_lexical_command(words, offset, context.config)?;
+        let protocol =
+            super::compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state)?;
+        let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            original.native_words(),
+            protocol,
+        )
+        .ok()?;
+        let spec = context
+            .registry
+            .native_compilation_for_original_registration(
+                &registered.compiler.registry_identity,
+                &captured,
+                1,
+                state.baseline.compilation_dialect()?,
+            )?;
         return Some((spec, 0));
     }
-    let spec = registration_some!(facts.native_compilation, "invocation-compiler-descriptor");
-    let argument_offset = registration_some!(
-        registration_some!(
-            spec.original_operand_from_for_facts(facts),
-            "original-operand-coordinate"
-        )
-        .checked_sub(1),
-        "original-operand-base"
-    );
+    let spec = facts.native_compilation?;
+    let argument_offset = spec
+        .original_operand_from_for_facts(facts)?
+        .checked_sub(1)?;
     Some((spec, argument_offset))
 }
 

@@ -93,7 +93,7 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Concat(
                 tcl_registry::native_instruction_plan::NativeConcatInstruction::Operands(operands),
             ) => self.original_operands(words, operands.iter().cloned(), context),
-            NativeInstructionPlan::Concat(_) => None,
+            NativeInstructionPlan::Concat(_) | NativeInstructionPlan::ClockRead(_) => None,
             NativeInstructionPlan::FormatStringConcat(recipe) => self.original_operands(
                 words,
                 recipe.pieces.iter().filter_map(|piece| match piece {

@@ -4487,6 +4487,83 @@ mod tests {
     }
 
     #[test]
+    fn procedure_body_execution_constants_use_retained_preparation() {
+        for (expression, expected_constant) in [("2 + 2", true), ("1 / 4.0", false)] {
+            let owner = tcl_registry::model::ingress::static_context_for("tcl8.4");
+            let registry = owner.commands();
+            let profile = registry.profile().expect("selected profile");
+            let source =
+                format!("proc p {{}} {{set result [expr {{{expression}}}]; return $result}}");
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                &source, registry, false, profile,
+            );
+            let mut found = false;
+            for function in unit.procedures.values().chain(unit.body_units.values()) {
+                for statement in function
+                    .ssa
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.statements)
+                {
+                    if !matches!(&statement.statement, Statement::AssignExpr { name, .. } if name == "result")
+                    {
+                        continue;
+                    }
+                    found = true;
+                    assert!(!statement.defs.is_empty());
+                    for (&symbol, &version) in &statement.defs {
+                        assert_eq!(
+                            matches!(
+                                function.sccp.values.get(&(symbol, version)),
+                                Some(LatticeValue::Const(_))
+                            ),
+                            expected_constant,
+                            "procedure expression {expression}",
+                        );
+                    }
+                }
+            }
+            assert!(found, "retained procedure expression {expression}");
+        }
+    }
+
+    #[test]
+    fn lambda_body_execution_constants_use_retained_preparation() {
+        let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = owner.commands();
+        let profile = registry.profile().expect("selected profile");
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "apply {{} {set result [expr {2 + 2}]; return $result}}",
+            registry,
+            false,
+            profile,
+        );
+        let mut found = false;
+        for function in unit.body_units.values() {
+            for statement in function
+                .ssa
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+            {
+                if !matches!(&statement.statement, Statement::AssignExpr { name, .. } if name == "result")
+                {
+                    continue;
+                }
+                found = true;
+                assert!(!statement.defs.is_empty());
+                for (&symbol, &version) in &statement.defs {
+                    assert!(matches!(
+                        function.sccp.values.get(&(symbol, version)),
+                        Some(LatticeValue::Const(ConstValue::Int(4)))
+                    ));
+                }
+            }
+        }
+        assert!(found, "retained lambda expression");
+    }
+
+    #[test]
     fn semantic_solver_keeps_selected_native_result_bytes_separate_from_number() {
         let profile = tcl_registry::model::ingress::static_context_for("jim")
             .commands()

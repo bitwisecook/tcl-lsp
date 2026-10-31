@@ -160,23 +160,6 @@ struct OriginalConstSubstSource<'a> {
     ) -> Option<String>,
 }
 
-macro_rules! n17_live_trace {
-    ($($arg:tt)*) => {
-        #[cfg(debug_assertions)]
-        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
-            eprintln!("N17G_LIVE {}", format_args!($($arg)*));
-        }
-    };
-}
-
-macro_rules! n17_live_some {
-    ($value:expr, $gate:literal) => {{
-        let value = $value;
-        n17_live_trace!("gate={} present={}", $gate, value.is_some());
-        value
-    }};
-}
-
 /// One checked original fold whose selected implementation has not run.
 /// It carries the same canonical facts, retained argv and execution policy
 /// the ordinary fold would pass; evaluating it is the holder's decision and
@@ -223,25 +206,13 @@ impl SelectedConstFold {
 
     fn run_with(&self, spec: &CommandSpec) -> Option<String> {
         let arguments = self.arguments()?;
-        n17_live_trace!(
-            "hook-call command={} argc={}",
-            self.facts.canonical_command,
-            arguments.len()
-        );
-        let answer = if spec.subcommands.is_empty() {
+
+        if spec.subcommands.is_empty() {
             spec.run_const_fold_in(&arguments, self.dialect)
         } else {
-            n17_live_some!(
-                spec.subcommand(n17_live_some!(
-                    self.facts.subcommand.canonical_name(),
-                    "fold-subcommand-name"
-                )?),
-                "fold-subcommand"
-            )?
-            .run_const_fold_in(&arguments, self.dialect)
-        };
-        n17_live_trace!("hook-return present={}", answer.is_some());
-        answer
+            spec.subcommand(self.facts.subcommand.canonical_name()?)?
+                .run_const_fold_in(&arguments, self.dialect)
+        }
     }
 }
 
@@ -251,30 +222,6 @@ enum RetainedFold<'r> {
         spec: &'r CommandSpec,
         request: SelectedConstFold,
     },
-}
-
-#[cfg(debug_assertions)]
-fn trace_execution_refusal(
-    binding: &crate::command_binding::SourceInvocationBinding,
-    target: Option<&crate::command_binding::SourceCommandTarget>,
-) {
-    n17_live_trace!(
-        "selected-target-refusal reachability={:?} compiled_unknown={} execution_unknown={} may_be_absent={} selected_present={} live_dispatch={} live_unknown={} native_count={} named_count={} any_named_unknown={} source_world={:?}",
-        binding.runtime_reachability(),
-        binding.compiled_execution_unknown(),
-        binding.execution_is_unknown(),
-        binding.execution_may_be_absent(),
-        target.is_some(),
-        binding.may_use_live_dispatch,
-        binding.unknown,
-        binding.compiled_candidates.len(),
-        binding.compiled_named_candidates.len(),
-        binding
-            .compiled_named_candidates
-            .iter()
-            .any(|proof| proof.unknown),
-        crate::command_binding::source_world_observer::binding_world(binding),
-    );
 }
 
 impl<'a> ConstSubstCtx<'a> {
@@ -325,46 +272,31 @@ impl<'a> ConstSubstCtx<'a> {
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<RetainedFold<'a>> {
-        n17_live_trace!("fold-entry span={:?} depth={depth}", call.span);
         if depth > MAX_CONST_SUBST_DEPTH {
-            n17_live_trace!("decline=fold-depth");
             return None;
         }
-        let tokens = n17_live_some!(call.tokens.as_ref(), "fold-tokens")?;
-        let binding = n17_live_some!(tokens.source_binding.as_ref(), "fold-binding")?;
+        let tokens = call.tokens.as_ref()?;
+        let binding = tokens.source_binding.as_ref()?;
         let target = binding.proved_execution_target();
-        if target.is_none_or(|target| !target.registry_backed) {
-            #[cfg(debug_assertions)]
-            trace_execution_refusal(binding, target);
-        }
-        n17_live_some!(
-            target.filter(|target| target.registry_backed),
-            "fold-actual-registry-target"
-        )?;
-        let invocation = n17_live_some!(
+        target.filter(|target| target.registry_backed)?;
+        let invocation =
             crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
                 self.registry,
                 Some(context),
                 tokens,
-            ),
-            "fold-handler"
-        )?;
-        n17_live_trace!("selected-command={}", invocation.facts.canonical_command);
-        let dialect = n17_live_some!(invocation.dialect, "fold-dialect")?;
+            )?;
+
+        let dialect = invocation.dialect?;
         // A fold hook supplies the contract for the call it replaces;
         // absent effect metadata stays conservative for other calls.
         if invocation.facts.effects.requires_world_barrier()
-            && n17_live_some!(
-                invocation.with_metadata_schema(
-                    self.registry,
-                    context,
-                    n17_live_some!(binding.invocation_realm(), "fold-realm")?,
-                    |schema| Some(schema.semantics.world_effects.is_declared()),
-                ),
-                "fold-world-schema"
+            && invocation.with_metadata_schema(
+                self.registry,
+                context,
+                binding.invocation_realm()?,
+                |schema| Some(schema.semantics.world_effects.is_declared()),
             )?
         {
-            n17_live_trace!("decline=declared-world-footprint");
             return None;
         }
         if invocation.facts.operation
@@ -374,27 +306,18 @@ impl<'a> ConstSubstCtx<'a> {
         {
             return None;
         }
-        let args = n17_live_some!(
-            self.retained_arguments_at_depth(call, calls, depth, context),
-            "fold-arguments"
-        )?;
+        let args = self.retained_arguments_at_depth(call, calls, depth, context)?;
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-        let spec = n17_live_some!(
-            self.registry.get_for_surface(
-                &invocation.facts.canonical_command,
-                Some(context.context().authoring_query()),
-            ),
-            "fold-spec"
+        let spec = self.registry.get_for_surface(
+            &invocation.facts.canonical_command,
+            Some(context.context().authoring_query()),
         )?;
         if let Some(class) = self.defining_class
             && let Some(value) = oo_context_fact_fold(spec, &args, class)
         {
             return Some(RetainedFold::Answered(value));
         }
-        n17_live_some!(
-            arg_refs.get(invocation.facts.argument_offset..),
-            "fold-offset"
-        )?;
+        arg_refs.get(invocation.facts.argument_offset..)?;
         Some(RetainedFold::Selected {
             spec,
             request: SelectedConstFold {
@@ -434,12 +357,7 @@ impl<'a> ConstSubstCtx<'a> {
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
-        self.retained_token_arguments_at_depth(
-            n17_live_some!(call.tokens.as_ref(), "fold-tokens")?,
-            calls,
-            depth,
-            context,
-        )
+        self.retained_token_arguments_at_depth(call.tokens.as_ref()?, calls, depth, context)
     }
 
     /// Observe the existing variable-word refusal without additional queries.
@@ -449,26 +367,19 @@ impl<'a> ConstSubstCtx<'a> {
     ) -> bool {
         let alternatives = access.context_alternatives().len();
         if alternatives == 0 {
-            n17_live_trace!("argument-variable alternatives=0");
             return false;
         }
         let residual = access.context_residual();
         if residual != crate::command_binding::SourceVariableReadResidual::Closed {
-            n17_live_trace!("argument-variable alternatives={alternatives} residual={residual:?}");
             return false;
         }
         access.context_alternatives().iter().all(|context| {
             let place = access.place_in_context(context, self.registry);
             let produces = context.read_produces_value(&place, self.registry);
             if !produces {
-                n17_live_trace!("argument-variable alternatives={alternatives} residual=Closed read-produces=false native-string=UNREACHED");
                 return false;
             }
-            let native_closed = context.contents_native_string_access_closed_at(&place, self.registry);
-            if !native_closed {
-                n17_live_trace!("argument-variable alternatives={alternatives} residual=Closed read-produces=true native-string=false");
-            }
-            native_closed
+            context.contents_native_string_access_closed_at(&place, self.registry)
         })
     }
 
@@ -480,26 +391,16 @@ impl<'a> ConstSubstCtx<'a> {
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
         if !context.matches_registry(self.registry) {
-            n17_live_trace!("decline=argument-registry-context");
             return None;
         }
-        let binding = n17_live_some!(tokens.source_binding.as_ref(), "fold-binding")?;
-        let target = n17_live_some!(
-            binding.proved_execution_target().or_else(|| {
-                binding
-                    .scoped_procedure_evaluation(tokens)
-                    .map(|receipt| receipt.target)
-            }),
-            "argument-target"
-        )?;
-        let dialect = n17_live_some!(
-            binding.variable_context.invocation_dialect,
-            "argument-dialect"
-        )?;
-        let effective = n17_live_some!(
-            crate::registry_invocation::effective_words_for_target(tokens, target),
-            "argument-effective-words"
-        )?;
+        let binding = tokens.source_binding.as_ref()?;
+        let target = binding.proved_execution_target().or_else(|| {
+            binding
+                .scoped_procedure_evaluation(tokens)
+                .map(|receipt| receipt.target)
+        })?;
+        let dialect = binding.variable_context.invocation_dialect?;
+        let effective = crate::registry_invocation::effective_words_for_target(tokens, target)?;
         effective
             .words
             .iter()
@@ -511,7 +412,7 @@ impl<'a> ConstSubstCtx<'a> {
                     Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_))
                 ) && !binding.object_callback_effects_closed()
                 {
-                    n17_live_trace!("decline=argument-effect-or-child-uniqueness");
+
                     return None;
                 }
                 let value = || {
@@ -544,9 +445,9 @@ impl<'a> ConstSubstCtx<'a> {
                         value()
                     }
                     crate::ir::WordExpr::Variable { spelling, source } => {
-                        let access = n17_live_some!(tokens.variable_access_at(source, spelling), "argument-variable-access")?;
+                        let access = tokens.variable_access_at(source, spelling)?;
                         if !self.retained_argument_variable_access_closed(access) {
-                            n17_live_trace!("decline=argument-effect-or-child-uniqueness");
+
                     return None;
                         }
                         value()
@@ -555,16 +456,16 @@ impl<'a> ConstSubstCtx<'a> {
                         let mut selected = calls
                             .iter()
                             .filter(|child| child.span.start() == source.span.start());
-                        let child = n17_live_some!(selected.next(), "argument-child")?;
+                        let child = selected.next()?;
                         if selected.next().is_some() {
-                            n17_live_trace!("decline=argument-effect-or-child-uniqueness");
+
                     return None;
                         }
                         self.fold_retained_at_depth(child, calls, depth + 1, context)
                     }
                     _ => None,
                 };
-                n17_live_trace!("argument-value index={index} present={}", answer.is_some());
+
                 answer
             })
             .collect()

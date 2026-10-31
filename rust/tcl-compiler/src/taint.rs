@@ -3797,28 +3797,6 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     .warnings
 }
 
-fn trace_taint_cu_ingress_option<T>(stage: &str, value: Option<T>) -> Option<T> {
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
-        eprintln!("TAINT_CU_INGRESS stage={stage} present={}", value.is_some());
-    }
-    #[cfg(not(debug_assertions))]
-    let _ = stage;
-    value
-}
-
-fn trace_taint_cu_ingress_context(source: TaintSourceContext<'_>) -> TaintSourceContext<'_> {
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
-        eprintln!(
-            "TAINT_CU_INGRESS stage=function_source_context metadata={} dialect={}",
-            source.metadata.is_some(),
-            source.dialect.is_some()
-        );
-    }
-    source
-}
-
 fn setter_constraint_warnings_for_unit_function(
     fu: &crate::compilation_unit::FunctionUnit,
     module: &crate::ir::Module,
@@ -3849,21 +3827,12 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> TaintWarningReport {
     let mut out = TaintWarningReport::analysed(Vec::new(), Vec::new());
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
-        eprintln!(
-            "TAINT_CU_INGRESS stage=module retained_bindings={} supplied_input={}",
-            cu.ir_module.retained_source_bindings.is_some(),
-            cu.ir_module.source_metadata_input.is_some()
-        );
-    }
     // naming.source.retained-positioned-command-realm
     // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
     // Missing original ownership is terminal for this whole-unit query.
-    let Some(identities) = trace_taint_cu_ingress_option(
-        "positioned_module_realm",
-        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry),
-    ) else {
+    let Some(identities) =
+        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
+    else {
         out.replays = TaintReplayAnalysis::unavailable();
         return out;
     };
@@ -3890,19 +3859,7 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
             &fu.ssa,
             module_traces,
         );
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
-            eprintln!(
-                "TAINT_CU_INGRESS stage=function body_id={} executable_blocks={} taint_values={}",
-                fu.body_id.is_some(),
-                exec.len(),
-                taints.len()
-            );
-        }
-        let Some(shadowed) = trace_taint_cu_ingress_option(
-            "current_shadowed_names",
-            shadowed_builtin_names_for_module_function(fu, cu, registry),
-        ) else {
+        let Some(shadowed) = shadowed_builtin_names_for_module_function(fu, cu, registry) else {
             out.replays.merge(TaintReplayAnalysis::unavailable());
             continue;
         };
@@ -3911,7 +3868,7 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
             &taints,
             exec,
             registry,
-            trace_taint_cu_ingress_context(TaintSourceContext::for_unit_may(registry, cu, fu)),
+            TaintSourceContext::for_unit_may(registry, cu, fu),
             &shadowed,
             (module_traces, &identities, Some(&cu.ir_module)),
         ));
@@ -5380,16 +5337,6 @@ fn taint_warning_report_impl<
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
     for bn in cfg_order(cfg) {
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
-            eprintln!(
-                "HOSTED_TAINT_BLOCK block={bn:?} executable={} statements={}",
-                executable_blocks.contains(&bn),
-                ssa.blocks
-                    .get(&bn)
-                    .map_or(0, |block| block.statements.len())
-            );
-        }
         if !executable_blocks.contains(&bn) {
             continue;
         }
@@ -5792,19 +5739,12 @@ fn ordinary_retained_sink_candidates<H>(
     }
     // The explicit current Standalone CU may carry possible source syntax,
     // not an executed target. Native/hosted or missing ownership is terminal.
-    if trace_taint_cu_ingress_option("sink.not_native", (!native_source).then_some(())).is_some()
-        && trace_taint_cu_ingress_option(
-            "sink.standalone",
-            context.source.allows_nominal_metadata().then_some(()),
-        )
-        .is_some()
-        && trace_taint_cu_ingress_option("sink.module", context.source.module()).is_some()
-        && let Some(selected) = trace_taint_cu_ingress_option(
-            "sink.capture",
-            crate::registry_invocation::AuthoredSourceTaintInvocation::capture(
-                tokens,
-                context.registry,
-            ),
+    if !native_source
+        && context.source.allows_nominal_metadata()
+        && context.source.module().is_some()
+        && let Some(selected) = crate::registry_invocation::AuthoredSourceTaintInvocation::capture(
+            tokens,
+            context.registry,
         )
     {
         let command = selected.command().to_owned();
@@ -5864,17 +5804,6 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
         };
         if !context.source.allows_nominal_metadata() && source_metadata.is_none() {
             continue;
-        }
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
-            eprintln!(
-                "HOSTED_TAINT_CANDIDATE site={} conditional_source={} spellings={} origins={} uses={}",
-                statement.statement.span().start(),
-                source_metadata.is_some(),
-                effective.argument_spellings(args).is_some(),
-                effective.origins.len(),
-                statement.uses.len()
-            );
         }
         let Some(args) = effective.argument_spellings(args) else {
             continue;
@@ -6998,16 +6927,6 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     );
 
     // Primary sink classification (T100 code-exec / T101 + iRules output / log).
-    #[cfg(debug_assertions)]
-    if sink_call.source_read.is_some() && std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
-        let code = classify_sink(registry, command, call_args, dialect).map(|(code, _)| code);
-        eprintln!(
-            "HOSTED_TAINT_SINK site={} code={code:?} args={} uses={}",
-            span.start(),
-            call_args.len(),
-            uses.len()
-        );
-    }
     let classified = if sink_call.tokens.is_some() {
         classify_source_sink(&sink_call, dialect)
     } else if sink_call.source.allows_nominal_metadata() {
@@ -7309,17 +7228,6 @@ impl<'a> SourceWarningRead<'a> {
             SourceWarningMetadata::WithOriginalReads { .. } => return None,
         };
         let value = key.and_then(|key| taints.get(&key).copied());
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
-            eprintln!(
-                "HOSTED_TAINT_READ site={} read={} version={} lattice={} tainted={}",
-                original.source().span.start(),
-                read.is_some(),
-                read.is_some_and(|read| read.version.is_some()),
-                value.is_some(),
-                value.is_none_or(TaintLattice::is_tainted)
-            );
-        }
         Some(value.unwrap_or_else(TaintLattice::tainted))
     }
 }

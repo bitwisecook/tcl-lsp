@@ -553,24 +553,6 @@ pub(crate) fn logical_structured_invocation(
 fn trace_original_structure(stage: &'static str, tokens: &CommandTokens, passed: bool) {
     host_structure_observer::flag(stage, passed);
     let _ = tokens;
-    #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-        let offset = tokens
-            .words()
-            .first()
-            .map(|word| word.source().span.start());
-        eprintln!("ORIGINAL_SOURCE_JOIN stage=structure.{stage} offset={offset:?} passed={passed}");
-    }
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
-        let offset = tokens
-            .words()
-            .first()
-            .map(|word| word.source().span.start());
-        eprintln!(
-            "JIM_SOURCE_OWNER stage=jim.body.structure guard={stage} offset={offset:?} passed={passed}"
-        );
-    }
 }
 
 fn original_structured_source_selection(

@@ -653,10 +653,9 @@ impl Backend {
             }
             FreshSourceAnalysisPurpose::SemanticStructure => {
                 let Some(admission) = snapshot.path_admission.clone() else {
-                    trace_coarse_source_check("capture.path_admission", false);
                     return Ok(None);
                 };
-                trace_coarse_source_check("capture.path_admission", true);
+
                 admission.check_for(uri, self.store.as_ref())?;
                 let driver = self
                     .fresh_analysis_driver(admission)
@@ -671,17 +670,10 @@ impl Backend {
             }
         };
         let Some(input) = seed.analysis.resolved_input.clone().map(Arc::new) else {
-            if matches!(purpose, FreshSourceAnalysisPurpose::SemanticStructure) {
-                trace_coarse_source_check("capture.resolved_input", false);
-            }
             return Ok(None);
         };
         let matches_input =
             original_readonly_analysis_matches_input(&snapshot.text, &seed.analysis, &input);
-        if matches!(purpose, FreshSourceAnalysisPurpose::SemanticStructure) {
-            trace_coarse_source_check("capture.resolved_input", true);
-            trace_coarse_source_check("capture.original_input", matches_input);
-        }
         if !matches_input {
             return Ok(None);
         }
@@ -707,10 +699,7 @@ impl Backend {
         uri: &Uri,
         snapshot: &super::DocumentState,
     ) -> DocumentSourceResult<Option<CoarseSemanticTokenSource>> {
-        if !trace_coarse_source_check(
-            "capture.resolved_dialect",
-            snapshot.dialect_resolution_generation == snapshot.resolved_dialect_generation,
-        ) {
+        if snapshot.dialect_resolution_generation != snapshot.resolved_dialect_generation {
             // A current buffer with unresolved resource dialect is not a
             // current configured analysis input, even when bytes are unchanged.
             return Ok(None);
@@ -723,28 +712,12 @@ impl Backend {
             )
             .await?
         else {
-            trace_coarse_source_check("capture.fresh_analysis", false);
             return Ok(None);
         };
-        trace_coarse_source_check("capture.fresh_analysis", true);
+
         let Some(source) = CoarseSemanticTokenSource::from_fresh_analysis(analysis) else {
             return Ok(None);
         };
-        if let WorkspaceSymbolAnalysisKind::Fresh(document) = &source.analysis.kind
-            && std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1")
-        {
-            eprintln!(
-                "COARSE_SOURCE captured uri={} version={:?} revision={} publication={:?} input_epoch={} seed_epoch={} factory={} seed_factory={}",
-                uri.as_str(),
-                snapshot.version,
-                snapshot.revision,
-                snapshot.publication,
-                source.inputs_epoch,
-                document.seed.analyser_inputs_epoch,
-                source.factory_generation,
-                document.seed.class_factory_generation
-            );
-        }
         Ok(Some(source))
     }
 
@@ -1163,11 +1136,9 @@ impl Backend {
             .lock("readonly_reference_final_snapshot")
             .await;
         let Ok(db) = self.db.try_lock() else {
-            trace_coarse_transaction_check("final.db_lock", false, admissions);
             return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let Ok(files) = self.db_files.try_lock() else {
-            trace_coarse_transaction_check("final.files_lock", false, admissions);
             return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let published = self
@@ -1178,11 +1149,7 @@ impl Backend {
             .live_publication_uri_generations
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if !trace_coarse_transaction_check(
-            "final.epoch_factory",
-            self.diag_inputs_epoch() == inputs_epoch && *generation == factory_generation,
-            admissions,
-        ) {
+        if !(self.diag_inputs_epoch() == inputs_epoch && *generation == factory_generation) {
             return Ok(ReadonlyTransaction::CurrencyRefused);
         }
         let state = ReadonlySourceState {
@@ -2103,8 +2070,6 @@ impl Backend {
                 .capture_readonly_reference_document(&owner, source)
                 .await?
             else {
-                self.trace_host_navigation(selected, "references.document-capture-unavailable", "")
-                    .await;
                 return Ok(ControlFlow::Break(None));
             };
             retained.push(document);
@@ -2113,18 +2078,12 @@ impl Backend {
             .iter()
             .find(|document| document.uri.as_str() == identity.uri())
         else {
-            self.trace_host_navigation(selected, "references.owner-unavailable", "")
-                .await;
             return Ok(ControlFlow::Break(None));
         };
         if !identity.is_current(identity.uri(), &owner.source, &owner.analysis) {
-            self.trace_host_navigation(selected, "references.identity-not-current", "")
-                .await;
             return Ok(ControlFlow::Break(None));
         }
         if !original_declaration_owner_is_unique(identity, &retained) {
-            self.trace_host_navigation(selected, "references.owner-not-unique", "")
-                .await;
             return Ok(ControlFlow::Break(None));
         }
         let Some(report) = tcl_lsp_core::original_declaration::readonly_reference_report(
@@ -2133,8 +2092,6 @@ impl Backend {
             &owner.analysis,
             true,
         ) else {
-            self.trace_host_navigation(selected, "references.core-report-unavailable", "")
-                .await;
             return Ok(ControlFlow::Break(None));
         };
         let inventory = retained
@@ -2193,8 +2150,6 @@ impl Backend {
         {
             ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
             ControlFlow::Break(None) => {
-                self.trace_host_navigation(uri, "references.method-target-unavailable", "")
-                    .await;
                 return Ok(ControlFlow::Break(Vec::new()));
             }
             ControlFlow::Break(Some(target)) => target,
@@ -2435,31 +2390,6 @@ fn original_readonly_analysis_matches_input(
             .is_some_and(|realm| realm.matches_resolved_analysis_input(input))
 }
 
-fn trace_coarse_transaction_check(
-    stage: &str,
-    accepted: bool,
-    admissions: &[&DocumentPathAdmission],
-) -> bool {
-    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
-        let owners: Vec<_> = admissions
-            .iter()
-            .map(|admission| admission.uri().as_str())
-            .collect();
-        eprintln!("COARSE_SOURCE transaction stage={stage} accepted={accepted} owners={owners:?}");
-    }
-    accepted
-}
-
-/// Identity-only diagnosis of the actual reached coarse-source rejection.
-/// This reads no source/provider/analysis state and never changes admission.
-pub(super) fn trace_coarse_source_check(stage: &str, accepted: bool) -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *ENABLED.get_or_init(|| std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1")) {
-        eprintln!("COARSE_SOURCE stage={stage} accepted={accepted}");
-    }
-    accepted
-}
-
 impl WorkspaceSymbolSourceAnalysis {
     pub(super) fn analysis(&self) -> &AnalysisResult {
         match &self.kind {
@@ -2510,22 +2440,12 @@ impl WorkspaceSymbolSourceAnalysis {
                     None => !document.was_open,
                     Some(_) => false,
                 };
-                let trace = |stage, accepted| {
-                    if matches!(
-                        document.purpose,
-                        FreshSourceAnalysisPurpose::SemanticStructure
-                    ) {
-                        trace_coarse_source_check(stage, accepted)
-                    } else {
-                        accepted
-                    }
-                };
-                trace("final.open_snapshot", open_matches)
-                    && trace("final.uri_generation", document.uri_generation_matches(state))
+                open_matches
+                    && document.uri_generation_matches(state)
                     // A fresh syntax worker retains no Salsa query result.
-                    && trace("final.database_revision", matches!(document.purpose, FreshSourceAnalysisPurpose::SemanticStructure)
+                    && (matches!(document.purpose, FreshSourceAnalysisPurpose::SemanticStructure)
                         || tcl_lsp_db::database_revision(state.db) == document.database_revision)
-                    && trace("final.input_state", document.matches_input_state(state, inputs_epoch, factory_generation))
+                    && document.matches_input_state(state, inputs_epoch, factory_generation)
             }
         }
     }
@@ -2621,33 +2541,15 @@ impl WorkspaceSymbolFreshInput {
         inputs_epoch: u64,
         factory_generation: u64,
     ) -> bool {
-        let trace = |stage, accepted| {
-            if matches!(self.purpose, FreshSourceAnalysisPurpose::SemanticStructure) {
-                trace_coarse_source_check(stage, accepted)
-            } else {
-                accepted
-            }
-        };
-        trace(
-            "input.seed_epoch",
-            self.seed.analyser_inputs_epoch == inputs_epoch,
-        ) && trace(
-            "input.seed_factory",
-            self.seed.class_factory_generation == factory_generation,
-        ) && trace(
-            "input.configuration",
-            self.config.diagnostic_report_configuration(state.db) == self.configuration,
-        ) && trace(
-            "input.admission_uri",
-            self.seed.path_admission.uri() == &self.uri,
-        ) && trace(
-            "input.original_analysis",
-            original_readonly_analysis_matches_input(
+        self.seed.analyser_inputs_epoch == inputs_epoch
+            && self.seed.class_factory_generation == factory_generation
+            && self.config.diagnostic_report_configuration(state.db) == self.configuration
+            && self.seed.path_admission.uri() == &self.uri
+            && original_readonly_analysis_matches_input(
                 &self.snapshot.text,
                 &self.seed.analysis,
                 &self.input,
-            ),
-        )
+            )
     }
 }
 

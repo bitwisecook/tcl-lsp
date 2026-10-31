@@ -21,8 +21,9 @@ pub type WhenBlock = tcl_syntax::event_handler::EventHandler;
 pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
     let config = LexerConfig::for_file_dialect("f5-irules");
     let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
+    let Some(identities) = fresh_irules_realm(source, config, registry) else {
+        return Vec::new();
+    };
     tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
         source,
         registry,
@@ -48,13 +49,31 @@ pub fn when_source_inventory(source: &str) -> crate::IrulesWhenSourceInventory {
 pub fn when_block_candidates(source: &str) -> Vec<WhenBlock> {
     let config = LexerConfig::for_file_dialect("f5-irules");
     let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
+    let Some(identities) = fresh_irules_realm(source, config, registry) else {
+        return Vec::new();
+    };
     tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
         source,
         registry,
         &identities,
     )
+}
+
+fn fresh_irules_realm(
+    source: &str,
+    config: LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<tcl_compiler::realm::CommandBindingRealm> {
+    let profile = registry
+        .profile()
+        .unwrap_or_else(tcl_dialect::DialectProfile::irules);
+    let context = std::sync::Arc::new(
+        tcl_registry::model::ingress::context_for_profile(profile)
+            .with_command_store(registry.snapshot().shared_registry()),
+    );
+    let input =
+        tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+    tcl_compiler::realm::document_realm_bindings_for_fresh_hosted_source(source, &input)
 }
 
 /// Whether a discovered handler body contains no executable command.  This

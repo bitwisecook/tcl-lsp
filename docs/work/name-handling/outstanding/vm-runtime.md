@@ -1,5 +1,10 @@
 # Outstanding work: vm-runtime agent
 
+## Checkpoint — 31 October 07:42 UTC
+
+Filtered C8.4 float normalization sample passed 2/2 (`/tmp/vm-float-c84-control-v3.log`); executable cleanup was queued at inspection. Interpreter deletion/reentry controls remain failing against Tcl9; scoped deletion/alias backref receipt and cleanup debt designs are off-tree and unapproved. Clock and trace-state changes/tests in the worktree remain unreviewed WIP; C8.4 per-script preservation and owner/currentness controls remain open.
+
+
 ## Resume — round 4 (2026-10-28, vm-runtime)
 
 Snapshot only; history below is unchanged. All cargo goes through safe-cargo.sh.

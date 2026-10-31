@@ -457,14 +457,14 @@ impl CurrentDiagnosticInput {
         if tcl_lsp_db::database_revision(db) != self.database_revision
             || files.get(uri) != Some(&self.file)
         {
-            return Err(diag_stale("input.db-revision-file"));
+            return Err(DiagnosticUnavailable::Stale);
         }
         let retained = published.get(uri).ok_or(DiagnosticUnavailable::Context)?;
         if retained.file != self.file
             || retained.admission.as_ref() != admission
             || self.file.path(db).as_deref() != admission.analyser_path()
         {
-            return Err(diag_stale("input.path-publication"));
+            return Err(DiagnosticUnavailable::Stale);
         }
         Ok(())
     }
@@ -548,85 +548,6 @@ enum CurrentDiagnostics {
     },
 }
 
-pub(super) fn trace_diagnostic_context_check(uri: &Uri, stage: &str, accepted: bool) -> bool {
-    #[cfg(debug_assertions)]
-    let diagnostic_trace = std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1");
-    #[cfg(not(debug_assertions))]
-    let diagnostic_trace = false;
-    if diagnostic_trace || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
-        eprintln!(
-            "DIAGNOSTIC_CONTEXT uri={} stage={stage} accepted={accepted}",
-            uri.as_str()
-        );
-    }
-    accepted
-}
-
-fn trace_diagnostic_publication_result(
-    expected: &DiagnosticPublicationExpectation,
-    current: &Result<Vec<PublishedDiagnosticReport>, DiagnosticUnavailable>,
-) {
-    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_none() {
-        return;
-    }
-    match current {
-        Err(reason) => {
-            let reason = match reason {
-                DiagnosticUnavailable::Pending => "pending",
-                DiagnosticUnavailable::Stale => "stale",
-                DiagnosticUnavailable::Context => "context",
-                DiagnosticUnavailable::ProviderError => "provider-error",
-                DiagnosticUnavailable::Cancelled => "cancelled",
-                DiagnosticUnavailable::Unsupported => "unsupported",
-                DiagnosticUnavailable::NotOpen => "not-open",
-            };
-            eprintln!(
-                "DIAGNOSTIC_PUBLICATION uri={} stage=reborrow reason={reason}",
-                expected.uri.as_str()
-            );
-        }
-        Ok(reports) => {
-            let [report] = reports.as_slice() else {
-                eprintln!(
-                    "DIAGNOSTIC_PUBLICATION stage=reborrow report_count={}",
-                    reports.len()
-                );
-                return;
-            };
-            eprintln!(
-                "DIAGNOSTIC_PUBLICATION uri={} stage=reborrow version={:?} expected_version={} revision={} expected_revision={} inputs_epoch={} expected_inputs_epoch={} result_id={} expected_result_id={}",
-                expected.uri.as_str(),
-                report.version,
-                expected.version,
-                report.revision,
-                expected.revision.as_str(),
-                report.inputs_epoch,
-                expected.inputs_epoch.as_str(),
-                report.result_id.as_str(),
-                expected.result_id.as_str(),
-            );
-        }
-    }
-}
-
-// WORK-only finite guard labels under the existing diagnostic trace flag.
-fn diag_reason(stage: &str, reason: DiagnosticUnavailable) -> DiagnosticUnavailable {
-    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
-        eprintln!("DIAGNOSTIC_TRANSACTION stage={stage} reason={reason:?}");
-    }
-    reason
-}
-
-fn diag_stale(stage: &str) -> DiagnosticUnavailable {
-    diag_reason(stage, DiagnosticUnavailable::Stale)
-}
-
-fn trace_diagnostic_publication_pending(stage: &str) {
-    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
-        eprintln!("DIAGNOSTIC_PUBLICATION stage={stage} reason=pending");
-    }
-}
-
 impl DiagInputs {
     pub(super) async fn capture_diagnostic_pass(
         &self,
@@ -668,7 +589,6 @@ impl DiagInputs {
         } else {
             None
         };
-        trace_diagnostic_context_check(uri, "capture.input_present", input.is_some());
         drop(db);
         let f5_model =
             Backend::is_bigip_dialect(&job.dialect) || is_apl_source(uri, &job.language_id);
@@ -845,44 +765,18 @@ impl Backend {
         let current = self
             .current_published_diagnostic_reports(&[source], DiagnosticCacheQuery::PublisherOnly)
             .await?;
-        trace_diagnostic_publication_result(&expected, &current);
         let valid = current.is_ok_and(|reports| {
             let [report] = reports.as_slice() else {
                 return false;
             };
-            trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.suppression",
-                report.suppression.is_none(),
-            ) && trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.uri",
-                report.uri == expected.uri,
-            ) && trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.version",
-                report.version == Some(expected.version),
-            ) && trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.source",
-                report.source.as_ref() == expected.source,
-            ) && trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.dialect",
-                report.dialect == expected.dialect_id,
-            ) && trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.revision",
-                report.revision.to_string() == expected.revision,
-            ) && trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.inputs-epoch",
-                report.inputs_epoch.to_string() == expected.inputs_epoch,
-            ) && trace_diagnostic_context_check(
-                &expected.uri,
-                "publication.result-id",
-                report.result_id == expected.result_id,
-            )
+            report.suppression.is_none()
+                && report.uri == expected.uri
+                && report.version == Some(expected.version)
+                && report.source.as_ref() == expected.source
+                && report.dialect == expected.dialect_id
+                && report.revision.to_string() == expected.revision
+                && report.inputs_epoch.to_string() == expected.inputs_epoch
+                && report.result_id == expected.result_id
         });
         if !valid {
             return Ok(Some(serde_json::json!({"status":"unavailable"})));
@@ -1846,7 +1740,7 @@ impl Backend {
         }
         drop(published);
         if file.text(&*db) != tcl_lexer::normalise_lone_cr(source).as_ref() {
-            return Err(diag_stale("input.source-text"));
+            return Err(DiagnosticUnavailable::Stale);
         }
         let input = with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, config))
             .map_err(|_| DiagnosticUnavailable::Context)?;
@@ -1908,17 +1802,12 @@ impl Backend {
             } else {
                 produced
             }
-            .map_err(|failure| {
-                Self::diagnostic_report_unavailable(diag_reason("direct.produce", failure.reason()))
-            })?;
+            .map_err(|failure| Self::diagnostic_report_unavailable(failure.reason()))?;
             match self.publish_direct_diagnostic_report(uri, produced).await? {
                 Ok(report) => return Ok(report),
                 Err(DiagnosticUnavailable::Stale) if attempt == 0 => {}
                 Err(reason) => {
-                    return Err(Self::diagnostic_report_unavailable(diag_reason(
-                        "direct.publish",
-                        reason,
-                    )));
+                    return Err(Self::diagnostic_report_unavailable(reason));
                 }
             }
         }
@@ -2102,10 +1991,9 @@ impl Backend {
             checks,
         } = item;
         if doc.version != source.version || doc.raw() != source.source.as_ref() {
-            return Err(diag_stale("report.source-version"));
+            return Err(DiagnosticUnavailable::Stale);
         }
         if doc.publication != DocumentPublication::Indexed || self.diag_inputs_epoch() != epoch {
-            trace_diagnostic_publication_pending("report.document-publication-or-epoch");
             return Err(DiagnosticUnavailable::Pending);
         }
         let report = match purpose {
@@ -2117,7 +2005,7 @@ impl Backend {
         let receipt = report
             .currency
             .as_ref()
-            .ok_or_else(|| diag_stale("report.receipt"))?;
+            .ok_or(DiagnosticUnavailable::Stale)?;
         let pass = &receipt.source;
         // An abstaining (non-text) source has no analysis report. The F5
         // model report applies that abstention itself, so it stays the
@@ -2140,7 +2028,7 @@ impl Backend {
             ledger,
         })?;
         if report.revision != pass.revision || pass.path_admission.as_ref() != admission.as_ref() {
-            return Err(diag_stale("report.revision-admission"));
+            return Err(DiagnosticUnavailable::Stale);
         }
         checks
             .checked_configurations
@@ -2151,7 +2039,7 @@ impl Backend {
                 || pass.input.as_deref() != Some(current.input.as_ref())
                 || pass.class_factory_generation != factory_generation
             {
-                return Err(diag_stale("report.input-factory"));
+                return Err(DiagnosticUnavailable::Stale);
             }
             checks.checked_inputs.push((current, source, admission));
         }
@@ -2199,7 +2087,7 @@ impl Backend {
                 // outcomes before any older cached report is considered.
                 // Success still requires this exact pass and issued ID.
                 if !Arc::ptr_eq(&entry.pass, pass) || result_id != report.result_id {
-                    return Err(diag_stale("publisher.pass-result"));
+                    return Err(DiagnosticUnavailable::Stale);
                 }
                 Ok(suppression)
             }
@@ -2215,7 +2103,7 @@ impl Backend {
                 )?;
                 Ok(policy)
             }
-            DiagnosticCacheOrigin::Direct { .. } => Err(diag_stale("direct.publisher-only")),
+            DiagnosticCacheOrigin::Direct { .. } => Err(DiagnosticUnavailable::Stale),
         }
     }
 
@@ -2243,7 +2131,6 @@ impl Backend {
             None
         } else {
             let Ok(db) = self.db.try_lock() else {
-                trace_diagnostic_publication_pending("published-final-db");
                 return Ok(Err(DiagnosticUnavailable::Pending));
             };
             // Configuration values are checked under this same final database
@@ -2252,11 +2139,10 @@ impl Backend {
             // diagnostic-only option mutation such as declared target ranges.
             for (config, retained) in checked_configurations {
                 if config.diagnostic_report_configuration(&*db) != retained {
-                    return Ok(Err(diag_stale("finish.configuration")));
+                    return Ok(Err(DiagnosticUnavailable::Stale));
                 }
             }
             let Ok(files) = self.db_files.try_lock() else {
-                trace_diagnostic_publication_pending("published-final-files");
                 return Ok(Err(DiagnosticUnavailable::Pending));
             };
             let published = self
@@ -2276,14 +2162,13 @@ impl Backend {
         let _workspace_source_index = if workspace_sources.iter().any(|sources| !sources.is_empty())
         {
             let Ok(index) = self.workspace_index.try_read() else {
-                trace_diagnostic_publication_pending("published-final-index");
                 return Ok(Err(DiagnosticUnavailable::Pending));
             };
             if workspace_sources
                 .iter()
                 .any(|sources| !sources.matches(docs, &index))
             {
-                return Ok(Err(diag_stale("finish.workspace-sources")));
+                return Ok(Err(DiagnosticUnavailable::Stale));
             }
             Some(index)
         } else {
@@ -2301,7 +2186,7 @@ impl Backend {
             self.store.as_ref(),
             || {
                 let Some(reports) = reports.take() else {
-                    return Err(diag_stale("finish.report-consumption"));
+                    return Err(DiagnosticUnavailable::Stale);
                 };
                 if let DiagnosticCacheQuery::PublishDirect(candidate) = purpose {
                     cache.insert(expected[0].uri.clone(), candidate.clone());
@@ -2427,10 +2312,6 @@ impl DiagnosticPass {
             .map(|input| Arc::clone(input.borrowed_context_registry().commands()))
     }
 
-    fn trace_context_check(&self, stage: &str, accepted: bool) -> bool {
-        trace_diagnostic_context_check(self.path_admission.uri(), stage, accepted)
-    }
-
     pub(super) async fn workspace_source_input_guards(
         &self,
     ) -> Option<(
@@ -2465,40 +2346,12 @@ impl DiagnosticPass {
             || self.inputs_epoch != epoch
             || self.slot_generation != slot.map(|slot| slot.generation)
         {
-            self.trace_source_currency(source, version, doc, epoch, slot);
-            return Err(diag_stale("pass.source-currency"));
+            return Err(DiagnosticUnavailable::Stale);
         }
         if slot.is_some_and(|slot| slot.dirty) {
-            trace_diagnostic_publication_pending("pass.slot-dirty");
             return Err(DiagnosticUnavailable::Pending);
         }
         Ok(())
-    }
-
-    // WORK-only bounded scalar observation of the existing failed guard.
-    fn trace_source_currency(
-        &self,
-        source: &str,
-        version: Option<i32>,
-        doc: &DocumentState,
-        epoch: u64,
-        slot: Option<&DiagSlot>,
-    ) {
-        if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
-            eprintln!(
-                "DIAGNOSTIC_CURRENCY same_source={} same_dialect={} version={:?}/{:?} revision={}/{} epoch={}/{} slot={:?}/{:?}",
-                self.source.as_ref() == source,
-                self.dialect == doc.dialect,
-                self.version,
-                version,
-                self.revision,
-                doc.revision,
-                self.inputs_epoch,
-                epoch,
-                self.slot_generation,
-                slot.map(|slot| slot.generation),
-            );
-        }
     }
 
     pub(super) fn rewrite_source_association(
@@ -2524,21 +2377,14 @@ impl DiagnosticPass {
 
     fn matches_completed_analysis(&self, analysis: &AnalysisResult) -> bool {
         let Some(input) = self.input.as_ref() else {
-            return self.trace_context_check("completed.input_present", false);
+            return false;
         };
         let source = tcl_lexer::normalise_lone_cr(&self.source);
-        self.trace_context_check(
-            "completed.source_current",
-            tcl_compiler::source_graph::current_analysis(&source, analysis).is_some(),
-        ) && self.trace_context_check(
-            "completed.resolved_input",
-            analysis.resolved_input.as_ref() == Some(input.as_ref()),
-        ) && self.trace_context_check(
-            "completed.registry",
-            analysis.resolved_registry().is_some_and(|registry| {
+        tcl_compiler::source_graph::current_analysis(&source, analysis).is_some()
+            && analysis.resolved_input.as_ref() == Some(input.as_ref())
+            && analysis.resolved_registry().is_some_and(|registry| {
                 registry.snapshot().semantic_key() == self.registry.semantic_key()
-            }),
-        )
+            })
     }
 }
 
@@ -2753,7 +2599,7 @@ impl Backend {
             .provider_sources
             .is_current(&*inputs.package_resolver.read().await)
         {
-            return Err(diag_stale("produce.provider-sources").into());
+            return Err(DiagnosticUnavailable::Stale.into());
         }
         if !source.matches_completed_analysis(&produced.analysis) {
             return Err(DiagnosticUnavailable::Context.into());

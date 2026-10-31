@@ -20501,9 +20501,14 @@ mod prerequisite_index_tests {
                         identities.push(spec.name.to_owned());
                         identities.push(tcl_syntax::naming::root_unrooted_key(spec.name));
                         let compilations = spec.native_compilation.into_iter().chain(
-                            spec.subcommands
-                                .iter()
-                                .flat_map(|member| member.native_compilation),
+                            spec.subcommands.iter().flat_map(|member| {
+                                member.native_compilation.into_iter().chain(
+                                    member
+                                        .sub_subcommands
+                                        .iter()
+                                        .filter_map(|worker| worker.native_compilation),
+                                )
+                            }),
                         );
                         for compilation in compilations {
                             for lookup in compilation

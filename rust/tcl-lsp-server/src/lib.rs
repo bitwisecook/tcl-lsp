@@ -1250,15 +1250,12 @@ fn configured_coarse_semantic_tokens(
     text: &str,
     analysis: &AnalysisResult,
 ) -> jsonrpc::Result<Vec<u32>> {
-    let input = analysis.resolved_input.as_ref().ok_or_else(|| {
-        readonly_reference_reports::trace_coarse_source_check("tokens.resolved_input", false);
-        coarse_semantic_source_changed()
-    })?;
-    readonly_reference_reports::trace_coarse_source_check("tokens.resolved_input", true);
-    if !readonly_reference_reports::trace_coarse_source_check(
-        "tokens.current_analysis",
-        tcl_compiler::source_graph::current_analysis(text, analysis).is_some(),
-    ) {
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(|| coarse_semantic_source_changed())?;
+
+    if tcl_compiler::source_graph::current_analysis(text, analysis).is_none() {
         return Err(coarse_semantic_source_changed());
     }
     Ok(core_semantic_tokens::full_with_cu_and_analysis(
@@ -4195,13 +4192,6 @@ impl DiagSlot {
         self.dirty = true;
         self.generation = self.generation.wrapping_add(1);
     }
-
-    // WORK-only observation of the existing scheduler mutation.
-    fn mark_dirty_with_trace(&mut self, reason: &'static str) {
-        let previous = self.generation;
-        self.mark_dirty();
-        trace_diagnostic_admission(reason, previous, self.generation);
-    }
 }
 
 /// The two independent, both-default-off cross-file-adjacent toggles,
@@ -4215,21 +4205,6 @@ impl DiagSlot {
 struct XcToggles {
     xc_diagnostics: bool,
     cross_file_resolution: bool,
-}
-
-// A process-wide independent cap; no document identity or contents are logged.
-fn trace_diagnostic_admission(reason: &'static str, previous: u64, generation: u64) {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    static ROWS: AtomicUsize = AtomicUsize::new(0);
-    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some()
-        && ROWS
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |rows| {
-                (rows < 64).then_some(rows + 1)
-            })
-            .is_ok()
-    {
-        eprintln!("DIAGNOSTIC_ADMISSION reason={reason} generation={previous}/{generation}");
-    }
 }
 
 /// The per-run analyser feature toggles for a diagnostics run, grouped so the
@@ -6039,7 +6014,7 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                 // refreshes otherwise compete with every queued `didChange`
                 // for the salsa database and can pin the edit-order barrier.
                 if let Some(slot) = slots.lock().await.get_mut(&uri) {
-                    slot.mark_dirty_with_trace("worker-retry");
+                    slot.mark_dirty();
                 }
                 continue;
             }
@@ -6142,7 +6117,7 @@ async fn refresh_cross_file_evidence(
             || refresh_can_change_result(&handles.db, &handles.db_files, uri).await)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
-        slot.mark_dirty_with_trace("evidence-self-refresh");
+        slot.mark_dirty();
     }
     // The subclass-provided-method view rides the same
     // refresh: computed off the workspace index the publish just updated,
@@ -6154,7 +6129,7 @@ async fn refresh_cross_file_evidence(
     if subclass_moved.iter().any(|u| u == uri)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
-        slot.mark_dirty_with_trace("subclass-self-refresh");
+        slot.mark_dirty();
     }
     for moved in subclass_moved {
         if !changed.contains(&moved) {
@@ -6359,7 +6334,7 @@ async fn reschedule_peers(
             if slot.latest_inputs.is_none() {
                 continue;
             }
-            slot.mark_dirty_with_trace("peer-refresh");
+            slot.mark_dirty();
             if !slot.running {
                 slot.running = true;
                 to_spawn.push(peer);
@@ -7131,7 +7106,7 @@ impl DiagInputs {
 }
 
 fn deep_provider_completion(
-    uri: &Uri,
+    _uri: &Uri,
     cross_file_resolution: bool,
     project: Option<tcl_lsp_db::Project>,
     compiler_result: &ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>>,
@@ -7146,17 +7121,6 @@ fn deep_provider_completion(
             _ => Err(DiagnosticUnavailable::ProviderError),
         }
     };
-    if matches!(provider_completion, Err(DiagnosticUnavailable::Context)) {
-        current_diagnostics::trace_diagnostic_context_check(
-            uri,
-            if cross_file_resolution && project.is_none() {
-                "provider.project_absent"
-            } else {
-                "provider.compiler_unavailable"
-            },
-            false,
-        );
-    }
     provider_completion
 }
 
@@ -13309,16 +13273,6 @@ impl Backend {
         Vec<Vec<PathBuf>>,
         tcl_spectcl::pack::LoadedSourceInputs,
     ) {
-        macro_rules! pack_reload_phase {
-            ($($arg:tt)*) => {
-                if cfg!(debug_assertions)
-                    && std::env::var_os("TCL_LSP_TRACE_COARSE_SOURCE").is_some()
-                {
-                    eprintln!("[pack_reload_phase] {}", format_args!($($arg)*));
-                }
-            };
-        }
-        pack_reload_phase!("loader-enter");
         let studio =
             studio_snapshot.retained_sources(pack_store.as_ref(), &options.workspace_roots);
         let active_paths = studio
@@ -13336,7 +13290,7 @@ impl Backend {
         // and the shipped EDA loadables have to come from the embedded
         // copy. A plain load would leave every EDA command unknown in
         // exactly those clients.
-        pack_reload_phase!("discovery-complete");
+
         let (loaded, loader_inputs) =
             tcl_spectcl::bundled::load_discovered_configuration_with_studio_sources_and_inputs_in(
                 Arc::clone(pack_store),
@@ -13344,7 +13298,7 @@ impl Backend {
                 &studio,
                 options.workspace_trust,
             );
-        pack_reload_phase!("load-complete");
+
         // The test seam, and the only place it can go: the snapshot is
         // taken, the publish has not happened, so the world is free to
         // change underneath a view that is already stale. The signal goes
@@ -13422,21 +13376,11 @@ impl Backend {
         packs: &Arc<tcl_spectcl::PackSet>,
     ) -> std::ops::ControlFlow<(), Vec<(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)>>
     {
-        macro_rules! pack_reload_phase {
-            ($($arg:tt)*) => {
-                if cfg!(debug_assertions)
-                    && std::env::var_os("TCL_LSP_TRACE_COARSE_SOURCE").is_some()
-                {
-                    eprintln!("[pack_reload_phase] {}", format_args!($($arg)*));
-                }
-            };
-        }
         std::ops::ControlFlow::Continue(if packs.is_empty() {
             // Loader-only notices still need the actual default registry owner
             // used by ordinary analysis when there are no pack commands.
             let installed = tcl_registry::model::store_profiles()
                 .map(|profile| {
-                    pack_reload_phase!("default-profile {}", profile.name);
                     let registry = tcl_lsp_core::environment_for_dialect(profile.name)
                         .default_context_registry();
                     Some((profile, Arc::clone(registry.commands())))
@@ -13465,12 +13409,10 @@ impl Backend {
             // free.
             let for_worker = Arc::clone(packs);
             let installed = crate::rt::spawn_blocking(move || {
-                pack_reload_phase!("install-overlays-enter");
                 install_pack_overlays(&for_worker);
-                pack_reload_phase!("install-overlays-complete");
+
                 tcl_registry::model::store_profiles()
                     .map(|profile| {
-                        pack_reload_phase!("overlay-profile {}", profile.name);
                         let context =
                             tcl_registry::model::ingress::resolve_environment(profile.name)
                                 .context_registry(
@@ -20749,8 +20691,6 @@ impl Backend {
         position: Position,
         include_declaration: bool,
     ) -> DocumentSourceResult<Vec<Location>> {
-        self.trace_host_navigation(uri, "references.retained-route", "")
-            .await;
         if let std::ops::ControlFlow::Break(selected) = tcl_lsp_core::variable_symbol::select(
             &doc.text,
             analysis,
@@ -20796,8 +20736,6 @@ impl Backend {
             .original_declaration_identity_at(uri, &doc.text, analysis, position)
             .await?
         else {
-            self.trace_host_navigation(uri, "references.identity-unavailable", "")
-                .await;
             return Ok(Vec::new());
         };
         Ok(self
@@ -22996,10 +22934,6 @@ impl Backend {
         let intents = match planned {
             Ok(intents) => intents,
             Err(refusal) => {
-                if let Some(detail) = original_command_rename::take_missing_rename_world_trace() {
-                    self.trace_host_navigation(uri, "rename.refused", &detail)
-                        .await;
-                }
                 return Ok(ControlFlow::Break(Err(refusal)));
             }
         };
@@ -26294,16 +26228,13 @@ impl Backend {
     /// dialects, re-run diagnostics, and ask the client to refresh the
     /// on-demand providers.
     async fn run_config_reload(&self) -> DocumentSourceResult<()> {
-        let tmp_start = std::time::Instant::now();
         self.pull_and_apply_config().await?;
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "pulled", tmp_start.elapsed()); }
         // `tclLsp.specPacks` is part of what was just applied: if it moved, the
         // pack set — and therefore the registry every open document resolves
         // against — moves with it.  The reload is content-keyed, so a settings
         // burst that does not touch `specPacks` costs one discovery walk and
         // nothing else.
         self.reload_spec_packs(ReloadTrigger::Config).await?;
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "packs", tmp_start.elapsed()); }
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
         // changes a document's dialect (the dialect the re-pull *does* resolve
@@ -26313,13 +26244,11 @@ impl Backend {
         // master switch goes off, dropping O-codes when the optimiser goes off)
         // rather than lingering until the next keystroke.
         self.reschedule_all_open_documents().await;
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "open", tmp_start.elapsed()); }
         // The same toggles govern closed files that still carry a badge:
         // a master-switch-off must clear their squiggles too, and a disabled-code
         // change must re-lint them — the open-document reschedule alone would
         // leave a closed file's badge frozen at its pre-toggle set.
         self.reschedule_closed_file_diagnostics().await;
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "closed", tmp_start.elapsed()); }
         // On-demand providers cache their last result client-side and only
         // re-request on a document edit — a bare config change (e.g. toggling
         // `features.folding` off) would otherwise leave stale folding ranges /
@@ -26330,7 +26259,6 @@ impl Backend {
         let _ = bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
             .await;
         let _ = bounded_client_request(self.client.code_lens_refresh()).await;
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "refresh", tmp_start.elapsed()); }
 
         Ok(())
     }
@@ -26388,7 +26316,6 @@ impl Backend {
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
         self.warn_configured_dialect(dialect_warning).await;
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "apply-before-rescan", rescan_workspace); }
         let _: () = if rescan_workspace {
             self.scan_workspace_folders().await?;
         };
@@ -28582,11 +28509,7 @@ impl Backend {
                 slot.latest_inputs = Some(inputs);
                 slot.inputs_epoch = epoch;
             }
-            slot.mark_dirty_with_trace(if force_refresh {
-                "schedule-force-refresh"
-            } else {
-                "schedule-edit"
-            });
+            slot.mark_dirty();
             if slot.running {
                 false
             } else {
@@ -28768,21 +28691,11 @@ impl Backend {
     }
 
     async fn reload_spec_packs_inner(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {
-        macro_rules! pack_reload_phase {
-            ($($arg:tt)*) => {
-                if cfg!(debug_assertions)
-                    && std::env::var_os("TCL_LSP_TRACE_COARSE_SOURCE").is_some()
-                {
-                    eprintln!("[pack_reload_phase] {}", format_args!($($arg)*));
-                }
-            };
-        }
-        pack_reload_phase!("enter");
         // One reload at a time — see `spec_pack_reload`. The guard spans
         // discovery *and* the publish below, because it is the gap between
         // them that lets a slower reload overwrite a newer one's result.
         let mut reload = self.spec_pack_reload.lock().await;
-        pack_reload_phase!("reload-lock");
+
         *reload = None;
         // Taken here, under the guard and *before* discovery: the number has
         // to order reloads by when they read the disk. See
@@ -28792,7 +28705,7 @@ impl Backend {
         // Before loading: the watch set follows the *configuration*, so it has
         // to be refreshed even when the discovered files turn out unchanged.
         self.refresh_external_pack_watchers(&options).await;
-        pack_reload_phase!("watchers-complete");
+
         // Discovery and loading are blocking filesystem + parse work; keeping
         // them off the LSP event loop is the same courtesy every other scan
         // here extends.
@@ -28820,12 +28733,11 @@ impl Backend {
             return Ok(false);
         };
 
-        pack_reload_phase!("loader-joined");
         // Keep the pack registry and its Salsa key one analyser-input
         // generation. A standalone index seed either commits before this
         // writer or observes the bumped epoch after the complete transition.
         let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
-        pack_reload_phase!("input-write-lock");
+
         let mut studio_sources = self.studio_sources.lock().await;
         if !studio_sources.matches_snapshot(&studio_snapshot) {
             return Ok(false);
@@ -28848,7 +28760,6 @@ impl Backend {
             })?
         };
 
-        pack_reload_phase!("publication-complete changed={}", changed);
         let packs = self.spec_packs().await;
         let std::ops::ControlFlow::Continue(overlays) =
             self.install_reload_pack_overlays(&packs).await
@@ -28856,7 +28767,6 @@ impl Backend {
             return Ok(false);
         };
 
-        pack_reload_phase!("all-profiles-complete");
         if changed {
             // The publish above moved the process's evaluator epoch, whether
             // or not the new set is empty: take it before anything
@@ -28870,7 +28780,7 @@ impl Backend {
         }
         drop(studio_sources);
         drop(analyser_inputs_guard);
-        pack_reload_phase!("report-enter");
+
         self.report_pack_reload(
             &packs,
             registration.as_ref(),
@@ -28883,9 +28793,9 @@ impl Backend {
             },
         )
         .await?;
-        pack_reload_phase!("report-complete");
+
         self.settle_pack_reload(changed, trigger).await?;
-        pack_reload_phase!("settle-complete");
+
         *reload = Some(PackConfigurationPublication {
             options,
             configured_sources,
@@ -32409,16 +32319,9 @@ impl Backend {
             return Ok(self
                 .coarse_semantic_source_transaction(&source, || {
                     let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
-                        readonly_reference_reports::trace_coarse_source_check(
-                            "final.token_cache_lock",
-                            false,
-                        );
                         return None;
                     };
-                    readonly_reference_reports::trace_coarse_source_check(
-                        "final.token_cache_lock",
-                        true,
-                    );
+
                     let data = data.take()?;
                     let mut wire = wire.take()?;
                     let result_id = next_semantic_tokens_id();
@@ -32479,16 +32382,9 @@ impl Backend {
             return Ok(self
                 .coarse_semantic_source_transaction(&source, || {
                     let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
-                        readonly_reference_reports::trace_coarse_source_check(
-                            "final.token_cache_lock",
-                            false,
-                        );
                         return None;
                     };
-                    readonly_reference_reports::trace_coarse_source_check(
-                        "final.token_cache_lock",
-                        true,
-                    );
+
                     let data = data.take()?;
                     let result_id = next_semantic_tokens_id();
                     let baseline_current = baseline.as_ref().is_some_and(|(id, _)| {
@@ -33200,9 +33096,7 @@ impl LanguageServer for Backend {
         {
             self.reschedule_all_open_documents().await;
         }
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "before-warn", std::time::Instant::now()); }
         self.warn_configured_dialect(dialect_warning).await;
-        if std::env::var_os("TCL_LSP_TMP_CFG_PROBE").is_some() { eprintln!("TMP_CFG {} {:?}", "after-warn", std::time::Instant::now()); }
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -59626,64 +59520,6 @@ proc p {} {
             .await
             .expect("the edit must finish once its tail can take the diag_slots lock")
             .expect("did_change panicked");
-    }
-
-    #[tokio::test]
-    async fn tmp_probe_sourced_view_routes() {
-        let backend = test_backend();
-        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
-        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
-        register(&backend, &b, "proc helper {} {}\nhelper\n").await;
-        let a_src = "namespace eval ::x { source b.tcl }\n::x::helper\n";
-        register(&backend, &a, a_src).await;
-        let settlement = backend.refresh_original_source_view_graph().await;
-        match &settlement {
-            Ok(Some(settlement)) => {
-                eprintln!("TMP_PROBE settlement {}", settlement.tmp_probe_scopes())
-            }
-            other => eprintln!("TMP_PROBE settlement unavailable ok={}", other.is_ok()),
-        }
-        for (uri, line, character, references) in [
-            (&a, 1, 6, Some(true)),
-            (&a, 1, 6, None),
-            (&b, 0, 6, Some(false)),
-            (&b, 1, 2, Some(true)),
-        ] {
-            let route = backend
-                .original_source_view_navigation_route(
-                    uri,
-                    Position::new(line, character),
-                    references,
-                )
-                .await;
-            let shown = match route {
-                Ok(std::ops::ControlFlow::Break(Some(locations))) => format!(
-                    "Break(Some({:?}))",
-                    locations
-                        .iter()
-                        .map(|l| (
-                            l.uri.as_str().to_owned(),
-                            l.range.start.line,
-                            l.range.start.character
-                        ))
-                        .collect::<Vec<_>>()
-                ),
-                Ok(std::ops::ControlFlow::Break(None)) => "Break(None)".to_owned(),
-                Ok(std::ops::ControlFlow::Continue(())) => "Continue".to_owned(),
-                Err(error) => format!("Err({error})"),
-            };
-            eprintln!(
-                "TMP_PROBE route uri={} pos={line}:{character} refs={references:?} -> {shown}",
-                uri.as_str()
-            );
-        }
-        let index = backend.workspace_index.read().await;
-        eprintln!(
-            "TMP_PROBE index ::x::helper defs={} ::helper defs={} views_b={}",
-            index.proc_definitions_qualified("::x::helper", "").len(),
-            index.proc_definitions_qualified("::helper", "").len(),
-            index.original_source_views(b.as_str()).len()
-        );
     }
 
     async fn register(backend: &Backend, uri: &Uri, src: &str) {

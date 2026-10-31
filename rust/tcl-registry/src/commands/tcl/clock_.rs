@@ -65,17 +65,39 @@ impl crate::InvocationDialect {
         .then_some("::tcl::clock::ParseFormatArgs")
     }
 
-    /// C8.6 constructor geometry measured independently of handler effects.
+    /// Measured clock constructor geometry, independent of handler effects.
     #[must_use]
     pub fn clock_bootstrap_ensemble(
         self,
     ) -> Option<crate::invocation_words::NativeEnsembleBootstrap> {
-        (self.family() == Some(tcl_dialect::model::Family::Tcl)
-            && self.tcl_version == Some(TclVersion::V8_6))
-        .then_some(crate::invocation_words::NativeEnsembleBootstrap {
+        if self.family() != Some(tcl_dialect::model::Family::Tcl) {
+            return None;
+        }
+        let deferred_members: &'static [&'static [u8]] = match self.tcl_version? {
+            TclVersion::V8_6 => &[b"add", b"format", b"scan"],
+            TclVersion::V9_0 => &[],
+            _ => return None,
+        };
+        Some(crate::invocation_words::NativeEnsembleBootstrap {
             namespace: "::tcl::clock",
-            deferred_members: &[b"add", b"format", b"scan"],
+            deferred_members,
         })
+    }
+
+    /// Complete initial public clock map measured on C Tcl 9.0.4.
+    #[must_use]
+    pub fn clock_complete_stock_ensemble_members(self) -> Option<&'static [&'static str]> {
+        (self.family() == Some(tcl_dialect::model::Family::Tcl)
+            && self.tcl_version == Some(TclVersion::V9_0))
+        .then_some(&[
+            "add",
+            "clicks",
+            "format",
+            "microseconds",
+            "milliseconds",
+            "scan",
+            "seconds",
+        ])
     }
 }
 
@@ -83,12 +105,12 @@ impl crate::InvocationDialect {
 // C9.0/C9.1 clock maps retain the same four targets and present hooks.
 // This records registration, not opcode acceptance or handler effects.
 macro_rules! clock_reading_compiler {
-    ($member:literal) => {
+    ($member:literal, $reading:ident) => {
         crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
                 compiler: &crate::native_compilation::NativeCompilationSpec {
-                    grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
-                        TclVersion::V8_6,
+                    grammar: crate::native_compilation::NativeCompilationGrammar::ClockReading(
+                        crate::native_compilation::NativeClockReading::$reading,
                     ),
                     operation: crate::SemanticOperationId::Invoke,
                     body: crate::native_compilation::NativeBodyCompilation::Inherit,
@@ -394,7 +416,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "clicks",
-        native_compilation: Some(clock_reading_compiler!("clicks")),
+        native_compilation: Some(clock_reading_compiler!("clicks", Clicks)),
         arity: Arity::new(0, 1),
         detail: "Return hi-res clock value.",
         synopsis: "clock clicks ?-milliseconds? ?-microseconds?",
@@ -427,7 +449,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "microseconds",
-        native_compilation: Some(clock_reading_compiler!("microseconds")),
+        native_compilation: Some(clock_reading_compiler!("microseconds", Microseconds)),
         // Added in Tcl 8.5 (TIP 173).
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(0),
@@ -442,7 +464,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "milliseconds",
-        native_compilation: Some(clock_reading_compiler!("milliseconds")),
+        native_compilation: Some(clock_reading_compiler!("milliseconds", Milliseconds)),
         // Added in Tcl 8.5 (TIP 173).
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(0),
@@ -492,7 +514,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "seconds",
-        native_compilation: Some(clock_reading_compiler!("seconds")),
+        native_compilation: Some(clock_reading_compiler!("seconds", Seconds)),
         arity: Arity::exact(0),
         detail: "Return current time in seconds.",
         synopsis: "clock seconds",
@@ -780,9 +802,31 @@ mod tests {
                 InvocationDialect::for_version(version)
                     .clock_bootstrap_ensemble()
                     .is_some(),
-                version == TclVersion::V8_6
+                matches!(version, TclVersion::V8_6 | TclVersion::V9_0)
+            );
+            assert_eq!(
+                InvocationDialect::for_version(version)
+                    .clock_complete_stock_ensemble_members()
+                    .is_some(),
+                version == TclVersion::V9_0
             );
         }
+        assert_eq!(
+            InvocationDialect::for_version(TclVersion::V9_0)
+                .clock_complete_stock_ensemble_members(),
+            Some(
+                [
+                    "add",
+                    "clicks",
+                    "format",
+                    "microseconds",
+                    "milliseconds",
+                    "scan",
+                    "seconds"
+                ]
+                .as_slice()
+            )
+        );
         let unknown = InvocationDialect {
             native_family: None,
             core_point: None,

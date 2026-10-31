@@ -36,16 +36,6 @@
 //! expression over this module's lattice services
 //! ([`crate::tcl_expr_eval::ExprServices`]).
 
-fn n17_transfer_decline(stage: &str, value: bool) -> bool {
-    #[cfg(debug_assertions)]
-    if value && std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
-        eprintln!("N17_NATIVE decline={stage}");
-    }
-    #[cfg(not(debug_assertions))]
-    let _ = stage;
-    value
-}
-
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -501,6 +491,8 @@ pub(crate) struct LatticeDriver<'a> {
     source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     folds: Option<BuiltinFoldInputs<'a>>,
     policy: FoldPolicy,
+    expression_preparations:
+        HashMap<Span, Option<&'a crate::command_binding::SourceExpressionPreparation>>,
     context: AnalysisContext,
     lexer_config: LexerConfig,
     /// Whether every command whose lowering yields a typed assignment
@@ -1322,6 +1314,7 @@ impl<'a> LatticeDriver<'a> {
             source_metadata_input: trace.source_metadata_input,
             folds,
             policy,
+            expression_preparations: HashMap::new(),
             context,
             lexer_config,
             typed_assignment: typed_assignment && metadata_context.is_some(),
@@ -1401,6 +1394,32 @@ impl<'a> LatticeDriver<'a> {
         run: crate::sccp::ModuleRun<'a>,
     ) -> Self {
         self.function = &cfg.name;
+        if let Some(context) = self.policy.preparation_context() {
+            for (block_id, block) in &cfg.blocks {
+                for (index, statement) in block.statements.iter().enumerate() {
+                    let Statement::AssignExpr { expr_base, .. } = statement else {
+                        continue;
+                    };
+                    let proof = crate::math_function_binding::ExpressionMathBindings::for_origin(
+                        &cfg.implicit_math_invocations,
+                        cfg.statement_sources
+                            .get(&(*block_id, index))
+                            .and_then(Option::as_deref),
+                        *expr_base,
+                    )
+                    .with_preparations(&cfg.expression_preparations)
+                    .preparation_for_context(&context);
+                    self.expression_preparations
+                        .entry(statement.span())
+                        .and_modify(|existing| {
+                            if *existing != proof {
+                                *existing = None;
+                            }
+                        })
+                        .or_insert(proof);
+                }
+            }
+        }
         self.body_id = run
             .analysis_body
             .or_else(|| run.procedures.and_then(|module| module.body_for_cfg(cfg)));
@@ -3610,7 +3629,7 @@ impl<'a> LatticeDriver<'a> {
             return DefValues::PerDef(widened(&defs));
         };
         let head = stmt_ssa.statement.canonical_command_or_source();
-        if n17_transfer_decline("call.untrusted", !self.trusted(head)) {
+        if !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return DefValues::PerDef(widened(&defs));
         }
@@ -3969,12 +3988,10 @@ impl<'a> LatticeDriver<'a> {
     ) -> DefValues {
         if let Some(module) = self.module {
             let Some(original) = original else {
-                n17_transfer_decline("source-call.original-tokens", true);
                 return DefValues::PerDef(widened(defs));
             };
             if module.has_original_native_source() {
                 let Some(body) = self.body_id else {
-                    n17_transfer_decline("source-call.body-id", true);
                     return DefValues::PerDef(widened(defs));
                 };
                 return module
@@ -5061,7 +5078,43 @@ impl<'a> LatticeDriver<'a> {
         let value = match answer {
             LiftedAnswer::Pending => LatticeValue::Unknown,
             LiftedAnswer::Declined(_) => LatticeValue::Overdefined,
-            LiftedAnswer::Evaluated(outcomes) => lattice_of_outcomes(&outcomes, result_of),
+            LiftedAnswer::Evaluated(outcomes) => {
+                let preparation = self
+                    .explaining
+                    .get()
+                    .and_then(|span| self.expression_preparations.get(&span).copied().flatten());
+                let admitted = preparation.is_some_and(|preparation| {
+                    outcomes.iter().all(|outcome| {
+                        let ExactValueOrUnavailable::Exact(value) = &outcome.result else {
+                            return false;
+                        };
+                        let numeric = match value.numeric {
+                            Some(NumericValue::Int(value)) => {
+                                Some(crate::tcl_expr_eval::TclValue::Int(value))
+                            }
+                            Some(NumericValue::Float(value)) => {
+                                Some(crate::tcl_expr_eval::TclValue::Float(value))
+                            }
+                            Some(NumericValue::Bool(_)) | None => None,
+                        };
+                        numeric.as_ref().map_or_else(
+                            || crate::expression_rewrite::expression_result_protocol_equivalence(
+                                &preparation.witness,
+                                None,
+                            ),
+                            |numeric| crate::expression_rewrite::contents_only_result_equivalence(
+                                &preparation.witness,
+                                numeric,
+                            ),
+                        ).is_ok()
+                    })
+                });
+                if admitted {
+                    lattice_of_outcomes(&outcomes, result_of)
+                } else {
+                    LatticeValue::Overdefined
+                }
+            }
         };
         DefValues::Each(value, None)
     }

@@ -10,6 +10,47 @@ use super::{
 };
 use tcl_registry::{TraceOperation, TraceOperationSet, TraceTarget, TraceTransition};
 
+// The stack-budget test must prove that observer frames actually nest.
+#[cfg(test)]
+thread_local! {
+    static OBSERVER_DEPTH: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_observer_depth() {
+    OBSERVER_DEPTH.with(|depth| depth.set((0, 0)));
+}
+
+#[cfg(test)]
+pub(crate) fn max_observer_depth() -> usize {
+    OBSERVER_DEPTH.with(|depth| depth.get().1)
+}
+
+#[cfg(test)]
+struct ObserverDepthGuard;
+
+#[cfg(test)]
+impl ObserverDepthGuard {
+    fn enter() -> Self {
+        OBSERVER_DEPTH.with(|depth| {
+            let (current, maximum) = depth.get();
+            let next = current + 1;
+            depth.set((next, maximum.max(next)));
+        });
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for ObserverDepthGuard {
+    fn drop(&mut self) {
+        OBSERVER_DEPTH.with(|depth| {
+            let (current, maximum) = depth.get();
+            depth.set((current - 1, maximum));
+        });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct SourceCommandObserver {
     pub(super) token: Option<CommandIdentity>,
@@ -373,6 +414,24 @@ impl SourceCommandBindings {
                 segment, words, effective, state, target, context,
             );
         }
+        self.walk_source_target_with_mutation_observers(
+            segment, words, effective, state, target, context,
+        )
+    }
+
+    /// Keep mutation-observer carriers outside the unobserved recursive path.
+    #[inline(never)]
+    fn walk_source_target_with_mutation_observers(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        target: &super::SourceCommandTarget,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        #[cfg(test)]
+        let _observer_depth = ObserverDepthGuard::enter();
         let Ok(prepared) = super::prepare_source_native_invocation(
             target,
             effective,

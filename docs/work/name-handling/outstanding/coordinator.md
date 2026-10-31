@@ -1,5 +1,10 @@
 # Outstanding work: coordinator
 
+## Resume — 31 October 07:42 UTC remote checkpoint
+
+Remote snapshot preserves the shared worktree as unreviewed WIP; it is not a clean CI or release candidate. Latest Arc completion 4/2 failed; stack budget jobs have no terminal result and one inherited selector has run over two hours. VM Tcl8.4 float sample 2/2 passed. LSP catalogue candidate still needs genuine duplicate-actual refusal; VM interpreter deletion and O123 remain open. O121/O122 unsafe rewrites were withheld in `3139e140`; legacy positive assertions remain open. Existing branch-only trace hooks and historical probes require a full audit before CI/carry. Resume by inspecting surviving processes and logs before rerunning; do not infer their termination. No release gate is met. See current-state.md and the latest progress report for evidence.
+
+
 Last updated: 2026-10-29T16:05Z
 
 ## Resume

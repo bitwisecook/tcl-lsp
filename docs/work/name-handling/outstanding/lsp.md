@@ -1,5 +1,10 @@
 # Outstanding work: lsp agent
 
+## Checkpoint — 31 October 07:42 UTC
+
+Catalogue-only observer exclusion and N13 cleanup are unreviewed WIP. Original publication test, exact-query coexistence and genuine member-catalogue-only refusal passed; real duplicate-actual observation remains unproved. The condition-substitution duplicate fixture was not run because of the disk floor; inspect the tree and any surviving queued operation before retry. Existing branch-only traces and full e2e/startup gates remain open.
+
+
 ## Resume — lsp role 2026-10-27 (resumed session)
 
 Local results below are on WORK plus concurrently swept WIP role edits (not a pinned source); debug test profile, COARSE trace overlay where stated. No hosted run is claimed.

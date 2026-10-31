@@ -147,8 +147,6 @@ mod native_package_files;
 #[cfg(test)]
 mod native_precision_tests;
 mod native_procedure_artifacts;
-#[cfg(debug_assertions)]
-mod native_procedure_refusal_observer;
 mod native_rename;
 pub(crate) mod native_scalar_ingress;
 #[cfg(test)]
@@ -3911,32 +3909,47 @@ impl Vm {
     pub(crate) fn save_native_interp_trace_result(
         &mut self,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        self.save_native_trace_result(false)
+        self.save_native_trace_result(
+            tcl_registry::native_variable_trace::NativeTraceStatePurpose::VariableChain,
+        )
+    }
+
+    fn save_native_command_trace_result(
+        &mut self,
+    ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
+        use tcl_registry::native_variable_trace::{
+            NativeTraceStatePurpose, NativeTraceStateRecipe,
+        };
+        match self
+            .actual_native_invocation_dialect()
+            .native_trace_state_recipe(NativeTraceStatePurpose::CommandChain)
+        {
+            Some(NativeTraceStateRecipe::None) => Ok(None),
+            None => Err(self
+                .retain_host_command_refusal("command trace state recipe is unavailable".into())),
+            Some(_) => self.save_native_trace_result(NativeTraceStatePurpose::CommandChain),
+        }
     }
 
     pub(crate) fn save_native_script_trace_result(
         &mut self,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        self.save_native_trace_result(true)
+        self.save_native_trace_result(
+            tcl_registry::native_variable_trace::NativeTraceStatePurpose::VariableScript,
+        )
     }
 
     fn save_native_trace_result(
         &mut self,
-        script: bool,
+        purpose: tcl_registry::native_variable_trace::NativeTraceStatePurpose,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        use tcl_registry::native_variable_trace::{
-            NativeTraceStatePurpose, NativeTraceStateRecipe,
-        };
+        use tcl_registry::native_variable_trace::NativeTraceStateRecipe;
         let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
         let physical_owner =
             variable_trace_outcomes::TracePhysicalOwner::capture(self, scope.currency().clone());
         let recipe = self
             .actual_native_invocation_dialect()
-            .native_trace_state_recipe(if script {
-                NativeTraceStatePurpose::VariableScript
-            } else {
-                NativeTraceStatePurpose::VariableChain
-            });
+            .native_trace_state_recipe(purpose);
         if recipe.is_none() || recipe == Some(NativeTraceStateRecipe::None) {
             return Ok(None);
         }
@@ -16447,12 +16460,21 @@ impl Vm {
         }
         let depth = self.firing_cmd_traces.len();
         self.firing_cmd_traces.push(key.clone());
+        let mut saved = None;
+        let mut state_selected = false;
         for entry in entries.into_iter().rev() {
             if original.check(self).is_err() {
                 break;
             }
             if !entry.ops.iter().any(|o| o == op) || entry.untraced() {
                 continue;
+            }
+            if !state_selected {
+                match self.save_native_command_trace_result() {
+                    Ok(state) => saved = state,
+                    Err(_) => break,
+                }
+                state_selected = true;
             }
             let _ = self.run_command_trace_callback(
                 &entry,
@@ -16463,6 +16485,9 @@ impl Vm {
                 ],
             );
             let _ = original.check(self);
+        }
+        if let Some(saved) = saved {
+            let _ = self.restore_native_interp_trace_result(saved);
         }
         if let Ok(state) = original.state_mut(self) {
             // The actual caller-owned slot, including its legitimate rename,
@@ -18368,10 +18393,6 @@ impl Vm {
             &entry,
             original_name_scope,
         );
-        #[cfg(debug_assertions)]
-        if reached.is_err() {
-            native_procedure_refusal_observer::report(declaration, &source, &entry);
-        }
         let mut unit = self.original_name_tcl_outcome(original_name_scope, reached)?;
         let actual = self.actual_native_invocation_dialect();
         let protocol = actual.native_bytecode_storage_protocol().ok_or(
@@ -24541,14 +24562,6 @@ impl Vm {
         if !self.supports_error_stack() {
             return;
         }
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some()
-            && let Some(frame) = self.frames.last()
-        {
-            for (index, value) in frame.call_argv.iter().enumerate() {
-                value.report_native_compound_ownership(&format!("call-argv-before-inner-{index}"));
-            }
-        }
         if let Err(error) = self
             .native_errors
             .error_stack
@@ -24556,14 +24569,6 @@ impl Vm {
         {
             let _ = crate::command::completion_from_tcl_error(self, error.into());
             return;
-        }
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some()
-            && let Some(frame) = self.frames.last()
-        {
-            for (index, value) in frame.call_argv.iter().enumerate() {
-                value.report_native_compound_ownership(&format!("call-argv-after-inner-{index}"));
-            }
         }
         let frame = if let Some(original) = self
             .native_errors
@@ -24590,12 +24595,6 @@ impl Vm {
         } else {
             ErrorStackFrame::Unreported
         };
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some()
-            && let ErrorStackFrame::Call(value) = &frame
-        {
-            value.report_native_compound_ownership("call-argv-captured-list");
-        }
         let _ = self
             .native_errors
             .error_stack

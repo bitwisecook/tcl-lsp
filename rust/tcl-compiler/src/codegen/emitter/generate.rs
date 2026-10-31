@@ -1235,19 +1235,6 @@ fn finalize_function(
         .native_compilation_failure
         .as_deref()
         .and_then(super::super::native_failure::error);
-    #[cfg(debug_assertions)]
-    if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1") {
-        eprintln!(
-            "ZZ_NATIVE_EMITTER_ADMISSION function={} dependency_refusal={} cfg_admission_required={:?} cfg_failure={} presented_failure={}",
-            cfg.name,
-            ctx.native_dependency_refusal,
-            cfg.native_compilation_admission
-                .as_ref()
-                .map(|admission| admission.provider_required),
-            cfg.native_compilation_failure.is_some(),
-            native_compilation_failure.is_some(),
-        );
-    }
     let native_compilation_preflight =
         if cfg.native_compilation_failure.is_some() && native_compilation_failure.is_none() {
             tcl_runtime_api::NativeCompilationPreflight::UnpresentedDefiniteFailure

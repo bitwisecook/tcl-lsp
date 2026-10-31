@@ -1837,34 +1837,48 @@ async fn folder_context_exact_inputs_keep_compiler_report_available() {
                 .db
                 .snapshot("folder_context_exact_inputs_probe")
                 .await;
-            let observation = crate::rt::spawn_blocking(move || with_pack_hooks(|| {
-                let input = tcl_lsp_db::document_analysis_input(&*snapshot, file, config);
-                let analysis = tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config);
-                let unit = tcl_lsp_db::document_compilation_unit_for(&*snapshot, file, config);
-                let compiler = tcl_lsp_db::compiler_check_diagnostics_if_available(&*snapshot, file, config);
-                let current = tcl_compiler::source_graph::current_analysis(file.text(&*snapshot), &analysis).is_some();
-                let matches_input = input.as_ref().is_ok_and(|input| {
-                    analysis.resolved_input.as_ref() == Some(input.as_ref())
-                        && analysis.body_lexer_config == Some(input.lexer_config())
-                });
-                let expected_mode = if dialect == "tcl8.4" {
-                    tcl_compiler::analyser::NonAsciiMode::Strict
-                } else { tcl_compiler::analyser::NonAsciiMode::Off };
-                let expected_commands = if dialect == "tcl8.4" {
-                    vec!["folder-a-helper".to_owned()]
-                } else { Vec::new() };
-                let resource_matches = file.dialect(&*snapshot) == dialect
-                    && config.non_ascii_mode(&*snapshot) == expected_mode
-                    && config.extra_commands(&*snapshot) == &expected_commands;
-                eprintln!("FOLDER_CONTEXT_PROBE dialect={} source={:?} context={:?} input_match={} current={} unit={} compiler={}",
-                    file.dialect(&*snapshot), file.text(&*snapshot),
-                    analysis.analysis_context_unavailable, matches_input, current,
-                    unit.is_some(), compiler.is_some());
-                eprintln!("FOLDER_CONTEXT_RESOURCE expected={} actual={} non_ascii={:?} extra={:?} matches={}",
-                    dialect, file.dialect(&*snapshot), config.non_ascii_mode(&*snapshot),
-                    config.extra_commands(&*snapshot), resource_matches);
-                (input.is_ok(), matches_input, current, unit.is_some(), compiler.is_some(), resource_matches)
-            })).await.unwrap();
+            let observation = crate::rt::spawn_blocking(move || {
+                with_pack_hooks(|| {
+                    let input = tcl_lsp_db::document_analysis_input(&*snapshot, file, config);
+                    let analysis = tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config);
+                    let unit = tcl_lsp_db::document_compilation_unit_for(&*snapshot, file, config);
+                    let compiler = tcl_lsp_db::compiler_check_diagnostics_if_available(
+                        &*snapshot, file, config,
+                    );
+                    let current = tcl_compiler::source_graph::current_analysis(
+                        file.text(&*snapshot),
+                        &analysis,
+                    )
+                    .is_some();
+                    let matches_input = input.as_ref().is_ok_and(|input| {
+                        analysis.resolved_input.as_ref() == Some(input.as_ref())
+                            && analysis.body_lexer_config == Some(input.lexer_config())
+                    });
+                    let expected_mode = if dialect == "tcl8.4" {
+                        tcl_compiler::analyser::NonAsciiMode::Strict
+                    } else {
+                        tcl_compiler::analyser::NonAsciiMode::Off
+                    };
+                    let expected_commands = if dialect == "tcl8.4" {
+                        vec!["folder-a-helper".to_owned()]
+                    } else {
+                        Vec::new()
+                    };
+                    let resource_matches = file.dialect(&*snapshot) == dialect
+                        && config.non_ascii_mode(&*snapshot) == expected_mode
+                        && config.extra_commands(&*snapshot) == &expected_commands;
+                    (
+                        input.is_ok(),
+                        matches_input,
+                        current,
+                        unit.is_some(),
+                        compiler.is_some(),
+                        resource_matches,
+                    )
+                })
+            })
+            .await
+            .unwrap();
             observations.push((dialect, source, observation));
         }
     }

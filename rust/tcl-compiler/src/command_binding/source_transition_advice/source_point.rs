@@ -100,7 +100,39 @@ pub(super) struct SourcePointQuery<'a> {
     graph: RefCell<Option<OriginalSourcePointAdviceGraph>>,
 }
 
+#[cfg(test)]
+thread_local! {
+    static SOURCE_POINT_BODY_WALKS: Cell<(usize, usize)> = const { Cell::new((0, 0)) };
+}
+
+#[cfg(test)]
+pub(super) fn reset_source_point_body_walks() {
+    SOURCE_POINT_BODY_WALKS.set((0, 0));
+}
+
+#[cfg(test)]
+pub(super) fn source_point_body_walks() -> (usize, usize) {
+    SOURCE_POINT_BODY_WALKS.get()
+}
+
 impl AdviceInvocationContext<'_> {
+    #[cfg(test)]
+    pub(super) fn note_source_point_body_walk(&self, original: &[NativeWord], catalogue: bool) {
+        let Some(SourceAdviceQuery::SourcePoint(query)) = self.query else {
+            return;
+        };
+        if self.origin != &query.site.source || original != query.original {
+            return;
+        }
+        SOURCE_POINT_BODY_WALKS.update(|(catalogue_count, entered_count)| {
+            if catalogue {
+                (catalogue_count + 1, entered_count)
+            } else {
+                (catalogue_count, entered_count + 1)
+            }
+        });
+    }
+
     pub(super) fn observe_source_point(
         &self,
         graph: &AdviceGraph,
@@ -132,23 +164,6 @@ impl AdviceInvocationContext<'_> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
-            eprintln!(
-                "N13_POINT_GRAPH offset={} native={} uncertain={} arity={} namespace={} namespace_known={} current_interpreter={} source_paths={} exact_path={}",
-                query.site.offset,
-                graph.native_baseline,
-                !graph.uncertain_operations.is_empty(),
-                !graph.arity_debts.is_empty(),
-                actual_namespace == expected_namespace.as_ref(),
-                expected_namespace
-                    .as_ref()
-                    .is_some_and(|namespace| !graph.unknown_paths.contains(namespace)),
-                schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current,
-                !load_paths.is_empty(),
-                load_paths.iter().all(|path| *path == query.path),
-            );
-        }
         if graph.native_baseline
             || !graph.uncertain_operations.is_empty()
             || !graph.arity_debts.is_empty()
@@ -195,16 +210,6 @@ impl OriginalSourceTransitionSeed {
             OriginalSourceCataloguePurpose::CompletePrefix,
             Some(SourceAdviceQuery::SourcePoint(&query)),
         )?;
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
-            eprintln!(
-                "N13_POINT_GRAPH_END offset={} seen={} refused={} retained={}",
-                site.offset,
-                query.seen.get(),
-                query.refused.get(),
-                query.graph.borrow().is_some()
-            );
-        }
         (!query.refused.get()).then_some(())?;
         query.graph.into_inner().map(Arc::new)
     }
@@ -460,20 +465,6 @@ impl AdviceInvocationContext<'_> {
         {
             query.refused.set(true);
         }
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
-            eprintln!(
-                "N13_NORMAL_OPERATION pending={} refused={} falls_through={} arity={:?} roles={} no_callback={}",
-                query.pending.get(),
-                query.refused.get(),
-                schema.authored_source_invocation_completion()
-                    == tcl_registry::registry::InvocationCompletion::FallsThrough,
-                facts.arity_accepts_frozen_arguments(),
-                facts.arg_roles_complete,
-                facts.source_callback_retention()
-                    == tcl_registry::resolved_invocation::SourceCallbackRetention::Absent,
-            );
-        }
     }
 
     pub(super) fn finish_normal_source_graph(&self, graph: &AdviceGraph) {
@@ -496,17 +487,6 @@ impl AdviceInvocationContext<'_> {
                     graph.arity_debts.len(),
                 );
             }
-        }
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
-            eprintln!(
-                "N13_NORMAL_FINISH pending={} refused={} native={} uncertain={} arity_debts={}",
-                query.pending.get(),
-                query.refused.get(),
-                graph.native_baseline,
-                graph.uncertain_operations.len(),
-                graph.arity_debts.len(),
-            );
         }
         if query.refused.get()
             || query.pending.get() != 0
@@ -573,25 +553,11 @@ impl OriginalSourceTransitionSeed {
         } else {
             OriginalSourceCataloguePurpose::CompleteProgram
         };
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
-            eprintln!("N13_NORMAL_BEGIN purpose={purpose:?}");
-        }
         let tape = self.prepare_for_query(
             context,
             purpose,
             Some(SourceAdviceQuery::NormalSourceOutcome(&query)),
         )?;
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
-            eprintln!(
-                "N13_NORMAL_PREPARED pending={} sealed={} refused={} graph={}",
-                query.pending.get(),
-                query.sealed.get(),
-                query.refused.get(),
-                query.graph.borrow().is_some(),
-            );
-        }
         (!query.refused.get() && query.sealed.get()).then_some(())?;
         query
             .graph
@@ -906,6 +872,75 @@ mod nested_source_point_controls {
     use crate::registry_invocation::source_structure::original_project_source_load_at;
 
     #[test]
+    fn member_catalogue_alone_cannot_issue_a_source_point_graph() {
+        let source = "oo::class create C {method m {} {source child.tcl}}";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
+        let input = parent.resolved_input.as_ref().unwrap();
+        let realm = parent.retained_command_realm().unwrap();
+        let seed = realm
+            .source_bindings_ref()
+            .original_source_transition_seed()
+            .unwrap();
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source, &parent, offset,
+        )
+        .unwrap();
+        let original = [
+            words.head_source().unwrap().word().unwrap().clone(),
+            words.original_argument_word(0).unwrap().clone(),
+        ];
+        let site = crate::command_binding::CommandAllocationSite {
+            source: std::sync::Arc::clone(&seed.origin),
+            offset,
+        };
+        let namespace = crate::command_binding::SourceNamespaceKey::authored("::");
+        super::reset_source_point_body_walks();
+        let graph = seed.source_point_graph(
+            input.borrowed_context_registry(),
+            &site,
+            &original,
+            0,
+            &namespace,
+        );
+        let (catalogue, entered) = super::source_point_body_walks();
+        assert!(catalogue > 0, "the exact member source was catalogued");
+        assert_eq!(entered, 0, "no selected body reached the source point");
+        assert!(
+            graph.is_none(),
+            "catalogue-only syntax cannot issue a point graph"
+        );
+    }
+
+    #[test]
+    fn repeated_real_body_visits_refuse_a_source_point_graph() {
+        let source = "if {[source child.tcl]} {set x 1}";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
+        let input = parent.resolved_input.as_ref().unwrap();
+        let realm = parent.retained_command_realm().unwrap();
+        let seed = realm.source_bindings_ref().original_source_transition_seed().unwrap();
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source, &parent, offset,
+        ).unwrap();
+        let original = [
+            words.head_source().unwrap().word().unwrap().clone(),
+            words.original_argument_word(0).unwrap().clone(),
+        ];
+        let site = crate::command_binding::CommandAllocationSite {
+            source: std::sync::Arc::clone(&seed.origin), offset,
+        };
+        let namespace = crate::command_binding::SourceNamespaceKey::authored("::");
+        super::reset_source_point_body_walks();
+        let graph = seed.source_point_graph(
+            input.borrowed_context_registry(), &site, &original, 0, &namespace,
+        );
+        let (_, entered) = super::source_point_body_walks();
+        assert!(entered > 1, "the same exact source point must be visited twice");
+        assert!(graph.is_none(), "duplicate actual observations must refuse a point graph");
+    }
+
+    #[test]
     fn nested_namespace_point_uses_the_selected_body_graph_without_normal_or_native_grants() {
         let source = "namespace eval ::app {source child.tcl}";
         let parent = Analyser::new().analyse(source, "tcl8.6");
@@ -914,9 +949,16 @@ mod nested_source_point_controls {
         let point = load.source_point_entry(&parent).unwrap();
         assert!(point.matches_parent_analysis(&parent));
         assert!(!point.matches_parent_analysis(&Analyser::new().analyse(source, "tcl8.6")));
+        super::reset_source_point_body_walks();
         let child = Analyser::new()
             .analyse_with_source_point_entry("proc child {} {}", "tcl8.6", &point)
             .expect("actual nested namespace source graph");
+        let (catalogue, entered) = super::source_point_body_walks();
+        assert!(catalogue > 0, "the exact source point was catalogued");
+        assert!(
+            entered > 0,
+            "the exact source point was visited in its selected body"
+        );
         assert!(point.matches_child_analysis(&child));
         assert!(child.all_procs.contains_key("::app::child"));
         assert!(!child.all_procs.contains_key("::child"));

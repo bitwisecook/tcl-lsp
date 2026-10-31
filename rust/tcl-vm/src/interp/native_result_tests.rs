@@ -236,3 +236,54 @@ fn jim_successful_vector_releases_all_temporary_argument_owners() {
     assert!(vm.jim_errors.frames.is_empty());
     assert!(vm.jim_errors.vectors.is_empty());
 }
+
+#[test]
+fn command_trace_state_requires_known_policy_and_original_owner() {
+    use tcl_runtime_api::NativeExecutionError;
+
+    for release in RELEASES {
+        let mut vm = crate::native_fixture::core(
+            tcl_dialect::DialectProfile::find(release.dialect_name()).unwrap(),
+        );
+        let saved = vm.save_native_command_trace_result().unwrap();
+        assert_eq!(saved.is_some(), release != TclVersion::V8_4);
+    }
+
+    let mut vm = crate::native_fixture::core(
+        tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+    );
+    let refusal = match vm.save_native_command_trace_result() {
+        Err(error) => error,
+        Ok(_) => panic!("unknown command trace policy must refuse"),
+    };
+    let NativeExecutionError::HostCommandRefusal(payload) = &refusal else {
+        panic!("expected typed host refusal");
+    };
+    assert_eq!(payload.reason, "command trace state recipe is unavailable");
+    assert_eq!(vm.execution_refusal, Some(refusal));
+
+    let mut vm = crate::native_fixture::core(
+        tcl_dialect::DialectProfile::find(TclVersion::V9_0.dialect_name()).unwrap(),
+    );
+    let original = vm
+        .publish_native_interp_completion(ok(Value::string("PARENT")))
+        .unwrap();
+    let child_name = vm.create_child(Some("trace-child".into()), false);
+    let child = vm.child_id(&child_name).unwrap();
+    let saved = vm.in_interp(child, |vm| {
+        vm.publish_native_interp_completion(ok(Value::string("CHILD")))
+            .unwrap();
+        vm.save_native_command_trace_result().unwrap().unwrap()
+    });
+    assert!(vm.delete_interp(child));
+    let refusal = vm.restore_native_interp_trace_result(saved).unwrap_err();
+    let NativeExecutionError::HostCommandRefusal(payload) = &refusal else {
+        panic!("expected retired-owner host refusal");
+    };
+    assert_eq!(
+        payload.reason,
+        "original saved trace interpreter is unavailable"
+    );
+    vm.with_native_interp_result(|value| assert!(value.is_same_object(&original.result)))
+        .unwrap();
+}
