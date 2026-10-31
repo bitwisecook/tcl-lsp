@@ -5857,6 +5857,46 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     }
 
     #[test]
+    fn unknown_substitution_with_known_suffix_withholds_both_completed_world_views() {
+        let declaration = "proc host_old {value} { return $value }\n";
+        let opaque =
+            "proc host_old {value} { return $value }\nputs [nop \"🧪\"]; puts [host_old 7]\n";
+        assert_eq!(opaque.len(), 77);
+        let cases = [
+            ("puts [host_old 7]\n", true),
+            ("puts [host_old \"🧪\"]\n", true),
+            ("puts [nop ascii]\n", false),
+            ("puts [nop \"🧪\"]\n", false),
+            ("puts [nop ascii]; puts [host_old 7]\n", false),
+            ("puts [nop \"🧪\"]; puts [host_old 7]\n", false),
+            ("puts [host_old 7]; puts [nop ascii]\n", false),
+            ("puts [host_old 7]; puts [nop \"🧪\"]\n", false),
+        ];
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for (tail, completed) in cases {
+                let source = format!("{declaration}{tail}");
+                if tail == "puts [nop \"🧪\"]; puts [host_old 7]\n" {
+                    assert_eq!(source, opaque);
+                }
+                let result = crate::analyser::Analyser::new().analyse(&source, dialect);
+                assert_eq!(
+                    result.original_completed_command_world().is_some(),
+                    completed,
+                    "{dialect}: {tail:?}: analysis completed world"
+                );
+                let realm = result
+                    .retained_command_realm()
+                    .expect("retained original realm");
+                assert_eq!(
+                    realm.original_completed_command_world().is_some(),
+                    completed,
+                    "{dialect}: {tail:?}: realm completed world"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn crlf_class_method_bodies_analyse_without_lexer_panics() {
         // A Windows document: every line ends in CR LF, and the method body
         // reads `$label` inside a quoted word.
