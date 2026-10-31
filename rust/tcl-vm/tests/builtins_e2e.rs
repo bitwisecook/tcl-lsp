@@ -2871,3 +2871,11 @@ fn format_dynamic_decimal_and_float_generic_fallback_preserves_dispatch() {
         "42 2.000000 {42 2}\n1 boom\noverride %d 7\n",
     );
 }
+
+#[test]
+fn private_string_is_dynamic_class_decline_preserves_dispatch() {
+    out_eq(
+        "set seen {}\nproc val {tag value} {global seen; lappend seen $tag; return $value}\nputs [list [::tcl::string::is [val class ascii] -strict [val value abc]] $seen]\nset seen {}\nputs [list [catch {::tcl::string::is [val class digit] -failindex index [val value abc]} result] $result $index $seen]\nset seen {}\nputs [list [catch {::tcl::string::is [error boom] [val value abc]} result] $result $seen]\nset seen {}\nproc rebind {} {global seen; lappend seen class; rename ::tcl::string::is ::tcl::string::oldis; proc ::tcl::string::is args {return OVERRIDE}; return ascii}\nputs [list [::tcl::string::is [rebind] -strict [val value abc]] $seen]\n",
+        "1 {class value}\n0 0 0 {class value}\n1 boom {}\nOVERRIDE {class value}\n",
+    );
+}

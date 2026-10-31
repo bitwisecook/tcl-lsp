@@ -1912,6 +1912,19 @@ impl NativeCompilationSpec {
                 context,
             );
         }
+        if let NativeCompilationGrammar::StringIsAscii(scope) = self.grammar
+            && crate::native_string_is_compilation::private_dynamic_class_declines(
+                words,
+                operand_from,
+                scope,
+                version,
+                self.operation,
+                self.body,
+                context,
+            )
+        {
+            return Visits(Self::original_generic_word_visits(words));
+        }
         if self.grammar == NativeCompilationGrammar::FormatStringConcat {
             let selection = crate::native_format_compilation::select(
                 words.literal(operand_from),
@@ -3062,7 +3075,9 @@ impl NativeCompilationSpec {
                 },
             );
         }
-        if let Some(selection) = self.select_original_string_words(words, operand_from, version) {
+        if let Some(selection) =
+            self.select_original_string_words(words, operand_from, version, context)
+        {
             return Some(selection);
         }
 
@@ -3099,6 +3114,7 @@ impl NativeCompilationSpec {
         words: &crate::native_compiler_words::NativeCompilerWords<'_>,
         operand_from: usize,
         version: TclVersion,
+        context: NativeCompilationContext,
     ) -> Option<NativeCompilationSelection> {
         if let NativeCompilationGrammar::StringTrim { scope, .. } = self.grammar {
             return Some(crate::native_string_trim_compilation::select_original(
@@ -3110,6 +3126,17 @@ impl NativeCompilationSpec {
             ));
         }
         if let NativeCompilationGrammar::StringIsAscii(scope) = self.grammar {
+            if crate::native_string_is_compilation::private_dynamic_class_declines(
+                words,
+                operand_from,
+                scope,
+                version,
+                self.operation,
+                self.body,
+                context,
+            ) {
+                return Some(NativeCompilationSelection::Generic);
+            }
             return Some(crate::native_string_is_compilation::select_original(
                 words,
                 operand_from,

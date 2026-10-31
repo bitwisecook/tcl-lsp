@@ -70,6 +70,38 @@ pub fn select_shapes(
     }
 }
 
+/// C9 declines a direct private StringIs compiler before emitting any word
+/// when its class token requires runtime substitution. Public ensemble
+/// fallback has a different recipe and must not use this proof.
+pub(crate) fn private_dynamic_class_declines(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: NativeScalarScope,
+    version: TclVersion,
+    operation: SemanticOperationId,
+    body: crate::native_compilation::NativeBodyCompilation,
+    context: crate::native_compilation::NativeCompilationContext,
+) -> bool {
+    if body != crate::native_compilation::NativeBodyCompilation::Inherit
+        || context.mode != crate::native_compilation::NativeCompilationMode::BytecodeObject
+        || scope != NativeScalarScope::PrivateOperands
+        || version != TclVersion::V9_0
+        || operand_from != 1
+        || operation != SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs)
+        || words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version)
+    {
+        return false;
+    }
+    let Some(arguments) = words.shapes().get(operand_from..) else {
+        return false;
+    };
+    (2..=5).contains(&arguments.len())
+        && arguments[0] == Shape::Substituted
+        && arguments
+            .iter()
+            .all(|shape| !matches!(shape, Shape::Opaque | Shape::Expanded))
+}
+
 /// Retain source operands independently of names or computed argv values.
 #[must_use]
 pub fn select_original(
@@ -160,6 +192,194 @@ mod tests {
         )
         .unwrap();
         parsed.commands.remove(0).words
+    }
+
+    #[test]
+    fn c90_private_dynamic_class_declines_with_all_original_word_visits() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationSpec, NativeOriginalCompilerNameEffects,
+        };
+        use crate::native_control_compilation::NativeControlPreparationStep as Step;
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let private = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PrivateOperands),
+            operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs),
+            body: NativeBodyCompilation::Inherit,
+        };
+        let public = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PublicMember),
+            ..private
+        };
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            ..NativeCompilationContext::default()
+        };
+        for source in [
+            b"::tcl::string::is $c $s".as_slice(),
+            b"::tcl::string::is [class] -strict [subject]",
+            b"::tcl::string::is $c -failindex index $s",
+            b"::tcl::string::is $c -strict -failindex index $s",
+        ] {
+            let source_words = words(source, version);
+            let captured =
+                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
+                    .unwrap();
+            let selected = private.select_native_words(&captured, 1, Some(dialect), context);
+            assert_eq!(selected, NativeCompilationSelection::Generic, "{source:?}");
+            let visits = (0..source_words.len())
+                .map(|index| Step::Word(NativeCompilerWordOperand::Original(index)))
+                .collect();
+            assert_eq!(
+                private.original_argument_name_effects_in_context(
+                    &captured,
+                    1,
+                    Some(dialect),
+                    context
+                ),
+                NativeOriginalCompilerNameEffects::Visits(visits)
+            );
+            assert_eq!(
+                native_instruction_plan(private, selected, &captured, 1, dialect, context),
+                Ok(NativeInstructionPlan::GenericPreparation(Vec::new()))
+            );
+        }
+        for source in [
+            b"string is $c $s".as_slice(),
+            b"string is $c -strict $s",
+            b"string is $c -failindex index $s",
+        ] {
+            let source_words = words(source, version);
+            let captured =
+                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
+                    .unwrap();
+            assert_eq!(
+                public.select_native_words(&captured, 1, Some(dialect), context),
+                NativeCompilationSelection::Unknown
+            );
+            assert_eq!(
+                private.select_native_words(&captured, 2, Some(dialect), context),
+                NativeCompilationSelection::Unknown
+            );
+        }
+        for source in [
+            b"::tcl::string::is $c".as_slice(),
+            b"::tcl::string::is $c {*}$s",
+            b"::tcl::string::is ascii $s",
+        ] {
+            let source_words = words(source, version);
+            let captured =
+                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
+                    .unwrap();
+            assert_ne!(
+                private.select_native_words(&captured, 1, Some(dialect), context),
+                NativeCompilationSelection::Generic
+            );
+        }
+        for version in [TclVersion::V8_6, TclVersion::V9_1] {
+            let source_words = words(b"::tcl::string::is $c $s", version);
+            let captured =
+                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
+                    .unwrap();
+            assert_eq!(
+                private.select_native_words(
+                    &captured,
+                    1,
+                    Some(crate::InvocationDialect::for_version(version)),
+                    context
+                ),
+                NativeCompilationSelection::Unknown
+            );
+        }
+    }
+
+    #[test]
+    fn private_dynamic_decline_rejects_foreign_body_and_compiler_context() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationSpec, NativeOriginalCompilerNameEffects,
+        };
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let source_words = words(b"::tcl::string::is $c $s", version);
+        let captured =
+            NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version)).unwrap();
+        let spec = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PrivateOperands),
+            operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs),
+            body: NativeBodyCompilation::Inherit,
+        };
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            ..NativeCompilationContext::default()
+        };
+        for body in [
+            NativeBodyCompilation::Direct,
+            NativeBodyCompilation::ScriptObject,
+            NativeBodyCompilation::ProcedureObject,
+        ] {
+            let foreign = NativeCompilationSpec { body, ..spec };
+            assert_eq!(
+                foreign.select_native_words(&captured, 1, Some(dialect), context),
+                NativeCompilationSelection::Unknown
+            );
+            assert_eq!(
+                foreign.original_argument_name_effects_in_context(
+                    &captured,
+                    1,
+                    Some(dialect),
+                    context
+                ),
+                NativeOriginalCompilerNameEffects::Unknown
+            );
+        }
+        let unknown = NativeCompilationContext {
+            mode: NativeCompilationMode::Unknown,
+            ..context
+        };
+        assert_eq!(
+            spec.select_native_words(&captured, 1, Some(dialect), unknown),
+            NativeCompilationSelection::Unknown
+        );
+        assert_eq!(
+            spec.original_argument_name_effects_in_context(&captured, 1, Some(dialect), unknown),
+            NativeOriginalCompilerNameEffects::Unknown
+        );
+        let direct = NativeCompilationContext {
+            mode: NativeCompilationMode::Direct,
+            ..context
+        };
+        assert!(!private_dynamic_class_declines(
+            &captured,
+            1,
+            NativeScalarScope::PrivateOperands,
+            version,
+            spec.operation,
+            spec.body,
+            direct
+        ));
+        assert!(
+            native_instruction_plan(
+                spec,
+                NativeCompilationSelection::Generic,
+                &captured,
+                1,
+                dialect,
+                direct
+            )
+            .is_err()
+        );
+        let foreign_protocol =
+            NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(TclVersion::V8_6))
+                .unwrap();
+        assert!(!private_dynamic_class_declines(
+            &foreign_protocol,
+            1,
+            NativeScalarScope::PrivateOperands,
+            version,
+            spec.operation,
+            spec.body,
+            context
+        ));
     }
 
     #[test]

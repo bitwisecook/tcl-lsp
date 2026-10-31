@@ -1811,6 +1811,77 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_string_is_decline_is_private_and_does_not_admit_ensemble_workers() {
+        let registry = CommandRegistry::build_default();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            ..Default::default()
+        };
+        let mut entry = entry(tcl_dialect::TclVersion::V9_0);
+        let mut worker = binding(
+            &entry.namespaces[0],
+            b"private",
+            NativeCompilerHookPresence::Present,
+        );
+        worker.token = 12;
+        worker.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "::tcl::string::is".into(),
+            ensemble: None,
+        });
+        let mut public = binding(
+            &entry.namespaces[0],
+            b"ensemble",
+            NativeCompilerHookPresence::Present,
+        );
+        public.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "custom-ensemble".into(),
+            ensemble: Some(
+                tcl_runtime_api::native_compilation::NativeEnsembleCompiler {
+                    namespace_token: entry.current_namespace,
+                    map: vec![("member".into(), vec![Some("private".into())])],
+                    subcommands: None,
+                    prefixes: true,
+                    parameters: vec![],
+                    unknown_handler: None,
+                },
+            ),
+        });
+        entry.commands.extend([public, worker]);
+        install_original_target_fixture(&mut entry);
+        let direct = source_module(b"private $class -strict $subject", &entry);
+        let crate::ir::Statement::NativeCall { words, .. } = &direct.top_level.statements[0] else {
+            panic!("original private call")
+        };
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context).unwrap(),
+            NativeByteCommandPlan::Generic
+        );
+        let public = source_module(b"ensemble member $class -strict $subject", &entry);
+        let crate::ir::Statement::NativeCall { words, .. } = &public.top_level.statements[0] else {
+            panic!("original public call")
+        };
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context),
+            Err(NativeByteCommandUnavailable::Recipe)
+        );
+        entry.commands[0]
+            .compiler
+            .as_mut()
+            .unwrap()
+            .ensemble
+            .as_mut()
+            .unwrap()
+            .map[0]
+            .1
+            .push(Some("prefix".into()));
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context),
+            Ok(NativeByteCommandPlan::Generic)
+        );
+    }
+
+    #[test]
     fn original_selected_worker_trace_veto_and_dictionary_operation_are_distinct() {
         let registry = CommandRegistry::build_default();
         let context = NativeCompilationContext {

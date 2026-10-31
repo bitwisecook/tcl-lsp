@@ -723,6 +723,20 @@ fn original_decline_preparations(
         NativeInstructionPlanUnavailable,
     >,
 > {
+    if let NativeCompilationGrammar::StringIsAscii(scope) = spec.grammar
+        && context.mode == crate::native_compilation::NativeCompilationMode::BytecodeObject
+        && crate::native_string_is_compilation::private_dynamic_class_declines(
+            words,
+            operand_from,
+            scope,
+            dialect.tcl_version?,
+            spec.operation,
+            spec.body,
+            context,
+        )
+    {
+        return Some(Ok(Vec::new()));
+    }
     if spec.grammar == NativeCompilationGrammar::FormatStringConcat {
         let selection = crate::native_format_compilation::select(
             words.literal(operand_from),
