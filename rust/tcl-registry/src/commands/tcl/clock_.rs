@@ -650,6 +650,16 @@ pub fn spec() -> CommandSpec {
 pub fn parse_format_args_spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::clock::ParseFormatArgs",
+        hover: Some(HoverSnippet {
+            summary: "Parse options for Tcl's clock formatter.",
+            synopsis: &[
+                "::tcl::clock::ParseFormatArgs seconds ?-format string? ?-gmt boolean? ?-locale locale? ?-timezone zone?",
+            ],
+            snippet: "Internal Tcl 8.6 clock worker. Validates the time argument and clock format options, then returns the selected format, locale and timezone settings to the Tcl clock library.",
+            source: "Tcl 8.6 generic/tclClock.c: ClockParseformatargsObjCmd",
+            examples: "info commands ::tcl::clock::ParseFormatArgs",
+            return_value: "A list of parsed format, locale and timezone settings.",
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
             operation: crate::SemanticOperationId::Invoke,
@@ -668,6 +678,14 @@ pub fn parse_format_args_spec() -> CommandSpec {
 pub fn get_date_fields_spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::clock::GetDateFields",
+        hover: Some(HoverSnippet {
+            summary: "Compute the date fields used by Tcl's clock formatter.",
+            synopsis: &["::tcl::clock::GetDateFields seconds tzdata changeover"],
+            snippet: "Internal Tcl 8.6 clock worker. Converts Posix seconds using timezone transition data and a Gregorian calendar changeover Julian day. Returns a dictionary containing the time and calendar fields needed by clock format.",
+            source: "Tcl 8.6 generic/tclClock.c: ClockGetdatefieldsObjCmd",
+            examples: "info commands ::tcl::clock::GetDateFields",
+            return_value: "A dictionary of date and timezone fields.",
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
             operation: crate::SemanticOperationId::Invoke,
@@ -684,6 +702,14 @@ pub fn get_date_fields_spec() -> CommandSpec {
 pub fn getenv_spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::clock::getenv",
+        hover: Some(HoverSnippet {
+            summary: "Read a process environment value for Tcl's clock library.",
+            synopsis: &["::tcl::clock::getenv name"],
+            snippet: "Internal Tcl 8.6 clock worker. Reads the named process environment variable and returns its value, or an empty string if it is unset.",
+            source: "Tcl 8.6 generic/tclClock.c: ClockGetenvObjCmd",
+            examples: "info commands ::tcl::clock::getenv",
+            return_value: "The process environment value, or an empty string.",
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
             operation: crate::SemanticOperationId::Invoke,

@@ -103,6 +103,14 @@ fn argument_roles(arguments: &[&str]) -> Vec<(u8, ArgRole)> {
 pub(super) fn spec() -> CommandSpec {
     CommandSpec {
         name: "exists",
+        hover: Some(HoverSnippet {
+            summary: "Check whether a Jim variable, command, procedure, alias or channel exists.",
+            synopsis: &["exists ?-command|-proc|-alias|-channel|-var? name"],
+            snippet: "Returns whether the selected kind of name exists. With no selector, checks a variable. Jim accepts an unambiguous abbreviation of the selector.",
+            source: "Jim 0.84 command reference: exists; Jim_ExistsCoreCommand (jim.c)",
+            examples: "set present value\nexists present\nexists -command puts",
+            return_value: "1 if the selected name exists, otherwise 0.",
+        }),
         surface: Some(tcl_dialect::surface![
             tcl_dialect::model::SpecSurface::core_in(
                 tcl_dialect::model::Family::Jim,

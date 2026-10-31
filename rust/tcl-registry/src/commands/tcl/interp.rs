@@ -1117,6 +1117,14 @@ pub fn spec() -> CommandSpec {
 pub fn init_auto_path_spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::InitAutoPath",
+        hover: Some(HoverSnippet {
+            summary: "Initialise Tcl's automatic package search paths.",
+            synopsis: &["::tcl::InitAutoPath"],
+            snippet: "Internal Tcl 9.1 startup worker. In a safe interpreter, creates an empty global auto_path only if it is absent and otherwise preserves it, then returns. In an unsafe interpreter, adds library and package paths to auto_path, initialises it from TCLLIBPATH only when absent, and adds the library encoding directory to the encoding search path. The startup script invokes this worker; it is not a public interp subcommand.",
+            source: "Tcl 9.1 generic/tclInterp.c: InitAutoPathObjCmd; library/init.tcl",
+            examples: "info commands ::tcl::InitAutoPath",
+            return_value: "Standard Tcl command result.",
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
             operation: crate::SemanticOperationId::Invoke,
