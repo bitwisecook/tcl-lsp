@@ -102,6 +102,80 @@ pub(crate) fn private_dynamic_class_declines(
             .all(|shape| !matches!(shape, Shape::Opaque | Shape::Expanded))
 }
 
+/// C9 rejects the direct private failindex forms after resolving the exact
+/// compile-known ASCII class in a fresh temporary and before emitting words.
+pub(crate) fn private_ascii_failindex_declines(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: NativeScalarScope,
+    version: TclVersion,
+    operation: SemanticOperationId,
+    body: crate::native_compilation::NativeBodyCompilation,
+    context: crate::native_compilation::NativeCompilationContext,
+) -> bool {
+    if body != crate::native_compilation::NativeBodyCompilation::Inherit
+        || context.mode != crate::native_compilation::NativeCompilationMode::BytecodeObject
+        || scope != NativeScalarScope::PrivateOperands
+        || version != TclVersion::V9_0
+        || operand_from != 1
+        || operation != SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs)
+        || words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version)
+    {
+        return false;
+    }
+    let Some(arguments) = words.shapes().get(operand_from..) else {
+        return false;
+    };
+    if arguments
+        .iter()
+        .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded))
+        || arguments.first() != Some(&Shape::Literal)
+        || words.literal(operand_from) != Some(b"ascii")
+    {
+        return false;
+    }
+    let option = match arguments.len() {
+        4 => 1,
+        5 if arguments[1] == Shape::Literal
+            && words.literal(operand_from + 1) == Some(b"-strict") =>
+        {
+            2
+        }
+        _ => return false,
+    };
+    arguments[option] == Shape::Literal
+        && words.literal(operand_from + option) == Some(b"-failindex")
+}
+
+/// A closed direct-private compiler decline with no emitted preparation.
+pub(crate) fn private_original_declines(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: NativeScalarScope,
+    version: TclVersion,
+    operation: SemanticOperationId,
+    body: crate::native_compilation::NativeBodyCompilation,
+    context: crate::native_compilation::NativeCompilationContext,
+) -> bool {
+    private_dynamic_class_declines(
+        words,
+        operand_from,
+        scope,
+        version,
+        operation,
+        body,
+        context,
+    ) || private_ascii_failindex_declines(
+        words,
+        operand_from,
+        scope,
+        version,
+        operation,
+        body,
+        context,
+    )
+}
+
 /// Retain source operands independently of names or computed argv values.
 #[must_use]
 pub fn select_original(
@@ -192,6 +266,189 @@ mod tests {
         )
         .unwrap();
         parsed.commands.remove(0).words
+    }
+
+    #[test]
+    fn private_ascii_failindex_decline_is_limited_to_original_proven_forms() {
+        use crate::native_compilation::NativeBodyCompilation;
+        let version = TclVersion::V9_0;
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            ..NativeCompilationContext::default()
+        };
+        let operation = SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs);
+        for source in [
+            b"::tcl::string::is ascii -failindex index $s".as_slice(),
+            b"::tcl::string::is ascii -strict -failindex index $s",
+        ] {
+            let source_words = words(source, version);
+            let captured =
+                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
+                    .unwrap();
+            assert!(private_ascii_failindex_declines(
+                &captured,
+                1,
+                NativeScalarScope::PrivateOperands,
+                version,
+                operation,
+                NativeBodyCompilation::Inherit,
+                context
+            ));
+            assert!(!private_ascii_failindex_declines(
+                &captured,
+                2,
+                NativeScalarScope::PrivateOperands,
+                version,
+                operation,
+                NativeBodyCompilation::Inherit,
+                context
+            ));
+            assert!(!private_ascii_failindex_declines(
+                &captured,
+                1,
+                NativeScalarScope::PublicMember,
+                version,
+                operation,
+                NativeBodyCompilation::Inherit,
+                context
+            ));
+            assert!(!private_ascii_failindex_declines(
+                &captured,
+                1,
+                NativeScalarScope::PrivateOperands,
+                version,
+                operation,
+                NativeBodyCompilation::Direct,
+                context
+            ));
+            let unknown = NativeCompilationContext {
+                mode: NativeCompilationMode::Unknown,
+                ..context
+            };
+            assert!(!private_ascii_failindex_declines(
+                &captured,
+                1,
+                NativeScalarScope::PrivateOperands,
+                version,
+                operation,
+                NativeBodyCompilation::Inherit,
+                unknown
+            ));
+            let foreign = NativeCompilerWords::capture(
+                &source_words,
+                NativeStringProtocol::C(TclVersion::V8_6),
+            )
+            .unwrap();
+            assert!(!private_ascii_failindex_declines(
+                &foreign,
+                1,
+                NativeScalarScope::PrivateOperands,
+                version,
+                operation,
+                NativeBodyCompilation::Inherit,
+                context
+            ));
+        }
+    }
+
+    #[test]
+    fn private_ascii_failindex_decline_rejects_other_shapes() {
+        use crate::native_compilation::NativeBodyCompilation;
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            ..NativeCompilationContext::default()
+        };
+        let operation = SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs);
+        for source in [
+            b"::tcl::string::is $class -failindex index $s".as_slice(),
+            b"::tcl::string::is integer -failindex index $s",
+            b"::tcl::string::is ascii $option index $s",
+            b"::tcl::string::is ascii -failindex {*}$args",
+            b"::tcl::string::is ascii -strict $s",
+            b"string is ascii -failindex index $s",
+        ] {
+            let source_words = words(source, version);
+            let captured = NativeCompilerWords::capture(
+                &source_words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            assert!(
+                !private_ascii_failindex_declines(
+                    &captured,
+                    1,
+                    NativeScalarScope::PrivateOperands,
+                    version,
+                    operation,
+                    NativeBodyCompilation::Inherit,
+                    context
+                ),
+                "{source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn c90_private_ascii_failindex_decline_keeps_original_word_visits() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationSpec, NativeOriginalCompilerNameEffects,
+        };
+        use crate::native_control_compilation::NativeControlPreparationStep as Step;
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let private = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PrivateOperands),
+            operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs),
+            body: NativeBodyCompilation::Inherit,
+        };
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            ..NativeCompilationContext::default()
+        };
+        for source in [
+            b"::tcl::string::is ascii -failindex [index] [subject]".as_slice(),
+            b"::tcl::string::is ascii -strict -failindex index $s",
+        ] {
+            let source_words = words(source, version);
+            let captured =
+                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
+                    .unwrap();
+            let selection = private.select_native_words(&captured, 1, Some(dialect), context);
+            assert_eq!(selection, NativeCompilationSelection::Generic, "{source:?}");
+            let visits = (0..source_words.len())
+                .map(|index| Step::Word(NativeCompilerWordOperand::Original(index)))
+                .collect();
+            assert_eq!(
+                private.original_argument_name_effects_in_context(
+                    &captured,
+                    1,
+                    Some(dialect),
+                    context
+                ),
+                NativeOriginalCompilerNameEffects::Visits(visits)
+            );
+            assert_eq!(
+                native_instruction_plan(private, selection, &captured, 1, dialect, context),
+                Ok(NativeInstructionPlan::GenericPreparation(Vec::new()))
+            );
+        }
+        let source_words = words(b"string is ascii -failindex index $s", version);
+        let captured =
+            NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version)).unwrap();
+        let public = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PublicMember),
+            ..private
+        };
+        assert_eq!(
+            public.select_native_words(&captured, 1, Some(dialect), context),
+            NativeCompilationSelection::Unknown
+        );
+        assert_eq!(
+            private.select_native_words(&captured, 2, Some(dialect), context),
+            NativeCompilationSelection::Unknown
+        );
     }
 
     #[test]

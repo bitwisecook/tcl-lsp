@@ -1913,7 +1913,7 @@ impl NativeCompilationSpec {
             );
         }
         if let NativeCompilationGrammar::StringIsAscii(scope) = self.grammar
-            && crate::native_string_is_compilation::private_dynamic_class_declines(
+            && crate::native_string_is_compilation::private_original_declines(
                 words,
                 operand_from,
                 scope,
@@ -3146,7 +3146,7 @@ impl NativeCompilationSpec {
             ));
         }
         if let NativeCompilationGrammar::StringIsAscii(scope) = self.grammar {
-            if crate::native_string_is_compilation::private_dynamic_class_declines(
+            if crate::native_string_is_compilation::private_original_declines(
                 words,
                 operand_from,
                 scope,

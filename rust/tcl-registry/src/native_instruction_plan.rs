@@ -725,7 +725,7 @@ fn original_decline_preparations(
 > {
     if let NativeCompilationGrammar::StringIsAscii(scope) = spec.grammar
         && context.mode == crate::native_compilation::NativeCompilationMode::BytecodeObject
-        && crate::native_string_is_compilation::private_dynamic_class_declines(
+        && crate::native_string_is_compilation::private_original_declines(
             words,
             operand_from,
             scope,
