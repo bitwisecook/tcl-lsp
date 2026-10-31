@@ -35,12 +35,14 @@ const FORMS: &[FormSpec] = &[FormSpec {
 const NAMESPACE_UPVAR_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "tcl8.5",
+        arg_roles: &[(0, ArgRole::NamespaceName)],
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         surface: Some(SpecSurface::TCL85),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
         name: "tcl8.6+",
+        arg_roles: &[(0, ArgRole::NamespaceName)],
         arity: Arity::stepped(1, Arity::UNLIMITED, 2),
         surface: Some(SpecSurface::TCL86_PLUS),
         ..SubCommandForm::DEFAULT
@@ -2146,6 +2148,54 @@ mod tests {
             assert!(accepts(dialect, 3));
             assert!(!accepts(dialect, 2));
         }
+    }
+
+    #[test]
+    fn upvar_forms_preserve_namespace_and_repeated_local_roles() {
+        use crate::ArgRole;
+
+        let authored = spec();
+        let upvar = authored
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == "upvar")
+            .unwrap();
+        for form in upvar.subcommand_forms {
+            assert_eq!(form.arg_roles, [(0, ArgRole::NamespaceName)]);
+        }
+        for environment in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = crate::model::ingress::static_context_for(environment).commands();
+            let args = ["upvar", "::ns", "remote", "local", "other", "second"];
+            assert_eq!(
+                registry.arg_indices_for_role("namespace", &args, ArgRole::NamespaceName),
+                [1],
+                "{environment}: selected release form retains the namespace operand",
+            );
+            assert_eq!(
+                registry.arg_indices_for_role("namespace", &args, ArgRole::VarWrite),
+                [3, 5],
+                "{environment}: both local alias names retain their repeated role",
+            );
+            assert!(
+                registry
+                    .arg_indices_for_role("namespace", &["tail", "::ns::v"], ArgRole::NamespaceName)
+                    .is_empty()
+            );
+            assert!(
+                registry
+                    .arg_indices_for_role("namespace", &["tail", "::ns::v"], ArgRole::VarWrite)
+                    .is_empty()
+            );
+        }
+        let registry = crate::model::ingress::static_context_for("tcl8.4").commands();
+        let selected = registry
+            .resolve_invocation(
+                "namespace",
+                &["upvar", "::ns", "remote", "local"],
+                registry.own_surface_query(),
+            )
+            .unwrap();
+        assert!(selected.subcommand.resolved().is_none());
     }
 
     #[test]
