@@ -9481,7 +9481,7 @@ impl SourceCommandBindings {
         if let Some(failed) =
             self.prepare_direct_source_parse(image, base, state, context, config, source.len())
         {
-            return failed;
+            return *failed;
         }
         let depth = context.depth;
         let mut prepared = Box::<PreparedSourceChunk>::default();
@@ -9567,6 +9567,7 @@ impl SourceCommandBindings {
         outcomes
     }
 
+    #[inline(never)]
     fn prepare_direct_source_parse(
         &mut self,
         image: &tcl_lexer::SourceImage,
@@ -9575,7 +9576,7 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
         config: tcl_lexer::LexerConfig,
         source_len: usize,
-    ) -> Option<SourceOutcomes> {
+    ) -> Option<Box<SourceOutcomes>> {
         if self.declaration_preview_depth == 0
             && context.compilation().mode
                 == tcl_registry::native_compilation::NativeCompilationMode::Direct
@@ -9602,17 +9603,17 @@ impl SourceCommandBindings {
                                 source_len,
                                 &failed,
                             );
-                            return Some(failed);
+                            return Some(Box::new(failed));
                         }
                         Err(_) => {
                             self.record_unrepresented_source_entry(state, context);
-                            return Some(opaque_source_invocation(state));
+                            return Some(Box::new(opaque_source_invocation(state)));
                         }
                     }
                 }
                 None => {
                     self.record_unrepresented_source_entry(state, context);
-                    return Some(opaque_source_invocation(state));
+                    return Some(Box::new(opaque_source_invocation(state)));
                 }
             }
         }
@@ -9910,7 +9911,7 @@ impl SourceCommandBindings {
             original_variable_compilation.as_ref(),
         );
         let context = original_context.as_ref();
-        if let Some(outcomes) = self.walk_original_list_assignment(
+        if let Some(outcomes) = self.walk_original_list_assignment_boxed(
             SourceCommandInput {
                 image,
                 segment,
@@ -9922,7 +9923,7 @@ impl SourceCommandBindings {
             &compiled,
             context,
         ) {
-            return outcomes;
+            return *outcomes;
         }
         // Unknown opcode admission alone does not establish name effects.
         // Unclosed compiler effects can precede the original argv, so their
@@ -9954,6 +9955,20 @@ impl SourceCommandBindings {
             context,
             arguments,
         )
+    }
+
+    /// Keep the optional list-assignment result out of recursive source frames.
+    #[inline(never)]
+    fn walk_original_list_assignment_boxed(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        self.walk_original_list_assignment(input, base, state, compiled, context)
+            .map(Box::new)
     }
 
     #[inline(never)]
@@ -11240,10 +11255,14 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         select_contents_write_source(state);
-        if let Some(outcomes) =
-            logical_definition::transfer(words, target, segment.span.start(), state, *context)
-        {
-            return outcomes;
+        if let Some(outcomes) = Self::prepare_logical_definition_boxed(
+            words,
+            target,
+            segment.span.start(),
+            state,
+            context,
+        ) {
+            return *outcomes;
         }
         let incoming = boxed_source_branch(state);
         let prepared = match prepare_source_native_invocation(
@@ -11306,6 +11325,18 @@ impl SourceCommandBindings {
         self.walk_prepared_source_target(native, &prepared, effective, state, context, &incoming)
     }
 
+    /// Keep logical definition result construction outside recursive source frames.
+    #[inline(never)]
+    fn prepare_logical_definition_boxed(
+        words: &[crate::ir::WordExpr],
+        target: &SourceCommandTarget,
+        offset: u32,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        logical_definition::transfer(words, target, offset, state, *context).map(Box::new)
+    }
+
     #[cfg(debug_assertions)]
     fn trace_prepared_source_receiver(
         native: &SourceNativeInvocation<'_>,
@@ -11354,8 +11385,8 @@ impl SourceCommandBindings {
         incoming: &ModuleCommandBindings,
     ) -> SourceOutcomes {
         let facts = prepared.facts.as_ref();
-        if let Some(outcomes) = Self::walk_jim_stock_class(native, facts, state, *context) {
-            return outcomes;
+        if let Some(outcomes) = Self::prepare_jim_stock_class_boxed(native, facts, state, context) {
+            return *outcomes;
         }
         if let Some(mut outcomes) =
             Self::prepare_non_body_source_result(native, facts, state, context)
@@ -11445,6 +11476,17 @@ impl SourceCommandBindings {
         }
         outcomes.publish(state);
         *outcomes
+    }
+
+    /// Keep the stock-class result construction out of recursive source frames.
+    #[inline(never)]
+    fn prepare_jim_stock_class_boxed(
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        Self::walk_jim_stock_class(native, facts, state, *context).map(Box::new)
     }
 
     #[inline(never)]
