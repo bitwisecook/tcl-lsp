@@ -1,5 +1,9 @@
 # Outstanding work: coordinator
 
+## Stopped — 31 October 16:33 UTC
+
+Automatic approval review rejected the requested-input cache commit because `lib.rs` still contains an existing indexed-location trace diagnostic, conflicting with the probe-free WIP rule; do not bypass. Requested-input V3 plus reviewed cache-local sidecar custody remain uncommitted in two server files. Eight requested-input exact controls passed; open-seed factory prerequisite failed identically before/after. Sidecar genuine-worker and correctly selected cancelled/overlap controls passed 1/1 each; earlier wrong selector ran zero tests. Already-returned seed and published DB sidecar intervals remain open. All probes removed, executables deleted, no active jobs/roles/reminder. O122 exact factorial limited Tcl evidence and all release gates as current-state. Local commits unpushed; no CI, release carry or PR. Seek user decision on rejected commit.
+
 ## Stopped — 31 October 08:18 UTC
 
 User stopped work after `2d626291` was pushed. Root terminated the surviving Cargo selector and queued jobs; no role agents or reminder are active. Interrupted stack tests have no final result and queued VM executable cleanup did not run. On explicit resume, inspect the checkout and `/tmp` evidence first, then restart work and reporting. `2d626291` is an unreviewed WIP checkpoint; all release gates remain open.
