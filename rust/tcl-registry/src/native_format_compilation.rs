@@ -13,8 +13,7 @@ use crate::native_compilation::{
 };
 
 /// C9 declines before emitting any word when the format word itself needs
-/// substitution. This proves only one original value operand, not an arbitrary
-/// dynamic format invocation.
+/// substitution. This bounded model covers up to two original value operands.
 pub(crate) fn dynamic_format_word_declines(
     words: &crate::native_compiler_words::NativeCompilerWords<'_>,
     operand_from: usize,
@@ -31,10 +30,12 @@ pub(crate) fn dynamic_format_word_declines(
         && body == crate::native_compilation::NativeBodyCompilation::Inherit
         && words.source_protocol() == tcl_syntax::native_string::NativeStringProtocol::C(version)
         && operand_from == 1
-        && words.shapes().len() == 3
+        && (2..=4).contains(&words.shapes().len())
         && words.shapes()[1] == Shape::Substituted
         && words.literal(1).is_none()
-        && !matches!(words.shapes()[2], Shape::Opaque | Shape::Expanded)
+        && words.shapes()[2..]
+            .iter()
+            .all(|shape| !matches!(shape, Shape::Opaque | Shape::Expanded))
 }
 
 pub(crate) fn select(
@@ -679,6 +680,9 @@ mod tests {
             "format $fmt $value",
             "format [side fmt] [side value]",
             "format $fmt fixed",
+            "format $fmt",
+            "format $fmt $a $b",
+            "format [side fmt] [side a] [side b]",
         ] {
             let parsed = tcl_lexer::native_script_words_in(
                 tcl_lexer::SourceImage::native(source.as_bytes()),
@@ -695,11 +699,11 @@ mod tests {
             assert_eq!(selection, NativeCompilationSelection::Generic, "{source}");
             assert_eq!(
                 spec.original_argument_name_effects_in_context(&words, 1, Some(dialect), context()),
-                NativeOriginalCompilerNameEffects::Visits(vec![
-                    Step::Word(Word::Original(0)),
-                    Step::Word(Word::Original(1)),
-                    Step::Word(Word::Original(2))
-                ])
+                NativeOriginalCompilerNameEffects::Visits(
+                    (0..words.shapes().len())
+                        .map(|index| Step::Word(Word::Original(index)))
+                        .collect()
+                )
             );
             assert_eq!(
                 native_instruction_plan(spec, selection, &words, 1, dialect, context()).unwrap(),
@@ -807,8 +811,7 @@ mod tests {
         let version = TclVersion::V9_0;
         let dialect = crate::InvocationDialect::for_version(version);
         for source in [
-            "format $fmt",
-            "format $fmt $a $b",
+            "format $fmt $a $b $c",
             "format $fmt {*}$values",
             "format %s $value",
         ] {

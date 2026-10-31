@@ -2887,3 +2887,11 @@ fn dynamic_format_word_decline_preserves_dispatch_and_operand_order() {
         "7 {fmt value}\n1 boom {}\nOVERRIDE {fmt value}\n",
     );
 }
+
+#[test]
+fn dynamic_format_word_zero_and_two_values_keep_order_and_rebinding() {
+    out_eq(
+        "set seen {}\nproc value {tag v} {lappend ::seen $tag; return $v}\nputs [list [format [value fmt %%]] $seen]\nset seen {}\nputs [list [format [value fmt {%s:%s}] [value a A] [value b B]] $seen]\nset seen {}\nputs [list [catch {format [error boom] [value a A] [value b B]} result] $result $seen]\nset seen {}\nproc rebind {} {lappend ::seen fmt; rename format oldformat; proc format args {return OVERRIDE}; return {%s:%s}}\nputs [list [format [rebind] [value a A] [value b B]] $seen]\n",
+        "% fmt\nA:B {fmt a b}\n1 boom {}\nOVERRIDE {fmt a b}\n",
+    );
+}

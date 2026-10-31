@@ -2014,6 +2014,59 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_format_word_zero_two_values_keep_original_owner() {
+        let registry = CommandRegistry::build_default();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            ..Default::default()
+        };
+        let mut entry = entry(tcl_dialect::TclVersion::V9_0);
+        let mut format = binding(
+            &entry.namespaces[0],
+            b"format",
+            NativeCompilerHookPresence::Present,
+        );
+        format.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "format".into(),
+            ensemble: None,
+        });
+        entry.commands.push(format);
+        for source in [
+            b"format [side format]".as_slice(),
+            b"format [side format] [side a] [side b]".as_slice(),
+        ] {
+            let mut entry = entry.clone();
+            let module = source_module(source, &entry);
+            let crate::ir::Statement::NativeCall { words, .. } = &module.top_level.statements[0]
+            else {
+                panic!("original format invocation")
+            };
+            assert_eq!(
+                native_byte_command_plan(words, &entry, &registry, context),
+                Ok(NativeByteCommandPlan::Generic)
+            );
+            entry.commands[0].token += 1;
+            assert_eq!(
+                native_byte_command_plan(words, &entry, &registry, context),
+                Ok(NativeByteCommandPlan::Generic)
+            );
+            entry.commands[0].has_execution_trace = true;
+            assert_eq!(
+                native_byte_command_plan(words, &entry, &registry, context),
+                Ok(NativeByteCommandPlan::Generic)
+            );
+            entry.commands[0].has_execution_trace = false;
+            entry.commands[0]
+                .compiler
+                .as_mut()
+                .unwrap()
+                .registry_identity = "::foreign::format".into();
+            assert!(native_byte_command_plan(words, &entry, &registry, context).is_err());
+        }
+    }
+
+    #[test]
     fn ascii_failindex_decline_is_private_and_does_not_admit_ensemble_workers() {
         let registry = CommandRegistry::build_default();
         let context = NativeCompilationContext {
