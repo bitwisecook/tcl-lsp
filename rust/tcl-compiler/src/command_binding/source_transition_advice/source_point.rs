@@ -90,6 +90,23 @@ impl OriginalSourcePointAdviceGraph {
     }
 }
 
+// Internal terminal result: refused graphs never escape this module.
+// The public source-point API preserves its existing Option projection.
+enum SourcePointGraphOutcome {
+    Available(Arc<OriginalSourcePointAdviceGraph>),
+    RefusedAfterEligible,
+    Unavailable,
+}
+
+impl SourcePointGraphOutcome {
+    fn into_graph(self) -> Option<Arc<OriginalSourcePointAdviceGraph>> {
+        match self {
+            Self::Available(graph) => Some(graph),
+            Self::RefusedAfterEligible | Self::Unavailable => None,
+        }
+    }
+}
+
 pub(super) struct SourcePointQuery<'a> {
     site: &'a CommandAllocationSite,
     original: &'a [NativeWord],
@@ -193,8 +210,20 @@ impl OriginalSourceTransitionSeed {
         path: usize,
         namespace: &SourceNamespaceKey,
     ) -> Option<Arc<OriginalSourcePointAdviceGraph>> {
+        self.source_point_graph_outcome(context, site, original, path, namespace)
+            .into_graph()
+    }
+
+    fn source_point_graph_outcome(
+        &self,
+        context: &ContextRegistry,
+        site: &CommandAllocationSite,
+        original: &[NativeWord],
+        path: usize,
+        namespace: &SourceNamespaceKey,
+    ) -> SourcePointGraphOutcome {
         if self.origin != site.source || !self.matches_registry(context.commands()) {
-            return None;
+            return SourcePointGraphOutcome::Unavailable;
         }
         let query = SourcePointQuery {
             site,
@@ -205,13 +234,31 @@ impl OriginalSourceTransitionSeed {
             refused: Cell::new(false),
             graph: RefCell::new(None),
         };
-        self.prepare_for_query(
-            context,
-            OriginalSourceCataloguePurpose::CompletePrefix,
-            Some(SourceAdviceQuery::SourcePoint(&query)),
-        )?;
-        (!query.refused.get()).then_some(())?;
-        query.graph.into_inner().map(Arc::new)
+        if self
+            .prepare_for_query(
+                context,
+                OriginalSourceCataloguePurpose::CompletePrefix,
+                Some(SourceAdviceQuery::SourcePoint(&query)),
+            )
+            .is_none()
+        {
+            return SourcePointGraphOutcome::Unavailable;
+        }
+        if query.refused.get() {
+            // The first ineligible observation never stores a graph. Once a
+            // graph is stored, only the duplicate branch can set refusal.
+            return if query.graph.borrow().is_some() {
+                SourcePointGraphOutcome::RefusedAfterEligible
+            } else {
+                SourcePointGraphOutcome::Unavailable
+            };
+        }
+        query
+            .graph
+            .into_inner()
+            .map_or(SourcePointGraphOutcome::Unavailable, |graph| {
+                SourcePointGraphOutcome::Available(Arc::new(graph))
+            })
     }
 }
 
@@ -919,25 +966,48 @@ mod nested_source_point_controls {
         let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
         let input = parent.resolved_input.as_ref().unwrap();
         let realm = parent.retained_command_realm().unwrap();
-        let seed = realm.source_bindings_ref().original_source_transition_seed().unwrap();
+        let seed = realm
+            .source_bindings_ref()
+            .original_source_transition_seed()
+            .unwrap();
         let words = crate::registry_invocation::source_structure::source_registry_words_at(
             source, &parent, offset,
-        ).unwrap();
+        )
+        .unwrap();
         let original = [
             words.head_source().unwrap().word().unwrap().clone(),
             words.original_argument_word(0).unwrap().clone(),
         ];
         let site = crate::command_binding::CommandAllocationSite {
-            source: std::sync::Arc::clone(&seed.origin), offset,
+            source: std::sync::Arc::clone(&seed.origin),
+            offset,
         };
         let namespace = crate::command_binding::SourceNamespaceKey::authored("::");
         super::reset_source_point_body_walks();
-        let graph = seed.source_point_graph(
-            input.borrowed_context_registry(), &site, &original, 0, &namespace,
+        let outcome = seed.source_point_graph_outcome(
+            input.borrowed_context_registry(),
+            &site,
+            &original,
+            0,
+            &namespace,
         );
+        assert!(
+            matches!(
+                &outcome,
+                super::SourcePointGraphOutcome::RefusedAfterEligible
+            ),
+            "the same genuine query must store an eligible graph before duplicate refusal"
+        );
+        let graph = outcome.into_graph();
         let (_, entered) = super::source_point_body_walks();
-        assert!(entered > 1, "the same exact source point must be visited twice");
-        assert!(graph.is_none(), "duplicate actual observations must refuse a point graph");
+        assert!(
+            entered > 1,
+            "the same exact source point must be visited twice"
+        );
+        assert!(
+            graph.is_none(),
+            "duplicate actual observations must refuse a point graph"
+        );
     }
 
     #[test]
