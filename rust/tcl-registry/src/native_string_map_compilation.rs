@@ -66,6 +66,27 @@ pub(crate) fn select(
     let Some(map) = map else {
         return Selection::Unknown;
     };
+    // For these counted ASCII List bytes, both native scanners select an
+    // empty braced first element and a single literal second element. C9
+    // emits only the original subject word; it never emits STR_MAP here.
+    let empty_key_pair = map == b"{} {}"
+        || map.strip_prefix(b"{} ").is_some_and(|replacement| {
+            !replacement.is_empty()
+                && replacement
+                    .iter()
+                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+        });
+    if empty_key_pair
+        && matches!(
+            operands[0],
+            Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral
+        )
+    {
+        return Selection::Inline {
+            operation: crate::SemanticOperationId::Invoke,
+            guard: crate::native_compilation::NativeCompilationGuard::BeforeArguments,
+        };
+    }
     let Ok(elements) = tcl_syntax::list::split_native_list_bytes(
         map,
         tcl_syntax::native_string::NativeStringProtocol::C(version),
@@ -105,6 +126,26 @@ pub(crate) fn select_original(
         scope,
         version,
     )
+}
+
+/// Original subject selected by the C9 empty-key identity compiler.
+pub(crate) fn identity_subject(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: NativeScalarScope,
+    version: TclVersion,
+) -> Option<crate::native_compiler_word_projection::NativeCompilerWordOperand> {
+    if !matches!(
+        select_original(words, operand_from, scope, version),
+        NativeCompilationSelection::Inline { .. }
+    ) {
+        return None;
+    }
+    let index = operand_from
+        .checked_add(usize::from(scope == NativeScalarScope::PublicMember))?
+        .checked_add(1)?;
+    words.original_words().get(index)?;
+    Some(crate::native_compiler_word_projection::NativeCompilerWordOperand::Original(index))
 }
 
 #[cfg(test)]
@@ -235,10 +276,99 @@ mod tests {
     }
 
     #[test]
+    fn c90_empty_key_pair_retains_only_original_subject() {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        for source in [
+            "string map {{} x} $s",
+            "string map {{} ignored} [side]",
+            "string map {{} {}} $s",
+        ] {
+            let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::native(source.as_bytes()),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            assert!(
+                matches!(
+                    select_original(&words, 1, NativeScalarScope::PublicMember, TclVersion::V9_0),
+                    NativeCompilationSelection::Inline { .. }
+                ),
+                "{source}"
+            );
+            assert_eq!(
+                identity_subject(&words, 1, NativeScalarScope::PublicMember, TclVersion::V9_0),
+                Some(Word::Original(3))
+            );
+            assert_eq!(
+                identity_subject(
+                    &words,
+                    2,
+                    NativeScalarScope::PrivateOperands,
+                    TclVersion::V9_0
+                ),
+                Some(Word::Original(3))
+            );
+            assert_eq!(
+                identity_subject(&words, 1, NativeScalarScope::PublicMember, TclVersion::V8_6),
+                None
+            );
+        }
+        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let source = "::tcl::string::map {{} x} $s";
+        let parsed = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::native(source.as_bytes()),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+        .unwrap();
+        let words = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            dialect.native_string_protocol().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            identity_subject(
+                &words,
+                1,
+                NativeScalarScope::PrivateOperands,
+                TclVersion::V9_0
+            ),
+            Some(Word::Original(2))
+        );
+    }
+
+    #[test]
+    fn c90_empty_key_pair_rejects_unproved_shapes() {
+        for source in [
+            "string map {a b} $s",
+            "string map {{} !} $s",
+            "string map {{} x y z} $s",
+            "string map $mapping $s",
+            "string map {{} x} {*}$s",
+            "string map {{} x} $s extra",
+        ] {
+            assert!(
+                !matches!(
+                    selected(source, TclVersion::V9_0, NativeScalarScope::PublicMember),
+                    NativeCompilationSelection::Inline { .. }
+                ),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn inline_pair_options_unknown_words_and_other_releases_stay_residual() {
         for source in [
             "string map {a b} $s",
-            "string map {{} x} $s",
+            "string map {{} !} $s",
             "string map {*}$mapping $s",
             "string map -nocase {a b c d} $s",
             "string map {a b c d}",

@@ -1728,6 +1728,92 @@ mod tests {
     }
 
     #[test]
+    fn empty_string_map_identity_requires_original_worker_and_source() {
+        use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        let registry = CommandRegistry::build_default();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            ..Default::default()
+        };
+        let mut entry = entry(tcl_dialect::TclVersion::V9_0);
+        let mut worker = binding(
+            &entry.namespaces[0],
+            b"private",
+            NativeCompilerHookPresence::Present,
+        );
+        worker.token = 12;
+        worker.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "::tcl::string::map".into(),
+            ensemble: None,
+        });
+        let mut public = binding(
+            &entry.namespaces[0],
+            b"ensemble",
+            NativeCompilerHookPresence::Present,
+        );
+        public.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "custom-ensemble".into(),
+            ensemble: Some(
+                tcl_runtime_api::native_compilation::NativeEnsembleCompiler {
+                    namespace_token: entry.current_namespace,
+                    map: vec![("member".into(), vec![Some("private".into())])],
+                    subcommands: None,
+                    prefixes: true,
+                    parameters: vec![],
+                    unknown_handler: None,
+                },
+            ),
+        });
+        entry.commands.extend([public, worker.clone()]);
+        install_original_target_fixture(&mut entry);
+        let module = source_module(b"ensemble member {{} x} $subject", &entry);
+        let crate::ir::Statement::NativeCall { words, .. } = &module.top_level.statements[0] else {
+            panic!("original source")
+        };
+        let NativeByteCommandPlan::Registered(original) =
+            native_byte_command_plan(words, &entry, &registry, context).unwrap()
+        else {
+            panic!("selected identity")
+        };
+        assert_eq!(
+            original.original_instruction(words),
+            Some(&NativeInstructionPlan::StringMapIdentity(Word::Original(3)))
+        );
+        assert_eq!(
+            original
+                .prerequisite
+                .as_ref()
+                .unwrap()
+                .selected_worker
+                .as_ref(),
+            Some(&worker)
+        );
+        let foreign = source_module(b"ensemble member {{} x} $other", &entry);
+        let crate::ir::Statement::NativeCall {
+            words: foreign_words,
+            ..
+        } = &foreign.top_level.statements[0]
+        else {
+            panic!("foreign source")
+        };
+        assert!(original.original_instruction(foreign_words).is_none());
+        entry.commands[1].has_execution_trace = true;
+        assert_eq!(
+            native_byte_command_plan(words, &entry, &registry, context).unwrap(),
+            NativeByteCommandPlan::Generic
+        );
+        entry.commands[1].has_execution_trace = false;
+        entry.commands[1]
+            .compiler
+            .as_mut()
+            .unwrap()
+            .registry_identity = "::foreign::map".into();
+        assert!(native_byte_command_plan(words, &entry, &registry, context).is_err());
+    }
+
+    #[test]
     fn string_map_dynamic_fallback_retains_worker_and_ordered_original_operands() {
         use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Word;
         use tcl_registry::native_instruction_plan::NativeNamedInvocationWord;

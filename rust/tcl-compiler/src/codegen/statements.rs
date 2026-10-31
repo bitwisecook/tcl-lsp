@@ -2980,6 +2980,12 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::Scalar(recipe) => {
                 return Self::append_native_scalar_tasks(command, recipe, version, operations);
             }
+            NativeInstructionPlan::StringMapIdentity(operand) => {
+                let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
+                    return false;
+                };
+                operations.push(task);
+            }
             NativeInstructionPlan::StringRange(recipe) => {
                 return Self::append_native_string_range_tasks(
                     command, recipe, version, operations,

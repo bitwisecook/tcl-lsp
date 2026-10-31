@@ -229,6 +229,9 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Scalar(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
+            NativeInstructionPlan::StringMapIdentity(operand) => {
+                self.original_operands(words, std::iter::once(operand.clone()), context)
+            }
             NativeInstructionPlan::StringRange(recipe) => {
                 self.original_operands(words, std::iter::once(recipe.operand.clone()), context)
             }
