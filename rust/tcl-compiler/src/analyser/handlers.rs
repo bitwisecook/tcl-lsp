@@ -329,6 +329,33 @@ struct SelectedObjdefineBodyLayout {
     definer_disabled: bool,
 }
 
+// Immutable original source-body query shared by the actual handler and
+// direct source-capability controls. This supplies no handler/body entry.
+fn original_class_definition_body_in_analysis(
+    source: &str,
+    analysis: &super::types::AnalysisResult,
+    offset: u32,
+    token: Token,
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+) -> Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>> {
+    let words = crate::registry_invocation::source_structure::source_registry_words_at(
+        source, analysis, offset,
+    )?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    (words.with_source_schema(&context, |schema| {
+        schema
+            .authored_source_definition_body_grammar()
+            .is_some_and(|selected| std::ptr::eq(selected, grammar))
+    }) == Some(true))
+    .then_some(())?;
+    let mut bodies = words
+        .source_script_bodies(&context)
+        .into_iter()
+        .filter(|body| body.original_container().tokens().first() == Some(&token));
+    let body = bodies.next()?;
+    bodies.next().is_none().then(|| std::sync::Arc::new(body))
+}
+
 struct ManufacturerLayout {
     /// Argument index of the new class's name.
     name_arg: usize,
@@ -11233,24 +11260,13 @@ impl Analyser {
         token: Token,
         grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
     ) -> Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>> {
-        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+        original_class_definition_body_in_analysis(
             &self.source,
             &self.result,
             offset,
-        )?;
-        let context = self.result.resolved_input.as_ref()?.context_registry();
-        (words.with_source_schema(&context, |schema| {
-            schema
-                .authored_source_definition_body_grammar()
-                .is_some_and(|selected| std::ptr::eq(selected, grammar))
-        }) == Some(true))
-        .then_some(())?;
-        let mut bodies = words
-            .source_script_bodies(&context)
-            .into_iter()
-            .filter(|body| body.original_container().tokens().first() == Some(&token));
-        let body = bodies.next()?;
-        bodies.next().is_none().then(|| std::sync::Arc::new(body))
+            token,
+            grammar,
+        )
     }
 
     /// Class definition advice from the selected definition grammar.
@@ -20978,6 +20994,208 @@ mod original_proc_source_layout_tests {
                 .find(|procedure| procedure.name == "counter")
                 .unwrap();
             assert_eq!(procedure.body_span, command.arg_tokens()[layout.body].span);
+        }
+    }
+}
+
+#[cfg(test)]
+mod direct_original_class_body_tests {
+    use super::*;
+
+    const OPAQUE: &str = "proc p\\uD800 {} {return A}\nproc p\\uD801 {} {return B}\noo::class create C\\uD800 {method m\\uD800 {} {return A}; renamemethod m\\uD800 moved}\noo::class create C\\uD801 {method m\\uD801 {} {return B}}\nset v\\uD800 1\nset v\\uD801 2\n";
+
+    #[test]
+    fn held_original_factory_receipts_can_query_source_body_without_text_name_or_entry() {
+        for (source, offsets, expected_names) in [
+            (
+                "oo::class create Plain {method m {} {return ASCII}}\n",
+                &[0_u32][..],
+                &[b"Plain".as_slice()][..],
+            ),
+            (
+                OPAQUE,
+                &[54_u32, 138][..],
+                &[b"C\xed\xa0\x80".as_slice(), b"C\xed\xa0\x81".as_slice()][..],
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let realm = analysis.retained_command_realm().unwrap();
+            let image = realm.original_source_image().unwrap();
+            assert_eq!(image, &tcl_lexer::SourceImage::document(source));
+            assert!(analysis.matches_original_source_image(image, input.lexer_config()));
+            let before = (
+                analysis.original_class_declarations().count(),
+                analysis.all_classes.len(),
+                analysis.all_procs.len(),
+            );
+            let mut issued_bodies = Vec::new();
+            for (&offset, &expected_name) in offsets.iter().zip(expected_names) {
+                let declaration =
+                    crate::registry_invocation::source_structure::source_class_declaration_at(
+                        source, &analysis, offset,
+                    )
+                    .expect("actual held source declaration, independently of failed text adapter");
+                let factory = declaration.factory();
+                assert_eq!(factory.site().offset, offset);
+                assert!(factory.matches_source(image, input.lexer_config()));
+                assert!(factory.matches_context(&context));
+                let grammar = declaration.grammar(&context).unwrap();
+                let descriptor = context
+                    .context()
+                    .resolve_spec(context.commands(), factory.command())
+                    .unwrap();
+                assert!(
+                    descriptor
+                        .traits
+                        .contains(tcl_registry::Traits::IS_OO_METACLASS)
+                );
+                assert!(
+                    descriptor
+                        .definition_body
+                        .is_some_and(|selected| std::ptr::eq(selected, grammar))
+                );
+                let arguments = factory.arguments();
+                // These exact fixtures contain only unchanged written factory
+                // arguments: effective domain excludes the original head.
+                assert_eq!(factory.original_words().len(), arguments.len() + 1);
+                for (index, (argument, original)) in arguments
+                    .iter()
+                    .zip(&factory.original_words()[1..])
+                    .enumerate()
+                {
+                    assert_eq!(
+                        argument.origin,
+                        crate::registry_invocation::InvocationWordOrigin::Written(index + 1)
+                    );
+                    assert_eq!(&argument.original, original);
+                    assert!(!argument.original.group().expand);
+                }
+                let selector = std::str::from_utf8(arguments[0].value.as_deref().unwrap()).unwrap();
+                let manufacturer =
+                    tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
+                        descriptor, selector,
+                    )
+                    .filter(|method| {
+                        method.visibility == tcl_registry::definer::MemberVisibility::Exported
+                    })
+                    .unwrap();
+                let layout = ManufacturerLayout::builtin(manufacturer).unwrap();
+                assert!(layout.injected.is_empty());
+                assert!(!layout.inheritance_unknown);
+                let name = &arguments[layout.name_arg];
+                assert_eq!(name.value.as_deref(), Some(expected_name));
+                let occurrence = crate::signature_scan::original_name::SourceOriginalNameOccurrence::from_original_class_factory(&declaration).unwrap();
+                assert_eq!(occurrence.name_input().original_word(), &name.original);
+                assert_eq!(occurrence.name_input().bytes(), expected_name);
+                if source == OPAQUE {
+                    assert!(std::str::from_utf8(expected_name).is_err());
+                }
+                let original_body = &arguments[layout.body_arg].original;
+                assert_eq!(original_body.image(), image);
+                assert_eq!(original_body.config(), input.lexer_config());
+                let token = *original_body.tokens().first().unwrap();
+                // This is an explicit direct SOURCE query, not evidence that
+                // the actual handler/definition body was entered.
+                let queried = original_class_definition_body_in_analysis(
+                    source, &analysis, offset, token, grammar,
+                );
+                assert!(
+                    queried.is_some(),
+                    "direct existing body issuer offset={offset}"
+                );
+                let body = queried.unwrap();
+                assert_eq!(body.original_container(), original_body);
+                assert_eq!(body.content_span(), original_body.content_span().unwrap());
+                assert!(body.matches_source(image, input.lexer_config()));
+                assert!(body.matches_context(&context));
+                let operand = body
+                    .source_words()
+                    .operands()
+                    .get(layout.body_arg)
+                    .and_then(Option::as_ref)
+                    .and_then(
+                        crate::registry_invocation::source_structure::OriginalOperandSource::word,
+                    );
+                assert_eq!(operand, Some(original_body));
+                let wrong_token = *name.original.tokens().first().unwrap();
+                assert!(
+                    original_class_definition_body_in_analysis(
+                        source,
+                        &analysis,
+                        offset,
+                        wrong_token,
+                        grammar
+                    )
+                    .is_none()
+                );
+                assert!(
+                    original_class_definition_body_in_analysis(
+                        source,
+                        &analysis,
+                        offset,
+                        token,
+                        &tcl_registry::definer::ITCL_GRAMMAR
+                    )
+                    .is_none()
+                );
+                assert!(
+                    original_class_definition_body_in_analysis(
+                        &format!("{source} "),
+                        &analysis,
+                        offset,
+                        token,
+                        grammar
+                    )
+                    .is_none()
+                );
+                assert!(
+                    original_class_definition_body_in_analysis(
+                        source,
+                        &super::super::types::AnalysisResult::default(),
+                        offset,
+                        token,
+                        grammar
+                    )
+                    .is_none()
+                );
+                let foreign_config = tcl_lexer::LexerConfig::from_grammar(
+                    tcl_dialect::DialectProfile::find("tcl9.0").unwrap().grammar,
+                );
+                assert!(!body.matches_source(image, foreign_config));
+                issued_bodies.push((offset, token, grammar, body));
+            }
+            if issued_bodies.len() == 2 {
+                assert!(
+                    original_class_definition_body_in_analysis(
+                        source,
+                        &analysis,
+                        issued_bodies[0].0,
+                        issued_bodies[1].1,
+                        issued_bodies[0].2
+                    )
+                    .is_none()
+                );
+                assert!(
+                    original_class_definition_body_in_analysis(
+                        source,
+                        &analysis,
+                        issued_bodies[1].0,
+                        issued_bodies[0].1,
+                        issued_bodies[1].2
+                    )
+                    .is_none()
+                );
+            }
+            assert_eq!(
+                before,
+                (
+                    analysis.original_class_declarations().count(),
+                    analysis.all_classes.len(),
+                    analysis.all_procs.len()
+                )
+            );
         }
     }
 }
