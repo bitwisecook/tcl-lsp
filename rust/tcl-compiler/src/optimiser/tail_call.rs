@@ -18,20 +18,12 @@
 
 //! Tail-call detection pass.
 //!
-//! Emits:
+//! O121 (replace a tail self-call with `tailcall`) and O122 (convert it to
+//! a loop) are withheld until recursive-depth behavior is proved equivalent.
+//! Both can otherwise change termination at Tcl's recursion limit.
 //!
-//! - **O121** — "Use `tailcall` for self-recursion". Two
-//!   variants:
-//!   - **bare call**: `proc f {…} { …; f $args }` — the
-//!     self-call is the final statement of the body.
-//!   - **return substitution**: `return [f $args]`.
-//! - **O122** — "Convert self-recursion to a `while` loop". A
-//!   real source rewrite, not a hint: the whole proc is replaced
-//!   with a `while {1}` body whose recursive call becomes a
-//!   parameter reassignment. Fires when every self-call in the
-//!   proc body is in tail position (the total count of self-calls
-//!   equals the number of tail-position calls) and every one of
-//!   them passes exactly one argument per parameter.
+//! The pass can emit:
+//!
 //! - **O123** (hint-only) — "Accumulator-eligible non-tail
 //!   self-recursion". Fires when there is at least one non-tail
 //!   self-call inside an expression body (e.g., `return [expr
@@ -78,17 +70,13 @@ fn lassign_supported(dialect: Option<&'static tcl_dialect::DialectProfile>) -> b
     runtime_at_least(dialect, tcl_dialect::TclVersion::V8_5)
 }
 
-/// Run the tail-call detection pass. Emits `O121` for every
-/// self-call in tail position (bare-call + return-subst variants),
-/// plus the guarded `O122` loop-conversion rewrite and hint-only `O123`
-/// accumulator-candidate diagnostic described in the module docs.
-///
-/// O121 is gated on `tailcall`-supporting dialects (Tcl 8.6+ per TIP
-/// 327).  Pre-8.6 dialects keep the O122 recursion-to-loop hint but
-/// not the O121 `tailcall` suggestion.
+/// Run the tail-call detection pass. O121 and O122 source rewrites require
+/// proof that eliminating recursive frames preserves recursion-limit behavior;
+/// no such proof is currently available. O123 remains a hint-only diagnostic.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    let emit_o121 = tailcall_supported(ctx.dialect);
     for proc in cu.ir_module.procedures.values() {
+        let depth_equivalent = recursive_depth_equivalence_proven(proc);
+        let emit_o121 = depth_equivalent && tailcall_supported(ctx.dialect);
         if !proc.body.is_authored_source() {
             continue;
         }
@@ -107,7 +95,8 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         );
 
         let total_self_calls = inventory.calls.len() + inventory.readonly_calls;
-        if inventory.complete
+        if depth_equivalent
+            && inventory.complete
             && inventory.loop_commands_preserved
             && inventory.frame_effects_closed
             && inventory
@@ -148,6 +137,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             ctx.report(opt);
         }
     }
+}
+
+// Removing recursive frames changes Tcl's recursion-limit behavior, including
+// termination. Keep source rewrites unavailable until an original-source proof
+// establishes that difference cannot be observed for the selected procedure.
+const fn recursive_depth_equivalence_proven(_proc: &Procedure) -> bool {
+    false
 }
 
 /// One tail-position self-call site — the span of the call
@@ -1137,6 +1133,25 @@ mod tests {
             opts.iter()
                 .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122))
         );
+    }
+
+    #[test]
+    fn unbounded_original_recursion_keeps_tcl_recursion_limit() {
+        // Tcl 9.0.4, recursionlimit 20: the original errors with "too many
+        // nested evaluations"; a tailcall runs until the command-count limit.
+        let profile = tcl_registry::model::ingress::static_context_for("tcl9.0")
+            .commands()
+            .profile()
+            .unwrap();
+        for source in ["proc f {x} {f $x}", "proc f {x} {return [f $x]}"] {
+            let options = run_pass_with_dialect(source, profile);
+            assert!(
+                options
+                    .iter()
+                    .all(|option| !matches!(option.code, DiagCode::O121 | DiagCode::O122)),
+                "{source}: {options:?}"
+            );
+        }
     }
 
     #[test]
