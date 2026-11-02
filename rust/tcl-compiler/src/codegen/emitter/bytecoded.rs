@@ -650,8 +650,8 @@ fn native_ensemble_command_address(
 fn dict_ensemble(ctx: &mut CodegenCtx, target_address: &[u8], sub: &str, sub_args: &[String]) {
     ctx.push_lit("dict");
     ctx.push_lit(sub);
-    for a in sub_args {
-        ctx.emit_value_interpolated(a);
+    for (index, argument) in sub_args.iter().enumerate() {
+        ctx.emit_word_arg(index + 1, argument);
     }
     ctx.push_lit_bytes_exact(target_address);
     let objc = bytecode_imm(2 + sub_args.len());
@@ -2203,6 +2203,35 @@ mod tests {
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::INVOKE_REPLACE));
         assert!(!ops.contains(&Op::DICT_SET));
+    }
+
+    #[test]
+    fn dict_ensemble_preserves_braced_keys_and_values() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let args = vec![
+            "set".into(),
+            "d".into(),
+            "$key".into(),
+            "[error literal]".into(),
+        ];
+        ctx.cmd_arg_braced = vec![false, false, true, true];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        assert!(ctx.literals.entries().iter().any(|value| value == "$key"));
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|value| value == "[error literal]")
+        );
+        assert!(ctx.instructions.iter().all(|instruction| {
+            matches!(
+                instruction.op,
+                Op::PUSH1 | Op::PUSH4 | Op::INVOKE_REPLACE | Op::POP
+            )
+        }));
     }
 
     // Append / lappend statement-position specialisations.
