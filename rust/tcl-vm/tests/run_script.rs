@@ -26,7 +26,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_for_bytecode};
+use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, Commands, CompileService, Traces, Value, Vm};
 

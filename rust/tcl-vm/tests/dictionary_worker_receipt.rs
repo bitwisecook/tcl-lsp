@@ -136,7 +136,7 @@ fn dictionary_named_fallback_rechecks_retained_worker() {
             };
             let Some(&end) = m.top_level.labels.get(&site.end) else { return false; };
             selected_worker && instructions[index + 1..].iter().any(|i| {
-                i.offset >= 0 && (i.offset as usize) < end
+                usize::try_from(i.offset).is_ok_and(|offset| offset < end)
                     && matches!(i.op, tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4)
                     && i.operands == [tcl_bytecode::Operand::Imm(4)]
             })

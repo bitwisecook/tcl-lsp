@@ -39,12 +39,8 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::lowering::lower_to_ir;
 use tcl_dialect::TclVersion;
-use tcl_registry::CommandRegistry;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
