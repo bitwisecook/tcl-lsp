@@ -196,7 +196,28 @@ pub fn signature_help_in_program_with_options(
         return Some(proc_signature_help(proc_def, active_param));
     }
     registry?;
-    source_signature_help(analysis, context.source_words.as_ref()?, &context, options)
+    if let Some(words) = &context.source_words {
+        return source_signature_help(analysis, words, &context, options);
+    }
+    let command = context.incomplete_body_command.as_deref()?;
+    let generation = analysis.resolved_input.as_ref()?.context_registry();
+    let spec = generation
+        .context()
+        .resolve_spec(generation.commands(), command)?;
+    if options
+        .disabled_builtin_commands
+        .contains(&tcl_syntax::naming::normalise_qualified_name(spec.name))
+    {
+        return None;
+    }
+    let mut help = builtin_signature_help(spec, context.active_parameter)?;
+    for signature in &mut help.signatures {
+        signature
+            .documentation
+            .get_or_insert_with(String::new)
+            .push_str("\n\n_Source documentation; command availability is unresolved._");
+    }
+    Some(help)
 }
 
 /// Render the same original argv's source schema in its retained availability
@@ -277,6 +298,7 @@ fn source_signature_help(
 struct SignatureCommandContext {
     command: String,
     source_words: Option<crate::original_invocation::OriginalRegistryWords>,
+    incomplete_body_command: Option<String>,
     cursor: tcl_lexer::word_parts::ArgumentCursor,
     argument_count: usize,
     active_parameter: u32,
@@ -318,6 +340,7 @@ fn command_context_with_args(
     let arg_token_count = cursor.written_word_count().saturating_sub(1);
     let command = signature_command_name(head, profile, local_config)?;
     let mut source_words = None;
+    let mut incomplete_body_command = None;
     let mut argument_count = arg_token_count;
     let mut active_parameter = active_param;
     {
@@ -336,14 +359,6 @@ fn command_context_with_args(
         );
         identities.stamp_original_tokens(&mut original);
         let effective = tcl_compiler::registry_invocation::effective_command_words(&original);
-        #[cfg(debug_assertions)]
-        trace_signature_command_header(
-            cursor_offset,
-            head_offset,
-            segment.argv.len(),
-            effective.is_some(),
-            original.source_binding.is_some(),
-        );
         if let Some(effective) = effective {
             let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
             active_parameter = crate::original_invocation::effective_argument_at(
@@ -359,8 +374,6 @@ fn command_context_with_args(
             })?;
         }
         let selected = crate::original_invocation::source_registry_words(source, analysis, segment);
-        #[cfg(debug_assertions)]
-        trace_signature_selected_header(cursor_offset, head_offset, selected.is_some());
         if let Some(selected) = selected {
             let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
             active_parameter =
@@ -373,39 +386,26 @@ fn command_context_with_args(
                     })?;
             argument_count = selected.arguments.len();
             source_words = Some(selected);
+        } else if arg_token_count == 0 && at_new_word {
+            incomplete_body_command = tcl_compiler::registry_invocation::original_incomplete_body_registry_invocation_assistance(
+                registry,
+                identities,
+                &original,
+            )
+            .and_then(|assistance| {
+                let selected = assistance.unanimous_command_words()?;
+                (selected.effective().words.len() == 1).then(|| selected.command().to_owned())
+            });
         }
     }
     Some(SignatureCommandContext {
         command,
         source_words,
+        incomplete_body_command,
         cursor,
         argument_count,
         active_parameter,
     })
-}
-
-#[cfg(debug_assertions)]
-fn trace_signature_command_header(
-    cursor_offset: u32,
-    head_offset: u32,
-    written: usize,
-    effective: bool,
-    binding: bool,
-) {
-    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
-        eprintln!(
-            "SIGNATURE_HEADER cursor={cursor_offset} stage=command site={head_offset} written={written} effective={effective} binding={binding}"
-        );
-    }
-}
-
-#[cfg(debug_assertions)]
-fn trace_signature_selected_header(cursor_offset: u32, head_offset: u32, available: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
-        eprintln!(
-            "SIGNATURE_HEADER cursor={cursor_offset} stage=selected site={head_offset} available={available}"
-        );
-    }
 }
 
 fn signature_command_name(
@@ -1151,6 +1151,60 @@ mod tests {
         assert!(
             help.signatures[0].label.starts_with("puts "),
             "outer proc signature leaked into unterminated quoted body: {help:?}",
+        );
+        assert!(
+            help.signatures[0]
+                .documentation
+                .as_deref()
+                .is_some_and(|doc| doc.contains("command availability is unresolved")),
+            "incomplete body advice must retain its conditional status: {help:?}",
+        );
+    }
+
+    #[test]
+    fn incomplete_quoted_body_signature_declines_unowned_children() {
+        let registry = CommandRegistry::build_default();
+        for src in ["proc p {} \"puts $x", "proc p {} \"set x 1; puts "] {
+            let analysis = analyse(src);
+            let (line, character) = pos_after(src, "puts ", 1);
+            assert!(
+                signature_help(src, line, character, &analysis, Some(&registry)).is_none(),
+                "an unowned body child must not receive Registry advice: {src}",
+            );
+        }
+        for (src, occurrence) in [
+            ("proc puts {args} {}\nproc p {} \"puts ", 2),
+            ("proc proc {args} {}\nproc p {} \"puts ", 1),
+        ] {
+            let analysis = analyse(src);
+            let (line, character) = pos_after(src, "puts ", occurrence);
+            if let Some(help) = signature_help(src, line, character, &analysis, Some(&registry)) {
+                assert!(
+                    !help.signatures[0].label.starts_with("puts ?-nonewline?"),
+                    "a shadowed command must not receive the builtin synopsis: {help:?}",
+                );
+            }
+        }
+        let src = "proc p {} \"puts ";
+        let analysis = analyse(src);
+        let (line, character) = pos_after(src, "puts ", 1);
+        assert!(signature_help(src, line, character, &analysis, None).is_none());
+        let disabled = vec!["::puts".to_owned()];
+        assert!(
+            signature_help_in_program_with_options(
+                src,
+                line,
+                character,
+                &analysis,
+                crate::definition::CallResolution {
+                    registry: Some(&registry),
+                    program: None,
+                },
+                SignatureHelpOptions {
+                    disabled_builtin_commands: &disabled
+                },
+            )
+            .is_none()
         );
     }
 
