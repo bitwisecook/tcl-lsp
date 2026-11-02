@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Source binding controls for TclOO definition slot dispatch.
+//! Source binding controls for `TclOO` definition slot dispatch.
 
 use tcl_compiler::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
 

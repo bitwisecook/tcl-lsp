@@ -1516,17 +1516,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn info_errorstack_keeps_original_worker_and_wrong_arity_fallback() {
-        use tcl_registry::native_compilation::NativeNamedInvocationProtocol as Protocol;
-        use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Word;
-        use tcl_registry::native_instruction_plan::NativeNamedInvocationWord;
-        let registry = CommandRegistry::build_default();
-        let context = NativeCompilationContext {
-            mode: NativeCompilationMode::BytecodeObject,
-            frame: tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode,
-            ..Default::default()
-        };
+    fn info_errorstack_entry() -> (NativeCompilationEntry, NativeCompilationBinding) {
         let mut entry = entry(tcl_dialect::TclVersion::V9_0);
         let mut worker = binding(
             &entry.namespaces[0],
@@ -1558,6 +1548,21 @@ mod tests {
         });
         entry.commands.extend([public, worker.clone()]);
         install_original_target_fixture(&mut entry);
+        (entry, worker)
+    }
+
+    #[test]
+    fn info_errorstack_keeps_original_worker_and_wrong_arity_fallback() {
+        use tcl_registry::native_compilation::NativeNamedInvocationProtocol as Protocol;
+        use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Word;
+        use tcl_registry::native_instruction_plan::NativeNamedInvocationWord;
+        let registry = CommandRegistry::build_default();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode,
+            ..Default::default()
+        };
+        let (mut entry, worker) = info_errorstack_entry();
         for (source, protocol, operands) in [
             (b"info errorstack".as_slice(), Protocol::Direct, 0),
             (b"info errorstack $interp".as_slice(), Protocol::Direct, 1),

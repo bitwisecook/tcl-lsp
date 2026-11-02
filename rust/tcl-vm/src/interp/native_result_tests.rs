@@ -252,9 +252,8 @@ fn command_trace_state_requires_known_policy_and_original_owner() {
     let mut vm = crate::native_fixture::core(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     );
-    let refusal = match vm.save_native_command_trace_result() {
-        Err(error) => error,
-        Ok(_) => panic!("unknown command trace policy must refuse"),
+    let Err(refusal) = vm.save_native_command_trace_result() else {
+        panic!("unknown command trace policy must refuse");
     };
     let NativeExecutionError::HostCommandRefusal(payload) = &refusal else {
         panic!("expected typed host refusal");

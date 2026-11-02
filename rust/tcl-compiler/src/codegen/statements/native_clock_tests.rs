@@ -29,13 +29,13 @@ fn c90_clock_read_matches_native_disassembly() {
         context.native_compilation.frame =
             tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode;
         context.emit_native_words(&parsed.commands[0].words);
-        assert!(!context.native_dependency_refusal, "{:?}", source);
+        assert!(!context.native_dependency_refusal, "{source:?}");
         let reads: Vec<_> = context
             .instructions
             .iter()
             .filter(|instruction| instruction.op == Op::CLOCK_READ)
             .collect();
-        assert_eq!(reads.len(), 1, "{:?}", source);
+        assert_eq!(reads.len(), 1, "{source:?}");
         assert_eq!(reads[0].operands, [Operand::Imm(expected)]);
     }
 }

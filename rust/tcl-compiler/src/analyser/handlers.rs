@@ -21004,6 +21004,147 @@ mod direct_original_class_body_tests {
 
     const OPAQUE: &str = "proc p\\uD800 {} {return A}\nproc p\\uD801 {} {return B}\noo::class create C\\uD800 {method m\\uD800 {} {return A}; renamemethod m\\uD800 moved}\noo::class create C\\uD801 {method m\\uD801 {} {return B}}\nset v\\uD800 1\nset v\\uD801 2\n";
 
+    type HeldFactoryBody = (
+        u32,
+        Token,
+        &'static tcl_registry::definer::DefinitionBodyGrammar,
+        std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+    );
+
+    fn checked_factory_layout(
+        declaration: &crate::command_binding::OriginalSourceClassDeclaration,
+        expected_name: &[u8],
+        context: &tcl_registry::model::ContextRegistry,
+        grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    ) -> ManufacturerLayout {
+        let factory = declaration.factory();
+        let descriptor = context
+            .context()
+            .resolve_spec(context.commands(), factory.command())
+            .unwrap();
+        assert!(
+            descriptor
+                .traits
+                .contains(tcl_registry::Traits::IS_OO_METACLASS)
+        );
+        assert!(
+            descriptor
+                .definition_body
+                .is_some_and(|selected| std::ptr::eq(selected, grammar))
+        );
+        let arguments = factory.arguments();
+        // These exact fixtures contain only unchanged written factory
+        // arguments: effective domain excludes the original head.
+        assert_eq!(factory.original_words().len(), arguments.len() + 1);
+        for (index, (argument, original)) in arguments
+            .iter()
+            .zip(&factory.original_words()[1..])
+            .enumerate()
+        {
+            assert_eq!(
+                argument.origin,
+                crate::registry_invocation::InvocationWordOrigin::Written(index + 1)
+            );
+            assert_eq!(&argument.original, original);
+            assert!(!argument.original.group().expand);
+        }
+        let selector = std::str::from_utf8(arguments[0].value.as_deref().unwrap()).unwrap();
+        let manufacturer =
+            tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(descriptor, selector)
+                .filter(|method| {
+                    method.visibility == tcl_registry::definer::MemberVisibility::Exported
+                })
+                .unwrap();
+        let layout = ManufacturerLayout::builtin(manufacturer).unwrap();
+        assert!(layout.injected.is_empty());
+        assert!(!layout.inheritance_unknown);
+        let name = &arguments[layout.name_arg];
+        assert_eq!(name.value.as_deref(), Some(expected_name));
+        let occurrence = crate::signature_scan::original_name::SourceOriginalNameOccurrence::from_original_class_factory(declaration).unwrap();
+        assert_eq!(occurrence.name_input().original_word(), &name.original);
+        assert_eq!(occurrence.name_input().bytes(), expected_name);
+        layout
+    }
+
+    fn assert_body_query_refusals(
+        source: &str,
+        analysis: &super::super::types::AnalysisResult,
+        offset: u32,
+        token: Token,
+        wrong_token: Token,
+        grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    ) {
+        assert!(
+            original_class_definition_body_in_analysis(
+                source,
+                analysis,
+                offset,
+                wrong_token,
+                grammar
+            )
+            .is_none()
+        );
+        assert!(
+            original_class_definition_body_in_analysis(
+                source,
+                analysis,
+                offset,
+                token,
+                &tcl_registry::definer::ITCL_GRAMMAR
+            )
+            .is_none()
+        );
+        assert!(
+            original_class_definition_body_in_analysis(
+                &format!("{source} "),
+                analysis,
+                offset,
+                token,
+                grammar
+            )
+            .is_none()
+        );
+        assert!(
+            original_class_definition_body_in_analysis(
+                source,
+                &super::super::types::AnalysisResult::default(),
+                offset,
+                token,
+                grammar
+            )
+            .is_none()
+        );
+    }
+
+    fn assert_distinct_factory_bodies(
+        source: &str,
+        analysis: &super::super::types::AnalysisResult,
+        issued_bodies: &[HeldFactoryBody],
+    ) {
+        if issued_bodies.len() == 2 {
+            assert!(
+                original_class_definition_body_in_analysis(
+                    source,
+                    analysis,
+                    issued_bodies[0].0,
+                    issued_bodies[1].1,
+                    issued_bodies[0].2
+                )
+                .is_none()
+            );
+            assert!(
+                original_class_definition_body_in_analysis(
+                    source,
+                    analysis,
+                    issued_bodies[1].0,
+                    issued_bodies[0].1,
+                    issued_bodies[1].2
+                )
+                .is_none()
+            );
+        }
+    }
+
     #[test]
     fn held_original_factory_receipts_can_query_source_body_without_text_name_or_entry() {
         for (source, offsets, expected_names) in [
@@ -21042,53 +21183,9 @@ mod direct_original_class_body_tests {
                 assert!(factory.matches_source(image, input.lexer_config()));
                 assert!(factory.matches_context(&context));
                 let grammar = declaration.grammar(&context).unwrap();
-                let descriptor = context
-                    .context()
-                    .resolve_spec(context.commands(), factory.command())
-                    .unwrap();
-                assert!(
-                    descriptor
-                        .traits
-                        .contains(tcl_registry::Traits::IS_OO_METACLASS)
-                );
-                assert!(
-                    descriptor
-                        .definition_body
-                        .is_some_and(|selected| std::ptr::eq(selected, grammar))
-                );
+                let layout = checked_factory_layout(&declaration, expected_name, &context, grammar);
                 let arguments = factory.arguments();
-                // These exact fixtures contain only unchanged written factory
-                // arguments: effective domain excludes the original head.
-                assert_eq!(factory.original_words().len(), arguments.len() + 1);
-                for (index, (argument, original)) in arguments
-                    .iter()
-                    .zip(&factory.original_words()[1..])
-                    .enumerate()
-                {
-                    assert_eq!(
-                        argument.origin,
-                        crate::registry_invocation::InvocationWordOrigin::Written(index + 1)
-                    );
-                    assert_eq!(&argument.original, original);
-                    assert!(!argument.original.group().expand);
-                }
-                let selector = std::str::from_utf8(arguments[0].value.as_deref().unwrap()).unwrap();
-                let manufacturer =
-                    tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
-                        descriptor, selector,
-                    )
-                    .filter(|method| {
-                        method.visibility == tcl_registry::definer::MemberVisibility::Exported
-                    })
-                    .unwrap();
-                let layout = ManufacturerLayout::builtin(manufacturer).unwrap();
-                assert!(layout.injected.is_empty());
-                assert!(!layout.inheritance_unknown);
                 let name = &arguments[layout.name_arg];
-                assert_eq!(name.value.as_deref(), Some(expected_name));
-                let occurrence = crate::signature_scan::original_name::SourceOriginalNameOccurrence::from_original_class_factory(&declaration).unwrap();
-                assert_eq!(occurrence.name_input().original_word(), &name.original);
-                assert_eq!(occurrence.name_input().bytes(), expected_name);
                 if source == OPAQUE {
                     assert!(std::str::from_utf8(expected_name).is_err());
                 }
@@ -21120,74 +21217,14 @@ mod direct_original_class_body_tests {
                     );
                 assert_eq!(operand, Some(original_body));
                 let wrong_token = *name.original.tokens().first().unwrap();
-                assert!(
-                    original_class_definition_body_in_analysis(
-                        source,
-                        &analysis,
-                        offset,
-                        wrong_token,
-                        grammar
-                    )
-                    .is_none()
-                );
-                assert!(
-                    original_class_definition_body_in_analysis(
-                        source,
-                        &analysis,
-                        offset,
-                        token,
-                        &tcl_registry::definer::ITCL_GRAMMAR
-                    )
-                    .is_none()
-                );
-                assert!(
-                    original_class_definition_body_in_analysis(
-                        &format!("{source} "),
-                        &analysis,
-                        offset,
-                        token,
-                        grammar
-                    )
-                    .is_none()
-                );
-                assert!(
-                    original_class_definition_body_in_analysis(
-                        source,
-                        &super::super::types::AnalysisResult::default(),
-                        offset,
-                        token,
-                        grammar
-                    )
-                    .is_none()
-                );
+                assert_body_query_refusals(source, &analysis, offset, token, wrong_token, grammar);
                 let foreign_config = tcl_lexer::LexerConfig::from_grammar(
                     tcl_dialect::DialectProfile::find("tcl9.0").unwrap().grammar,
                 );
                 assert!(!body.matches_source(image, foreign_config));
                 issued_bodies.push((offset, token, grammar, body));
             }
-            if issued_bodies.len() == 2 {
-                assert!(
-                    original_class_definition_body_in_analysis(
-                        source,
-                        &analysis,
-                        issued_bodies[0].0,
-                        issued_bodies[1].1,
-                        issued_bodies[0].2
-                    )
-                    .is_none()
-                );
-                assert!(
-                    original_class_definition_body_in_analysis(
-                        source,
-                        &analysis,
-                        issued_bodies[1].0,
-                        issued_bodies[0].1,
-                        issued_bodies[1].2
-                    )
-                    .is_none()
-                );
-            }
+            assert_distinct_factory_bodies(source, &analysis, &issued_bodies);
             assert_eq!(
                 before,
                 (

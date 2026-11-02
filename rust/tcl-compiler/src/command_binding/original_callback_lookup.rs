@@ -383,12 +383,9 @@ mod tests {
     ) -> Option<OriginalCallbackPrefix> {
         let bindings = bindings(source, dialect, registry);
         let binding = bindings.invocation_at_source("", 0);
-        let Some(mut tokens) = binding.original_recorded_command_tokens() else {
-            return None;
-        };
+        let mut tokens = binding.original_recorded_command_tokens()?;
         tokens.source_binding = Some(binding.clone());
-        let result = binding.original_callback_prefix(&tokens, written, registry);
-        result
+        binding.original_callback_prefix(&tokens, written, registry)
     }
 
     #[test]
