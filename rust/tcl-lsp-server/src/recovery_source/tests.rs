@@ -260,7 +260,7 @@ async fn malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers
     store.upsert("/library/dep-old.tcl", b"proc dep_old {} {}".to_vec());
     store.upsert("/library/dep-beta.tcl", b"proc dep_beta {} {}".to_vec());
     let mut backend = crate::tests::test_backend();
-    backend.store = store;
+    backend.state_mut_for_test().store = store;
     register(&backend, "package ifneeded w 1.2 {source stable.tcl}\npackage ifneeded w 1.3b1 {source beta.tcl}\npackage ifneeded dep 1.1 {source dep-old.tcl}\npackage ifneeded dep 1.2b1 {source dep-beta.tcl}\npackage ifneeded absent 1.0 {source absent.tcl}").await;
     let uri = Uri::from_file_path("/caller/versioned.tcl").unwrap();
     recover(
@@ -311,7 +311,7 @@ async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_so
     let store = Arc::new(vfs::MemoryStore::new());
     store.upsert("/library/owned.tcl", b"proc provided {} {}".to_vec());
     let mut backend = crate::tests::test_backend();
-    backend.store = store;
+    backend.state_mut_for_test().store = store;
     register(&backend, "package ifneeded own 1.0 {source owned.tcl}").await;
     let uri = Uri::from_file_path("/caller/guards.tcl").unwrap();
     let source = "package require own\nproc unfinished {";

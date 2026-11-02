@@ -424,7 +424,7 @@ mod input_custody_tests {
             resume: std::sync::Mutex::new(receiver),
         });
         let mut backend = crate::tests::test_backend();
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let backend = Arc::new(backend);
         let analysis = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -763,7 +763,7 @@ mod sidecar_publication_tests {
             resume: std::sync::Mutex::new(receiver),
         });
         let mut backend = crate::tests::test_backend();
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let backend = Arc::new(backend);
         documents.publish(&backend).await;
         let uri = documents.uris[0].clone();

@@ -430,7 +430,7 @@ async fn malformed_uri_never_reads_the_valid_replacement_character_neighbour() {
     let malformed = uri(&neighbour.as_str().replace("%EF%BF%BD", "%FF"));
     let store = vfs::MemoryStore::new();
     store.upsert(neighbour_path, b"proc replacement_neighbour {} {}".to_vec());
-    backend.store = Arc::new(store);
+    backend.state_mut_for_test().store = Arc::new(store);
     let valid = backend.read_document(&neighbour).await.unwrap().unwrap();
     assert_eq!(valid.text.as_ref(), "proc replacement_neighbour {} {}");
     assert_eq!(valid.path_admission.as_ref().unwrap().uri(), &neighbour);
@@ -456,7 +456,7 @@ async fn virtual_registered_path_reaches_actual_source_and_fresh_analysis() {
     let target = uri("file:///client/source.tcl");
     let actual = PathBuf::from("/actual-browser-mount/distinct-é.tcl");
     store.upsert_uri(target.as_str(), &actual, b"set retained 1".to_vec());
-    backend.store = store.clone();
+    backend.state_mut_for_test().store = store.clone();
     Box::pin(backend.did_open(opened(&target, "set retained 1"))).await;
     let doc = backend
         .documents
@@ -513,7 +513,7 @@ async fn virtual_registered_path_reaches_actual_source_and_fresh_analysis() {
 #[tokio::test]
 async fn unregistered_virtual_open_requires_no_native_host_or_vfs_upsert() {
     let mut backend = test_backend();
-    backend.store = Arc::new(vfs::MemoryStore::new());
+    backend.state_mut_for_test().store = Arc::new(vfs::MemoryStore::new());
     let target = uri(&tcl_lsp_core::file_uri::from_path(
         std::path::Path::new("/browser/open-é.tcl"),
         tcl_lsp_core::file_uri::FileUriEscaping::Unreserved,
@@ -602,7 +602,7 @@ async fn admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows() 
         "/browser/blocked.tcl",
         b"proc retained_path_row {} {}".to_vec(),
     );
-    backend.store = store.clone();
+    backend.state_mut_for_test().store = store.clone();
     backend
         .db_set_source(&target, "proc retained_path_row {} {}", "tcl8.6".to_owned())
         .await
@@ -613,7 +613,7 @@ async fn admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows() 
         .await
         .add_document(target.as_str(), &retained_analysis());
     let file = *backend.db_files.lock().await.get(&target).unwrap();
-    backend.store = Arc::new(RefusingReadStore { actual: store });
+    backend.state_mut_for_test().store = Arc::new(RefusingReadStore { actual: store });
     assert!(
         matches!(backend.read_document(&target).await, Err(DocumentSourceUnavailable::Read { cause, .. }) if cause.kind() == std::io::ErrorKind::PermissionDenied)
     );
@@ -652,7 +652,7 @@ async fn missing_scan_receipt_cannot_retire_a_remapped_uri() {
         original_path,
         b"proc retained_path_row {} {}".to_vec(),
     );
-    backend.store = store.clone();
+    backend.state_mut_for_test().store = store.clone();
     backend
         .db_set_source(&target, "proc retained_path_row {} {}", "tcl8.6".to_owned())
         .await
@@ -718,7 +718,7 @@ async fn opening_waiting_for_index_cannot_retire_after_mapping_withdrawal() {
         "/original/open.tcl",
         b"proc retained_path_row {} {}".to_vec(),
     );
-    backend.store = store.clone();
+    backend.state_mut_for_test().store = store.clone();
     backend
         .workspace_index
         .write()
@@ -777,7 +777,7 @@ async fn closed_cached_source_keeps_its_original_mapping_until_genuine_republica
         "/original/cached.tcl",
         original.as_bytes().to_vec(),
     );
-    backend.store = store.clone();
+    backend.state_mut_for_test().store = store.clone();
     backend
         .db_set_source(&target, original, "tcl8.6".to_owned())
         .await
@@ -829,7 +829,7 @@ async fn equal_path_aba_and_equal_foreign_provider_cannot_authenticate_old_cache
     let path = "/same/closed-aba.tcl";
     let source = "set same_bytes 1";
     store.upsert_uri(target.as_str(), path, source.as_bytes().to_vec());
-    backend.store = store.clone();
+    backend.state_mut_for_test().store = store.clone();
     backend
         .db_set_source(&target, source, "tcl8.6".to_owned())
         .await
@@ -857,7 +857,7 @@ async fn equal_path_aba_and_equal_foreign_provider_cannot_authenticate_old_cache
         .unwrap();
     let foreign = Arc::new(vfs::MemoryStore::new());
     foreign.upsert_uri(target.as_str(), path, source.as_bytes().to_vec());
-    backend.store = foreign;
+    backend.state_mut_for_test().store = foreign;
     assert!(
         backend
             .analysis_for(&target, Arc::from(source), "tcl8.6".to_owned())

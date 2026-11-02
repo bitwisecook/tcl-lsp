@@ -232,7 +232,7 @@ async fn disk_package_providers_keep_source_dialect_and_refuse_uncaptured_paths(
         b"# tcl-dialect: tcl9.0\nproc provided {} {}".to_vec(),
     );
     let mut backend = crate::tests::test_backend();
-    backend.store = store.clone();
+    backend.state_mut_for_test().store = store.clone();
     backend.folder_dialects.lock().await.push((
         Uri::from_file_path("/library").unwrap(),
         "tcl8.6".to_owned(),
@@ -291,7 +291,7 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
     // Source publications refine advice; this does not execute any loader.
     let store = refinement_provider_store();
     let mut backend = crate::tests::test_backend();
-    backend.store = store;
+    backend.state_mut_for_test().store = store;
     register_packages(&backend, "package ifneeded w 1.2 {source stable.tcl}\npackage ifneeded w 1.3b1 {source beta.tcl}\npackage ifneeded dep 1.1 {source dep-old.tcl}\npackage ifneeded dep 1.2b1 {source dep-beta.tcl}\npackage ifneeded absent 1.0 {source absent.tcl}").await;
     let supplied = capture(&backend).await;
     let sources = ProviderSourceAccess::Supplied(&supplied);
@@ -407,7 +407,7 @@ async fn proposal_provider_fixture(indexed: bool) -> (Backend, Uri, PathBuf, Pat
         b"proc provided {} {}".to_vec(),
     );
     let mut backend = crate::tests::test_backend();
-    backend.store = store;
+    backend.state_mut_for_test().store = store;
     backend
         .db_set_source(
             &caller,

@@ -3253,7 +3253,7 @@ mod tests {
         };
         let path = "/same/diagnostic-publication-aba.tcl";
         store.upsert_uri(expected.uri.as_str(), path, Vec::new());
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         open_source(&backend, &expected).await;
         run_provider(&backend, &expected.uri).await;
         let old_pass = backend
@@ -4036,7 +4036,7 @@ mod tests {
         };
         let path = "/same/legacy-cache-aba.tcl";
         store.upsert_uri(expected.uri.as_str(), path, Vec::new());
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         open_source(&backend, &expected).await;
         let original = full_pull(
             backend
@@ -4118,7 +4118,7 @@ mod proposal_endpoint_tests {
     async fn fixture() -> (Backend, Arc<vfs::MemoryStore>, Uri, Uri, PathBuf) {
         let store = Arc::new(vfs::MemoryStore::new());
         let mut backend = crate::tests::test_backend();
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let root = std::env::temp_dir().join("tcl-lsp-proposal-endpoint-controls");
         let selected = publish_source(&backend, &store, &root.join("selected.tcl"), "", 7).await;
         let other = publish_source(

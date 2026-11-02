@@ -2815,7 +2815,7 @@ mod tests {
         let uri: Uri = "file:///readonly-provider-aba.tcl".parse().unwrap();
         let path = "/same/readonly-provider-aba.tcl";
         store.upsert_uri(uri.as_str(), path, SOURCE.as_bytes().to_vec());
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         register_current(&backend, &uri, SOURCE).await;
         let retained = backend
             .capture_readonly_reference_document(uri.as_str(), Arc::from(SOURCE))
@@ -4179,7 +4179,7 @@ mod workspace_symbol_original_admission_tests {
         let alias = "file:///workspace-symbol-service-alias.tcl";
         let path = "/same/workspace-symbol-original-alias.tcl";
         store.upsert_uri_aliases(&[uri.as_str(), alias], path, SOURCE.as_bytes().to_vec());
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let original = tcl_compiler::analyser::Analyser::new().analyse(SOURCE, "tcl8.6");
         backend
             .workspace_index
@@ -4288,7 +4288,7 @@ mod workspace_symbol_original_admission_tests {
             "/actual/workspace-symbol-missing-original-admission.tcl",
             SOURCE.as_bytes().to_vec(),
         );
-        backend.store = store;
+        backend.state_mut_for_test().store = store;
         let original = tcl_compiler::analyser::Analyser::new().analyse(SOURCE, "tcl8.6");
         backend
             .workspace_index
@@ -4516,7 +4516,7 @@ mod code_action_source_version_tests {
             "/source-action-provider.tcl",
             SOURCE.as_bytes().to_vec(),
         );
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let mut document = open(&backend, &uri, SOURCE).await;
         document.path_admission = Some(backend.document_path_admission(&uri).await.unwrap());
         backend
@@ -4793,7 +4793,7 @@ mod coarse_semantic_source_tests {
             "/coarse-recompute-provider.tcl",
             "puts \"\\x4142\"".as_bytes().to_vec(),
         );
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let snapshot = actual_open_source(&backend, &uri).await;
         let source = backend
             .capture_coarse_semantic_source(&uri, &snapshot)
@@ -5144,7 +5144,7 @@ mod coarse_semantic_source_tests {
             "/coarse-provider.tcl",
             b"puts \"\\x4142\"".to_vec(),
         );
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let snapshot = actual_open_source(&backend, &uri).await;
         let original = backend
             .capture_coarse_semantic_source(&uri, &snapshot)

@@ -660,7 +660,7 @@ impl DocumentPathAdmission {
 /// # Snapshot ownership and revision currency
 ///
 /// This type is both the **mutable owner** of an open document (under
-/// `Backend::documents`' mutex) and the **immutable snapshot** every request
+/// `crate::BackendState::documents`' mutex) and the **immutable snapshot** every request
 /// handler works from ([`Backend::read_document`] clones one out and drops the
 /// lock). Those two roles are what make the sharing rules below load-bearing:
 ///
@@ -691,7 +691,7 @@ struct DocumentState {
     /// snapshot handed to a request handler ([`Backend::read_document`]) is a
     /// reference-count bump rather than a copy of the whole buffer.
     ///
-    /// Inside [`Backend::documents`] this is byte-for-byte what the client
+    /// Inside [`crate::BackendState::documents`] this is byte-for-byte what the client
     /// sent (the shadow buffer every incremental `didChange` splices into).
     /// [`Backend::read_document`] hands out a snapshot whose lone `\r`s have
     /// been rewritten to `\n` ([`tcl_lexer::normalise_lone_cr`]) and stashes
@@ -1368,7 +1368,7 @@ struct OpenDocumentTexts {
 }
 
 /// A source-rehoming read that never waits for live publication while holding
-/// [`Backend::rehoming_gate`].
+/// [`crate::BackendState::rehoming_gate`].
 enum RehomingDocumentSnapshot {
     /// Published source bytes for independently leased source-view capture.
     Ready(Box<DocumentState>),
@@ -3876,7 +3876,7 @@ fn refresh_if_coalesced(
 type EnrichedRefreshAsked = Arc<Mutex<HashMap<Uri, u64>>>;
 
 /// Per-URI cache of the last semantic-token stream served: `(resultId, packed
-/// integer data)`. Shared type alias for [`Backend::last_semantic_tokens`] and
+/// integer data)`. Shared type alias for [`crate::BackendState::last_semantic_tokens`] and
 /// [`SemanticTokensRefreshCtx::last_semantic_tokens`] — the same cache, read
 /// and written from both the request-handling and the detached-continuation
 /// side.
@@ -3923,7 +3923,7 @@ impl SemanticTokensRefreshCtx {
     /// enrichment (regex-source retagging, user-class object-method
     /// resolution) reaches the editor without waiting for the next edit.
     /// Deliberately does **not** write the cache itself — only a served
-    /// `full`/`full/delta` response does that (see [`Backend::last_semantic_tokens`]);
+    /// `full`/`full/delta` response does that (see [`crate::BackendState::last_semantic_tokens`]);
     /// this only decides whether a refresh is worth asking for. Best-effort:
     /// a client without `workspace/semanticTokens/refresh` support rejects the
     /// request, which is harmless.
@@ -4142,7 +4142,7 @@ struct ConfigReloadSlot {
     running: bool,
 }
 
-/// Per-URI coalescing-scheduler slot (see [`Backend::diag_slots`]).
+/// Per-URI coalescing-scheduler slot (see [`crate::BackendState::diag_slots`]).
 #[derive(Default)]
 struct DiagSlot {
     /// An edit arrived that the running worker has not yet analysed.  Just a
@@ -4279,10 +4279,10 @@ struct DiagInputs {
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
     /// Serialises standalone index publication with source-site reconciliation
     /// and the workspace-wide query snapshot that consumes it. See
-    /// [`Backend::rehoming_gate`].
+    /// [`crate::BackendState::rehoming_gate`].
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
     /// Serialises the coverage/project snapshot with live source membership
-    /// publication. See [`Backend::live_publication_gate`].
+    /// publication. See [`crate::BackendState::live_publication_gate`].
     live_publication_gate: Arc<Mutex<()>>,
     /// Package database for the W120 workspace-refinement post-filter.
     package_resolver: Arc<RwLock<PackageResolver>>,
@@ -4313,7 +4313,7 @@ struct DiagInputs {
     class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     /// Per-folder salsa `AnalyserConfig` handles (see
-    /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
+    /// [`crate::BackendState::folder_db_configs`]); `capture_job` resolves the right one by
     /// the document's URI so folder-scoped W-code suppression reaches the
     /// cached analysis, falling back to `db_config`.
     folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
@@ -7427,7 +7427,7 @@ struct AnalyserPathInputs<'a> {
     /// The applied source-site seed record; the publish path invalidates
     /// entries.
     rehomed_source_seeds: &'a Arc<Mutex<HashMap<String, Vec<String>>>>,
-    /// Publication/query transaction gate; see [`Backend::rehoming_gate`].
+    /// Publication/query transaction gate; see [`crate::BackendState::rehoming_gate`].
     rehoming_gate: &'a Arc<tokio::sync::Mutex<()>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
     package_prefer: tcl_lsp_core::package_resolver::PackagePrefer,
@@ -7903,7 +7903,7 @@ impl PolicyLayers {
     /// The analyser's production-time skip under these layers — the codes
     /// the per-code decision turns off, which it need not compute
     /// ([`core_policy::Policy::production_skip`]). Every write of the
-    /// session's [`Backend::disabled_diagnostics`] and of a configured
+    /// session's [`crate::BackendState::disabled_diagnostics`] and of a configured
     /// folder's [`FolderConfig::disabled_diagnostics`] is this, so the skip
     /// and the policy come from the same layers and the report can explain
     /// every gap.
@@ -9463,7 +9463,7 @@ enum ReloadTrigger {
 /// read** rather than of who finished last: a reload takes its sequence number
 /// before it looks at the filesystem, so a snapshot taken earlier carries a
 /// smaller number no matter how long it then spends parsing. See
-/// [`Backend::spec_pack_reload_seq`].
+/// [`crate::BackendState::spec_pack_reload_seq`].
 #[derive(Default)]
 struct PublishedPackSet {
     /// The sequence number of the reload that published `packs`; `0` before
@@ -9678,7 +9678,22 @@ enum DiskRemovalPolicy<'a> {
 /// rebuild is needed. The cache also owns the plain-Tcl base
 /// registry under the empty-string key, so registries are dropped
 /// with the `Backend` rather than leaked for the process lifetime.
+#[derive(Clone)]
 pub struct Backend {
+    state: Arc<BackendState>,
+}
+
+impl std::ops::Deref for Backend {
+    type Target = BackendState;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+/// Shared server state; fields retain their original locks and ownership.
+/// Backend clones retain this allocation, without cloning any input or cache.
+#[doc(hidden)]
+pub struct BackendState {
     client: Client,
     /// Actual source-bound transform results awaiting a final editor admission.
     document_transforms: std::sync::Mutex<document_transform::TransformLedger>,
@@ -9700,7 +9715,7 @@ pub struct Backend {
     /// Updated by ``did_change_configuration`` so editor reconfigures
     /// take effect for subsequently-opened documents.
     default_dialect: Arc<Mutex<String>>,
-    /// Whether [`Backend::default_dialect`] was set by an explicit
+    /// Whether [`crate::BackendState::default_dialect`] was set by an explicit
     /// `tclLsp.dialect` — a pulled/pushed configuration value or the
     /// `tcl-lsp.setDialect` command — rather than still being the built-in
     /// fallback.  Reported as `dialect_explicitly_set` by
@@ -9712,7 +9727,7 @@ pub struct Backend {
     /// reported once rather than on every pull.
     warned_session_dialect: Mutex<Option<String>>,
     /// A deliberate, temporary session dialect that outranks
-    /// [`Backend::default_dialect`] and is **immune to configuration**.
+    /// [`crate::BackendState::default_dialect`] and is **immune to configuration**.
     ///
     /// The chat commands run a buffer under a fixed dialect (`f5-irules`) and
     /// restore the previous one afterwards.  Doing that by pushing a
@@ -9735,8 +9750,8 @@ pub struct Backend {
     /// outright has made a choice no inference should second-guess, so this is
     /// consulted ahead of the language id, the BIG-IP basename, and the
     /// in-source `# tcl-dialect:` directive.  Every other override is either
-    /// session-wide ([`Backend::session_dialect_override`]) or folder-wide
-    /// ([`Backend::folder_dialects`]); re-tagging one buffer through either of
+    /// session-wide ([`crate::BackendState::session_dialect_override`]) or folder-wide
+    /// ([`crate::BackendState::folder_dialects`]); re-tagging one buffer through either of
     /// those re-tags every other buffer with it, which is precisely what a
     /// per-document override must not do.
     ///
@@ -9777,11 +9792,11 @@ pub struct Backend {
     /// diagnostics path resolves the handle by longest prefix so a folder's
     /// W-code suppression reaches the cached `file_analysis` query, not just the
     /// server-side lift.  Folders without such overrides fall back to
-    /// [`Backend::db_config`].
+    /// [`crate::BackendState::db_config`].
     folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
     /// Retired per-folder `AnalyserConfig` handles, keyed by folder URI.
     ///
-    /// The `AnalyserConfig` half of [`Backend::db_tombstones`], and there for
+    /// The `AnalyserConfig` half of [`crate::BackendState::db_tombstones`], and there for
     /// the same reason: a folder whose override set empties (or which leaves the
     /// workspace) drops its handle, and re-enabling an override would allocate a
     /// second one salsa can never reclaim.  A `.tcl-lsp.ini` watcher re-pulls the
@@ -10277,15 +10292,15 @@ impl LanguageDialect {
 /// otherwise leaves one map uncleared behind a rename or a folder removal while
 /// every other retirement path clears it.
 struct PerUriCaches<'a> {
-    /// [`Backend::autoloaded_library_uris`] — keyed by `uri.as_str()`.
+    /// [`crate::BackendState::autoloaded_library_uris`] — keyed by `uri.as_str()`.
     autoloaded_library_uris: &'a Arc<Mutex<HashSet<String>>>,
-    /// [`Backend::rehomed_source_seeds`] — keyed by `uri.as_str()`.
+    /// [`crate::BackendState::rehomed_source_seeds`] — keyed by `uri.as_str()`.
     rehomed_source_seeds: &'a Arc<Mutex<HashMap<String, Vec<String>>>>,
-    /// [`Backend::last_semantic_tokens`].
+    /// [`crate::BackendState::last_semantic_tokens`].
     last_semantic_tokens: &'a SemanticTokensCache,
-    /// [`Backend::semantic_tokens_refresh_asked`].
+    /// [`crate::BackendState::semantic_tokens_refresh_asked`].
     semantic_tokens_refresh_asked: &'a EnrichedRefreshAsked,
-    /// [`Backend::workspace_class_analyses`].
+    /// [`crate::BackendState::workspace_class_analyses`].
     workspace_class_analyses: &'a Arc<Mutex<HashMap<Uri, WorkspaceClassAnalysis>>>,
 }
 
@@ -10674,7 +10689,7 @@ impl Drop for EditTurn<'_> {
 /// One-shot readiness signal for the first [`Backend::scan_workspace_folders`]
 /// pass.
 ///
-/// [`Backend::workspace_scan_gate`] lets a request wait out a scan that is
+/// [`crate::BackendState::workspace_scan_gate`] lets a request wait out a scan that is
 /// *already running*, which is enough for a handler reached long after
 /// startup.  It is not enough at startup: `initialized` pulls the client
 /// config and registers file watchers — two client round-trips — **before** it
@@ -10977,7 +10992,7 @@ impl ResourceAnalyserInputs {
 }
 
 /// `initializationOptions.folderDialects` — lives in
-/// [`Backend::folder_dialects`]; [`Backend::folder_dialect_overrides`] merges
+/// [`crate::BackendState::folder_dialects`]; [`Backend::folder_dialect_overrides`] merges
 /// the two.
 #[derive(Clone, Default)]
 struct FolderConfig {
@@ -11321,7 +11336,7 @@ struct MethodFamily {
 }
 
 /// One memoised workspace-class-oracle analysis — see
-/// [`Backend::workspace_class_analyses`].
+/// [`crate::BackendState::workspace_class_analyses`].
 struct WorkspaceClassAnalysis {
     /// Hash of everything the analysis depends on: the document's text and
     /// dialect, both workspace class sets, and the class-factory oracle.
@@ -11473,6 +11488,17 @@ impl BackendInitialState {
 }
 
 impl Backend {
+    fn from_state(state: BackendState) -> Self {
+        Self {
+            state: Arc::new(state),
+        }
+    }
+
+    #[cfg(test)]
+    fn state_mut_for_test(&mut self) -> &mut BackendState {
+        Arc::get_mut(&mut self.state).expect("fixture fields are set before Backend is cloned")
+    }
+
     /// Build a fresh backend wrapping the given client.
     ///
     /// Dialect-specific registries (including the plain-Tcl base)
@@ -11498,7 +11524,7 @@ impl Backend {
     #[must_use]
     pub fn with_store(client: Client, store: Arc<dyn vfs::SourceStore>) -> Self {
         let initial = BackendInitialState::new(&client, store.as_ref());
-        Self {
+        Self::from_state(BackendState {
             client,
             diagnostic_publisher: initial.diagnostic_publisher,
             document_transforms: std::sync::Mutex::new(
@@ -11593,7 +11619,7 @@ impl Backend {
             live_publication_uri_generations: std::sync::Mutex::new(HashMap::new()),
             live_publication_gate: Arc::new(Mutex::new(())),
             store,
-        }
+        })
     }
 
     /// Apply source replacements with all salsa maps already locked, returning
@@ -15038,7 +15064,7 @@ impl Backend {
     ///
     /// 0. A deliberate per-document override installed by
     ///    `tcl-lsp.setDocumentDialectOverride`
-    ///    ([`Backend::document_dialect_overrides`]) — a host naming this exact
+    ///    ([`crate::BackendState::document_dialect_overrides`]) — a host naming this exact
     ///    URI outranks every inference below, including the in-source
     ///    directive.
     /// 1. The LSP ``languageId`` field — when it names a known
@@ -15085,8 +15111,8 @@ impl Backend {
     }
 
     /// The session-wide fallback dialect: the deliberate
-    /// [`Backend::session_dialect_override`] when one is in force, otherwise
-    /// the configured [`Backend::default_dialect`].
+    /// [`crate::BackendState::session_dialect_override`] when one is in force, otherwise
+    /// the configured [`crate::BackendState::default_dialect`].
     ///
     /// The one read point for that tier, so a configuration pull rewriting
     /// `default_dialect` cannot silently revert an override.
@@ -15130,7 +15156,7 @@ impl Backend {
     ///
     /// 0. A deliberate per-document override installed by
     ///    `tcl-lsp.setDocumentDialectOverride`
-    ///    ([`Backend::document_dialect_overrides`]) — a host naming this exact
+    ///    ([`crate::BackendState::document_dialect_overrides`]) — a host naming this exact
     ///    URI outranks every inference below, including the in-source
     ///    directive.
     /// 1. The LSP ``languageId`` field — when it names a known
@@ -16876,13 +16902,13 @@ impl Backend {
     /// Borrow the per-URI caches as one group, classifying every other
     /// `Backend` field on the way past.
     ///
-    /// The `let Self { … } = self` below names **every** field, so adding one to
-    /// `Backend` is a compile error here until the author has decided whether it
+    /// The `let BackendState { … }` below names **every** shared field, so adding one to
+    /// `BackendState` is a compile error here until the author has decided whether it
     /// is keyed by a document URI.  That is deliberately stronger than grouping
     /// the caches into an owned nested struct (the `DocumentRecords::clear`
     /// technique this borrows, in `tcl-lsp-core`'s `workspace_index`): a nested
     /// struct only catches a field added *inside* the group, whereas a new
-    /// per-URI map is by definition added to `Backend` first, which is exactly
+    /// per-URI map is by definition added to `BackendState` first, which is exactly
     /// the case that must not slip through.  Moving the five fields into an
     /// owned struct would also rewrite dozens of unrelated access sites for no
     /// extra safety.
@@ -16912,7 +16938,7 @@ impl Backend {
     /// - **Not keyed by a URI at all** — session configuration, gates, salsa
     ///   inputs, and workspace-wide caches: everything else.
     fn per_uri_caches(&self) -> PerUriCaches<'_> {
-        let Self {
+        let BackendState {
             // The group.
             autoloaded_library_uris,
             rehomed_source_seeds,
@@ -17014,7 +17040,7 @@ impl Backend {
             live_publication_uri_generations: _,
             live_publication_gate: _,
             store: _,
-        } = self;
+        } = self.state.as_ref();
         PerUriCaches {
             autoloaded_library_uris,
             rehomed_source_seeds,
@@ -25664,7 +25690,7 @@ impl Backend {
     ///
     /// Distinct from `tcl-lsp.setDialect`, which rewrites the *configured*
     /// session default: an override lives in its own slot
-    /// ([`Backend::session_dialect_override`]) that no `workspace/configuration`
+    /// ([`crate::BackendState::session_dialect_override`]) that no `workspace/configuration`
     /// pull touches, so it lasts until the caller clears it rather than until
     /// the next time anything happens to settings.  That is the
     /// contract the chat commands need — run this buffer under `f5-irules`,
@@ -26812,13 +26838,13 @@ impl Backend {
     /// whose *resolved* analyser inputs — the sorted skip, the non-ASCII mode,
     /// the extra commands, the generic variable patterns, the package
     /// provides, the BIG-IP version or the targets — differs from the
-    /// session's; every other folder shares [`Backend::db_config`] and its
+    /// session's; every other folder shares [`crate::BackendState::db_config`] and its
     /// memo, so a document under it is analysed once per revision for
     /// diagnostics and symbols alike.  Existing handles are reused across
     /// re-pulls so the salsa store does not accumulate dead config inputs.
     ///
     /// A folder that stops overriding anything — or leaves the workspace — has
-    /// its handle *retired* into [`Backend::folder_db_config_tombstones`] with
+    /// its handle *retired* into [`crate::BackendState::folder_db_config_tombstones`] with
     /// its payload cleared, not dropped, and a folder that starts overriding
     /// again revives the retired handle.  Salsa never frees an input, so
     /// dropping one leaks it: `.tcl-lsp.ini` re-pulls the whole layered config
@@ -36934,7 +36960,7 @@ fn default_optimiser_profile() -> tcl_compiler::optimiser::profiles::Optimisatio
 /// snapshot for this many milliseconds before it is published.
 ///
 /// It exists solely so the e2e suite can force the interleaving that
-/// [`Backend::spec_pack_reload`] and [`Backend::spec_pack_reload_seq`] exist to
+/// [`crate::BackendState::spec_pack_reload`] and [`crate::BackendState::spec_pack_reload_seq`] exist to
 /// survive: a pack file that appears *after* the startup reload has read the
 /// disk but *before* it publishes. Real sessions never set it, and unset (or
 /// unparseable, or `0`) is a no-op — the hold is read once, and a zero hold
@@ -39760,7 +39786,7 @@ fn folder_dialect_for(uri: &Uri, folders: &[(Uri, String)]) -> Option<String> {
 ///
 /// Only the **default**: the effective bound is
 /// `tclLsp.workspaceScan.maxFiles` (INI `[workspaceScan] max_files`), held in
-/// `Backend::workspace_scan_max_files` and read per scan.  A workspace larger
+/// `crate::BackendState::workspace_scan_max_files` and read per scan.  A workspace larger
 /// than the bound is silently only partly indexed, which is why the bound is
 /// configurable (issue #2021: a 3217-file Quartus `ip/altera` tree lost a
 /// third of itself to the fixed 2000).
@@ -47673,7 +47699,7 @@ info exists ::N::v\uD800";
             backend.discovered_tcl.get().is_some_and(Vec::is_empty),
             "the harness presets an empty host-installation survey",
         );
-        backend.discovered_tcl = Arc::new(std::sync::OnceLock::from(vec![
+        backend.state_mut_for_test().discovered_tcl = Arc::new(std::sync::OnceLock::from(vec![
             core_tcl_install::TclInstallation {
                 version: "8.6".to_owned(),
                 tcl_library: lib_root.join("tcl8.6"),
@@ -49028,7 +49054,7 @@ info exists ::N::v\uD800";
         let client = service.inner().client.clone();
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         let db_config = default_analyser_config(&db);
-        Backend {
+        Backend::from_state(BackendState {
             client,
             diagnostic_publisher,
             document_transforms: std::sync::Mutex::new(
@@ -49129,7 +49155,7 @@ info exists ::N::v\uD800";
             live_publication_uri_generations: std::sync::Mutex::new(HashMap::new()),
             live_publication_gate: Arc::new(Mutex::new(())),
             store: Arc::new(vfs::NativeStore),
-        }
+        })
     }
 
     // Document-lifecycle + diagnostic-core internals: the
@@ -54209,7 +54235,7 @@ proc p {} {
             vfs::WorkspaceSourceInventoryCompleteness::Complete,
         );
         let mut backend = test_backend();
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let provider = store.workspace_source_inventory_provider();
         let observations = vec![store.workspace_source_inventory(&root)];
         assert!(observations[0].admits_complete_inventory());
@@ -60250,7 +60276,7 @@ proc p {} {
         let path = PathBuf::from("/library-provider-mount/source.tcl");
         let source = "proc library_provider_target {} {}\n";
         store.upsert_uri(uri.as_str(), &path, source.as_bytes().to_vec());
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
         let epoch = backend.diag_inputs_epoch();
         let generation = *backend.class_factory_generation.read().await;
@@ -60846,7 +60872,7 @@ proc p {} {
     ///
     /// A document sourced only from the global namespace wants exactly the
     /// standalone analysis the index already holds, so
-    /// [`Backend::rehomed_source_seeds`] records it as *absence*.  A work
+    /// [`crate::BackendState::rehomed_source_seeds`] records it as *absence*.  A work
     /// queue comparing against `Some(["::"])` instead — a value the store never
     /// writes — would queue, re-analyse and re-index the document on every
     /// round of every call, for ever.
@@ -61078,7 +61104,7 @@ proc p {} {
     /// `tokio::spawn` tasks (not `tokio::join!` on one task, which never
     /// gives two `.await`-separated bodies true concurrent access to the
     /// gate) so the two calls can actually race for
-    /// [`Backend::rehoming_gate`] — with the gate, the outcome is
+    /// [`crate::BackendState::rehoming_gate`] — with the gate, the outcome is
     /// deterministic regardless of scheduling: whichever call acquires it
     /// second always finds the reconciliation already converged, because the
     /// first call fully completes (and releases the gate) before the second
@@ -64449,7 +64475,7 @@ proc p {} {
         // assertion below, rather than a timeout, diagnoses that behaviour.
         store.release_first_read();
         let mut backend = test_backend();
-        backend.store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
+        backend.state_mut_for_test().store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
         let pending_uri = Uri::from_str("untitled:capacity-limit-1854").unwrap();
         let closed_uri = Uri::from_str("file:///capacity-limit-1854.tcl").unwrap();
         backend.documents.lock("test").await.insert(
@@ -64500,7 +64526,7 @@ proc p {} {
         let new_text = "proc closed_snapshot_symbol {} {}\n";
         let store = Arc::new(ClosedSymbolRaceStore::new(old_text));
         let mut backend = test_backend();
-        backend.store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
+        backend.state_mut_for_test().store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
         let backend = Arc::new(backend);
         let pending_uri = Uri::from_str("untitled:closed-source-race-1854").unwrap();
         let closed_uri = Uri::from_str("file:///closed-source-race-1854.tcl").unwrap();
@@ -69187,7 +69213,7 @@ mod closed_document_source_context_tests {
             b"# tcl-dialect: tcl8.4\rset x 1\r".to_vec(),
         );
         let mut backend = tests::test_backend();
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         *backend.session_dialect_override.lock().await = Some("tcl9.0".to_owned());
         *backend.folder_dialects.lock().await = vec![(
             Uri::from_str("file:///workspace/").unwrap(),
@@ -69246,7 +69272,7 @@ mod closed_document_source_context_tests {
         let (decoded, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
         store.upsert_uri(uri.as_str(), "/actual/decode.tcl", bytes);
         let mut backend = tests::test_backend();
-        backend.store = store;
+        backend.state_mut_for_test().store = store;
         for readiness in [DocumentReadiness::Indexed, DocumentReadiness::Salsa] {
             let document = backend
                 .read_document_at(&uri, readiness)
@@ -69282,7 +69308,7 @@ mod closed_document_source_context_tests {
             "/actual/utf16.tcl",
             vec![0xff, 0xfe, b'x', 0],
         );
-        backend.store = store;
+        backend.state_mut_for_test().store = store;
         let document = backend
             .read_local_document(&non_text_uri)
             .await
@@ -69305,7 +69331,7 @@ mod closed_document_source_context_tests {
         );
         store.upsert("/client/app.tcl", b"# tcl-dialect: tcl9.0\n".to_vec());
         let mut backend = tests::test_backend();
-        backend.store = store;
+        backend.state_mut_for_test().store = store;
         let document = backend.read_document(&uri).await.unwrap().unwrap();
         assert_eq!(document.text.as_ref(), source);
         assert_eq!(document.dialect, "tcl8.4");
@@ -69355,7 +69381,7 @@ mod closed_document_source_context_tests {
         let source = b"# tcl-dialect: tcl8.4\nset x 1\n".to_vec();
         store.upsert_uri(uri.as_str(), "/mounted/same.tcl", source.clone());
         let mut backend = tests::test_backend();
-        backend.store = store.clone();
+        backend.state_mut_for_test().store = store.clone();
         let original = backend.read_document(&uri).await.unwrap().unwrap();
         assert!(store.remove_uri(uri.as_str()));
         store.upsert_uri(uri.as_str(), "/mounted/same.tcl", source);
@@ -69383,7 +69409,7 @@ mod closed_document_source_context_tests {
             b"# tcl-dialect: tcl8.4\n".to_vec(),
         );
         let mut backend = tests::test_backend();
-        backend.store = store;
+        backend.state_mut_for_test().store = store;
         let admission = backend.document_path_admission(&uri).await.unwrap();
         backend.documents.lock("closed_source_test").await.insert(
             uri.clone(),
@@ -70015,5 +70041,74 @@ mod original_method_final_source_batch_tests {
             .await
             .unwrap();
         assert_eq!(stale, [] as [tower_lsp_server::ls_types::Location; 0]);
+    }
+}
+
+#[cfg(test)]
+mod backend_shared_ownership {
+    use super::*;
+
+    #[tokio::test]
+    async fn clones_share_actual_inputs_and_state_releases_after_the_final_owner() {
+        let mut backend = tests::test_backend();
+        backend.state_mut_for_test().store = Arc::new(vfs::MemoryStore::new());
+        let weak = Arc::downgrade(&backend.state);
+        let clone = backend.clone();
+        assert!(Arc::ptr_eq(&backend.state, &clone.state));
+        assert!(Arc::ptr_eq(&backend.db, &clone.db));
+        assert!(Arc::ptr_eq(&backend.documents, &clone.documents));
+        *clone.default_dialect.lock().await = "tcl9.0".to_owned();
+        assert_eq!(backend.default_dialect.lock().await.as_str(), "tcl9.0");
+        drop(clone);
+        assert_eq!(Arc::strong_count(&backend.state), 1);
+        drop(backend);
+        assert!(
+            weak.upgrade().is_none(),
+            "background client publishers must not retain BackendState"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_owned_task_retains_the_real_backend_only_until_its_full_teardown() {
+        let backend = tests::test_backend();
+        let weak = Arc::downgrade(&backend.state);
+        let started = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        let task = crate::rt::spawn({
+            let backend = backend.clone();
+            let started = Arc::clone(&started);
+            let release = Arc::clone(&release);
+            async move {
+                started.notify_one();
+                release.notified().await;
+                assert!(backend.db_files.lock().await.is_empty());
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(2), started.notified())
+            .await
+            .unwrap();
+        drop(backend);
+        assert!(weak.upgrade().is_some());
+        release.notify_one();
+        crate::rt::timeout(std::time::Duration::from_secs(2), task)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            weak.upgrade().is_none(),
+            "the task must not leave a Backend/readiness/task cycle"
+        );
+    }
+    #[tokio::test]
+    async fn native_browser_and_wasi_constructor_forms_keep_the_same_service_contract() {
+        let (_native, _native_socket) = tower_lsp_server::LspService::new(Backend::new);
+        let browser_store: Arc<dyn vfs::SourceStore> = Arc::new(vfs::MemoryStore::new());
+        let (_browser, _browser_socket) = tower_lsp_server::LspService::new(move |client| {
+            Backend::with_store(client, browser_store)
+        });
+        let wasi_store: Arc<dyn vfs::SourceStore> = Arc::new(vfs::NativeStore);
+        let (_wasi, _wasi_socket) = tower_lsp_server::LspService::new(move |client| {
+            Backend::with_store(client, wasi_store)
+        });
     }
 }
