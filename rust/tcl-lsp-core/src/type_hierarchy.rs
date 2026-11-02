@@ -83,6 +83,13 @@ pub fn prepare_for_document(
     else {
         return Vec::new();
     };
+    if let Some(record) =
+        crate::original_oo::positioned_class_at(source, analysis, position.offset())
+    {
+        return original_item_for(uri, source, analysis, record)
+            .into_iter()
+            .collect();
+    }
     match crate::original_oo::class_at_cursor(analysis, source, position.offset()) {
         ControlFlow::Break(selected) => selected
             .and_then(|record| original_item_for(uri, source, analysis, record))

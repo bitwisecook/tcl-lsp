@@ -11,6 +11,79 @@ use tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata;
 use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
 use tcl_lexer::{SourceImage, Span};
 
+pub(crate) fn positioned_class_at<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    cursor: u32,
+) -> Option<&'a SourceDeclarationMetadata<ClassDef>> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let mut invocations = analysis.command_invocations.iter().filter(|invocation| {
+        invocation.lookup.is_execution_site()
+            && invocation.range.as_range().contains(&(cursor as usize))
+    });
+    let invocation = invocations.next()?;
+    invocations.next().is_none().then_some(())?;
+    let input = invocation.original_name_input.as_ref()?;
+    let key = input.original_word_key()?;
+    (key.original_word().span() == invocation.range
+        && !key.original_word().group().expand
+        && key.source_image() == &tcl_lexer::SourceImage::document(source))
+        .then_some(())?;
+    let mut selected = None;
+    let mut conflict = false;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            if command
+                .argv
+                .first()
+                .is_some_and(|head| head.span == invocation.range)
+            {
+                if selected
+                    .as_ref()
+                    .is_some_and(|existing| existing != command)
+                {
+                    conflict = true;
+                } else {
+                    selected = Some(command.clone());
+                }
+            }
+            false
+        },
+    );
+    (!conflict).then_some(())?;
+    let segment = selected?;
+    let realm = analysis.retained_command_realm()?;
+    let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        current.config(),
+        &segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    (site.offset == invocation.range.start()
+        && site.source.source_image() == &tcl_lexer::SourceImage::document(source)
+        && binding.original_head_name_input(&tokens).as_ref() == Some(input))
+    .then_some(())?;
+    let reference = binding.original_command_reference(&tokens)?;
+    (invocation.resolved_command_reference.as_ref() == Some(&reference)
+        && reference.matches_original_invocation_site(site))
+    .then_some(())?;
+    let definition = reference.definition()?;
+    (definition.kind() == tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
+        && matches!(definition.allocation().site.source.kind(),
+            tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes()))
+        .then_some(())?;
+    let mut classes = analysis
+        .original_class_declarations()
+        .filter(|class| class.declaration_site() == &definition.allocation().site);
+    let class = classes.next()?;
+    classes.next().is_none().then_some(())?;
+    Some(class)
+}
+
 pub(crate) fn class_for_invocation<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
@@ -33,6 +106,12 @@ pub(crate) fn class_for_invocation<'a>(
         return ControlFlow::Break(None);
     };
     if let Some(reference) = &invocation.resolved_command_reference {
+        if lookup.site().source.source_image() != &SourceImage::document(source)
+            || invocation.lookup.offset(invocation.range) != Some(lookup.site().offset)
+            || !reference.matches_original_invocation_site(lookup.site())
+        {
+            return ControlFlow::Break(None);
+        }
         let Some(definition) = reference.definition() else {
             return ControlFlow::Break(None);
         };
