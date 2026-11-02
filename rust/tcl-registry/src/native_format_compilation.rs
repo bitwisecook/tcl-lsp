@@ -363,6 +363,7 @@ mod tests {
             NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
         };
         use crate::native_compiler_words::NativeCompilerWords;
+        use crate::native_instruction_plan::NativeFormatStringPiece;
         let version = TclVersion::V9_0;
         let source = tcl_lexer::SourceImage::native(br"format x\n%s $value".as_slice());
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
@@ -396,7 +397,6 @@ mod tests {
             ),
             NativeCompilationSelection::Inline { .. }
         ));
-        use crate::native_instruction_plan::NativeFormatStringPiece;
         assert_eq!(
             instruction(&words, 1, version, context()).unwrap().pieces,
             vec![
