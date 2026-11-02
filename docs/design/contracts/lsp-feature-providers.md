@@ -17,8 +17,9 @@ and the MCP tool surface without three copies of the behaviour.
 
 For an opaque byte-named TclOO class with an authenticated literal empty
 body, semantic tokens use the counted declaration and positioned call
-receipts to classify the class head. This does not infer members, relations,
-or a printable class name.
+receipts to classify the class head, and go-to-definition returns the exact
+authored name span. This does not infer members, relations, or a printable
+class name.
 
 ## Decision rules / contracts
 

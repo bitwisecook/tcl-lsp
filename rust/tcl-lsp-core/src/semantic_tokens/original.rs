@@ -24,77 +24,6 @@ pub(super) struct OriginalTokenRoles {
     lexical_oo: bool,
 }
 
-fn counted_class_head_at(
-    source: &str,
-    analysis: &AnalysisResult,
-    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
-) -> bool {
-    let Some(input) = invocation.original_name_input.as_ref() else {
-        return false;
-    };
-    let Some(config) = analysis.body_lexer_config else {
-        return false;
-    };
-    let image = SourceImage::document(source);
-    let Some(key) = input.original_word_key() else {
-        return false;
-    };
-    if key.original_word().span() != invocation.range
-        || key.original_word().group().expand
-        || key.source_image() != &image
-        || key.lexer_config() != config
-    {
-        return false;
-    }
-    let Some(resolved) = analysis.resolved_input.as_ref() else {
-        return false;
-    };
-    let context = resolved.context_registry();
-    if !invocation.lookup.is_execution_site()
-        || !analysis.matches_original_source_image(&image, config)
-    {
-        return false;
-    }
-    let Some(lookup) = invocation
-        .original_lookup
-        .as_ref()
-        .filter(|lookup| lookup.name_input() == input)
-    else {
-        return false;
-    };
-    let Some(reference) = invocation.resolved_command_reference.as_ref() else {
-        return false;
-    };
-    if lookup.site().source.source_image() != &image
-        || invocation.lookup.offset(invocation.range) != Some(lookup.site().offset)
-        || !reference.matches_original_invocation_site(lookup.site())
-        || reference.original_name_policy() != Some(input.policy())
-    {
-        return false;
-    }
-    let Some(definition) = reference.definition() else {
-        return false;
-    };
-    if definition.kind() != tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
-        || !matches!(definition.allocation().site.source.kind(),
-            tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
-    {
-        return false;
-    }
-    let mut records = analysis
-        .original_counted_class_metadata
-        .iter()
-        .filter(|record| {
-            record.declaration_site() == &definition.allocation().site
-                && record.name().policy() == input.policy()
-                && record.name_input().source_image() == &image
-                && record.name_input().lexer_config() == config
-                && record.metadata().body().matches_source(&image, config)
-                && record.metadata().body().matches_context(&context)
-        });
-    records.next().is_some() && records.next().is_none()
-}
-
 impl OriginalTokenRoles {
     pub(super) fn capture(source: &str, analysis: Option<&AnalysisResult>) -> Self {
         let Some(analysis) = analysis else {
@@ -185,7 +114,8 @@ impl OriginalTokenRoles {
             if matches!(
                 crate::original_oo::class_for_invocation(analysis, source, invocation),
                 std::ops::ControlFlow::Break(Some(_))
-            ) || counted_class_head_at(source, analysis, invocation)
+            ) || crate::original_oo::counted_class_for_invocation(source, analysis, invocation)
+                .is_some()
             {
                 roles.class_heads.insert(invocation.range.start());
             }

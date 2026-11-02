@@ -11,6 +11,63 @@ use tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata;
 use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
 use tcl_lexer::{SourceImage, Span};
 
+pub(crate) fn counted_class_for_invocation<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> Option<&'a SourceDeclarationMetadata<tcl_compiler::analyser::types::OriginalCountedClass>> {
+    let input = invocation.original_name_input.as_ref()?;
+    let config = analysis.body_lexer_config?;
+    let image = SourceImage::document(source);
+    let key = input.original_word_key()?;
+    if key.original_word().span() != invocation.range
+        || key.original_word().group().expand
+        || key.source_image() != &image
+        || key.lexer_config() != config
+    {
+        return None;
+    }
+    let resolved = analysis.resolved_input.as_ref()?;
+    let context = resolved.context_registry();
+    if !invocation.lookup.is_execution_site()
+        || !analysis.matches_original_source_image(&image, config)
+    {
+        return None;
+    }
+    let lookup = invocation
+        .original_lookup
+        .as_ref()
+        .filter(|lookup| lookup.name_input() == input)?;
+    let reference = invocation.resolved_command_reference.as_ref()?;
+    if lookup.site().source.source_image() != &image
+        || invocation.lookup.offset(invocation.range) != Some(lookup.site().offset)
+        || !reference.matches_original_invocation_site(lookup.site())
+        || reference.original_name_policy() != Some(input.policy())
+    {
+        return None;
+    }
+    let definition = reference.definition()?;
+    if definition.kind() != tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
+        || !matches!(definition.allocation().site.source.kind(),
+            tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
+    {
+        return None;
+    }
+    let mut records = analysis
+        .original_counted_class_metadata
+        .iter()
+        .filter(|record| {
+            record.declaration_site() == &definition.allocation().site
+                && record.name().policy() == input.policy()
+                && record.name_input().source_image() == &image
+                && record.name_input().lexer_config() == config
+                && record.metadata().body().matches_source(&image, config)
+                && record.metadata().body().matches_context(&context)
+        });
+    let record = records.next()?;
+    records.next().is_none().then_some(record)
+}
+
 pub(crate) fn positioned_class_at<'a>(
     source: &str,
     analysis: &'a AnalysisResult,

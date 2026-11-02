@@ -600,9 +600,17 @@ fn positioned_definition_target(
             )]
         }));
     }
-    let reference = invocation_reference_at(analysis, cursor_offset)?
-        .resolved_command_reference
-        .as_ref()?;
+    let invocation = invocation_reference_at(analysis, cursor_offset)?;
+    if let Some(record) =
+        crate::original_oo::counted_class_for_invocation(source, analysis, invocation)
+    {
+        return Some(vec![span_to_range(
+            source,
+            line_index,
+            record.name_input().span(),
+        )]);
+    }
+    let reference = invocation.resolved_command_reference.as_ref()?;
     let span = reference
         .linked_definition()
         .or_else(|| reference.definition())
@@ -4605,6 +4613,80 @@ pub fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counted_class_definition_navigation_keeps_exact_source_and_horizons() {
+        let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\nrename C\\uD800 moved\nmoved new\n";
+        let analysis = analyse(source);
+        assert_eq!(analysis.original_counted_class_metadata.len(), 2);
+        let index = LineIndex::new(source);
+        for (line, name) in [(2, "C\\uD800"), (3, "C\\uD801"), (5, "C\\uD800")] {
+            let start = u32::try_from(source.find(name).unwrap()).unwrap();
+            let span = tcl_lexer::Span::new(start, start + u32::try_from(name.len()).unwrap());
+            assert_eq!(
+                definition(source, line, 0, &analysis),
+                vec![span_to_range(source, &index, span)]
+            );
+        }
+        assert!(definition(&format!("#{source}"), 2, 0, &analysis).is_empty());
+        assert!(definition(source, 2, 7, &analysis).is_empty());
+    }
+
+    #[test]
+    fn counted_class_definition_navigation_refuses_observer_shadow_and_forged_rows() {
+        for source in [
+            "oo::class create C\\uD800 {}\nrename C\\uD800 {}\nC\\uD800 new\n",
+            "oo::class create C\\uD800 {}\nrename C\\uD800 {}\nproc C\\uD800 args {}\nC\\uD800 new\n",
+            "oo::class create C\\uD800 {}\nproc change args {rename C\\uD800 {}}\ntrace add execution C\\uD800 enter change\nC\\uD800 new\n",
+        ] {
+            let analysis = analyse(source);
+            let line = u32::try_from(source.lines().count() - 1).unwrap();
+            let start = u32::try_from(source.find("C\\uD800").unwrap()).unwrap();
+            let class = span_to_range(
+                source,
+                &LineIndex::new(source),
+                tcl_lexer::Span::new(start, start + 7),
+            );
+            assert!(
+                !definition(source, line, 0, &analysis).contains(&class),
+                "{source}"
+            );
+        }
+        let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\n";
+        let analysis = analyse(source);
+        let mut duplicate = analysis.clone();
+        duplicate
+            .original_counted_class_metadata
+            .push(duplicate.original_counted_class_metadata[0].clone());
+        assert!(definition(source, 2, 0, &duplicate).is_empty());
+        let mut swapped = analysis.clone();
+        let reference = swapped
+            .command_invocations
+            .iter()
+            .find(|call| {
+                call.range.start() == u32::try_from(source.rfind("C\\uD801 new").unwrap()).unwrap()
+                    && call.lookup.is_execution_site()
+            })
+            .unwrap()
+            .resolved_command_reference
+            .clone();
+        assert!(reference.is_some());
+        let first = swapped
+            .command_invocations
+            .iter_mut()
+            .find(|call| {
+                call.range.start() == u32::try_from(source.find("C\\uD800 new").unwrap()).unwrap()
+                    && call.lookup.is_execution_site()
+            })
+            .unwrap();
+        first.resolved_command_reference = reference;
+        assert!(definition(source, 2, 0, &swapped).is_empty());
+        let mut foreign = analysis.clone();
+        foreign.original_counted_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.0")
+            .original_counted_class_metadata;
+        assert!(definition(source, 2, 0, &foreign).is_empty());
+    }
     use std::fmt::Write as _;
     use tcl_compiler::analyser::Analyser;
 
