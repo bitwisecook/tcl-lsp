@@ -15,8 +15,8 @@ adaptation live in `rust/tcl-lsp-server`
 That split is what lets the same providers back the LSP, the `tcl` CLI verbs,
 and the MCP tool surface without three copies of the behaviour.
 
-For an opaque byte-named TclOO class with an authenticated literal empty
-body, semantic tokens use the counted declaration and positioned call
+For an opaque byte-named TclOO class with an authenticated source body,
+semantic tokens use the counted declaration and positioned call
 receipts to classify the class head, and go-to-definition returns the exact
 authored name span. This does not infer members, relations, or a printable
 class name.

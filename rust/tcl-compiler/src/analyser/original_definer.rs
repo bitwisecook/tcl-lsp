@@ -336,7 +336,6 @@ fn capture_counted_class_declaration(
     let body = &arguments
         .get(usize::from(method.definition_body_at?))?
         .original;
-    (body.try_text().ok()? == "{}").then_some(())?;
     let words = crate::registry_invocation::source_structure::source_registry_words_at(
         &analyser.source,
         &analyser.result,
@@ -429,6 +428,55 @@ mod tests {
     use super::*;
 
     #[test]
+    fn counted_class_nonempty_original_bodies_retain_only_source_geometry() {
+        for body in [
+            "{method m {} {return body}}",
+            "{superclass Parent; method m {} {}}",
+            "{if 1 {error nope}}",
+            "\"method m {} {}\"",
+            "method",
+        ] {
+            let source = format!("oo::class create C\\uD800 {body}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            assert_eq!(
+                analysis.original_counted_class_metadata.len(),
+                1,
+                "{source}"
+            );
+            let record = &analysis.original_counted_class_metadata[0];
+            assert_eq!(record.name_input().bytes(), b"C\xed\xa0\x80");
+            assert_eq!(
+                record
+                    .metadata()
+                    .body()
+                    .original_container()
+                    .try_text()
+                    .unwrap(),
+                body
+            );
+            assert!(analysis.original_class_declarations().next().is_none());
+            assert!(analysis.all_classes.is_empty());
+        }
+    }
+
+    #[test]
+    fn counted_class_dynamic_and_expanded_bodies_stay_unavailable() {
+        for source in [
+            "oo::class create C\\uD800 $body",
+            "oo::class create C\\uD800 \"method $name {} {}\"",
+            "oo::class create C\\uD800 [getbody]",
+            "oo::class create C\\uD800 {*}$body",
+            "oo::class create C\\uD800 {method m {} {}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                analysis.original_counted_class_metadata.is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn counted_class_capture_is_current_and_reset_between_analyses() {
         let source = "oo::class create C\\uD800 {}";
         let mut analyser = Analyser::new();
@@ -482,10 +530,9 @@ mod tests {
     }
 
     #[test]
-    fn counted_empty_class_metadata_declines_unowned_or_nonempty_bodies() {
+    fn counted_class_metadata_declines_unowned_or_computed_bodies() {
         for source in [
             "oo::class create C\\uD800",
-            "oo::class create C\\uD800 {method m {} {}}",
             "oo::class create C\\uD800 $body",
             "proc oo::class args {}; oo::class create C\\uD800 {}",
         ] {

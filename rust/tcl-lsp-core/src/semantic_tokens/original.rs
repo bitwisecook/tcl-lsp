@@ -1563,6 +1563,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn counted_nonempty_class_token_roles_do_not_claim_body_members() {
+        let source = "oo::class create C\\uD800 {method m\\uD801 {} {return body}}\nC\\uD800 new\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(analysis.original_counted_class_metadata.len(), 1);
+        let roles = OriginalTokenRoles::capture(source, Some(&analysis));
+        let head = u32::try_from(source.rfind("C\\uD800 new").unwrap()).unwrap();
+        assert!(roles.is_class_head(head));
+        let member = u32::try_from(source.find("m\\uD801").unwrap()).unwrap();
+        assert!(!roles.names.contains_key(&member));
+        let profile = crate::environment_for_dialect("tcl8.6").analyser_profile();
+        let tokens = decode_semantic(&full_with_cu_and_analysis(
+            source,
+            profile,
+            crate::registry_for_dialect("tcl8.6"),
+            None,
+            Some(&analysis),
+        ));
+        assert!(kind_at(
+            source,
+            &tokens,
+            usize::try_from(head).unwrap(),
+            TokenKind::Class,
+            0
+        ));
+    }
+
+    #[test]
     fn counted_class_head_rejects_swapped_reference_and_duplicate_record() {
         let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

@@ -4615,6 +4615,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn counted_class_body_effects_do_not_prove_a_later_class_binding() {
+        for body in [
+            "{error nope}",
+            "{return}",
+            "{unknown_member}",
+            "{rename ::C\\uD800 {}}",
+        ] {
+            let source = format!("oo::class create C\\uD800 {body}\nC\\uD800 new\n");
+            let analysis = analyse(&source);
+            assert_eq!(
+                analysis.original_counted_class_metadata.len(),
+                1,
+                "{source}"
+            );
+            let start = u32::try_from(source.find("C\\uD800").unwrap()).unwrap();
+            let class = span_to_range(
+                &source,
+                &LineIndex::new(&source),
+                tcl_lexer::Span::new(start, start + 7),
+            );
+            assert!(
+                !definition(&source, 1, 0, &analysis).contains(&class),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn counted_nonempty_class_definition_uses_original_name_after_move() {
+        let source = "oo::class create C\\uD800 {method m {} {return body}}\nC\\uD800 new\nrename C\\uD800 moved\nmoved new\n";
+        let analysis = analyse(source);
+        assert_eq!(analysis.original_counted_class_metadata.len(), 1);
+        let start = u32::try_from(source.find("C\\uD800").unwrap()).unwrap();
+        let expected = span_to_range(
+            source,
+            &LineIndex::new(source),
+            tcl_lexer::Span::new(start, start + 7),
+        );
+        assert_eq!(definition(source, 1, 0, &analysis), vec![expected]);
+        assert_eq!(definition(source, 3, 0, &analysis), vec![expected]);
+        assert!(definition(&format!("#{source}"), 1, 0, &analysis).is_empty());
+    }
+
+    #[test]
     fn counted_class_definition_navigation_keeps_exact_source_and_horizons() {
         let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\nrename C\\uD800 moved\nmoved new\n";
         let analysis = analyse(source);
