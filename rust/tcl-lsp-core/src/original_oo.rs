@@ -291,6 +291,7 @@ pub(crate) fn class_completion_context<'a>(
         if call.argument_word(0).is_some() && call.written_argument(0) != Some(0) {
             return ControlFlow::Break(None);
         }
+        return ControlFlow::Break(call.class_declaration().source_class(analysis));
     }
     class_for_invocation(analysis, source, invocation)
 }
@@ -552,6 +553,44 @@ mod tests {
                     ControlFlow::Break(Some(_)),
                 ),
                 expected
+            );
+        }
+    }
+
+    #[test]
+    fn original_class_completion_keeps_source_and_selector_boundaries() {
+        let source = "oo::class create C {}; interp alias {} A {} C; A ";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        analysis.all_classes.clear();
+        let cursor = u32::try_from(source.len()).unwrap();
+        let ControlFlow::Break(Some(class)) = class_completion_context(&analysis, source, cursor)
+        else {
+            panic!("original class candidate");
+        };
+        assert_eq!(class.name_input().bytes(), b"C");
+        assert!(matches!(
+            class_completion_context(&analysis, &format!("#{source}"), cursor),
+            ControlFlow::Break(None)
+        ));
+
+        for source in [
+            "oo::class create C {}; proc C {args} {}; C ",
+            "oo::class create C {}; rename C M; C ",
+            "oo::class create C {}; rename C {}; C ",
+            "oo::class create C {}; interp alias {} A {} C; A one two",
+            "oo::class create C {}; interp alias {} A {} C; A \n",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                !matches!(
+                    class_completion_context(
+                        &analysis,
+                        source,
+                        u32::try_from(source.len()).unwrap()
+                    ),
+                    ControlFlow::Break(Some(_))
+                ),
+                "unexpected class candidate: {source:?}",
             );
         }
     }
