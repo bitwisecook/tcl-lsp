@@ -983,6 +983,32 @@ fn class_and_remaining_hover(
     None
 }
 
+// Constructor heads carry their own site-specific class selection.
+fn source_constructor_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+) -> Option<Hover> {
+    let prefix =
+        crate::source_structure::original_word_cursor_prefix(source, analysis, cursor_offset)
+            .ok()??;
+    (prefix.word_index() == 0).then_some(())?;
+    let call = tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
+        source,
+        analysis,
+        prefix.container_span().start(),
+    )?;
+    call.original_words().first().filter(|head| {
+        head.span() == prefix.container_span()
+            && head.span().as_range().contains(&(cursor_offset as usize))
+    })?;
+    let class = call.class_declaration().source_class(analysis)?;
+    Some(Hover::markdown(class_hover_text(
+        analysis,
+        class.metadata(),
+    )))
+}
+
 /// The body of [`hover_with_profile`] / [`hover_in_program`], stated once over
 /// the [`crate::definition::CallResolution`] both build.
 fn hover_impl(
@@ -1089,28 +1115,10 @@ fn hover_impl(
     {
         return Some(Hover::markdown(text));
     }
-    // Constructor heads carry their own site-specific class selection.  Use
-    // that receipt even when lexical declaration advice is unavailable.
     if word.is_some()
-        && let Ok(Some(prefix)) =
-            crate::source_structure::original_word_cursor_prefix(source, analysis, cursor_offset)
-        && prefix.word_index() == 0
-        && let Some(call) =
-            tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
-                source,
-                analysis,
-                prefix.container_span().start(),
-            )
-        && call.original_words().first().is_some_and(|head| {
-            head.span() == prefix.container_span()
-                && head.span().as_range().contains(&(cursor_offset as usize))
-        })
-        && let Some(class) = call.class_declaration().source_class(analysis)
+        && let Some(hover) = source_constructor_hover(source, analysis, cursor_offset)
     {
-        return Some(Hover::markdown(class_hover_text(
-            analysis,
-            class.metadata(),
-        )));
+        return Some(hover);
     }
     if !analysis.allows_lexical_declaration_advice() {
         // Registry operands may have their own genuine expansion/list-child

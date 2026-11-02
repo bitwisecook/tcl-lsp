@@ -250,9 +250,7 @@ pub fn prepare(
         head.is_some_and(|head| {
             let span = head.span();
             let call_is_owned = owner.owns_procedure_call(call);
-            let matches = call_is_owned && span.start() <= offset && offset < span.end();
-
-            matches
+            call_is_owned && span.start() <= offset && offset < span.end()
         })
     });
     let call = matching.next()?;
