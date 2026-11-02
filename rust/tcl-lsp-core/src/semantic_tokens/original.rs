@@ -24,6 +24,77 @@ pub(super) struct OriginalTokenRoles {
     lexical_oo: bool,
 }
 
+fn counted_class_head_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> bool {
+    let Some(input) = invocation.original_name_input.as_ref() else {
+        return false;
+    };
+    let Some(config) = analysis.body_lexer_config else {
+        return false;
+    };
+    let image = SourceImage::document(source);
+    let Some(key) = input.original_word_key() else {
+        return false;
+    };
+    if key.original_word().span() != invocation.range
+        || key.original_word().group().expand
+        || key.source_image() != &image
+        || key.lexer_config() != config
+    {
+        return false;
+    }
+    let Some(resolved) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let context = resolved.context_registry();
+    if !invocation.lookup.is_execution_site()
+        || !analysis.matches_original_source_image(&image, config)
+    {
+        return false;
+    }
+    let Some(lookup) = invocation
+        .original_lookup
+        .as_ref()
+        .filter(|lookup| lookup.name_input() == input)
+    else {
+        return false;
+    };
+    let Some(reference) = invocation.resolved_command_reference.as_ref() else {
+        return false;
+    };
+    if lookup.site().source.source_image() != &image
+        || invocation.lookup.offset(invocation.range) != Some(lookup.site().offset)
+        || !reference.matches_original_invocation_site(lookup.site())
+        || reference.original_name_policy() != Some(input.policy())
+    {
+        return false;
+    }
+    let Some(definition) = reference.definition() else {
+        return false;
+    };
+    if definition.kind() != tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
+        || !matches!(definition.allocation().site.source.kind(),
+            tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
+    {
+        return false;
+    }
+    let mut records = analysis
+        .original_counted_class_metadata
+        .iter()
+        .filter(|record| {
+            record.declaration_site() == &definition.allocation().site
+                && record.name().policy() == input.policy()
+                && record.name_input().source_image() == &image
+                && record.name_input().lexer_config() == config
+                && record.metadata().body().matches_source(&image, config)
+                && record.metadata().body().matches_context(&context)
+        });
+    records.next().is_some() && records.next().is_none()
+}
+
 impl OriginalTokenRoles {
     pub(super) fn capture(source: &str, analysis: Option<&AnalysisResult>) -> Self {
         let Some(analysis) = analysis else {
@@ -53,6 +124,17 @@ impl OriginalTokenRoles {
         roles.capture_vendor_names(&image, analysis);
         for declaration in analysis.original_procedure_declarations() {
             roles.name(&image, declaration.name_input(), ArgOverride::ProcNameDef);
+        }
+        if let Some(input) = analysis.resolved_input.as_ref() {
+            let context = input.context_registry();
+            for declaration in &analysis.original_counted_class_metadata {
+                if declaration.name_input().lexer_config() == config
+                    && declaration.metadata().body().matches_source(&image, config)
+                    && declaration.metadata().body().matches_context(&context)
+                {
+                    roles.name(&image, declaration.name_input(), ArgOverride::ClassNameDef);
+                }
+            }
         }
         for declaration in analysis.original_class_declarations() {
             roles.name(&image, declaration.name_input(), ArgOverride::ClassNameDef);
@@ -103,7 +185,8 @@ impl OriginalTokenRoles {
             if matches!(
                 crate::original_oo::class_for_invocation(analysis, source, invocation),
                 std::ops::ControlFlow::Break(Some(_))
-            ) {
+            ) || counted_class_head_at(source, analysis, invocation)
+            {
                 roles.class_heads.insert(invocation.range.start());
             }
         }
@@ -1548,6 +1631,112 @@ pub(super) fn emit_expanded_role_extents(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counted_class_head_rejects_swapped_reference_and_duplicate_record() {
+        let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let first_offset = u32::try_from(source.find("C\\uD800 new").unwrap()).unwrap();
+        let second_offset = u32::try_from(source.find("C\\uD801 new").unwrap()).unwrap();
+        let mut swapped = analysis.clone();
+        let second_reference = swapped
+            .command_invocations
+            .iter()
+            .find(|invocation| {
+                invocation.range.start() == second_offset && invocation.lookup.is_execution_site()
+            })
+            .unwrap()
+            .resolved_command_reference
+            .clone();
+        let first = swapped
+            .command_invocations
+            .iter_mut()
+            .find(|invocation| {
+                invocation.range.start() == first_offset && invocation.lookup.is_execution_site()
+            })
+            .unwrap();
+        first.resolved_command_reference = second_reference;
+        assert!(!OriginalTokenRoles::capture(source, Some(&swapped)).is_class_head(first_offset));
+        let mut duplicate = analysis.clone();
+        duplicate
+            .original_counted_class_metadata
+            .push(duplicate.original_counted_class_metadata[0].clone());
+        assert!(!OriginalTokenRoles::capture(source, Some(&duplicate)).is_class_head(first_offset));
+        let mut foreign = analysis.clone();
+        foreign.original_counted_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.0")
+            .original_counted_class_metadata;
+        let roles = OriginalTokenRoles::capture(source, Some(&foreign));
+        assert!(!roles.is_class_head(first_offset));
+        let name = u32::try_from(source.find("C\\uD800 {}").unwrap()).unwrap();
+        assert!(!roles.names.contains_key(&name));
+    }
+
+    #[test]
+    fn counted_empty_classes_colour_only_current_authenticated_heads() {
+        let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(analysis.original_counted_class_metadata.len(), 2);
+        let roles = OriginalTokenRoles::capture(source, Some(&analysis));
+        let profile = crate::environment_for_dialect("tcl8.6").analyser_profile();
+        let tokens = decode_semantic(&full_with_cu_and_analysis(
+            source,
+            profile,
+            crate::registry_for_dialect("tcl8.6"),
+            None,
+            Some(&analysis),
+        ));
+        for (name, call) in [
+            ("C\\uD800 {}", "C\\uD800 new"),
+            ("C\\uD801 {}", "C\\uD801 new"),
+        ] {
+            let declaration = u32::try_from(source.find(name).unwrap()).unwrap();
+            let head = u32::try_from(source.find(call).unwrap()).unwrap();
+            assert!(matches!(
+                roles.names.get(&declaration),
+                Some((_, ArgOverride::ClassNameDef))
+            ));
+            assert!(roles.is_class_head(head));
+            assert!(kind_at(
+                source,
+                &tokens,
+                usize::try_from(declaration).unwrap(),
+                TokenKind::Class,
+                MOD_DEFINITION
+            ));
+            assert!(kind_at(
+                source,
+                &tokens,
+                usize::try_from(head).unwrap(),
+                TokenKind::Class,
+                0
+            ));
+        }
+        let stale = OriginalTokenRoles::capture(&format!("#{source}"), Some(&analysis));
+        assert!(!stale.current);
+        assert!(stale.class_heads.is_empty());
+        let foreign = Analyser::new().analyse(source, "jim");
+        assert!(foreign.original_counted_class_metadata.is_empty());
+    }
+
+    #[test]
+    fn counted_empty_class_head_refuses_shadow_and_unresolved_observer() {
+        for source in [
+            "oo::class create C\\uD800 {}; rename C\\uD800 {}; C\\uD800 new",
+            "oo::class create C\\uD800 {}; rename C\\uD800 {}; proc C\\uD800 args {}; C\\uD800 new",
+            "oo::class create C\\uD800 {}; proc change args {rename C\\uD800 {}}; trace add execution C\\uD800 enter change; C\\uD800 new",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert_eq!(
+                analysis.original_counted_class_metadata.len(),
+                1,
+                "{source}"
+            );
+            let head = u32::try_from(source.rfind("C\\uD800 new").unwrap()).unwrap();
+            let roles = OriginalTokenRoles::capture(source, Some(&analysis));
+            assert!(!roles.is_class_head(head), "{source}");
+        }
+    }
     use crate::semantic_tokens::tests::decode_semantic;
     use crate::semantic_tokens::{MOD_DEFINITION, full_with_cu_and_analysis};
     use tcl_compiler::analyser::Analyser;
