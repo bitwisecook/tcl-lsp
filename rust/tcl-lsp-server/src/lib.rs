@@ -14912,15 +14912,19 @@ impl Backend {
     ) -> DocumentSourceResult<AdmittedDiskBatch> {
         let mut rows = AdmittedDiskBatch::default();
         for document in scanned {
-            if let Some(expected_epoch) = document.expected_analyser_inputs_epoch {
-                if rows
+            let expected_epoch = document.seed.analyser_inputs_epoch;
+            if document
+                .expected_analyser_inputs_epoch
+                .is_some_and(|prescribed| prescribed != expected_epoch)
+                || rows
                     .expected_analyser_inputs_epoch
                     .is_some_and(|previous| previous != expected_epoch)
-                {
-                    continue;
-                }
-                rows.expected_analyser_inputs_epoch = Some(expected_epoch);
+            {
+                continue;
             }
+            // A missing caller-wide prescription does not waive custody of
+            // this actual worker's analyser inputs at the final commit.
+            rows.expected_analyser_inputs_epoch = Some(expected_epoch);
             if rows
                 .expected_class_factory_generation
                 .is_some_and(|previous| previous != document.seed.class_factory_generation)
@@ -16566,8 +16570,8 @@ impl Backend {
                 uri,
                 text,
                 dialect,
-                expected_analyser_inputs_epoch: None,
-                expected_class_factory_generation: None,
+                expected_analyser_inputs_epoch: Some(seed.analyser_inputs_epoch),
+                expected_class_factory_generation: Some(seed.class_factory_generation),
                 seed,
             }))
         })
@@ -16601,6 +16605,18 @@ impl Backend {
         self.batch_reindex_from_disk_using(uris, None).await
     }
 
+    async fn closed_disk_scan_inputs(&self) -> ScanAnalysisInputs {
+        let _inputs = self.analyser_inputs_gate.read().await;
+        let class_factory_generation = *self.class_factory_generation.read().await;
+        ScanAnalysisInputs {
+            analyser_inputs_epoch: self.diag_inputs_epoch(),
+            class_factory_generation,
+            document_dialect_overrides: self.document_dialect_override_snapshot().await,
+            folder_dialects: self.folder_dialect_overrides().await,
+            default_dialect: self.session_dialect().await,
+        }
+    }
+
     async fn batch_reindex_from_disk_using(
         &self,
         uris: &[Uri],
@@ -16609,68 +16625,94 @@ impl Backend {
         if uris.is_empty() {
             return Ok(());
         }
-        let document_overrides = self.document_dialect_override_snapshot().await;
-        let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
-        let default_dialect = Arc::new(self.session_dialect().await);
+        // Retain the actual ingress receipts across retries. A replacement
+        // provider mapping is not a donor for this already-issued operation.
+        let admissions = uris
+            .iter()
+            .map(|uri| {
+                let admission = match retained {
+                    Some(admissions) => Arc::clone(admissions.get(uri).ok_or_else(|| {
+                        DocumentSourceUnavailable::Store {
+                            uri: uri.clone(),
+                            cause: vfs::SourceUriPathUnavailable::ProviderUnavailable,
+                        }
+                    })?),
+                    None => Arc::new(DocumentPathAdmission::capture(uri, self.store.as_ref())?),
+                };
+                admission.check_for(uri, self.store.as_ref())?;
+                Ok((uri.clone(), admission))
+            })
+            .collect::<DocumentSourceResult<Vec<_>>>()?;
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
-        let mut futures = Vec::with_capacity(uris.len());
-        for uri in uris {
-            let admission = match retained {
-                Some(admissions) => Arc::clone(admissions.get(uri).ok_or_else(|| {
-                    DocumentSourceUnavailable::Store {
-                        uri: uri.clone(),
-                        cause: vfs::SourceUriPathUnavailable::ProviderUnavailable,
-                    }
-                })?),
-                None => Arc::new(DocumentPathAdmission::capture(uri, self.store.as_ref())?),
-            };
-            admission.check_for(uri, self.store.as_ref())?;
-            let driver = self.fresh_analysis_driver(admission).await;
-            let uri = uri.clone();
-            let document_overrides = Arc::clone(&document_overrides);
-            let folder_dialects = Arc::clone(&folder_dialects);
-            let default_dialect = Arc::clone(&default_dialect);
-            let store = Arc::clone(&self.store);
-            futures.push(async move {
-                let scanned = Self::scan_disk_file(
-                    store,
-                    uri.clone(),
-                    document_overrides,
-                    folder_dialects,
-                    default_dialect,
-                    driver,
-                )
-                .await;
-                Some((uri, scanned))
-            });
-        }
-        let results = Box::pin(run_bounded(futures, concurrency)).await;
-
-        let mut replacements = Vec::new();
-        let mut to_remove: Vec<Uri> = Vec::new();
-        let mut removal_admissions = Vec::new();
-        for (uri, scanned) in results {
-            match scanned {
-                DiskScanOutcome::Available(document) => replacements.push(*document),
-                DiskScanOutcome::Absent(admission) => {
-                    to_remove.push(uri);
-                    removal_admissions.push(admission);
+        'attempt: for _ in 0..3 {
+            let inputs = self.closed_disk_scan_inputs().await;
+            let folders = Arc::new(inputs.folder_dialects);
+            let default_dialect = Arc::new(inputs.default_dialect);
+            let mut futures = Vec::with_capacity(admissions.len());
+            for (uri, admission) in &admissions {
+                admission.check_for(uri, self.store.as_ref())?;
+                let driver = self.fresh_analysis_driver(Arc::clone(admission)).await;
+                if driver.analyser_inputs_epoch != inputs.analyser_inputs_epoch
+                    || driver.class_factory_generation != inputs.class_factory_generation
+                {
+                    continue 'attempt;
                 }
-                DiskScanOutcome::Unavailable(error) => return Err(error),
+                let uri = uri.clone();
+                let store = Arc::clone(&self.store);
+                let overrides = Arc::clone(&inputs.document_dialect_overrides);
+                let folders = Arc::clone(&folders);
+                let default_dialect = Arc::clone(&default_dialect);
+                futures.push(async move {
+                    let scanned = Self::scan_disk_file(
+                        store,
+                        uri.clone(),
+                        overrides,
+                        folders,
+                        default_dialect,
+                        driver,
+                    )
+                    .await;
+                    Some((uri, scanned))
+                });
+            }
+            let results = Box::pin(run_bounded(futures, concurrency)).await;
+            let mut replacements = Vec::new();
+            let mut removals = Vec::new();
+            let mut removal_admissions = Vec::new();
+            for (uri, scanned) in results {
+                match scanned {
+                    DiskScanOutcome::Available(document) => replacements.push(*document),
+                    DiskScanOutcome::Absent(admission) => {
+                        removals.push(uri);
+                        removal_admissions.push(admission);
+                    }
+                    DiskScanOutcome::Unavailable(error) => return Err(error),
+                }
+            }
+            let produced = replacements.len();
+            let mut batch = self.current_scanned_rows(replacements).await?;
+            if batch.rows.len() != produced {
+                continue;
+            }
+            batch.removal_admissions = removal_admissions;
+            batch.expected_analyser_inputs_epoch = Some(inputs.analyser_inputs_epoch);
+            batch.expected_class_factory_generation = Some(inputs.class_factory_generation);
+            let (_, outcome) = self
+                .publish_scanned_disk_results(
+                    &batch,
+                    &removals,
+                    DiskRemovalPolicy::ClosedOnly,
+                    "batch_reindex_from_disk",
+                )
+                .await?;
+            if outcome != DiskPublicationOutcome::Unavailable {
+                return Ok(());
             }
         }
-        let mut replacements = self.current_scanned_rows(replacements).await?;
-        replacements.removal_admissions = removal_admissions;
-        self.publish_scanned_disk_results(
-            &replacements,
-            &to_remove,
-            DiskRemovalPolicy::ClosedOnly,
-            "batch_reindex_from_disk",
-        )
-        .await?;
-
-        Ok(())
+        Err(DocumentSourceUnavailable::ScanWorker {
+            cause: "closed disk batch inputs did not settle after three attempts".to_owned(),
+        })
     }
 
     #[cfg(test)]
@@ -16683,59 +16725,65 @@ impl Backend {
         uri: &Uri,
         retained: Option<Arc<DocumentPathAdmission>>,
     ) -> DocumentSourceResult<()> {
-        // Read + analyse off-lock, on the same read-dialect-analyse helper the
-        // watched-files batch reindex uses.  Keep the source text +
-        // dialect too: the salsa db (cross-file diagnostics) must track the
-        // same on-disk population as the workspace index, so a proc defined in
-        // a closed/never-opened file still suppresses W123 / drives the arity
-        // error in its siblings.
-        let document_overrides = self.document_dialect_override_snapshot().await;
-        let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
-        let default_dialect = Arc::new(self.session_dialect().await);
         let admission = match retained {
             Some(admission) => admission,
             None => Arc::new(DocumentPathAdmission::capture(uri, self.store.as_ref())?),
         };
-        admission.check_for(uri, self.store.as_ref())?;
-        let driver = self.fresh_analysis_driver(admission).await;
-        let scanned = Self::scan_disk_file(
-            Arc::clone(&self.store),
-            uri.clone(),
-            document_overrides,
-            folder_dialects,
-            default_dialect,
-            driver,
-        )
-        .await;
-        let _: () = match scanned {
-            DiskScanOutcome::Unavailable(error) => return Err(error),
-            DiskScanOutcome::Available(scanned) => {
-                let rows = self.current_scanned_rows(vec![*scanned]).await?;
-                self.publish_scanned_disk_results(
-                    &rows,
-                    &[],
-                    DiskRemovalPolicy::ClosedOnly,
-                    "reindex_index_from_disk",
-                )
-                .await?;
+        for _ in 0..3 {
+            admission.check_for(uri, self.store.as_ref())?;
+            let inputs = self.closed_disk_scan_inputs().await;
+            let driver = self.fresh_analysis_driver(Arc::clone(&admission)).await;
+            if driver.analyser_inputs_epoch != inputs.analyser_inputs_epoch
+                || driver.class_factory_generation != inputs.class_factory_generation
+            {
+                continue;
             }
-            // No readable on-disk copy (untitled / deleted) — drop it from the
-            // project so a stale definition can't keep resolving cross-file.
-            DiskScanOutcome::Absent(admission) => {
-                let batch = AdmittedDiskBatch {
-                    removal_admissions: vec![admission],
-                    ..Default::default()
-                };
-                self.publish_scanned_disk_results(
+            let scanned = Self::scan_disk_file(
+                Arc::clone(&self.store),
+                uri.clone(),
+                inputs.document_dialect_overrides,
+                Arc::new(inputs.folder_dialects),
+                Arc::new(inputs.default_dialect),
+                driver,
+            )
+            .await;
+            let (batch, removals) = match scanned {
+                DiskScanOutcome::Unavailable(error) => return Err(error),
+                DiskScanOutcome::Available(scanned) => {
+                    let batch = self.current_scanned_rows(vec![*scanned]).await?;
+                    if batch.rows.len() != 1 {
+                        continue;
+                    }
+                    (batch, Vec::new())
+                }
+                DiskScanOutcome::Absent(admission) => (
+                    AdmittedDiskBatch {
+                        removal_admissions: vec![admission],
+                        expected_analyser_inputs_epoch: Some(inputs.analyser_inputs_epoch),
+                        expected_class_factory_generation: Some(inputs.class_factory_generation),
+                        ..Default::default()
+                    },
+                    vec![uri.clone()],
+                ),
+            };
+            let (_, outcome) = self
+                .publish_scanned_disk_results(
                     &batch,
-                    std::slice::from_ref(uri),
+                    &removals,
                     DiskRemovalPolicy::ClosedOnly,
                     "reindex_index_from_disk",
                 )
                 .await?;
+            if outcome != DiskPublicationOutcome::Unavailable {
+                return Ok(());
             }
-        };
-        Ok(())
+        }
+        Err(DocumentSourceUnavailable::ScanWorker {
+            cause: format!(
+                "closed disk inputs did not settle after three attempts for {}",
+                uri.as_str()
+            ),
+        })
     }
 
     /// Compute and publish a **closed** workspace file's diagnostics from its
@@ -70110,5 +70158,333 @@ mod backend_shared_ownership {
         let (_wasi, _wasi_socket) = tower_lsp_server::LspService::new(move |client| {
             Backend::with_store(client, wasi_store)
         });
+    }
+}
+
+#[cfg(test)]
+mod closed_scan_input_custody {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    #[derive(Debug)]
+    struct ReadPauseStore {
+        target: PathBuf,
+        reads: AtomicUsize,
+        pauses: AtomicUsize,
+        started: tokio::sync::Notify,
+        resume: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+    impl vfs::SourceStore for ReadPauseStore {
+        fn document_uri_path(
+            &self,
+            uri: &str,
+        ) -> Result<vfs::SourceUriPath, vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::document_uri_path(&vfs::NativeStore, uri)
+        }
+        fn validate_document_uri_path(
+            &self,
+            selected: &vfs::SourceUriPath,
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::validate_document_uri_path(&vfs::NativeStore, selected)
+        }
+        fn with_current_document_paths(
+            &self,
+            paths: &[&vfs::SourceUriPath],
+            publish: &mut dyn FnMut(),
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::with_current_document_paths(&vfs::NativeStore, paths, publish)
+        }
+        fn read_source(
+            &self,
+            path: &Path,
+        ) -> std::io::Result<(String, tcl_lsp_core::source_decode::DecodeReport)> {
+            let read = vfs::SourceStore::read_source(&vfs::NativeStore, path)?;
+            if path == self.target {
+                let nth = self.reads.fetch_add(1, Ordering::SeqCst);
+                if nth < self.pauses.load(Ordering::SeqCst) {
+                    self.started.notify_one();
+                    self.resume
+                        .lock()
+                        .unwrap()
+                        .recv_timeout(Duration::from_secs(15))
+                        .expect("release actual disk read");
+                }
+            }
+            Ok(read)
+        }
+        fn read(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+            vfs::SourceStore::read(&vfs::NativeStore, path)
+        }
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            vfs::SourceStore::read_to_string(&vfs::NativeStore, path)
+        }
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<vfs::DirEntry>> {
+            vfs::SourceStore::read_dir(&vfs::NativeStore, path)
+        }
+        fn metadata(&self, path: &Path) -> std::io::Result<vfs::Metadata> {
+            vfs::SourceStore::metadata(&vfs::NativeStore, path)
+        }
+        fn write(&self, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+            vfs::SourceStore::write(&vfs::NativeStore, path, bytes)
+        }
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            vfs::SourceStore::create_dir_all(&vfs::NativeStore, path)
+        }
+    }
+    struct Fixture {
+        root: PathBuf,
+        uri: Uri,
+        backend: Backend,
+        store: Arc<ReadPauseStore>,
+        resume: std::sync::mpsc::Sender<()>,
+    }
+    impl Fixture {
+        async fn new(pauses: usize) -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "closed-scan-inputs-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir(&root).unwrap();
+            let path = root.join("source.tcl");
+            std::fs::write(&path, "proc p {} {}\n").unwrap();
+            std::fs::write(root.join("tcl8.6.tcl.stubs"), "stub old_command {}\n").unwrap();
+            let uri = Uri::from_file_path(&path).unwrap();
+            let (resume, receiver) = std::sync::mpsc::channel();
+            let store = Arc::new(ReadPauseStore {
+                target: path,
+                reads: AtomicUsize::new(0),
+                pauses: AtomicUsize::new(0),
+                started: tokio::sync::Notify::new(),
+                resume: std::sync::Mutex::new(receiver),
+            });
+            let mut backend = crate::tests::test_backend();
+            backend.state_mut_for_test().store = store.clone();
+            backend
+                .document_dialect_overrides
+                .lock()
+                .await
+                .insert(uri.as_str().to_owned(), "tcl8.6".to_owned());
+            backend.reindex_index_from_disk(&uri).await.unwrap();
+            store.reads.store(0, Ordering::SeqCst);
+            store.pauses.store(pauses, Ordering::SeqCst);
+            Self {
+                root,
+                uri,
+                backend,
+                store,
+                resume,
+            }
+        }
+        async fn change_sidecar(&self, command: &str) {
+            std::fs::write(
+                self.root.join("tcl8.6.tcl.stubs"),
+                format!("stub {command} {{}}\n"),
+            )
+            .unwrap();
+            self.backend.invalidate_sidecar_stubs().await;
+        }
+        async fn assert_current_context(&self, dialect: &str) {
+            let analysis = self
+                .backend
+                .fresh_analysis_for(&self.uri, Arc::from("proc p {} {}\n"), dialect.to_owned())
+                .await
+                .unwrap();
+            let expected =
+                core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&analysis)
+                    .unwrap();
+            assert_eq!(
+                self.backend
+                    .workspace_index
+                    .read()
+                    .await
+                    .diagnostic_source_context(self.uri.as_str()),
+                Some(&expected)
+            );
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+    async fn bounded<T>(future: impl Future<Output = T>) -> T {
+        crate::rt::timeout(Duration::from_secs(10), future)
+            .await
+            .expect("closed scan control must not wedge")
+    }
+    async fn queued_index_writer(backend: &Backend) {
+        bounded(async {
+            while !backend
+                .workspace_index
+                .tracking()
+                .waiters
+                .values()
+                .any(|(access, _)| *access == RwLockAccess::Write)
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn single_disk_publication_recomputes_after_actual_input_change_while_queued() {
+        let fixture = Fixture::new(0).await;
+        let index = fixture.backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = fixture.backend.clone();
+            let uri = fixture.uri.clone();
+            async move { backend.reindex_index_from_disk(&uri).await }
+        });
+        queued_index_writer(&fixture.backend).await;
+        fixture.change_sidecar("new_command").await;
+        drop(index);
+        bounded(publishing).await.unwrap().unwrap();
+        assert_eq!(
+            fixture.store.reads.load(Ordering::SeqCst),
+            2,
+            "final epoch refusal must trigger a genuine second source read"
+        );
+        fixture.assert_current_context("tcl8.6").await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn a_filtered_batch_row_is_retried_after_actual_midread_sidecar_invalidation() {
+        let fixture = Fixture::new(1).await;
+        let publishing = crate::rt::spawn({
+            let backend = fixture.backend.clone();
+            let uri = fixture.uri.clone();
+            async move { backend.batch_reindex_from_disk(&[uri]).await }
+        });
+        bounded(fixture.store.started.notified()).await;
+        fixture.change_sidecar("new_command").await;
+        fixture.resume.send(()).unwrap();
+        bounded(publishing).await.unwrap().unwrap();
+        assert_eq!(
+            fixture.store.reads.load(Ordering::SeqCst),
+            2,
+            "a filtered stale row is unavailable, not an empty successful batch"
+        );
+        fixture.assert_current_context("tcl8.6").await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn single_disk_retry_reresolves_dialect_snapshots_instead_of_restamping_old_inputs() {
+        let fixture = Fixture::new(1).await;
+        let publishing = crate::rt::spawn({
+            let backend = fixture.backend.clone();
+            let uri = fixture.uri.clone();
+            async move { backend.reindex_index_from_disk(&uri).await }
+        });
+        bounded(fixture.store.started.notified()).await;
+        {
+            let _inputs = fixture.backend.analyser_inputs_gate.write().await;
+            fixture
+                .backend
+                .document_dialect_overrides
+                .lock()
+                .await
+                .insert(fixture.uri.as_str().to_owned(), "tcl9.0".to_owned());
+            fixture.backend.invalidate_diag_inputs();
+        }
+        fixture.resume.send(()).unwrap();
+        bounded(publishing).await.unwrap().unwrap();
+        assert_eq!(fixture.store.reads.load(Ordering::SeqCst), 2);
+        {
+            let db = fixture.backend.db.lock().await;
+            let files = fixture.backend.db_files.lock().await;
+            assert_eq!(
+                files[&fixture.uri].dialect(&*db),
+                "tcl9.0",
+                "retry must use the actual new dialect decision"
+            );
+        }
+        fixture.assert_current_context("tcl9.0").await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn repeated_input_changes_return_typed_unavailable_after_three_actual_reads() {
+        let fixture = Fixture::new(3).await;
+        let previous = fixture
+            .backend
+            .workspace_index
+            .read()
+            .await
+            .document_revision(fixture.uri.as_str());
+        let mut publishing = crate::rt::spawn({
+            let backend = fixture.backend.clone();
+            let uri = fixture.uri.clone();
+            async move { backend.reindex_index_from_disk(&uri).await }
+        });
+        for command in ["first_command", "second_command", "third_command"] {
+            bounded(async {
+                tokio::select! {
+                    () = fixture.store.started.notified() => {},
+                    early = &mut publishing => panic!("disk operation returned before the required three-read retry schedule: {early:?}"),
+                }
+            }).await;
+            fixture.change_sidecar(command).await;
+            fixture.resume.send(()).unwrap();
+        }
+        let result = bounded(publishing).await.unwrap();
+        assert!(
+            matches!(result, Err(DocumentSourceUnavailable::ScanWorker { .. })),
+            "exhausted retries must remain typed unavailable: {result:?}"
+        );
+        assert_eq!(fixture.store.reads.load(Ordering::SeqCst), 3);
+        assert_eq!(
+            fixture
+                .backend
+                .workspace_index
+                .read()
+                .await
+                .document_revision(fixture.uri.as_str()),
+            previous,
+            "no rejected worker may publish index records"
+        );
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn queued_input_writer_is_awaited_before_retry_instead_of_exhausting_attempts() {
+        let fixture = Fixture::new(0).await;
+        let index = fixture.backend.workspace_index.read().await;
+        let mut publishing = crate::rt::spawn({
+            let backend = fixture.backend.clone();
+            let uri = fixture.uri.clone();
+            async move { backend.reindex_index_from_disk(&uri).await }
+        });
+        queued_index_writer(&fixture.backend).await;
+        let reader = fixture.backend.analyser_inputs_gate.read().await;
+        let mut writer = Box::pin(Arc::clone(&fixture.backend.analyser_inputs_gate).write_owned());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(
+            writer.as_mut().poll(&mut context).is_pending(),
+            "the actual input writer must be queued"
+        );
+        drop(index);
+        assert!(
+            crate::rt::timeout(Duration::from_millis(20), &mut publishing)
+                .await
+                .is_err(),
+            "retry must await the queued legitimate writer, not finish after three immediate refusals"
+        );
+        assert_eq!(fixture.store.reads.load(Ordering::SeqCst), 1);
+        drop(reader);
+        let writer = bounded(writer).await;
+        fixture
+            .backend
+            .document_dialect_overrides
+            .lock()
+            .await
+            .insert(fixture.uri.as_str().to_owned(), "tcl9.0".to_owned());
+        fixture.backend.invalidate_diag_inputs();
+        drop(writer);
+        bounded(publishing).await.unwrap().unwrap();
+        assert_eq!(fixture.store.reads.load(Ordering::SeqCst), 2);
+        fixture.assert_current_context("tcl9.0").await;
     }
 }
