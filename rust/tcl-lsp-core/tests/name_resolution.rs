@@ -1483,6 +1483,32 @@ fn class_commands_follow_each_invocations_namespace_path_before_kind_selection()
 }
 
 #[test]
+fn nested_class_hover_uses_the_original_namespace_path() {
+    let source = concat!(
+        "namespace eval left {oo::class create C {}}\n",
+        "namespace eval right {oo::class create C {}}\n",
+        "oo::class create C {}\n",
+        "namespace eval app {\n",
+        "    namespace path {::left ::right}\n",
+        "    set one [C new]\n",
+        "    puts [info object class $one]\n",
+        "    namespace path {::right ::left}\n",
+        "    set two [C new]\n",
+        "    puts [info object class $two]\n",
+        "    proc C {args} {return LOCAL}\n",
+        "    puts [C new]\n",
+        "}\n",
+    );
+    let analysis = analyse(source);
+    let hover =
+        tcl_lsp_core::hover::hover(source, 5, 13, &analysis, None).expect("class command hover");
+    assert!(hover.value.contains("::left::C"), "{}", hover.value);
+    if let Some(hover) = tcl_lsp_core::hover::hover(source, 11, 10, &analysis, None) {
+        assert!(!hover.value.contains("oo::class create"), "{}", hover.value);
+    }
+}
+
+#[test]
 fn constructor_hover_does_not_reuse_a_moved_or_deleted_class_head() {
     let source = concat!(
         "oo::class create C {}\n",
@@ -1510,4 +1536,31 @@ fn constructor_hover_does_not_reuse_a_moved_or_deleted_class_head() {
             );
         }
     }
+}
+
+#[test]
+fn class_hover_does_not_borrow_a_stale_or_other_call_reference() {
+    let source = "oo::class create C {}\noo::class create D {}\nC new\nD new\n";
+    let mut analysis = analyse(source);
+    let other = analysis
+        .command_invocations
+        .iter()
+        .find(|call| call.name == "D")
+        .and_then(|call| call.resolved_command_reference.clone())
+        .expect("D invocation reference");
+    analysis
+        .command_invocations
+        .iter_mut()
+        .find(|call| call.name == "C")
+        .expect("C invocation")
+        .resolved_command_reference = Some(other);
+    if let Some(hover) = tcl_lsp_core::hover::hover(source, 2, 0, &analysis, None) {
+        assert!(
+            !hover.value.contains("oo::class create ::D"),
+            "another invocation's reference must not select D: {}",
+            hover.value,
+        );
+    }
+    let stale = source.replace("C new", "D new");
+    assert!(tcl_lsp_core::hover::hover(&stale, 2, 0, &analysis, None).is_none());
 }
