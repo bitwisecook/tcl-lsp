@@ -993,7 +993,7 @@ impl Interp {
         #[cfg(not(have_tommath))]
         {
             let _ = execution;
-            return Err(self.refuse_missing_compiled_expression_backend());
+            Err(self.refuse_missing_compiled_expression_backend())
         }
         #[cfg(have_tommath)]
         {
