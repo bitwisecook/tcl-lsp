@@ -24,6 +24,13 @@ impl OriginalClassDefinerSource {
             crate::registry_invocation::source_structure::source_class_declaration_at(
                 source, analysis, offset,
             )?;
+        Self::from_declaration(analysis, declaration)
+    }
+
+    fn from_declaration(
+        analysis: &AnalysisResult,
+        declaration: OriginalSourceClassDeclaration,
+    ) -> Option<Self> {
         let context = analysis.resolved_input.as_ref()?.context_registry();
         let grammar = declaration.grammar(&context)?;
         if grammar.family == DefinerFamily::TclOo
@@ -267,6 +274,96 @@ pub(super) struct ClassDefinerCall<'a> {
     pub(super) original: Option<&'a OriginalClassDefinerSource>,
 }
 
+#[cfg(test)]
+fn capture_empty_counted_class(
+    analyser: &Analyser,
+    offset: u32,
+    scope_path: &[usize],
+) -> Option<
+    crate::signature_scan::original_name::SourceDeclarationMetadata<
+        super::types::OriginalCountedClass,
+    >,
+> {
+    let declaration = crate::registry_invocation::source_structure::source_class_declaration_at(
+        &analyser.source,
+        &analyser.result,
+        offset,
+    )?;
+    capture_counted_class_declaration(analyser, offset, scope_path, &declaration)
+}
+
+fn capture_counted_class_declaration(
+    analyser: &Analyser,
+    offset: u32,
+    scope_path: &[usize],
+    declaration: &OriginalSourceClassDeclaration,
+) -> Option<
+    crate::signature_scan::original_name::SourceDeclarationMetadata<
+        super::types::OriginalCountedClass,
+    >,
+> {
+    let context = analyser.resolved_analysis_input().context_registry();
+    let grammar = declaration.grammar(&context)?;
+    (grammar.family == tcl_registry::definer::DefinerFamily::TclOo).then_some(())?;
+    let factory = declaration.factory();
+    let descriptor = context
+        .context()
+        .resolve_spec(context.commands(), factory.command())?;
+    descriptor
+        .traits
+        .contains(tcl_registry::Traits::IS_OO_METACLASS)
+        .then_some(())?;
+    let occurrence = crate::signature_scan::original_name::SourceOriginalNameOccurrence::from_original_class_factory(declaration)?;
+    std::str::from_utf8(occurrence.name_input().bytes())
+        .is_err()
+        .then_some(())?;
+    let publication = crate::signature_scan::scope::SignatureSourceCommand::object_from_key(
+        &analyser.declaration_namespace_scope(scope_path)?,
+        occurrence.name_input(),
+    )?;
+    (publication.slot() == declaration.source_slot()).then_some(())?;
+    let arguments = factory.arguments();
+    let selector = std::str::from_utf8(arguments.first()?.value.as_deref()?).ok()?;
+    let method =
+        tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(descriptor, selector)?;
+    (method.visibility == tcl_registry::definer::MemberVisibility::Exported).then_some(())?;
+    let name = arguments.get(usize::from(method.names_instance_at?))?;
+    let name_input = name.input.as_ref()?.native_input()?;
+    (name_input.original_word_key()? == occurrence.name_input()
+        && declaration.name_input().native_input()? == name_input
+        && name_input.original_word_key()?.original_word() == &name.original)
+        .then_some(())?;
+    let body = &arguments
+        .get(usize::from(method.definition_body_at?))?
+        .original;
+    (body.try_text().ok()? == "{}").then_some(())?;
+    let words = crate::registry_invocation::source_structure::source_registry_words_at(
+        &analyser.source,
+        &analyser.result,
+        offset,
+    )?;
+    (words.with_source_schema(&context, |schema| {
+        schema
+            .authored_source_definition_body_grammar()
+            .is_some_and(|g| std::ptr::eq(g, grammar))
+    }) == Some(true))
+    .then_some(())?;
+    let mut bodies = words
+        .source_script_bodies(&context)
+        .into_iter()
+        .filter(|candidate| candidate.original_container() == body);
+    let selected = bodies.next()?;
+    bodies.next().is_none().then_some(())?;
+    let record = super::types::OriginalCountedClass {
+        body: std::sync::Arc::new(selected),
+    };
+    crate::signature_scan::original_name::SourceDeclarationMetadata::new(
+        &occurrence,
+        publication,
+        record,
+    )
+}
+
 impl Analyser {
     pub(super) fn dispatch_original_class_configuration(
         &mut self,
@@ -286,8 +383,29 @@ impl Analyser {
         token: Token,
         scope_path: &[usize],
     ) -> Option<bool> {
-        let original =
-            OriginalClassDefinerSource::capture(&self.source, &self.result, token.span.start())?;
+        let declaration =
+            crate::registry_invocation::source_structure::source_class_declaration_at(
+                &self.source,
+                &self.result,
+                token.span.start(),
+            )?;
+        let Some(original) =
+            OriginalClassDefinerSource::from_declaration(&self.result, declaration.clone())
+        else {
+            if let Some(record) = capture_counted_class_declaration(
+                self,
+                token.span.start(),
+                scope_path,
+                &declaration,
+            ) && !self
+                .result
+                .original_counted_class_metadata
+                .contains(&record)
+            {
+                self.result.original_counted_class_metadata.push(record);
+            }
+            return None;
+        };
         let call = ClassDefinerCall {
             cmd_name: original.declaration.factory().command(),
             args: &original.arguments,
@@ -309,6 +427,78 @@ impl Analyser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counted_class_capture_is_current_and_reset_between_analyses() {
+        let source = "oo::class create C\\uD800 {}";
+        let mut analyser = Analyser::new();
+        let first = analyser.analyse(source, "tcl8.6");
+        assert_eq!(first.original_counted_class_metadata.len(), 1);
+        let second = analyser.analyse(source, "tcl8.6");
+        assert_eq!(second.original_counted_class_metadata.len(), 1);
+        let third = analyser.analyse("oo::class create D\\uD801 {}", "tcl8.6");
+        assert_eq!(third.original_counted_class_metadata.len(), 1);
+        assert_eq!(
+            third.original_counted_class_metadata[0]
+                .name_input()
+                .bytes(),
+            b"D\xed\xa0\x81"
+        );
+        analyser.source.insert(0, '#');
+        assert!(capture_empty_counted_class(&analyser, 0, &[]).is_none());
+        analyser.source.remove(0);
+        let foreign = Analyser::new().analyse("oo::class create D\\uD801 {}", "tcl9.0");
+        analyser.result = foreign;
+        assert!(capture_empty_counted_class(&analyser, 0, &[]).is_none());
+    }
+
+    #[test]
+    fn counted_empty_class_metadata_preserves_distinct_original_names() {
+        let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let records = &analysis.original_counted_class_metadata;
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].name_input().bytes(), b"C\xed\xa0\x80");
+        assert_eq!(records[1].name_input().bytes(), b"C\xed\xa0\x81");
+        assert_ne!(records[0].name().slot(), records[1].name().slot());
+        for record in records {
+            assert_eq!(
+                record.name_input().source_image().bytes(),
+                source.as_bytes()
+            );
+            assert_eq!(
+                record
+                    .metadata()
+                    .body()
+                    .original_container()
+                    .try_text()
+                    .unwrap(),
+                "{}"
+            );
+        }
+        assert!(analysis.original_class_declarations().next().is_none());
+        assert!(analysis.all_classes.is_empty());
+        assert!(analysis.global_scope.classes.is_empty());
+    }
+
+    #[test]
+    fn counted_empty_class_metadata_declines_unowned_or_nonempty_bodies() {
+        for source in [
+            "oo::class create C\\uD800",
+            "oo::class create C\\uD800 {method m {} {}}",
+            "oo::class create C\\uD800 $body",
+            "proc oo::class args {}; oo::class create C\\uD800 {}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                analysis.original_counted_class_metadata.is_empty(),
+                "{source}"
+            );
+        }
+        let analysis = Analyser::new().analyse("oo::class create C {}", "tcl8.6");
+        assert!(analysis.original_counted_class_metadata.is_empty());
+        assert_eq!(analysis.original_class_declarations().count(), 1);
+    }
 
     #[test]
     fn constructor_argument_projection_keeps_captured_values_and_original_tokens_together() {

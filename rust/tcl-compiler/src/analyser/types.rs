@@ -1435,6 +1435,21 @@ impl SourceNameAmbiguity {
     }
 }
 
+/// Counted original class metadata with no reporting-name projection.
+/// This source-only receipt establishes neither runtime installation nor member coverage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalCountedClass {
+    pub(super) body: std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+}
+
+impl OriginalCountedClass {
+    /// Authenticated original definition body; no entry is implied.
+    #[must_use]
+    pub fn body(&self) -> &crate::registry_invocation::OriginalSourceScriptBody {
+        &self.body
+    }
+}
+
 /// Class definition record.
 ///
 /// The structural fields (`superclasses`, `mixins`, `methods`,
@@ -2487,6 +2502,9 @@ pub struct AnalysisResult {
     /// Authentic original class declarations, separate from UI `QName` maps.
     pub original_class_metadata:
         Vec<crate::signature_scan::original_name::SourceDeclarationMetadata<ClassDef>>,
+    /// Counted class declarations without a UTF-8 reporting projection.
+    pub original_counted_class_metadata:
+        Vec<crate::signature_scan::original_name::SourceDeclarationMetadata<OriginalCountedClass>>,
     /// Independently targeted original configuration deltas, in analyser walk order.
     pub original_class_configuration_metadata: Vec<OriginalSourceClassConfiguration>,
     /// Own-object configuration deltas keyed by their actual bounded allocations.
@@ -2941,6 +2959,7 @@ impl PartialEq for AnalysisResult {
             logical_procedure_declarations,
             logical_class_declarations,
             original_class_metadata,
+            original_counted_class_metadata,
             original_class_configuration_metadata,
             original_object_configuration_metadata,
             superseded_classes,
@@ -3042,6 +3061,7 @@ macro_rules! analysis_result_mismatch_fields {
                 logical_procedure_declarations,
                 logical_class_declarations,
                 original_class_metadata,
+                original_counted_class_metadata,
                 original_class_configuration_metadata,
                 original_object_configuration_metadata,
                 superseded_classes,

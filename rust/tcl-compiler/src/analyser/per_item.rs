@@ -1680,6 +1680,7 @@ fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
         || !result.all_classes.is_empty()
         || !result.original_procedure_metadata.is_empty()
         || !result.original_class_metadata.is_empty()
+        || !result.original_counted_class_metadata.is_empty()
         || !result.logical_class_declarations.is_empty()
         || result
             .object_member_state
@@ -2529,6 +2530,51 @@ fn seed_isolated_frame_state(a: &mut Analyser, db: &DeferredBody, proc_path: &[u
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counted_class_inventory_alone_requires_original_owner() {
+        let source = "oo::class create C\\uD800 {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let counted = analysis
+            .original_counted_class_metadata
+            .first()
+            .unwrap()
+            .clone();
+        let mut shell = Analyser::new();
+        let commands = shell.per_item_setup("proc f {} {}", "tcl8.6");
+        shell.defer_proc_bodies = true;
+        shell.walk_commands_top_level(&commands, false);
+        let body = shell.deferred_bodies.pop().unwrap();
+        let mut fragment = analyse_proc_body_isolated(
+            &body,
+            "tcl8.6",
+            &std::collections::HashSet::<String>::new(),
+            super::super::state::NonAsciiMode::Off,
+            None,
+            None,
+        );
+        assert!(!fragment_needs_original_source_owner(&fragment));
+        fragment
+            .result
+            .original_counted_class_metadata
+            .push(counted);
+        assert!(fragment_needs_original_source_owner(&fragment));
+    }
+
+    #[test]
+    fn counted_class_metadata_requires_original_owner_in_per_item_body() {
+        let source = "proc f {} {oo::class create C\\uD800 {}}";
+        let full = Analyser::new().analyse(source, "tcl8.6");
+        let partial = Analyser::new().analyse_per_item(source, "tcl8.6");
+        assert_eq!(full.original_counted_class_metadata.len(), 1);
+        crate::analyser::types::assert_analysis_results_eq(&partial, &full, "counted class owner");
+        for record in &partial.original_counted_class_metadata {
+            assert_eq!(
+                record.name_input().source_image().bytes(),
+                source.as_bytes()
+            );
+        }
+    }
 
     fn eq(src: &str) {
         let want = Analyser::new().analyse(src, "tcl8.6");
