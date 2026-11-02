@@ -1155,6 +1155,15 @@ struct BodyText {
 }
 
 impl BodyText {
+    fn static_word(word: &Word) -> Self {
+        Self {
+            original: word.original_source.clone(),
+            text: word.text.clone(),
+            base: word.line,
+            verbatim: true,
+        }
+    }
+
     fn captured(
         candidate: Option<VerbatimBody>,
         head: &str,
@@ -1663,12 +1672,7 @@ fn drive_static(
                         }));
                     continue;
                 };
-                let block = BodyText {
-                    original: body.original_source.clone(),
-                    text: body.text.clone(),
-                    base: body.line,
-                    verbatim: true,
-                };
+                let block = BodyText::static_word(body);
                 stage_command(drive.reborrow(), state, name, overrides, stmt.line, &block)?;
             }
             "subcommand" if in_command => {
@@ -1678,12 +1682,7 @@ fn drive_static(
                     // dropped, on this route as on the interpreter's.
                     continue;
                 };
-                let block = BodyText {
-                    original: body.original_source.clone(),
-                    text: body.text.clone(),
-                    base: body.line,
-                    verbatim: true,
-                };
+                let block = BodyText::static_word(body);
                 stage_subcommand(drive.reborrow(), state, name, stmt.line, &block)?;
             }
             "default" => {
@@ -1732,12 +1731,7 @@ fn drive_static(
                     continue;
                 };
                 let body = &stmt.words[body_at];
-                let block = BodyText {
-                    original: body.original_source.clone(),
-                    text: body.text.clone(),
-                    base: body.line,
-                    verbatim: true,
-                };
+                let block = BodyText::static_word(body);
                 stage_block(drive.reborrow(), state, word, head_words, stmt.line, &block)?;
             }
             _ => state.borrow_mut().push_node(Node::Row(static_row(stmt))),
