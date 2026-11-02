@@ -1253,7 +1253,7 @@ fn configured_coarse_semantic_tokens(
     let input = analysis
         .resolved_input
         .as_ref()
-        .ok_or_else(|| coarse_semantic_source_changed())?;
+        .ok_or_else(coarse_semantic_source_changed)?;
 
     if tcl_compiler::source_graph::current_analysis(text, analysis).is_none() {
         return Err(coarse_semantic_source_changed());
@@ -4234,6 +4234,8 @@ struct DiagToggles {
 #[derive(Clone)]
 struct DiagInputs {
     inputs_epoch: Option<u64>,
+    configuration_epoch: u64,
+    sidecar_revision: Arc<fresh_analysis_cache::SidecarRevision>,
     source_inputs_epoch: Arc<std::sync::atomic::AtomicU64>,
     source_inputs_gate: Arc<tokio::sync::RwLock<()>>,
     source_path_admissions: Arc<PublishedSourcePaths>,
@@ -4850,6 +4852,11 @@ impl DiagnosticPublisher {
 /// one call so the early-return paths and the final publish all deliver through
 /// the same currency-guarded channel.
 struct DeliveryCtx<'a> {
+    sidecar_revision: Arc<fresh_analysis_cache::SidecarRevision>,
+    inputs_epoch: Option<u64>,
+    configuration_epoch: u64,
+    source_inputs_epoch: Arc<std::sync::atomic::AtomicU64>,
+    source_inputs_gate: Arc<tokio::sync::RwLock<()>>,
     diagnostic_pass: Option<&'a Arc<DiagnosticPass>>,
     client: &'a Client,
     diagnostic_publisher: &'a Arc<DiagnosticPublisher>,
@@ -4874,6 +4881,14 @@ struct DeliveryCtx<'a> {
     client_supports_pull: bool,
 }
 
+type DiagnosticPublicationInputGuards<'a> = (
+    Option<(
+        tokio::sync::RwLockReadGuard<'a, ()>,
+        tokio::sync::RwLockReadGuard<'a, u64>,
+    )>,
+    Option<tokio::sync::RwLockReadGuard<'a, ()>>,
+);
+
 type DiagnosticSourceContext<'a> = (
     &'a Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     &'a HashMap<Uri, DocumentState>,
@@ -4886,6 +4901,50 @@ struct IssuedDiagnosticPublication {
 }
 
 impl DeliveryCtx<'_> {
+    fn inputs_are_current(&self, sidecar_required: bool) -> bool {
+        let expected_epoch = if sidecar_required {
+            self.inputs_epoch
+        } else {
+            Some(self.configuration_epoch)
+        };
+        expected_epoch.is_some_and(|epoch| {
+            self.source_inputs_epoch
+                .load(std::sync::atomic::Ordering::Acquire)
+                == epoch
+        }) && (!sidecar_required || self.sidecar_revision.is_published_current())
+    }
+
+    async fn input_guard(
+        &self,
+        sidecar_required: bool,
+    ) -> Option<tokio::sync::RwLockReadGuard<'_, ()>> {
+        let guard = self.source_inputs_gate.read().await;
+        self.inputs_are_current(sidecar_required).then_some(guard)
+    }
+
+    async fn publication_input_guards(
+        &self,
+        workspace_sources: Option<&WorkspaceDiagnosticSources>,
+    ) -> Option<DiagnosticPublicationInputGuards<'_>> {
+        if workspace_sources.is_some_and(|sources| !sources.is_empty()) {
+            let pass = self.diagnostic_pass?;
+            let guards = pass.workspace_source_input_guards().await?;
+            if !self.inputs_are_current(true) {
+                self.diagnostic_pass_unavailable(DiagnosticUnavailable::Stale)
+                    .await;
+                return None;
+            }
+            Some((Some(guards), None))
+        } else {
+            let Some(guard) = self.input_guard(true).await else {
+                self.diagnostic_pass_unavailable(DiagnosticUnavailable::Stale)
+                    .await;
+                return None;
+            };
+            Some((None, Some(guard)))
+        }
+    }
+
     /// Whether this run is still the current state for `uri`, evaluated against a
     /// held `documents` snapshot.  An open run is current while the buffer is
     /// open at the captured revision; a closed-file run is current while
@@ -4997,11 +5056,28 @@ impl DeliveryCtx<'_> {
         self.delivered_current_report(diags).await.is_some()
     }
 
+    #[cfg(test)]
     async fn delivered_current_report(
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
     ) -> Option<String> {
+        self.delivered_report_with_inputs(diags, true).await
+    }
+
+    async fn delivered_non_tcl_report(
+        &self,
+        diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    ) -> Option<String> {
+        self.delivered_report_with_inputs(diags, false).await
+    }
+
+    async fn delivered_report_with_inputs(
+        &self,
+        diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        sidecar_required: bool,
+    ) -> Option<String> {
         let publication = {
+            let _inputs = self.input_guard(sidecar_required).await?;
             let docs = self.documents.lock("deliver_if_current").await;
             if !self.is_current(&docs).await {
                 return None;
@@ -5037,6 +5113,7 @@ impl DeliveryCtx<'_> {
         if self.client_supports_pull {
             return None;
         }
+        let _inputs = self.input_guard(true).await?;
         let docs = self.documents.lock("deliver_fast_tier_if_current").await;
         if self.is_current(&docs).await {
             let published = match self.spec_packs {
@@ -5223,7 +5300,7 @@ async fn run_diagnostics_f5_dialect(
     // guard the analyser path applies before publishing), keep the
     // pull-diagnostic cache in lock-step, and complete the pass with the
     // delivered report so `textDocument/diagnostic` answers with this set.
-    match delivery.delivered_current_report(diags).await {
+    match delivery.delivered_non_tcl_report(diags).await {
         Some(result_id) => {
             delivery
                 .complete_f5_model_pass(inputs.text, result_id)
@@ -5674,6 +5751,14 @@ fn overlay_miss_message(miss: &tcl_registry::model::OverlayMiss) -> String {
     )
 }
 
+fn unavailable_compiler_diagnostics() -> Arc<tcl_lsp_db::CompilerDiagnostics> {
+    Arc::new(tcl_lsp_db::CompilerDiagnostics {
+        checks: Vec::new(),
+        optimisations: Vec::new(),
+        taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
+    })
+}
+
 /// Optimiser / compiler-checks diagnostics, also off the event loop via the
 /// cancellable salsa `compiler_check_diagnostics` query: the unit's
 /// per-procedure lattices are memoised by `function_lattice` and shared with
@@ -5750,11 +5835,7 @@ async fn compute_compiler_diags_with_read_cancellations(
         }
     } else {
         let Some(c_analysis) = analysis.map(Arc::clone) else {
-            return ControlFlow::Continue(Some(Arc::new(tcl_lsp_db::CompilerDiagnostics {
-                checks: Vec::new(),
-                optimisations: Vec::new(),
-                taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
-            })));
+            return ControlFlow::Continue(Some(unavailable_compiler_diagnostics()));
         };
         let c_text = text.to_owned();
         let c_registry = Arc::clone(registry);
@@ -5776,13 +5857,7 @@ async fn compute_compiler_diags_with_read_cancellations(
                 })
             })
             .await
-            .unwrap_or_else(|_| {
-                Arc::new(tcl_lsp_db::CompilerDiagnostics {
-                    checks: Vec::new(),
-                    optimisations: Vec::new(),
-                    taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
-                })
-            }),
+            .unwrap_or_else(|_| unavailable_compiler_diagnostics()),
         ))
     }
 }
@@ -7084,6 +7159,11 @@ impl DiagInputs {
         version: Option<i32>,
     ) -> DeliveryCtx<'a> {
         DeliveryCtx {
+            sidecar_revision: Arc::clone(&self.sidecar_revision),
+            inputs_epoch: self.inputs_epoch,
+            configuration_epoch: self.configuration_epoch,
+            source_inputs_epoch: Arc::clone(&self.source_inputs_epoch),
+            source_inputs_gate: Arc::clone(&self.source_inputs_gate),
             diagnostic_pass,
             client: &self.client,
             diagnostic_publisher: &self.diagnostic_publisher,
@@ -7112,7 +7192,7 @@ fn deep_provider_completion(
     compiler_result: &ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>>,
     project_result: &ControlFlow<bool, Option<Vec<tcl_compiler::analyser::Diagnostic>>>,
 ) -> Result<(), DiagnosticUnavailable> {
-    let provider_completion = if cross_file_resolution && project.is_none() {
+    if cross_file_resolution && project.is_none() {
         Err(DiagnosticUnavailable::Context)
     } else {
         match (compiler_result, project_result) {
@@ -7120,8 +7200,7 @@ fn deep_provider_completion(
             (ControlFlow::Continue(Some(_)), ControlFlow::Continue(_)) => Ok(()),
             _ => Err(DiagnosticUnavailable::ProviderError),
         }
-    };
-    provider_completion
+    }
 }
 
 type DeepWorkspaceDiagnostics = (
@@ -7300,6 +7379,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         &salsa_ctx,
         &lift_inputs,
         &AnalyserPathInputs {
+            sidecar_revision: &inputs.sidecar_revision,
             registry: Arc::clone(&inputs.registry),
             extra_commands: &inputs.extra_commands,
             generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
@@ -7337,6 +7417,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
 
 /// The non-document-buffer handles the analyser/compiler/publish path needs.
 struct AnalyserPathInputs<'a> {
+    sidecar_revision: &'a fresh_analysis_cache::SidecarRevision,
     registry: Arc<CommandRegistry>,
     extra_commands: &'a HashSet<String>,
     generic_variable_patterns: Option<&'a [String]>,
@@ -7602,6 +7683,9 @@ async fn compute_deep_diagnostic_report_with_read_cancellations(
         Option<&diagnostic_read_cancellation::DiagnosticReadCancellations>,
     ),
 ) -> ControlFlow<(bool, DiagnosticUnavailable), ProducedDiagnosticReport> {
+    if !inputs.sidecar_revision.is_published_current() {
+        return ControlFlow::Break((true, DiagnosticUnavailable::Stale));
+    }
     let (base, cancellations) = production;
     let base = base.shared();
     let (base_result, compiler_result, project_result) = tokio::join!(
@@ -7615,6 +7699,9 @@ async fn compute_deep_diagnostic_report_with_read_cancellations(
         ),
         compute_project_diags_with_read_cancellations(salsa_ctx, project, cancellations),
     );
+    if !inputs.sidecar_revision.is_published_current() {
+        return ControlFlow::Break((true, DiagnosticUnavailable::Stale));
+    }
     let provider_completion = deep_provider_completion(
         uri,
         inputs.cross_file_resolution,
@@ -7650,11 +7737,7 @@ async fn compute_deep_diagnostic_report_with_read_cancellations(
         // degraded deep publish is still a strict superset of the fast tier, just
         // without the compiler/optimiser hints.
         ControlFlow::Continue(None) | ControlFlow::Break(true) => {
-            Arc::new(tcl_lsp_db::CompilerDiagnostics {
-                checks: Vec::new(),
-                optimisations: Vec::new(),
-                taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
-            })
+            unavailable_compiler_diagnostics()
         }
     };
     // `Some` adds the opt-in project callback-arity checks
@@ -9252,19 +9335,11 @@ async fn publish_diagnostics_result_with_sources(
     } else {
         None
     };
-    let source_inputs = if workspace_sources
-        .as_ref()
-        .is_some_and(|sources| !sources.is_empty())
-    {
-        let Some(pass) = delivery.diagnostic_pass else {
-            return true;
-        };
-        let Some(guards) = pass.workspace_source_input_guards().await else {
-            return true;
-        };
-        Some(guards)
-    } else {
-        None
+    let Some(source_inputs) = delivery
+        .publication_input_guards(workspace_sources.as_deref())
+        .await
+    else {
+        return true;
     };
     let diag_count = diags.len();
     let (peers, publication) = match commit_diagnostic_publication(
@@ -12783,7 +12858,7 @@ impl Backend {
             drop(index);
             self.rehomed_source_seeds.lock().await.remove(uri.as_str());
             let mut documents = self.documents.lock(sites.complete).await;
-            let committed = if current(&*documents) {
+            let committed = if current(&documents) {
                 // The provider mapping is authenticated with the document commit.
                 DocumentPathAdmission::with_current(
                     &[seed.path_admission.as_ref()],
@@ -27714,8 +27789,15 @@ impl Backend {
         let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
         let excluded = self.diagnostics_excluded(uri).await;
         let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
+        let sidecar_revision = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .revision();
         let mut inputs = DiagInputs {
             inputs_epoch: None,
+            configuration_epoch: epoch,
+            sidecar_revision,
             source_inputs_epoch: Arc::clone(&self.diag_inputs_epoch),
             source_inputs_gate: Arc::clone(&self.analyser_inputs_gate),
             source_path_admissions: Arc::clone(&self.source_path_admissions),
@@ -27991,6 +28073,11 @@ impl Backend {
         if !cross_file_on {
             return None;
         }
+        let sidecar_revision = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .published_revision()?;
         // Resolve everything else *before* cloning the database, and clone it
         // only on the branch that immediately hands it to a worker.
         //
@@ -28028,6 +28115,7 @@ impl Backend {
         .await
         .ok()
         .flatten()
+        .filter(|_| sidecar_revision.is_published_current())
     }
 
     /// Run the compiler-check diagnostics for `text` off the event-loop thread.
@@ -50086,6 +50174,11 @@ info exists ::N::v\uD800";
 
         let diag = vec![tower_lsp_server::ls_types::Diagnostic::default()];
         let ctx = |generation: u64| DeliveryCtx {
+            sidecar_revision: backend.fresh_analysis_cache.lock().unwrap().revision(),
+            inputs_epoch: Some(backend.diag_inputs_epoch()),
+            configuration_epoch: backend.diag_inputs_epoch(),
+            source_inputs_epoch: Arc::clone(&backend.diag_inputs_epoch),
+            source_inputs_gate: Arc::clone(&backend.analyser_inputs_gate),
             diagnostic_pass: None,
             client: &backend.client,
             diagnostic_publisher: &backend.diagnostic_publisher,
@@ -55511,6 +55604,39 @@ proc p {} {
         );
     }
 
+    fn unassociated_delivery<'a>(
+        backend: &'a Backend,
+        uri: &'a Uri,
+        currency: DiagCurrency,
+        version: Option<i32>,
+    ) -> DeliveryCtx<'a> {
+        let sidecar_revision = backend.fresh_analysis_cache.lock().unwrap().revision();
+        DeliveryCtx {
+            sidecar_revision,
+            inputs_epoch: Some(backend.diag_inputs_epoch()),
+            configuration_epoch: backend.diag_inputs_epoch(),
+            source_inputs_epoch: Arc::clone(&backend.diag_inputs_epoch),
+            source_inputs_gate: Arc::clone(&backend.analyser_inputs_gate),
+            diagnostic_pass: None,
+            client: &backend.client,
+            diagnostic_publisher: &backend.diagnostic_publisher,
+            documents: &backend.documents,
+            store: &backend.store,
+            diag_slots: &backend.diag_slots,
+            pull_diag_cache: &backend.pull_diag_cache,
+            closed_diag_gen: &backend.closed_diag_gen,
+            source: "",
+            pack_seq: 0,
+            pack_set: None,
+            registry: None,
+            spec_packs: None,
+            uri,
+            currency,
+            version,
+            client_supports_pull: false,
+        }
+    }
+
     /// Run [`publish_diagnostics_result`] for `uri` at `revision` on its own
     /// task, with the analysis of `text` as the set to index. The test client's
     /// socket is detached, so delivery settles without a client.
@@ -55525,6 +55651,11 @@ proc p {} {
         crate::rt::spawn(async move {
             let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
             let delivery = DeliveryCtx {
+                sidecar_revision: backend.fresh_analysis_cache.lock().unwrap().revision(),
+                inputs_epoch: Some(backend.diag_inputs_epoch()),
+                configuration_epoch: backend.diag_inputs_epoch(),
+                source_inputs_epoch: Arc::clone(&backend.diag_inputs_epoch),
+                source_inputs_gate: Arc::clone(&backend.analyser_inputs_gate),
                 diagnostic_pass: None,
                 client: &backend.client,
                 diagnostic_publisher: &backend.diagnostic_publisher,
@@ -58113,25 +58244,12 @@ proc p {} {
         let publishing_backend = Arc::clone(&backend);
         let publishing_uri = uri.clone();
         let publish = tokio::spawn(async move {
-            DeliveryCtx {
-                diagnostic_pass: None,
-                client: &publishing_backend.client,
-                diagnostic_publisher: &publishing_backend.diagnostic_publisher,
-                documents: &publishing_backend.documents,
-                store: &publishing_backend.store,
-                diag_slots: &publishing_backend.diag_slots,
-                pull_diag_cache: &publishing_backend.pull_diag_cache,
-                closed_diag_gen: &publishing_backend.closed_diag_gen,
-                source: "",
-                pack_seq: 0,
-                pack_set: None,
-                registry: None,
-                spec_packs: None,
-                uri: &publishing_uri,
-                currency: DiagCurrency::Open(revision),
-                version: Some(1),
-                client_supports_pull: false,
-            }
+            unassociated_delivery(
+                &publishing_backend,
+                &publishing_uri,
+                DiagCurrency::Open(revision),
+                Some(1),
+            )
             .deliver_if_current(vec![tower_lsp_server::ls_types::Diagnostic::default()])
             .await
         });
@@ -64676,6 +64794,11 @@ proc p {} {
             .expect("the document is open")
             .revision;
         let old_delivery = DeliveryCtx {
+            sidecar_revision: backend.fresh_analysis_cache.lock().unwrap().revision(),
+            inputs_epoch: Some(backend.diag_inputs_epoch()),
+            configuration_epoch: backend.diag_inputs_epoch(),
+            source_inputs_epoch: Arc::clone(&backend.diag_inputs_epoch),
+            source_inputs_gate: Arc::clone(&backend.analyser_inputs_gate),
             diagnostic_pass: None,
             client: &backend.client,
             diagnostic_publisher: &backend.diagnostic_publisher,
@@ -64989,25 +65112,12 @@ proc p {} {
                 .expect("b.tcl stays open")
                 .revision;
             let uri_string = publisher_b.to_string();
-            let delivery = DeliveryCtx {
-                diagnostic_pass: None,
-                client: &publisher_backend.client,
-                diagnostic_publisher: &publisher_backend.diagnostic_publisher,
-                documents: &publisher_backend.documents,
-                store: &publisher_backend.store,
-                diag_slots: &publisher_backend.diag_slots,
-                pull_diag_cache: &publisher_backend.pull_diag_cache,
-                closed_diag_gen: &publisher_backend.closed_diag_gen,
-                source: "",
-                pack_seq: 0,
-                pack_set: None,
-                registry: None,
-                spec_packs: None,
-                uri: &publisher_b,
-                currency: DiagCurrency::Open(revision),
-                version: None,
-                client_supports_pull: false,
-            };
+            let delivery = unassociated_delivery(
+                &publisher_backend,
+                &publisher_b,
+                DiagCurrency::Open(revision),
+                None,
+            );
             publisher_started.notify_one();
             let settled = publish_diagnostics_result(
                 &delivery,

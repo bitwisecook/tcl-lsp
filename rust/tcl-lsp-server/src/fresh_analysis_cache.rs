@@ -993,4 +993,448 @@ mod sidecar_publication_tests {
             );
         }
     }
+    async fn cancelled_sidecar_for_diagnostic_fixture(documents: &Documents, backend: &Backend) {
+        documents.replace_sidecar();
+        let database = backend.db.lock().await;
+        let mut invalidating = Box::pin(backend.invalidate_sidecar_stubs());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(invalidating.as_mut().poll(&mut context).is_pending());
+        drop(invalidating);
+        drop(database);
+    }
+
+    async fn open_empty_diagnostic_fixture(documents: &Documents, backend: &Backend) {
+        let uri = &documents.uris[0];
+        std::fs::write(documents.root.join("first.tcl"), "").unwrap();
+        backend
+            .documents
+            .lock("sidecar diagnostic fixture")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::with_version(String::new(), "tcl8.6".to_owned(), 1),
+            );
+        backend
+            .db_set_source(uri, "", "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert_eq!(
+            sidecar_names(&backend.cached_analysis(uri).await.unwrap()),
+            vec!["old_command"]
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_sidecar_invalidation_does_not_issue_a_complete_push_report_under_the_new_epoch()
+     {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        open_empty_diagnostic_fixture(&documents, &backend).await;
+        let uri = &documents.uris[0];
+        let expected = [serde_json::json!({"uri": uri, "version": 1, "source": ""})];
+        crate::rt::timeout(
+            std::time::Duration::from_secs(30),
+            backend.publish_analyser_diagnostics(
+                uri.clone(),
+                String::new(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            ),
+        )
+        .await
+        .unwrap();
+        let before = backend
+            .current_diagnostics_command(&expected)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            before["status"], "complete",
+            "the actual provider must first establish a complete report"
+        );
+        cancelled_sidecar_for_diagnostic_fixture(&documents, &backend).await;
+        crate::rt::timeout(
+            std::time::Duration::from_secs(30),
+            backend.publish_analyser_diagnostics(
+                uri.clone(),
+                String::new(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            ),
+        )
+        .await
+        .unwrap();
+        let after = backend
+            .current_diagnostics_command(&expected)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(after["status"], "unavailable");
+        assert_eq!(after["reason"], "stale");
+        let document = backend
+            .documents
+            .lock("sidecar diagnostic recovery")
+            .await
+            .remove(uri)
+            .unwrap();
+        backend.invalidate_sidecar_stubs().await;
+        backend
+            .documents
+            .lock("sidecar diagnostic recovery")
+            .await
+            .insert(uri.clone(), document);
+        crate::rt::timeout(
+            std::time::Duration::from_secs(30),
+            backend.publish_analyser_diagnostics(
+                uri.clone(),
+                String::new(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            ),
+        )
+        .await
+        .unwrap();
+        let recovered = backend
+            .current_diagnostics_command(&expected)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(recovered["status"], "complete");
+    }
+
+    #[tokio::test]
+    async fn direct_pull_refuses_cancelled_sidecar_inputs_and_recovers_after_the_database_refresh()
+    {
+        use tower_lsp_server::LanguageServer as _;
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        open_empty_diagnostic_fixture(&documents, &backend).await;
+        let uri = &documents.uris[0];
+        let params =
+            || serde_json::from_value(serde_json::json!({"textDocument": {"uri": uri}})).unwrap();
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_secs(30),
+                backend.diagnostic(params())
+            )
+            .await
+            .unwrap()
+            .is_ok()
+        );
+        cancelled_sidecar_for_diagnostic_fixture(&documents, &backend).await;
+        let response = crate::rt::timeout(
+            std::time::Duration::from_secs(30),
+            backend.diagnostic(params()),
+        )
+        .await
+        .unwrap();
+        let error =
+            response.expect_err("an unrefreshed database must not issue a full direct report");
+        assert_eq!(
+            error.code,
+            tower_lsp_server::jsonrpc::ErrorCode::ContentModified
+        );
+        assert_eq!(error.data.unwrap()["reason"], "stale");
+        let document = backend
+            .documents
+            .lock("sidecar pull recovery")
+            .await
+            .remove(uri)
+            .unwrap();
+        backend.invalidate_sidecar_stubs().await;
+        backend
+            .documents
+            .lock("sidecar pull recovery")
+            .await
+            .insert(uri.clone(), document);
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_secs(30),
+                backend.diagnostic(params())
+            )
+            .await
+            .unwrap()
+            .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn project_callback_projection_refuses_the_cancelled_sidecar_generation() {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        documents.publish(&backend).await;
+        let old = backend.cached_analysis(&documents.uris[0]).await.unwrap();
+        let disabled = std::collections::HashSet::new();
+        assert!(
+            backend
+                .project_callback_diagnostics_if(true, &documents.source, &old, &disabled)
+                .await
+                .is_some(),
+            "the actual project projection must first be available"
+        );
+        cancelled_sidecar_for_diagnostic_fixture(&documents, &backend).await;
+        assert!(
+            backend
+                .project_callback_diagnostics_if(true, &documents.source, &old, &disabled)
+                .await
+                .is_none()
+        );
+        backend.invalidate_sidecar_stubs().await;
+        let current = backend.cached_analysis(&documents.uris[0]).await.unwrap();
+        assert_eq!(sidecar_names(&current), vec!["new_command"]);
+        assert!(
+            backend
+                .project_callback_diagnostics_if(true, &documents.source, &current, &disabled)
+                .await
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn empty_dependency_diagnostic_commit_cannot_publish_after_a_queued_sidecar_writer() {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        documents.publish(&backend).await;
+        let uri = &documents.uris[0];
+        let old = backend.cached_analysis(uri).await.unwrap();
+        let inputs = backend
+            .diag_inputs(uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+        backend.closed_diag_gen.lock().await.insert(uri.clone(), 1);
+        let delivery = inputs.delivery_for_job(
+            None,
+            &documents.source,
+            uri,
+            crate::DiagCurrency::ClosedFromDisk(1),
+            None,
+        );
+        let dependencies = Arc::new(crate::WorkspaceDiagnosticSources::default());
+        assert!(dependencies.is_empty());
+        assert_eq!(inputs.inputs_epoch, Some(backend.diag_inputs_epoch()));
+        assert!(
+            delivery
+                .is_current(&*backend.documents.lock("empty dependency currentness").await)
+                .await
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str())
+        );
+        let rehoming = backend.rehoming_gate.lock().await;
+        let reader = backend.analyser_inputs_gate.read().await;
+        documents.replace_sidecar();
+        let mut invalidating = Box::pin(backend.invalidate_sidecar_stubs());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(invalidating.as_mut().poll(&mut context).is_pending());
+        let mut publishing = Box::pin(crate::publish_diagnostics_result_with_sources(
+            &delivery,
+            &backend.workspace_index,
+            &backend.rehomed_source_seeds,
+            &backend.rehoming_gate,
+            &old,
+            crate::DiagnosticPublicationSources {
+                result: (
+                    Err(crate::DiagnosticUnavailable::Context),
+                    Ok(Vec::new()),
+                    None,
+                ),
+                workspace_sources: Some(dependencies),
+            },
+            crate::PublishTiming {
+                started: crate::rt::Instant::now(),
+                uri_str: uri.as_str(),
+                line_count: 1,
+            },
+        ));
+        assert!(publishing.as_mut().poll(&mut context).is_pending());
+        drop(reader);
+        crate::rt::timeout(std::time::Duration::from_secs(10), invalidating)
+            .await
+            .unwrap();
+        drop(rehoming);
+        let _settled = crate::rt::timeout(std::time::Duration::from_secs(10), publishing)
+            .await
+            .unwrap();
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the old empty-dependency publication must not mutate the index after invalidation"
+        );
+        assert!(
+            !backend.pull_diag_cache.lock().await.contains_key(uri),
+            "the stale run must not deposit a pull-cache or mailbox publication"
+        );
+    }
+
+    #[tokio::test]
+    async fn fast_tier_joins_input_writer_order_and_refuses_a_retired_sidecar_token() {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        documents.publish(&backend).await;
+        let uri = documents.uris[0].clone();
+        backend
+            .documents
+            .lock("sidecar fast-tier fixture")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::with_version(documents.source.to_string(), "tcl8.6".to_owned(), 1),
+            );
+        let inputs = backend
+            .diag_inputs(&uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+        let delivery = inputs.delivery_for_job(
+            None,
+            &documents.source,
+            &uri,
+            crate::DiagCurrency::Open(0),
+            Some(1),
+        );
+        assert!(!delivery.client_supports_pull);
+        assert_eq!(inputs.inputs_epoch, Some(backend.diag_inputs_epoch()));
+        assert!(
+            delivery
+                .is_current(&*backend.documents.lock("fast-tier currentness").await)
+                .await
+        );
+        // Coalesce the replacement into its existing scheduler slot; this
+        // control drives the old fast-tier publisher itself.
+        backend.diag_slots.lock().await.insert(
+            uri.clone(),
+            crate::DiagSlot {
+                running: true,
+                ..Default::default()
+            },
+        );
+        let reader = backend.analyser_inputs_gate.read().await;
+        documents.replace_sidecar();
+        let mut invalidating = Box::pin(backend.invalidate_sidecar_stubs());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(invalidating.as_mut().poll(&mut context).is_pending());
+        let mut fast = Box::pin(delivery.deliver_fast_tier_if_current(Vec::new()));
+        assert!(
+            fast.as_mut().poll(&mut context).is_pending(),
+            "a fast-tier deposit must join the already queued input writer"
+        );
+        drop(reader);
+        crate::rt::timeout(std::time::Duration::from_secs(10), invalidating)
+            .await
+            .unwrap();
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(10), fast)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(!backend.pull_diag_cache.lock().await.contains_key(&uri));
+    }
+
+    #[tokio::test]
+    async fn suppressed_delivery_uses_its_original_configuration_epoch_without_a_registry_donor() {
+        use salsa::Setter as _;
+        for excluded in [false, true] {
+            let documents = Documents::new();
+            let backend = crate::tests::test_backend();
+            open_empty_diagnostic_fixture(&documents, &backend).await;
+            let uri = &documents.uris[0];
+            {
+                let _inputs = backend.analyser_inputs_gate.write().await;
+                if excluded {
+                    *backend.diagnostics_exclude.lock().await = vec!["*.tcl".to_owned()];
+                } else {
+                    backend
+                        .feature_toggles
+                        .lock()
+                        .await
+                        .set
+                        .insert("diagnostics".to_owned(), false);
+                }
+                let mut db = backend.db.lock().await;
+                let config = *backend.db_config.lock().await;
+                config.set_spec_pack_key(&mut *db).to(u64::MAX);
+                backend.invalidate_diag_inputs();
+            }
+            let make_prior = || crate::PullDiagEntry {
+                currency: None,
+                result_id: "before-suppression".to_owned(),
+                revision: 0,
+                diagnostics: vec![tower_lsp_server::ls_types::Diagnostic {
+                    message: "previous squiggle".to_owned(),
+                    ..Default::default()
+                }],
+            };
+            backend
+                .pull_diag_cache
+                .lock()
+                .await
+                .insert(uri.clone(), make_prior());
+            let inputs = backend
+                .diag_inputs(uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+                .await;
+            assert!(
+                inputs.inputs_epoch.is_none(),
+                "the selected registry is genuinely unavailable"
+            );
+            assert_eq!(inputs.toggles.excluded, excluded);
+            assert_eq!(inputs.toggles.diagnostics_enabled, excluded);
+            let job = inputs.capture_job(uri).await.unwrap();
+            assert!(job.diagnostic_pass.is_none());
+            let _settled = crate::rt::timeout(
+                std::time::Duration::from_secs(10),
+                crate::run_diagnostics_core(inputs, uri, job),
+            )
+            .await
+            .unwrap();
+            let cache = backend.pull_diag_cache.lock().await;
+            let cleared = cache.get(uri).unwrap();
+            assert!(
+                cleared.diagnostics.is_empty(),
+                "registry unavailability must not block the selected suppression policy"
+            );
+            assert_ne!(cleared.result_id, "before-suppression");
+            drop(cache);
+            backend
+                .pull_diag_cache
+                .lock()
+                .await
+                .insert(uri.clone(), make_prior());
+            let old_inputs = backend
+                .diag_inputs(uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+                .await;
+            let job = old_inputs.capture_job(uri).await.unwrap();
+            {
+                let _inputs = backend.analyser_inputs_gate.write().await;
+                backend
+                    .feature_toggles
+                    .lock()
+                    .await
+                    .set
+                    .insert("diagnostics".to_owned(), true);
+                backend.diagnostics_exclude.lock().await.clear();
+                backend.invalidate_diag_inputs();
+            }
+            let _settled = crate::rt::timeout(
+                std::time::Duration::from_secs(10),
+                crate::run_diagnostics_core(old_inputs, uri, job),
+            )
+            .await
+            .unwrap();
+            let cache = backend.pull_diag_cache.lock().await;
+            let retained = cache.get(uri).unwrap();
+            assert_eq!(
+                retained.result_id, "before-suppression",
+                "old toggles cannot borrow the new configuration epoch"
+            );
+            assert_eq!(retained.diagnostics.len(), 1);
+        }
+    }
 }

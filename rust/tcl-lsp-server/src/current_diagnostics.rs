@@ -662,7 +662,7 @@ impl DeliveryCtx<'_> {
         &self,
         reason: DiagnosticSuppression,
     ) -> bool {
-        let Some(result_id) = self.delivered_current_report(Vec::new()).await else {
+        let Some(result_id) = self.delivered_non_tcl_report(Vec::new()).await else {
             return false;
         };
         if let Some(pass) = self.diagnostic_pass {
@@ -1265,6 +1265,9 @@ impl Backend {
         proposal_sources: &'a provider_source::ProposalProviderSources,
         state: ProposalProjectionState,
     ) -> Result<ProposalAnalysisResult<'a>, DiagnosticUnavailable> {
+        if !inputs.sidecar_revision.is_published_current() {
+            return Err(DiagnosticUnavailable::Stale);
+        }
         let currentness = state.currentness;
         let mut projection = state.projection;
         let original_index = state.original_index;
@@ -1289,6 +1292,7 @@ impl Backend {
         };
         let proposal_recovery_names = Arc::new(Mutex::new(RecoveryNameCache::default()));
         let path_inputs = AnalyserPathInputs {
+            sidecar_revision: &inputs.sidecar_revision,
             registry: Arc::clone(&inputs.registry),
             extra_commands: &inputs.extra_commands,
             generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
@@ -1373,6 +1377,9 @@ impl Backend {
         } = settlement;
         let mut subclass_settled = false;
         for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
+            if !inputs.sidecar_revision.is_published_current() {
+                return Err(DiagnosticUnavailable::Stale);
+            }
             let analysis = Box::pin(compute_base_analysis(
                 &inputs.client,
                 salsa_ctx,
@@ -1387,6 +1394,9 @@ impl Backend {
                 ControlFlow::Break(false) => return Err(DiagnosticUnavailable::Cancelled),
                 ControlFlow::Break(true) => return Err(DiagnosticUnavailable::ProviderError),
             };
+            if !inputs.sidecar_revision.is_published_current() {
+                return Err(DiagnosticUnavailable::Stale);
+            }
             workspace_index
                 .write()
                 .await
@@ -2390,6 +2400,7 @@ impl DiagnosticPass {
 
 fn direct_diagnostic_analyser_path(inputs: &DiagInputs) -> AnalyserPathInputs<'_> {
     AnalyserPathInputs {
+        sidecar_revision: &inputs.sidecar_revision,
         registry: Arc::clone(&inputs.registry),
         extra_commands: &inputs.extra_commands,
         generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
@@ -3596,25 +3607,14 @@ mod tests {
             .diagnostic_publisher
             .begin_diagnostic_pass(&expected.uri, pass)
             .await;
-        let delivery = DeliveryCtx {
-            diagnostic_pass: Some(pass),
-            client: &backend.client,
-            diagnostic_publisher: &backend.diagnostic_publisher,
-            documents: &backend.documents,
-            store: &backend.store,
-            diag_slots: &backend.diag_slots,
-            pull_diag_cache: &backend.pull_diag_cache,
-            closed_diag_gen: &backend.closed_diag_gen,
-            source: &job.text,
-            pack_seq: inputs.pack_seq,
-            pack_set: Some(&inputs.pack_set),
-            registry: Some(&inputs.registry),
-            spec_packs: Some(&inputs.spec_packs),
-            uri: &expected.uri,
-            currency: job.currency,
-            version: job.version,
-            client_supports_pull: false,
-        };
+        let mut delivery = inputs.delivery_for_job(
+            Some(pass),
+            &job.text,
+            &expected.uri,
+            job.currency,
+            job.version,
+        );
+        delivery.client_supports_pull = false;
         // Hold actual delivery while the legacy handler independently replaces
         // the cache. No production scheduling or publisher hook is added.
         backend
@@ -3731,25 +3731,14 @@ mod tests {
             .analysis_for(&expected.uri, Arc::clone(&job.text), job.dialect.clone())
             .await
             .unwrap();
-        let delivery = DeliveryCtx {
-            diagnostic_pass: Some(pass),
-            client: &backend.client,
-            diagnostic_publisher: &backend.diagnostic_publisher,
-            documents: &backend.documents,
-            store: &backend.store,
-            diag_slots: &backend.diag_slots,
-            pull_diag_cache: &backend.pull_diag_cache,
-            closed_diag_gen: &backend.closed_diag_gen,
-            source: &job.text,
-            pack_seq: inputs.pack_seq,
-            pack_set: Some(&inputs.pack_set),
-            registry: Some(&inputs.registry),
-            spec_packs: Some(&inputs.spec_packs),
-            uri: &expected.uri,
-            currency: job.currency,
-            version: job.version,
-            client_supports_pull: false,
-        };
+        let mut delivery = inputs.delivery_for_job(
+            Some(pass),
+            &job.text,
+            &expected.uri,
+            job.currency,
+            job.version,
+        );
+        delivery.client_supports_pull = false;
 
         let failed =
             crate::rt::spawn_blocking(|| -> Vec<tower_lsp_server::ls_types::Diagnostic> {
