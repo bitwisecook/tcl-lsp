@@ -5598,6 +5598,31 @@ fn memoized_compilation_unit_shift_correctness() {
 }
 
 #[test]
+fn parameter_only_function_has_no_physical_store_warnings() {
+    let source = "proc identity {value} {return $value}";
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+    let function = unit.function("::identity").expect("the procedure");
+    assert!(
+        function
+            .def_use
+            .chains
+            .values()
+            .all(|chain| { chain.definition.kind != crate::def_use::DefKind::Statement })
+    );
+
+    let mut analyser = Analyser::new();
+    analyser.emit_document_cfg_ssa_diagnostics_for_test(source);
+    assert!(
+        analyser
+            .result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| { !matches!(diagnostic.code, DiagCode::W211 | DiagCode::W220) })
+    );
+}
+
+#[test]
 fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
     // ``set x 1`` set once and never read is a dead store *and* an unused
     // variable. Both checks anchor at the same assignment, so the co-located

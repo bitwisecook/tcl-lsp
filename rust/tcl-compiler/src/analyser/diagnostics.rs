@@ -1107,19 +1107,6 @@ impl Analyser {
         );
     }
 
-    fn extend_hidden_rmw_reads(
-        &self,
-        function_unit: &crate::compilation_unit::FunctionUnit,
-        textually_referenced: &mut HashSet<String>,
-    ) {
-        if let Some(registry) = self.registry.as_deref() {
-            textually_referenced.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
-                function_unit,
-                registry,
-            ));
-        }
-    }
-
     fn undef_suppression_semantics<'a>(
         &'a self,
         context: &'a tcl_registry::model::ContextRegistry,
@@ -1268,27 +1255,39 @@ impl Analyser {
                 scan_registry,
                 Some(metadata),
             );
-        let mut textually_referenced =
-            crate::optimiser::elimination::collect_textual_var_references(
+        // Both physical-store warnings only emit for statement definitions.
+        // Without one, there is no candidate for source-read suppression to
+        // protect, so avoid the potentially expensive nested source survey.
+        let has_statement_def = function_unit
+            .def_use
+            .chains
+            .values()
+            .any(|chain| chain.definition.kind == crate::def_use::DefKind::Statement);
+        let mut textually_referenced = HashSet::new();
+        if has_statement_def {
+            // This collection already includes the original hidden reads.
+            textually_referenced = crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,
                 function_unit,
                 scan_registry,
             );
-        textually_referenced.extend(cross_event_vars.iter().cloned());
-        self.extend_hidden_rmw_reads(function_unit, &mut textually_referenced);
+            textually_referenced.extend(cross_event_vars.iter().cloned());
+        }
 
         // The caller owns frame identity; a method and a namespace procedure
         // with one qualified name can have different initial bindings.
         let ir_proc = frame.procedure();
         let initial_global = frame.is_initial_global();
-        self.emit_dead_store_diagnostics(
-            function_unit,
-            &defined,
-            &scope_aliases,
-            cross_event_vars,
-            cell_facts,
-            module,
-        );
+        if has_statement_def {
+            self.emit_dead_store_diagnostics(
+                function_unit,
+                &defined,
+                &scope_aliases,
+                cross_event_vars,
+                cell_facts,
+                module,
+            );
+        }
         if let Some(procedure) = ir_proc {
             self.emit_conditional_declared_store_diagnostics(
                 function_unit,
@@ -1297,13 +1296,15 @@ impl Analyser {
                 cross_event_vars,
             );
         }
-        self.emit_unused_variable_diagnostics(
-            function_unit,
-            &defined,
-            &scope_aliases,
-            &textually_referenced,
-            cell_facts,
-        );
+        if has_statement_def {
+            self.emit_unused_variable_diagnostics(
+                function_unit,
+                &defined,
+                &scope_aliases,
+                &textually_referenced,
+                cell_facts,
+            );
+        }
         self.emit_possible_paste_error_diagnostics(function_unit);
         Some(FunctionDiagnosticSetup {
             defined,
