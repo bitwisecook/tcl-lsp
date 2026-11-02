@@ -1472,5 +1472,42 @@ fn class_commands_follow_each_invocations_namespace_path_before_kind_selection()
             tcl_lsp_core::type_hierarchy::prepare(source, 11, 10, &analysis).is_empty(),
             "{dialect}: a nearer procedure must block all class candidates"
         );
+        if let Some(hover) = tcl_lsp_core::hover::hover(source, 11, 10, &analysis, None) {
+            assert!(
+                !hover.value.contains("oo::class create"),
+                "{dialect}: {}",
+                hover.value
+            );
+        }
+    }
+}
+
+#[test]
+fn constructor_hover_does_not_reuse_a_moved_or_deleted_class_head() {
+    let source = concat!(
+        "oo::class create C {}\n",
+        "C new\n",
+        "rename C D\n",
+        "C new\n",
+        "rename D {}\n",
+        "D new\n",
+        "proc C {args} {return LOCAL}\n",
+        "C new\n",
+        "set text {C new}\n",
+        "{*}{C} new\n",
+    );
+    let analysis = analyse(source);
+    assert!(!analysis.allows_lexical_declaration_advice());
+    let hover = tcl_lsp_core::hover::hover(source, 1, 0, &analysis, None)
+        .expect("original constructor head");
+    assert!(hover.value.contains("::C"), "{}", hover.value);
+    for (line, character) in [(1, 1), (1, 2), (3, 0), (5, 0), (7, 0), (8, 10), (9, 3)] {
+        if let Some(hover) = tcl_lsp_core::hover::hover(source, line, character, &analysis, None) {
+            assert!(
+                !hover.value.contains("oo::class create ::C"),
+                "line {line}, column {character}: {}",
+                hover.value
+            );
+        }
     }
 }

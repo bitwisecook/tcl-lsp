@@ -1089,6 +1089,29 @@ fn hover_impl(
     {
         return Some(Hover::markdown(text));
     }
+    // Constructor heads carry their own site-specific class selection.  Use
+    // that receipt even when lexical declaration advice is unavailable.
+    if word.is_some()
+        && let Ok(Some(prefix)) =
+            crate::source_structure::original_word_cursor_prefix(source, analysis, cursor_offset)
+        && prefix.word_index() == 0
+        && let Some(call) =
+            tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
+                source,
+                analysis,
+                prefix.container_span().start(),
+            )
+        && call.original_words().first().is_some_and(|head| {
+            head.span() == prefix.container_span()
+                && head.span().as_range().contains(&(cursor_offset as usize))
+        })
+        && let Some(class) = call.class_declaration().source_class(analysis)
+    {
+        return Some(Hover::markdown(class_hover_text(
+            analysis,
+            class.metadata(),
+        )));
+    }
     if !analysis.allows_lexical_declaration_advice() {
         // Registry operands may have their own genuine expansion/list-child
         // geometry. A standalone static-word label is not their prerequisite.
