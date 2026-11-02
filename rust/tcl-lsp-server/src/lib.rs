@@ -11735,12 +11735,16 @@ impl Backend {
     /// to maintain a second, fallible ancestor dependency graph.
     async fn invalidate_sidecar_stubs(&self) {
         use salsa::Setter as _;
-        // A sidecar is the one analyser input read from disk outside the
-        // fresh-analysis key.
-        self.fresh_analysis_cache
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clear();
+        let inputs = self.analyser_inputs_gate.write().await;
+        self.invalidate_diag_inputs();
+        let sidecar_revision = {
+            let mut cache = self
+                .fresh_analysis_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            cache.clear();
+            cache.revision()
+        };
         let tracked: Vec<Uri> = {
             let mut db = self.db.lock().await;
             let files = self.db_files.lock().await;
@@ -11752,6 +11756,11 @@ impl Backend {
             }
             uris
         };
+        self.fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .complete_sidecar_invalidation(&sidecar_revision);
+        drop(inputs);
         let open: Vec<(Uri, String)> = {
             let docs = self.documents.lock("invalidate_sidecar_stubs").await;
             tracked
@@ -14377,6 +14386,11 @@ impl Backend {
         &self,
         uri: &Uri,
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
+        let sidecar_revision = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .published_revision()?;
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.snapshot("db_file_analysis_handle").await;
@@ -14385,6 +14399,7 @@ impl Backend {
                 tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
             })
             .ok()
+            .filter(|_| sidecar_revision.is_published_current())
         }))
     }
 
@@ -14408,6 +14423,11 @@ impl Backend {
         uri: &Uri,
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
     {
+        let sidecar_revision = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .published_revision()?;
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.snapshot("db_compilation_unit_handle").await;
@@ -14419,6 +14439,7 @@ impl Backend {
             // `None` from the query is an abstention: the workspace's packs
             // are not installed, so there is no unit to hand back.
             .flatten()
+            .filter(|_| sidecar_revision.is_published_current())
         }))
     }
 
@@ -14454,6 +14475,11 @@ impl Backend {
         &self,
         uri: &Uri,
     ) -> Option<crate::rt::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>> {
+        let sidecar_revision = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .published_revision()?;
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
         // When the workspace has been indexed into a `Project`, resolve object
@@ -14472,6 +14498,7 @@ impl Backend {
                 }
             })
             .ok()
+            .filter(|_| sidecar_revision.is_published_current())
         }))
     }
 
@@ -14562,7 +14589,15 @@ impl Backend {
         dialect: String,
     ) -> DocumentSourceResult<Arc<tcl_compiler::analyser::AnalysisResult>> {
         let admission = self.document_path_admission(uri).await?;
-        if let Some(cached) = self.cached_analysis(uri).await {
+        let sidecar_revision = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .published_revision();
+        let epoch = self.diag_inputs_epoch();
+        if let Some(sidecar_revision) = sidecar_revision
+            && let Some(cached) = self.cached_analysis(uri).await
+        {
             let published = self
                 .published_document_path_admission(uri)
                 .await?
@@ -14575,12 +14610,28 @@ impl Backend {
                 });
             }
             admission.check_for(uri, self.store.as_ref())?;
-            if cached.analysis_context_unavailable.is_none()
-                && tcl_compiler::source_graph::current_analysis(&text, &cached).is_none()
-            {
-                return self.fresh_analysis_for(uri, text, dialect).await;
+            let mut driver = self.fresh_analysis_driver(admission).await;
+            if let Ok(input) = driver.analyser.prepare_analysis_input(&dialect) {
+                let generation = self.class_factory_generation.read().await;
+                if epoch == driver.analyser_inputs_epoch
+                    && self.diag_inputs_epoch() == driver.analyser_inputs_epoch
+                    && *generation == driver.class_factory_generation
+                    && self
+                        .fresh_analysis_cache
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .published_revision_is_current(&sidecar_revision)
+                    && cached.resolved_input.as_ref() == Some(&input)
+                    && cached.accepts_source_analyser_settings(
+                        &text,
+                        input.borrowed_context_registry().commands(),
+                        &driver.analyser,
+                    )
+                {
+                    driver.path_admission.check_for(uri, self.store.as_ref())?;
+                    return Ok(cached);
+                }
             }
-            return Ok(cached);
         }
         self.fresh_analysis_for(uri, text, dialect).await
     }
@@ -14606,42 +14657,63 @@ impl Backend {
         text: Arc<str>,
         dialect: String,
     ) -> DocumentSourceResult<FreshAnalysisSeed> {
-        let path_admission = self.document_path_admission(uri).await?;
-        let driver = self.fresh_analysis_driver(path_admission).await;
-        // Server108: an unchanged input revision reuses its analysis; only a
-        // document whose bytes, dialect, admission or configured inputs moved
-        // is analysed again.
-        let key = fresh_analysis_cache::FreshAnalysisKey {
-            text: Arc::clone(&text),
-            dialect: dialect.clone(),
-            path_admission: Arc::clone(&driver.path_admission),
-            analyser_inputs_epoch: driver.analyser_inputs_epoch,
-            class_factory_generation: driver.class_factory_generation,
-            inputs: driver.inputs.clone(),
-        };
-        let cached = self
-            .fresh_analysis_cache
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(uri, &key);
-        if let Some(mut seed) = cached {
-            // Value-equal by the key; hand out this request's own admission,
-            // exactly as a recomputation would.
-            seed.path_admission = Arc::clone(&key.path_admission);
-            seed.path_admission.check_current(self.store.as_ref())?;
+        loop {
+            let sidecar_revision = self
+                .fresh_analysis_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .revision();
+            let path_admission = self.document_path_admission(uri).await?;
+            let mut driver = self.fresh_analysis_driver(path_admission).await;
+            let resolved_input = driver.analyser.prepare_analysis_input(&dialect).ok();
+            if let Some(input) = &resolved_input {
+                driver.analyser = driver.analyser.with_resolved_input(input.clone());
+            }
+            let key = fresh_analysis_cache::FreshAnalysisKey {
+                text: Arc::clone(&text),
+                dialect: dialect.clone(),
+                path_admission: Arc::clone(&driver.path_admission),
+                analyser_inputs_epoch: driver.analyser_inputs_epoch,
+                class_factory_generation: driver.class_factory_generation,
+                inputs: driver.inputs.clone(),
+                resolved_input,
+            };
+            let cached = key.resolved_input.as_ref().and_then(|_| {
+                self.fresh_analysis_cache
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get(uri, &key)
+            });
+            let reused = cached.is_some();
+            let seed = if let Some(mut seed) = cached {
+                seed.path_admission = Arc::clone(&key.path_admission);
+                seed.path_admission.check_current(self.store.as_ref())?;
+                seed
+            } else {
+                let original_uri = uri.clone();
+                let source = Arc::clone(&text);
+                let dialect = dialect.clone();
+                crate::rt::spawn_blocking(move || driver.analyse(&source, &dialect, None))
+                    .await
+                    .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })??
+            };
             seed.path_admission.check_for(uri, self.store.as_ref())?;
+            if !self.fresh_index_generation_is_current(&seed).await {
+                continue;
+            }
+            seed.path_admission.check_for(uri, self.store.as_ref())?;
+            let mut cache = self
+                .fresh_analysis_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if !cache.is_current(&sidecar_revision) {
+                continue;
+            }
+            if !reused && key.resolved_input.is_some() {
+                cache.insert(uri, key, seed.clone());
+            }
             return Ok(seed);
         }
-        let original_uri = uri.clone();
-        let seed = crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
-            .await
-            .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })??;
-        seed.path_admission.check_for(uri, self.store.as_ref())?;
-        self.fresh_analysis_cache
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(uri, key, seed.clone());
-        Ok(seed)
     }
 
     async fn fresh_analysis_driver(
@@ -14722,8 +14794,9 @@ impl Backend {
     }
 
     async fn fresh_index_generation_is_current(&self, seed: &FreshAnalysisSeed) -> bool {
+        let generation = self.class_factory_generation.read().await;
         self.diag_inputs_epoch() == seed.analyser_inputs_epoch
-            && *self.class_factory_generation.read().await == seed.class_factory_generation
+            && *generation == seed.class_factory_generation
     }
 
     #[cfg(test)]
@@ -41408,8 +41481,6 @@ info exists ::N::v\uD800";
         let symbol = Backend::original_namespace_symbol(source, &analysis, Position::new(0, 16))
             .expect("actual namespace operand");
         let position = Position::new(4, 14);
-        trace_original_indexed_owner_validation(&backend, &second, source, &analysis, position)
-            .await;
         assert_eq!(
             backend
                 .original_namespace_locations(&first, source, &analysis, &symbol, true, true,)
@@ -41488,57 +41559,6 @@ info exists ::N::v\uD800";
                 .len(),
             1
         );
-    }
-
-    async fn trace_original_indexed_owner_validation(
-        backend: &Backend,
-        second: &Uri,
-        source: &str,
-        analysis: &AnalysisResult,
-        position: Position,
-    ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_INDEXED_LOCATION").is_some() {
-            let rows = analysis
-                .original_variable_symbols
-                .iter()
-                .map(|row| {
-                    (
-                        row.span(),
-                        row.is_declaration(),
-                        row.symbol().is_namespace(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            eprintln!(
-                "ORIGINAL_INDEXED rows={rows:?} selected={}",
-                matches!(
-                    tcl_lsp_core::variable_symbol::select(
-                        source,
-                        analysis,
-                        position.line,
-                        position.character
-                    ),
-                    std::ops::ControlFlow::Break(Some(_))
-                )
-            );
-            let current = backend
-                .analysis_for(second, std::sync::Arc::from(source), "tcl8.6".to_owned())
-                .await
-                .unwrap();
-            let context =
-                core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis)
-                    .unwrap();
-            for row in &analysis.original_variable_symbols {
-                let owner =
-                    OriginalIndexedSourceLocation::from_variable(second.as_str(), &context, row)
-                        .unwrap();
-                eprintln!(
-                    "ORIGINAL_INDEXED span={:?} current={}",
-                    row.span(),
-                    owner.validated_span(source, &current).is_some()
-                );
-            }
-        }
     }
 
     async fn assert_stale_original_indexed_source_is_withdrawn(

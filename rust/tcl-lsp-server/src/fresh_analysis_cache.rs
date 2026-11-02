@@ -53,6 +53,7 @@ pub(super) struct FreshAnalysisKey {
     pub(super) analyser_inputs_epoch: u64,
     pub(super) class_factory_generation: u64,
     pub(super) inputs: FreshAnalyserInputs,
+    pub(super) resolved_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
 }
 
 impl PartialEq for FreshAnalysisKey {
@@ -63,12 +64,31 @@ impl PartialEq for FreshAnalysisKey {
             && (Arc::ptr_eq(&self.text, &other.text) || self.text == other.text)
             && self.path_admission == other.path_admission
             && self.inputs == other.inputs
+            && self.resolved_input == other.resolved_input
     }
 }
 
 struct Entry {
     key: FreshAnalysisKey,
     seed: FreshAnalysisSeed,
+}
+
+pub(super) struct SidecarRevision {
+    published: std::sync::atomic::AtomicBool,
+}
+
+impl Default for SidecarRevision {
+    fn default() -> Self {
+        Self {
+            published: std::sync::atomic::AtomicBool::new(true),
+        }
+    }
+}
+
+impl SidecarRevision {
+    pub(super) fn is_published_current(&self) -> bool {
+        self.published.load(std::sync::atomic::Ordering::Acquire)
+    }
 }
 
 /// Bounded least-recently-used map from a document URI to its latest fresh
@@ -79,6 +99,7 @@ pub(super) struct FreshAnalysisCache {
     /// Least recently used first.
     order: VecDeque<Uri>,
     source_bytes: usize,
+    revision: Arc<SidecarRevision>,
 }
 
 impl FreshAnalysisCache {
@@ -123,8 +144,42 @@ impl FreshAnalysisCache {
         }
     }
 
-    /// Drop every entry: an analyser input outside the key changed.
+    /// Retain custody of the sidecar state before starting a worker.
+    pub(super) fn revision(&self) -> Arc<SidecarRevision> {
+        Arc::clone(&self.revision)
+    }
+
+    pub(super) fn is_current(&self, revision: &Arc<SidecarRevision>) -> bool {
+        Arc::ptr_eq(&self.revision, revision)
+    }
+
+    pub(super) fn published_revision(&self) -> Option<Arc<SidecarRevision>> {
+        self.revision
+            .is_published_current()
+            .then(|| self.revision())
+    }
+
+    pub(super) fn published_revision_is_current(&self, revision: &Arc<SidecarRevision>) -> bool {
+        self.revision.is_published_current() && self.is_current(revision)
+    }
+
+    pub(super) fn complete_sidecar_invalidation(&mut self, revision: &Arc<SidecarRevision>) {
+        if self.is_current(revision) {
+            self.revision
+                .published
+                .store(true, std::sync::atomic::Ordering::Release);
+        }
+    }
+
+    /// Drop every entry and retire workers started before the invalidation.
+    /// Published database reads resume only after their sidecar epochs advance.
     pub(super) fn clear(&mut self) {
+        self.revision
+            .published
+            .store(false, std::sync::atomic::Ordering::Release);
+        self.revision = Arc::new(SidecarRevision {
+            published: std::sync::atomic::AtomicBool::new(false),
+        });
         self.entries.clear();
         self.order.clear();
         self.source_bytes = 0;
@@ -198,5 +253,744 @@ mod tests {
                 .len(),
             1
         );
+    }
+}
+
+#[cfg(test)]
+mod input_custody_tests {
+    use std::future::Future as _;
+    use std::path::Path;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use crate::{FreshAnalysisSeed, vfs};
+    use tower_lsp_server::ls_types::Uri;
+
+    #[tokio::test]
+    async fn published_analysis_obeys_the_requested_dialect_and_reuses_matching_input() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///workspace/cache-requested-input.tcl"
+            .parse()
+            .unwrap();
+        let source: Arc<str> = Arc::from("proc p {} {}\np\n");
+        backend
+            .db_set_source(&uri, &source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let published = backend.cached_analysis(&uri).await.unwrap();
+        let requested = backend
+            .analysis_for(&uri, Arc::clone(&source), "tcl9.0".to_owned())
+            .await
+            .unwrap();
+        assert_eq!(requested.resolved_profile().unwrap().name, "tcl9.0");
+        assert_ne!(published.resolved_input, requested.resolved_input);
+        let again = backend
+            .analysis_for(&uri, Arc::clone(&source), "tcl9.0".to_owned())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&requested, &again));
+        let original = backend
+            .analysis_for(&uri, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&published, &original));
+    }
+
+    #[tokio::test]
+    async fn unavailable_requested_overlay_does_not_borrow_a_published_analysis() {
+        use salsa::Setter as _;
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///workspace/cache-unavailable-overlay.tcl"
+            .parse()
+            .unwrap();
+        let source: Arc<str> = Arc::from("set value 1\n");
+        backend
+            .db_set_source(&uri, &source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let published = backend.cached_analysis(&uri).await.unwrap();
+        assert!(published.resolved_input.is_some());
+        {
+            let mut db = backend.db.lock().await;
+            let config = *backend.db_config.lock().await;
+            config.set_spec_pack_key(&mut *db).to(u64::MAX);
+        }
+        backend.invalidate_diag_inputs();
+        let unavailable = backend
+            .analysis_for(&uri, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert!(unavailable.analysis_context_unavailable.is_some());
+        assert!(unavailable.resolved_input.is_none());
+        assert!(!Arc::ptr_eq(&published, &unavailable));
+    }
+
+    #[tokio::test]
+    async fn epoch_is_checked_after_waiting_for_factory_generation() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "untitled:cache-epoch".parse().unwrap();
+        let seed: FreshAnalysisSeed = backend
+            .fresh_analysis_seed(&uri, Arc::from("set x 1\n"), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let generation = backend.class_factory_generation.write().await;
+        let mut current = Box::pin(backend.fresh_index_generation_is_current(&seed));
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(current.as_mut().poll(&mut context).is_pending());
+        backend.invalidate_diag_inputs();
+        drop(generation);
+        assert!(!current.await);
+    }
+
+    #[derive(Debug)]
+    struct WorkerCompletionStore {
+        caller: std::thread::ThreadId,
+        checks: AtomicUsize,
+        completed: tokio::sync::Notify,
+        resume: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    impl vfs::SourceStore for WorkerCompletionStore {
+        fn document_uri_path(
+            &self,
+            uri: &str,
+        ) -> Result<vfs::SourceUriPath, vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::document_uri_path(&vfs::NativeStore, uri)
+        }
+        fn validate_document_uri_path(
+            &self,
+            selected: &vfs::SourceUriPath,
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            if std::thread::current().id() != self.caller
+                && self.checks.fetch_add(1, Ordering::SeqCst) == 1
+            {
+                self.completed.notify_one();
+                self.resume
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(60))
+                    .expect("release the completed analysis worker");
+            }
+            vfs::SourceStore::validate_document_uri_path(&vfs::NativeStore, selected)
+        }
+        fn read(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+            vfs::SourceStore::read(&vfs::NativeStore, path)
+        }
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            vfs::SourceStore::read_to_string(&vfs::NativeStore, path)
+        }
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<vfs::DirEntry>> {
+            vfs::SourceStore::read_dir(&vfs::NativeStore, path)
+        }
+        fn metadata(&self, path: &Path) -> std::io::Result<vfs::Metadata> {
+            vfs::SourceStore::metadata(&vfs::NativeStore, path)
+        }
+        fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
+            vfs::SourceStore::write(&vfs::NativeStore, path, contents)
+        }
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            vfs::SourceStore::create_dir_all(&vfs::NativeStore, path)
+        }
+    }
+
+    #[tokio::test]
+    async fn sidecar_invalidation_retires_an_already_computed_worker() {
+        struct Directory(std::path::PathBuf);
+        impl Drop for Directory {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let root = Directory(std::env::temp_dir().join(format!(
+                "tcl-lsp-cache-sidecar-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            )));
+        std::fs::create_dir(&root.0).unwrap();
+        let file = root.0.join("source.tcl");
+        let sidecar = root.0.join("tcl8.6.tcl.stubs");
+        std::fs::write(&file, "old_command\n").unwrap();
+        std::fs::write(&sidecar, "stub old_command {}\n").unwrap();
+        let uri = Uri::from_file_path(&file).unwrap();
+        let (resume, receiver) = std::sync::mpsc::channel();
+        let store = Arc::new(WorkerCompletionStore {
+            caller: std::thread::current().id(),
+            checks: AtomicUsize::new(0),
+            completed: tokio::sync::Notify::new(),
+            resume: std::sync::Mutex::new(receiver),
+        });
+        let mut backend = crate::tests::test_backend();
+        backend.store = store.clone();
+        let backend = Arc::new(backend);
+        let analysis = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .fresh_analysis_seed(&uri, Arc::from("old_command\n"), "tcl8.6".to_owned())
+                    .await
+                    .unwrap()
+            }
+        });
+        crate::rt::timeout(Duration::from_secs(30), store.completed.notified())
+            .await
+            .expect("the actual worker finishes analysis before invalidation");
+        std::fs::write(&sidecar, "stub new_command {}\n").unwrap();
+        backend.invalidate_sidecar_stubs().await;
+        resume.send(()).unwrap();
+        let seed = crate::rt::timeout(Duration::from_secs(30), analysis)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            seed.analysis
+                .stub_commands
+                .iter()
+                .filter(|stub| stub.from_sidecar)
+                .map(|stub| stub.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["new_command"]
+        );
+        let again = backend
+            .fresh_analysis_seed(&uri, Arc::from("old_command\n"), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&seed.analysis, &again.analysis));
+        assert!(
+            store.checks.load(Ordering::SeqCst) >= 4,
+            "the worker must genuinely recompute after invalidation"
+        );
+    }
+}
+
+#[cfg(test)]
+mod sidecar_publication_tests {
+    use std::future::Future as _;
+    use std::sync::Arc;
+
+    use crate::{AnalysisResult, Backend, DocumentPublication, DocumentState};
+    use tower_lsp_server::ls_types::Uri;
+
+    struct Documents {
+        root: std::path::PathBuf,
+        uris: [Uri; 2],
+        source: Arc<str>,
+    }
+    impl Documents {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "tcl-lsp-sidecar-publication-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+            ));
+            std::fs::create_dir(&root).unwrap();
+            std::fs::write(root.join("tcl8.6.tcl.stubs"), "stub old_command {}\n").unwrap();
+            let source: Arc<str> = Arc::from("proc p {} {}\n");
+            let uris = ["first.tcl", "second.tcl"].map(|name| {
+                let path = root.join(name);
+                std::fs::write(&path, source.as_bytes()).unwrap();
+                Uri::from_file_path(path).unwrap()
+            });
+            Self { root, uris, source }
+        }
+        fn replace_sidecar(&self) {
+            std::fs::write(self.root.join("tcl8.6.tcl.stubs"), "stub new_command {}\n").unwrap();
+        }
+        async fn publish(&self, backend: &Backend) {
+            for uri in &self.uris {
+                backend
+                    .db_set_source(uri, &self.source, "tcl8.6".to_owned())
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    sidecar_names(&backend.cached_analysis(uri).await.unwrap()),
+                    vec!["old_command"]
+                );
+            }
+        }
+    }
+    impl Drop for Documents {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+    fn sidecar_names(analysis: &AnalysisResult) -> Vec<&str> {
+        analysis
+            .stub_commands
+            .iter()
+            .filter(|stub| stub.from_sidecar)
+            .map(|stub| stub.name.as_str())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn cancelled_sidecar_invalidation_refuses_stale_database_analyses_for_all_documents() {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        documents.publish(&backend).await;
+        documents.replace_sidecar();
+        let database = backend.db.lock().await;
+        let mut invalidating = Box::pin(backend.invalidate_sidecar_stubs());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(invalidating.as_mut().poll(&mut context).is_pending());
+        drop(invalidating);
+        drop(database);
+        for uri in &documents.uris {
+            let old = {
+                let file = *backend.db_files.lock().await.get(uri).unwrap();
+                let config = backend.resolved_db_config(uri).await;
+                let snapshot = backend.db.snapshot("sidecar_cancelled_raw_memo").await;
+                tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
+            };
+            assert_eq!(
+                sidecar_names(&old),
+                vec!["old_command"],
+                "cancellation leaves the actual DB input unrefreshed"
+            );
+            let current = backend
+                .analysis_for(uri, Arc::clone(&documents.source), "tcl8.6".to_owned())
+                .await
+                .unwrap();
+            assert_eq!(sidecar_names(&current), vec!["new_command"]);
+            assert!(!Arc::ptr_eq(&old, &current));
+        }
+        backend.invalidate_sidecar_stubs().await;
+        for uri in &documents.uris {
+            let published = backend.cached_analysis(uri).await.unwrap();
+            assert_eq!(sidecar_names(&published), vec!["new_command"]);
+            let current = backend
+                .analysis_for(uri, Arc::clone(&documents.source), "tcl8.6".to_owned())
+                .await
+                .unwrap();
+            assert!(
+                Arc::ptr_eq(&published, &current),
+                "a completed invalidation restores published reuse"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn overlapping_sidecar_invalidation_waits_for_the_input_owner_and_recovers_after_cancellation()
+     {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        documents.publish(&backend).await;
+        documents.replace_sidecar();
+        let database = backend.db.lock().await;
+        let mut first = Box::pin(backend.invalidate_sidecar_stubs());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(first.as_mut().poll(&mut context).is_pending());
+        let revision = backend.fresh_analysis_cache.lock().unwrap().revision();
+        let epoch = backend.diag_inputs_epoch();
+        let mut second = Box::pin(backend.invalidate_sidecar_stubs());
+        assert!(second.as_mut().poll(&mut context).is_pending());
+        assert!(
+            backend
+                .fresh_analysis_cache
+                .lock()
+                .unwrap()
+                .is_current(&revision),
+            "the waiting invalidation cannot mutate another owner's revision"
+        );
+        assert_eq!(backend.diag_inputs_epoch(), epoch);
+        drop(first);
+        assert!(second.as_mut().poll(&mut context).is_pending());
+        assert!(
+            !backend
+                .fresh_analysis_cache
+                .lock()
+                .unwrap()
+                .is_current(&revision)
+        );
+        assert_ne!(backend.diag_inputs_epoch(), epoch);
+        drop(database);
+        second.await;
+        for uri in &documents.uris {
+            let published = backend.cached_analysis(uri).await.unwrap();
+            assert_eq!(sidecar_names(&published), vec!["new_command"]);
+            let current = backend
+                .analysis_for(uri, Arc::clone(&documents.source), "tcl8.6".to_owned())
+                .await
+                .unwrap();
+            assert!(Arc::ptr_eq(&published, &current));
+        }
+    }
+
+    #[tokio::test]
+    async fn previously_issued_seed_is_recomputed_before_open_index_publication() {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        let uri = &documents.uris[0];
+        let seed = backend
+            .fresh_analysis_seed(uri, Arc::clone(&documents.source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert_eq!(sidecar_names(&seed.analysis), vec!["old_command"]);
+        let old = Arc::clone(&seed.analysis);
+        let mut document =
+            DocumentState::with_version(documents.source.to_string(), "tcl8.6".to_owned(), 1);
+        document.publication = DocumentPublication::Salsa;
+        backend
+            .documents
+            .lock("sidecar seed test")
+            .await
+            .insert(uri.clone(), document);
+        documents.replace_sidecar();
+        backend.invalidate_sidecar_stubs().await;
+        assert_eq!(backend.fresh_analysis_cache.lock().unwrap().len(), 0);
+        assert!(
+            backend
+                .publish_open_index_if_current(uri, &documents.source, "tcl8.6", 1, seed)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            backend.fresh_analysis_cache.lock().unwrap().len(),
+            1,
+            "the publisher must perform an actual replacement analysis"
+        );
+        let current = backend
+            .fresh_analysis_seed(uri, Arc::clone(&documents.source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert!(!Arc::ptr_eq(&old, &current.analysis));
+        assert_eq!(sidecar_names(&current.analysis), vec!["new_command"]);
+    }
+    #[derive(Debug)]
+    struct PublishedReadStore {
+        armed: std::sync::atomic::AtomicBool,
+        checks: std::sync::atomic::AtomicUsize,
+        selected: tokio::sync::Notify,
+        resume: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+    impl crate::vfs::SourceStore for PublishedReadStore {
+        fn document_uri_path(
+            &self,
+            uri: &str,
+        ) -> Result<crate::vfs::SourceUriPath, crate::vfs::SourceUriPathUnavailable> {
+            crate::vfs::SourceStore::document_uri_path(&crate::vfs::NativeStore, uri)
+        }
+        fn source_path_origin(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<crate::vfs::SourcePathOrigin, crate::vfs::SourceUriPathUnavailable> {
+            crate::vfs::SourceStore::source_path_origin(&crate::vfs::NativeStore, path)
+        }
+        fn validate_source_path_origin(
+            &self,
+            origin: &crate::vfs::SourcePathOrigin,
+        ) -> Result<(), crate::vfs::SourceUriPathUnavailable> {
+            crate::vfs::SourceStore::validate_source_path_origin(&crate::vfs::NativeStore, origin)
+        }
+        fn validate_document_uri_path(
+            &self,
+            selected: &crate::vfs::SourceUriPath,
+        ) -> Result<(), crate::vfs::SourceUriPathUnavailable> {
+            use std::sync::atomic::Ordering;
+            if self.armed.load(Ordering::SeqCst) && self.checks.fetch_add(1, Ordering::SeqCst) == 2
+            {
+                self.selected.notify_one();
+                self.resume
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(std::time::Duration::from_secs(60))
+                    .expect("release the reader retaining the actual cached Arc");
+            }
+            crate::vfs::SourceStore::validate_document_uri_path(&crate::vfs::NativeStore, selected)
+        }
+        fn with_current_document_paths(
+            &self,
+            selected: &[&crate::vfs::SourceUriPath],
+            publish: &mut dyn FnMut(),
+        ) -> Result<(), crate::vfs::SourceUriPathUnavailable> {
+            crate::vfs::SourceStore::with_current_document_paths(
+                &crate::vfs::NativeStore,
+                selected,
+                publish,
+            )
+        }
+        fn with_current_source_inputs(
+            &self,
+            selected: &[&crate::vfs::SourceUriPath],
+            documents: &[(&crate::vfs::SourceUriPath, &[u8])],
+            paths: &[(&crate::vfs::SourcePathOrigin, &[u8])],
+            publish: &mut dyn FnMut(),
+        ) -> Result<(), crate::vfs::SourceUriPathUnavailable> {
+            crate::vfs::SourceStore::with_current_source_inputs(
+                &crate::vfs::NativeStore,
+                selected,
+                documents,
+                paths,
+                publish,
+            )
+        }
+        fn read(&self, path: &std::path::Path) -> std::io::Result<Vec<u8>> {
+            crate::vfs::SourceStore::read(&crate::vfs::NativeStore, path)
+        }
+        fn read_to_string(&self, path: &std::path::Path) -> std::io::Result<String> {
+            crate::vfs::SourceStore::read_to_string(&crate::vfs::NativeStore, path)
+        }
+        fn read_dir(&self, path: &std::path::Path) -> std::io::Result<Vec<crate::vfs::DirEntry>> {
+            crate::vfs::SourceStore::read_dir(&crate::vfs::NativeStore, path)
+        }
+        fn metadata(&self, path: &std::path::Path) -> std::io::Result<crate::vfs::Metadata> {
+            crate::vfs::SourceStore::metadata(&crate::vfs::NativeStore, path)
+        }
+        fn write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::Result<()> {
+            crate::vfs::SourceStore::write(&crate::vfs::NativeStore, path, contents)
+        }
+        fn create_dir_all(&self, path: &std::path::Path) -> std::io::Result<()> {
+            crate::vfs::SourceStore::create_dir_all(&crate::vfs::NativeStore, path)
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn sidecar_invalidation_withdraws_a_published_read_captured_before_clear() {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        let documents = Documents::new();
+        let (resume, receiver) = std::sync::mpsc::channel();
+        let store = Arc::new(PublishedReadStore {
+            armed: AtomicBool::new(false),
+            checks: AtomicUsize::new(0),
+            selected: tokio::sync::Notify::new(),
+            resume: std::sync::Mutex::new(receiver),
+        });
+        let mut backend = crate::tests::test_backend();
+        backend.store = store.clone();
+        let backend = Arc::new(backend);
+        documents.publish(&backend).await;
+        let uri = documents.uris[0].clone();
+        let old = backend.cached_analysis(&uri).await.unwrap();
+        store.armed.store(true, Ordering::SeqCst);
+        let reading = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let source = Arc::clone(&documents.source);
+            async move {
+                backend
+                    .analysis_for(&uri, source, "tcl8.6".to_owned())
+                    .await
+                    .unwrap()
+            }
+        });
+        // Initial capture and retained-admission validation precede the DB
+        // read; its third validation runs only after cached_analysis returns.
+        crate::rt::timeout(
+            std::time::Duration::from_secs(10),
+            store.selected.notified(),
+        )
+        .await
+        .expect("the reader must retain its actual cached result before invalidation");
+        assert_eq!(store.checks.load(Ordering::SeqCst), 3);
+        documents.replace_sidecar();
+        backend.invalidate_sidecar_stubs().await;
+        resume.send(()).unwrap();
+        let current = crate::rt::timeout(std::time::Duration::from_secs(10), reading)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(sidecar_names(&old), vec!["old_command"]);
+        assert_eq!(sidecar_names(&current), vec!["new_command"]);
+        assert!(!Arc::ptr_eq(&old, &current));
+    }
+
+    #[tokio::test]
+    async fn sidecar_invalidation_waits_for_an_active_index_publication() {
+        let documents = Documents::new();
+        let backend = Arc::new(crate::tests::test_backend());
+        let uri = documents.uris[0].clone();
+        let seed = backend
+            .fresh_analysis_seed(&uri, Arc::clone(&documents.source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert_eq!(sidecar_names(&seed.analysis), vec!["old_command"]);
+        let mut document =
+            DocumentState::with_version(documents.source.to_string(), "tcl8.6".to_owned(), 1);
+        document.publication = DocumentPublication::Salsa;
+        backend
+            .documents
+            .lock("sidecar publication overlap test")
+            .await
+            .insert(uri.clone(), document);
+        let index = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let source = Arc::clone(&documents.source);
+            let seed = seed.clone();
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, &source, "tcl8.6", 1, seed)
+                    .await
+                    .unwrap()
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend.workspace_index.try_read().is_ok() {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect(
+            "the active publisher must queue for the index while retaining its input read guard",
+        );
+        assert!(backend.analyser_inputs_gate.try_write().is_err());
+        let revision = backend.fresh_analysis_cache.lock().unwrap().revision();
+        let epoch = backend.diag_inputs_epoch();
+        documents.replace_sidecar();
+        let mut invalidating = Box::pin(backend.invalidate_sidecar_stubs());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(invalidating.as_mut().poll(&mut context).is_pending());
+        assert!(
+            backend
+                .fresh_analysis_cache
+                .lock()
+                .unwrap()
+                .is_current(&revision)
+        );
+        assert_eq!(backend.diag_inputs_epoch(), epoch);
+        drop(index);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        invalidating.await;
+        assert_ne!(backend.diag_inputs_epoch(), epoch);
+        assert!(
+            !backend
+                .fresh_analysis_cache
+                .lock()
+                .unwrap()
+                .is_current(&revision)
+        );
+        assert_eq!(backend.fresh_analysis_cache.lock().unwrap().len(), 0);
+        assert!(
+            backend
+                .publish_open_index_if_current(&uri, &documents.source, "tcl8.6", 1, seed)
+                .await
+                .unwrap()
+        );
+        assert_eq!(backend.fresh_analysis_cache.lock().unwrap().len(), 1);
+        let current = backend
+            .fresh_analysis_seed(&uri, Arc::clone(&documents.source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert_eq!(sidecar_names(&current.analysis), vec!["new_command"]);
+    }
+    #[test]
+    fn retained_semantic_query_workers_abstain_after_cancelled_sidecar_invalidation() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let documents = Documents::new();
+            let backend = crate::tests::test_backend();
+            documents.publish(&backend).await;
+            let uri = &documents.uris[0];
+            let old = backend.db_file_analysis_handle(uri).await.unwrap().await.unwrap().unwrap();
+            assert_eq!(sidecar_names(&old), vec!["old_command"]);
+            assert!(backend.db_compilation_unit_handle(uri).await.unwrap().await.unwrap().is_some());
+            assert!(backend.db_semantic_tokens(uri).await.unwrap().await.unwrap().is_some());
+            let (resume, receiver) = std::sync::mpsc::channel();
+            let entered = Arc::new(tokio::sync::Notify::new());
+            let blocker = crate::rt::spawn_blocking({
+                let entered = Arc::clone(&entered);
+                move || {
+                    entered.notify_one();
+                    receiver.recv_timeout(std::time::Duration::from_secs(60)).expect("release the blocking pool after invalidation");
+                }
+            });
+            crate::rt::timeout(std::time::Duration::from_secs(10), entered.notified()).await.expect("the blocking pool barrier must start");
+            let analysis = backend.db_file_analysis_handle(uri).await.unwrap();
+            let unit = backend.db_compilation_unit_handle(uri).await.unwrap();
+            let tokens = backend.db_semantic_tokens(uri).await.unwrap();
+            documents.replace_sidecar();
+            let database = backend.db.lock().await;
+            let revision = tcl_lsp_db::database_revision(&database);
+            let mut invalidating = Box::pin(backend.invalidate_sidecar_stubs());
+            let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+            assert!(invalidating.as_mut().poll(&mut context).is_pending());
+            drop(invalidating);
+            assert_eq!(tcl_lsp_db::database_revision(&database), revision);
+            drop(database);
+            resume.send(()).unwrap();
+            blocker.await.unwrap();
+            let abstained = [
+                analysis.await.unwrap().is_none(),
+                unit.await.unwrap().is_none(),
+                tokens.await.unwrap().is_none(),
+            ];
+            assert_eq!(abstained, [true; 3], "all real workers must reject their retained pre-clear snapshots without relying on Salsa cancellation");
+        });
+    }
+
+    #[tokio::test]
+    async fn semantic_query_handles_abstain_during_invalidation_and_resume_after_recovery() {
+        let documents = Documents::new();
+        let backend = crate::tests::test_backend();
+        documents.publish(&backend).await;
+        documents.replace_sidecar();
+        let database = backend.db.lock().await;
+        let mut invalidating = Box::pin(backend.invalidate_sidecar_stubs());
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(invalidating.as_mut().poll(&mut context).is_pending());
+        let mut analysis = Box::pin(backend.db_file_analysis_handle(&documents.uris[0]));
+        assert!(matches!(
+            analysis.as_mut().poll(&mut context),
+            std::task::Poll::Ready(None)
+        ));
+        let mut unit = Box::pin(backend.db_compilation_unit_handle(&documents.uris[0]));
+        assert!(matches!(
+            unit.as_mut().poll(&mut context),
+            std::task::Poll::Ready(None)
+        ));
+        let mut tokens = Box::pin(backend.db_semantic_tokens(&documents.uris[0]));
+        assert!(matches!(
+            tokens.as_mut().poll(&mut context),
+            std::task::Poll::Ready(None)
+        ));
+        drop(invalidating);
+        drop(database);
+        backend.invalidate_sidecar_stubs().await;
+        for uri in &documents.uris {
+            let analysis = backend
+                .db_file_analysis_handle(uri)
+                .await
+                .unwrap()
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(sidecar_names(&analysis), vec!["new_command"]);
+            assert!(
+                backend
+                    .db_compilation_unit_handle(uri)
+                    .await
+                    .unwrap()
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+            assert!(
+                backend
+                    .db_semantic_tokens(uri)
+                    .await
+                    .unwrap()
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+        }
     }
 }
