@@ -1575,3 +1575,48 @@ fn class_hover_does_not_borrow_a_stale_or_other_call_reference() {
     assert!(tcl_lsp_core::hover::hover(&stale, 2, 0, &analysis, None).is_none());
     assert!(tcl_lsp_core::type_hierarchy::prepare(&stale, 2, 0, &analysis).is_empty());
 }
+#[test]
+fn class_navigation_does_not_ignore_info_object_execution_trace() {
+    let source = concat!(
+        "namespace eval left {oo::class create C {}}\n",
+        "namespace eval right {oo::class create C {}}\n",
+        "proc observe {args} {\n",
+        "    trace remove execution ::oo::InfoObject::class enter ::observe\n",
+        "    rename ::right::C ::right::moved\n",
+        "}\n",
+        "trace add execution ::oo::InfoObject::class enter ::observe\n",
+        "namespace eval app {\n",
+        "    namespace path {::left ::right}\n",
+        "    set one [C new]\n",
+        "    puts [info object class $one]\n",
+        "    namespace path {::right ::left}\n",
+        "    set two [C new]\n",
+        "    puts [info object class $two]\n",
+        "}\n",
+    );
+    if let Some(oracle) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6) {
+        let result = tcl_test_support::run_script(&oracle.path, source.as_bytes())
+            .expect("execution trace oracle");
+        assert!(result.success(), "{:?}", result.stderr);
+        assert_eq!(result.stdout, b"::left::C\n::left::C\n");
+        let untraced = source.replace(
+            "trace add execution ::oo::InfoObject::class enter ::observe\n",
+            "# no execution trace\n",
+        );
+        let result = tcl_test_support::run_script(&oracle.path, untraced.as_bytes())
+            .expect("untraced oracle");
+        assert!(result.success(), "{:?}", result.stderr);
+        assert_eq!(result.stdout, b"::left::C\n::right::C\n");
+    }
+    let analysis = analyse(source);
+    let definitions = tcl_lsp_core::definition::definition(source, 12, 13, &analysis);
+    assert!(!ref_lines(&definitions).contains(&1));
+    if let Some(hover) = tcl_lsp_core::hover::hover(source, 12, 13, &analysis, None) {
+        assert!(!hover.value.contains("::right::C"), "{}", hover.value);
+    }
+    assert!(
+        tcl_lsp_core::type_hierarchy::prepare(source, 12, 13, &analysis)
+            .iter()
+            .all(|item| item.name != "::right::C")
+    );
+}
