@@ -70,7 +70,7 @@ pub fn select_shapes(
     }
 }
 
-/// C9 declines a direct private StringIs compiler before emitting any word
+/// C9 declines a direct private `StringIs` compiler before emitting any word
 /// when its class token requires runtime substitution. Public ensemble
 /// fallback has a different recipe and must not use this proof.
 pub(crate) fn private_dynamic_class_declines(

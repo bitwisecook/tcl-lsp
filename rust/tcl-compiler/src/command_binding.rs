@@ -6884,7 +6884,6 @@ fn boxed_source_outcomes() -> Box<SourceOutcomes> {
     Box::new(SourceOutcomes::default())
 }
 
-
 /// Construct the special empty result before returning to native body dispatch.
 #[inline(never)]
 fn join_source_procedure_noop(outcomes: &mut SourceOutcomes, incoming: &ModuleCommandBindings) {

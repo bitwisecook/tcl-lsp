@@ -24,7 +24,7 @@ pub enum NativeInstructionPlan {
     MathOperator(crate::native_mathop_compilation::NativeMathopInstruction),
     /// Original scalar operands followed by the selected native getter.
     Scalar(crate::native_scalar_compilation::NativeScalarInstruction),
-    /// C9 empty-key StringMap returns this original subject object unchanged.
+    /// C9 empty-key `StringMap` returns this original subject object unchanged.
     StringMapIdentity(crate::native_compiler_word_projection::NativeCompilerWordOperand),
     /// Original namespace/frame operands and actual selected native operation.
     Introspection(crate::native_introspection_compilation::NativeIntrospectionInstruction),

@@ -1322,18 +1322,7 @@ impl BodyWalk<'_, '_> {
     ) -> Option<()> {
         self.mark_child_header(native)?;
         self.retain_original_body_word_syntax(graph, native);
-        if let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body)
-            && matches!(self.context.policy, AdviceNamingPolicy::Logical(_))
-            && self.context.retain_original_body_constructor_calls(
-                tape,
-                graph,
-                &native.words,
-                (
-                    body,
-                    SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability,
-                ),
-            )
-        {
+        if self.retain_logical_body_constructor_calls(graph, native) {
             return Some(());
         }
         let class_handle = self.original_body_class_handle(graph, &native.words);
@@ -1435,6 +1424,27 @@ impl BodyWalk<'_, '_> {
         }
         self.finish_original_body_command(graph, native, invocation, &schema, depth)
     }
+
+    fn retain_logical_body_constructor_calls(
+        &mut self,
+        graph: &mut AdviceGraph,
+        native: &NativeScriptCommandWords,
+    ) -> bool {
+        let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body) else {
+            return false;
+        };
+        matches!(self.context.policy, AdviceNamingPolicy::Logical(_))
+            && self.context.retain_original_body_constructor_calls(
+                tape,
+                graph,
+                &native.words,
+                (
+                    body,
+                    SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability,
+                ),
+            )
+    }
+
     fn retain_original_body_word_syntax(
         &mut self,
         graph: &AdviceGraph,

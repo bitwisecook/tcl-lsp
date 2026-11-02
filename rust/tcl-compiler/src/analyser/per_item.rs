@@ -2213,7 +2213,10 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
         fix(ns);
     }
     // Original word/input receipts require the whole-source owner, not rebasing.
-    assert!(frag.private_ns_calls.is_empty());
+    assert_eq!(
+        frag.private_ns_calls,
+        [] as [super::diagnostics::PendingPrivateTclSourceAdvice; 0]
+    );
     for cand in &mut frag.pending_user_call_arity {
         fix(&mut cand.cmd_name);
     }
@@ -2252,15 +2255,24 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for (_, _, _, diag) in &mut frag.disabled_commands {
         rebase_diag(diag, d);
     }
-    assert!(frag.private_ns_calls.is_empty());
+    assert_eq!(
+        frag.private_ns_calls,
+        [] as [super::diagnostics::PendingPrivateTclSourceAdvice; 0]
+    );
     for cand in &mut frag.pending_user_call_arity {
         cand.call_off += d;
     }
-    assert!(frag.pending_ctor_arity.is_empty());
+    assert_eq!(
+        frag.pending_ctor_arity,
+        [] as [super::types::PendingCtorArity; 0]
+    );
     // The whole-source owner reconstructs retained lexical calls before grafting.
     // Their image, declaration and word receipts cannot acquire a new source by
     // shifting coordinates; fragment_needs_original_source_owner rejects them.
-    assert!(frag.pending_next_arity.is_empty());
+    assert_eq!(
+        frag.pending_next_arity,
+        [] as [super::types::PendingNextArity; 0]
+    );
     // Every dispatch site rebases through its own `rebase`, which owns the
     // full list of spans it carries.  Spelling the fields out here is what
     // let `method_span` go un-rebased on two of these three lists, so W308

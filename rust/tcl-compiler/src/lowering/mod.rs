@@ -2526,9 +2526,7 @@ impl<'r> Lowerer<'r> {
             0,
         );
 
-        let script = self.retain_script_source(script, source, 0);
-
-        script
+        self.retain_script_source(script, source, 0)
     }
 
     /// Lower a body argument (inside braces/brackets) to an IR script.
@@ -2665,9 +2663,7 @@ impl<'r> Lowerer<'r> {
             base_offset,
         );
 
-        let script = self.retain_script_source(script, text, base_offset);
-
-        script
+        self.retain_script_source(script, text, base_offset)
     }
 
     /// Retain only a failure agreed by every reached compilation entry.

@@ -433,9 +433,7 @@ fn selected_script_operands(
     } else {
         schema.authored_source_plain_script_arguments()
     };
-    let Some(scripts) = scripts else {
-        return None;
-    };
+    let scripts = scripts?;
     Some((roles, scripts))
 }
 

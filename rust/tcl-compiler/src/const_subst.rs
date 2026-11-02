@@ -434,7 +434,7 @@ impl<'a> ConstSubstCtx<'a> {
                     .and_then(|bytes| std::str::from_utf8(bytes).ok())
                     .map(str::to_owned)
                 };
-                let answer = match word {
+                match word {
                     crate::ir::WordExpr::Literal { .. }
                     | crate::ir::WordExpr::BracedLiteral { .. } => value(),
                     crate::ir::WordExpr::Template { parts, .. }
@@ -464,9 +464,7 @@ impl<'a> ConstSubstCtx<'a> {
                         self.fold_retained_at_depth(child, calls, depth + 1, context)
                     }
                     _ => None,
-                };
-
-                answer
+                }
             })
             .collect()
     }

@@ -2907,7 +2907,6 @@ impl CodegenCtx<'_> {
         instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
         operations: &mut Vec<NativeEmissionTask>,
     ) -> bool {
-        use NativeEmissionTask as Task;
         use tcl_registry::native_instruction_plan::NativeInstructionPlan;
         match instruction {
             selected @ (NativeInstructionPlan::Unset(_)
@@ -2922,23 +2921,99 @@ impl CodegenCtx<'_> {
             | NativeInstructionPlan::Control(_)
             | NativeInstructionPlan::Try(_)
             | NativeInstructionPlan::Switch(_)) => {
-                return self.replace_native_registered_sequence(command, selected, operations);
+                self.replace_native_registered_sequence(command, selected, operations)
             }
 
             NativeInstructionPlan::DictionaryMutation(recipe) => {
-                return self
-                    .append_native_dictionary_mutation_tasks(command, recipe, version, operations);
+                self.append_native_dictionary_mutation_tasks(command, recipe, version, operations)
             }
 
             NativeInstructionPlan::DictionaryLookup(recipe) => {
-                return Self::append_native_dictionary_tasks(command, recipe, operations);
+                Self::append_native_dictionary_tasks(command, recipe, operations)
             }
 
-            NativeInstructionPlan::NamedInvocation(_) => return false,
+            NativeInstructionPlan::NamedInvocation(_) => false,
             NativeInstructionPlan::Uplevel(recipe) => {
-                return Self::append_native_uplevel_tasks(command, &recipe, operations);
+                Self::append_native_uplevel_tasks(command, &recipe, operations)
             }
 
+            selected @ (NativeInstructionPlan::ClockRead(_)
+            | NativeInstructionPlan::Break
+            | NativeInstructionPlan::Continue
+            | NativeInstructionPlan::StringMapIdentity(_)) => {
+                Self::append_native_leaf_tasks(command, selected, operations)
+            }
+
+            NativeInstructionPlan::NamespaceBindings(recipe) => {
+                self.append_native_namespace_tasks(command, recipe, operations)
+            }
+            NativeInstructionPlan::NamespaceString(recipe) => {
+                self.append_native_namespace_string_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::StringTrim(recipe) => {
+                Self::append_native_string_trim_tasks(command, recipe, version, operations)
+            }
+            selected @ (NativeInstructionPlan::StringMatch(_)
+            | NativeInstructionPlan::Regexp(_)) => {
+                Self::append_native_matcher_tasks(command, selected, version, operations)
+            }
+            NativeInstructionPlan::Upvar(recipe) => {
+                Self::append_native_upvar_tasks(command, recipe, operations)
+            }
+            NativeInstructionPlan::InfoExists(recipe) => {
+                self.append_native_info_exists_tasks(command, recipe, operations)
+            }
+            NativeInstructionPlan::ListOperations(recipe) => {
+                self.append_native_list_operation_tasks(command, recipe, operations)
+            }
+            NativeInstructionPlan::ListIndex(recipe) => {
+                Self::append_native_list_index_tasks(command, recipe, operations)
+            }
+            NativeInstructionPlan::Array(recipe) => {
+                self.append_native_array_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::Introspection(recipe) => {
+                self.append_native_introspection_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::MathOperator(recipe) => {
+                Self::append_native_mathop_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::Scalar(recipe) => {
+                Self::append_native_scalar_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::StringRange(recipe) => {
+                Self::append_native_string_range_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::StringOperand(recipe) => {
+                Self::append_native_string_operand_tasks(command, recipe, version, operations)
+            }
+            NativeInstructionPlan::TclOoHelper(recipe) => {
+                Self::append_native_tcloo_tasks(command, version, recipe, operations)
+            }
+
+            NativeInstructionPlan::ReturnOptions(recipe) => {
+                Self::append_native_return_tasks(command, recipe, operations)
+            }
+            NativeInstructionPlan::List(recipe) => {
+                self.append_native_list_tasks(command, plan, version, recipe, operations)
+            }
+            selected @ (NativeInstructionPlan::Load { .. }
+            | NativeInstructionPlan::Store { .. }
+            | NativeInstructionPlan::Increment { .. }
+            | NativeInstructionPlan::Append { .. }) => {
+                self.append_native_variable_tasks(command, selected, operations)
+            }
+        }
+    }
+
+    fn append_native_leaf_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use NativeEmissionTask as Task;
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        match instruction {
             NativeInstructionPlan::ClockRead(which) => operations.push(Task::Operation(
                 Op::CLOCK_READ,
                 vec![Operand::Imm(i32::from(which))],
@@ -2947,78 +3022,13 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::Continue => {
                 operations.push(Task::Operation(Op::CONTINUE, vec![]));
             }
-
-            NativeInstructionPlan::NamespaceBindings(recipe) => {
-                return self.append_native_namespace_tasks(command, recipe, operations);
-            }
-            NativeInstructionPlan::NamespaceString(recipe) => {
-                return self
-                    .append_native_namespace_string_tasks(command, recipe, version, operations);
-            }
-            NativeInstructionPlan::StringTrim(recipe) => {
-                return Self::append_native_string_trim_tasks(command, recipe, version, operations);
-            }
-            selected @ (NativeInstructionPlan::StringMatch(_)
-            | NativeInstructionPlan::Regexp(_)) => {
-                return Self::append_native_matcher_tasks(command, selected, version, operations);
-            }
-            NativeInstructionPlan::Upvar(recipe) => {
-                return Self::append_native_upvar_tasks(command, recipe, operations);
-            }
-            NativeInstructionPlan::InfoExists(recipe) => {
-                return self.append_native_info_exists_tasks(command, recipe, operations);
-            }
-            NativeInstructionPlan::ListOperations(recipe) => {
-                return self.append_native_list_operation_tasks(command, recipe, operations);
-            }
-            NativeInstructionPlan::ListIndex(recipe) => {
-                return Self::append_native_list_index_tasks(command, recipe, operations);
-            }
-            NativeInstructionPlan::Array(recipe) => {
-                return self.append_native_array_tasks(command, recipe, version, operations);
-            }
-            NativeInstructionPlan::Introspection(recipe) => {
-                return self
-                    .append_native_introspection_tasks(command, recipe, version, operations);
-            }
-            NativeInstructionPlan::MathOperator(recipe) => {
-                return Self::append_native_mathop_tasks(command, recipe, version, operations);
-            }
-            NativeInstructionPlan::Scalar(recipe) => {
-                return Self::append_native_scalar_tasks(command, recipe, version, operations);
-            }
             NativeInstructionPlan::StringMapIdentity(operand) => {
                 let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
                     return false;
                 };
                 operations.push(task);
             }
-            NativeInstructionPlan::StringRange(recipe) => {
-                return Self::append_native_string_range_tasks(
-                    command, recipe, version, operations,
-                );
-            }
-            NativeInstructionPlan::StringOperand(recipe) => {
-                return Self::append_native_string_operand_tasks(
-                    command, recipe, version, operations,
-                );
-            }
-            NativeInstructionPlan::TclOoHelper(recipe) => {
-                return Self::append_native_tcloo_tasks(command, version, recipe, operations);
-            }
-
-            NativeInstructionPlan::ReturnOptions(recipe) => {
-                return Self::append_native_return_tasks(command, recipe, operations);
-            }
-            NativeInstructionPlan::List(recipe) => {
-                return self.append_native_list_tasks(command, plan, version, recipe, operations);
-            }
-            selected @ (NativeInstructionPlan::Load { .. }
-            | NativeInstructionPlan::Store { .. }
-            | NativeInstructionPlan::Increment { .. }
-            | NativeInstructionPlan::Append { .. }) => {
-                return self.append_native_variable_tasks(command, selected, operations);
-            }
+            _ => return false,
         }
         true
     }

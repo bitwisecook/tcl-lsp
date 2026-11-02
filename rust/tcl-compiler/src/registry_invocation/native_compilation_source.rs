@@ -215,12 +215,7 @@ impl OriginalSourceCommandProjection {
                 tcl_lexer::SourceSegmentationPurpose::NestedScript,
             ),
         };
-        let mut parsed = match parsed {
-            Ok(parsed) => parsed,
-            Err(_) => {
-                return None;
-            }
-        };
+        let mut parsed = parsed.ok()?;
         if parsed.fatal_tail.is_some() || parsed.commands.len() != 1 {
             return None;
         }
@@ -237,13 +232,11 @@ impl OriginalSourceCommandProjection {
         // cannot borrow the compiler capabilities of the source it replaced.
         let original =
             SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
             &original,
             offset,
             config.nested(),
-        ) else {
-            return None;
-        };
+        )?;
         let [segment] = segments.as_slice() else {
             return None;
         };

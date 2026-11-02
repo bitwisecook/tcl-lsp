@@ -2086,12 +2086,7 @@ impl NativeCompilationSpec {
             }
             NativeCompilationGrammar::StringEqual(_) => count == 2,
             NativeCompilationGrammar::StringIsAscii(scope) => {
-                let from = operand_from
-                    + usize::from(
-                        scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
-                    );
-                words.original_words().len().checked_sub(from) == Some(2)
-                    && words.literal(from) == Some(b"ascii")
+                string_is_ascii_preserves_names(words, operand_from, scope)
             }
             NativeCompilationGrammar::StringLength(_)
             | NativeCompilationGrammar::ListLength
@@ -5302,6 +5297,17 @@ fn namespace_which_preserves_names(
         words.literal(operand_from),
         version,
     ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
+}
+
+fn string_is_ascii_preserves_names(
+    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: crate::native_scalar_compilation::NativeScalarScope,
+) -> bool {
+    let from = operand_from
+        + usize::from(scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember);
+    words.original_words().len().checked_sub(from) == Some(2)
+        && words.literal(from) == Some(b"ascii")
 }
 
 fn info_commands_preserves_names(
