@@ -252,7 +252,7 @@ fn extend_loop_list_candidates(
         let Some(policy) = receipt
             .words
             .dialect()
-            .and_then(|d| d.authored_name_policy())
+            .and_then(tcl_registry::InvocationDialect::authored_name_policy)
         else {
             continue;
         };
