@@ -6,9 +6,9 @@ Updated 3 November 2026. Work is active. Root owns publication and the [current 
 | --- | --- | --- |
 | root | Scope, review/adoption, truthful state, pushes and CI | Final gates, complete E2E/host/performance/packaging, reduced release PR |
 | cache | Factory census/live receipts; retained closed-index recovery | V2 pre-mutation/currency checks and tests; Pending/Unavailable, durable retry and reader/publisher integration |
-| optimiser_release (replacement for review) | O101 optimiser settings propagation | Preserve source-point and factory issuance; current/stale/foreign settings and actual quick-fix tests |
+| optimiser_final (capacity replacement) | O101 optimiser settings propagation | Preserve source-point and factory issuance; current/stale/foreign settings and actual quick-fix tests |
 | integration | Current-source LSP validation; incomplete-expression completion | Root trace-negative rerun, nested-entry proof, procedure candidates, actual E2E |
-| lsp_failures | Bounded expression-operator actions | Fresh Compiler/Core harnesses and action/refusal tests; variable/nonempty-body cases still unsupported |
+| root (lsp_failures capacity error) | Bounded expression-operator actions | Fresh Compiler/Core harnesses and action/refusal tests; variable/nonempty-body cases still unsupported |
 | compiler | Proof remediation and class-factory prerequisite cause | Current-source producer repair and five broader factory tests; remaining proof classes |
 | source_link | Independent reviews of these drafts | Findings closed in exact source and executed tests before adoption |
 
