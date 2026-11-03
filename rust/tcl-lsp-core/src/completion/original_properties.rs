@@ -257,6 +257,39 @@ mod tests {
         );
     }
 
+    fn assert_foreign_property_context_is_terminal(
+        source: &str,
+        analysis: &AnalysisResult,
+        selector: &SignatureSourceNameInput,
+    ) {
+        let mut mixed = analysis.clone();
+        mixed.original_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.1")
+            .original_class_metadata;
+        let foreign_root = mixed.original_class_declarations().next().unwrap();
+        assert!(
+            foreign_root
+                .metadata()
+                .original_properties
+                .declarations()
+                .next()
+                .is_some()
+        );
+        assert!(
+            candidate_items(
+                source,
+                &mixed,
+                foreign_root,
+                selector,
+                (0, 0),
+                (0, 1),
+                (None, "")
+            )
+            .expect("foreign property context must remain terminal")
+            .is_empty()
+        );
+    }
+
     #[test]
     fn original_property_options_keep_opaque_names_and_selected_read_write_roles() {
         let source = r"oo::configurable create C {property p\uD800 -kind readable p\uD801 -kind writable shared}";
@@ -332,32 +365,7 @@ mod tests {
         .unwrap();
         assert_eq!(read.len(), 2, "{read:?}");
         assert_eq!(write.len(), 2, "{write:?}");
-        let mut mixed = analysis.clone();
-        mixed.original_class_metadata = Analyser::new()
-            .analyse(source, "tcl9.1")
-            .original_class_metadata;
-        let foreign_root = mixed.original_class_declarations().next().unwrap();
-        assert!(
-            foreign_root
-                .metadata()
-                .original_properties
-                .declarations()
-                .next()
-                .is_some()
-        );
-        assert!(
-            candidate_items(
-                source,
-                &mixed,
-                foreign_root,
-                &selector,
-                (0, 0),
-                (0, 1),
-                (None, "")
-            )
-            .expect("foreign property context must remain terminal")
-            .is_empty()
-        );
+        assert_foreign_property_context_is_terminal(source, &analysis, &selector);
         let option_bytes =
             |item: &CompletionItem| original_property_option_bytes(item, config, policy);
         let read_bytes: Vec<_> = read.iter().map(option_bytes).collect();
