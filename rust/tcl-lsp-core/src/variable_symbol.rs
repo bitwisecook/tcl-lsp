@@ -61,7 +61,10 @@ impl<V> VariableSymbolMap<V> {
 }
 
 mod rename;
-pub use rename::original_variable_rename_edits;
+pub use rename::{
+    ConditionalVariableRenameEdits, conditional_variable_rename_edits,
+    original_variable_rename_edits,
+};
 
 /// Select an authentic current-source variable occurrence. A retained but
 /// unavailable original operand is definitive and blocks display-name lookup.

@@ -61,6 +61,7 @@ mod input;
 mod interp_visibility;
 pub mod irules_event_checks;
 pub mod item_tree;
+pub mod logical_variable_alpha;
 #[cfg(test)]
 mod name_producer_tests;
 pub mod oo;

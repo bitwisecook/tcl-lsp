@@ -10185,6 +10185,7 @@ pub struct BackendState {
     /// Snapshot of [`client_supports_relative_watch_patterns`], read by
     /// [`Backend::refresh_external_pack_watchers`] long after `initialize`.
     client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool,
+    conditional_variable_rename_supported: std::sync::atomic::AtomicBool,
     /// The one-time explanation shown when a document resolves to a tool
     /// environment (Vivado, Quartus, …), with the state that keeps it to once
     /// per environment per session and never again after a dismissal. Shared
@@ -11637,6 +11638,7 @@ impl Backend {
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool::new(false),
+            conditional_variable_rename_supported: std::sync::atomic::AtomicBool::new(false),
             environment_notice: initial.environment_notice,
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
@@ -17121,6 +17123,7 @@ impl Backend {
             db_config: _,
             client_supports_pull_diagnostics: _,
             client_supports_relative_watch_patterns: _,
+            conditional_variable_rename_supported: _,
             environment_notice: _,
             class_factory_generation: _,
             semantic_tokens_refresh_pending: _,
@@ -33061,6 +33064,10 @@ impl LanguageServer for Backend {
             client_supports_relative_watch_patterns(&params),
             std::sync::atomic::Ordering::Relaxed,
         );
+        self.conditional_variable_rename_supported.store(
+            client_supports_conditional_rename(&params),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         self.environment_notice.set_client_capabilities(
             client_supports_message_action_items(&params),
             client_supports_show_document(&params),
@@ -36045,6 +36052,8 @@ impl LanguageServer for Backend {
         &self,
         params: TextDocumentPositionParams,
     ) -> jsonrpc::Result<Option<PrepareRenameResponse>> {
+        let conditional_uri = params.text_document.uri.clone();
+        let conditional_uri_generation = self.live_publication_uri_generation(&conditional_uri);
         if !self
             .feature_enabled("rename", &params.text_document.uri)
             .await
@@ -36098,6 +36107,55 @@ impl LanguageServer for Backend {
                 placeholder: p.placeholder,
             }));
         }
+        if self
+            .conditional_variable_rename_supported
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            if doc.version.is_some() {
+                let source_plan = self.capture_workspace_source_plan().await;
+                let Some(inputs) = self.file_rename_input_snapshot().await else {
+                    return Ok(None);
+                };
+                let seed = self
+                    .fresh_analysis_seed(&uri, doc.text.clone(), doc.dialect.clone())
+                    .await?;
+                let text = doc.text.clone();
+                let worker_analysis = seed.analysis.clone();
+                let prepared = crate::rt::spawn_blocking(move || {
+                    core_rename::prepare_conditional_variable_rename(
+                        &text,
+                        pos.line,
+                        pos.character,
+                        &worker_analysis,
+                    )
+                })
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("conditional prepare worker panicked: {err}").into(),
+                    data: None,
+                })?;
+                if let Some(prepared) = prepared {
+                    if !self.workspace_source_plan_is_current(source_plan).await {
+                        return Ok(None);
+                    }
+                    let response = PrepareRenameResponse::RangeWithPlaceholder {
+                        range: lift_lsp_range(prepared.range),
+                        placeholder: prepared.placeholder,
+                    };
+                    return Ok(self
+                        .publish_conditional_if_current(
+                            &uri,
+                            &doc,
+                            &seed,
+                            &inputs,
+                            conditional_uri_generation,
+                            response,
+                        )
+                        .await);
+                }
+            }
+        }
         if Self::original_namespace_cursor_retained(&doc.text, &analysis, pos)
             || tcl_lsp_core::variable_symbol::select(&doc.text, &analysis, pos.line, pos.character)
                 .is_break()
@@ -36131,6 +36189,8 @@ impl LanguageServer for Backend {
     }
 
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        let conditional_uri = params.text_document_position.text_document.uri.clone();
+        let conditional_uri_generation = self.live_publication_uri_generation(&conditional_uri);
         if !self
             .feature_enabled("rename", &params.text_document_position.text_document.uri)
             .await
@@ -36162,6 +36222,76 @@ impl LanguageServer for Backend {
         // exact token fail at publication.
         self.refresh_source_rehoming().await?;
         let mut source_plan = self.capture_workspace_source_plan().await;
+        if self
+            .conditional_variable_rename_supported
+            .load(std::sync::atomic::Ordering::Relaxed)
+            && analysis.resolved_input.as_ref().is_some_and(
+                tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+            )
+            && let std::ops::ControlFlow::Break(Some(selected)) =
+                tcl_lsp_core::variable_symbol::select(&doc.text, &analysis, pos.line, pos.character)
+            && !analysis.original_variable_rename_is_complete(selected.symbol())
+        {
+            let Some(version) = doc.version else {
+                return Ok(None);
+            };
+            let Some(inputs) = self.file_rename_input_snapshot().await else {
+                return Ok(None);
+            };
+            let seed = self
+                .fresh_analysis_seed(&uri, doc.text.clone(), doc.dialect.clone())
+                .await?;
+            let text = doc.text.clone();
+            let worker_analysis = seed.analysis.clone();
+            let worker_name = new_name.clone();
+            let proposed = crate::rt::spawn_blocking(move || {
+                core_rename::conditional_variable_rename_with_diagnosis(
+                    &text,
+                    pos.line,
+                    pos.character,
+                    &worker_name,
+                    &worker_analysis,
+                )
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("conditional rename worker panicked: {err}").into(),
+                data: None,
+            })?;
+            let proposal = match proposed {
+                Ok(proposal) if !proposal.edits.is_empty() => proposal,
+                _ => return Ok(None),
+            };
+            if !self.workspace_source_plan_is_current(source_plan).await {
+                return Ok(None);
+            }
+            let raw_source = doc.raw_text.as_deref().unwrap_or(doc.text.as_ref());
+            let Some(edit) = coalesce_conditional_variable_edits(
+                raw_source,
+                &doc.text,
+                &proposal.generated_source,
+                &doc.line_index,
+                &proposal.edits,
+            ) else {
+                return Ok(None);
+            };
+            let Some(response) =
+                annotated_conditional_variable_edit(uri.clone(), version, vec![edit])
+            else {
+                return Ok(None);
+            };
+            return Ok(self
+                .publish_conditional_if_current(
+                    &uri,
+                    &doc,
+                    &seed,
+                    &inputs,
+                    conditional_uri_generation,
+                    response,
+                )
+                .await);
+        }
         // The gated tiers, before any ordinary edit is built: the `TclOO`
         // member safety gate and the workspace namespace-variable rename.
         if let std::ops::ControlFlow::Break(result) = self
@@ -49394,6 +49524,7 @@ info exists ::N::v\uD800";
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool::new(false),
+            conditional_variable_rename_supported: std::sync::atomic::AtomicBool::new(false),
             environment_notice: Arc::new(environment_notice::EnvironmentNotice::in_memory()),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
@@ -70699,3 +70830,554 @@ mod closed_scan_input_custody {
 
 #[cfg(test)]
 mod file_rename_publication_custody;
+
+fn client_supports_conditional_rename(params: &InitializeParams) -> bool {
+    let Some(edit) = params
+        .capabilities
+        .workspace
+        .as_ref()
+        .and_then(|w| w.workspace_edit.as_ref())
+    else {
+        return false;
+    };
+    edit.document_changes == Some(true)
+        && edit.change_annotation_support.is_some()
+        && params
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|d| d.rename.as_ref())
+            .is_some_and(|rename| rename.honors_change_annotations == Some(true))
+}
+
+fn annotated_conditional_variable_edit(
+    uri: Uri,
+    version: i32,
+    edits: Vec<TextEdit>,
+) -> Option<WorkspaceEdit> {
+    if edits.is_empty() {
+        return None;
+    }
+    let id = "conditional-variable-source-alpha".to_owned();
+    let changes = tower_lsp_server::ls_types::TextDocumentEdit {
+        text_document: tower_lsp_server::ls_types::OptionalVersionedTextDocumentIdentifier {
+            uri,
+            version: Some(version),
+        },
+        edits: edits
+            .into_iter()
+            .map(|text_edit| {
+                tower_lsp_server::ls_types::OneOf::Right(
+                    tower_lsp_server::ls_types::AnnotatedTextEdit {
+                        text_edit,
+                        annotation_id: id.clone(),
+                    },
+                )
+            })
+            .collect(),
+    };
+    let mut annotations = std::collections::HashMap::new();
+    annotations.insert(id, tower_lsp_server::ls_types::ChangeAnnotation {
+        label: "Conditional rename in this document".to_owned(),
+        needs_confirmation: Some(true),
+        description: Some("Uses authored command roles in this document. Other files, runtime bindings, callbacks and traces are not verified.".to_owned()),
+    });
+    Some(WorkspaceEdit {
+        changes: None,
+        document_changes: Some(tower_lsp_server::ls_types::DocumentChanges::Edits(vec![
+            changes,
+        ])),
+        change_annotations: Some(annotations),
+    })
+}
+
+#[cfg(test)]
+mod conditional_rename_annotation_tests {
+    use super::*;
+    #[tokio::test]
+    async fn conditional_rename_requires_client_confirmation_and_preserves_version() {
+        let backend = super::tests::test_backend();
+        let uri: Uri = "file:///conditional-variable.tcl".parse().unwrap();
+        let source = "set {x} 1\nputs ${x}\n";
+        let admission =
+            Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
+        backend.documents.lock("conditional_test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(source.to_owned(), "tcl".to_owned(), 7)
+                .with_path_admission(Arc::clone(&admission)),
+        );
+        let position = TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            position: Position::new(1, 7),
+        };
+        let params = RenameParams {
+            text_document_position: position.clone(),
+            new_name: "new".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        assert!(
+            backend
+                .prepare_rename(position.clone())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(backend.rename(params.clone()).await.unwrap().is_none());
+        backend
+            .conditional_variable_rename_supported
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        assert!(backend.prepare_rename(position).await.unwrap().is_some());
+        let edit = backend
+            .rename(params)
+            .await
+            .unwrap()
+            .expect("conditional edit");
+        let json = serde_json::to_value(edit).unwrap();
+        assert_eq!(json["documentChanges"][0]["textDocument"]["version"], 7);
+        assert_eq!(
+            json["changeAnnotations"]["conditional-variable-source-alpha"]["needsConfirmation"],
+            true
+        );
+    }
+    #[tokio::test]
+    async fn conditional_publication_rechecks_document_and_input_ownership() {
+        let backend = super::tests::test_backend();
+        let uri: Uri = "file:///conditional-currency.tcl".parse().unwrap();
+        let source = "set {x} 1\nputs ${x}\n";
+        let admission =
+            Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
+        backend.documents.lock("conditional_test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(source.to_owned(), "tcl".to_owned(), 7)
+                .with_path_admission(Arc::clone(&admission)),
+        );
+        let uri_generation = backend.live_publication_uri_generation(&uri);
+        let doc = backend.read_document(&uri).await.unwrap().unwrap();
+        let seed = backend
+            .fresh_analysis_seed(&uri, doc.text.clone(), doc.dialect.clone())
+            .await
+            .unwrap();
+        let inputs = backend
+            .file_rename_input_snapshot()
+            .await
+            .expect("published source input");
+        assert_eq!(
+            backend
+                .publish_conditional_if_current(&uri, &doc, &seed, &inputs, uri_generation, 7)
+                .await,
+            Some(7)
+        );
+        backend.documents.lock("conditional_test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(source.to_owned() + " ", "tcl".to_owned(), 8)
+                .with_path_admission(Arc::clone(&admission)),
+        );
+        assert_eq!(
+            backend
+                .publish_conditional_if_current(&uri, &doc, &seed, &inputs, uri_generation, 7)
+                .await,
+            None
+        );
+        backend.documents.lock("conditional_test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(source.to_owned(), "tcl".to_owned(), 7)
+                .with_path_admission(Arc::clone(&admission)),
+        );
+        backend.invalidate_live_publication([&uri]);
+        assert_eq!(
+            backend
+                .publish_conditional_if_current(&uri, &doc, &seed, &inputs, uri_generation, 7)
+                .await,
+            None
+        );
+        let reopened_generation = backend.live_publication_uri_generation(&uri);
+        assert_eq!(
+            backend
+                .publish_conditional_if_current(&uri, &doc, &seed, &inputs, reopened_generation, 7)
+                .await,
+            Some(7)
+        );
+        backend.invalidate_diag_inputs();
+        assert_eq!(
+            backend
+                .publish_conditional_if_current(&uri, &doc, &seed, &inputs, reopened_generation, 7)
+                .await,
+            None
+        );
+    }
+    #[tokio::test]
+    async fn conditional_publication_checks_raw_source_not_only_normalised_text() {
+        let backend = super::tests::test_backend();
+        let uri: Uri = "file:///conditional-line-endings.tcl".parse().unwrap();
+        let raw = "set {x} 1\rputs ${x}\r";
+        let admission =
+            Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
+        backend.documents.lock("conditional_test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(raw.to_owned(), "tcl".to_owned(), 7)
+                .with_path_admission(Arc::clone(&admission)),
+        );
+        let generation = backend.live_publication_uri_generation(&uri);
+        let doc = backend.read_document(&uri).await.unwrap().unwrap();
+        let seed = backend
+            .fresh_analysis_seed(&uri, doc.text.clone(), doc.dialect.clone())
+            .await
+            .unwrap();
+        let inputs = backend
+            .file_rename_input_snapshot()
+            .await
+            .expect("published source input");
+        backend.documents.lock("conditional_test").await.insert(
+            uri.clone(),
+            DocumentState::with_version("set {x} 1\nputs ${x}\n".to_owned(), "tcl".to_owned(), 7)
+                .with_path_admission(admission),
+        );
+        assert_eq!(
+            backend
+                .publish_conditional_if_current(&uri, &doc, &seed, &inputs, generation, 7)
+                .await,
+            None
+        );
+    }
+    #[tokio::test]
+    async fn conditional_publication_refuses_input_or_sidecar_change_while_queued() {
+        for change_sidecar in [false, true] {
+            let backend = super::tests::test_backend();
+            let uri: Uri = "file:///conditional-queued.tcl".parse().unwrap();
+            let source = "set {x} 1\nputs ${x}\n";
+            let admission =
+                Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
+            backend.documents.lock("conditional_test").await.insert(
+                uri.clone(),
+                DocumentState::with_version(source.to_owned(), "tcl".to_owned(), 7)
+                    .with_path_admission(admission),
+            );
+            let uri_generation = backend.live_publication_uri_generation(&uri);
+            let doc = backend.read_document(&uri).await.unwrap().unwrap();
+            let seed = backend
+                .fresh_analysis_seed(&uri, doc.text.clone(), doc.dialect.clone())
+                .await
+                .unwrap();
+            let inputs = backend
+                .file_rename_input_snapshot()
+                .await
+                .expect("published source input");
+            let gate = backend.analyser_inputs_gate.write().await;
+            let pending = backend.publish_conditional_if_current(
+                &uri,
+                &doc,
+                &seed,
+                &inputs,
+                uri_generation,
+                7,
+            );
+            tokio::pin!(pending);
+            tokio::select! { biased; result = &mut pending => panic!("unexpected publication: {result:?}"), () = crate::rt::yield_now() => {} }
+            if change_sidecar {
+                backend
+                    .fresh_analysis_cache
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clear();
+            } else {
+                backend.invalidate_diag_inputs();
+            }
+            drop(gate);
+            assert_eq!(pending.await, None);
+        }
+    }
+    #[test]
+    fn annotations_require_all_three_client_capabilities() {
+        let mut params = InitializeParams::default();
+        assert!(!client_supports_conditional_rename(&params));
+        params.capabilities = serde_json::from_value(serde_json::json!({
+            "workspace": {"workspaceEdit": {"documentChanges": true, "changeAnnotationSupport": {}}},
+            "textDocument": {"rename": {"honorsChangeAnnotations": true}}
+        })).unwrap();
+        assert!(client_supports_conditional_rename(&params));
+        params
+            .capabilities
+            .text_document
+            .as_mut()
+            .unwrap()
+            .rename
+            .as_mut()
+            .unwrap()
+            .honors_change_annotations = Some(false);
+        assert!(!client_supports_conditional_rename(&params));
+    }
+    #[test]
+    fn conditional_preview_coalesces_all_changes_and_preserves_original_bytes() {
+        let source = "set x 1\r\nputs $x\r\n";
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let edits = vec![
+            core_rename::TextEdit {
+                range: core_definition::LspRange {
+                    start_line: 0,
+                    start_character: 4,
+                    end_line: 0,
+                    end_character: 5,
+                },
+                new_text: "new".to_owned(),
+            },
+            core_rename::TextEdit {
+                range: core_definition::LspRange {
+                    start_line: 1,
+                    start_character: 6,
+                    end_line: 1,
+                    end_character: 7,
+                },
+                new_text: "new".to_owned(),
+            },
+        ];
+        let combined = coalesce_conditional_variable_edits(
+            source,
+            source,
+            "set new 1\r\nputs $new\r\n",
+            &index,
+            &edits,
+        )
+        .unwrap();
+        assert_eq!(combined.new_text, "new 1\r\nputs $new");
+        assert_eq!(
+            combined.range,
+            Range::new(Position::new(0, 4), Position::new(1, 7))
+        );
+        assert!(
+            coalesce_conditional_variable_edits(
+                source,
+                source,
+                "set new 1\r\nputs $new\r\n",
+                &index,
+                &[edits[0].clone(), edits[0].clone()]
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_preview_preserves_unicode_coordinates() {
+        let unicode = "😀x\n$x";
+        let index = tcl_lexer::LineIndex::new_lsp(unicode);
+        let edits = vec![
+            core_rename::TextEdit {
+                range: core_definition::LspRange {
+                    start_line: 0,
+                    start_character: 2,
+                    end_line: 0,
+                    end_character: 3,
+                },
+                new_text: "new".to_owned(),
+            },
+            core_rename::TextEdit {
+                range: core_definition::LspRange {
+                    start_line: 1,
+                    start_character: 1,
+                    end_line: 1,
+                    end_character: 2,
+                },
+                new_text: "new".to_owned(),
+            },
+        ];
+        assert_eq!(
+            coalesce_conditional_variable_edits(unicode, unicode, "😀new\n$new", &index, &edits)
+                .unwrap()
+                .new_text,
+            "new\n$new"
+        );
+    }
+
+    #[test]
+    fn conditional_preview_preserves_bom_and_lone_cr() {
+        let raw = "\u{feff}set x 1\rputs $x\r";
+        let normalised = "\u{feff}set x 1\nputs $x\n";
+        let index = tcl_lexer::LineIndex::new_lsp(raw);
+        let edits = vec![
+            core_rename::TextEdit {
+                range: core_definition::LspRange {
+                    start_line: 0,
+                    start_character: 5,
+                    end_line: 0,
+                    end_character: 6,
+                },
+                new_text: "new".to_owned(),
+            },
+            core_rename::TextEdit {
+                range: core_definition::LspRange {
+                    start_line: 1,
+                    start_character: 6,
+                    end_line: 1,
+                    end_character: 7,
+                },
+                new_text: "new".to_owned(),
+            },
+        ];
+        let combined = coalesce_conditional_variable_edits(
+            raw,
+            normalised,
+            "\u{feff}set new 1\nputs $new\n",
+            &index,
+            &edits,
+        )
+        .unwrap();
+        assert_eq!(combined.new_text, "new 1\rputs $new");
+        assert!(
+            coalesce_conditional_variable_edits(raw, "stale", "stale", &index, &edits).is_none()
+        );
+    }
+    #[test]
+    fn conditional_edit_is_versioned_and_requires_confirmation() {
+        let uri: Uri = "file:///tmp/conditional.tcl".parse().unwrap();
+        let edit = annotated_conditional_variable_edit(
+            uri,
+            7,
+            vec![TextEdit::new(Range::default(), "new".to_owned())],
+        )
+        .unwrap();
+        let json = serde_json::to_value(edit).unwrap();
+        assert_eq!(json["documentChanges"][0]["textDocument"]["version"], 7);
+        assert_eq!(
+            json["documentChanges"][0]["edits"][0]["annotationId"],
+            "conditional-variable-source-alpha"
+        );
+        assert_eq!(
+            json["changeAnnotations"]["conditional-variable-source-alpha"]["needsConfirmation"],
+            true
+        );
+    }
+}
+
+impl Backend {
+    async fn publish_conditional_if_current<T: Clone>(
+        &self,
+        uri: &Uri,
+        document: &DocumentState,
+        seed: &FreshAnalysisSeed,
+        inputs: &FileRenameInputSnapshot,
+        uri_generation: u64,
+        response: T,
+    ) -> Option<T> {
+        if seed.analyser_inputs_epoch != inputs.analyser_inputs_epoch
+            || seed.class_factory_generation != inputs.class_factory_generation
+        {
+            return None;
+        }
+        let site = "conditional_variable_source_currency";
+        loop {
+            let guards = match self.try_file_rename_publication_guards(inputs, site) {
+                Ok(Some(guards)) => guards,
+                Ok(None) => return None,
+                Err(wait) => {
+                    self.wait_for_file_rename_publication(wait, site).await;
+                    continue;
+                }
+            };
+            let Some(current) = guards.documents.get(uri) else {
+                return None;
+            };
+            let current = current.clone().normalised_for_analysis();
+            if current.backing_file_deleted
+                || current.version != document.version
+                || current.revision != document.revision
+                || current.text != document.text
+                || current.raw_text != document.raw_text
+                || current.dialect != document.dialect
+            {
+                return None;
+            }
+            let original_admission = document.path_admission.as_ref()?;
+            let live_admission = current.path_admission.as_ref()?;
+            if !Arc::ptr_eq(original_admission, live_admission)
+                || !Arc::ptr_eq(original_admission, &seed.path_admission)
+            {
+                return None;
+            }
+            original_admission.check_uri(uri).ok()?;
+            let generations = self
+                .live_publication_uri_generations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if generations.get(uri).copied().unwrap_or_default() != uri_generation {
+                return None;
+            }
+            return DocumentPathAdmission::with_current(
+                &[original_admission.as_ref(), seed.path_admission.as_ref()],
+                self.store.as_ref(),
+                || response.clone(),
+            )
+            .ok();
+        }
+    }
+}
+
+/// Preserve all intervening original source in one versioned text edit.
+fn coalesce_conditional_variable_edits(
+    source: &str,
+    analysis_source: &str,
+    certified_after: &str,
+    index: &tcl_lexer::LineIndex,
+    edits: &[core_rename::TextEdit],
+) -> Option<TextEdit> {
+    if tcl_lexer::normalise_lone_cr(source).as_ref() != analysis_source {
+        return None;
+    }
+    let mut ranges = Vec::new();
+    for edit in edits {
+        let range = edit.range;
+        let start = index.offset_at_utf16(
+            range.start_line,
+            tcl_lexer::Utf16Col::new(range.start_character),
+            source,
+        );
+        let end = index.offset_at_utf16(
+            range.end_line,
+            tcl_lexer::Utf16Col::new(range.end_character),
+            source,
+        );
+        let actual_start = index.position_at_utf16(start, source);
+        let actual_end = index.position_at_utf16(end, source);
+        if (actual_start.line, actual_start.character.get())
+            != (range.start_line, range.start_character)
+            || (actual_end.line, actual_end.character.get())
+                != (range.end_line, range.end_character)
+            || start >= end
+            || source.get(start as usize..end as usize).is_none()
+        {
+            return None;
+        }
+        ranges.push((start, end, edit));
+    }
+    ranges.sort_by_key(|(start, end, _)| (*start, *end));
+    if ranges.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+        return None;
+    }
+    let first = ranges.first()?;
+    let last = ranges.last()?;
+    let mut replacement = source.get(first.0 as usize..last.1 as usize)?.to_owned();
+    for (start, end, edit) in ranges.iter().rev() {
+        let begin = usize::try_from(start.checked_sub(first.0)?).ok()?;
+        let finish = usize::try_from(end.checked_sub(first.0)?).ok()?;
+        replacement.replace_range(begin..finish, &edit.new_text);
+    }
+    let mut expected = analysis_source.to_owned();
+    for (start, end, edit) in ranges.iter().rev() {
+        if expected.get(*start as usize..*end as usize).is_none() {
+            return None;
+        }
+        expected.replace_range(*start as usize..*end as usize, &edit.new_text);
+    }
+    let mut materialised = source.to_owned();
+    materialised.replace_range(first.0 as usize..last.1 as usize, &replacement);
+    if expected != certified_after
+        || tcl_lexer::normalise_lone_cr(&materialised).as_ref() != certified_after
+    {
+        return None;
+    }
+    Some(TextEdit {
+        range: Range::new(
+            Position::new(first.2.range.start_line, first.2.range.start_character),
+            Position::new(last.2.range.end_line, last.2.range.end_character),
+        ),
+        new_text: replacement,
+    })
+}

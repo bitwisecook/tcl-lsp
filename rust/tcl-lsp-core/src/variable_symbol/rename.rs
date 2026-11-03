@@ -27,6 +27,52 @@ pub fn original_variable_rename_edits(
     symbol: &SignatureSourceVariableSymbol,
     new_tail: &str,
 ) -> Result<Vec<TextEdit>, RenameRefusal> {
+    original_variable_rename_edits_impl(source, analysis, symbol, new_tail, false)
+        .map(|output| output.edits)
+}
+
+/// Conditional source edits and the exact regenerated source they were checked against.
+pub struct ConditionalVariableRenameEdits {
+    /// The individually authenticated written-name changes.
+    pub edits: Vec<TextEdit>,
+    /// The complete generated source retained by the conditional intent.
+    pub generated_source: String,
+}
+
+struct VariableRenameOutput {
+    edits: Vec<TextEdit>,
+    generated_source: Option<String>,
+}
+
+/// Conditional source-only edit proposal. The host must surface the runtime
+/// obligations before offering these edits to the user.
+///
+/// # Errors
+/// Refuses incomplete source coverage, collisions, unsupported inputs or a
+/// generated source that cannot be authenticated.
+pub fn conditional_variable_rename_edits(
+    source: &str,
+    analysis: &AnalysisResult,
+    symbol: &SignatureSourceVariableSymbol,
+    new_tail: &str,
+) -> Result<ConditionalVariableRenameEdits, RenameRefusal> {
+    let output = original_variable_rename_edits_impl(source, analysis, symbol, new_tail, true)?;
+    Ok(ConditionalVariableRenameEdits {
+        edits: output.edits,
+        generated_source: output.generated_source.ok_or_else(|| RenameRefusal {
+            reason: "conditional generated source is unavailable".to_owned(),
+            range: None,
+        })?,
+    })
+}
+
+fn original_variable_rename_edits_impl(
+    source: &str,
+    analysis: &AnalysisResult,
+    symbol: &SignatureSourceVariableSymbol,
+    new_tail: &str,
+    conditional: bool,
+) -> Result<VariableRenameOutput, RenameRefusal> {
     let refuse = |reason: &str| RenameRefusal {
         reason: reason.to_owned(),
         range: None,
@@ -49,7 +95,16 @@ pub fn original_variable_rename_edits(
     let proposed = symbol
         .renamed(&tail)
         .ok_or_else(|| refuse("the replacement must remain one unqualified variable root"))?;
-    if !analysis.original_variable_rename_is_complete(symbol) {
+    if conditional
+        && !analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        )
+    {
+        return Err(refuse(
+            "conditional source rename requires the original Logical source input",
+        ));
+    }
+    if !conditional && !analysis.original_variable_rename_is_complete(symbol) {
         return Err(refuse(
             "cannot account for every original variable name, alias target and read in this document",
         ));
@@ -107,22 +162,26 @@ pub fn original_variable_rename_edits(
     edits.sort_by_key(|edit| (edit.span().start(), edit.span().end()));
     edits.dedup();
     require_disjoint_variable_edits(&edits)?;
-    let edits = if analysis
+    let (edits, generated_source) = if analysis
         .resolved_input
         .as_ref()
         .is_some_and(tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
     {
-        LogicalVariableSourceRenameIntent::capture(source, analysis, symbol, &tail, edits)
+        LogicalVariableSourceRenameIntent::capture(source, analysis, symbol, &tail, edits, conditional)
             .and_then(|intent| intent.into_edits(source, analysis))
+            .map(|(edits, after)| (edits, Some(after)))
             .ok_or_else(|| refuse("the generated rename does not preserve its complete original source occurrence, alias, scope and formal topology"))?
     } else {
-        edits
+        (edits, None)
     };
     let index = LineIndex::new(source);
-    Ok(edits
-        .into_iter()
-        .map(|edit| variable_name_text_edit(source, &index, &edit))
-        .collect())
+    Ok(VariableRenameOutput {
+        edits: edits
+            .into_iter()
+            .map(|edit| variable_name_text_edit(source, &index, &edit))
+            .collect(),
+        generated_source,
+    })
 }
 
 fn require_disjoint_variable_edits(
@@ -291,6 +350,7 @@ impl LogicalVariableSourceRenameIntent {
         symbol: &SignatureSourceVariableSymbol,
         tail: &[u8],
         edits: Vec<crate::original_name_edit::OriginalNameSourceEdit>,
+        conditional: bool,
     ) -> Option<Self> {
         crate::original_context::CurrentSourceContext::capture(source, analysis)?;
         let input = analysis.resolved_input.as_ref()?;
@@ -354,9 +414,32 @@ impl LogicalVariableSourceRenameIntent {
             }
         }
         let selected_after = groups.get(symbol)?;
-        generated
-            .original_variable_rename_is_complete(selected_after)
-            .then_some(())?;
+        if conditional {
+            let alpha_edits = edits
+                .iter()
+                .map(
+                    |edit| tcl_compiler::analyser::logical_variable_alpha::ConditionalNameEdit {
+                        span: edit.span(),
+                        replacement: edit.text().as_bytes(),
+                    },
+                )
+                .collect::<Vec<_>>();
+            let certificate =
+                tcl_compiler::analyser::logical_variable_alpha::conditional_source_plan_correspondence(
+                    tcl_compiler::analyser::logical_variable_alpha::ConditionalSourcePlanRequest {
+                        before_source: source, before_analysis: analysis, before_symbol: symbol,
+                        after_source: &after, after_analysis: &generated, after_symbol: selected_after,
+                        edits: &alpha_edits,
+                    },
+                )?;
+            certificate
+                .matches(source, &after, input, symbol, selected_after, &alpha_edits)
+                .then_some(())?;
+        } else {
+            generated
+                .original_variable_rename_is_complete(selected_after)
+                .then_some(())?;
+        }
         // A formal renamed to or from the reserved rest name must not silently
         // change positional/default/rest topology while its token still parses.
         let image = SourceImage::document(source);
@@ -397,7 +480,10 @@ impl LogicalVariableSourceRenameIntent {
         self,
         source: &str,
         analysis: &AnalysisResult,
-    ) -> Option<Vec<crate::original_name_edit::OriginalNameSourceEdit>> {
+    ) -> Option<(
+        Vec<crate::original_name_edit::OriginalNameSourceEdit>,
+        String,
+    )> {
         (self.image == SourceImage::document(source)
             && analysis.resolved_input.as_ref() == Some(&self.input)
             && analysis.original_variable_symbols == self.original
@@ -405,7 +491,7 @@ impl LogicalVariableSourceRenameIntent {
             && self.generated.resolved_input.as_ref() == Some(&self.input)
             && crate::original_context::CurrentSourceContext::capture(&self.after, &self.generated)
                 .is_some())
-        .then_some(self.edits)
+        .then_some((self.edits, self.after))
     }
 }
 
@@ -722,7 +808,8 @@ mod afterimage_source_intent_tests {
                 &analysis,
                 occurrence.symbol(),
                 b"OTHER",
-                edits
+                edits,
+                false,
             )
             .is_none()
         );

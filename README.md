@@ -698,6 +698,15 @@ greeting "World"
 # Rename 'greeting' → 'salute' updates the proc definition and all call sites
 ```
 
+For simple variables in a Logical source analysis, a compatible editor can
+also offer a confirmation preview for a conditional rename of written
+occurrences in the current document. This preview uses the authored command
+roles; it does not verify runtime command bindings, traces, callbacks, computed
+names, or references in other files. The proposal is withheld when the source
+cannot be checked within that scope. Editors must support versioned edits and
+honour rename change annotations for this preview; otherwise this conditional
+proposal is unavailable.
+
 A command name held in a variable follows the rename through its
 *defining constant* — the literal is rewritten, never the `$cmd` head —
 so the dispatch keeps working, and both arms of a conditional assignment

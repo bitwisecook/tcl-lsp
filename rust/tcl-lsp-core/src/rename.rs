@@ -5920,3 +5920,142 @@ mod typed_namespace_variable_rename_tests {
         );
     }
 }
+/// Plan a conditional, single-document source alpha rename. The caller must
+/// present the separate source-only conditions before accepting the edit.
+///
+/// # Errors
+/// Refuses when the source, selected occurrence or proposed name cannot support
+/// a conditional source-only proposal.
+pub fn conditional_variable_rename_with_diagnosis(
+    source: &str,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+) -> Result<
+    crate::variable_symbol::ConditionalVariableRenameEdits,
+    crate::rename_safety::RenameRefusal,
+> {
+    let refuse = |reason: &str| crate::rename_safety::RenameRefusal {
+        reason: reason.to_owned(),
+        range: None,
+    };
+    crate::original_context::CurrentSourceContext::capture(source, analysis)
+        .ok_or_else(|| refuse("source analysis does not match the current document and input"))?;
+    if !is_safe_symbol_name(new_name) {
+        return Err(refuse("the replacement is not a safe variable name"));
+    }
+    let index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    if crate::namespace_symbol::select_at_offset(source, analysis, cursor).is_break() {
+        return Err(refuse("the selected occurrence is not a variable"));
+    }
+    if let Some(refusal) = crate::rename_safety::literal_name_variable_rename_refusal(
+        source, line, character, analysis, &index,
+    ) {
+        return Err(refusal);
+    }
+    let std::ops::ControlFlow::Break(Some(occurrence)) =
+        crate::variable_symbol::select(source, analysis, line, character)
+    else {
+        return Err(refuse("cannot prove the original source variable"));
+    };
+    if let Some(refusal) = class_variable_rename_refusal(source, analysis, occurrence, &index) {
+        return Err(refusal);
+    }
+    // Keep the complete Native route authoritative when it is available.
+    if analysis.original_variable_rename_is_complete(occurrence.symbol()) {
+        return Err(refuse("the normal rename route owns this variable"));
+    }
+    crate::variable_symbol::conditional_variable_rename_edits(
+        source,
+        analysis,
+        occurrence.symbol(),
+        new_name,
+    )
+}
+
+/// Prepare only when a complete conditional proposal can be formed. The real
+/// name still requires a fresh certificate in the rename request.
+#[must_use]
+pub fn prepare_conditional_variable_rename(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<PrepareRename> {
+    let std::ops::ControlFlow::Break(Some(occurrence)) =
+        crate::variable_symbol::select(source, analysis, line, character)
+    else {
+        return None;
+    };
+    let mut admitted = false;
+    for candidate in ["__tcl_lsp_source_alpha_1", "__tcl_lsp_source_alpha_2"] {
+        if conditional_variable_rename_with_diagnosis(source, line, character, candidate, analysis)
+            .is_ok_and(|proposal| !proposal.edits.is_empty())
+        {
+            admitted = true;
+            break;
+        }
+    }
+    if !admitted {
+        return None;
+    }
+    let span = occurrence.rename_span()?;
+    Some(PrepareRename {
+        range: span_to_range(source, &LineIndex::new(source), span),
+        placeholder: source.get(span.as_range())?.to_owned(),
+    })
+}
+
+#[cfg(test)]
+mod conditional_source_alpha_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    fn analyse(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+    #[test]
+    fn conditional_source_alpha_proposes_two_edits_without_native_permission() {
+        let source = "set {x} 1\nputs ${x}\n";
+        let analysis = analyse(source);
+        assert!(prepare_rename(source, 1, 7, &analysis).is_none());
+        assert!(prepare_conditional_variable_rename(source, 1, 7, &analysis).is_some());
+        let edits =
+            conditional_variable_rename_with_diagnosis(source, 1, 7, "new", &analysis).unwrap();
+        assert_eq!(edits.edits.len(), 2);
+        assert_eq!(edits.generated_source, "set {new} 1\nputs ${new}\n");
+        assert!(
+            conditional_variable_rename_with_diagnosis(
+                &(source.to_owned() + " "),
+                1,
+                7,
+                "new",
+                &analysis
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn conditional_source_alpha_refuses_trace_and_string_name_uses() {
+        for source in [
+            "trace add variable x write callback\nset x 1\nputs $x\n",
+            "set x 1\nputs $x\nlist x\n",
+        ] {
+            let analysis = analyse(source);
+            let line = if source.starts_with("trace") { 2 } else { 1 };
+            assert!(
+                conditional_variable_rename_with_diagnosis(source, line, 6, "new", &analysis)
+                    .is_err(),
+                "{source}"
+            );
+        }
+    }
+}
