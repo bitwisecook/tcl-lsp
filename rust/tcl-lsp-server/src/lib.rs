@@ -71088,6 +71088,7 @@ fn annotated_conditional_variable_edit(
 #[cfg(test)]
 mod conditional_rename_annotation_tests {
     use super::*;
+    use tower_lsp_server::ls_types::{TextDocumentIdentifier, WorkDoneProgressParams};
     #[tokio::test]
     async fn conditional_rename_requires_client_confirmation_and_preserves_version() {
         let backend = super::tests::test_backend();
