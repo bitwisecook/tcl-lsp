@@ -76,6 +76,14 @@ factory attempt remains distinct from visible constructor syntax. Logical
 advice and Native source names retain their separate purposes; neither issues
 a Native constructor entry, runtime class identity or successful result.
 
+A same-source class-factory declaration can carry source-transition advice into
+definition-body and relation metadata. A relation provider retains the full
+parent advice, including registered-factory applicability obligations, and
+accepts it only when it matches the schema advice or the factory advice issued
+for the same original class declaration. This conditional source metadata does
+not establish normal completion; statement and procedure completion use their
+own selected-invocation and procedure-body owners.
+
 SpecTcl and Studio share the shipped `tcloo-abstract` grammar name, preserving
 these defaults when a selected command descriptor is imported or rendered.
 Custom definers must describe their actual manufactured-class visibility in

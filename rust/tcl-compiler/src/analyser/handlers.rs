@@ -338,10 +338,27 @@ fn original_class_definition_body_in_analysis(
     token: Token,
     grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
 ) -> Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>> {
-    let words = crate::registry_invocation::source_structure::source_registry_words_at(
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    let original = crate::registry_invocation::source_structure::source_registry_words_at(
         source, analysis, offset,
-    )?;
-    let context = analysis.resolved_input.as_ref()?.context_registry();
+    );
+    let words = match original {
+        Some(words)
+            if matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(_)) => words,
+        original => crate::registry_invocation::source_structure::source_class_declaration_at(
+            source, analysis, offset,
+        )
+        .and_then(|declaration| {
+            crate::registry_invocation::source_structure::source_transition_words_from_advice(
+                source,
+                input.lexer_config(),
+                &context,
+                declaration.factory().clone(),
+            )
+        })
+        .or(original)?,
+    };
     (words.with_source_schema(&context, |schema| {
         schema
             .authored_source_definition_body_grammar()
@@ -8704,9 +8721,6 @@ impl Analyser {
                     if registry.get(seg.name()).is_some() {
                         return None;
                     }
-                    if self.known_factory_invocation_falls_through(qname, &seg) {
-                        continue;
-                    }
                     if self.static_user_proc_call_falls_through(qname, &seg, depth + 1, stack)? {
                         continue;
                     }
@@ -8720,33 +8734,6 @@ impl Analyser {
             }
         }
         Some(true)
-    }
-
-    fn known_factory_invocation_falls_through(&self, caller: &str, seg: &SegmentedCommand) -> bool {
-        if crate::naming::is_dynamic_word(seg.name()) {
-            return false;
-        }
-        let (namespace, _) = crate::naming::key_holder_and_tail(caller);
-        let candidates = crate::naming::bareword_resolution_candidates(namespace, seg.name());
-        let Some(factory) =
-            self.static_summary_factory_for_candidates(&candidates, seg.arg_tokens())
-        else {
-            return false;
-        };
-        let Some(method) = seg.args().first() else {
-            return false;
-        };
-        if !factory.exported_manufacturers.contains(method) {
-            return false;
-        }
-        let Some(grammar) = self.definition_grammar(&factory.root_metaclass) else {
-            return false;
-        };
-        let Some(manufacturer) = grammar.manufacturer(method) else {
-            return false;
-        };
-        manufacturer_layout(&factory, manufacturer, seg.args(), None)
-            .is_some_and(|layout| layout.name_arg < seg.args().len())
     }
 
     fn static_statement_falls_through(&mut self, seg: &SegmentedCommand, depth: u32) -> bool {
@@ -8763,9 +8750,6 @@ impl Analyser {
             tcl_registry::registry::InvocationCompletion::Unknown
                 if registry.get(seg.name()).is_none() =>
             {
-                if self.known_factory_invocation_falls_through("", seg) {
-                    return true;
-                }
                 return self
                     .static_user_proc_call_falls_through("", seg, depth + 1, &mut Vec::new())
                     .unwrap_or(false);
@@ -10881,27 +10865,6 @@ impl Analyser {
             self.foreign_factory_at_call(foreign, arg_tokens)?,
             request.original_words().iter().skip(1).cloned().collect(),
         ))
-    }
-
-    /// Factory metadata used by static-body result summaries.
-    fn static_summary_factory_for_candidates(
-        &self,
-        candidates: &[String],
-        arg_tokens: &[Token],
-    ) -> Option<ClassFactory> {
-        // This file first: a locally-written metaclass shadows a workspace one
-        // under the same name, exactly as a local proc shadows a workspace
-        // proc for command resolution.
-        for candidate in candidates {
-            if let Some(class) = self.result.all_classes.get(candidate) {
-                return class.factory.clone();
-            }
-        }
-        let index = self.workspace_class_factories.as_ref()?;
-        let foreign = candidates
-            .iter()
-            .find_map(|candidate| index.get(candidate))?;
-        self.foreign_factory_at_call(foreign, arg_tokens)
     }
 
     fn foreign_factory_at_call(
@@ -21233,6 +21196,186 @@ mod direct_original_class_body_tests {
                     analysis.all_procs.len()
                 )
             );
+        }
+    }
+    #[test]
+    fn source_factory_parents_keep_their_real_issuers_and_refuse_foreign_inputs() {
+        let source = "oo::class create ::Meta {superclass ::oo::class}";
+        for dialect in ["tcl", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let declaration =
+                crate::registry_invocation::source_structure::source_class_declaration_at(
+                    source, &analysis, 0,
+                )
+                .unwrap();
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let grammar = declaration.grammar(&context).unwrap();
+            let original = declaration.factory().original_words();
+            let token = *original.last().unwrap().tokens().first().unwrap();
+            let name_token = *declaration
+                .name_input()
+                .original_word()
+                .unwrap()
+                .tokens()
+                .first()
+                .unwrap();
+            let body =
+                original_class_definition_body_in_analysis(source, &analysis, 0, token, grammar)
+                    .unwrap();
+            assert!(matches!(body.source_words().source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(_)));
+            assert_eq!(body.original_container(), original.last().unwrap());
+            assert!(
+                analysis.class_factories().contains_key("::Meta"),
+                "{dialect}"
+            );
+            let class = &analysis.all_classes["::Meta"];
+            let providers = class
+                .original_relations
+                .effects()
+                .flat_map(|effect| effect.values().into_iter().flatten())
+                .filter_map(|relation| relation.source_provider())
+                .collect::<Vec<_>>();
+            assert_eq!(providers.len(), 1);
+            assert!(providers[0].matches_analysis(&analysis));
+            assert!(providers[0].matches_class_definition(class));
+            assert!(providers[0].registry_descriptor(&context).is_some());
+            assert_body_query_refusals(source, &analysis, 0, token, name_token, grammar);
+            let mut absent = analysis.clone();
+            absent.resolved_input = None;
+            assert!(
+                original_class_definition_body_in_analysis(source, &absent, 0, token, grammar)
+                    .is_none()
+            );
+            let mut config = analysis.clone();
+            config.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+            assert!(
+                original_class_definition_body_in_analysis(source, &config, 0, token, grammar)
+                    .is_none()
+            );
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Analyser::new()
+                .analyse(
+                    source,
+                    if dialect == "tcl9.0" {
+                        "tcl8.6"
+                    } else {
+                        "tcl9.0"
+                    },
+                )
+                .resolved_input;
+            assert!(
+                original_class_definition_body_in_analysis(source, &foreign, 0, token, grammar)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn source_factory_layout_cannot_supply_statement_or_proc_completion() {
+        use tcl_registry::registry::InvocationCompletion;
+        let meta = "oo::class create ::Meta {superclass ::oo::class}";
+        for dialect in ["tcl", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for middle in [
+                "",
+                "proc stop args {exit 0}; trace add execution ::Meta enter ::stop; ",
+                "exit 0; ",
+            ] {
+                let prefix =
+                    format!("{meta}; proc wrapper {{}} {{::Meta create ::Other {{}}}}; {middle}");
+                let source = format!("{prefix}::Meta create ::Made {{}}");
+                let mut analyser = Analyser::new();
+                analyser.analyse_and_retain_result_for_test(&source, dialect);
+                assert!(analyser.result.class_factories().contains_key("::Meta"));
+                let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                    &source,
+                    0,
+                    analyser.file_lexer_config(),
+                );
+                let command = commands
+                    .iter()
+                    .find(|command| command.span.start() == u32::try_from(prefix.len()).unwrap())
+                    .unwrap();
+                assert_eq!(
+                    analyser.segment_invocation_completion(command),
+                    InvocationCompletion::Unknown
+                );
+                assert!(
+                    !analyser.static_statement_falls_through(command, 0),
+                    "{dialect}/{middle}"
+                );
+                let body = analyser.result.all_procs["::wrapper"].body_span;
+                assert_ne!(
+                    analyser.static_proc_body_falls_through("::wrapper", body, 0, &mut Vec::new()),
+                    Some(true),
+                    "{dialect}/{middle}"
+                );
+            }
+            for (source, expected, falls) in [
+                ("list a b", InvocationCompletion::FallsThrough, true),
+                ("exit 0", InvocationCompletion::Terminates, false),
+            ] {
+                let mut analyser = Analyser::new();
+                analyser.analyse_and_retain_result_for_test(source, dialect);
+                let command = crate::segmenter::segment_commands_with_offset_and_config(
+                    source,
+                    0,
+                    analyser.file_lexer_config(),
+                )
+                .pop()
+                .unwrap();
+                assert_eq!(analyser.segment_invocation_completion(&command), expected);
+                assert_eq!(analyser.static_statement_falls_through(&command, 0), falls);
+            }
+        }
+    }
+    #[test]
+    fn source_factory_observers_retain_applicability_and_shadows_refuse_metadata() {
+        use crate::command_binding::SourceCommandTransitionObligation;
+        use crate::registry_invocation::source_structure::OriginalRegistrySource;
+        let shadowed = "proc oo::class args {}; oo::class create ::Meta {superclass ::oo::class}";
+        let traced = "proc observer args {rename ::oo::class ::held; proc ::oo::class args {}}; trace add execution ::oo::class enter ::observer; oo::class create ::Meta {superclass ::oo::class}";
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(
+                Analyser::new()
+                    .analyse(shadowed, dialect)
+                    .class_factories()
+                    .is_empty()
+            );
+            let analysis = Analyser::new().analyse(traced, dialect);
+            let offset = u32::try_from(traced.rfind("oo::class create").unwrap()).unwrap();
+            let declaration =
+                crate::registry_invocation::source_structure::source_class_declaration_at(
+                    traced, &analysis, offset,
+                )
+                .unwrap();
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let token = *declaration
+                .factory()
+                .original_words()
+                .last()
+                .unwrap()
+                .tokens()
+                .first()
+                .unwrap();
+            let body = original_class_definition_body_in_analysis(
+                traced,
+                &analysis,
+                offset,
+                token,
+                declaration.grammar(&context).unwrap(),
+            )
+            .unwrap();
+            let OriginalRegistrySource::SourceTransitions(advice) = body.source_words().source()
+            else {
+                panic!("actual source transition parent");
+            };
+            for obligation in [
+                SourceCommandTransitionObligation::UnavailableActualLookup,
+                SourceCommandTransitionObligation::RegisteredFactoryApplicability,
+            ] {
+                assert!(advice.obligations().contains(&obligation));
+            }
         }
     }
 }

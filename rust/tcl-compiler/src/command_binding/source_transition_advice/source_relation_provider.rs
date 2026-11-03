@@ -304,9 +304,16 @@ impl AdviceInvocationContext<'_> {
         }
         let receipt = (|| {
             let current = self.schema_advice(invocation, graph, schema)?;
-            if current != *query.request.parent
-                || !graph.uncertain_operations.is_empty()
+            if !graph.uncertain_operations.is_empty()
                 || !super::body_effects::original_operand_effects(invocation.native).is_empty()
+            {
+                return None;
+            }
+            let receiver = self.source_class_declaration(graph, invocation, schema);
+            if current != *query.request.parent
+                && receiver.as_ref().is_none_or(|declaration| {
+                    declaration.factory() != query.request.parent.as_ref()
+                })
             {
                 return None;
             }
@@ -348,7 +355,7 @@ impl AdviceInvocationContext<'_> {
                 lookup: query.request.lookup.clone(),
                 slot,
                 provider,
-                receiver: self.source_class_declaration(graph, invocation, schema),
+                receiver,
             })
         })();
         query.reply.borrow_mut().retain(receipt);
