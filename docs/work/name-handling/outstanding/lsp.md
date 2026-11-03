@@ -1,5 +1,8 @@
 # Outstanding work: lsp agent
 
+> Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
+
+
 ## Stopped — 31 October 08:18 UTC
 
 No role or queued job remains active. The unreviewed candidate and its controls are preserved in `2d626291`; a genuine duplicate-actual refusal and full release validation remain open.

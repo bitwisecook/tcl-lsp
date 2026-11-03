@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**USER PAUSED (2026-10-27T20:38:21.853504+00:00).** No implementation, builds, dispatches or reminders until a new resume instruction. Read [the authoritative current checkpoint](pause-handoff-20261027.md) before older instructions below. No PR is open; source cleanup44/51 and all final gates remain outstanding.
+**ACTIVE — 3 November 2026.** The user has resumed work and requires the LSP and its transitive dependencies to be release-ready; separate VM/BIG-IP feature work is deferred. `work` checkpoint `5ab3de41f` has been pushed with approval. No PR or release exists. [Current state](current-state.md) supersedes the dated plan observations below; old cleanup counts are not a current recount. All unexecuted or failed required gates remain open.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an

@@ -1,5 +1,8 @@
 # Outstanding work: compiler-names agent
 
+> Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
+
+
 ## Stopped — 31 October 08:18 UTC
 
 Root terminated the surviving long-running Arc stack selector and queued observed selector on user stop; neither has a final result. The Arc experiment is preserved unreviewed in `2d626291`, and its completion selector remains 4 PASS / 2 FAIL. Stack budget and performance remain open.

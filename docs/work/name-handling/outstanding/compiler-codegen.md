@@ -1,5 +1,8 @@
 # Outstanding work: compiler-codegen agent
 
+> Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
+
+
 ## Stopped — 31 October 08:18 UTC
 
 The queued isolated O123 diagnostic was stopped before it acquired the lock; inspect the isolated checkout and evidence before resuming. `3139e140` withholds O121/O122 pending proof; conflicting tests and O123 remain open.

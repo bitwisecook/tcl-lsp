@@ -1,5 +1,8 @@
 # Outstanding work: perf agent
 
+> Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
+
+
 ## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
 
 USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.

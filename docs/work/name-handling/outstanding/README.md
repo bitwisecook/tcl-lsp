@@ -1,23 +1,17 @@
-# Outstanding work by agent
+# Outstanding LSP release work
 
-**RESUMED 2026-10-27T21:05Z.** Five roles running; root is sole Git publisher/dispatcher. Each file's top Resume overlay is replaced by its role as it reports. Source cleanup 44/51 and all final gates remain outstanding; no PR.
+Updated 3 November 2026. Work is active. Root owns publication and the [current snapshot](../current-state.md); local role drafts are not integrated or validated unless the snapshot says so. Older role notes below are historical handoffs rather than current running/stopped status.
 
-One file per implementation agent, each maintained by that agent. Each lists what the agent considers it must still complete, what it is doing now, what is blocked and on whom, and what it finished since its last update with evidence. They are agent-reported, not validation: validated results live in [../current-state.md](../current-state.md).
-
-| Agent | Area | File |
+| Current role | Active responsibility | Main open acceptance |
 | --- | --- | --- |
-| lsp | tcl-lsp-core/db/server, hosts | [lsp.md](lsp.md) |
-| compiler | Lowering, C6, iRules realm, itcl/snit, OO | [compiler.md](compiler.md) |
-| compiler-names | Name lookup in command_binding and the analyser | [compiler-names.md](compiler-names.md) |
-| compiler-codegen | Compile service, codegen, pack native rows | [compiler-codegen.md](compiler-codegen.md) |
-| vm-runtime | SpecTcl execution and acceptance | [vm-runtime.md](vm-runtime.md) |
-| bigip-lsp | BIG-IP/F5 LSP units and editors — moved on 2026-10-22 to a separate session started by the user; pushes to `work` directly | [bigip-lsp.md](bigip-lsp.md) |
-| perf | Analysis and pack-load cost — moved on 2026-10-22 to a separate session started by the user; pushes to `work` directly | [perf.md](perf.md) |
-| review-triage | External review replay — moved on 2026-10-22 to a separate session started by the user; pushes to `work` directly | [review-triage.md](review-triage.md) |
-| coordinator | Routing, snapshots, status, release gate | [coordinator.md](coordinator.md) |
+| root | Scope, review/adoption, truthful state, pushes and CI | Final gates, complete E2E/host/performance/packaging, reduced release PR |
+| cache | Factory census/live receipts; retained closed-index recovery | V2 pre-mutation/currency checks and tests; Pending/Unavailable, durable retry and reader/publisher integration |
+| review | O101 optimiser settings propagation | Preserve source-point and factory issuance; current/stale/foreign settings and actual quick-fix tests |
+| integration | Current-source LSP validation; incomplete-expression completion | Root trace-negative rerun, nested-entry proof, procedure candidates, actual E2E |
+| lsp_failures | Bounded expression-operator actions | Fresh Compiler/Core harnesses and action/refusal tests; variable/nonempty-body cases still unsupported |
+| compiler | Proof remediation and class-factory prerequisite cause | Current-source producer repair and five broader factory tests; remaining proof classes |
+| source_link | Independent reviews of these drafts | Findings closed in exact source and executed tests before adoption |
 
-Each file ends with a `## Resume` section (where to pick up, exact commands, where evidence is stored in the repo) so the work survives a restart.
+Separate VM/BIG-IP feature work is deferred by the latest user scope. No current external-agent activity is inferred from October notes. User approved uploading `work`; checkpoint `5ab3de41f` was pushed successfully. No PR/release exists and required gates remain open.
 
-Rules: an agent edits only its own file; it updates it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes; the coordinator's 30-minute WIP snapshot commits and pushes every file here, and checks that each active agent's "Last updated" is no older than an hour.
-
-Agent notes that refer to `scratchpad/<dir>/...` paths: read the copies in [`../scratchpad-mirror/`](../scratchpad-mirror/README.md).
+Historical role handoffs remain in [lsp.md](lsp.md), [compiler.md](compiler.md), [compiler-names.md](compiler-names.md), [compiler-codegen.md](compiler-codegen.md), [vm-runtime.md](vm-runtime.md), [bigip-lsp.md](bigip-lsp.md), [perf.md](perf.md), [review-triage.md](review-triage.md) and [coordinator.md](coordinator.md). Those notes retain their own dates/evidence and do not certify current results. Agent reports, local `/tmp` paths and proposed fixes must be checked against the current snapshot and preserved receipts.

@@ -1,5 +1,8 @@
 # Outstanding work: compiler agent
 
+> Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
+
+
 ## Stopped — 31 October 08:18 UTC
 
 No role or queued job remains active. Unreviewed compiler work and its evidence are preserved in `2d626291`; method extraction, taint and class ownership blockers remain open.

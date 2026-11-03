@@ -1,5 +1,8 @@
 # Outstanding work: coordinator
 
+> Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
+
+
 ## Stopped — 31 October 16:33 UTC
 
 Automatic approval review rejected the requested-input cache commit because `lib.rs` still contains an existing indexed-location trace diagnostic, conflicting with the probe-free WIP rule; do not bypass. Requested-input V3 plus reviewed cache-local sidecar custody remain uncommitted in two server files. Eight requested-input exact controls passed; open-seed factory prerequisite failed identically before/after. Sidecar genuine-worker and correctly selected cancelled/overlap controls passed 1/1 each; earlier wrong selector ran zero tests. Already-returned seed and published DB sidecar intervals remain open. All probes removed, executables deleted, no active jobs/roles/reminder. O122 exact factorial limited Tcl evidence and all release gates as current-state. Local commits unpushed; no CI, release carry or PR. Seek user decision on rejected commit.

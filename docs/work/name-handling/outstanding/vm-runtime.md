@@ -1,5 +1,8 @@
 # Outstanding work: vm-runtime agent
 
+> Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
+
+
 ## Stopped — 31 October 08:18 UTC
 
 No role or queued job remains active. The completed 2/2 C8.4 float sample remains valid, but its queued executable cleanup was stopped. VM deletion WIP and failing controls are preserved unreviewed in `2d626291`.
