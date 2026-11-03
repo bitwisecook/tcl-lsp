@@ -1,16 +1,17 @@
 # Outstanding LSP release work
 
-Updated 03 November 2026, 23:29 UTC. Work is active. Root owns publication and the [current snapshot](../current-state.md). Historical role handoffs do not certify current execution or ownership.
+Updated 03 November 2026, 23:32 UTC. Work is active. The [current snapshot](../current-state.md) records exact sources, receipts and limits; historical handoffs do not certify current execution.
 
-| Current owner | Work | Open acceptance |
-| --- | --- | --- |
-| root | Review/adoption, shared current-source builds, truthful state, five-minute fetch/push, CI | Current Core30/31, hover8/8, prefilter3/3 and native hover15/15 pass; ordinary Logical rename remains refused. Current Core/Registry all-target lint passes. Complete E2E, hosts, performance, packaging and required gates remain open. |
-| integration_resume (Sol 6.1) | Typed special-variable source-reference hover; nested SpecTcl Unicode routing; real protocol acceptance | Current Core hover8/8 and native stdio15/15 pass; browser/WASI/editor acceptance remains open. |
-| logical_rename_resume (Terra 6.1) | Actual Logical uncertainty diagnosis and bounded authored-source correspondence | Execution-complete rename remains refused. Conditional source edits require their own proof and truthful user-facing contract. |
-| factory_resume (Terra 6.1) | Genuine project header census and foreign factory body-owner transport | Preserve empty-map blockers, distinct document identities, exact currentness and stable repeated sync without oracle feedback. Scratch implementation unvalidated. |
-| compiler_resume (Sol 6.1) | SpecTcl declared Evaluate seam and source-only value consumers | Corrected declared-Evaluate fixtures pass10/10 in their scoped cohort. Current merged full compatibility, execution store and LSP computed-value advice are not accepted. |
-| proof_release_resume (Sol 6.1) | Reviewed implementation-evidence remediation | No accepted reduced release profile; immutable appliance and census obligations remain. Mixed failing Core pin batch stays held. |
+| Current owner | Work and open acceptance |
+| --- | --- |
+| Root | Controlled current-source builds and integration, state, five-minute fetch/push, required gates, E2E, browser/WASI/editor, proof and packaging. Earlier scoped Core30/31, native hover15/15 and Registry15/15 passes remain their original cohorts. New combined changes are not yet executed. |
+| integration_continue (Sol 6.1) | Independent conditional/factory/autoload/opaque-authoring review. Actual editor-host acceptance remains open. |
+| logical_continue (Terra 6.1) | Conditional single-document variable rename and truthful proof purpose. Compiler/Core/server tests are compiling; ordinary runtime-complete Logical rename still refuses. |
+| factory_continue (Terra 6.1) | Foreign factory source-hover and original closed-caller byte custody. Narrowed changes are adopted, unexecuted. Dispatch hover, cross-file definitions, durable index/controller and source-reference recovery remain open. |
+| performance_continue (Sol 6.1) | Source-specific tclIndex consumer, full-consumer comparison and fresh startup measurements. Both previous native servers timed out before scan readiness. |
+| native_review (Sol 6.1) | Required real-Wasm/runtime gate diagnosis. Native compiled-body adapter remains a private uncompiled draft, with no provider result. |
+| ci_triage_continue (Sol 6.1) | Current CI monitoring and opaque-body authoring-completion draft; no execution/scope/mutation authority from inert bodies. |
 
-Loop completion and O101 are adopted with scoped current-source controls. Separate VM/BIG-IP feature development is deferred; required transitive dependencies and mandatory gates remain in scope. Durable index recovery and the next tclIndex consumer remain off-tree and uncompiled; the startup A/B fails readiness for both servers. They have no active implementation owner in the present team and remain Root obligations. No PR or release exists.
+The corrected SpecTcl declared-Evaluate fixtures pass10/10 in their recorded cohort. Core/Registry unsuppressed all-target lint passes in its prior cohort. No complete current E2E, compatibility, browser/WASI/editor, performance, global proof/drift or packaging gate passes. The proof gate has no accepted reduced release profile; scoped source-role passes do not transfer Native/provider authority.
 
-Historical handoffs remain in [lsp.md](lsp.md), [compiler.md](compiler.md), [compiler-names.md](compiler-names.md), [compiler-codegen.md](compiler-codegen.md), [vm-runtime.md](vm-runtime.md), [bigip-lsp.md](bigip-lsp.md), [perf.md](perf.md), [review-triage.md](review-triage.md) and [coordinator.md](coordinator.md). The current snapshot and actual retained receipts take precedence.
+Separate VM/BIG-IP feature development is deferred; required linked dependencies and mandatory release gates remain in scope. No PR or release exists. Historical handoffs retain their original claims; this index and current snapshot take precedence.
