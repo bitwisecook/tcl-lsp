@@ -1107,11 +1107,8 @@ fn hover_impl(
         return Some(hover);
     }
 
-    if let Some(class) = crate::original_oo::positioned_class_at(source, analysis, cursor_offset) {
-        return Some(Hover::markdown(class_hover_text(
-            analysis,
-            class.metadata(),
-        )));
+    if let Some(hover) = positioned_class_hover(source, analysis, cursor_offset) {
+        return Some(hover);
     }
 
     let word =
@@ -3215,6 +3212,44 @@ fn append_class_hierarchy_details(
     }
 }
 
+fn positioned_class_hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
+    crate::original_oo::positioned_class_at(source, analysis, cursor)
+        .map(|class| Hover::markdown(class_hover_text(analysis, class.metadata())))
+        .or_else(|| counted_class_source_hover(source, analysis, cursor))
+}
+
+fn counted_class_source_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<Hover> {
+    let mut rows = analysis.command_invocations.iter().filter(|invocation| {
+        invocation.lookup.is_execution_site()
+            && invocation.range.start() <= cursor
+            && cursor < invocation.range.end()
+    });
+    let invocation = rows.next()?;
+    rows.next().is_none().then_some(())?;
+    let record = crate::original_oo::counted_class_for_invocation(source, analysis, invocation)?;
+    let key = record.name_input();
+    let name = record.name();
+    let label = tcl_syntax::naming::native_command_source_word(
+        name.policy().recipe(),
+        name.slot(),
+        key.source_image().channel(),
+        key.lexer_config(),
+    )?;
+    let longest = label
+        .split(|character| character != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest.max(2) + 1);
+    Some(Hover::markdown(format!(
+        "**Class declaration**\n\n{fence}tcl\n{label}\n{fence}\n\nClass availability depends on execution."
+    )))
+}
+
 fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
     let original_word = class_def.source_name.as_ref().and_then(|name| {
         let mut records = analysis.original_class_declarations().filter(|record| {
@@ -3810,6 +3845,114 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn counted_class_hover_keeps_distinct_source_bytes_and_horizons() {
+        let source = "oo::class create C\\uD800 {method m {} {}}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\nrename C\\uD800 moved\nmoved new\n";
+        let analysis = analyse(source);
+        assert_eq!(analysis.original_counted_class_metadata.len(), 2);
+        let first = hover(source, 2, 0, &analysis, None).unwrap();
+        let second = hover(source, 3, 0, &analysis, None).unwrap();
+        let moved = hover(source, 5, 0, &analysis, None).unwrap();
+        for card in [&first, &second, &moved] {
+            assert!(card.value.contains("**Class declaration**"));
+            assert!(
+                card.value
+                    .contains("Class availability depends on execution.")
+            );
+            assert!(!card.value.contains("**Methods**"));
+        }
+        assert_eq!(first.value, moved.value);
+        assert_ne!(first.value, second.value);
+        for (card, expected) in [
+            (&first, b"::C\xed\xa0\x80".as_slice()),
+            (&second, b"::C\xed\xa0\x81".as_slice()),
+        ] {
+            let word = card.value.lines().nth(3).unwrap();
+            let config = analysis.body_lexer_config.unwrap();
+            let policy = analysis.original_counted_class_metadata[0].name().policy();
+            assert_eq!(
+                tcl_syntax::backslash::native_source_string_bytes_channel_in(
+                    &word.as_bytes()[1..word.len() - 1],
+                    tcl_lexer::SourceChannel::Document,
+                    config.escapes,
+                    policy.string_protocol()
+                )
+                .unwrap(),
+                expected
+            );
+        }
+        assert!(
+            !hover(source, 2, 7, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**Class declaration**"))
+        );
+        assert!(
+            !hover(&format!("#{source}"), 2, 0, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**Class declaration**"))
+        );
+    }
+
+    #[test]
+    fn counted_class_hover_refuses_unsettled_and_foreign_binding() {
+        for source in [
+            "oo::class create C\\uD800 {}\nrename C\\uD800 {}\nC\\uD800 new\n",
+            "oo::class create C\\uD800 {}\nrename C\\uD800 {}\nproc C\\uD800 args {}\nC\\uD800 new\n",
+            "oo::class create C\\uD800 {}\nproc change args {rename C\\uD800 {}}\ntrace add execution C\\uD800 enter change\nC\\uD800 new\n",
+            "oo::class create C\\uD800 {error nope}\nC\\uD800 new\n",
+        ] {
+            let analysis = analyse(source);
+            assert_eq!(
+                analysis.original_counted_class_metadata.len(),
+                1,
+                "{source}"
+            );
+            let line = u32::try_from(source.lines().count() - 1).unwrap();
+            assert!(
+                !hover(source, line, 0, &analysis, None)
+                    .is_some_and(|hover| hover.value.contains("**Class declaration**")),
+                "{source}"
+            );
+        }
+        let source = "oo::class create C\\uD800 {}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\n";
+        let analysis = analyse(source);
+        let first_offset = u32::try_from(source.find("C\\uD800 new").unwrap()).unwrap();
+        let second_offset = u32::try_from(source.find("C\\uD801 new").unwrap()).unwrap();
+        let mut swapped = analysis.clone();
+        let reference = swapped
+            .command_invocations
+            .iter()
+            .find(|call| call.range.start() == second_offset && call.lookup.is_execution_site())
+            .unwrap()
+            .resolved_command_reference
+            .clone();
+        assert!(reference.is_some());
+        swapped
+            .command_invocations
+            .iter_mut()
+            .find(|call| call.range.start() == first_offset && call.lookup.is_execution_site())
+            .unwrap()
+            .resolved_command_reference = reference;
+        assert!(
+            !hover(source, 2, 0, &swapped, None)
+                .is_some_and(|hover| hover.value.contains("**Class declaration**"))
+        );
+        let mut foreign = analysis.clone();
+        foreign.original_counted_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.0")
+            .original_counted_class_metadata;
+        assert!(
+            !hover(source, 2, 0, &foreign, None)
+                .is_some_and(|hover| hover.value.contains("**Class declaration**"))
+        );
+        let mut duplicate = analysis.clone();
+        duplicate
+            .original_counted_class_metadata
+            .push(duplicate.original_counted_class_metadata[0].clone());
+        assert!(
+            !hover(source, 2, 0, &duplicate, None)
+                .is_some_and(|hover| hover.value.contains("**Class declaration**"))
+        );
+    }
+
     use tcl_dialect::model::{Family, SurfaceLayer};
 
     use super::*;
