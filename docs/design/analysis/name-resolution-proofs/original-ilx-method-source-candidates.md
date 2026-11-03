@@ -20,6 +20,8 @@ The compiler withdraws source correspondence at opaque earlier operations/calls,
 
 Definition returns a distinct `SourceCandidate` for a unique JavaScript registration under the explicit mapping or directory convention. Its location never fills `call.target`. Core's `source_candidates` and `source_candidates_from_registration` carry the source locations and unresolved obligations separately from identity references. The server projects these candidates into readonly LSP reference locations, deduplicating them with independently supplied identity locations. This presentation supplies no evaluated handle, reached RPC, current cell, rename authority or other edit permission. Each sibling rule uses its own host-supplied analysis; initiating facts and standalone fallbacks cannot describe another document on a retained-analysis route.
 
+For a current call whose `call.target` is absent, Core identity references retain only the queried call site; separate source candidates may still expose conditional locations without proving shared handle identity. A retained-analysis route does not reopen standalone capture for a missing or stale sibling analysis. The source-only ingress retains the supplied whole-file lexer configuration, including its leading-BOM policy, and constructs no lowered module or entered event/body closure.
+
 ## Scope
 
 Readonly original iRulesLX method/source-constructor candidates and independently scanned JavaScript registrations. Exact method-label equality does not establish shared handle identity. No consumer String propagation, branch cell summary, runtime reachability, callback/effect settlement, dispatch, evaluation, Native recipe or edit permission is supplied.
