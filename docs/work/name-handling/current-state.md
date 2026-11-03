@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 03 November 2026, 23:32 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
+Updated 03 November 2026, 23:41 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
 
 ## Scope and release verdict
 
@@ -120,4 +120,6 @@ Registry receipt: `/workspace/tmp/lsp-merged-cohort/registry-current/result.json
 
 The narrowed foreign factory source-hover patch `f87482b7…` and original-source tclIndex consumer `dedad92e…` are adopted before green tests after independent static review. The tclIndex path falls back to the unchanged full consumer for directives, malformed source or missing schema/path evidence. Both require actual focused execution and unsuppressed lint; no factory provider or startup acceptance follows.
 
-The first combined compiler/Core/server test build stopped on four missing public API comments in the factory module, with source/generated seals intact and no tests executed. Those comments are fixed in `ba0da649d`; the second controlled build is in progress. All 17 changed Rust files pass rustfmt check. Previous sealed Core/native executables were verified in gzip archives before raw retirement; restoration receipt: `/workspace/tmp/lsp-merged-cohort/pre-conditional-elf-retirement.json`.
+The first combined compiler/Core/server test build stopped on four missing public API comments in the factory module, with source/generated seals intact and no tests executed. Those comments are fixed in `ba0da649d`; the second build reached production compiler/Core and failed on two missing test-only protocol type imports. Those are fixed in `59fa3528a`; the third build has produced compiler/server test executables and is finishing Core. No new test has executed yet. All 17 changed Rust files pass rustfmt check. Previous sealed Core/native executables were verified in gzip archives before raw retirement; restoration receipt: `/workspace/tmp/lsp-merged-cohort/pre-conditional-elf-retirement.json`.
+
+The exact b263 CI proof failure is 2,178 structural errors: 1,204 evidence digest mismatches, 973 census digest mismatches and one hover conclusion-parity mismatch. These are checkpoint counts, not a new mutable/immutable classification. A narrowly reviewed conclusion reconciliation is held for adoption; no hashes or provider outcomes are renewed by that repair. SpecTcl compatibility now passes pack_source_e2e10/10 and reaches a later string corpus failure: ConstFold length invokes its engine once, map/range never reach invocation. This separate consumer-route gap remains open. Desktop partition2 fails11 pass/9 fail; missing callback references and exact versus conditional count text need separate diagnosis.
