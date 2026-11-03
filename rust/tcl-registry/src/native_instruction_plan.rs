@@ -1516,6 +1516,17 @@ mod tests {
         grammar: NativeCompilationGrammar,
         version: TclVersion,
     ) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
+        project_with_selection(source, grammar, version).1
+    }
+
+    fn project_with_selection(
+        source: &[u8],
+        grammar: NativeCompilationGrammar,
+        version: TclVersion,
+    ) -> (
+        NativeCompilationSelection,
+        Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>,
+    ) {
         let profile =
             tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
         let image = SourceImage::native(source);
@@ -1553,7 +1564,10 @@ mod tests {
         };
         let dialect = InvocationDialect::for_version(version);
         let selection = spec.select_native_words(&words, 1, Some(dialect), context);
-        native_instruction_plan(spec, selection, &words, 1, dialect, context)
+        (
+            selection,
+            native_instruction_plan(spec, selection, &words, 1, dialect, context),
+        )
     }
 
     #[test]
@@ -2107,12 +2121,15 @@ mod tests {
         }) if index.encoded() == 0 && elements == (3..8).map(Operand::Original).collect::<Vec<_>>())
         );
         assert_eq!(
-            project(
+            project_with_selection(
                 b"linsert $args $index X",
                 NativeCompilationGrammar::ListInsertion,
                 TclVersion::V8_6
             ),
-            Err(NativeInstructionPlanUnavailable::OperandGeometry)
+            (
+                NativeCompilationSelection::Generic,
+                Err(NativeInstructionPlanUnavailable::Selection)
+            )
         );
     }
 

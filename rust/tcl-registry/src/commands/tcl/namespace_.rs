@@ -1800,15 +1800,27 @@ mod tests {
                     .unwrap()
                     .native_compilation
                     .unwrap();
-                let selection = native.select(
-                    crate::InvocationWords::literals("namespace", &[member, "::A"]),
-                    &[NativeCompilationWordShape::Literal; 2],
+                let words = crate::InvocationWords::literals("namespace", &[member, "::A"]);
+                let shapes = [NativeCompilationWordShape::Literal; 2];
+                let context = NativeCompilationContext {
+                    mode: NativeCompilationMode::BytecodeObject,
+                    frame: NativeCompilationFrame::ScriptCode,
+                    loop_depth: 0,
+                    catch_depth: Some(0),
+                };
+                if version >= tcl_dialect::TclVersion::V8_6 {
+                    assert_eq!(
+                        native.select(words, &shapes, Some(dialect), context),
+                        NativeCompilationSelection::Unknown
+                    );
+                }
+                let selection = native.select_with_named_operand_view(
+                    words,
+                    &shapes,
                     Some(dialect),
-                    NativeCompilationContext {
-                        mode: NativeCompilationMode::BytecodeObject,
-                        frame: NativeCompilationFrame::ScriptCode,
-                        loop_depth: 0,
-                        catch_depth: Some(0),
+                    context,
+                    crate::native_compilation::NamedCompilerOperandView::OriginalArguments {
+                        selectors_retained: 1,
                     },
                 );
                 if version < tcl_dialect::TclVersion::V8_6 {

@@ -643,15 +643,22 @@ mod tests {
                     if !null_hook {
                         let lookup = selected.implementation_lookup(dialect).unwrap();
                         let words = crate::InvocationWords::literals(lookup.slot, &["DATA"]);
-                        let selection = selected.select(
+                        let context = NativeCompilationContext {
+                            mode: NativeCompilationMode::BytecodeObject,
+                            frame: NativeCompilationFrame::ProcedureCode,
+                            ..NativeCompilationContext::default()
+                        };
+                        let shapes = [NativeCompilationWordShape::Substituted];
+                        assert_eq!(
+                            selected.select(words, &shapes, Some(dialect), context),
+                            NativeCompilationSelection::Unknown,
+                        );
+                        let selection = selected.select_with_named_operand_view(
                             words,
-                            &[NativeCompilationWordShape::Substituted],
+                            &shapes,
                             Some(dialect),
-                            NativeCompilationContext {
-                                mode: NativeCompilationMode::BytecodeObject,
-                                frame: NativeCompilationFrame::ProcedureCode,
-                                ..NativeCompilationContext::default()
-                            },
+                            context,
+                            crate::native_compilation::NamedCompilerOperandView::SelectedWorker,
                         );
                         assert!(matches!(
                             selection,

@@ -186,26 +186,39 @@ mod tests {
                 .unwrap();
             let shapes = vec![NativeCompilationWordShape::Literal; arguments.len()];
             for version in [TclVersion::V9_0, TclVersion::V9_1] {
+                let dialect = InvocationDialect::for_version(version);
+                let words = InvocationWords::literals("array", &arguments);
+                assert_eq!(
+                    spec.select(words, &shapes, Some(dialect), context),
+                    NativeCompilationSelection::Unknown
+                );
                 assert!(
-                    matches!(spec.select(InvocationWords::literals("array", &arguments), &shapes, Some(InvocationDialect::for_version(version)), context), NativeCompilationSelection::NamedInvocation { lookup, arguments_from: 1, protocol: NativeNamedInvocationProtocol::Direct } if lookup.slot == "::tcl::array::default")
+                    matches!(spec.select_with_named_operand_view(words, &shapes, Some(dialect), context,
+                        crate::native_compilation::NamedCompilerOperandView::OriginalArguments { selectors_retained: 1 }), NativeCompilationSelection::NamedInvocation { lookup, arguments_from: 1, protocol: NativeNamedInvocationProtocol::Direct } if lookup.slot == "::tcl::array::default")
                 );
             }
             assert_eq!(
-                spec.select(
+                spec.select_with_named_operand_view(
                     InvocationWords::literals("array", &arguments),
                     &shapes,
                     Some(InvocationDialect::for_version(TclVersion::V8_6)),
-                    context
+                    context,
+                    crate::native_compilation::NamedCompilerOperandView::OriginalArguments {
+                        selectors_retained: 1
+                    },
                 ),
                 NativeCompilationSelection::Generic
             );
             let broad = ["default", "get"];
             assert_eq!(
-                spec.select(
+                spec.select_with_named_operand_view(
                     InvocationWords::literals("array", &broad),
                     &[NativeCompilationWordShape::Literal; 2],
                     Some(InvocationDialect::for_version(TclVersion::V9_0)),
-                    context
+                    context,
+                    crate::native_compilation::NamedCompilerOperandView::OriginalArguments {
+                        selectors_retained: 1
+                    },
                 ),
                 NativeCompilationSelection::Generic
             );
