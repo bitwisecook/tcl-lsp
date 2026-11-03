@@ -43,7 +43,7 @@
 //! command level; if a future spec ever needs it, it arrives as a
 //! [`CapabilityPredicate`] variant, not a policy side channel.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use tcl_dialect::model::Family;
 use tcl_dialect::model::{
@@ -1813,6 +1813,27 @@ fn is_vendor_own(spec: &CommandSpec, vendor: SpecProvider) -> bool {
     })
 }
 
+// Release ladders are compile-time family data. Parse them once without
+// caching any context, selected surface, or declaration applicability.
+fn parsed_family_ladder(family: Family) -> &'static [Version] {
+    static LADDERS: OnceLock<[Vec<Version>; 4]> = OnceLock::new();
+    let ladders = LADDERS.get_or_init(|| {
+        [Family::Tcl, Family::F5Tcl, Family::F5Irules, Family::Jim].map(|family| {
+            family
+                .releases()
+                .iter()
+                .filter_map(|release| Version::parse(release.as_str()).ok())
+                .collect()
+        })
+    });
+    &ladders[match family {
+        Family::Tcl => 0,
+        Family::F5Tcl => 1,
+        Family::F5Irules => 2,
+        Family::Jim => 3,
+    }]
+}
+
 /// The **total applicability breadth** of a declaration set — the
 /// generalised most-specific-wins measure (§4.1: narrowest total
 /// applicability beats widest; authoring precedence, never binding
@@ -1836,16 +1857,13 @@ pub fn specificity_breadth(declarations: &[SurfaceDeclaration]) -> u32 {
         match &declaration.provider {
             Provider::Core(family) => {
                 let mut covered = 0u32;
-                let mut parsed_any = false;
-                for release in family.releases() {
-                    if let Ok(version) = Version::parse(release.as_str()) {
-                        parsed_any = true;
-                        if declaration.applicable.contains(&version) {
-                            covered += 1;
-                        }
+                let parsed = parsed_family_ladder(*family);
+                for version in parsed {
+                    if declaration.applicable.contains(version) {
+                        covered += 1;
                     }
                 }
-                if !parsed_any && !declaration.applicable.is_empty() {
+                if parsed.is_empty() && !declaration.applicable.is_empty() {
                     covered = 1;
                 }
                 breadth += covered;
@@ -2698,6 +2716,23 @@ mod tests {
             ctx.available_at_targets(&rows(Some(SpecSurface::ALL_TCL)), &jim_axis)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn parsed_family_ladders_keep_the_original_successes_and_order() {
+        for family in Family::ALL {
+            let expected: Vec<_> = family
+                .releases()
+                .iter()
+                .filter_map(|release| Version::parse(release.as_str()).ok())
+                .collect();
+            let expected_text: Vec<_> = expected.iter().map(Version::as_str).collect();
+            let actual_text: Vec<_> = parsed_family_ladder(family)
+                .iter()
+                .map(Version::as_str)
+                .collect();
+            assert_eq!(actual_text, expected_text, "{family:?}");
+        }
     }
 
     #[test]
