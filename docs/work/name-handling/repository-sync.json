@@ -1,15 +1,15 @@
 {
-  "checked_at": "2026-11-03T23:32:51.725137+00:00",
+  "checked_at": "2026-11-03T23:36:09.740259+00:00",
   "branch": "work",
-  "head_before_status_commit": "ba0da649d6374a2434fd53aac1bb221582220ab3",
-  "remote_head_at_fetch": "478a7661c2dcd5996a511e8011c5e3affd590d99",
+  "head_before_status_commit": "59fa3528a09d8fb46644892c7a7d93357959ff83",
+  "remote_head_at_fetch": "c8cee87e13605586ff439568b187b48cfc622814",
   "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "1ee369a72b5b3326a3e816b96e9d681a96976a08741441bf5da90b3199787a40",
+  "manual_status_sha256": "0643e30ae50d7dc9b41ae6720863360e26e136d99002fa90b4c816a1efa0b269",
   "working_tree_at_check": [],
-  "ci_run": 41669761498,
-  "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
+  "ci_run": 41736891101,
+  "ci_note": "Manual CI reference for source b2637f8d3cf4fcd8617f88abe8e4336db1d8d79c; this heartbeat does not poll or certify its results or later source. See the timestamped manual snapshot.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
 }
