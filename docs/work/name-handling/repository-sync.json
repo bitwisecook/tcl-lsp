@@ -1,14 +1,17 @@
 {
-  "checked_at": "2026-11-03T22:17:52.148738+00:00",
+  "checked_at": "2026-11-03T22:22:52.192148+00:00",
   "branch": "work",
-  "head_before_status_commit": "608360150308b5939dabf1a1e727b7fcf86c7509",
-  "remote_head_at_fetch": "5f606233d14dd8ea23a35ce288c3e95335a56a7e",
-  "sync": "local commits pending publication; remote ancestor verified",
+  "head_before_status_commit": "5766706caa3c4e889cebfadd561986533532b13c",
+  "remote_head_at_fetch": "5766706caa3c4e889cebfadd561986533532b13c",
+  "sync": "no new remote commits",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
   "manual_status_sha256": "ecc0f44903442535b4e6d8fd4a296a7a4c7225a7f59e4488e2b1862abe7a44c3",
-  "working_tree_at_check": [],
+  "working_tree_at_check": [
+    " M rust/tcl-lsp-core/src/hover/original_registry.rs",
+    " M rust/tcl-lsp-core/src/variable_symbol.rs"
+  ],
   "ci_run": 41669761498,
   "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
