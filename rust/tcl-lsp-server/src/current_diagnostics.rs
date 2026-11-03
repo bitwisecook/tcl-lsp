@@ -989,23 +989,25 @@ impl Backend {
             }
             let _rehoming = inputs.rehoming_gate.lock().await;
             let _live_publication = inputs.live_publication_gate.lock().await;
-            let captured = capture_cross_file_evidence_snapshot(handles)
-                .await
-                .ok_or(DiagnosticUnavailable::Context)?;
             let (index, generation) = {
                 let index = inputs.workspace_index.read().await;
                 (index.clone(), index.generation())
             };
-            let factory_generation = *inputs.class_factory_generation.read().await;
             let folder_configs = inputs.folder_db_configs.lock().await.clone();
             let global_config = *inputs.db_config.lock().await;
             let rehomed_source_seeds = inputs.rehomed_source_seeds.lock().await.clone();
             let package_revision = inputs.package_resolver.read().await.revision();
+            let factory_generation = inputs.class_factory_generation.read().await;
+            // A live Salsa snapshot must not survive an unrelated await.
+            // Keep the factory generation stable while taking the final snapshot.
+            let captured = capture_cross_file_evidence_snapshot(handles)
+                .await
+                .ok_or(DiagnosticUnavailable::Context)?;
             (
                 captured,
                 index,
                 generation,
-                factory_generation,
+                *factory_generation,
                 folder_configs,
                 global_config,
                 rehomed_source_seeds,
@@ -4419,6 +4421,167 @@ mod proposal_endpoint_tests {
         assert_eq!(incomplete["status"], "unavailable", "{incomplete}");
         assert_eq!(incomplete["reason"], "context");
         assert!(incomplete.get("diagnostics").is_none());
+    }
+    async fn poll_capture_once<F: std::future::Future>(
+        mut future: std::pin::Pin<&mut F>,
+    ) -> std::task::Poll<F::Output> {
+        std::future::poll_fn(|context| std::task::Poll::Ready(future.as_mut().poll(context))).await
+    }
+
+    async fn capture_inputs(backend: &Backend, selected: &Uri) -> DiagInputs {
+        let inputs = backend
+            .diag_inputs(selected, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+        assert!(inputs.inputs_epoch.is_some());
+        assert_eq!(backend.db.snapshot_report().outstanding, 0);
+        inputs
+    }
+
+    #[tokio::test]
+    async fn proposal_index_wait_owns_no_snapshot_and_recaptures_after_actual_factory_write() {
+        let (backend, _, selected, _, _) = fixture().await;
+        let inputs = capture_inputs(&backend, &selected).await;
+        let handles = EvidenceHandles::from_inputs(&inputs);
+        let file = backend.db_files.lock().await[&selected];
+        let revision = tcl_lsp_db::database_revision(&*backend.db.lock().await);
+        let index = backend.workspace_index.write().await;
+        let mut capture = Box::pin(backend.capture_proposal_workspace(
+            &inputs,
+            inputs.inputs_epoch.unwrap(),
+            &handles,
+        ));
+        assert!(poll_capture_once(capture.as_mut()).await.is_pending());
+        assert_eq!(
+            backend.db.snapshot_report().outstanding,
+            0,
+            "a proposal parked on the index must not pin Salsa writers"
+        );
+        let wanted = Arc::new(tcl_compiler::analyser::ClassFactoryIndex::default());
+        let changed = crate::rt::timeout(
+            std::time::Duration::from_secs(3),
+            crate::apply_workspace_class_factories_if_current(
+                &handles,
+                revision,
+                Some(Arc::clone(&wanted)),
+                vec![(selected, file)],
+            ),
+        )
+        .await
+        .expect("the actual factory writer must finish while proposal index capture is parked");
+        assert!(matches!(changed, crate::ClassFactoryRound::Moved(_)));
+        let expected_revision = tcl_lsp_db::database_revision(&*backend.db.lock().await);
+        let expected_generation = *backend.class_factory_generation.read().await;
+        drop(index);
+        let workspace = crate::rt::timeout(std::time::Duration::from_secs(3), capture)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(workspace.captured.revision, expected_revision);
+        assert_eq!(workspace.factory_generation, expected_generation);
+        assert!(Arc::ptr_eq(
+            file.workspace_class_factories(&*workspace.captured.snapshot)
+                .as_ref()
+                .unwrap(),
+            &wanted
+        ));
+        drop(workspace);
+        assert_eq!(backend.db.snapshot_report().outstanding, 0);
+    }
+
+    #[tokio::test]
+    async fn proposal_factory_wait_owns_no_snapshot_and_captures_the_locked_generation() {
+        use salsa::Setter as _;
+        let (backend, _, selected, _, _) = fixture().await;
+        let inputs = capture_inputs(&backend, &selected).await;
+        let handles = EvidenceHandles::from_inputs(&inputs);
+        let file = backend.db_files.lock().await[&selected];
+        let mut factory = backend.class_factory_generation.write().await;
+        let mut capture = Box::pin(backend.capture_proposal_workspace(
+            &inputs,
+            inputs.inputs_epoch.unwrap(),
+            &handles,
+        ));
+        assert!(poll_capture_once(capture.as_mut()).await.is_pending());
+        assert_eq!(
+            backend.db.snapshot_report().outstanding,
+            0,
+            "a proposal waiting for the factory writer must not retain the snapshot that writer needs to drain"
+        );
+        let wanted = Arc::new(tcl_compiler::analyser::ClassFactoryIndex::default());
+        let expected_revision = {
+            let mut db = backend.db.lock().await;
+            file.set_workspace_class_factories(&mut *db)
+                .to(Some(Arc::clone(&wanted)));
+            tcl_lsp_db::database_revision(&db)
+        };
+        *factory += 1;
+        let expected_generation = *factory;
+        drop(factory);
+        let workspace = crate::rt::timeout(std::time::Duration::from_secs(3), capture)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(workspace.captured.revision, expected_revision);
+        assert_eq!(workspace.factory_generation, expected_generation);
+        assert!(Arc::ptr_eq(
+            file.workspace_class_factories(&*workspace.captured.snapshot)
+                .as_ref()
+                .unwrap(),
+            &wanted
+        ));
+        drop(workspace);
+        assert_eq!(backend.db.snapshot_report().outstanding, 0);
+    }
+
+    #[tokio::test]
+    async fn proposal_package_wait_owns_no_snapshot_and_recaptures_after_factory_write() {
+        let (backend, _, selected, _, _) = fixture().await;
+        let inputs = capture_inputs(&backend, &selected).await;
+        let handles = EvidenceHandles::from_inputs(&inputs);
+        let file = backend.db_files.lock().await[&selected];
+        let revision = tcl_lsp_db::database_revision(&*backend.db.lock().await);
+        let packages = backend.package_resolver.write().await;
+        let mut capture = Box::pin(backend.capture_proposal_workspace(
+            &inputs,
+            inputs.inputs_epoch.unwrap(),
+            &handles,
+        ));
+        assert!(poll_capture_once(capture.as_mut()).await.is_pending());
+        assert_eq!(
+            backend.db.snapshot_report().outstanding,
+            0,
+            "a proposal waiting for package inputs must not retain a Salsa snapshot"
+        );
+        let wanted = Arc::new(tcl_compiler::analyser::ClassFactoryIndex::default());
+        let changed = crate::rt::timeout(
+            std::time::Duration::from_secs(3),
+            crate::apply_workspace_class_factories_if_current(
+                &handles,
+                revision,
+                Some(Arc::clone(&wanted)),
+                vec![(selected, file)],
+            ),
+        )
+        .await
+        .expect("factory writer must finish while proposal package capture is parked");
+        assert!(matches!(changed, crate::ClassFactoryRound::Moved(_)));
+        let expected_revision = tcl_lsp_db::database_revision(&*backend.db.lock().await);
+        let expected_generation = *backend.class_factory_generation.read().await;
+        drop(packages);
+        let workspace = crate::rt::timeout(std::time::Duration::from_secs(3), capture)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(workspace.captured.revision, expected_revision);
+        assert_eq!(workspace.factory_generation, expected_generation);
+        assert!(Arc::ptr_eq(
+            file.workspace_class_factories(&*workspace.captured.snapshot)
+                .as_ref()
+                .unwrap(),
+            &wanted
+        ));
+        drop(workspace);
+        assert_eq!(backend.db.snapshot_report().outstanding, 0);
     }
 }
 

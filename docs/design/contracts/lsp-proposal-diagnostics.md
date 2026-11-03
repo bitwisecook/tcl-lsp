@@ -45,6 +45,12 @@ retains the actual `SourceFile`, document admission, resolved input epoch,
 configuration, project/index, and provider receipts through final currentness
 validation.
 
+Workspace capture completes the index, configuration, source-seed and package
+lock waits before creating its live Salsa snapshot. It holds the factory
+generation read guard while capturing that snapshot, matching the factory
+writer's generation-before-database lock order. Source rows are consumed
+synchronously and the live snapshot is dropped before projection awaits.
+
 The producer creates `ProposalProviderSources` before base, recovery, or deep
 analysis can consume provider data. Each actual provider capture, including
 recovery and cache-hit captures, joins its request-local ledger. The deep
