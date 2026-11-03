@@ -91,7 +91,40 @@ pub(super) fn items(
     if fuzzy {
         super::decorate_fuzzy_items(&mut candidates, &format!("{expected}{partial}"));
     }
+    normalise_reference_labels(&mut candidates);
     Some(candidates)
+}
+
+/// Labels describe a source name; only the separately validated edit is Tcl.
+fn normalise_reference_labels(items: &mut [CompletionItem]) {
+    let labels: Vec<String> = items
+        .iter()
+        .map(|item| {
+            item.label
+                .strip_prefix("${")
+                .and_then(|name| name.strip_suffix('}'))
+                .map_or_else(|| item.label.clone(), |name| format!("${name}"))
+        })
+        .collect();
+    let mut edits = std::collections::HashMap::<String, Option<String>>::new();
+    for (item, label) in items.iter().zip(&labels) {
+        edits
+            .entry(label.clone())
+            .and_modify(|old| {
+                if old.as_deref() != Some(item.insert_text.as_str()) {
+                    *old = None;
+                }
+            })
+            .or_insert_with(|| Some(item.insert_text.clone()));
+    }
+    for (item, label) in items.iter_mut().zip(&labels) {
+        if edits.get(label.as_str()).is_some_and(Option::is_some) && item.label != *label {
+            if item.filter_text.is_none() {
+                item.filter_text = Some(item.label.clone());
+            }
+            item.label.clone_from(label);
+        }
+    }
 }
 
 /// Complete source spellings for snippet choices through the same actual
@@ -646,6 +679,118 @@ mod tests {
             return Some(Vec::new());
         }
         super::items(source, line, character, analysis, &prefix)
+    }
+
+    #[test]
+    fn display_labels_preserve_the_validated_variable_edit() {
+        for (source, cursor, partial, trigger, label, insertion, end) in [
+            (
+                "set greeting hello\nputs ${gre",
+                10,
+                "gre",
+                '{',
+                "$greeting",
+                "${greeting}",
+                10,
+            ),
+            (
+                "set greeting hello\nputs ${gre}",
+                10,
+                "gre",
+                '{',
+                "$greeting",
+                "${greeting}",
+                11,
+            ),
+            (
+                "set \"foo-bar\" 1\nputs $",
+                6,
+                "",
+                '$',
+                "$foo-bar",
+                "${foo-bar}",
+                6,
+            ),
+            (
+                "set {first last} 1\nputs $",
+                6,
+                "",
+                '$',
+                "$first last",
+                "${first last}",
+                6,
+            ),
+            ("set myé 1\nputs ${my", 9, "my", '{', "$myé", "${myé}", 9),
+            (
+                "set arr(name) 1\nputs ${arr(na",
+                13,
+                "arr(na",
+                '{',
+                "$arr(name)",
+                "${arr(name)}",
+                13,
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let result = items(source, 1, cursor, &analysis, partial, trigger).unwrap();
+            let item = result
+                .iter()
+                .find(|item| item.label == label)
+                .expect(source);
+            assert_eq!(item.insert_text, insertion);
+            assert_eq!(item.filter_text.as_deref(), Some(insertion));
+            let edit = item.text_edit.as_ref().unwrap();
+            assert_eq!((edit.start_char, edit.end_char), (5, end));
+            assert_eq!(edit.new_text, insertion);
+            let line = source.lines().nth(1).unwrap();
+            let applied = format!(
+                "{}{}{}",
+                &line[..edit.start_char as usize],
+                edit.new_text,
+                &line[edit.end_char as usize..]
+            );
+            assert_eq!(applied, format!("puts {insertion}"));
+            assert!(
+                items(
+                    &format!("{source} "),
+                    1,
+                    cursor,
+                    &analysis,
+                    partial,
+                    trigger
+                )
+                .unwrap_or_default()
+                .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn colliding_display_labels_keep_distinct_edits() {
+        let mut values = vec![
+            CompletionItem {
+                label: "${x}".into(),
+                insert_text: "${x}".into(),
+                ..CompletionItem::default()
+            },
+            CompletionItem {
+                label: "$x".into(),
+                insert_text: "$x".into(),
+                ..CompletionItem::default()
+            },
+        ];
+        super::normalise_reference_labels(&mut values);
+        assert_eq!(values[0].label, "${x}");
+        assert_eq!(values[1].label, "$x");
+        let mut fuzzy = vec![CompletionItem {
+            label: "${long-name}".into(),
+            insert_text: "${long-name}".into(),
+            filter_text: Some("$ln".into()),
+            ..CompletionItem::default()
+        }];
+        super::normalise_reference_labels(&mut fuzzy);
+        assert_eq!(fuzzy[0].label, "$long-name");
+        assert_eq!(fuzzy[0].filter_text.as_deref(), Some("$ln"));
     }
 
     #[test]
