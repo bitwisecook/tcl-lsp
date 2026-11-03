@@ -907,10 +907,22 @@ fn source_role_hover(
             Some(Hover::markdown(text))
         }));
     }
-    if let std::ops::ControlFlow::Break(selected) =
-        crate::method_symbol::local_candidate(source, analysis, line, character)
-    {
-        return std::ops::ControlFlow::Break(selected.and_then(|candidate| candidate.hover()));
+    match crate::method_symbol::local_candidate(source, analysis, line, character) {
+        std::ops::ControlFlow::Break(Some(candidate)) => {
+            return std::ops::ControlFlow::Break(candidate.hover());
+        }
+        std::ops::ControlFlow::Break(None) => {
+            // A unique written declaration supplies syntax, not a resolved method.
+            return std::ops::ControlFlow::Break(counted_initial_method_hover(
+                source,
+                analysis,
+                cursor_offset,
+            ));
+        }
+        std::ops::ControlFlow::Continue(()) => {}
+    }
+    if let Some(hover) = counted_initial_method_hover(source, analysis, cursor_offset) {
+        return std::ops::ControlFlow::Break(Some(hover));
     }
     std::ops::ControlFlow::Continue(())
 }
@@ -3218,6 +3230,65 @@ fn positioned_class_hover(source: &str, analysis: &AnalysisResult, cursor: u32) 
         .or_else(|| counted_class_source_hover(source, analysis, cursor))
 }
 
+fn counted_initial_method_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<Hover> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let image = &image;
+    let mut declarations = analysis
+        .original_counted_class_metadata
+        .iter()
+        .flat_map(|class| {
+            let body = class.metadata().body();
+            let current = class.name_input().source_image() == image
+                && class.name_input().lexer_config() == config
+                && body.matches_source(image, config)
+                && body.matches_context(&context);
+            class
+                .metadata()
+                .initial_method_declarations()
+                .unwrap_or_default()
+                .iter()
+                .filter(move |method| {
+                    let key = method.original_name_input();
+                    let word = method.original_word();
+                    let site = method.site();
+                    let body_span = body.content_span();
+                    current
+                        && key.original_word() == word
+                        && key.source_image() == image
+                        && key.lexer_config() == config
+                        && key.policy() == class.name().policy()
+                        && !word.group().expand
+                        && site.source == class.declaration_site().source
+                        && body_span.start() <= site.offset
+                        && site.offset <= word.span().start()
+                        && word.span().end() <= body_span.end()
+                        && key.span().start() <= cursor
+                        && cursor < key.span().end()
+                })
+        });
+    let declaration = declarations.next()?;
+    declarations.next().is_none().then_some(())?;
+    let word = declaration.original_word().try_text().ok()?;
+    let longest = word
+        .split(|character| character != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest.max(2) + 1);
+    Some(Hover::markdown(format!(
+        "**Method source declaration**\n\n{fence}tcl\n{word}\n{fence}\n\nMethod availability depends on execution."
+    )))
+}
+
 fn counted_class_source_hover(
     source: &str,
     analysis: &AnalysisResult,
@@ -3845,6 +3916,147 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn counted_method_hover_does_not_claim_effect_operands_or_later_declarations() {
+        let source = "oo::class create C\\uD800 {method m\\uD801 {} {}; export m\\uD801; deletemethod m\\uD801; renamemethod m\\uD801 n}\noo::define C\\uD800 method m\\uD801 {} {}\nC\\uD800 create obj\nobj m\\uD801\n";
+        let analysis = analyse(source);
+        let [class] = analysis.original_counted_class_metadata.as_slice() else {
+            panic!("counted class")
+        };
+        let methods = class
+            .metadata()
+            .initial_method_declarations()
+            .expect("initial declaration inventory");
+        assert_eq!(methods.len(), 1);
+        let index = tcl_lexer::LineIndex::new(source);
+        let all: Vec<_> = source
+            .match_indices("m\\uD801")
+            .map(|(offset, _)| offset)
+            .collect();
+        assert_eq!(all.len(), 6);
+        for (index_in_source, offset) in all.into_iter().enumerate() {
+            let position = index.position_at_utf16(u32::try_from(offset).unwrap(), source);
+            let card = hover(
+                source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                None,
+            )
+            .is_some_and(|hover| hover.value.contains("**Method source declaration**"));
+            assert_eq!(card, index_in_source == 0, "occurrence {index_in_source}");
+        }
+    }
+
+    #[test]
+    fn counted_method_hover_shows_only_exact_initial_source_declarations() {
+        let source = "oo::class create C\\uD800 {method m\\uD800 {} {}; method m\\uD801 {} {}; self method make {} {}; method m\\uD800 {} {}}\nC\\uD800 create obj\nobj m\\uD800\n";
+        let analysis = analyse(source);
+        let [class] = analysis.original_counted_class_metadata.as_slice() else {
+            panic!("counted class")
+        };
+        assert_eq!(
+            class
+                .metadata()
+                .initial_method_declarations()
+                .unwrap()
+                .len(),
+            4
+        );
+        for name in ["m\\uD800", "m\\uD801", "make"] {
+            let offsets: Vec<_> = source
+                .match_indices(name)
+                .filter(|(offset, _)| *offset < source.find('\n').unwrap())
+                .map(|(offset, _)| offset)
+                .collect();
+            assert!(!offsets.is_empty());
+            for offset in offsets {
+                let card =
+                    hover(source, 0, u32::try_from(offset).unwrap(), &analysis, None).unwrap();
+                assert!(
+                    card.value.contains("**Method source declaration**"),
+                    "{name}: {}",
+                    card.value
+                );
+                assert!(card.value.contains(name));
+                assert!(
+                    card.value
+                        .contains("Method availability depends on execution.")
+                );
+            }
+        }
+        assert!(
+            !hover(source, 2, 4, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**Method source declaration**"))
+        );
+        let at = u32::try_from(source.find("m\\uD801").unwrap()).unwrap();
+        assert!(
+            !hover(source, 0, at + 7, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**Method source declaration**"))
+        );
+        assert!(
+            !hover(&format!("#{source}"), 0, at, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**Method source declaration**"))
+        );
+    }
+
+    #[test]
+    fn counted_method_hover_rejects_unavailable_ambiguous_and_foreign_inventory() {
+        for body in [
+            "{unknown_member; method m {} {}}",
+            "{method $name {} {}}",
+            "{foreach name {a b} {method $name {} {}}}",
+            "{method m {} \"unterminated}",
+        ] {
+            let source = format!("oo::class create C\\uD800 {body}");
+            let analysis = analyse(&source);
+            let [class] = analysis.original_counted_class_metadata.as_slice() else {
+                panic!("{source}")
+            };
+            assert!(class.metadata().initial_method_declarations().is_none());
+            if let Some(offset) = source.find("method m ") {
+                let at = u32::try_from(offset + "method ".len()).unwrap();
+                assert!(
+                    !hover(&source, 0, at, &analysis, None)
+                        .is_some_and(|hover| hover.value.contains("**Method source declaration**")),
+                    "{source}"
+                );
+            }
+        }
+        let source = "oo::class create C\\uD800 {method m\\uD801 {} {}}";
+        let analysis = analyse(source);
+        let at = u32::try_from(source.find("m\\uD801").unwrap()).unwrap();
+        assert!(
+            hover(source, 0, at, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**Method source declaration**"))
+        );
+        let mut duplicate = analysis.clone();
+        duplicate
+            .original_counted_class_metadata
+            .push(duplicate.original_counted_class_metadata[0].clone());
+        assert!(
+            !hover(source, 0, at, &duplicate, None)
+                .is_some_and(|hover| hover.value.contains("**Method source declaration**"))
+        );
+        let mut foreign = analysis.clone();
+        foreign.original_counted_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.0")
+            .original_counted_class_metadata;
+        assert!(
+            !hover(source, 0, at, &foreign, None)
+                .is_some_and(|hover| hover.value.contains("**Method source declaration**"))
+        );
+    }
+
+    #[test]
+    fn counted_method_hover_fences_original_backticks() {
+        let source = "oo::class create C\\uD800 {method m\\uD801``` {} {}}";
+        let analysis = analyse(source);
+        let at = u32::try_from(source.find("m\\uD801").unwrap()).unwrap();
+        let card = hover(source, 0, at, &analysis, None).unwrap();
+        assert!(card.value.contains("````tcl\nm\\uD801```\n````"));
+    }
+
     #[test]
     fn counted_class_hover_keeps_distinct_source_bytes_and_horizons() {
         let source = "oo::class create C\\uD800 {method m {} {}}\noo::class create C\\uD801 {}\nC\\uD800 new\nC\\uD801 new\nrename C\\uD800 moved\nmoved new\n";
