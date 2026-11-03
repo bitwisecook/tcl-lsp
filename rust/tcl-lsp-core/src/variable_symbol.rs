@@ -866,7 +866,7 @@ mod tests {
 
     #[test]
     fn native_root_source_documentation_withholds_a_mixed_original_read_frame() {
-        let source = "set body {puts $auto_path}; catch {eval $body}; proc local {body} {catch {eval $body}}; local $body";
+        let source = "set candidate READY; proc f {level} {uplevel $level {set sink $candidate}}; if {rand()} {f #0} else {f 0}";
         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = context.commands();
         let bindings = tcl_compiler::command_binding::SourceCommandBindings::analyse_with_options(
@@ -884,7 +884,7 @@ mod tests {
             .variable_accesses_in_span(Span::new(0, u32::try_from(source.len() - 1).unwrap()));
         let read = reads
             .iter()
-            .find(|read| read.original_spelling == "$auto_path")
+            .find(|read| read.original_spelling == "$candidate")
             .expect("one original read shared by both evaluations");
         assert!(read.context_alternatives().iter().any(|context| matches!(
             context.frame_kind,

@@ -198,6 +198,31 @@ Registry descriptor's package prerequisite or provider wording.
 
 ### Package resolver (`pkgIndex.tcl` / `tclIndex`)
 
+Original native-name advertisements require a complete original source head,
+static original name and valid version operands, plus the actual deferred loader
+word. A bounded negative eligibility survey can exclude that exact output shape
+before full analysis. It retains the complete original Document image, actual
+loader release, Registry generation, resolved source input and lexer configuration.
+The full builder accepts only Registry-backed canonical targets with no captured
+prefix. For each possible original vector, the survey queries every registered
+canonical target under that same loader context. If none can issue the required
+static `Ifneeded` name/version/script operands, the full builder cannot emit an
+advertisement for that vector. The ordinary builder and its file/path owners
+still handle every positive or uncertain case.
+
+The survey includes literal nested regions and command substitutions
+conservatively. Missing original ownership, opaque heads, expansion, cooked braced/quoted script regions,
+malformed regions, availability/stub directives, and exhausted source, depth,
+region, byte or schema-query bounds preserve full analysis. A nominal alias
+transition can only preserve that full path; it never selects an implementation.
+Bare head/name/version operands retain the shared original-word cooking rules.
+A cooked bare script is not substituted for an unchanged original body: the full
+builder itself requires that body correspondence before reaching its commands.
+The survey produces neither an analysis projection nor a package/name/Native
+result. Its negative answer excludes only this static source-advertisement
+shape, without establishing package absence, a successful loader, or interpreter
+execution. It does not change the separate standalone advertisement inventory.
+
 9. `PackageResolver::scan_tree(root, max_dirs)` walks a workspace tree (each
    directory and its immediate subdirectories, bounded by `max_dirs`) and
    `scan_path(dir)` scans one directory, mirroring C Tcl's `tclPkgUnknown`.

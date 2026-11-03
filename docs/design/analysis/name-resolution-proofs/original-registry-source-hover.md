@@ -22,6 +22,8 @@ Definition-member argument presentation retains static original Document bytes, 
 
 A Native-source root card requires a separate readonly disposition selected before the caller-navigation branch. The existing original command owner attaches exact read receipts; the actual original variable root's mapped source span must select one unique read. Unqualified source names require a nonempty original read-context set whose every alternative retains a global frame and root namespace geometry; the joined compatibility context cannot establish unanimity. An absolute root name retains its own selected input qualification, independently of local frame layout. A missing/conflicted read, unavailable source, declaration, non-root/local name or array-index cursor supplies no card. This disposition yields no declaration or reference set and supplies no runtime read success, cell, handler or edit permission.
 
+A descriptor written after an unknown call can itself have only conditional source applicability. Its source declaration card does not establish that its mutation ran. Such following Registry cards retain explicit unresolved-availability wording; independently retained custom/deletion barriers from before the unknown call still withdraw nominal documentation.
+
 ## Provider answers
 
 ### tcl8.4

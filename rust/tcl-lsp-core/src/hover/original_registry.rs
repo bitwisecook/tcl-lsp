@@ -753,8 +753,8 @@ mod tests {
             "proc string args {return custom}\nstring length value",
             "rename string {}\nstring length value",
             "proc regexp args {}\nregexp -nocase p text",
-            "opaque\nproc string args {return custom}\nstring length value",
-            "opaque\nrename string {}\nstring length value",
+            "proc string args {return custom}\nopaque\nstring length value",
+            "rename string {}\nopaque\nstring length value",
         ] {
             let mut analysis = Analyser::new().analyse(source, "tcl8.6");
             analysis.all_procs.clear();
@@ -772,12 +772,34 @@ mod tests {
             crate::method_symbol::local_candidate(source, &analysis, 1, 8),
             ControlFlow::Break(None)
         ));
-        let advice = at(source, &analysis, "length").expect("conditional source documentation");
-        assert!(
-            advice.value.contains("Source documentation"),
-            "{}",
-            advice.value
-        );
+        for source in [
+            source,
+            "opaque\nproc string args {return custom}\nstring length value",
+            "opaque\nrename string {}\nstring length value",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let offset = u32::try_from(source.rfind("string length").unwrap()).unwrap();
+            let words =
+                tcl_compiler::registry_invocation::source_structure::source_registry_words_at(
+                    source, &analysis, offset,
+                )
+                .expect("retained conditional schema");
+            assert!(matches!(
+                words.source(),
+                OriginalRegistrySource::Conditional(_)
+            ));
+            let advice = at(source, &analysis, "length").expect("conditional source documentation");
+            assert!(
+                advice.value.contains("Source documentation"),
+                "{}",
+                advice.value
+            );
+            assert!(
+                advice.value.contains("command availability is unresolved"),
+                "{}",
+                advice.value
+            );
+        }
     }
 
     #[test]

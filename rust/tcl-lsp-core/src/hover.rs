@@ -894,13 +894,13 @@ fn selected_root_special_variable_source_hover(
 fn navigation_variable_hover(
     source: &str,
     analysis: &AnalysisResult,
-    selection: crate::variable_symbol::NavigationVariable<'_>,
+    selection: &crate::variable_symbol::NavigationVariable<'_>,
     cursor_offset: u32,
     ctx: crate::definition::CallResolution<'_>,
     annotate: bool,
 ) -> Option<Hover> {
     use crate::variable_symbol::NavigationVariable;
-    match &selection {
+    match selection {
         NavigationVariable::NativeRootSourceReference(reference) => {
             return selected_root_special_variable_source_hover(
                 source,
@@ -994,7 +994,7 @@ fn source_role_hover(
         crate::variable_symbol::select_navigation(source, analysis, line, character, ctx)
     {
         return std::ops::ControlFlow::Break(selected.and_then(|selection| {
-            navigation_variable_hover(source, analysis, selection, cursor_offset, ctx, annotate)
+            navigation_variable_hover(source, analysis, &selection, cursor_offset, ctx, annotate)
         }));
     }
     match crate::method_symbol::local_candidate(source, analysis, line, character) {

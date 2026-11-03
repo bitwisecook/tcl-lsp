@@ -4,6 +4,7 @@
 
 //! Package and autoload command queries using retained original byte producers.
 
+mod advertisement_eligibility;
 mod file_candidates;
 pub(super) mod index_loader;
 pub use file_candidates::{OriginalPackageFileCandidate, OriginalPackageFileCandidateKind};
@@ -672,6 +673,20 @@ fn analyse_index_with(
 }
 
 fn original_package_entries(
+    content: &str,
+    directory: &Path,
+    index: &Path,
+    exists: &dyn Fn(&Path) -> bool,
+    list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
+    version: tcl_dialect::TclVersion,
+) -> Vec<OriginalPackageInfo> {
+    if !advertisement_eligibility::may_advertise(content, version) {
+        return Vec::new();
+    }
+    original_package_entries_full(content, directory, index, exists, list_files, version)
+}
+
+fn original_package_entries_full(
     content: &str,
     directory: &Path,
     index: &Path,
