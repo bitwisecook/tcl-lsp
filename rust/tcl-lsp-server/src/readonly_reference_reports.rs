@@ -5556,14 +5556,7 @@ mod factory_source_custody_tests {
             let revision = tcl_lsp_db::database_revision(&*self.backend.db.lock().await);
             let epoch = self.backend.diag_inputs_epoch();
             let generation = *self.backend.class_factory_generation.read().await;
-            let caller = self
-                .backend
-                .documents
-                .lock("factory source test caller")
-                .await
-                .get(&self.open)
-                .unwrap()
-                .clone();
+            let caller = self.backend.read_document(&self.open).await?.unwrap();
             let caller_generation = self.backend.live_publication_uri_generation(&self.open);
             self.backend
                 .publish_factory_source_if_current(
@@ -5625,6 +5618,25 @@ mod factory_source_custody_tests {
         let caller_generation = fixture
             .backend
             .live_publication_uri_generation(&fixture.closed);
+        let original_leases = fixture.leases().await;
+        let revision = tcl_lsp_db::database_revision(&*fixture.backend.db.lock().await);
+        let epoch = fixture.backend.diag_inputs_epoch();
+        let generation = *fixture.backend.class_factory_generation.read().await;
+        assert_eq!(
+            fixture
+                .backend
+                .publish_factory_source_if_current(
+                    &original_leases,
+                    epoch,
+                    generation,
+                    revision,
+                    (&fixture.closed, &caller, caller_generation),
+                    17,
+                )
+                .await
+                .unwrap(),
+            Some(17)
+        );
         fixture
             .store
             .upsert(CLOSED_PATH, CLOSED_SOURCE.replace('\n', "\r").into_bytes());
