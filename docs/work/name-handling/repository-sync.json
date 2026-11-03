@@ -1,20 +1,14 @@
 {
-  "checked_at": "2026-11-03T18:15:54.968912+00:00",
+  "checked_at": "2026-11-03T18:20:53.319587+00:00",
   "branch": "work",
-  "head_before_status_commit": "7165cf985a13cd86d557542140ecaf91cdd2913e",
-  "remote_head_at_fetch": "7165cf985a13cd86d557542140ecaf91cdd2913e",
-  "sync": "no new remote commits",
+  "head_before_status_commit": "2e54a656ca7c5018023d567b0395d620af6f797e",
+  "remote_head_at_fetch": "d4e19f9f425d22d62532a23f442b2ca68f56f4c8",
+  "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
   "manual_status_sha256": "4fee238f213ffb6d1d031910bff3a3364199e1bb758550a6fd2933e8bee48a76",
-  "working_tree_at_check": [
-    " M docs/design/analysis/name-resolution-proofs/core-original-math-function-selection.md",
-    " M docs/design/analysis/name-resolution-proofs/core-original-math-rename-coverage.md",
-    " M docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md",
-    " M docs/design/analysis/name-resolution-proofs/manifest.json",
-    " M docs/design/analysis/name-resolution-proofs/selected-variable-cursor-syntax.md"
-  ],
+  "working_tree_at_check": [],
   "ci_run": 41669761498,
   "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
