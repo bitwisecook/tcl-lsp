@@ -24,6 +24,9 @@ pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Opt
     if let Some(text) = member_keyword_hover(source, analysis, cursor) {
         return Some(Hover::markdown(text));
     }
+    if let Some(text) = selected_definition_scoped_hover(source, analysis, cursor) {
+        return Some(Hover::markdown(text));
+    }
     let config = analysis.body_lexer_config?;
     let structure =
         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
@@ -48,6 +51,31 @@ pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Opt
     }
     let text = schema_hover(analysis, &words, cursor)?;
     Some(Hover::markdown(text))
+}
+
+/// Documentation from the exact selected source definition member. This is
+/// scoped authoring vocabulary only, not a runtime command selection.
+fn selected_definition_scoped_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<String> {
+    let selection =
+        crate::source_structure::SourceStructure::definition_grammar_at(source, analysis, cursor);
+    let (environment, selected) = selection.selected_scoped_head(source, analysis, cursor)?;
+    let mut out = format!("**`{}`** — {} command\n", selected.name, environment.name);
+    if let Some(hover) = &selected.hover {
+        if !hover.summary.is_empty() {
+            let _ = write!(out, "\n{}\n", hover.summary);
+        }
+        if !hover.snippet.is_empty() {
+            let _ = write!(out, "\n```tcl\n{}\n```\n", hover.snippet);
+        }
+    } else if !selected.detail.is_empty() {
+        let _ = write!(out, "\n{}\n", selected.detail);
+    }
+    out.push_str("\n\n_Source vocabulary for this body._");
+    Some(out)
 }
 
 /// Procedure or class declaration card for the original declaration whose
@@ -395,6 +423,55 @@ mod tests {
         )
     }
 
+    #[test]
+    fn spectcl_nested_hover_documentation_requires_exact_source_member() {
+        let source = "speclib demo 1.0 {\n\ncommand demo_place {\n    dialects tcl8.6\n\n    form Default {demo_place ?-cell name? ?-count n?}\n\n    hover {\n        summary {Place a demonstration cell.}\n        synopsis {demo_place ?-cell name? ?-count n?}\n    }\n}\n\n}\n";
+        let analysis = Analyser::new().analyse(source, "spectcl");
+        let hover = super::super::hover(source, 9, 10, &analysis, None)
+            .expect("nested synopsis source documentation");
+        assert!(hover.value.contains("synopsis"), "{hover:?}");
+        assert!(hover.value.contains("Source vocabulary"), "{hover:?}");
+        let unicode = source.replace("Place a demonstration cell.", "🧪 café");
+        let unicode_analysis = Analyser::new().analyse(&unicode, "spectcl");
+        let unicode_hover = super::super::hover(&unicode, 9, 10, &unicode_analysis, None)
+            .expect("current UTF-16 cursor keeps its selected member");
+        assert!(unicode_hover.value.contains("synopsis"));
+        let cursor = u32::try_from(source.find("synopsis").unwrap() + 1).unwrap();
+        assert!(selected_definition_scoped_hover(source, &analysis, cursor).is_some());
+        assert!(
+            selected_definition_scoped_hover(&format!("{source} "), &analysis, cursor).is_none()
+        );
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Analyser::new().analyse(source, "tcl8.6").resolved_input;
+        assert!(selected_definition_scoped_hover(source, &foreign, cursor).is_none());
+        let head_end = u32::try_from(source.find("synopsis").unwrap() + "synopsis".len()).unwrap();
+        assert!(selected_definition_scoped_hover(source, &analysis, head_end).is_none());
+        let data_cursor = u32::try_from(source.find("?-cell").unwrap() + 2).unwrap();
+        assert!(selected_definition_scoped_hover(source, &analysis, data_cursor).is_none());
+        for observed in [
+            "speclib demo 1 {command demo {hover {trace add execution synopsis enter cb; synopsis VALUE}}}",
+            "speclib demo 1 {command demo {hover {proc synopsis args {}; synopsis VALUE}}}",
+        ] {
+            let other = Analyser::new().analyse(observed, "spectcl");
+            let offset = u32::try_from(observed.rfind("synopsis").unwrap() + 1).unwrap();
+            if let Some(text) = selected_definition_scoped_hover(observed, &other, offset) {
+                assert!(text.contains("Source vocabulary for this body"), "{text}");
+            }
+        }
+        for invalid in [
+            "speclib demo 1 {command demo {hover {$synopsis VALUE}}}",
+            "speclib demo 1 {command demo {synopsis VALUE}}",
+            "speclib demo 1 {command demo {hover {synopsis VALUE}",
+        ] {
+            let other = Analyser::new().analyse(invalid, "spectcl");
+            let offset = u32::try_from(invalid.find("synopsis").unwrap() + 2).unwrap();
+            assert!(
+                selected_definition_scoped_hover(invalid, &other, offset).is_none(),
+                "{invalid}"
+            );
+        }
+    }
+
     fn tk_source_analysis(source: &str) -> AnalysisResult {
         let environment = tcl_registry::model::ingress::resolve_environment("tk");
         let profile = environment.analyser_profile();
@@ -503,7 +580,7 @@ mod tests {
         // naming.core.original-registry-source-hover
         // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
         for (source, needle, expected) in [
-            ("puts hello", "puts", "command documentation"),
+            ("puts hello", "puts", "built-in command"),
             ("string length value", "length", "`string length`"),
             (
                 "regexp -nocase pattern text",

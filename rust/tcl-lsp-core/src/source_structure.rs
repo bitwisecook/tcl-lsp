@@ -286,6 +286,45 @@ impl SourceDefinitionGrammar {
         }
     }
 
+    /// Scoped source documentation at an exact member head in a genuine
+    /// selected definition body. This supplies no entered command or dispatch.
+    pub(crate) fn selected_scoped_head(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+    ) -> Option<(
+        &'static tcl_registry::scoped::ScopedCommandEnv,
+        &'static tcl_registry::scoped::ScopedCommand,
+    )> {
+        let Self::Selected(vocabulary) = self else {
+            return None;
+        };
+        vocabulary.grammar(source, analysis)?;
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let parent = vocabulary.parent.as_ref()?;
+        let members = vocabulary.members.as_ref()?;
+        let context = current.context();
+        let environment = parent
+            .source_words()
+            .with_source_schema(&context, |schema| {
+                schema.authored_source_descriptors().command.body_scope
+            })??;
+        let commands = members.complete_original_commands()?;
+        let mut found = commands.iter().filter_map(|words| {
+            let head = words.first()?;
+            if head.group().expand || !head.span().as_range().contains(&(cursor as usize)) {
+                return None;
+            }
+            members.member_keyword(words)?;
+            let name = tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?;
+            let name = std::str::from_utf8(&name).ok()?;
+            Some(environment.command(name)?)
+        });
+        let command = found.next()?;
+        found.next().is_none().then_some((environment, command))
+    }
+
     #[cfg(test)]
     pub(crate) fn is_none(&self) -> bool {
         matches!(self, Self::OrdinaryScript | Self::Unavailable(_))
