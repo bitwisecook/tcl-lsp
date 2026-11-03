@@ -1,13 +1,13 @@
 {
-  "checked_at": "2026-11-03T22:32:52.025214+00:00",
+  "checked_at": "2026-11-03T22:38:18.356504+00:00",
   "branch": "work",
-  "head_before_status_commit": "7a24af89822ccf99068653c6c108f44b9364b829",
-  "remote_head_at_fetch": "28bf0aeaf74dbb46944e231d5392147f04927e8b",
-  "sync": "local commits pending publication; remote ancestor verified",
+  "head_before_status_commit": "b7336c76e2e9a8b77152b702fb6bdd482d1c16b2",
+  "remote_head_at_fetch": "b7336c76e2e9a8b77152b702fb6bdd482d1c16b2",
+  "sync": "fast-forwarded remote changes",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "ecc0f44903442535b4e6d8fd4a296a7a4c7225a7f59e4488e2b1862abe7a44c3",
+  "manual_status_sha256": "c998de33d515fa93763bda2f7d829f9115ca23bf5c350990e6bf246d41118c62",
   "working_tree_at_check": [
     " M rust/tcl-lsp-core/src/hover/original_registry.rs",
     " M rust/tcl-lsp-core/src/variable_symbol.rs"
