@@ -353,8 +353,10 @@ fn capture_counted_class_declaration(
         .filter(|candidate| candidate.original_container() == body);
     let selected = bodies.next()?;
     bodies.next().is_none().then_some(())?;
+    let initial_methods = analyser.counted_initial_body_methods(declaration, &selected, scope_path);
     let record = super::types::OriginalCountedClass {
         body: std::sync::Arc::new(selected),
+        initial_methods,
     };
     crate::signature_scan::original_name::SourceDeclarationMetadata::new(
         &occurrence,

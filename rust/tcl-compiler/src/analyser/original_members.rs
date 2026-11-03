@@ -33,7 +33,141 @@ use tcl_registry::{
     },
 };
 
+fn counted_body_schema_matches(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+    grammar: &'static DefinitionBodyGrammar,
+) -> bool {
+    words.with_source_schema(context, |schema| {
+        schema
+            .authored_source_definition_body_grammar()
+            .is_some_and(|selected| std::ptr::eq(selected, grammar))
+    }) == Some(true)
+}
+
+fn counted_body_method(
+    entry: &OriginalSourceMethodMetadata,
+) -> Option<super::types::OriginalCountedBodyMethod> {
+    let declaration = entry.declaration();
+    declaration.source_installer().is_none().then_some(())?;
+    let name = declaration.static_occurrence()?.name_input().clone();
+    Some(super::types::OriginalCountedBodyMethod {
+        name,
+        worker_word: declaration.original_word().clone(),
+        site: declaration.site().clone(),
+        side: entry.side(),
+        parameters: entry.parameters_word().cloned(),
+        body: entry.body_word().cloned(),
+    })
+}
+
 impl Analyser {
+    /// Initial body syntax only; no installed or complete class membership.
+    pub(super) fn counted_initial_body_methods(
+        &self,
+        declaration: &crate::command_binding::OriginalSourceClassDeclaration,
+        body: &crate::registry_invocation::OriginalSourceScriptBody,
+        scope_path: &[usize],
+    ) -> Option<Vec<super::types::OriginalCountedBodyMethod>> {
+        let input = self.resolved_analysis_input();
+        let context = input.context_registry();
+        let image = SourceImage::document(&self.source);
+        let config = self.file_lexer_config();
+        if !self.result.matches_original_source_image(&image, config)
+            || !body.matches_source(&image, config)
+            || !body.matches_context(&context)
+            || !declaration.factory().matches_source(&image, config)
+            || !declaration.factory().matches_context(&context)
+        {
+            return None;
+        }
+        let grammar = declaration.grammar(&context)?;
+        (grammar.family == DefinerFamily::TclOo).then_some(())?;
+        let factory = declaration.factory();
+        let descriptor = context
+            .context()
+            .resolve_spec(context.commands(), factory.command())?;
+        descriptor
+            .traits
+            .contains(tcl_registry::Traits::IS_OO_METACLASS)
+            .then_some(())?;
+        let arguments = factory.arguments();
+        let selector = std::str::from_utf8(arguments.first()?.value.as_deref()?).ok()?;
+        let method = tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
+            descriptor, selector,
+        )?;
+        (method.visibility == MemberVisibility::Exported).then_some(())?;
+        let body_index = usize::from(method.definition_body_at?);
+        let name_index = usize::from(method.names_instance_at?);
+        let name = arguments.get(name_index)?.input.as_ref()?.native_input()?;
+        (declaration.name_input().native_input()? == name).then_some(())?;
+        let original_key = name.original_word_key()?;
+        let caller_scope = self.declaration_namespace_scope(scope_path)?;
+        let publication = crate::signature_scan::scope::SignatureSourceCommand::object_from_key(
+            &caller_scope,
+            original_key,
+        )?;
+        (publication.slot() == declaration.source_slot()).then_some(())?;
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            factory.site().offset,
+        )?;
+        if body.source_words() != &words
+            || words.original_argument_word(body_index) != Some(body.original_container())
+            || arguments.get(body_index)?.original != *body.original_container()
+            || !counted_body_schema_matches(&words, &context, grammar)
+        {
+            return None;
+        }
+        let origin = &factory.site().source;
+        (origin.source_image() == &image).then_some(())?;
+        let bindings = self.head_identities.source_bindings_ref();
+        (bindings.source_origin()? == origin).then_some(())?;
+        let realm = self.result.retained_command_realm()?;
+        realm
+            .matches_resolved_analysis_input(&input)
+            .then_some(())?;
+        let registry = self.registry.as_ref()?;
+        Arc::ptr_eq(registry, context.commands()).then_some(())?;
+        let policy = self.declaration_name_policy()?;
+        (policy == name.policy()).then_some(())?;
+        let dialect = super::oo::MemberDialect {
+            surface: Some(context.context().authoring_query()),
+            rules: self.word_rules(),
+        };
+        let mut producer = Producer {
+            grammar,
+            origin,
+            dialect,
+            policy,
+            name_purpose: OriginalSourceNamePurpose::for_analysis_input(
+                &input,
+                self.source_analysis_entry.as_deref(),
+                policy,
+            ),
+            source_dialect: self.original_member_source_dialect(),
+            bindings,
+            registry: Some(registry.as_ref()),
+            caller_scope: Some(caller_scope),
+            readonly_names: Vec::new(),
+            source_installer: None,
+            class_relation_body: Some(body),
+        };
+        let mut scratch = ClassDef::default();
+        producer.configuration_body(
+            std::slice::from_ref(body.original_container()),
+            MemberSide::Instance,
+            &mut scratch,
+            config,
+        )?;
+        scratch
+            .original_members
+            .declarations()
+            .map(counted_body_method)
+            .collect()
+    }
+
     /// Accumulate source metadata only under its authentic original class definer.
     /// Callers supply a class freshly walked from a sealed source call/reference;
     /// the reporting map never selects the declaration or donates a class token.
@@ -1700,6 +1834,155 @@ fn original_two_word_role_word(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counted_initial_methods_do_not_include_later_configurations() {
+        let source = "oo::class create C\\uD800 {method original {} {}}; oo::define C\\uD800 method later {} {}; rename C\\uD800 {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let [class] = analysis.original_counted_class_metadata.as_slice() else {
+            panic!("one original class");
+        };
+        let methods = class
+            .metadata()
+            .initial_method_declarations()
+            .expect("original body inventory");
+        assert_eq!(methods.len(), 1);
+        assert_eq!(methods[0].original_name_input().bytes(), b"original");
+    }
+
+    #[test]
+    fn counted_initial_methods_keep_class_side_and_duplicate_sites() {
+        let source =
+            "oo::class create C\\uD800 {method m {} {}; method m {} {}; self method create {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let class = analysis.original_counted_class_metadata.first().unwrap();
+        let methods = class
+            .metadata()
+            .initial_method_declarations()
+            .expect("complete source inventory");
+        assert_eq!(methods.len(), 3);
+        assert_eq!(methods[0].original_name_input().bytes(), b"m");
+        assert_eq!(methods[1].original_name_input().bytes(), b"m");
+        assert_ne!(methods[0].site(), methods[1].site());
+        assert_eq!(methods[0].side(), MemberSide::Instance);
+        assert_eq!(methods[2].original_name_input().bytes(), b"create");
+        assert_eq!(methods[2].side(), MemberSide::ClassObject);
+    }
+
+    #[test]
+    fn counted_initial_methods_decline_malformed_bodies() {
+        let source = "oo::class create C\\uD800 {method m {} {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(analysis.original_counted_class_metadata.is_empty());
+        let inner = "oo::class create C\\uD800 {method m {} \"unterminated}";
+        let analysis = Analyser::new().analyse(inner, "tcl8.6");
+        let [class] = analysis.original_counted_class_metadata.as_slice() else {
+            panic!("outer declaration and body remain present");
+        };
+        assert!(class.metadata().initial_method_declarations().is_none());
+    }
+
+    #[test]
+    fn counted_initial_methods_preserve_original_byte_names_and_role_words() {
+        let source =
+            "oo::class create C\\uD800 {method m\\uD800 {x} {return $x}; method m\\uD801 {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let [class] = analysis.original_counted_class_metadata.as_slice() else {
+            panic!("one counted class");
+        };
+        let methods = class
+            .metadata()
+            .initial_method_declarations()
+            .expect("retained source method declarations");
+        assert_eq!(methods.len(), 2);
+        assert_eq!(methods[0].original_name_input().bytes(), b"m\xed\xa0\x80");
+        assert_eq!(methods[1].original_name_input().bytes(), b"m\xed\xa0\x81");
+        assert_eq!(
+            methods[0].parameters_word().unwrap().try_text().unwrap(),
+            "{x}"
+        );
+        assert_eq!(
+            methods[0].body_word().unwrap().try_text().unwrap(),
+            "{return $x}"
+        );
+        assert_eq!(methods[0].side(), MemberSide::Instance);
+        assert_eq!(
+            methods[0].original_word().image().bytes(),
+            source.as_bytes()
+        );
+        assert_eq!(
+            methods[0].site().source.source_image().bytes(),
+            source.as_bytes()
+        );
+        assert_ne!(methods[0].site(), methods[1].site());
+        assert!(analysis.all_classes.is_empty());
+        assert!(analysis.global_scope.classes.is_empty());
+    }
+
+    #[test]
+    fn counted_initial_methods_decline_unknown_dynamic_and_loop_sources() {
+        for body in [
+            "{unknown_member; method m {} {}}",
+            "{method $name {} {}}",
+            "{foreach name {a b} {method $name {} {}}}",
+        ] {
+            let source = format!("oo::class create C\\uD800 {body}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let [class] = analysis.original_counted_class_metadata.as_slice() else {
+                panic!("{source}");
+            };
+            assert!(
+                class.metadata().initial_method_declarations().is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn counted_initial_body_owner_rejects_swapped_body_and_stale_image() {
+        let source = "oo::class create C\\uD800 {method c {} {}}; oo::class create D\\uD801 {method d {} {}}";
+        let mut analyser = Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6");
+        assert_eq!(analysis.original_counted_class_metadata.len(), 2);
+        let records = &analysis.original_counted_class_metadata;
+        assert!(
+            records
+                .iter()
+                .all(|record| record.metadata().initial_method_declarations().is_some())
+        );
+        let declaration =
+            crate::registry_invocation::source_structure::source_class_declaration_at(
+                source, &analysis, 0,
+            )
+            .unwrap();
+        assert!(
+            analyser
+                .counted_initial_body_methods(&declaration, records[1].metadata().body(), &[])
+                .is_none()
+        );
+        analyser.source.insert(0, '#');
+        assert!(
+            analyser
+                .counted_initial_body_methods(&declaration, records[0].metadata().body(), &[])
+                .is_none()
+        );
+        analyser.source.remove(0);
+        analyser.result = Analyser::new().analyse(source, "tcl9.0");
+        assert!(
+            analyser
+                .counted_initial_body_methods(&declaration, records[0].metadata().body(), &[])
+                .is_none()
+        );
+        analyser.result = analysis.clone();
+        let mut foreign = Analyser::new();
+        foreign.analyse(source, "tcl9.0");
+        analyser.registry = foreign.registry.clone();
+        assert!(
+            analyser
+                .counted_initial_body_methods(&declaration, records[0].metadata().body(), &[])
+                .is_none()
+        );
+    }
 
     #[test]
     fn logical_inline_member_metadata_keeps_actual_original_name_and_body_words() {

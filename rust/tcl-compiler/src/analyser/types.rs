@@ -1435,11 +1435,61 @@ impl SourceNameAmbiguity {
     }
 }
 
+/// A method declaration written in a counted class's initial source body.
+/// This is syntax inventory, not method installation, availability or dispatch.
+/// Consumers must rejoin its enclosing class body to the current source and
+/// context; a cloned declaration alone cannot establish that correspondence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalCountedBodyMethod {
+    pub(super) name: crate::signature_scan::scope::SignatureSourceNameKey,
+    pub(super) worker_word: tcl_lexer::NativeWord,
+    pub(super) site: crate::command_binding::CommandAllocationSite,
+    pub(super) side: MemberSide,
+    pub(super) parameters: Option<tcl_lexer::NativeWord>,
+    pub(super) body: Option<tcl_lexer::NativeWord>,
+}
+
+impl OriginalCountedBodyMethod {
+    /// Exact original static naming units.
+    #[must_use]
+    pub const fn original_name_input(
+        &self,
+    ) -> &crate::signature_scan::scope::SignatureSourceNameKey {
+        &self.name
+    }
+    /// Actual original naming operand, never an edit recipe for a derived value.
+    #[must_use]
+    pub const fn original_word(&self) -> &tcl_lexer::NativeWord {
+        &self.worker_word
+    }
+    /// Whole original declaring command site.
+    #[must_use]
+    pub const fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+        &self.site
+    }
+    /// Source declaration side selected by the definition grammar.
+    #[must_use]
+    pub const fn side(&self) -> MemberSide {
+        self.side
+    }
+    /// Original parameter-list role, without parameter binding authority.
+    #[must_use]
+    pub const fn parameters_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.parameters.as_ref()
+    }
+    /// Original script-body role, without entry or execution authority.
+    #[must_use]
+    pub const fn body_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.body.as_ref()
+    }
+}
+
 /// Counted original class metadata with no reporting-name projection.
 /// This source-only receipt establishes neither runtime installation nor member coverage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalCountedClass {
     pub(super) body: std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+    pub(super) initial_methods: Option<Vec<OriginalCountedBodyMethod>>,
 }
 
 impl OriginalCountedClass {
@@ -1447,6 +1497,11 @@ impl OriginalCountedClass {
     #[must_use]
     pub fn body(&self) -> &crate::registry_invocation::OriginalSourceScriptBody {
         &self.body
+    }
+    /// Declarations in the initial written body only. Neither absence nor current members follow.
+    #[must_use]
+    pub fn initial_method_declarations(&self) -> Option<&[OriginalCountedBodyMethod]> {
+        self.initial_methods.as_deref()
     }
 }
 
