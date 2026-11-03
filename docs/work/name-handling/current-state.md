@@ -37,7 +37,7 @@ The 18 open issues not opened by the maintainer (#2021 is excluded and handled s
 - **Guards only:** #2288 (W105 `+[list …]`) is guarded but not observable, because W105 is not emitted on `work`. #2181 changes the semantic-token refresh guard; its e2e tests pass, but it has not been checked in a VS Code host.
 - **Already correct on `work`, regression added:** #2265, #2242, #2501, #2502, #2498, #2500 and #2504 (on the production shimmer path), and #2286 (its three tcltest tests pass here).
 - **#2290:** the current upstream file is clean; no fixture.
-- **Residual:** #2505 inside a proc body. A list-built `uplevel` script whose brackets contain a backslash-newline still draws W301, because the nested `list` invocation has no recorded original binding. This is open.
+- **Residual (still open):** #2505 inside a proc body. A list-built `uplevel` script whose brackets contain a backslash-newline still draws W301, because the nested `list` invocation has no recorded original binding. This is open.
 - **Shared-owner changes:** `BinOp`/`UnaryOp::yields_boolean` (`tcl-syntax`), `OriginalExpressionCommandRegion::whole_operand` (`tcl-syntax`), and set-literal typing through the shared numeral parser (`Inf`, `-Inf` and `1e3` are `Double`).
 
 Validation for this sweep:
@@ -46,7 +46,8 @@ Validation for this sweep:
 - **Compiler suite comparison:** the `fp::sh`, `type_infer`, `compilation_unit::tests::return_type`, `fp_sty_14` and `w212` suites were compared against a pristine stash of the same tree. There are no new failures. These tests already failed before the sweep: 52 in `fp::sh`/`type_infer`/`return_type`; four in `fp_sty_14` (W105 never fires); `w212_covers_registry_name_positions`; `nested_expression_advice_uses_actual_renamed_descriptor…`; and `lens_matches_peek_for_inherited_method_with_subclass_my_dispatch`.
 - **tcl-lsp-core:** both new tests pass.
 - **Server e2e `spec_packs::`:** 23 pass and 12 fail with `--test-threads=2`. The pristine baseline has the same 11 failures (outline, folding, trust, UPF hooks, notices and others). The extra failure, `a_pack_added_after_startup_reloads_and_re_analyses_open_documents`, passes twice when run alone, so it is load-flaky. The new #2242 test passes.
-- **Pipelines that emit nothing on `work`:** the CLI and LSP emit no S1xx shimmer diagnostics even for positive controls, and W105 is not emitted for quoted, composite or `bind` bodies. Both are recorded here and not fixed.
+- **S1xx shimmer diagnostics are emitted:** the earlier claim that the CLI emits none was wrong; the cases I used as positive controls are not shimmers under the current rules. With the CLI, `set s hello; expr {$s + 1}` and `set s [string trim "5"]; expr {$s + 1}` each draw S100, and a loop that alternates a string and a list draws S101 and S102. The #2498 and #2500 repros draw no S1xx through the CLI (#2504's repro produces one non-shimmer diagnostic).
+- **W105 is still not emitted** for quoted, composite or `bind` bodies (four `fp_sty_14` true-positive tests fail). Not yet diagnosed: the debug tracing in `dispatch_body_arguments` was stopped before it ran.
 - **Find References:** results from a debug server are intermittently empty for TclOO methods, in the same-class control too.
 - **Gates run for this sweep:**
   - `cargo fmt --check` passes.
