@@ -910,12 +910,6 @@ declare_traits! {
     /// the query consumers use instead of a literal name test.
     TclooIntrospection => TCLOO_INTROSPECTION, Objects, "introspects the current TclOO method context";
 
-    /// The result is a `TclOO` object or class handle that only exists at
-    /// run time (`oo::copy`), so a receiver bound from it has no statically
-    /// named class. Consumers abstain on such a receiver rather than reading
-    /// the command spelling.
-    TclooRuntimeHandleResult => TCLOO_RUNTIME_HANDLE_RESULT, Objects, "returns a run-time TclOO object or class handle";
-
     /// Each body argument runs only when this command's own run-time
     /// selection picks it, and the command performs no iteration — `if`
     /// (at most one clause body plus an optional `else`) and `try` (handler
@@ -1279,6 +1273,12 @@ declare_traits! {
     /// offering them. Which words are member-only is a fact about the word,
     /// so the word states it.
     DefinitionBodyMemberOnly => DEFINITION_BODY_MEMBER_ONLY, Objects, "legal only inside a definition body that declares it as a member";
+
+    /// The result is a `TclOO` object or class handle that only exists at
+    /// run time (`oo::copy`), so a receiver bound from it has no statically
+    /// named class. Consumers abstain on such a receiver rather than reading
+    /// the command spelling.
+    TclooRuntimeHandleResult => TCLOO_RUNTIME_HANDLE_RESULT, Objects, "returns a run-time TclOO object or class handle";
 }
 
 /// Declare the required end-to-end example for every behavioural trait.
