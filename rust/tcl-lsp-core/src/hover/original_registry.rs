@@ -497,6 +497,68 @@ mod tests {
         }
     }
 
+    #[test]
+    fn spectcl_nested_unicode_body_cards_keep_original_geometry_and_facets() {
+        let source = "speclib demo 1 {command demo {hover {summary {TEXT}; synopsis VALUE}}}";
+        for unicode_body in [
+            source.replace("TEXT", "🧪 café"),
+            source.replace("TEXT", "café\nsecond line"),
+            source.replace("TEXT", "café\\ncontinued"),
+            source.replace("TEXT", "café\\\ncontinued"),
+        ] {
+            let analysis = Analyser::new().analyse(&unicode_body, "spectcl");
+            let cursor = u32::try_from(unicode_body.find("synopsis").unwrap() + 1).unwrap();
+            let position =
+                tcl_lexer::LineIndex::new(&unicode_body).position_at_utf16(cursor, &unicode_body);
+            let card = super::super::hover(
+                &unicode_body,
+                position.line,
+                position.character.get(),
+                &analysis,
+                None,
+            )
+            .expect("Unicode data retains the actual nested source body");
+            assert!(card.value.contains("Source vocabulary for this body"));
+        }
+        for (invalid, needle) in [
+            (
+                "speclib demo 1 {command demo {hover {summary {a\0b}; synopsis VALUE}}}",
+                "synopsis",
+            ),
+            (
+                "speclib demo 1 {command demo \"hover {synopsis VALUE}\\u0020\"}",
+                "synopsis",
+            ),
+            (
+                "speclib demo 1 {command demo \"hover {summary café};\\\n synopsis VALUE\"}",
+                "synopsis",
+            ),
+            (
+                "speclib demo 1 {command demo $body; synopsis VALUE}",
+                "synopsis",
+            ),
+            (
+                "speclib demo 1 {command demo {*}{hover {synopsis VALUE}}}",
+                "synopsis",
+            ),
+            (
+                "speclib demo 1 {command demo {hover {synopsís VALUE}}}",
+                "synopsís",
+            ),
+            (
+                "speclib demo 1 {command demo {hover {summary {café synopsis VALUE}}}}",
+                "synopsis",
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(invalid, "spectcl");
+            let cursor = u32::try_from(invalid.find(needle).unwrap() + 1).unwrap();
+            assert!(
+                selected_definition_scoped_hover(invalid, &analysis, cursor).is_none(),
+                "{invalid}"
+            );
+        }
+    }
+
     fn tk_source_analysis(source: &str) -> AnalysisResult {
         let environment = tcl_registry::model::ingress::resolve_environment("tk");
         let profile = environment.analyser_profile();

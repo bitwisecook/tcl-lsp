@@ -113,6 +113,7 @@ pub fn select<'a>(
 pub(crate) enum NavigationVariable<'a> {
     Original(&'a SignatureSourceVariableOccurrence),
     LogicalRootSourceReference(LogicalRootSourceReference<'a>),
+    NativeRootSourceReference(NativeRootSourceReference<'a>),
     Alias(Box<OriginalVariableAliasTemplate>),
     LogicalFormal {
         procedure: Box<
@@ -139,11 +140,23 @@ impl<'a> LogicalRootSourceReference<'a> {
     }
 }
 
+/// Current Native-source root documentation through the exact read's original
+/// frame or absolute qualification. This grants no variable navigation identity.
+pub(crate) struct NativeRootSourceReference<'a> {
+    occurrence: &'a SignatureSourceVariableOccurrence,
+}
+
+impl<'a> NativeRootSourceReference<'a> {
+    pub(crate) const fn occurrence(&self) -> &'a SignatureSourceVariableOccurrence {
+        self.occurrence
+    }
+}
+
 impl NavigationVariable<'_> {
     pub(crate) fn declaration_spans(&self, analysis: &AnalysisResult) -> Vec<Span> {
         match self {
             Self::Original(occurrence) => declaration_spans(analysis, occurrence.symbol()),
-            Self::LogicalRootSourceReference(_) => Vec::new(),
+            Self::LogicalRootSourceReference(_) | Self::NativeRootSourceReference(_) => Vec::new(),
             Self::Alias(template) => declaration_spans(analysis, template.target_symbol()),
             Self::LogicalFormal { procedure, ordinal } => {
                 vec![procedure.formals()[*ordinal].declaration_span()]
@@ -161,7 +174,7 @@ impl NavigationVariable<'_> {
         include_declaration: bool,
     ) -> Vec<Span> {
         match self {
-            Self::LogicalRootSourceReference(_) => Vec::new(),
+            Self::LogicalRootSourceReference(_) | Self::NativeRootSourceReference(_) => Vec::new(),
             Self::Original(occurrence) => alias_template_reference_spans(
                 source,
                 analysis,
@@ -203,7 +216,7 @@ impl NavigationVariable<'_> {
     pub(crate) fn hover_text(&self, analysis: &AnalysisResult) -> Option<String> {
         match self {
             Self::Original(occurrence) => hover_text(analysis, occurrence),
-            Self::LogicalRootSourceReference(_) => None,
+            Self::LogicalRootSourceReference(_) | Self::NativeRootSourceReference(_) => None,
             Self::Alias(template) => Some(format!(
                 "**Conditional variable alias** `{}` → `{}`\n\nThe original declaration relates these names. Target element, successful alias and binding continuity are unproved.",
                 tcl_syntax::native_string::resident_name_label(template.local_name().as_bytes()),
@@ -271,6 +284,13 @@ pub(crate) fn select_navigation<'a>(
         ControlFlow::Break(Some(occurrence)) => {
             if !declaration_spans(analysis, occurrence.symbol()).is_empty() {
                 return ControlFlow::Break(Some(NavigationVariable::Original(occurrence)));
+            }
+            if let Some(reference) =
+                native_root_source_reference(source, analysis, occurrence, offset)
+            {
+                return ControlFlow::Break(Some(NavigationVariable::NativeRootSourceReference(
+                    reference,
+                )));
             }
             // The genuine original read supplies geometry. The template,
             // rather than this text projection, supplies the frame relation.
@@ -413,6 +433,95 @@ fn logical_root_source_reference<'a>(
         .registry()
         .special_var_in_dialect(name, Some(current.context().context().authoring_query()))?;
     Some(LogicalRootSourceReference { occurrence })
+}
+
+fn native_root_source_reference<'a>(
+    source: &str,
+    analysis: &AnalysisResult,
+    occurrence: &'a SignatureSourceVariableOccurrence,
+    cursor: u32,
+) -> Option<NativeRootSourceReference<'a>> {
+    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
+    use tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
+        return None;
+    }
+    let SignatureSourceNameInput::OriginalVariableRoot(root) = occurrence.original_name_input()
+    else {
+        return None;
+    };
+    let reference =
+        crate::source_structure::original_variable_reference_at(source, analysis, cursor)?;
+    if root.name_span()? != reference.name_span
+        || root.part_span() != reference.whole_span
+        || !reference.name_span.as_range().contains(&(cursor as usize))
+        || !declaration_spans(analysis, occurrence.symbol()).is_empty()
+    {
+        return None;
+    }
+    let SignatureSourceVariableSlot::C { namespace, simple } = occurrence.symbol().slot() else {
+        return None;
+    };
+    if !namespace.is_root() {
+        return None;
+    }
+    let structure = crate::source_structure::SourceStructure::capture(
+        source,
+        Some(analysis),
+        current.config(),
+    )?;
+    let span = structure.command_at(cursor)?;
+    let command = structure
+        .commands
+        .iter()
+        .find(|command| command.span == span)?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        current.config(),
+        command,
+    );
+    analysis
+        .retained_command_realm()?
+        .stamp_original_tokens(&mut tokens);
+    let read = tokens.variable_access_for_site(&tcl_compiler::ir::SourceSite {
+        span: root.source_span(),
+        provenance: tcl_compiler::ir::Provenance::Source,
+    })?;
+    let original_input = root.policy().recipe().combined_variable_input(root.bytes());
+    let absolute = original_input.root().qualification()
+        == tcl_syntax::naming::NativeNameQualification::Absolute;
+    if read.context_alternatives().is_empty()
+        || (!absolute && !native_source_read_has_root_frame(read))
+    {
+        return None;
+    }
+    let name = std::str::from_utf8(simple.as_bytes()).ok()?;
+    current
+        .registry()
+        .special_var_in_dialect(name, Some(current.context().context().authoring_query()))?;
+    Some(NativeRootSourceReference { occurrence })
+}
+
+fn native_source_read_has_root_frame(
+    read: &tcl_compiler::command_binding::SourceVariableAccess,
+) -> bool {
+    !read.context_alternatives().is_empty()
+        && read.context_alternatives().iter().all(|context| {
+            matches!(
+                context.frame_kind,
+                tcl_compiler::var_resolve::VariableFrameKind::Global
+            ) && context.namespace_known
+                && context
+                    .namespace_identity
+                    .as_ref()
+                    .and_then(
+                        tcl_compiler::command_binding::SourceNamespaceKey::source_artifact_path,
+                    )
+                    .is_some_and(|path| path.is_root())
+        })
 }
 
 fn logical_formal_navigation(
@@ -753,6 +862,96 @@ mod tests {
             crate::definition::definition(source, 0, cursor, &analysis),
             Vec::<crate::definition::LspRange>::new()
         );
+    }
+
+    #[test]
+    fn native_root_source_documentation_withholds_a_mixed_original_read_frame() {
+        let source = "set body {puts $auto_path}; catch {eval $body}; proc local {body} {catch {eval $body}}; local $body";
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let bindings = tcl_compiler::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            registry,
+            tcl_compiler::command_binding::SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_6,
+                )),
+                ..tcl_compiler::command_binding::SourceAnalysisOptions::default()
+            },
+        );
+        let reads = bindings
+            .variable_accesses_in_span(Span::new(0, u32::try_from(source.len() - 1).unwrap()));
+        let read = reads
+            .iter()
+            .find(|read| read.original_spelling == "$auto_path")
+            .expect("one original read shared by both evaluations");
+        assert!(read.context_alternatives().iter().any(|context| matches!(
+            context.frame_kind,
+            tcl_compiler::var_resolve::VariableFrameKind::Global
+        )));
+        assert!(read.context_alternatives().iter().any(|context| matches!(
+            context.frame_kind,
+            tcl_compiler::var_resolve::VariableFrameKind::Local
+        )));
+        assert!(!native_source_read_has_root_frame(read));
+    }
+
+    #[test]
+    fn native_root_registry_documentation_requires_the_original_read_context() {
+        for (source, expected) in [
+            ("puts $auto_path", true),
+            ("puts $::auto_path", true),
+            ("proc p {} {puts $auto_path}", false),
+            ("namespace eval ::foo {puts $auto_path}", false),
+            ("proc p {} {puts $::auto_path}", true),
+            ("namespace eval ::foo {puts $::auto_path}", true),
+            ("proc p {} {uplevel $level {puts $auto_path}}", false),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let cursor = u32::try_from(source.rfind("auto_path").unwrap() + 1).unwrap();
+            let selected = select_navigation(
+                source,
+                &analysis,
+                0,
+                cursor,
+                crate::definition::CallResolution::document_only(),
+            );
+            assert_eq!(
+                matches!(
+                    selected,
+                    ControlFlow::Break(Some(NavigationVariable::NativeRootSourceReference(_)))
+                ),
+                expected,
+                "{source}"
+            );
+            if let ControlFlow::Break(Some(selected)) = selected {
+                assert_eq!(selected.declaration_spans(&analysis), Vec::<Span>::new());
+                assert_eq!(
+                    selected.reference_spans(source, &analysis, true),
+                    Vec::<Span>::new()
+                );
+                assert!(selected.hover_text(&analysis).is_none());
+            }
+            let card = crate::hover::hover(source, 0, cursor, &analysis, None);
+            assert_eq!(
+                card.is_some_and(|card| card.value.contains("special variable")),
+                expected,
+                "{source}"
+            );
+            let mut removed = analysis.clone();
+            removed.original_variable_symbols.clear();
+            assert!(matches!(
+                select_navigation(
+                    source,
+                    &removed,
+                    0,
+                    cursor,
+                    crate::definition::CallResolution::document_only()
+                ),
+                ControlFlow::Break(None)
+            ));
+        }
     }
 
     #[test]

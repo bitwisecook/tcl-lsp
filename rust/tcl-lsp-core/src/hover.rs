@@ -849,10 +849,20 @@ fn current_special_variable_source_hover(
     occurrence: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
     cursor: u32,
 ) -> Option<Hover> {
-    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
     if !analysis.allows_lexical_declaration_advice() {
         return None;
     }
+    selected_root_special_variable_source_hover(source, analysis, occurrence, cursor)
+}
+
+fn selected_root_special_variable_source_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    occurrence: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    cursor: u32,
+) -> Option<Hover> {
+    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
+    use tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSlot;
     if !crate::variable_symbol::declaration_spans(analysis, occurrence.symbol()).is_empty() {
         return None;
     }
@@ -865,7 +875,6 @@ fn current_special_variable_source_hover(
     if root.name_span()? != reference.name_span || root.part_span() != reference.whole_span {
         return None;
     }
-    use tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSlot;
     let name = match occurrence.symbol().slot() {
         SignatureSourceVariableSlot::C { namespace, simple } if namespace.is_root() => {
             std::str::from_utf8(simple.as_bytes()).ok()?
@@ -880,6 +889,58 @@ fn current_special_variable_source_hover(
     let dialect = Some(context.context().authoring_query());
     let spec = current.registry().special_var_in_dialect(name, dialect)?;
     Some(Hover::markdown(special_var_hover_text(spec, dialect)))
+}
+
+fn navigation_variable_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    selection: crate::variable_symbol::NavigationVariable<'_>,
+    cursor_offset: u32,
+    ctx: crate::definition::CallResolution<'_>,
+    annotate: bool,
+) -> Option<Hover> {
+    use crate::variable_symbol::NavigationVariable;
+    match &selection {
+        NavigationVariable::NativeRootSourceReference(reference) => {
+            return selected_root_special_variable_source_hover(
+                source,
+                analysis,
+                reference.occurrence(),
+                cursor_offset,
+            );
+        }
+        NavigationVariable::LogicalRootSourceReference(reference) => {
+            return current_special_variable_source_hover(
+                source,
+                analysis,
+                reference.occurrence(),
+                cursor_offset,
+            );
+        }
+        NavigationVariable::Original(occurrence)
+            if crate::variable_symbol::declaration_spans(analysis, occurrence.symbol())
+                .is_empty() =>
+        {
+            return current_special_variable_source_hover(
+                source,
+                analysis,
+                occurrence,
+                cursor_offset,
+            );
+        }
+        _ => {}
+    }
+    let mut text = selection.hover_text(analysis)?;
+    if matches!(selection, NavigationVariable::Original(_)) {
+        let (type_info, taint_info) = var_type_annotations(
+            source,
+            analysis,
+            cursor_offset,
+            ctx.registry.filter(|_| annotate),
+        );
+        append_var_annotations(&mut text, type_info.as_deref(), taint_info.as_deref());
+    }
+    Some(Hover::markdown(text))
 }
 
 fn source_role_hover(
@@ -932,46 +993,9 @@ fn source_role_hover(
     if let std::ops::ControlFlow::Break(selected) =
         crate::variable_symbol::select_navigation(source, analysis, line, character, ctx)
     {
-        let Some(selection) = selected else {
-            return std::ops::ControlFlow::Break(None);
-        };
-        if let crate::variable_symbol::NavigationVariable::LogicalRootSourceReference(reference) =
-            &selection
-        {
-            return std::ops::ControlFlow::Break(current_special_variable_source_hover(
-                source,
-                analysis,
-                reference.occurrence(),
-                cursor_offset,
-            ));
-        }
-        if let crate::variable_symbol::NavigationVariable::Original(occurrence) = &selection
-            && crate::variable_symbol::declaration_spans(analysis, occurrence.symbol()).is_empty()
-        {
-            return std::ops::ControlFlow::Break(current_special_variable_source_hover(
-                source,
-                analysis,
-                occurrence,
-                cursor_offset,
-            ));
-        }
-        let answer = Some(selection).and_then(|selection| {
-            let mut text = selection.hover_text(analysis)?;
-            if matches!(
-                selection,
-                crate::variable_symbol::NavigationVariable::Original(_)
-            ) {
-                let (type_info, taint_info) = var_type_annotations(
-                    source,
-                    analysis,
-                    cursor_offset,
-                    ctx.registry.filter(|_| annotate),
-                );
-                append_var_annotations(&mut text, type_info.as_deref(), taint_info.as_deref());
-            }
-            Some(Hover::markdown(text))
-        });
-        return std::ops::ControlFlow::Break(answer);
+        return std::ops::ControlFlow::Break(selected.and_then(|selection| {
+            navigation_variable_hover(source, analysis, selection, cursor_offset, ctx, annotate)
+        }));
     }
     match crate::method_symbol::local_candidate(source, analysis, line, character) {
         std::ops::ControlFlow::Break(Some(candidate)) => {

@@ -2604,7 +2604,13 @@ fn original_source_schema_words(
             if word.group().expand {
                 crate::registry_invocation::EffectiveInvocationWord::Expanded
             } else {
-                tcl_syntax::word_rules::original_static_word_ascii_presentation(word).map_or(
+                let presentation = if matches!(&source, OriginalRegistrySource::DefinitionMember(_))
+                {
+                    tcl_syntax::word_rules::original_static_word_source_bytes(word)
+                } else {
+                    tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
+                };
+                presentation.map_or(
                     crate::registry_invocation::EffectiveInvocationWord::Dynamic,
                     |value| {
                         crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(

@@ -319,7 +319,7 @@ impl SourceDefinitionGrammar {
             members.member_keyword(words)?;
             let name = tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?;
             let name = std::str::from_utf8(&name).ok()?;
-            Some(environment.command(name)?)
+            environment.command(name)
         });
         let command = found.next()?;
         found.next().is_none().then_some((environment, command))
