@@ -924,6 +924,11 @@ fn source_role_hover(
     if let Some(hover) = counted_initial_method_hover(source, analysis, cursor_offset) {
         return std::ops::ControlFlow::Break(Some(hover));
     }
+    if let std::ops::ControlFlow::Break(selected) =
+        original_property_source_hover(source, analysis, cursor_offset)
+    {
+        return std::ops::ControlFlow::Break(selected);
+    }
     std::ops::ControlFlow::Continue(())
 }
 
@@ -3230,6 +3235,61 @@ fn positioned_class_hover(source: &str, analysis: &AnalysisResult, cursor: u32) 
         .or_else(|| counted_class_source_hover(source, analysis, cursor))
 }
 
+fn original_property_source_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> std::ops::ControlFlow<Option<Hover>> {
+    use std::ops::ControlFlow;
+    let ControlFlow::Break(Some(identity)) =
+        crate::original_declaration::select_at_offset("", source, analysis, cursor)
+    else {
+        return ControlFlow::Continue(());
+    };
+    if !(matches!(
+        identity.role(),
+        crate::original_declaration::OriginalDeclarationRole::Property(_)
+    ) && identity.span().start() <= cursor
+        && cursor < identity.span().end())
+    {
+        return ControlFlow::Continue(());
+    }
+    let Some(class) = identity.class_metadata(analysis) else {
+        return ControlFlow::Break(None);
+    };
+    let mut properties = class
+        .metadata()
+        .original_properties
+        .declarations()
+        .filter(|property| {
+            property.matches_original_declaration_source(source, analysis, class)
+                && crate::original_declaration::OriginalDeclarationIdentity::for_property(
+                    "", source, analysis, class, property,
+                )
+                .as_ref()
+                    == Some(&identity)
+        });
+    let Some(property) = properties.next() else {
+        return ControlFlow::Break(None);
+    };
+    if properties.next().is_some() {
+        return ControlFlow::Break(None);
+    }
+    let mut label = tcl_syntax::naming::native_command_full_name_bytes(class.name().slot());
+    label.extend_from_slice(b"::");
+    label.extend_from_slice(property.original_name_input().bytes());
+    let label = tcl_syntax::native_string::resident_name_label(&label);
+    let longest = label
+        .split(|character| character != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest.max(2) + 1);
+    ControlFlow::Break(Some(Hover::markdown(format!(
+        "**property**\n\n{fence}text\n{label}\n{fence}\n\nSource declaration; property availability depends on execution."
+    ))))
+}
+
 fn counted_initial_method_hover(
     source: &str,
     analysis: &AnalysisResult,
@@ -3916,6 +3976,103 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_property_hover_uses_unique_current_source_declaration() {
+        let source = "oo::configurable create C {property p\\uD800 p\\uD801; self method make {} {}}\nreturn p\\uD800\n";
+        let analysis = analyse_for(source, "tcl9.0");
+        let class = analysis.original_class_declarations().next().unwrap();
+        assert_eq!(
+            class.metadata().original_properties.declarations().count(),
+            2
+        );
+        let mut cards = Vec::new();
+        for name in ["p\\uD800", "p\\uD801"] {
+            let at = u32::try_from(source.find(name).unwrap()).unwrap();
+            let card = hover(source, 0, at, &analysis, None).unwrap();
+            assert!(card.value.contains("**property**"), "{}", card.value);
+            assert!(
+                card.value
+                    .contains("Source declaration; property availability depends on execution.")
+            );
+            cards.push(card.value);
+        }
+        assert_ne!(cards[0], cards[1]);
+        let offset = u32::try_from(source.find("p\\uD800").unwrap()).unwrap();
+        assert!(
+            !hover(&format!("#{source}"), 0, offset, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+        assert!(
+            !hover(source, 1, 7, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+        assert!(
+            !hover(source, 0, offset + 7, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+        let mut foreign_config = analysis.clone();
+        foreign_config.body_lexer_config = analyse_for(source, "jim").body_lexer_config;
+        assert_ne!(foreign_config.body_lexer_config, analysis.body_lexer_config);
+        assert!(
+            !hover(source, 0, offset, &foreign_config, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+        let mut foreign = analysis.clone();
+        foreign.original_class_metadata = analyse_for(source, "tcl9.1").original_class_metadata;
+        assert!(
+            !hover(source, 0, offset, &foreign, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let distinct = std::sync::Arc::new(
+            context.with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        let other_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            distinct,
+            input.lexer_config(),
+        );
+        assert_ne!(&other_input, input);
+        let other = Analyser::new()
+            .with_resolved_input(other_input)
+            .analyse(source, "tcl9.0");
+        assert_eq!(other.original_class_declarations().count(), 1);
+        let mut foreign_generation = analysis.clone();
+        foreign_generation.original_class_metadata = other.original_class_metadata;
+        assert!(
+            !hover(source, 0, offset, &foreign_generation, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+        let mut duplicate = analysis.clone();
+        duplicate
+            .original_class_metadata
+            .push(duplicate.original_class_metadata[0].clone());
+        assert!(
+            !hover(source, 0, offset, &duplicate, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+    }
+
+    #[test]
+    fn original_property_hover_does_not_invent_a_shadowed_definer() {
+        let unavailable = "oo::configurable create C {property size}";
+        let tcl86 = analyse(unavailable);
+        assert_eq!(tcl86.original_class_declarations().count(), 0);
+        assert!(
+            !hover(unavailable, 0, 36, &tcl86, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+        let source = "proc oo::configurable args {}\noo::configurable create C {property size}\n";
+        let analysis = analyse_for(source, "tcl9.0");
+        assert_eq!(analysis.original_class_declarations().count(), 0);
+        assert!(
+            !hover(source, 1, 37, &analysis, None)
+                .is_some_and(|hover| hover.value.contains("**property**"))
+        );
+    }
+
     #[test]
     fn counted_method_hover_does_not_claim_effect_operands_or_later_declarations() {
         let source = "oo::class create C\\uD800 {method m\\uD801 {} {}; export m\\uD801; deletemethod m\\uD801; renamemethod m\\uD801 n}\noo::define C\\uD800 method m\\uD801 {} {}\nC\\uD800 create obj\nobj m\\uD801\n";

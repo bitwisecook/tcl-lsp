@@ -146,6 +146,7 @@ impl Analyser {
                 self.source_analysis_entry.as_deref(),
                 policy,
             ),
+            resolved_input: self.resolved_analysis_input(),
             source_dialect: self.original_member_source_dialect(),
             bindings,
             registry: Some(registry.as_ref()),
@@ -558,6 +559,7 @@ impl Analyser {
                 self.source_analysis_entry.as_deref(),
                 policy,
             ),
+            resolved_input: self.resolved_analysis_input(),
             source_dialect: self.original_member_source_dialect(),
             bindings: self.head_identities.source_bindings_ref(),
             registry: self.registry.as_deref(),
@@ -657,6 +659,7 @@ impl Analyser {
                 self.source_analysis_entry.as_deref(),
                 policy,
             ),
+            resolved_input: self.resolved_analysis_input(),
             source_dialect: self.original_member_source_dialect(),
             bindings,
             registry: self.registry.as_deref(),
@@ -757,6 +760,7 @@ impl Analyser {
                 self.source_analysis_entry.as_deref(),
                 policy,
             ),
+            resolved_input: self.resolved_analysis_input(),
             source_dialect: self.original_member_source_dialect(),
             bindings,
             registry: self.registry.as_deref(),
@@ -848,6 +852,7 @@ struct Producer<'a> {
     dialect: super::oo::MemberDialect<'a>,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     name_purpose: OriginalSourceNamePurpose,
+    resolved_input: crate::analyser::ResolvedAnalysisInput,
     source_dialect: Option<tcl_registry::InvocationDialect>,
     caller_scope: Option<SignatureNamespaceScope>,
     bindings: &'a crate::command_binding::SourceCommandBindings,
@@ -1799,8 +1804,11 @@ impl Producer<'_> {
                     layout.kind(),
                     getter,
                     setter,
-                    self.grammar
-                        .source_property_accessor_advice(self.policy.recipe()),
+                    (
+                        self.grammar
+                            .source_property_accessor_advice(self.policy.recipe()),
+                        self.resolved_input.clone(),
+                    ),
                 )?);
             }
             Some(declarations)
@@ -1834,6 +1842,31 @@ fn original_two_word_role_word(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_property_source_provenance_refuses_foreign_profile() {
+        let source = "oo::configurable create C {property size}";
+        let mut current = Analyser::new().analyse(source, "tcl9.0");
+        let original = current.original_class_declarations().next().unwrap();
+        let property = original
+            .metadata()
+            .original_properties
+            .declarations()
+            .next()
+            .unwrap();
+        assert!(property.matches_original_declaration_source(source, &current, original));
+        let foreign = Analyser::new().analyse(source, "tcl9.1");
+        assert_ne!(current.resolved_input, foreign.resolved_input);
+        current.original_class_metadata = foreign.original_class_metadata;
+        let transplanted = current.original_class_declarations().next().unwrap();
+        let property = transplanted
+            .metadata()
+            .original_properties
+            .declarations()
+            .next()
+            .unwrap();
+        assert!(!property.matches_original_declaration_source(source, &current, transplanted));
+    }
 
     #[test]
     fn counted_initial_methods_do_not_include_later_configurations() {

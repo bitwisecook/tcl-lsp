@@ -23,6 +23,9 @@ word as conditional advice. Authenticated initial method declaration names can
 receive syntax tokens and a source-only hover; this does not infer installed
 members or relations.
 
+Property declaration hover uses metadata issued for the document's current
+resolved analysis input and labels the declaration as conditional on execution.
+
 ## Decision rules / contracts
 
 1. **Providers consume shared resolution, they never re-derive it.** A

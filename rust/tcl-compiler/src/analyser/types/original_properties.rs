@@ -23,6 +23,7 @@ pub struct OriginalSourcePropertyMetadata {
     getter: Option<SignatureSourceNameInput>,
     setter: Option<SignatureSourceNameInput>,
     accessor_advice: tcl_registry::definer::SourcePropertyAccessorAdvice,
+    producer_input: crate::analyser::ResolvedAnalysisInput,
 }
 
 impl OriginalSourcePropertyMetadata {
@@ -33,8 +34,12 @@ impl OriginalSourcePropertyMetadata {
         kind: TclOoPropertyKind,
         getter: Option<SignatureSourceNameInput>,
         setter: Option<SignatureSourceNameInput>,
-        accessor_advice: tcl_registry::definer::SourcePropertyAccessorAdvice,
+        provenance: (
+            tcl_registry::definer::SourcePropertyAccessorAdvice,
+            crate::analyser::ResolvedAnalysisInput,
+        ),
     ) -> Option<Self> {
+        let (accessor_advice, producer_input) = provenance;
         for input in getter.iter().chain(setter.iter()) {
             match input {
                 SignatureSourceNameInput::OriginalWord(_)
@@ -45,6 +50,7 @@ impl OriginalSourcePropertyMetadata {
         }
         let key = declaration.name_input();
         if accessor_advice.recipe() != key.policy().recipe()
+            || key.lexer_config() != producer_input.lexer_config()
             || metadata.name_span != key.span()
             || getter
                 .iter()
@@ -63,6 +69,7 @@ impl OriginalSourcePropertyMetadata {
             getter,
             setter,
             accessor_advice,
+            producer_input,
         })
     }
 
@@ -178,6 +185,13 @@ impl OriginalSourcePropertyMetadata {
         let Some(input) = analysis.resolved_input.as_ref() else {
             return false;
         };
+        if &self.producer_input != input
+            || !analysis
+                .retained_command_realm()
+                .is_some_and(|realm| realm.matches_resolved_analysis_input(input))
+        {
+            return false;
+        }
         let Some(key) = self.input.original_word_key() else {
             return false;
         };
