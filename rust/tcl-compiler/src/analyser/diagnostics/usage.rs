@@ -48,6 +48,23 @@ struct UnbracedSourceExpression {
     has_sub: bool,
     fix_inner: Option<String>,
     subject: crate::analyser::DiagnosticSubject,
+    /// The whole expression is `0x` glued to one substitution, which is
+    /// a hexadecimal string conversion `scan … %x` performs directly.
+    hex_conversion: bool,
+}
+
+/// `0x[string range $hex 0 1]` / `0x$byte`: a hexadecimal prefix followed by
+/// exactly one substituted value.
+fn original_word_is_hex_conversion(word: &tcl_lexer::NativeWord) -> bool {
+    let arena = word.executable_parts();
+    let [prefix, value] = arena.list(arena.root()) else {
+        return false;
+    };
+    matches!(arena.text(prefix), Some(b"0x" | b"0X"))
+        && matches!(
+            value.part,
+            tcl_lexer::ExecutablePart::Command { .. } | tcl_lexer::ExecutablePart::Variable { .. }
+        )
 }
 
 /// Original executable text parts supply lexical padding without materialising
@@ -126,7 +143,9 @@ impl Analyser {
         // no double-substitution risk and it cannot be braced
         // (`eval {[list …]}` changes the meaning).  (A `Var` body such as
         // `while {$cond} $body` is *not* exempt — only a `Cmd` word is.)
-        if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd) {
+        if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd)
+            || self.is_prefixed_command_substitution(body_tok)
+        {
             return;
         }
         // A body that is a *single bare variable substitution* (`eval $cmd`,
@@ -199,6 +218,43 @@ Use braces: {{ \u{2026} }}"
                 safety: super::helpers::brace_wrap_fix_safety(trimmed, has_substitution),
             }]),
         );
+    }
+
+    /// A bare word that is one command substitution behind a literal,
+    /// whitespace-free prefix (`bind $w <Destroy> +[list [self] destroy]`):
+    /// the substitution builds the script once, so the prefix changes nothing
+    /// about double substitution and bracing would stop the list being built.
+    fn is_prefixed_command_substitution(&self, body_tok: tcl_lexer::Token) -> bool {
+        if body_tok.kind != tcl_lexer::TokenType::Esc {
+            return false;
+        }
+        let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose(
+            tcl_lexer::SourceImage::document(&self.source),
+            body_tok.span,
+            tcl_lexer::word_parts::SubstFlags::default(),
+            self.file_lexer_config(),
+        ) else {
+            return false;
+        };
+        let mut commands = 0usize;
+        let mut ends_with_command = false;
+        for part in arena.all_parts() {
+            ends_with_command = false;
+            match part.part {
+                tcl_lexer::ExecutablePart::Command { .. } => {
+                    commands += 1;
+                    ends_with_command = true;
+                }
+                tcl_lexer::ExecutablePart::Text(_)
+                    if commands == 0
+                        && self
+                            .source
+                            .get(part.span.as_range())
+                            .is_some_and(|text| !text.contains(char::is_whitespace)) => {}
+                _ => return false,
+            }
+        }
+        commands == 1 && ends_with_command
     }
 
     /// W100 source advice at original expression words selected by the shared
@@ -274,12 +330,14 @@ Use braces: {{ \u{2026} }}"
         } else {
             None
         };
+        let hex_conversion = argument == last && original_word_is_hex_conversion(word);
         Some(UnbracedSourceExpression {
             span,
             text,
             has_sub,
             fix_inner,
             subject,
+            hex_conversion,
         })
     }
 
@@ -291,19 +349,25 @@ Use braces: {{ \u{2026} }}"
             has_sub,
             fix_inner,
             subject,
+            hex_conversion,
         } = advice;
         let severity = if has_sub {
             Severity::Error
         } else {
             Severity::Warning
         };
-        let message = if concatenates {
+        let mut message = if concatenates {
             "Expression is not braced: may cause double substitution and prevents byte-compilation. Use expr {...} instead.".to_owned()
         } else {
             format!(
                 "Expression argument to '{command}' is not braced: may cause double substitution. Use braces: {{{text}}}"
             )
         };
+        if hex_conversion {
+            message.push_str(
+                " To convert a hexadecimal string to an integer, consider `scan $hex %x var`.",
+            );
+        }
         let fixes = fix_inner
             .into_iter()
             .map(|inner| super::types::CodeFix {
@@ -811,7 +875,14 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         let mut scope_vars: Option<Vec<String>> = None;
-        for (index, _) in Self::variable_name_positions(original) {
+        let lone_argument = original.arguments().len() == 1;
+        for (index, role) in Self::variable_name_positions(original) {
+            // A lone read-only name whose value is the command's result
+            // (`[set $name]`) is Tcl's indirection idiom: `$$name` does not
+            // nest, so the substituted name is the intent, not a confusion.
+            if lone_argument && role == tcl_registry::ArgRole::VarRead {
+                continue;
+            }
             let Some(word) = original.word(index) else {
                 continue;
             };
@@ -1105,9 +1176,13 @@ Use braces: {{ \u{2026} }}"
             &parser_context,
             word.config(),
         )?;
+        // A command embedded in a quoted operand or an index only supplies
+        // text to that operand (`"[expr {$p * 100}]%"`), so it is not
+        // redundant expression context.
         original
             .command_regions()?
             .into_iter()
+            .filter(|region| region.whole_operand)
             .map(|region| {
                 let shift = |span: tcl_lexer::Span| {
                     Some(tcl_lexer::Span::new(
@@ -2125,6 +2200,31 @@ mod original_braced_array_proposal_controls {
 #[cfg(test)]
 mod selected_nested_expression_controls {
     use super::*;
+
+    #[test]
+    fn nested_expression_inside_a_quoted_or_index_operand_is_not_redundant_2503() {
+        for source in [
+            "set progress \"\"\nexpr {$progress eq \"\" ? \"\" : \"[expr {round($progress * 100)}]%\"}",
+            "if {$a([expr {1+1}]) > 0} {}",
+        ] {
+            let result = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                !result
+                    .diagnostics
+                    .iter()
+                    .any(|finding| finding.code == DiagCode::W114),
+                "{source}"
+            );
+        }
+        let result = Analyser::new().analyse("expr {[expr {1+1}] + 1}", "tcl8.6");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|finding| finding.code == DiagCode::W114),
+            "a whole operand is still redundant"
+        );
+    }
 
     #[test]
     fn nested_expression_advice_uses_actual_renamed_descriptor_and_refuses_shadow_and_inert_data() {

@@ -281,7 +281,7 @@ class TclLspSettingsPanel {
     // Diagnostics — Variables
     private val diagW210 = JBCheckBox("W210: Variable read before set")
     private val diagW211 = JBCheckBox("W211: Variable set but never used")
-    private val diagW212 = JBCheckBox("W212: Variable substitution where name expected (set \$x, i...")
+    private val diagW212 = JBCheckBox("W212: Variable substitution where name expected (set \$x 1,...")
     private val diagW213 = JBCheckBox("W213: Variable may not exist")
     private val diagW214 = JBCheckBox("W214: Unused proc parameter")
     private val diagW215 = JBCheckBox("W215: Variable name unreachable via \$-substitution (creata...")

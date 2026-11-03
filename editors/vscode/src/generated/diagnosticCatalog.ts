@@ -471,7 +471,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W212",
     section: "variable",
     description:
-      "Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).",
+      "Variable substitution where name expected (`set $x 1`, `incr $x`, `info exists $x`, etc.); the `[set $name]` indirect read is exempt.",
     defaultEnabled: true,
   },
   {

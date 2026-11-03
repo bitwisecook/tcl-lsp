@@ -16268,6 +16268,7 @@ impl Backend {
                     if let Ok(Some(tokens)) = result {
                         // The enriched tier won the race and is being served as-is:
                         // settled, nothing to converge to.
+                        self.rearm_enriched_refresh(uri).await;
                         log_full_convergence_settled(
                             &self.client,
                             uri,
@@ -16339,6 +16340,15 @@ impl Backend {
         Err(coarse_semantic_source_changed())
     }
 
+    /// The client now holds `uri`'s enriched stream, so a later coarse
+    /// response (a file switch or window reload that misses the budget again)
+    /// must be able to ask for the same enriched stream once more. Only an
+    /// enriched serve re-arms it, so a client stuck on the coarse tier still
+    /// gets at most one ask per distinct stream.
+    async fn rearm_enriched_refresh(&self, uri: &Uri) {
+        self.semantic_tokens_refresh_asked.lock().await.remove(uri);
+    }
+
     /// Deterministically select both sides of the semantic-token budget race
     /// for an integration-test child process.
     async fn semantic_tokens_test_override(
@@ -16354,6 +16364,7 @@ impl Backend {
         // After the first forced-coarse response, make the refresh-driven
         // re-request await the genuine enriched arm without a timing race.
         if let Ok(Some(tokens)) = enriched.await {
+            self.rearm_enriched_refresh(uri).await;
             log_full_convergence_settled(
                 &self.client,
                 uri,
@@ -29240,6 +29251,9 @@ impl Backend {
         // already does the code-lens/folding half for its own path only.
         // Best-effort: a client without refresh support rejects the request.
         if changed {
+            // A new pack generation re-classifies every document, so no
+            // earlier per-stream refresh ask still describes what is on screen.
+            self.semantic_tokens_refresh_asked.lock().await.clear();
             self.request_semantic_tokens_retry(SemanticTokensRefreshReason::PackReload);
             let _ =
                 bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))

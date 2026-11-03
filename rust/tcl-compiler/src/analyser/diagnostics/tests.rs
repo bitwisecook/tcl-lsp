@@ -1443,6 +1443,17 @@ fn w212_flags_name_position_substitution() {
 }
 
 #[test]
+fn w212_allows_indirect_read_through_a_computed_name_2499() {
+    assert_eq!(
+        w212_count(
+            "proc f {sides} {\n    foreach side $sides {\n        set value [set $side]\n    }\n}\n"
+        ),
+        0
+    );
+    assert_eq!(w212_count("proc f {name} {set $name 1}\n"), 1);
+}
+
+#[test]
 fn w212_ignores_plain_names() {
     assert_eq!(w212_count("set x 1\n"), 0);
     assert_eq!(w212_count("info exists v\n"), 0);
@@ -18661,4 +18672,66 @@ fn w143_package_namespace_advice_keeps_literal_package_names() {
             "{package}"
         );
     }
+}
+
+#[test]
+fn w100_suggests_scan_for_a_hexadecimal_conversion_2507() {
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse(
+        "proc f {hex} {\n    set r [expr 0x[string range $hex 0 1]]\n    set g [expr 0x$hex]\n    set b [expr $hex + 1]\n}\n",
+        "tcl8.6",
+    );
+    let w100 = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W100)
+        .collect::<Vec<_>>();
+    assert_eq!(w100.len(), 3, "{w100:?}");
+    assert_eq!(
+        w100.iter()
+            .filter(|d| d.message.contains("scan $hex %x var"))
+            .count(),
+        2,
+        "{w100:?}"
+    );
+}
+
+#[test]
+fn w301_list_built_uplevel_script_is_silent_across_lines_2505() {
+    for source in [
+        "uplevel #0 [list \\\n    puts hello \\\n]\n",
+        "uplevel #0 [list puts hello]\n",
+        "set x 1\nuplevel #0 [list \\\n    puts $x \\\n]\n",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W301),
+            "{source:?}: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
+fn w210_reads_after_lassign_and_dict_with_are_set_2501_2502() {
+    let w210 = |source: &str| {
+        crate::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .diagnostics
+            .into_iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .map(|d| d.message)
+            .collect::<Vec<_>>()
+    };
+    for source in [
+        "proc f {line} {\n    set pos 0\n    set re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\n    \
+         while {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n        \
+         lassign $all start end\n        if {$start > $pos} {\n            incr pos\n        }\n    }\n}\n",
+        "proc f {} {\n    set style [dict create bg #ffffff radius {8 8 8 8}]\n    \
+         dict with style {}\n    set radius [lmap r $radius {expr {$r / 2.0}}]\n    \
+         if {$bg ne \"\"} {\n        set bg \"\"\n    }\n    return $radius\n}\n",
+    ] {
+        assert!(w210(source).is_empty(), "{source}: {:?}", w210(source));
+    }
+    assert_eq!(w210("proc f {} { puts $never }\n").len(), 1);
 }

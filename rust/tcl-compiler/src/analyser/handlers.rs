@@ -16142,6 +16142,28 @@ mod tests {
     }
 
     #[test]
+    fn child_created_in_a_namespace_proc_behind_a_glob_import_is_not_w140_2289() {
+        let source = "package require tcltest\n\
+             namespace eval vl {\n\
+             namespace import ::tcltest::*\n\
+             proc New {} {\n\
+             catch {interp delete c}\n\
+             interp create c\n\
+             interp eval c [list set auto_path $::auto_path]\n\
+             }\n\
+             }\n\
+             interp eval c {set x 1}\n";
+        let r = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W140),
+            "{:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
     fn deleted_and_recreated_interp_is_a_fresh_domain_945() {
         // C: `interp delete s; interp create s` starts with an empty
         // command table — the first lifetime's definitions are gone.  The

@@ -2127,6 +2127,12 @@ impl Analyser {
                     cmd_name, args, arg_tokens, words, cmd_tok, scope_path,
                 ) {
                     self.handle_interp_create_command(&transitions);
+                } else {
+                    // The binding owner refused this creation (an open glob
+                    // import may rebind the head), so which children exist
+                    // is unknowable and W140 must abstain rather than treat
+                    // the child as never created.
+                    self.dynamic_interp_ops = true;
                 }
                 if let Some(path) = args
                     .get(1..)

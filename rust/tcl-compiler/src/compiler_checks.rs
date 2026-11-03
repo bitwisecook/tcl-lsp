@@ -1439,3 +1439,65 @@ mod retained_taint_sink_source_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod list_element_shimmer_controls {
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_core_types::DiagCode;
+    use tcl_registry::CommandRegistry;
+
+    fn shimmer_variables(src: &str, function: &str) -> Vec<(DiagCode, String)> {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry: &CommandRegistry = context.commands();
+        let cu = CompilationUnit::build_for_profile(src, registry, false, profile);
+        let fu = cu.function(function).expect("function unit");
+        super::shimmer_family_checks(
+            fu,
+            registry,
+            Some(profile),
+            None::<&std::collections::HashSet<String>>,
+        )
+        .into_iter()
+        .filter_map(|d| {
+            let start = usize::try_from(d.span.start()).ok()?;
+            let end = usize::try_from(d.span.end()).ok()?;
+            Some((d.code, src.get(start..end)?.to_owned()))
+        })
+        .collect()
+    }
+
+    #[test]
+    fn list_elements_and_infinite_literals_are_not_shimmers_2498_2500_2504() {
+        let positive = shimmer_variables(
+            "proc f {} {\n set s hello\n return [expr {$s + 1}]\n}",
+            "::f",
+        );
+        assert!(
+            positive.iter().any(|(_, text)| text == "$s"),
+            "control: {positive:?}"
+        );
+        for (src, function) in [
+            (
+                "proc f {} {\n set steps {0.001 0.5 1 2 86400}\n set hi [lindex $steps end]\n \
+                 set pow [expr {pow(10, floor(log10(5)))}]\n return [expr {2 * $pow * $hi}]\n}",
+                "::f",
+            ),
+            (
+                "proc rgbToLab {{r 255} {g 255} {b 255}} {\n foreach c [list $r $g $b] {\n \
+                 set cs [expr {$c / 255.0}]\n }\n}",
+                "::rgbToLab",
+            ),
+            (
+                "proc f {} {\n set x0 Inf\n set x1 -Inf\n foreach child {1 2 3 4} {\n \
+                 lassign {10 20 30 40} x y w h\n set x0 [expr {min($x0, $x)}]\n \
+                 set x1 [expr {max($x1, $x + $w)}]\n }\n return [list $x0 $x1]\n}",
+                "::f",
+            ),
+        ] {
+            let found = shimmer_variables(src, function);
+            assert!(found.is_empty(), "{src}: {found:?}");
+        }
+    }
+}

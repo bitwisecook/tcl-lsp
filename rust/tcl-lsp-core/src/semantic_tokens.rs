@@ -5772,6 +5772,23 @@ mod tests {
     }
 
     #[test]
+    fn nested_command_head_substitution_in_an_expression_keeps_word_extents_2265() {
+        let source = "if {[[list string] length abcdef] > 1} {}\n";
+        let tokens = decode_full(source, tcl(), &reg());
+        for word in ["length", "abcdef"] {
+            let start = u32::try_from(source.find(word).unwrap()).unwrap();
+            let length = u32::try_from(word.len()).unwrap();
+            assert!(
+                tokens.iter().any(|&(line, column, len, _, _)| line == 0
+                    && column == start
+                    && len == length),
+                "{word}: {tokens:?}"
+            );
+        }
+        assert_non_overlapping(source, &reg());
+    }
+
+    #[test]
     fn case_list_patterns_keep_literal_braces_from_selected_elements() {
         let source = "switch x {\"{default\" {puts a} {default} {puts b}}\n";
         let tokens = decode_full(source, tcl(), &reg());

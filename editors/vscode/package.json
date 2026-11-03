@@ -6396,7 +6396,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W212:** Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).",
+            "markdownDescription": "**W212:** Variable substitution where name expected (`set $x 1`, `incr $x`, `info exists $x`, etc.); the `[set $name]` indirect read is exempt.",
             "order": 2
           },
           "tclLsp.diagnosticSeverity.W212": {
@@ -6417,7 +6417,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W212:** Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).",
+            "markdownDescription": "Display severity for **W212:** Variable substitution where name expected (`set $x 1`, `incr $x`, `info exists $x`, etc.); the `[set $name]` indirect read is exempt.",
             "order": 2
           },
           "tclLsp.diagnostics.W213": {

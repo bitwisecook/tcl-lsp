@@ -174,6 +174,40 @@ pub enum BinOp {
 }
 
 impl BinOp {
+    /// Whether the operator always produces a boolean `0`/`1`: comparisons,
+    /// membership and the logical connectives.
+    #[must_use]
+    pub const fn yields_boolean(self) -> bool {
+        matches!(
+            self,
+            Self::And
+                | Self::Or
+                | Self::WordAnd
+                | Self::WordOr
+                | Self::Eq
+                | Self::Ne
+                | Self::Lt
+                | Self::Le
+                | Self::Gt
+                | Self::Ge
+                | Self::StrEq
+                | Self::StrNe
+                | Self::StrLt
+                | Self::StrLe
+                | Self::StrGt
+                | Self::StrGe
+                | Self::In
+                | Self::Ni
+                | Self::Contains
+                | Self::StartsWith
+                | Self::EndsWith
+                | Self::StrEquals
+                | Self::Matches
+                | Self::MatchesGlob
+                | Self::MatchesRegex
+        )
+    }
+
     /// Return the source-text representation of this operator.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -288,6 +322,12 @@ pub enum UnaryOp {
 }
 
 impl UnaryOp {
+    /// Whether the operator always produces a boolean `0`/`1` (logical NOT).
+    #[must_use]
+    pub const fn yields_boolean(self) -> bool {
+        matches!(self, Self::Not | Self::WordNot)
+    }
+
     /// Return the source-text representation of this operator.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

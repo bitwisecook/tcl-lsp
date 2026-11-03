@@ -81,7 +81,7 @@
 | W315 | warning | Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |
 | W211 | variable | Variable set but never used. | ✓ |
-| W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |
+| W212 | variable | Variable substitution where name expected (`set $x 1`, `incr $x`, `info exists $x`, etc.); the `[set $name]` indirect read is exempt. | ✓ |
 | W213 | variable | Variable may not exist — use `unset -nocomplain` to suppress the error. | ✓ |
 | W214 | variable | Unused proc parameter — argument is declared but never read in the procedure body. | ✓ |
 | W215 | variable | Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it). | ✓ |

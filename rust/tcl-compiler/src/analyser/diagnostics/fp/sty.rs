@@ -787,6 +787,22 @@ fn fp_sty_14_dynamic_proc_and_after_no_w105() {
 }
 
 #[test]
+fn fp_sty_14_prefixed_list_built_body_no_w105_2288() {
+    // `+[list …]` builds a properly quoted script once; the `+` prefix only
+    // asks `bind` to append it.
+    for src in [
+        "package require Tk\nbind $frameName <Destroy> +[list [self] destroy]",
+        "fileevent $s readable +[list handler $s]",
+    ] {
+        assert!(
+            !fires(src, D, "W105"),
+            "#2288: W105 should be silent on {src:?}; emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+#[test]
 fn fp_sty_14_quoted_interpolated_body_still_fires() {
     // TP control: a *quoted* body with interpolation (`eval "do $script"`) really
     // is an inline script being woven from substitutions — it can and should be

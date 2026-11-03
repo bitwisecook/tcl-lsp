@@ -632,7 +632,7 @@ diagnostic_codes! {
     W202 => "W202", diag(Warning, true, "`binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");
     W211 => "W211", diag(Variable, true, "Variable set but never used.", tag: Unnecessary);
-    W212 => "W212", diag(Variable, true, "Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).");
+    W212 => "W212", diag(Variable, true, "Variable substitution where name expected (`set $x 1`, `incr $x`, `info exists $x`, etc.); the `[set $name]` indirect read is exempt.");
     W213 => "W213", diag(Variable, true, "Variable may not exist — use `unset -nocomplain` to suppress the error.");
     W214 => "W214", diag(Variable, true, "Unused proc parameter — argument is declared but never read in the procedure body.", tag: Unnecessary);
     W215 => "W215", diag(Variable, true, "Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).");

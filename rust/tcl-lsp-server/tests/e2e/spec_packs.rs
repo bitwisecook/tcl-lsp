@@ -586,6 +586,41 @@ fn a_pack_cannot_silently_redefine_a_shipped_command() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// A workspace pack command owned by a required package publishes the same
+/// subcommand arity error over the protocol that `tcl lint` reports (#2242).
+#[test]
+fn a_workspace_pack_subcommand_arity_error_is_published() {
+    let root = workspace("pack-arity");
+    write(
+        &root.join(".tcl-lsp/cad.tclspec"),
+        "speclib cad 2.0 {\n  default dialects all-tcl\n  default required_package cad\n  \
+         command cad {\n    arity 1..\n    arg 0 -role Keyword\n    \
+         allow_unknown_subcommands no\n    subcommand box {\n      arity 3\n      \
+         arg 0 -role Value -type Double\n      arg 1 -role Value -type Double\n      \
+         arg 2 -role Value -type Double\n      synopsis {cad box x y z}\n    }\n  }\n}\n",
+    );
+    let source = "package require cad 0.4\n\ncad box 10 20\ncad box 1 2 3\n";
+    let doc = root.join("bad.tcl");
+    write(&doc, source);
+
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    let uri = file_uri(&doc);
+    await_pack_named(&mut lsp, "cad");
+    let diagnostics = lsp.open_ready(&uri, source);
+    let arity: Vec<&Value> = diagnostics
+        .iter()
+        .filter(|d| {
+            d.get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|m| m.contains("'cad box'"))
+        })
+        .collect();
+    assert_eq!(arity.len(), 1, "{diagnostics:#?}");
+    assert_eq!(arity[0]["range"]["start"]["line"], 2, "{arity:#?}");
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// A pack whose `const_fold` is a **Tcl body**, folding a real call site in the
 /// running server.
 ///

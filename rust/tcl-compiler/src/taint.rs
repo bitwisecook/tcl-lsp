@@ -1684,6 +1684,31 @@ fn var_taint<S: std::hash::BuildHasher>(
         .unwrap_or(TaintLattice::clean())
 }
 
+fn expr_yields_boolean(expr: &ExprNode) -> bool {
+    match expr {
+        ExprNode::Binary { op, .. } => op.yields_boolean(),
+        ExprNode::Unary { op, .. } => op.yields_boolean(),
+        _ => false,
+    }
+}
+
+/// `[expr {$a eq $b}]` yields only `0`/`1`, whatever its operands held.
+fn expression_invocation_yields_boolean(
+    invocation: Option<&crate::registry_invocation::ResolvedStatementInvocation>,
+    ctx: TaintCtx<'_>,
+) -> bool {
+    invocation
+        .and_then(|invocation| {
+            crate::word_subst::source_expression_from_invocation(
+                invocation,
+                ctx.dialect,
+                tcl_lexer::Span::new(0, 0),
+                None,
+            )
+        })
+        .is_some_and(|lifted| expr_yields_boolean(&lifted.expression))
+}
+
 /// Join the taint contributed by every command substitution embedded in an
 /// expression AST (`[cmd …]` retained as [`ExprNode::Command`], or `[cmd …]`
 /// inside a quoted `ExprNode::String`).
@@ -1935,6 +1960,9 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
             nested,
         )
     });
+    if expression_invocation_yields_boolean(resolved.as_ref(), ctx) {
+        return TaintLattice::clean();
+    }
     let hosted = nested
         .as_ref()
         .filter(|_| ctx.source.metadata.is_some())
@@ -2061,6 +2089,9 @@ fn evaluate_taint_def_at<S: std::hash::BuildHasher>(
         // `$var` SSA uses, so a taint source nested in an `[expr {…}]` command
         // substitution (`set x [expr {[gets stdin] + 1}]`) would otherwise
         // launder the taint — a false-negative security diagnostic.
+        // A comparison or logical operator yields only `0`/`1`, whatever
+        // its operands held, so the result carries no attacker text.
+        Statement::AssignExpr { expr, .. } if expr_yields_boolean(expr) => TaintLattice::clean(),
         Statement::AssignExpr { expr, .. } => {
             join_uses(uses, taints).join(expr_command_taint(expr, uses, taints, ctx, 0))
         }
@@ -16092,5 +16123,47 @@ mod original_script_contents_coverage_tests {
             read.taint("x", &tokens.words()[1], unit.top_level.taints.as_ref())
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod boolean_result_controls {
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_core_types::DiagCode;
+    use tcl_registry::CommandRegistry;
+
+    fn t100_operands(src: &str) -> Vec<String> {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry: &CommandRegistry = context.commands();
+        let cu = CompilationUnit::build_for_profile(src, registry, false, profile);
+        super::find_taint_warnings_for_cu(&cu, registry, Some(profile))
+            .into_iter()
+            .filter(|warning| warning.code == DiagCode::T100)
+            .map(|warning| warning.variable)
+            .collect()
+    }
+
+    #[test]
+    fn a_comparison_result_is_not_tainted_2506() {
+        let operands = t100_operands(
+            "set line [gets stdin]\nset trimmed [string trimleft $line]\n\
+             set is_empty [expr {$trimmed eq \"\"}]\n\
+             set is_comment [expr {!$is_empty && [string index $trimmed 0] eq \"#\"}]\n\
+             set is_code [expr {!$is_empty && !$is_comment}]\n",
+        );
+        assert!(
+            !operands
+                .iter()
+                .any(|operand| operand == "is_empty" || operand == "is_comment"),
+            "{operands:?}"
+        );
+        let control =
+            t100_operands("set n [gets stdin]\nset m [expr {$n + 1}]\nif {$m} {puts y}\n");
+        assert!(control.iter().any(|operand| operand == "m"), "{control:?}");
+        let boolean =
+            t100_operands("set n [gets stdin]\nset m [expr {$n eq {}}]\nif {$m} {puts y}\n");
+        assert!(!boolean.iter().any(|operand| operand == "m"), "{boolean:?}");
     }
 }

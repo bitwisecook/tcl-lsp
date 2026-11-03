@@ -64,13 +64,6 @@ use crate::types::{
 };
 use crate::var_resolve::{VariableCellKey, VariableCellTable};
 
-// Float literal pattern: requires a decimal point so that forms like `1e3`
-// (no `.`) are NOT classified as floats.
-fn looks_like_float(s: &str) -> bool {
-    let s = s.trim();
-    s.contains('.') && s.parse::<f64>().is_ok()
-}
-
 /// Explicit standalone numeric policy for compatibility helpers.
 /// Actual function typing uses the independent retained source grammar in
 /// [`TypePropagationMetadata`]. No ambient numeric state participates.
@@ -137,7 +130,11 @@ fn literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
     {
         return TypeLattice::of_shape(shape);
     }
-    if looks_like_float(s) {
+    // `1.5`, `1e3`, `Inf`, `-Inf`: the shared grammar's floating spellings.
+    if matches!(
+        parse_whole_with(s, ParseFlags::for_syntax(numbers)),
+        Some(Number::Double(_) | Number::Nan { .. })
+    ) {
         return TypeLattice::of(TclType::Double);
     }
     // Case-insensitive boolean check (full spellings — the literal
@@ -4057,6 +4054,17 @@ mod tests {
     fn float_literal_infers_double() {
         let t = literal_type("3.14", NumberSyntax::Tcl90);
         assert_eq!(t, TypeLattice::of(TclType::Double));
+    }
+
+    #[test]
+    fn exponent_and_infinite_literals_infer_double_2500() {
+        for text in ["1e3", "Inf", "-Inf", "+inf"] {
+            assert_eq!(
+                literal_type(text, NumberSyntax::Tcl90),
+                TypeLattice::of(TclType::Double),
+                "{text}"
+            );
+        }
     }
 
     #[test]

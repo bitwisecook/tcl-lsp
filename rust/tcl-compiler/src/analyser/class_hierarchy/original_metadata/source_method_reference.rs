@@ -339,6 +339,7 @@ pub fn original_source_self_method_references(
     let mut result = tape
         .original_definition_member_source_catalogue()
         .filter_map(|advice| capture(source, analysis, &records, &occupied, advice))
+        .flatten()
         .collect::<Vec<_>>();
     result.sort_by_key(|reference| {
         (
@@ -356,7 +357,7 @@ fn capture(
     records: &[&SourceDeclarationMetadata<ClassDef>],
     occupied: &[&crate::signature_scan::scope::SignatureSourceCommand],
     advice: &OriginalSourceCommandTransitionAdvice,
-) -> Option<OriginalSourceSelfMethodReference> {
+) -> Option<Vec<OriginalSourceSelfMethodReference>> {
     let (body, selector_word) = checked_member_source_schema(source, analysis, advice)?;
     let context = analysis.resolved_input.as_ref()?.context_registry();
     let (body_index, body_method, body_correspondence) =
@@ -368,36 +369,15 @@ fn capture(
         body_method.original_name_input().policy(),
     )?;
     let selector = SignatureSourceNameInput::OriginalWord(key);
-    let order = original_instance_metadata_order_for_inventory(records, body_index, occupied)?;
-    for index in order {
-        let class = *records.get(index)?;
-        let mut methods = class
-            .metadata()
-            .original_members
-            .methods(MemberSide::Instance)?
-            .into_iter()
-            .filter(|method| {
-                method.name_purpose() == DefinitionMemberNamePurpose::TclOoMethod
-                    && method.original_name_input().policy() == selector.policy()
-                    && method.original_name_input().bytes() == selector.bytes()
-                    && method
-                        .name_purpose()
-                        .admits(selector.policy().recipe(), selector.bytes())
-            });
-        let Some(method) = methods.next() else {
-            continue;
-        };
-        if methods.next().is_some() {
-            return None;
-        }
-        return Some(OriginalSourceSelfMethodReference {
-            declaring_class: (*class).clone(),
+    let row = |index: usize, method: OriginalSourceMethodMetadata| {
+        Some(OriginalSourceSelfMethodReference {
+            declaring_class: (*records.get(index)?).clone(),
             method,
             body_class: (*records[body_index]).clone(),
             body_method: body_method.clone(),
-            body,
-            body_correspondence,
-            selector,
+            body: body.clone(),
+            body_correspondence: body_correspondence.clone(),
+            selector: selector.clone(),
             selector_span: selector_word.content_span().ok()?,
             source_schema: advice.clone(),
             obligations: vec![
@@ -408,9 +388,83 @@ fn capture(
                 OriginalSourceSelfMethodReferenceObligation::ObserverApplicability,
                 OriginalSourceSelfMethodReferenceObligation::InheritanceApplicability,
             ],
-        });
+        })
+    };
+    let own = original_instance_metadata_order_for_inventory(records, body_index, occupied)?;
+    match first_source_method(records, &own, &selector) {
+        SourceMethodLookup::Found(index, method) => return Some(vec![row(index, *method)?]),
+        SourceMethodLookup::Ambiguous => return None,
+        SourceMethodLookup::Absent => {}
     }
-    None
+    // Nothing on the body class's own resolution order declares the name, so
+    // `my NAME` can only dispatch on an object of a class whose order reaches
+    // the body class: each such class contributes its first declaration.
+    let mut rows: Vec<OriginalSourceSelfMethodReference> = Vec::new();
+    for receiver in (0..records.len()).filter(|&index| index != body_index) {
+        let Some(order) =
+            original_instance_metadata_order_for_inventory(records, receiver, occupied)
+        else {
+            continue;
+        };
+        if !order.contains(&body_index) {
+            continue;
+        }
+        let (index, method) = match first_source_method(records, &order, &selector) {
+            SourceMethodLookup::Found(index, method) => (index, *method),
+            SourceMethodLookup::Ambiguous => return None,
+            SourceMethodLookup::Absent => continue,
+        };
+        let candidate = row(index, method)?;
+        if !rows.iter().any(|existing| {
+            existing.declaring_class == candidate.declaring_class
+                && existing.method == candidate.method
+        }) {
+            rows.push(candidate);
+        }
+    }
+    Some(rows)
+}
+
+/// The first declaration of a selector along one source resolution order.
+enum SourceMethodLookup {
+    Found(usize, Box<OriginalSourceMethodMetadata>),
+    /// No class on the order declares it.
+    Absent,
+    /// The first declaring class declares it twice, or a record is missing.
+    Ambiguous,
+}
+
+fn first_source_method(
+    records: &[&SourceDeclarationMetadata<ClassDef>],
+    order: &[usize],
+    selector: &SignatureSourceNameInput,
+) -> SourceMethodLookup {
+    for &index in order {
+        let Some(methods) = records.get(index).and_then(|class| {
+            class
+                .metadata()
+                .original_members
+                .methods(MemberSide::Instance)
+        }) else {
+            return SourceMethodLookup::Ambiguous;
+        };
+        let mut methods = methods.into_iter().filter(|method| {
+            method.name_purpose() == DefinitionMemberNamePurpose::TclOoMethod
+                && method.original_name_input().policy() == selector.policy()
+                && method.original_name_input().bytes() == selector.bytes()
+                && method
+                    .name_purpose()
+                    .admits(selector.policy().recipe(), selector.bytes())
+        });
+        let Some(method) = methods.next() else {
+            continue;
+        };
+        if methods.next().is_some() {
+            return SourceMethodLookup::Ambiguous;
+        }
+        return SourceMethodLookup::Found(index, Box::new(method));
+    }
+    SourceMethodLookup::Absent
 }
 
 fn checked_member_source_schema(
@@ -562,6 +616,14 @@ mod tests {
                 (
                     "oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method body {} {my ping}}",
                     1,
+                ),
+                (
+                    "oo::class create Base {method body {} {my ping}}; oo::class create Child {superclass Base; method ping {} {}}",
+                    1,
+                ),
+                (
+                    "oo::class create Base {method body {} {my ping}}; oo::class create Left {superclass Base; method ping {} {}}; oo::class create Right {superclass Base; method ping {} {}}",
+                    2,
                 ),
             ] {
                 let analysis = Analyser::new().analyse(source, dialect);

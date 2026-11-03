@@ -1404,6 +1404,34 @@ mod tests {
     }
 
     #[test]
+    fn lens_counts_superclass_my_dispatch_to_a_subclass_method_2497() {
+        let src = concat!(
+            "oo::class create BaseAxis {\n",
+            "    method preparePosition {bj} {\n",
+            "        my CalculateAxisPosition\n",
+            "    }\n",
+            "}\n",
+            "oo::class create YAxis {\n",
+            "    superclass BaseAxis\n",
+            "    method CalculateAxisPosition {} {}\n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        let lenses = code_lenses(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            Some(&analysis),
+            None,
+            "",
+        );
+        let target = lenses
+            .iter()
+            .find(|l| l.range.start_line == 7)
+            .expect("CalculateAxisPosition lens");
+        assert_eq!(target.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
     fn lens_counts_namespaced_class_method() {
         // TP: a class defined inside a namespace, instance created and its
         // method dispatched — the qualified-name resolution must hold up.

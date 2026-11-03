@@ -1191,6 +1191,10 @@ pub struct OriginalExpressionCommandRegion {
     pub substitution: Span,
     /// Actual script interior selected by the shared command scanner.
     pub body: Span,
+    /// The substitution is a whole expression operand, so its value reaches
+    /// the outer expression directly. A command embedded in a quoted operand
+    /// or a variable index only contributes text to that larger operand.
+    pub whole_operand: bool,
 }
 
 impl OriginalSourceExpression {
@@ -1221,6 +1225,7 @@ impl OriginalSourceExpression {
                     regions.push(OriginalExpressionCommandRegion {
                         substitution: whole,
                         body: content,
+                        whole_operand: true,
                     });
                     continue;
                 }
@@ -1244,6 +1249,7 @@ impl OriginalSourceExpression {
                         regions.push(OriginalExpressionCommandRegion {
                             substitution: part.span,
                             body,
+                            whole_operand: false,
                         });
                     }
                     _ => {}
@@ -1284,6 +1290,13 @@ mod configured_command_region_controls {
                 .map(|region| &text[region.body.as_range()])
                 .collect::<Vec<_>>(),
             ["quoted", "get", "expr {1}"]
+        );
+        assert_eq!(
+            regions
+                .iter()
+                .map(|region| region.whole_operand)
+                .collect::<Vec<_>>(),
+            [false, false, true]
         );
         assert_eq!(original.lexer_config(), config);
         assert!(OriginalSourceExpression::capture("[unterminated", &context, config).is_none());

@@ -1757,37 +1757,9 @@ fn boolify(node: &ExprNode) -> ExprNode {
 /// comparison / logical operator, a logical negation, or a boolean
 /// literal.
 fn is_boolean_expr(node: &ExprNode) -> bool {
-    use crate::expr_ast::UnaryOp;
     match node {
-        ExprNode::Binary { op, .. } => matches!(
-            op,
-            BinOp::And
-                | BinOp::Or
-                | BinOp::WordAnd
-                | BinOp::WordOr
-                | BinOp::Eq
-                | BinOp::Ne
-                | BinOp::Lt
-                | BinOp::Le
-                | BinOp::Gt
-                | BinOp::Ge
-                | BinOp::StrEq
-                | BinOp::StrNe
-                | BinOp::StrLt
-                | BinOp::StrLe
-                | BinOp::StrGt
-                | BinOp::StrGe
-                | BinOp::In
-                | BinOp::Ni
-                | BinOp::Contains
-                | BinOp::StartsWith
-                | BinOp::EndsWith
-                | BinOp::StrEquals
-                | BinOp::Matches
-                | BinOp::MatchesGlob
-                | BinOp::MatchesRegex
-        ),
-        ExprNode::Unary { op, .. } => matches!(op, UnaryOp::Not | UnaryOp::WordNot),
+        ExprNode::Binary { op, .. } => op.yields_boolean(),
+        ExprNode::Unary { op, .. } => op.yields_boolean(),
         ExprNode::Literal { text, .. } => {
             let t = text.trim();
             // Full spellings only, deliberately conservative for rewrite
