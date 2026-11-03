@@ -1112753,7 +1112753,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/registry-constructed-command-declaration-keys.md",
       "problem_statement": "A source declaration query can strip every leading root pair from both a constructed reporting key and the selected descriptor label, conflating literal colon bytes with the one root supplied by the key producer. Its package catalogue is also broader than an installed interpreter table.",
       "question": "How does the shared Registry declaration query preserve exactly one constructed root and the selected descriptor bytes while keeping operator/method declaration conventions, source import guards and package loading separate?",
-      "conclusion": "The rooted constructed-key query delegates exactly one root removal to Syntax and declines an unrooted argument. The existing rooted/unrooted compatibility query reaches the same unrooted worker. Exact Registry spelling selection and byte-exact CanonicalCommandDescriptorKey label equality precede the existing operator and method-context exclusions; a shared constructed holder projection supplies only that reporting distinction. No descriptor punctuation is stripped or treated as a written-name recipe. Package-required catalogue rows remain declared with their original requirement metadata, independently of actual loading. The two production import conflict consumers already supply rooted constructed keys; their caller Registry selection, source/import/export/force/site and current link gates remain separate. Two fixed software controls cover one-root versus literal-leading-colon selection, trailing/Unicode labels, stock declaration conventions and a genuine package-required row. Their source definitions have no attached assertion or provider execution.",
+      "conclusion": "The rooted constructed-key query delegates exactly one root removal to Syntax and declines an unrooted argument. The existing rooted/unrooted compatibility query reaches the same unrooted worker. Exact Registry spelling selection and byte-exact CanonicalCommandDescriptorKey label equality precede the existing operator and method-context exclusions; a shared constructed holder projection supplies only that reporting distinction. No descriptor punctuation is stripped or treated as a written-name recipe. Package-required catalogue rows remain declared with their original requirement metadata, independently of actual loading. The two production import conflict consumers already supply rooted constructed keys; their caller Registry selection, source/import/export/force/site and current link gates remain separate. Two fixed software controls cover one-root versus literal-leading-colon selection, trailing/Unicode labels, stock declaration conventions and a genuine package-required row. Their source definitions have no attached assertion or provider execution. A separate direct Syntax helper probe passed six text/byte pairs and two opaque-byte cases covering exact one-root removal and relative refusal; it does not execute either Registry control.",
       "scope": "Finite CommandRegistry catalogue declaration metadata, its existing compatibility entry, new rooted constructed-key entry and two actual WorkspaceIndex import conflict consumers. This is neither generic written command lookup nor a NameKey/Native namespace resolver. No source reporting key, selected descriptor or catalogue membership establishes current Native command identity, an installed table, package loading or import/export permission. Existing old operator/global-name test bodies are unchanged; their separately documented observations receive no new execution here. This question does not certify the caller Registry selection or its document-store provenance.",
       "providers": [
         {
@@ -1112839,8 +1112839,8 @@
           "id": "registry-declaration-source-1",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
-          "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+          "sha256": "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f",
+          "description": "Current Syntax source definition of constructed root removal. Source entry alone does not establish Registry caller behavior, Native/provider execution or an installed table; the separately retained helper probe reports fixed cases."
         },
         {
           "id": "registry-declaration-source-2",
@@ -1112869,6 +1112869,13 @@
           "path": "rust/tcl-lsp-core/src/workspace_index.rs",
           "sha256": "feefb4b2da2ae821f3ebec02282bd7a92da59461cfbccfd7f09bf21aea6c13dc",
           "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+        },
+        {
+          "id": "registry-unroot-direct-helper-software-observation",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/registry-unroot-20261103/receipt.json",
+          "sha256": "56d7f75f146bab994a52d219fd75dc21e813fd2878ed3375556b666796a3e637",
+          "description": "Separate direct Syntax helper probe and rerun for six text/byte pairs and two opaque-byte cases; no Registry consumer, provider or complete proof result. Reused generated outputs and external toolchain/cache outside custody."
         }
       ],
       "source_anchors": [],
@@ -1112915,7 +1112922,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "Two fixed source definitions support later owned-software reconfirmation. No new test assertions, C Tcl/Jim/BIG-IP observations, command installation, package load or private/native chronology are attached."
+        "limitations": "Two fixed Registry source definitions remain unexecuted. The separately retained helper probe and rerun cover only the specified Syntax examples; reused generated outputs and external tools/cache are outside custody. No Registry consumer, C Tcl/Jim/BIG-IP provider, command installation, package load or private/native chronology is established."
       }
     },
     {
