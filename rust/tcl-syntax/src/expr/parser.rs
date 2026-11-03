@@ -928,12 +928,32 @@ mod tests {
                 selected.grammar.braced_var = style;
                 let context = ExprParseContext::for_profile(&selected);
                 for (source, accepts) in [("${a{b}", !style.nests()), ("${a{b}c}", style.nests())] {
-                    for node in [
-                        parse_expr_for_profile(source, Some(&selected)),
-                        parse_expr_with_grammar(source, &selected.grammar),
-                        parse_expr_with_syntax_context(source, &context),
+                    // The 8.4 profile entry also applies the fixed 8.4
+                    // expression preflight, independently of this lexical override.
+                    let profile_accepts = accepts
+                        && !(version == TclVersion::V8_4 && style.nests() && source == "${a{b}c}");
+                    for (entry, node, expected) in [
+                        (
+                            "profile",
+                            parse_expr_for_profile(source, Some(&selected)),
+                            profile_accepts,
+                        ),
+                        (
+                            "grammar",
+                            parse_expr_with_grammar(source, &selected.grammar),
+                            accepts,
+                        ),
+                        (
+                            "context",
+                            parse_expr_with_syntax_context(source, &context),
+                            accepts,
+                        ),
                     ] {
-                        assert_eq!(matches!(node, ExprNode::Var { .. }), accepts);
+                        assert_eq!(
+                            matches!(node, ExprNode::Var { .. }),
+                            expected,
+                            "{version:?} {style:?} {source:?} {entry}"
+                        );
                     }
                 }
             }
