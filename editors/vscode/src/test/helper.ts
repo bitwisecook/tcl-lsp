@@ -271,17 +271,18 @@ export async function waitForDeepDiagnostics(
   docUri: vscode.Uri,
   opts?: { timeout?: number; since?: number },
 ): Promise<DeepDiagnosticsSnapshot | undefined> {
-  const owner = activeDiagnosticsOwner();
   const uri = docUri.toString();
   const base = opts?.timeout ?? 20_000;
   const deadline = Date.now() + scaledTimeout(base);
   const document = vscode.workspace.textDocuments.find(
     (candidate) => candidate.uri.toString() === uri,
   );
+  const owner = document ? activeDiagnosticsOwner() : undefined;
   const source = document?.getText();
   const version = document?.version;
-  const initialContext = document ? owner.captureAnalysisContext() : undefined;
-  const initialConfiguration = document ? owner.resourceConfiguration(document) : undefined;
+  const initialContext = owner?.captureAnalysisContext();
+  const initialConfiguration =
+    document && owner ? owner.resourceConfiguration(document) : undefined;
   if (document && (!initialContext || initialConfiguration === undefined)) {
     throw new CurrentDiagnosticsUnavailableError("context");
   }
@@ -295,7 +296,7 @@ export async function waitForDeepDiagnostics(
     },
   );
   if (!document || source === undefined || version === undefined) return undefined;
-  if (!initialContext || initialConfiguration === undefined) {
+  if (!owner || !initialContext || initialConfiguration === undefined) {
     throw new CurrentDiagnosticsUnavailableError("context");
   }
 
