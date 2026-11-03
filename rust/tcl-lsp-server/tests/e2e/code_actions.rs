@@ -374,7 +374,7 @@ fn test_e004_dangling_elseif_offers_remove_clause_fix() {
     let actions = code_actions_only(
         &mut lsp,
         &uri,
-        range((0, 12), (0, 18)),
+        range((0, 12), (0, 17)),
         json!(e004),
         &["quickfix"],
     );
