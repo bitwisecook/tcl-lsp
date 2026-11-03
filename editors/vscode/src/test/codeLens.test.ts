@@ -168,21 +168,12 @@ suite("Code Lens", () => {
     );
   });
 
-  // The reference-count lens above a TclOO method must count external
-  // `$obj method` dispatch, not just intra-class calls. `puts [$b get foo]`
-  // (with `set b [Bar new]`) is one reference to `get`. This also covers a
-  // `variable` and `constructor` declared before the `method`, with the
-  // method body reading the instance variable: the lens must resolve to a
-  // *clickable* `tcl-lsp.showReferences` command, not a count-only, inert
-  // shape. Proc and class lenses already resolve to a clickable command;
-  // method lenses are a distinct code path and must match that behaviour.
-  test("method lens counts external \\$obj method dispatch and is clickable", async () => {
+  // A retained external `$obj method` source occurrence supplies a partial
+  // positive count. Its selector remains clickable, while the method body's
+  // `dict get` subcommand must not become another method reference.
+  test("method lens reports a partial source reference and keeps its selector clickable", async () => {
     const refsUri = getDocUri("codeLensMethodRefs.tcl");
     await activate(refsUri);
-    // Method / classmethod lenses resolve lazily the same way
-    // proc/class lenses do — `executeCodeLensProvider`'s resolveCount arg
-    // drives VS Code to call `codeLens/resolve` itself, so poll until the
-    // lenses on the member lines under test carry a resolved command.
     const lenses = await waitForProviderResult(
       refsUri,
       () =>
@@ -192,10 +183,10 @@ suite("Code Lens", () => {
       (ls) => {
         if (!ls) return false;
         const resolvedLines = new Set(ls.filter((l) => l.command).map((l) => l.range.start.line));
-        // `method get` on line 6, `method unused` on line 10.
+        // The resolved title remains present when an unavailable lens is inert.
         return [6, 10].every((line) => resolvedLines.has(line));
       },
-      { timeout: 10_000, label: "resolved method code lenses" },
+      { timeout: 10_000, label: "resolved method source-reference lenses" },
     );
     assert.ok(lenses, "codeLens result should not be null");
 
@@ -206,33 +197,39 @@ suite("Code Lens", () => {
       }
     }
 
-    // Line 6: `method get` — dispatched once via `puts [$b get foo]`.
     const getCommand = commandByLine.get(6);
     assert.strictEqual(
       getCommand?.title,
-      "1 reference",
-      `TclOO method with an external \$obj dispatch: got "${getCommand?.title}"`,
+      "at least 1 reference",
+      `the external selector supplies a partial source count: got "${getCommand?.title}"`,
     );
-    assert.strictEqual(
-      getCommand?.command,
-      "tcl-lsp.showReferences",
-      `method lens must be clickable, not inert: got "${getCommand?.command}"`,
-    );
+    assert.strictEqual(getCommand?.command, "tcl-lsp.showReferences");
+    const args = getCommand?.arguments;
+    assert.ok(Array.isArray(args) && args.length === 3, "positive lens keeps its peek arguments");
+    assert.strictEqual(args[0], refsUri.toString());
+    assert.deepStrictEqual(args[1], { line: 6, character: 11 });
+    const locations = args[2] as unknown[];
+    // Exactly this positive selector is retained. The title does not claim
+    // that these locations exhaust future dispatch or other source owners.
+    assert.deepStrictEqual(locations, [
+      {
+        uri: refsUri.toString(),
+        range: {
+          start: { line: 15, character: 9 },
+          end: { line: 15, character: 12 },
+        },
+      },
+    ]);
+    const document = await vscode.workspace.openTextDocument(refsUri);
+    assert.strictEqual(document.lineAt(15).text.slice(9, 12), "get");
+    assert.strictEqual(document.lineAt(7).text.slice(21, 24), "get");
 
-    // Line 10: `method unused` — never dispatched, but still clickable (an
-    // empty peek is a valid target; zero references must not leave the lens
-    // inert).
+    // No positive occurrence of `unused` is retained, and this partial census
+    // cannot establish zero references. The resolved title is therefore inert.
     const unusedCommand = commandByLine.get(10);
-    assert.strictEqual(
-      unusedCommand?.title,
-      "0 references",
-      `uncalled TclOO method: got "${unusedCommand?.title}"`,
-    );
-    assert.strictEqual(
-      unusedCommand?.command,
-      "tcl-lsp.showReferences",
-      `uncalled method lens must still be clickable: got "${unusedCommand?.command}"`,
-    );
+    assert.strictEqual(unusedCommand?.title, "References unavailable");
+    assert.strictEqual(unusedCommand?.command, "");
+    assert.strictEqual(unusedCommand?.arguments, undefined);
   });
 
   // A `classmethod` dispatches on the *class's own*
