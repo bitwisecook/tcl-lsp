@@ -815472,7 +815472,7 @@
       "problem_statement": "A W216 source proposal for array indexing must preserve literal root dollar/quote/bracket/backslash/Unicode/newline characters and original substituting index components. An inserted unwritten ::set is an independent selected-head premise rather than existing command proof.",
       "question": "When can W216 render a source proposal that preserves the exact literal root and original index substitution under retained lexical grammar, and why does the fallback ::set still require independent review?",
       "conclusion": "The shared literal_quoted_source_fragment quotes literal root characters and requires selected escape decoding to reproduce the exact source string. substituting_quoted_source_fragment preserves original variable/command/expression components and literal escape spelling, escaping only required quote characters, then requires shared parser component equivalence under complete LexerConfig. build_w216_replacement validates the whole original index syntax; empty/parenthesised unsupported root or malformed/incompletely retained substitution refuses a proposal. A bare-name proposal retains its genuine selected syntax; the quoted fallback is [::set \"root(index)\"], whose unwritten stock ::set meaning remains an explicit RequiresReview premise. Source component equality does not grant runtime current cell/key, inserted-head availability, safe-edit authority or Native execution. Fixed public stock-set values and known replacement outcomes are independent observed examples.",
-      "scope": "Two marked fixed source/API controls cover actual retained C/Jim grammar, literal dollars/quotes/brackets/backslashes/Unicode/split lines, quoted/nested-command index components and exact malformed refusal. Linked controls establish no executed Rust/native pass; all seven providers are not tested for this renderer contract. The public eight-example value question does not establish all indices or editor applicability.",
+      "scope": "Two marked fixed source/API controls cover actual retained C/Jim grammar, literal dollars/quotes/brackets/backslashes/Unicode/split lines, quoted/nested-command index components and exact malformed refusal. One named Syntax helper control passed in the separate scoped receipt; the compiler diagnostic control has no new executed result. all seven providers are not tested for this renderer contract. The public eight-example value question does not establish all indices or editor applicability.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -815564,8 +815564,15 @@
           "id": "naming-diagnostics-original-w216-literal-source-replacement-backslash.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/backslash.rs",
-          "sha256": "afdbb8dcf02748133b483f7b29c9b8edfa0b5e280f71e406ece9367bcf89c02e",
-          "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
+          "sha256": "f6d0996915c8ed4b65233bf4fbd8fe08e1e9e8016c2c78c857f5ee9b02113fa7",
+          "description": "Quoted literal and substituting fragments preserve selected grammar and retained source components. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution."
+        },
+        {
+          "id": "syntax-backslash-fixed-software-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-backslash-20261103/receipt.json",
+          "sha256": "ba8a011b60860ab0b8f1be47ba1573b0556373702806a22a1aa0bf08f6a2a2fb",
+          "description": "Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody."
         }
       ],
       "source_anchors": [],
@@ -815602,7 +815609,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent."
+        "limitations": "The separately retained Syntax receipt records the named helper control. The compiler diagnostic control remains a source binding here; Native evidence and runtime/effect/frame/edit obligations remain independent."
       }
     },
     {
@@ -1121442,8 +1121449,15 @@
           "id": "source-backslash",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/backslash.rs",
-          "sha256": "afdbb8dcf02748133b483f7b29c9b8edfa0b5e280f71e406ece9367bcf89c02e",
-          "description": "Reviewed current implementation and linked fixed assertions; no execution receipt."
+          "sha256": "f6d0996915c8ed4b65233bf4fbd8fe08e1e9e8016c2c78c857f5ee9b02113fa7",
+          "description": "Literal-text source rendering checks retranslation under the explicitly selected native string protocol and input channel. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution."
+        },
+        {
+          "id": "syntax-backslash-fixed-software-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-backslash-20261103/receipt.json",
+          "sha256": "ba8a011b60860ab0b8f1be47ba1573b0556373702806a22a1aa0bf08f6a2a2fb",
+          "description": "Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody."
         }
       ],
       "source_anchors": [],
@@ -1121474,7 +1121488,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "The listed fixed Rust selectors are replay bindings, not execution receipts. Native source ingress observations are separately scoped and do not certify these consumer assertions."
+        "limitations": "The separately retained Syntax receipt records the named literal-text helper control. Native source ingress observations are separately scoped and do not certify consumer or editor execution."
       }
     },
     {
