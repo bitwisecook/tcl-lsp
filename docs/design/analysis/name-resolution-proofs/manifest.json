@@ -52936,11 +52936,6 @@
         },
         {
           "path": "rust/tcl-compiler/src/analyser/handlers.rs",
-          "symbol": "Analyser::known_factory_invocation_falls_through",
-          "purpose": "Use the shared caller-label holder without manufacturing original invocation, source, factory or exported manufacturer/layout evidence."
-        },
-        {
-          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
           "symbol": "Analyser::resolve_static_proc_name",
           "purpose": "Explicit allows_lexical_declaration_advice compatibility retains shared constructed holder; original static procedure resolution is an independent positioned branch."
         },
