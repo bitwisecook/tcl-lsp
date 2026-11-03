@@ -42,6 +42,7 @@ pub struct OriginalProjectFactoryHeaders {
 }
 
 impl OriginalProjectFactoryHeaders {
+    /// Retain original source headers only when their analysis input and realm agree.
     #[must_use]
     pub fn capture(analysis: &AnalysisResult) -> Option<Self> {
         let input = analysis.resolved_input.as_ref()?;
@@ -520,9 +521,11 @@ impl OriginalForeignFactoryBody {
     pub fn body(&self) -> &tcl_lexer::NativeWord {
         &self.projection.native_words()[self.body_ordinal]
     }
+    /// Original written instance name in the caller document.
     pub fn name(&self) -> &tcl_lexer::NativeWord {
         &self.projection.native_words()[self.name_ordinal]
     }
+    /// Unresolved publication and applicability conditions of this source advice.
     pub fn obligations(&self) -> &[ForeignFactorySourceObligation] {
         &self.obligations
     }
@@ -557,6 +560,7 @@ impl OriginalForeignFactoryBody {
             .filter(|record| *record == &self.declaration);
         matches.next().is_some() && matches.next().is_none()
     }
+    /// Recheck the exact caller source, input and retained realm.
     pub fn matches_caller(&self, analysis: &AnalysisResult) -> bool {
         analysis.resolved_input.as_ref() == Some(&self.caller_input)
             && analysis
