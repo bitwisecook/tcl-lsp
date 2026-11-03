@@ -112,6 +112,7 @@ pub fn select<'a>(
 /// successful store. Refactoring continues to use the original-only selector.
 pub(crate) enum NavigationVariable<'a> {
     Original(&'a SignatureSourceVariableOccurrence),
+    LogicalRootSourceReference(LogicalRootSourceReference<'a>),
     Alias(Box<OriginalVariableAliasTemplate>),
     LogicalFormal {
         procedure: Box<
@@ -126,10 +127,23 @@ pub(crate) enum NavigationVariable<'a> {
     },
 }
 
+/// A genuine undeclared Logical root reference with current Registry source
+/// documentation. It supplies neither a declaration nor navigable references.
+pub(crate) struct LogicalRootSourceReference<'a> {
+    occurrence: &'a SignatureSourceVariableOccurrence,
+}
+
+impl<'a> LogicalRootSourceReference<'a> {
+    pub(crate) const fn occurrence(&self) -> &'a SignatureSourceVariableOccurrence {
+        self.occurrence
+    }
+}
+
 impl NavigationVariable<'_> {
     pub(crate) fn declaration_spans(&self, analysis: &AnalysisResult) -> Vec<Span> {
         match self {
             Self::Original(occurrence) => declaration_spans(analysis, occurrence.symbol()),
+            Self::LogicalRootSourceReference(_) => Vec::new(),
             Self::Alias(template) => declaration_spans(analysis, template.target_symbol()),
             Self::LogicalFormal { procedure, ordinal } => {
                 vec![procedure.formals()[*ordinal].declaration_span()]
@@ -147,6 +161,7 @@ impl NavigationVariable<'_> {
         include_declaration: bool,
     ) -> Vec<Span> {
         match self {
+            Self::LogicalRootSourceReference(_) => Vec::new(),
             Self::Original(occurrence) => alias_template_reference_spans(
                 source,
                 analysis,
@@ -188,6 +203,7 @@ impl NavigationVariable<'_> {
     pub(crate) fn hover_text(&self, analysis: &AnalysisResult) -> Option<String> {
         match self {
             Self::Original(occurrence) => hover_text(analysis, occurrence),
+            Self::LogicalRootSourceReference(_) => None,
             Self::Alias(template) => Some(format!(
                 "**Conditional variable alias** `{}` → `{}`\n\nThe original declaration relates these names. Target element, successful alias and binding continuity are unproved.",
                 tcl_syntax::native_string::resident_name_label(template.local_name().as_bytes()),
@@ -240,8 +256,10 @@ pub(crate) fn select_navigation<'a>(
     if let Some(template) = alias_template_at_offset(source, analysis, config, offset) {
         return ControlFlow::Break(Some(NavigationVariable::Alias(Box::new(template))));
     }
-    if let Some(decision) = logical_navigation_disposition(source, analysis, config, offset) {
-        return decision.map_break(|()| None);
+    if let Some(decision) =
+        logical_navigation_disposition(source, analysis, config, offset, &selected)
+    {
+        return decision;
     }
     if analysis.allows_lexical_declaration_advice() {
         return selected.map_break(|selected| selected.map(NavigationVariable::Original));
@@ -303,12 +321,13 @@ pub(crate) fn select_navigation<'a>(
     }
 }
 
-fn logical_navigation_disposition(
+fn logical_navigation_disposition<'a>(
     source: &str,
     analysis: &AnalysisResult,
     config: tcl_lexer::LexerConfig,
     offset: u32,
-) -> Option<ControlFlow<()>> {
+    selected: &ControlFlow<Option<&'a SignatureSourceVariableOccurrence>>,
+) -> Option<ControlFlow<Option<NavigationVariable<'a>>>> {
     if let Some(advice) = analysis.logical_variable_scope_advice(
         &tcl_lexer::SourceImage::document(source),
         config,
@@ -321,7 +340,12 @@ fn logical_navigation_disposition(
             return Some(if advice.variable_definition(reference.root).is_some() {
                 ControlFlow::Continue(())
             } else {
-                ControlFlow::Break(())
+                ControlFlow::Break(
+                    logical_root_source_reference(
+                        source, analysis, &advice, &reference, offset, selected,
+                    )
+                    .map(NavigationVariable::LogicalRootSourceReference),
+                )
             });
         }
         if analysis
@@ -332,11 +356,63 @@ fn logical_navigation_disposition(
             )
             .is_some()
         {
-            return Some(ControlFlow::Break(()));
+            return Some(ControlFlow::Break(None));
         }
         return Some(ControlFlow::Continue(()));
     }
     None
+}
+
+fn logical_root_source_reference<'a>(
+    source: &str,
+    analysis: &AnalysisResult,
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+    reference: &crate::source_structure::SourceVariableReference<'_>,
+    cursor: u32,
+    selected: &ControlFlow<Option<&'a SignatureSourceVariableOccurrence>>,
+) -> Option<LogicalRootSourceReference<'a>> {
+    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
+    use tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+    let ControlFlow::Break(Some(occurrence)) = selected else {
+        return None;
+    };
+    if !occurrence.matches_logical_source_view(
+        &tcl_lexer::SourceImage::document(source),
+        analysis.resolved_input.as_ref()?,
+    ) {
+        return None;
+    }
+    if !reference.name_span.as_range().contains(&(cursor as usize))
+        || advice.variable_definition(reference.root).is_some()
+        || !declaration_spans(analysis, occurrence.symbol()).is_empty()
+    {
+        return None;
+    }
+    let SignatureSourceNameInput::OriginalVariableRoot(root) = occurrence.original_name_input()
+    else {
+        return None;
+    };
+    if root.name_span()? != reference.name_span || root.part_span() != reference.whole_span {
+        return None;
+    }
+    let coordinate = advice.namespace_variable_coordinate(reference.root)?;
+    let (holder, name) = tcl_syntax::naming::key_holder_and_tail(&coordinate);
+    if holder != "::" {
+        return None;
+    }
+    match occurrence.symbol().slot() {
+        SignatureSourceVariableSlot::C { namespace, simple }
+            if namespace.is_root() && simple.as_bytes() == name.as_bytes() => {}
+        SignatureSourceVariableSlot::Jim(key) if key.as_bytes() == name.as_bytes() => {}
+        SignatureSourceVariableSlot::C { .. }
+        | SignatureSourceVariableSlot::Jim(_)
+        | SignatureSourceVariableSlot::Local { .. } => return None,
+    }
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    current
+        .registry()
+        .special_var_in_dialect(name, Some(current.context().context().authoring_query()))?;
+    Some(LogicalRootSourceReference { occurrence })
 }
 
 fn logical_formal_navigation(
@@ -635,6 +711,48 @@ mod tests {
             ),
             ControlFlow::Break(None)
         ));
+    }
+
+    #[test]
+    fn logical_root_registry_documentation_supplies_no_navigation_identity() {
+        let source = "puts $auto_path";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "reporting label");
+        let cursor = u32::try_from(source.find("auto_path").unwrap() + 1).unwrap();
+        let ControlFlow::Break(Some(selected)) = select_navigation(
+            source,
+            &analysis,
+            0,
+            cursor,
+            crate::definition::CallResolution::document_only(),
+        ) else {
+            panic!("current root source documentation");
+        };
+        assert!(matches!(
+            selected,
+            NavigationVariable::LogicalRootSourceReference(_)
+        ));
+        assert_eq!(selected.declaration_spans(&analysis), Vec::<Span>::new());
+        assert_eq!(
+            selected.reference_spans(source, &analysis, true),
+            Vec::<Span>::new()
+        );
+        assert!(selected.hover_text(&analysis).is_none());
+        assert_eq!(
+            crate::definition::definition(source, 0, cursor, &analysis),
+            Vec::<crate::definition::LspRange>::new()
+        );
     }
 
     #[test]

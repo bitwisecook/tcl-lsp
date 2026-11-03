@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 3 November 2026, 21:34 GMT. This is the active snapshot. Earlier observations and superseded states are in git history and their original evidence records; they are not current acceptance results.
+Updated 3 November 2026, 21:42 GMT. This is the active snapshot. Earlier observations and superseded states are in git history and their original evidence records; they are not current acceptance results.
 
 ## Release scope and repository
 
@@ -119,7 +119,7 @@ The bounded public Logical probe now observes exact uncertainty: the initial `se
 
 The two SpecTcl CI failures query execution SCCP inside an unentered original procedure. That lattice intentionally remains Overdefined. Derived reference bodies use declared Evaluate semantics, not a const-fold hook. An initial off-tree hook-only fixture rewrite was found invalid in review and is held, unbuilt and unadopted. Actual declared-value seam tests and user-visible source-only value advice remain under investigation; no solver fix or passing compatibility gate is claimed.
 
-A fresh all-features native server build for the latest hover source is running. The earlier `13201aad…` server predates those hover commits and cannot validate them. Current Native factory foreign-header transport, Logical conditional rename, hover repairs and proof-gate remediation have separate Sol 6.1/Terra 6.1 owners; Root controls adoption, the shared build target, state and publication. The cache/recovery and performance drafts remain held with the previously recorded gaps.
+The fresh all-features native server build completed in 356 seconds with Cargo `fresh:false`, source/generated inputs unchanged and SHA-256 `efb07a09b1f71c1338da2f3e67a46ee35116e30a84f1571041bc7effb9af07f3`. Its native protocol cohort is **11/15 pass**: exact ASCII nested SpecTcl hover and scoped negatives pass; Unicode-before/same-line UTF-16 and global/rooted special-variable cases fail. Receipt `/workspace/tmp/integration-hover-acceptance-20261103/results.json`. This is native server validation, not browser/WASI acceptance. A reviewed typed Logical root-source reference patch is adopted before execution: it retains the genuine current occurrence/root coordinate and available Registry row, while issuing no declaration, reference set or edit identity. Current Native special-variable routing remains unresolved. The earlier `13201aad…` server predates those hover commits and cannot validate them. Current Native factory foreign-header transport, Logical conditional rename, hover repairs and proof-gate remediation have separate Sol 6.1/Terra 6.1 owners; Root controls adoption, the shared build target, state and publication. The cache/recovery and performance drafts remain held with the previously recorded gaps.
 
 ## Acceptance and next actions
 

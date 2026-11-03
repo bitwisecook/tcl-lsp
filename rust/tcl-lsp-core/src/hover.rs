@@ -935,6 +935,16 @@ fn source_role_hover(
         let Some(selection) = selected else {
             return std::ops::ControlFlow::Break(None);
         };
+        if let crate::variable_symbol::NavigationVariable::LogicalRootSourceReference(reference) =
+            &selection
+        {
+            return std::ops::ControlFlow::Break(current_special_variable_source_hover(
+                source,
+                analysis,
+                reference.occurrence(),
+                cursor_offset,
+            ));
+        }
         if let crate::variable_symbol::NavigationVariable::Original(occurrence) = &selection
             && crate::variable_symbol::declaration_spans(analysis, occurrence.symbol()).is_empty()
         {
@@ -7482,13 +7492,32 @@ mod original_special_variable_context_tests {
                 );
             }
         }
-        let rooted = "puts $::auto_path";
-        let rooted_analysis = analyse_with(rooted, context.clone());
-        let rooted_cursor = u32::try_from(rooted.find("auto_path").unwrap() + 1).unwrap();
-        assert!(
-            hover(rooted, 0, rooted_cursor, &rooted_analysis, None)
-                .is_some_and(|card| card.value.contains("special variable"))
-        );
+        for rooted in [
+            "puts $::auto_path",
+            "proc p {} {puts $::auto_path}",
+            "namespace eval ::foo {puts $::auto_path}",
+        ] {
+            let rooted_analysis = analyse_with(rooted, context.clone());
+            let rooted_cursor = u32::try_from(rooted.find("auto_path").unwrap() + 1).unwrap();
+            assert!(
+                hover(rooted, 0, rooted_cursor, &rooted_analysis, None)
+                    .is_some_and(|card| card.value.contains("special variable")),
+                "{rooted}"
+            );
+        }
+        for source in [
+            "set ::auto_path custom; puts $auto_path",
+            "namespace eval ::foo {puts $auto_path}",
+            "puts $::foo::auto_path",
+        ] {
+            let analysis = analyse_with(source, context.clone());
+            let cursor = u32::try_from(source.rfind("auto_path").unwrap() + 1).unwrap();
+            assert!(
+                hover(source, 0, cursor, &analysis, None)
+                    .is_none_or(|card| !card.value.contains("special variable")),
+                "{source}"
+            );
+        }
 
         for source in ["puts {$auto_path}", "# $auto_path", "puts \\$auto_path"] {
             let analysis = analyse_with(source, context.clone());
