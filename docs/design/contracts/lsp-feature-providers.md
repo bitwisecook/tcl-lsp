@@ -18,7 +18,8 @@ and the MCP tool surface without three copies of the behaviour.
 For an opaque byte-named TclOO class with an authenticated source body,
 semantic tokens use the counted declaration and positioned call
 receipts to classify the class head, and go-to-definition returns the exact
-authored name span. This does not infer members, relations, or a printable
+authored name span. Authenticated initial method declaration names can receive
+syntax tokens; this does not infer installed members, relations, or a printable
 class name.
 
 ## Decision rules / contracts

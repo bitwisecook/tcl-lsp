@@ -54,17 +54,7 @@ impl OriginalTokenRoles {
         for declaration in analysis.original_procedure_declarations() {
             roles.name(&image, declaration.name_input(), ArgOverride::ProcNameDef);
         }
-        if let Some(input) = analysis.resolved_input.as_ref() {
-            let context = input.context_registry();
-            for declaration in &analysis.original_counted_class_metadata {
-                if declaration.name_input().lexer_config() == config
-                    && declaration.metadata().body().matches_source(&image, config)
-                    && declaration.metadata().body().matches_context(&context)
-                {
-                    roles.name(&image, declaration.name_input(), ArgOverride::ClassNameDef);
-                }
-            }
-        }
+        roles.capture_counted_classes(&image, config, analysis);
         for declaration in analysis.original_class_declarations() {
             roles.name(&image, declaration.name_input(), ArgOverride::ClassNameDef);
             for member in declaration.metadata().original_members.declarations() {
@@ -121,6 +111,44 @@ impl OriginalTokenRoles {
             }
         }
         roles
+    }
+
+    fn capture_counted_classes(
+        &mut self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        analysis: &AnalysisResult,
+    ) {
+        if let Some(input) = analysis.resolved_input.as_ref() {
+            let context = input.context_registry();
+            for declaration in &analysis.original_counted_class_metadata {
+                if declaration.name_input().lexer_config() == config
+                    && declaration.metadata().body().matches_source(image, config)
+                    && declaration.metadata().body().matches_context(&context)
+                {
+                    self.name(image, declaration.name_input(), ArgOverride::ClassNameDef);
+                    let body = declaration.metadata().body().content_span();
+                    if let Some(methods) = declaration.metadata().initial_method_declarations() {
+                        for method in methods {
+                            let key = method.original_name_input();
+                            let word = method.original_word();
+                            let site = method.site();
+                            if key.original_word() == word
+                                && key.source_image() == image
+                                && key.lexer_config() == config
+                                && key.policy() == declaration.name().policy()
+                                && site.source == declaration.declaration_site().source
+                                && body.start() <= site.offset
+                                && site.offset <= word.span().start()
+                                && word.span().end() <= body.end()
+                            {
+                                self.name(image, key, ArgOverride::MemberName);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn capture_vendor_names(&mut self, image: &SourceImage, analysis: &AnalysisResult) {
@@ -1563,7 +1591,87 @@ mod tests {
     use super::*;
 
     #[test]
-    fn counted_nonempty_class_token_roles_do_not_claim_body_members() {
+    fn counted_initial_method_roles_keep_exact_bytes_sides_and_source_context() {
+        let source = "oo::class create C\\uD800 {method m\\uD800 {} {}; method m\\uD800 {} {}; method m\\uD801 {} {}; self method make {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let [class] = analysis.original_counted_class_metadata.as_slice() else {
+            panic!("counted class")
+        };
+        assert_eq!(
+            class
+                .metadata()
+                .initial_method_declarations()
+                .unwrap()
+                .len(),
+            4
+        );
+        let roles = OriginalTokenRoles::capture(source, Some(&analysis));
+        let profile = crate::environment_for_dialect("tcl8.6").analyser_profile();
+        let tokens = decode_semantic(&full_with_cu_and_analysis(
+            source,
+            profile,
+            crate::registry_for_dialect("tcl8.6"),
+            None,
+            Some(&analysis),
+        ));
+        for name in ["m\\uD800", "m\\uD801", "make"] {
+            for (offset, _) in source.match_indices(name) {
+                assert!(
+                    matches!(
+                        roles.names.get(&u32::try_from(offset).unwrap()),
+                        Some((_, ArgOverride::MemberName))
+                    ),
+                    "{name}"
+                );
+                assert!(
+                    kind_at(source, &tokens, offset, TokenKind::Method, MOD_DEFINITION),
+                    "{name}"
+                );
+            }
+        }
+        assert_eq!(source.match_indices("m\\uD800").count(), 2);
+        let stale = OriginalTokenRoles::capture(&format!("#{source}"), Some(&analysis));
+        assert!(stale.names.is_empty());
+        let mut foreign = analysis.clone();
+        foreign.original_counted_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.0")
+            .original_counted_class_metadata;
+        let roles = OriginalTokenRoles::capture(source, Some(&foreign));
+        for name in ["m\\uD800", "m\\uD801", "make"] {
+            let offset = u32::try_from(source.find(name).unwrap()).unwrap();
+            assert!(!roles.names.contains_key(&offset), "{name}");
+        }
+    }
+
+    #[test]
+    fn counted_initial_method_roles_refuse_unknown_computed_and_malformed_bodies() {
+        for body in [
+            "{unknown_member; method m {} {}}",
+            "{error nope; method m {} {}}",
+            "{return; method m {} {}}",
+            "{method $name {} {}}",
+            "{foreach name {a b} {method $name {} {}}}",
+            "{method m {} \"unterminated}",
+        ] {
+            let source = format!("oo::class create C\\uD800 {body}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let [class] = analysis.original_counted_class_metadata.as_slice() else {
+                panic!("{source}")
+            };
+            assert!(
+                class.metadata().initial_method_declarations().is_none(),
+                "{source}"
+            );
+            let roles = OriginalTokenRoles::capture(&source, Some(&analysis));
+            if let Some(name) = source.find("method m ") {
+                let offset = u32::try_from(name + "method ".len()).unwrap();
+                assert!(!roles.names.contains_key(&offset), "{source}");
+            }
+        }
+    }
+
+    #[test]
+    fn counted_nonempty_class_token_roles_colour_source_method_names() {
         let source = "oo::class create C\\uD800 {method m\\uD801 {} {return body}}\nC\\uD800 new\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         assert_eq!(analysis.original_counted_class_metadata.len(), 1);
@@ -1571,7 +1679,10 @@ mod tests {
         let head = u32::try_from(source.rfind("C\\uD800 new").unwrap()).unwrap();
         assert!(roles.is_class_head(head));
         let member = u32::try_from(source.find("m\\uD801").unwrap()).unwrap();
-        assert!(!roles.names.contains_key(&member));
+        assert!(matches!(
+            roles.names.get(&member),
+            Some((_, ArgOverride::MemberName))
+        ));
         let profile = crate::environment_for_dialect("tcl8.6").analyser_profile();
         let tokens = decode_semantic(&full_with_cu_and_analysis(
             source,
@@ -1586,6 +1697,13 @@ mod tests {
             usize::try_from(head).unwrap(),
             TokenKind::Class,
             0
+        ));
+        assert!(kind_at(
+            source,
+            &tokens,
+            usize::try_from(member).unwrap(),
+            TokenKind::Method,
+            MOD_DEFINITION
         ));
     }
 
