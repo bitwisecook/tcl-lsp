@@ -64,9 +64,11 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
+- `syntax-projection-scoped-f91016f648d5` (observation): [Scoped syntax projection receipt](rust-validation/syntax-projection-20261103/receipt.json). SHA-256 `27d7546f0c5c82d21ea7474a7e4039c4f15b72f0f48c519792ba4548d342ea03`. Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows.
+
 - `naming-diagnostics-original-resolved-variable-name-advice-helpers.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs). SHA-256 `fcd48edbfc3e609583ab4f065632b3d4465f163478fe0027d54f849fbd42151f`. Original statement or terminator owner and actual source purpose precede Logical summary/existence advice. The no-SSA fallback retains original terminator source tokens rather than borrowing raw input eligibility.
 - `naming-diagnostics-original-resolved-variable-name-advice-var_command.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). SHA-256 `50bcf2ff935e4a4aae4b16d74382e1ea9c11eaaedd3f4bcac9196327fc0989df`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-resolved-variable-name-advice-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-resolved-variable-name-advice-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f`. Reviewed source role: split_array_name_braced preserves a braced literal sigil and partitions only closed element forms; no diagnostic span or native cell follows. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows.
 
 ## Source inspection
 
@@ -88,4 +90,4 @@ A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+The separately retained receipt records fixed braced/unbraced naming helper controls only, not a diagnostic span or cell. Other named Rust coverage remains linked without execution claims. Native evidence and runtime/effect/frame/edit obligations remain independent.

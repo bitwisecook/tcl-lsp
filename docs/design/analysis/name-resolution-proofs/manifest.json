@@ -52572,7 +52572,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md",
       "problem_statement": "Analytical command/class/procedure inventories and diagnostic groups use different name presentations. Local delimiter splits can collapse a constructed lone-colon segment or mistake literal reporting geometry for an original namespace/procedure owner.",
       "question": "Which shared projection governs literal diagnostic QName grouping versus constructed class/procedure/inventory holders and tails, and what independent producer/source/metadata guards remain necessary before actual lookup, factory or creation reasoning?",
-      "conclusion": "Literal W214 grouping delegates reported_qname_namespace with LiteralPrefix and keeps its existing String/default semantics. Constructed graph and inventory consumers delegate key_holder_and_tail or key_tail, preserving lone-colon segments, root/bare holders and qualified nonempty recovery selection. The query does not recover an arbitrary native component path. Existing original source class lookup, positioned procedure/invocation, original module/source/availability correspondence, hierarchy and manufacturer/layout requirements remain independent; displayed labels cannot replace absent receipts. Marked fixed software controls exercise reporting, graph, recovery and placeholder surfaces. No assertion outcome, external provider execution or general source/factory/type-soundness closure is attached. The LSP Itcl member projection uses an explicitly supplied Registry for standalone constructed rows. Contextual callers obtain the descriptor family only from complete retained input matching the analysis-owned command realm/store; missing or foreign input and absent grammar withhold family metadata. The standalone projection control preserves its expected holder/tail and refusal assertions without establishing contextual source currency. Implementation navigation uses exact shared class-hierarchy keys in its explicitly admitted lexical branch. Its original-source branch authenticates complete source/configuration and class/method declaration identities; method_implementations_in_inventory requires a unique declaring owner, retained original instance ancestry and exact method-name policy/bytes. Class-object methods select only their declaring class. Report equality or root stripping cannot identify an original method, live class, MRO or dispatch target. The opaque namespace-import trust roster receives a constructed command-key label, not an import pattern or original Native word. Shared written_command_parts and ByteNamespacePath preserve a qualified empty command tail before the shared checked key formatter; no normaliser may erase that tail first. Authored rebound-name invalidation delegates shared bareword_resolution_candidates, including namespace-relative qualified names. Both projections only withdraw MAY trust and mint no command slot, body ID or Native callable receipt. The former optimiser namespace wrappers exist only as private geometry fixtures.",
+      "conclusion": "Literal W214 grouping delegates reported_qname_namespace with LiteralPrefix and keeps its existing String/default semantics. Constructed graph and inventory consumers delegate key_holder_and_tail or key_tail, preserving lone-colon segments, root/bare holders and qualified nonempty recovery selection. The query does not recover an arbitrary native component path. Existing original source class lookup, positioned procedure/invocation, original module/source/availability correspondence, hierarchy and manufacturer/layout requirements remain independent; displayed labels cannot replace absent receipts. Marked fixed software controls exercise reporting, graph, recovery and placeholder surfaces. Two named constructed-key syntax controls passed in the separately retained software receipt; no consumer assertion outcome, external provider execution or general source/factory/type-soundness closure is attached. The LSP Itcl member projection uses an explicitly supplied Registry for standalone constructed rows. Contextual callers obtain the descriptor family only from complete retained input matching the analysis-owned command realm/store; missing or foreign input and absent grammar withhold family metadata. The standalone projection control preserves its expected holder/tail and refusal assertions without establishing contextual source currency. Implementation navigation uses exact shared class-hierarchy keys in its explicitly admitted lexical branch. Its original-source branch authenticates complete source/configuration and class/method declaration identities; method_implementations_in_inventory requires a unique declaring owner, retained original instance ancestry and exact method-name policy/bytes. Class-object methods select only their declaring class. Report equality or root stripping cannot identify an original method, live class, MRO or dispatch target. The opaque namespace-import trust roster receives a constructed command-key label, not an import pattern or original Native word. Shared written_command_parts and ByteNamespacePath preserve a qualified empty command tail before the shared checked key formatter; no normaliser may erase that tail first. Authored rebound-name invalidation delegates shared bareword_resolution_candidates, including namespace-relative qualified names. Both projections only withdraw MAY trust and mint no command slot, body ID or Native callable receipt. The former optimiser namespace wrappers exist only as private geometry fixtures.",
       "scope": "Current analytical reporting and constructed-key projections, explicit lexical hierarchy keys and original-source implementation navigation. Linked fixed controls supply source definitions; current assertion acceptance remains independent. Colon/Unicode/NUL reporting inputs are metadata examples, not native namespace semantics or addressability observations. Constructed key geometry does not replace original command/namespace/class/procedure receipts or independent logical compatibility admission. C Tcl/Jim/BIG-IP processes are not applicable and not tested; no Native getter, callback chronology, dispatch, class/factory or creation effect is inferred. The linked LSP constructed-member control supplies its Registry explicitly and covers descriptive partition, family and member-row selection. Contextual retained-input family selection and current-source guards are separate source obligations described by naming.core.original-dispatch-region-context. This clarification adds no assertion execution or provider outcome.",
       "providers": [
         {
@@ -52686,8 +52686,8 @@
           "id": "metadata-projection-source-5",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
-          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+          "sha256": "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f",
+          "description": "Reviewed source role: Constructed key holder/tail and counted written-command parts remain separate source projections; no lookup or namespace identity follows. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows."
         },
         {
           "id": "metadata-projection-source-6",
@@ -52800,6 +52800,13 @@
           "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
           "sha256": "d222ae6621fedb422939ae791a3b00d0e24cbeb9a76579876c1cb3b07b7747a8",
           "description": "Current constructed FunctionUnit/scope one-root projection and actual Logical inlay consumer control. No Native identity, source rewrite, executed assertion or provider outcome is attached."
+        },
+        {
+          "id": "syntax-projection-scoped-b9e949293c12",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-projection-20261103/receipt.json",
+          "sha256": "27d7546f0c5c82d21ea7474a7e4039c4f15b72f0f48c519792ba4548d342ea03",
+          "description": "Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows."
         }
       ],
       "source_anchors": [],
@@ -53030,7 +53037,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "Four exact fixed software control definitions and current consumer/owner bindings permit later reconfirmation. No test or provider execution is attached. Reconfirmation must keep literal reporting, constructed-key partition and independently retained original source/namespace/target ownership separate."
+        "limitations": "The separately retained receipt records two named constructed-key syntax controls and refers to the independently retained written-parts control. Other consumer controls remain source definitions; no provider execution is attached. Literal reporting, constructed-key partition and original source/namespace/target ownership remain separate."
       }
     },
     {
@@ -752362,8 +752369,15 @@
           "id": "naming-compiler-logical-upvar-target-element-geometry-naming.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
-          "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
+          "sha256": "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f",
+          "description": "Reviewed source role: split_element_ref partitions literal text only when a final close parenthesis and opening parenthesis exist; linked controls cover fixed indirect caller examples, not every upvar or frame. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows."
+        },
+        {
+          "id": "syntax-projection-scoped-99194dd7b6ec",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-projection-20261103/receipt.json",
+          "sha256": "27d7546f0c5c82d21ea7474a7e4039c4f15b72f0f48c519792ba4548d342ea03",
+          "description": "Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows."
         }
       ],
       "source_anchors": [],
@@ -752389,7 +752403,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent."
+        "limitations": "The separately retained receipt records fixed syntax split-array examples and refers to the independently retained scalar-parenthesis control; these are indirect helper cases, not an executed Logical upvar or frame. Other named Rust coverage remains linked without execution claims. Native evidence and runtime/effect/frame/edit obligations remain independent."
       }
     },
     {
@@ -815229,8 +815243,15 @@
           "id": "naming-diagnostics-original-resolved-variable-name-advice-naming.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
-          "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
+          "sha256": "492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f",
+          "description": "Reviewed source role: split_array_name_braced preserves a braced literal sigil and partitions only closed element forms; no diagnostic span or native cell follows. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows."
+        },
+        {
+          "id": "syntax-projection-scoped-f91016f648d5",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-projection-20261103/receipt.json",
+          "sha256": "27d7546f0c5c82d21ea7474a7e4039c4f15b72f0f48c519792ba4548d342ea03",
+          "description": "Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows."
         }
       ],
       "source_anchors": [],
@@ -815288,7 +815309,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent."
+        "limitations": "The separately retained receipt records fixed braced/unbraced naming helper controls only, not a diagnostic span or cell. Other named Rust coverage remains linked without execution claims. Native evidence and runtime/effect/frame/edit obligations remain independent."
       }
     },
     {
