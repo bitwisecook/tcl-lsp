@@ -357,6 +357,224 @@ fn same_boolean_comparison_inversion(
         && same_inversion_leaf(right, next_right, original_tokens, candidate_tokens)
 }
 
+fn same_literal_operator_leaf(
+    old: &ExprNode<Vec<u8>>,
+    new: &ExprNode<Vec<u8>>,
+    original: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate: &[tcl_lexer::ExprToken<Vec<u8>>],
+) -> bool {
+    let inert = match old {
+        ExprNode::Literal { .. } => true,
+        ExprNode::String { text, .. } => std::str::from_utf8(text)
+            .ok()
+            .and_then(tcl_syntax::expr::ast::fixed_string_operand)
+            .is_some(),
+        _ => false,
+    };
+    inert && same_inversion_leaf(old, new, original, candidate)
+}
+
+fn same_editor_operator_rewrite(
+    original: &ExprNode<Vec<u8>>,
+    candidate: &ExprNode<Vec<u8>>,
+    original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+    kind: crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind,
+) -> bool {
+    use crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind;
+    match kind {
+        OriginalExpressionOperatorRewriteKind::InvertComparison => {
+            same_editor_comparison_inversion(original, candidate, original_tokens, candidate_tokens)
+        }
+        OriginalExpressionOperatorRewriteKind::DeMorgan => {
+            same_editor_demorgan_forward(original, candidate, original_tokens, candidate_tokens)
+                || same_editor_demorgan_reverse(
+                    original,
+                    candidate,
+                    original_tokens,
+                    candidate_tokens,
+                )
+        }
+    }
+}
+
+fn same_editor_comparison_inversion(
+    original: &ExprNode<Vec<u8>>,
+    candidate: &ExprNode<Vec<u8>>,
+    original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+) -> bool {
+    use tcl_syntax::expr::BinOp;
+    let (
+        ExprNode::Binary { op, left, right },
+        ExprNode::Binary {
+            op: next,
+            left: next_left,
+            right: next_right,
+        },
+    ) = (original, candidate)
+    else {
+        return false;
+    };
+    let opposite = match op {
+        BinOp::Eq => BinOp::Ne,
+        BinOp::Ne => BinOp::Eq,
+        BinOp::StrEq => BinOp::StrNe,
+        BinOp::StrNe => BinOp::StrEq,
+        BinOp::In => BinOp::Ni,
+        BinOp::Ni => BinOp::In,
+        _ => return false,
+    };
+    *next == opposite
+        && same_literal_operator_leaf(left, next_left, original_tokens, candidate_tokens)
+        && same_literal_operator_leaf(right, next_right, original_tokens, candidate_tokens)
+}
+
+fn same_editor_demorgan_forward(
+    original: &ExprNode<Vec<u8>>,
+    candidate: &ExprNode<Vec<u8>>,
+    original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+) -> bool {
+    use tcl_syntax::expr::{BinOp, UnaryOp};
+    let ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand,
+    } = original
+    else {
+        return false;
+    };
+    let ExprNode::Binary { op, left, right } = operand.as_ref() else {
+        return false;
+    };
+    let ExprNode::Binary {
+        op: next,
+        left: next_left,
+        right: next_right,
+    } = candidate
+    else {
+        return false;
+    };
+    let opposite = match op {
+        BinOp::And => BinOp::Or,
+        BinOp::Or => BinOp::And,
+        _ => return false,
+    };
+    let (
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand: next_left,
+        },
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand: next_right,
+        },
+    ) = (next_left.as_ref(), next_right.as_ref())
+    else {
+        return false;
+    };
+    *next == opposite
+        && same_literal_operator_leaf(left, next_left, original_tokens, candidate_tokens)
+        && same_literal_operator_leaf(right, next_right, original_tokens, candidate_tokens)
+}
+
+fn same_editor_demorgan_reverse(
+    original: &ExprNode<Vec<u8>>,
+    candidate: &ExprNode<Vec<u8>>,
+    original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+) -> bool {
+    use tcl_syntax::expr::{BinOp, UnaryOp};
+    let ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand,
+    } = candidate
+    else {
+        return false;
+    };
+    let ExprNode::Binary {
+        op,
+        left: next_left,
+        right: next_right,
+    } = operand.as_ref()
+    else {
+        return false;
+    };
+    let ExprNode::Binary {
+        op: previous,
+        left,
+        right,
+    } = original
+    else {
+        return false;
+    };
+    let opposite = match op {
+        BinOp::And => BinOp::Or,
+        BinOp::Or => BinOp::And,
+        _ => return false,
+    };
+    let (
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand: left,
+        },
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand: right,
+        },
+    ) = (left.as_ref(), right.as_ref())
+    else {
+        return false;
+    };
+    *previous == opposite
+        && same_literal_operator_leaf(left, next_left, original_tokens, candidate_tokens)
+        && same_literal_operator_leaf(right, next_right, original_tokens, candidate_tokens)
+}
+
+struct FiniteEditorOperatorTrees {
+    parser: ExprParseContext,
+    original: ExprNode<Vec<u8>>,
+    candidate: ExprNode<Vec<u8>>,
+}
+
+fn finite_editor_operator_trees(
+    original: &[u8],
+    candidate: &[u8],
+    dialect: tcl_registry::InvocationDialect,
+    config: LexerConfig,
+    registry: &CommandRegistry,
+) -> Option<FiniteEditorOperatorTrees> {
+    let mut parser = dialect.expression_parse_context(None);
+    parser.lexer_grammar = config.grammar_over(parser.lexer_grammar);
+    let CheckedExprParse::Parsed(original) =
+        tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(original, &parser)
+    else {
+        return None;
+    };
+    let CheckedExprParse::Parsed(candidate) =
+        tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(candidate, &parser)
+    else {
+        return None;
+    };
+    let policy =
+        crate::tcl_expr_eval::FoldPolicy::for_retained_entry(registry, Some(dialect), &config);
+    if policy.preparation_context().is_none_or(|context| {
+        context.native_syntax != parser.native_syntax
+            || context.lexer_grammar != parser.lexer_grammar
+    }) || !pure_expression(&original)
+        || !pure_expression(&candidate)
+        || !finite_native_literal_result(&original, policy)
+        || !finite_native_literal_result(&candidate, policy)
+    {
+        return None;
+    }
+    Some(FiniteEditorOperatorTrees {
+        parser,
+        original,
+        candidate,
+    })
+}
+
 fn same_inversion_leaf(
     old: &ExprNode<Vec<u8>>,
     new: &ExprNode<Vec<u8>>,
@@ -621,6 +839,100 @@ impl SourceInvocationBinding {
             policy,
         )?;
         Some(replacement)
+    }
+
+    /// A whole-operand editor transformation under the same actual handler,
+    /// observer and compiler-name envelope. Only a single root command is
+    /// admitted, and effectful expression leaves retain no permission.
+    pub(crate) fn original_expression_operator_rewrite(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        operand: &NativeWord,
+        candidate: &str,
+        kind: crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind,
+    ) -> Option<String> {
+        let envelope = self.original_registry_syntax_envelope(tokens, registry)?;
+        let variables = &envelope.state.source_variables;
+        if input.lexer_config() != envelope.config
+            || input.borrowed_context_registry().commands().snapshot() != registry.snapshot()
+            || operand.config() != envelope.config
+            || operand.image() != envelope.site.source.source_image()
+            || operand.group().kind != WordKind::Braced
+            || operand.group().expand
+            || variables.dynamic_traces
+            || !variables.traced.is_empty()
+            || !variables.trace_registrations.is_empty()
+            || !variables.possible_trace_registrations.is_empty()
+            || !variables.untracked_traces.is_empty()
+        {
+            return None;
+        }
+        let words = crate::registry_invocation::original_native_compiler_words(
+            envelope.site.source.source_image(),
+            tokens.words(),
+            envelope.site.offset,
+            envelope.config,
+        )?;
+        if !words.contains(operand) || !isolated_root_source(self, tokens, &words, envelope.config)
+        {
+            return None;
+        }
+        let selected = crate::registry_invocation::original_selected_handler_layout_invocation(
+            registry, tokens,
+        )?;
+        let expected_handler = match selected.facts.lowering_hook {
+            Some(tcl_registry::hooks::LoweringHookId::Expr) if words.len() == 2 => {
+                tcl_registry::native_compilation::SuccessfulHandlerSpec::ExpressionArguments
+            }
+            Some(tcl_registry::hooks::LoweringHookId::If) => {
+                tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies
+            }
+            _ => return None,
+        };
+        if !selected.facts.arg_roles_complete
+            || selected.facts.arity_accepts_frozen_arguments() != Some(true)
+            || selected.facts.successful_handler != Some(expected_handler)
+        {
+            return None;
+        }
+        let written = words.iter().position(|word| word == operand)?;
+        let advice = crate::registry_invocation::original_expression_operand_advice_for_word(
+            registry, tokens, written,
+        )?;
+        let content = operand.content_span().ok()?;
+        let original = operand.image().bytes().get(content.as_range())?;
+        if !advice.lookup_closed
+            || advice.expression_base != content.start()
+            || advice.expression_text.as_bytes() != original
+            || envelope.state.baseline.dialect != Some(advice.dialect)
+        {
+            return None;
+        }
+        let checked = finite_editor_operator_trees(
+            original,
+            candidate.as_bytes(),
+            advice.dialect,
+            envelope.config,
+            registry,
+        )?;
+        if !same_editor_operator_rewrite(
+            &checked.original,
+            &checked.candidate,
+            &expression_syntax_signature(original, &checked.parser, envelope.config)?,
+            &expression_syntax_signature(candidate.as_bytes(), &checked.parser, envelope.config)?,
+            kind,
+        ) {
+            return None;
+        }
+        let policy = self.original_head_name_input(tokens)?.policy();
+        braced_source_word(
+            candidate.as_bytes(),
+            operand.image(),
+            envelope.config,
+            policy,
+        )
     }
 
     fn original_expression_rewrite_envelope(
@@ -1055,6 +1367,127 @@ mod tests {
             commands.last()?,
             candidate,
         )
+    }
+
+    fn operator_receipt(
+        source: &str,
+        profile: &str,
+        candidate: &str,
+        kind: crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalExpressionOperatorRewrite>
+    {
+        let analysis = crate::analyser::Analyser::new().analyse(source, profile);
+        let config = analysis.body_lexer_config?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        crate::registry_invocation::source_structure::original_expression_operator_rewrite(
+            source,
+            &analysis,
+            commands.last()?,
+            0,
+            candidate,
+            kind,
+        )
+    }
+
+    #[test]
+    fn original_editor_operator_rewrite_keeps_normality_empty_bodies_and_literal_order() {
+        // naming.core.original-expression-source-selection
+        // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
+        use crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind::{
+            DeMorgan, InvertComparison,
+        };
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (source, candidate, kind) in [
+                ("expr {!(1 && 0)}", "!1 || !0", DeMorgan),
+                ("expr {!1 || !0}", "!(1 && 0)", DeMorgan),
+                ("expr {!(0 || 1)}", "!0 && !1", DeMorgan),
+                ("expr {!0 && !1}", "!(0 || 1)", DeMorgan),
+                ("if {!(1 && 0)} {}", "!1 || !0", DeMorgan),
+                ("if {!1 || !0} {} else {}", "!(1 && 0)", DeMorgan),
+                ("if {1 == 0} {}", "1 != 0", InvertComparison),
+                ("expr {1 != 0}", "1 == 0", InvertComparison),
+                ("expr {1 eq 0}", "1 ne 0", InvertComparison),
+            ] {
+                let proof = operator_receipt(source, profile, candidate, kind)
+                    .unwrap_or_else(|| panic!("{profile}: {source} -> {candidate}"));
+                assert_eq!(proof.replacement_source_word(), format!("{{{candidate}}}"));
+                assert_eq!(
+                    proof.original_operand().image(),
+                    &SourceImage::document(source)
+                );
+            }
+        }
+        for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(
+                operator_receipt("expr {1 in {1 2}}", profile, "1 ni {1 2}", InvertComparison)
+                    .is_some(),
+                "{profile}"
+            );
+        }
+        assert!(
+            operator_receipt(
+                "expr {1 in {1 2}}",
+                "tcl8.4",
+                "1 ni {1 2}",
+                InvertComparison
+            )
+            .is_none()
+        );
+        for (source, candidate, kind) in [
+            ("expr {!(1 && 0)}", "!0 || !1", DeMorgan),
+            ("expr {!(1 && 0)}", "!1 && !0", DeMorgan),
+            ("expr {!(1 && 0)}", "!1 || !2", DeMorgan),
+            ("expr {!($a && $b)}", "!$a || !$b", DeMorgan),
+            ("expr {!($a([child]) && 1)}", "!$a([child]) || !1", DeMorgan),
+            ("expr {!([child] && 1)}", "![child] || !1", DeMorgan),
+            ("expr {!(rand() && 1)}", "!rand() || !1", DeMorgan),
+            (r#"expr {!("$a" && 1)}"#, r#"!"$a" || !1"#, DeMorgan),
+            ("expr {!(invalid && 1)}", "!invalid || !1", DeMorgan),
+            ("expr {!(1 / 0 && 1)}", "!(1 / 0) || !1", DeMorgan),
+            ("proc expr args {}; expr {!(1 && 0)}", "!1 || !0", DeMorgan),
+            ("unknown_mutation; expr {!(1 && 0)}", "!1 || !0", DeMorgan),
+            (
+                "trace add execution expr enter callback; expr {!(1 && 0)}",
+                "!1 || !0",
+                DeMorgan,
+            ),
+            (
+                "trace add variable a read callback; expr {!(1 && 0)}",
+                "!1 || !0",
+                DeMorgan,
+            ),
+            ("proc p {} {expr {!(1 && 0)}}", "!1 || !0", DeMorgan),
+            ("expr {!(1 && 0)}; info frame 0", "!1 || !0", DeMorgan),
+            ("if {!(1 && 0)} {puts yes}", "!1 || !0", DeMorgan),
+            ("if {!(1 && 0)} {info frame -1}", "!1 || !0", DeMorgan),
+            ("if {!(1 && 0)} {$body}", "!1 || !0", DeMorgan),
+            ("if {!(1 && 0)}", "!1 || !0", DeMorgan),
+            ("if {!(1 && 0)} {} else", "!1 || !0", DeMorgan),
+            ("if {!(1 && 0)} {} {} {}", "!1 || !0", DeMorgan),
+            (
+                "if {1 == 1} {} elseif {[incr x]} {}",
+                "1 != 1",
+                InvertComparison,
+            ),
+            (
+                "if {1 == 1} {} elseif {[error LATER]} {}",
+                "1 != 1",
+                InvertComparison,
+            ),
+            (
+                "if {!(1 && 0)} {} elseif {[info frame -1]} {}",
+                "!1 || !0",
+                DeMorgan,
+            ),
+            ("if {1 < 0} {}", "1 >= 0", InvertComparison),
+            ("if {1 == 0} {}", "0 != 1", InvertComparison),
+            ("if {1 == 0} {}", "1 != 2", InvertComparison),
+        ] {
+            assert!(
+                operator_receipt(source, "tcl8.6", candidate, kind).is_none(),
+                "{source} -> {candidate}"
+            );
+        }
     }
 
     #[test]

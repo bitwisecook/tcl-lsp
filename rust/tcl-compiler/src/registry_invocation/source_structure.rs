@@ -1840,6 +1840,115 @@ pub fn original_expression_boolean_comparison_inversion(
     })
 }
 
+/// The explicit editor intent authenticated by the original expression owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginalExpressionOperatorRewriteKind {
+    /// Preserve boolean truth and left-to-right short-circuit reads.
+    DeMorgan,
+    /// Deliberately complement equality/membership while retaining reads.
+    InvertComparison,
+}
+
+/// A checked whole-operand editor proposal. The original source receipt and
+/// input remain independent of the newly authored replacement.
+pub struct OriginalExpressionOperatorRewrite {
+    original: tcl_lexer::NativeWord,
+    replacement: String,
+    input: crate::analyser::ResolvedAnalysisInput,
+}
+
+impl OriginalExpressionOperatorRewrite {
+    /// Exact original source operand under the full caller configuration.
+    #[must_use]
+    pub fn original_operand(&self) -> &tcl_lexer::NativeWord {
+        &self.original
+    }
+
+    /// Separately checked and authored complete braced word.
+    #[must_use]
+    pub fn replacement_source_word(&self) -> &str {
+        &self.replacement
+    }
+
+    /// Every retained expression, registry, realm and source input axis matches.
+    #[must_use]
+    pub fn matches_input(&self, input: &crate::analyser::ResolvedAnalysisInput) -> bool {
+        &self.input == input
+    }
+}
+
+/// Authenticate an explicit editor operator intent on one whole original
+/// expression. This admits neither arbitrary parsed replacements nor nested
+/// body/source reflection, command substitutions or function evaluation.
+#[must_use]
+pub fn original_expression_operator_rewrite(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    argument: usize,
+    candidate: &str,
+    kind: OriginalExpressionOperatorRewriteKind,
+) -> Option<OriginalExpressionOperatorRewrite> {
+    let words = source_registry_words(source, analysis, segment)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    if !matches!(words.source(), OriginalRegistrySource::Selected)
+        || !words.operands_preserve_source_lookup()
+        || !words
+            .roles()?
+            .contains(&(argument, tcl_registry::ArgRole::Expr))
+        || words
+            .roles()?
+            .iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+            .count()
+            != 1
+    {
+        return None;
+    }
+    if !words.with_source_schema(&context, |schema| {
+        schema.authored_source_clause_shape().is_none()
+    })? {
+        return None;
+    }
+    for body in words.source_script_bodies_for_mutation_coverage(&context)? {
+        if !body.matches_source(
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config(),
+        ) || !body.matches_context(&context)
+            || !body.original_commands(&context)?.is_empty()
+        {
+            return None;
+        }
+    }
+    let original = words.original_argument_word(argument)?.clone();
+    let image = tcl_lexer::SourceImage::document(source);
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        input.lexer_config(),
+        segment,
+    );
+    analysis
+        .retained_command_realm()?
+        .stamp_original_tokens(&mut tokens);
+    let replacement = tokens
+        .source_binding
+        .as_ref()?
+        .original_expression_operator_rewrite(
+            &tokens,
+            context.commands(),
+            input,
+            &original,
+            candidate,
+            kind,
+        )?;
+    Some(OriginalExpressionOperatorRewrite {
+        original,
+        replacement,
+        input: input.clone(),
+    })
+}
+
 /// Issue syntax gaps only for a selected whole original Expr-role operand.
 /// Conditional source advice and observed or changed dispatch cannot issue it.
 #[must_use]

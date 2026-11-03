@@ -1384,6 +1384,7 @@ fn expr_rewrite_actions(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Vec<CodeAction> {
+    use tcl_compiler::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind;
     // Single-line, non-empty selection only.
     if range.start_line != range.end_line || range.start_character >= range.end_character {
         return Vec::new();
@@ -1424,38 +1425,86 @@ fn expr_rewrite_actions(
         end_character: range.end_character,
     };
     if let Some(rewritten) = demorgan_transform(&sel) {
-        out.push(CodeAction {
-            title: "Apply De Morgan's law".to_string(),
-            edits: vec![crate::rename::TextEdit {
-                range: edit_range,
-                new_text: rewritten,
-            }],
-            kind: ActionKind::RefactorRewrite,
-            command: None,
-            data_group_definition: None,
-            disabled: None,
-        });
+        out.push((
+            CodeAction {
+                title: "Apply De Morgan's law".to_string(),
+                edits: vec![crate::rename::TextEdit {
+                    range: edit_range,
+                    new_text: rewritten,
+                }],
+                kind: ActionKind::RefactorRewrite,
+                command: None,
+                data_group_definition: None,
+                disabled: None,
+            },
+            OriginalExpressionOperatorRewriteKind::DeMorgan,
+        ));
     }
     if let Some(rewritten) = invert_comparison(&sel) {
-        out.push(CodeAction {
-            title: "Invert comparison".to_string(),
-            edits: vec![crate::rename::TextEdit {
-                range: edit_range,
-                new_text: rewritten,
-            }],
-            kind: ActionKind::RefactorRewrite,
-            command: None,
-            data_group_definition: None,
-            disabled: None,
-        });
+        out.push((
+            CodeAction {
+                title: "Invert comparison".to_string(),
+                edits: vec![crate::rename::TextEdit {
+                    range: edit_range,
+                    new_text: rewritten,
+                }],
+                kind: ActionKind::RefactorRewrite,
+                command: None,
+                data_group_definition: None,
+                disabled: None,
+            },
+            OriginalExpressionOperatorRewriteKind::InvertComparison,
+        ));
     }
     if !analysis.allows_retained_logical_declaration_advice() {
-        for action in &mut out {
+        for (action, kind) in &mut out {
+            if start == extent.start()
+                && finish == extent.end()
+                && original_operator_rewrite_allowed(
+                    source,
+                    analysis,
+                    extent,
+                    &action.edits[0].new_text,
+                    *kind,
+                )
+            {
+                continue;
+            }
             action.edits.clear();
             action.disabled = Some("missing-expression-operator-rewrite-permission: Original expression roles provide source geometry; Native or hosted operator rewrites require an independent selected evaluation and replacement contract".to_owned());
         }
     }
-    out
+    out.into_iter().map(|(action, _)| action).collect()
+}
+
+fn original_operator_rewrite_allowed(
+    source: &str,
+    analysis: &AnalysisResult,
+    extent: tcl_lexer::Span,
+    candidate: &str,
+    kind: tcl_compiler::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind,
+) -> bool {
+    let Some(config) = analysis.body_lexer_config else {
+        return false;
+    };
+    let commands =
+        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let [command] = commands.as_slice() else {
+        return false;
+    };
+    let Some(words) = crate::original_invocation::source_registry_words(source, analysis, command)
+    else {
+        return false;
+    };
+    let Some(roles) = words.roles.as_ref() else {
+        return false;
+    };
+    roles.iter().any(|&(argument, role)| {
+        role == tcl_registry::ArgRole::Expr
+            && tcl_compiler::registry_invocation::source_structure::original_expression_operator_rewrite(
+                source, analysis, command, argument, candidate, kind,
+            ).is_some_and(|proof| proof.original_operand().content_span().ok() == Some(extent))
+    })
 }
 
 /// De Morgan: `!(X && Y)` ↔ `!X || !Y`, `!(X || Y)` ↔ `!X && !Y` — plus the
@@ -5092,7 +5141,14 @@ mod original_expression_action_tests {
     use tcl_compiler::analyser::Analyser;
 
     fn actions(source: &str, analysis: &AnalysisResult) -> Vec<CodeAction> {
-        let selected = "!(1 && 0)";
+        selected_actions(source, analysis, "!(1 && 0)")
+    }
+
+    fn selected_actions(
+        source: &str,
+        analysis: &AnalysisResult,
+        selected: &str,
+    ) -> Vec<CodeAction> {
         let start = u32::try_from(source.find(selected).unwrap()).unwrap();
         expr_rewrite_actions(
             source,
@@ -5108,6 +5164,34 @@ mod original_expression_action_tests {
     }
 
     #[test]
+    fn literal_native_operator_actions_require_a_whole_normal_unobserved_operand() {
+        for (source, selected, replacement) in [
+            ("if {!(1 && 0)} {}", "!(1 && 0)", "!1 || !0"),
+            ("expr {!1 || !0}", "!1 || !0", "!(1 && 0)"),
+            ("expr {1 == 0}", "1 == 0", "1 != 0"),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let proposed = selected_actions(source, &analysis, selected);
+            assert_eq!(proposed.len(), 1, "{source}");
+            assert!(proposed[0].disabled.is_none(), "{source}");
+            assert_eq!(proposed[0].edits[0].new_text, replacement, "{source}");
+        }
+        for (source, selected) in [
+            ("if {1 == 1} {} elseif {[incr x]} {}", "1 == 1"),
+            ("expr {$a == $b}", "$a == $b"),
+            ("expr {1 < 2}", "1 < 2"),
+            ("if {!(1 && 0)} {info frame -1}", "!(1 && 0)"),
+            ("expr {1 && (2 == 3)}", "2 == 3"),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let proposed = selected_actions(source, &analysis, selected);
+            assert_eq!(proposed.len(), 1, "{source}");
+            assert!(proposed[0].edits.is_empty(), "{source}");
+            assert!(proposed[0].disabled.is_some(), "{source}");
+        }
+    }
+
+    #[test]
     // Implementation contract: naming.core.original-expression-source-selection
     // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
     fn original_expression_actions_separate_position_from_rewrite_equivalence() {
@@ -5115,14 +5199,26 @@ mod original_expression_action_tests {
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let proposed = actions(source, &analysis);
         assert_eq!(proposed.len(), 1);
-        assert!(proposed[0].edits.is_empty());
-        assert!(
-            proposed[0]
-                .disabled
-                .as_ref()
-                .unwrap()
-                .starts_with("missing-expression-operator-rewrite-permission:")
-        );
+        assert_eq!(proposed[0].edits.len(), 1);
+        assert_eq!(proposed[0].edits[0].new_text, "!1 || !0");
+        assert!(proposed[0].disabled.is_none());
+        for unavailable in [
+            "expr {!(1 && 0)}; info frame 0",
+            "if {!(1 && 0)} {info frame -1}",
+            "if {!(1 && 0)} {puts yes}",
+        ] {
+            let analysis = Analyser::new().analyse(unavailable, "tcl8.6");
+            let proposed = actions(unavailable, &analysis);
+            assert_eq!(proposed.len(), 1, "{unavailable}");
+            assert!(proposed[0].edits.is_empty(), "{unavailable}");
+            assert!(
+                proposed[0]
+                    .disabled
+                    .as_ref()
+                    .unwrap()
+                    .starts_with("missing-expression-operator-rewrite-permission:")
+            );
+        }
         analysis.command_invocations.clear();
         assert_eq!(actions(source, &analysis).len(), 1);
         assert!(actions(&format!("#{source}"), &analysis).is_empty());
@@ -5130,6 +5226,7 @@ mod original_expression_action_tests {
             "set data {!(1 && 0)}",
             "# expr {!(1 && 0)}",
             "proc expr args {}; expr {!(1 && 0)}",
+            "trace add execution expr enter callback; expr {!(1 && 0)}",
         ] {
             let analysis = Analyser::new().analyse(source, "tcl8.6");
             assert!(actions(source, &analysis).is_empty(), "{source}");
