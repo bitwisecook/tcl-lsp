@@ -892661,7 +892661,7 @@
           "id": "shared-name-boundary-source-9",
           "role": "implementation",
           "path": "rust/tcl-dialect/src/grammar.rs",
-          "sha256": "f222c312909f4dc7a513e135411422606b4589d89720d61119916a7af26281bf",
+          "sha256": "28310116998bef000441fe36171b1a6a6d9e7c2ea01fb925a4da141aceb5ee16",
           "description": "Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome."
         },
         {
@@ -892675,7 +892675,7 @@
           "id": "shared-name-boundary-source-11",
           "role": "implementation",
           "path": "rust/tcl-lexer/src/lib.rs",
-          "sha256": "539f4a86a73e3e42356e9bc477e0c6ff595e858ffa05174ceb847c7bc93f9481",
+          "sha256": "85101576575a4370870d52f4ad02c96216f3a2391eef013108fd9497f5157a98",
           "description": "Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome."
         },
         {
@@ -892747,6 +892747,13 @@
           "path": "docs/design/analysis/name-resolution-proofs/rust-validation/shared-boundary-20261103/receipt-lexer-styles.json",
           "sha256": "28a7bd890d50b3ea9476ad97df6c521f02391031b07841d61033eb93dc02f6e6",
           "description": "Two exact same-binary fixed software controls for selected braced-variable style and array-index syntax, tied to the separately retained lexer input inventory. No Native provider, all-config or whole-proof result follows."
+        },
+        {
+          "id": "shared-name-boundary-lexer-dialect-source-review-20261103",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/shared-boundary-20261103/source-review-lexer-dialect.json",
+          "sha256": "181dbd1b511eedbd23d650258b1b6541e5ebb258959b070f4c1f262110f76274",
+          "description": "Independent review of lexer scanner module/export and dialect style-axis source roles, referencing already retained fixed software controls. No new execution, profile selection, Native provider or whole-proof outcome follows."
         }
       ],
       "source_anchors": [],
