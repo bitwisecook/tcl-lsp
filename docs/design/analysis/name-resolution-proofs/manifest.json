@@ -1133284,7 +1133284,7 @@
       "problem_statement": "Original stamping repeats complete lookup and observation attachment for identical descendant source points under one immutable realm, across different enclosing token vectors.",
       "question": "How can original token stamping share complete derived point projections without substituting another source interpretation?",
       "conclusion": "One immutable realm owns a bounded cache of the shared original invocation query at exact offsets. The factory ignores presentation head text and selects genuine points under the complete root/config/Registry/entry/input/namespace/frame/variable inventories already sealed by that realm. The full derived result is retained, including all residuals and unknown outcomes.",
-      "scope": "At most256 point results are retained. Same immutable realm clones share; replacement realms start fresh. Derived cache state is excluded from equality. Mutable SourceBindings builders keep ordinary querying and no projection cache. Original token correspondence and current Input/lookup/CPP/Normal/frame obligations remain unchanged. Existing80/defaultstack selector is unchanged; timing/pass claims require actual execution.",
+      "scope": "An immutable realm retains at most 256 exact-offset point results. A completed read-only RetainedSourceBodyInventory first uses its retained Logical realm when that realm is available; otherwise its own invocation memo retains at most 4096 results over its complete inventory. Clones share their owner's caches. Each newly constructed selected child owns a separate invocation memo; a replacement realm or independently rebuilt inventory also starts fresh. At either capacity, an uncached point still runs the ordinary query and returns its complete result. Capacity does not prove absence or completeness. Realm equality excludes derived memo state. Mutable SourceBindings builders retain ordinary querying without these immutable-owner caches. Original token correspondence and current Input/lookup/CPP/Normal/frame obligations remain unchanged. These limits and branches are an inspected Rust implementation contract, not an executed body-memo or performance result. The existing 80-level/default-stack selector is unchanged; timing/pass claims require actual execution.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -1133379,6 +1133379,16 @@
           "path": "rust/tcl-compiler/src/command_binding.rs",
           "symbol": "SourceCommandBindings::stamp_original_tokens_with_bindings",
           "purpose": "Retain the same source offset enumeration, original reads and full binding attachments."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "symbol": "InvocationProjectionMemo::get_or_prepare",
+          "purpose": "Bound complete exact-offset invocation results to 4096 for the completed body inventory fallback, while retaining ordinary queries beyond capacity."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "symbol": "RetainedSourceBodyInventory::stamp_original_tokens",
+          "purpose": "Select the retained Logical realm when available, otherwise query the inventory-owned invocation memo without substituting another source interpretation."
         }
       ],
       "tests": [
