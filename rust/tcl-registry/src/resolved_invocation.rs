@@ -6506,7 +6506,18 @@ mod tests {
         use super::SourceExecutableValueCapability::{Absent, MayContain, Unproven};
         use crate::InvocationWord::{Dynamic, Literal};
         let mut registry = crate::CommandRegistry::build_default();
-        let payload = [Dynamic];
+        let single_payload = [Dynamic];
+        let single = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("puts"), &single_payload),
+                None,
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(single.authored_source_argument_roles(), (Vec::new(), true));
+        assert_eq!(single.authored_source_executable_value_capability(), Absent);
+        // With two words the first can be either the flag or a channel.
+        let payload = [Dynamic, Dynamic];
         let selected = registry
             .resolve_structured_invocation(
                 crate::InvocationWords::structured(Literal("puts"), &payload),
@@ -6801,6 +6812,24 @@ mod tests {
             (
                 "if",
                 vec![Literal("1"), Literal("body"), Literal("garbage")],
+                1,
+                Some(Arm::Selected),
+            ),
+            (
+                "if",
+                vec![Literal("1"), Literal("body"), Literal("garbage")],
+                2,
+                Some(Arm::Selected),
+            ),
+            (
+                "if",
+                vec![
+                    Literal("1"),
+                    Literal("body"),
+                    Literal("else"),
+                    Literal("fallback"),
+                    Literal("extra"),
+                ],
                 1,
                 None,
             ),
