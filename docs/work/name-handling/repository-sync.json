@@ -1,8 +1,8 @@
 {
-  "checked_at": "2026-11-03T19:03:02.781389+00:00",
+  "checked_at": "2026-11-03T19:08:07.401389+00:00",
   "branch": "work",
-  "head_before_status_commit": "4287b9b32671b6701f86e119c6c629b3c42648dc",
-  "remote_head_at_fetch": "7b7edf64076831bf96745537c6792d6b0946e208",
+  "head_before_status_commit": "e3611d81b72d9025c72b139b5820f4bd3ea72dae",
+  "remote_head_at_fetch": "3038a5a0caa96e503328ba507266ca11c22be77f",
   "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
@@ -11,9 +11,7 @@
   "working_tree_at_check": [
     " M docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md",
     " M docs/design/analysis/name-resolution-proofs/manifest.json",
-    " M docs/design/contracts/tcloo-implementation.md",
-    " M rust/tcl-compiler/src/analyser/handlers.rs",
-    " M rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+    " M rust/tcl-lsp-server/src/current_diagnostics.rs",
     " M rust/tcl-syntax/src/expr/parser.rs",
     "?? docs/design/analysis/name-resolution-proofs/rust-validation/expression-preflight-20261103/"
   ],
