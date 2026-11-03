@@ -1,17 +1,17 @@
 # Outstanding LSP release work
 
-Updated 3 November 2026. Work is active. Root owns publication and the [current snapshot](../current-state.md); local role drafts are not integrated or validated unless the snapshot says so. Older role notes below are historical handoffs rather than current running/stopped status.
+Updated 3 November 2026, 19:46 GMT. Work is active. Root owns publication and the [current snapshot](../current-state.md); drafts are not adopted or validated unless that snapshot says so. Older role notes below are historical handoffs.
 
-| Current role | Active responsibility | Main open acceptance |
+| Current role | Active responsibility | Open acceptance |
 | --- | --- | --- |
-| root | Scope, review/adoption, truthful state, pushes and CI | Final gates, complete E2E/host/performance/packaging, reduced release PR |
-| cache | Factory census/live receipts; retained closed-index recovery | V2 pre-mutation/currency checks and tests; Pending/Unavailable, durable retry and reader/publisher integration |
-| optimiser_final (capacity replacement) | O101 optimiser settings propagation | Preserve source-point and factory issuance; current/stale/foreign settings and actual quick-fix tests |
-| integration | Current-source LSP validation; incomplete-expression completion | Root trace-negative rerun, nested-entry proof, procedure candidates, actual E2E |
-| root (lsp_failures capacity error) | Bounded expression-operator actions | Fresh Compiler/Core harnesses and action/refusal tests; variable/nonempty-body cases still unsupported |
-| compiler | Proof remediation and class-factory prerequisite cause | Current-source producer repair and five broader factory tests; remaining proof classes |
-| source_link | Independent reviews of these drafts | Findings closed in exact source and executed tests before adoption |
+| root | Reviewed integration, truthful state, five-minute sync/push, CI and shared merged validation | Registry controls; complete native E2E, editor/browser/WASI hosts, performance, packaging, required gates and reduced release PR |
+| optimiser_final | O101 producer settings, factory intent and optional project evidence | Final label-cohort server/Core/protocol reruns, source seal and adoption |
+| integration | Loop variable completion and real-server applied-edit validation; editor host fixes | Extracted loop draft needs current lint/unit/protocol results; real editor hosts remain open |
+| factory_final | Genuine factory source advice is committed; Logical formal and Native foreign-header work remains draft | Combined controls, authenticated foreign body/relation lineage and five broader server factory cases |
+| cache_final | Focused rename input/provider custody; durable index recovery remains unfinished | Draft is uncompiled with known lock/ingress/attempt gaps; actual source/index recovery and publisher/reader lifecycle integration |
+| proof_release | Reviewed source-role metadata and 31 current-owned Core controls | Shared build/control execution; remaining implementation snapshots and immutable evidence/census obligations; no accepted release profile |
+| source_link | Independent review and latency localisation | Sampling/exact-key evidence; performance prototypes are uncompiled and held, with no claimed benefit |
 
-Separate VM/BIG-IP feature work is deferred by the latest user scope. No current external-agent activity is inferred from October notes. User approved uploading `work`; checkpoint `5ab3de41f` was pushed successfully. No PR/release exists and required gates remain open.
+Incomplete-expression completion and bounded literal operator actions are committed with their scoped controls. Variable/nonempty-body operator cases remain unsupported. Separate VM/BIG-IP feature work is deferred; required transitive dependencies and mandatory gates are not waived. No PR or release exists.
 
-Historical role handoffs remain in [lsp.md](lsp.md), [compiler.md](compiler.md), [compiler-names.md](compiler-names.md), [compiler-codegen.md](compiler-codegen.md), [vm-runtime.md](vm-runtime.md), [bigip-lsp.md](bigip-lsp.md), [perf.md](perf.md), [review-triage.md](review-triage.md) and [coordinator.md](coordinator.md). Those notes retain their own dates/evidence and do not certify current results. Agent reports, local `/tmp` paths and proposed fixes must be checked against the current snapshot and preserved receipts.
+Historical handoffs remain in [lsp.md](lsp.md), [compiler.md](compiler.md), [compiler-names.md](compiler-names.md), [compiler-codegen.md](compiler-codegen.md), [vm-runtime.md](vm-runtime.md), [bigip-lsp.md](bigip-lsp.md), [perf.md](perf.md), [review-triage.md](review-triage.md) and [coordinator.md](coordinator.md). Their dates/evidence do not certify current results. The current snapshot and retained receipts take precedence.
