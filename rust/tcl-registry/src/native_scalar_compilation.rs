@@ -256,6 +256,8 @@ mod tests {
 
     #[test]
     fn original_scalar_recipes_match_seventy_five_native_compiler_windows() {
+        // naming.variable.scalar-original-argv-compiler-and-result-windows
+        // docs/design/analysis/name-resolution-proofs/variable.scalar-original-argv-compiler-and-result-windows.md
         let registry = crate::CommandRegistry::build_default();
         let mut windows = 0;
         for (version, table) in original_scalar_windows() {
