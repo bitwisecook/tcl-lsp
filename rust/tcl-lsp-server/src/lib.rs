@@ -31779,6 +31779,32 @@ impl Backend {
     }
 }
 
+struct FileRenameInputSnapshot {
+    analyser_inputs_epoch: u64,
+    class_factory_generation: u64,
+    sidecar_revision: Arc<fresh_analysis_cache::SidecarRevision>,
+}
+
+struct FileRenamePublicationGuards<'a> {
+    _inputs: tokio::sync::RwLockReadGuard<'a, ()>,
+    _factory: tokio::sync::RwLockReadGuard<'a, u64>,
+    documents: DocumentsGuard<'a>,
+}
+
+enum FileRenamePublicationWait {
+    Inputs,
+    Factory,
+    Documents,
+    IndexRead,
+    IndexWrite,
+}
+
+struct FileRenameSourcePublication {
+    uri: Uri,
+    document: DocumentState,
+    analysis: Arc<AnalysisResult>,
+}
+
 type FileRenameSources = HashMap<Uri, (DocumentState, Arc<AnalysisResult>)>;
 type HeldFileRename = (
     Uri,
@@ -31803,12 +31829,77 @@ impl Backend {
             .collect::<Option<Vec<_>>>()
     }
 
+    async fn file_rename_input_snapshot(&self) -> Option<FileRenameInputSnapshot> {
+        let _inputs = self.analyser_inputs_gate.read().await;
+        let factory_generation = self.class_factory_generation.read().await;
+        let sidecar_revision = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .published_revision()?;
+        Some(FileRenameInputSnapshot {
+            analyser_inputs_epoch: self.diag_inputs_epoch(),
+            class_factory_generation: *factory_generation,
+            sidecar_revision,
+        })
+    }
+
+    fn try_file_rename_publication_guards<'a>(
+        &'a self,
+        snapshot: &FileRenameInputSnapshot,
+        site: &'static str,
+    ) -> Result<Option<FileRenamePublicationGuards<'a>>, FileRenamePublicationWait> {
+        let inputs = self
+            .analyser_inputs_gate
+            .try_read()
+            .map_err(|_| FileRenamePublicationWait::Inputs)?;
+        let factory = self
+            .class_factory_generation
+            .try_read()
+            .map_err(|_| FileRenamePublicationWait::Factory)?;
+        let sidecar_current = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .published_revision_is_current(&snapshot.sidecar_revision);
+        if self.diag_inputs_epoch() != snapshot.analyser_inputs_epoch
+            || *factory != snapshot.class_factory_generation
+            || !sidecar_current
+        {
+            return Ok(None);
+        }
+        let documents = self
+            .documents
+            .try_lock(site)
+            .ok_or(FileRenamePublicationWait::Documents)?;
+        Ok(Some(FileRenamePublicationGuards {
+            _inputs: inputs,
+            _factory: factory,
+            documents,
+        }))
+    }
+
+    async fn wait_for_file_rename_publication(
+        &self,
+        wait: FileRenamePublicationWait,
+        site: &'static str,
+    ) {
+        match wait {
+            FileRenamePublicationWait::Inputs => drop(self.analyser_inputs_gate.read().await),
+            FileRenamePublicationWait::Factory => drop(self.class_factory_generation.read().await),
+            FileRenamePublicationWait::Documents => drop(self.documents.lock(site).await),
+            FileRenamePublicationWait::IndexRead => drop(self.workspace_index.read().await),
+            FileRenamePublicationWait::IndexWrite => drop(self.workspace_index.write().await),
+        }
+        crate::rt::yield_now().await;
+    }
+
     async fn refresh_file_rename_source(
         &self,
         owner: &str,
         current_sources: &mut FileRenameSources,
         generation: &mut u64,
-        epoch: u64,
+        inputs: &FileRenameInputSnapshot,
     ) -> jsonrpc::Result<ControlFlow<()>> {
         let Ok(uri) = owner.parse::<Uri>() else {
             return Ok(ControlFlow::Continue(()));
@@ -31841,28 +31932,69 @@ impl Backend {
         {
             return Ok(ControlFlow::Break(()));
         }
-        let documents = self.documents.lock("will_rename_source_refresh").await;
-        if documents
-            .get(&uri)
-            .map_or(document.version.is_some(), |current| {
-                let current = current.clone().normalised_for_analysis();
-                current.backing_file_deleted
-                    || current.text != document.text
-                    || current.dialect != document.dialect
-                    || current.revision != document.revision
-                    || current.version != document.version
-            })
-        {
-            return Ok(ControlFlow::Break(()));
+        self.publish_file_rename_source(
+            FileRenameSourcePublication {
+                uri,
+                document,
+                analysis,
+            },
+            current_sources,
+            generation,
+            inputs,
+        )
+        .await
+    }
+
+    async fn publish_file_rename_source(
+        &self,
+        source: FileRenameSourcePublication,
+        current_sources: &mut FileRenameSources,
+        generation: &mut u64,
+        inputs: &FileRenameInputSnapshot,
+    ) -> jsonrpc::Result<ControlFlow<()>> {
+        let FileRenameSourcePublication {
+            uri,
+            document,
+            analysis,
+        } = source;
+        let site = "will_rename_source_refresh";
+        loop {
+            let guards = match self.try_file_rename_publication_guards(inputs, site) {
+                Ok(Some(guards)) => guards,
+                Ok(None) => return Ok(ControlFlow::Break(())),
+                Err(wait) => {
+                    self.wait_for_file_rename_publication(wait, site).await;
+                    continue;
+                }
+            };
+            if guards
+                .documents
+                .get(&uri)
+                .map_or(document.version.is_some(), |current| {
+                    let current = current.clone().normalised_for_analysis();
+                    current.backing_file_deleted
+                        || current.text != document.text
+                        || current.dialect != document.dialect
+                        || current.revision != document.revision
+                        || current.version != document.version
+                })
+            {
+                return Ok(ControlFlow::Break(()));
+            }
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(guards);
+                self.wait_for_file_rename_publication(FileRenamePublicationWait::IndexWrite, site)
+                    .await;
+                continue;
+            };
+            if index.generation() != *generation {
+                return Ok(ControlFlow::Break(()));
+            }
+            index.replace_document(uri.as_str(), &analysis);
+            *generation = index.generation();
+            current_sources.insert(uri, (document, analysis));
+            return Ok(ControlFlow::Continue(()));
         }
-        let mut index = self.workspace_index.write().await;
-        if index.generation() != *generation || self.diag_inputs_epoch() != epoch {
-            return Ok(ControlFlow::Break(()));
-        }
-        index.replace_document(uri.as_str(), &analysis);
-        *generation = index.generation();
-        current_sources.insert(uri, (document, analysis));
-        Ok(ControlFlow::Continue(()))
     }
 
     async fn hold_file_rename_edits(
@@ -31917,6 +32049,39 @@ impl Backend {
                 uri_norm::file_action_path(uri)
                     .is_some_and(|path| edit.matches_current(index, analysis, &path))
             })
+    }
+
+    async fn file_rename_edit_if_current(
+        &self,
+        held: Vec<HeldFileRename>,
+        generation: u64,
+        inputs: &FileRenameInputSnapshot,
+    ) -> Option<WorkspaceEdit> {
+        let site = "will_rename_source_currency";
+        loop {
+            let guards = match self.try_file_rename_publication_guards(inputs, site) {
+                Ok(Some(guards)) => guards,
+                Ok(None) => return None,
+                Err(wait) => {
+                    self.wait_for_file_rename_publication(wait, site).await;
+                    continue;
+                }
+            };
+            let Ok(index) = self.workspace_index.try_read() else {
+                drop(guards);
+                self.wait_for_file_rename_publication(FileRenamePublicationWait::IndexRead, site)
+                    .await;
+                continue;
+            };
+            if index.generation() != generation
+                || held
+                    .iter()
+                    .any(|row| Self::file_rename_row_is_unavailable(row, &guards.documents, &index))
+            {
+                return None;
+            }
+            return Some(Self::file_rename_workspace_edit(held));
+        }
     }
 
     fn file_rename_workspace_edit(held: Vec<HeldFileRename>) -> WorkspaceEdit {
@@ -36043,6 +36208,9 @@ impl LanguageServer for Backend {
         &self,
         params: RenameFilesParams,
     ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        let Some(inputs) = self.file_rename_input_snapshot().await else {
+            return Ok(None);
+        };
         // Workspace-wide file operation: gate on the process-global
         // `workspaceFileOps` toggle.
         if !self
@@ -36053,7 +36221,6 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let epoch = self.diag_inputs_epoch();
         let Some(roots) = self
             .workspace_folder_urls()
             .await
@@ -36078,7 +36245,7 @@ impl LanguageServer for Backend {
         let mut current_sources = HashMap::new();
         for owner in candidates {
             if self
-                .refresh_file_rename_source(&owner, &mut current_sources, &mut generation, epoch)
+                .refresh_file_rename_source(&owner, &mut current_sources, &mut generation, &inputs)
                 .await?
                 .is_break()
             {
@@ -36133,17 +36300,9 @@ impl LanguageServer for Backend {
                 return Ok(None);
             }
         }
-        let documents = self.documents.lock("will_rename_source_currency").await;
-        let index = self.workspace_index.read().await;
-        if self.diag_inputs_epoch() != epoch
-            || index.generation() != generation
-            || held
-                .iter()
-                .any(|row| Self::file_rename_row_is_unavailable(row, &documents, &index))
-        {
-            return Ok(None);
-        }
-        Ok(Some(Self::file_rename_workspace_edit(held)))
+        Ok(self
+            .file_rename_edit_if_current(held, generation, &inputs)
+            .await)
     }
 
     /// `workspace/didRenameFiles`: after the client applies a
@@ -70488,3 +70647,6 @@ mod closed_scan_input_custody {
         fixture.assert_current_context("tcl9.0").await;
     }
 }
+
+#[cfg(test)]
+mod file_rename_publication_custody;
