@@ -1,14 +1,17 @@
 {
-  "checked_at": "2026-11-03T17:50:46.489721+00:00",
+  "checked_at": "2026-11-03T17:55:50.378027+00:00",
   "branch": "work",
-  "head_before_status_commit": "4815a751634a819e223193de67e62578e21f58ff",
-  "remote_head_at_fetch": "4815a751634a819e223193de67e62578e21f58ff",
+  "head_before_status_commit": "ff9a011ec130fd98b7a3dde4b98337d2b9782916",
+  "remote_head_at_fetch": "ff9a011ec130fd98b7a3dde4b98337d2b9782916",
   "sync": "no new remote commits",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
   "manual_status_sha256": "4fee238f213ffb6d1d031910bff3a3364199e1bb758550a6fd2933e8bee48a76",
-  "working_tree_at_check": [],
+  "working_tree_at_check": [
+    " M docs/design/analysis/name-resolution-proofs/manifest.json",
+    " M docs/design/analysis/name-resolution-proofs/original-method-candidates.md"
+  ],
   "ci_run": 41669761498,
   "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
