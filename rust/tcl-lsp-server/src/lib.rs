@@ -717,6 +717,8 @@ struct DocumentState {
     /// terminators: the W118 line-ending lint and the formatter (whose output
     /// EOL and whose replace range are both computed from the real document).
     raw_text: Option<Arc<str>>,
+    /// Exact selected saved bytes, retained only by closed-source reads.
+    saved_source_bytes: Option<Arc<[u8]>>,
     /// Persisted line-start index for `text`, built with the **LSP** EOL model
     /// ([`tcl_lexer::LineIndex::new_lsp`]) so the server's `(line, character)`
     /// coordinates match the client's (`\n`, `\r\n`, and lone `\r` all break a
@@ -786,6 +788,7 @@ impl DocumentState {
             orphan_command_dependencies: None,
             text: text.into(),
             raw_text: None,
+            saved_source_bytes: None,
             line_index,
             has_bare_cr,
             decode_report: None,
@@ -808,6 +811,7 @@ impl DocumentState {
             orphan_command_dependencies: None,
             text: text.into(),
             raw_text: None,
+            saved_source_bytes: None,
             line_index,
             has_bare_cr,
             decode_report: None,
@@ -844,6 +848,29 @@ impl DocumentState {
     /// For a closed file this is decoded text, not original file bytes.
     fn raw(&self) -> &str {
         self.raw_text.as_deref().unwrap_or(&self.text)
+    }
+
+    fn saved_source_inputs<'a>(
+        snapshots: impl IntoIterator<Item = &'a Self>,
+    ) -> Vec<(&'a DocumentPathAdmission, &'a [u8])> {
+        let mut retained: Vec<(&Arc<DocumentPathAdmission>, &Arc<[u8]>)> = Vec::new();
+        for snapshot in snapshots {
+            let (Some(admission), Some(bytes)) = (
+                snapshot.path_admission.as_ref(),
+                snapshot.saved_source_bytes.as_ref(),
+            ) else {
+                continue;
+            };
+            if !retained.iter().any(|(selected, image)| {
+                Arc::ptr_eq(selected, admission) && Arc::ptr_eq(image, bytes)
+            }) {
+                retained.push((admission, bytes));
+            }
+        }
+        retained
+            .into_iter()
+            .map(|(admission, bytes)| (admission.as_ref(), bytes.as_ref()))
+            .collect()
     }
 
     /// Rewrite `text` into its analysis form, keeping the client's bytes in
@@ -13394,6 +13421,7 @@ impl Backend {
         // bytes that established the old report. Do not carry an encoding
         // verdict across even a no-op-looking edit.
         entry.decode_report = None;
+        entry.saved_source_bytes = None;
         if dialect_hint_may_have_changed {
             // Persist this across deferred publication. If a later edit
             // supersedes this handler, that authoritative handler must
@@ -14417,6 +14445,141 @@ impl Backend {
         config.set_targets(&mut *db).to(targets);
         let provides = self.package_provides.lock().await.clone();
         config.set_package_provides(&mut *db).to(provides);
+    }
+
+    /// Rejoin every declaring source before presenting conditional factory syntax.
+    async fn conditional_foreign_factory_source_hover(
+        &self,
+        uri: &Uri,
+        caller: &DocumentState,
+        inputs_epoch: u64,
+        caller_generation: u64,
+        position: Position,
+        caller_analysis: &AnalysisResult,
+    ) -> Option<CoreHover> {
+        {
+            let db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            let file = *files.get(uri)?;
+            if file
+                .workspace_class_factories(&*db)
+                .as_ref()
+                .is_none_or(|map| map.is_empty())
+            {
+                return None;
+            }
+        }
+        if !core_hover::may_have_foreign_factory_hover(
+            &caller.text,
+            position.line,
+            position.character,
+            caller_analysis,
+        ) {
+            return None;
+        }
+        let factory_generation = *self.class_factory_generation.read().await;
+        let config = self.resolved_db_config(uri).await;
+        let (file, project, sources) = {
+            let db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            let project = *self.db_project.lock().await.as_ref()?;
+            let file = *files.get(uri)?;
+            if file.text(&*db).as_str() != caller.text.as_ref()
+                || file.dialect(&*db) != &caller.dialect
+            {
+                return None;
+            }
+            if file
+                .workspace_class_factories(&*db)
+                .as_ref()
+                .is_none_or(|map| map.is_empty())
+            {
+                return None;
+            }
+            let mut owners = HashMap::new();
+            for (member_uri, &member) in files.iter() {
+                if owners.insert(member, member_uri).is_some() {
+                    return None;
+                }
+            }
+            let mut seen = HashSet::new();
+            let mut sources = Vec::new();
+            for &member in project.files(&*db) {
+                if seen.insert(member) {
+                    let member_uri = owners.get(&member)?;
+                    sources.push((
+                        Uri::clone(member_uri),
+                        member,
+                        Arc::<str>::from(member.text(&*db).as_str()),
+                    ));
+                }
+            }
+            if !seen.contains(&file) {
+                return None;
+            }
+            (file, project, sources)
+        };
+        let mut leases = Vec::with_capacity(sources.len());
+        for (member_uri, _, source) in &sources {
+            leases.push(
+                self.capture_readonly_source_document(member_uri.as_str(), Arc::clone(source))
+                    .await
+                    .ok()??,
+            );
+        }
+        let (snapshot, revision) = {
+            let db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            let current_project = self.db_project.lock().await;
+            let members: HashSet<_> = project.files(&*db).iter().copied().collect();
+            if *current_project != Some(project)
+                || members.len() != sources.len()
+                || sources.iter().any(|(member_uri, member, source)| {
+                    files.get(member_uri) != Some(member)
+                        || !members.contains(member)
+                        || member.text(&*db) != source.as_ref()
+                })
+            {
+                return None;
+            }
+            let revision = tcl_lsp_db::database_revision(&db);
+            let snapshot = self
+                .db
+                .snapshot_from(&db, "conditional_foreign_factory_source_hover")?;
+            (snapshot, revision)
+        };
+        let hover = crate::rt::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| {
+                let headers =
+                    tcl_lsp_db::project_factory_header_census_for_inputs(&*snapshot, project)?;
+                let analysis = tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config);
+                use salsa::plumbing::AsId as _;
+                tcl_lsp_core::hover::conditional_foreign_factory_hover(
+                    file.text(&*snapshot),
+                    position.line,
+                    position.character,
+                    &analysis,
+                    file.as_id().as_bits(),
+                    &headers,
+                )
+            })
+            .ok()
+            .flatten()
+        })
+        .await
+        .ok()
+        .flatten()?;
+        self.publish_factory_source_if_current(
+            &leases,
+            inputs_epoch,
+            factory_generation,
+            revision,
+            (uri, caller, caller_generation),
+            hover,
+        )
+        .await
+        .ok()
+        .flatten()
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -15638,23 +15801,23 @@ impl Backend {
         // from cross-document navigation.
         let store = Arc::clone(&self.store);
         let selected_path = path.clone();
-        let (text, decode_report) =
-            match crate::rt::spawn_blocking(move || store.read_source(&path)).await {
-                Ok(Ok(source)) => source,
-                Ok(Err(cause))
-                    if Self::source_read_is_absent(self.store.as_ref(), &selected_path, &cause) =>
-                {
-                    path_admission.check_for(url, self.store.as_ref())?;
-                    return Ok(None);
-                }
-                Ok(Err(cause)) => {
-                    return Err(DocumentSourceUnavailable::Read {
-                        uri: url.clone(),
-                        cause: Arc::new(cause),
-                    });
-                }
-                Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: url.clone() }),
-            };
+        let bytes = match crate::rt::spawn_blocking(move || store.read(&path)).await {
+            Ok(Ok(source)) => source,
+            Ok(Err(cause))
+                if Self::source_read_is_absent(self.store.as_ref(), &selected_path, &cause) =>
+            {
+                path_admission.check_for(url, self.store.as_ref())?;
+                return Ok(None);
+            }
+            Ok(Err(cause)) => {
+                return Err(DocumentSourceUnavailable::Read {
+                    uri: url.clone(),
+                    cause: Arc::new(cause),
+                });
+            }
+            Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: url.clone() }),
+        };
+        let (text, decode_report) = tcl_lsp_core::source_decode::decode_source(&bytes);
         // The same selected decoded source and original URI drive the
         // closed-file dialect owner used by indexing and diagnostics. Its
         // document override, source detection and configured fallbacks remain
@@ -15666,6 +15829,7 @@ impl Backend {
         // a lossy decode nor the normalised analysis view is original bytes;
         // downstream source/input/Native admission remains independent.
         document.decode_report = Some(decode_report);
+        document.saved_source_bytes = Some(bytes.into());
         Ok(Some(document.normalised_for_analysis()))
     }
 
@@ -36673,6 +36837,19 @@ impl LanguageServer for Backend {
             .await?
         {
             return Ok(hover);
+        }
+        if let Some(hover) = self
+            .conditional_foreign_factory_source_hover(
+                &uri,
+                &doc,
+                source_epoch,
+                source_generation,
+                pos,
+                &analysis,
+            )
+            .await
+        {
+            return Ok(Some(lift_hover(hover)));
         }
         if let std::ops::ControlFlow::Break(hover) =
             Box::pin(self.original_method_hover_for_snapshot(
@@ -70534,11 +70711,8 @@ mod closed_scan_input_custody {
         ) -> Result<(), vfs::SourceUriPathUnavailable> {
             vfs::SourceStore::with_current_document_paths(&vfs::NativeStore, paths, publish)
         }
-        fn read_source(
-            &self,
-            path: &Path,
-        ) -> std::io::Result<(String, tcl_lsp_core::source_decode::DecodeReport)> {
-            let read = vfs::SourceStore::read_source(&vfs::NativeStore, path)?;
+        fn read(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+            let read = vfs::SourceStore::read(&vfs::NativeStore, path)?;
             if path == self.target {
                 let nth = self.reads.fetch_add(1, Ordering::SeqCst);
                 if nth < self.pauses.load(Ordering::SeqCst) {
@@ -70551,9 +70725,6 @@ mod closed_scan_input_custody {
                 }
             }
             Ok(read)
-        }
-        fn read(&self, path: &Path) -> std::io::Result<Vec<u8>> {
-            vfs::SourceStore::read(&vfs::NativeStore, path)
         }
         fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
             vfs::SourceStore::read_to_string(&vfs::NativeStore, path)
@@ -70669,6 +70840,29 @@ mod closed_scan_input_custody {
             }
         })
         .await;
+    }
+
+    #[tokio::test]
+    async fn closed_document_readers_share_actual_saved_read_instrumentation() {
+        let fixture = Fixture::new(0).await;
+        let document = fixture
+            .backend
+            .read_document(&fixture.uri)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fixture.store.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            document.saved_source_bytes.as_deref(),
+            Some(b"proc p {} {}\n".as_slice())
+        );
+        fixture
+            .backend
+            .closed_workspace_symbol_source(&fixture.uri)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fixture.store.reads.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 3)]

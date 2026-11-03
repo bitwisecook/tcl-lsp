@@ -6,7 +6,8 @@
 
 use super::{
     AnalyserConfig, AnalysisResult, ItemSig, ItemTree, OriginalCommandSlot, Project,
-    ProjectSourceInputMode, SourceFile, TclDb, file_analysis_incremental, merge_class_factories,
+    ProjectSourceInputMode, SourceFile, TclDb, document_analyser_without_factory_oracle,
+    document_analysis_input, file_analysis_incremental, merge_class_factories,
     merge_original_command_signatures, original_lookup_command_signatures_using,
     project_call_inputs, project_callback_diagnostics_with_mode, project_token_inputs,
     select_original_command_signatures,
@@ -16,9 +17,9 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use super::{
-    DiagCode, LogicalSourceCommandSlot, NonAsciiMode, TclDatabase, document_analysis_input,
-    file_analysis, item_tree, logical_source_command_arity, project_class_factories,
-    project_diagnostics, project_diagnostics_for_inputs, set_overlay_epoch,
+    DiagCode, LogicalSourceCommandSlot, NonAsciiMode, TclDatabase, file_analysis, item_tree,
+    logical_source_command_arity, project_class_factories, project_diagnostics,
+    project_diagnostics_for_inputs, set_overlay_epoch,
 };
 
 /// Structure-only declaration inventory under this file's complete source input.
@@ -79,6 +80,25 @@ fn checked_class_factories_for_config(
     ))
 }
 
+/// Capture headers without a published factory oracle: the retained source
+/// owner cannot contain a previous generation of the census it produces.
+#[salsa::tracked(returns(clone))]
+fn file_factory_headers(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectFactoryHeaders> {
+    let input = document_analysis_input(db, file, config).ok()?;
+    let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
+    let mut analyser = document_analyser_without_factory_oracle(db, file, config)
+        .with_resolved_input((*input).clone())
+        .structure_only();
+    let result = analyser.analyse(file.text(db), file.dialect(db));
+    tcl_compiler::registry_invocation::source_structure::OriginalProjectFactoryHeaders::capture(
+        &result,
+    )
+}
+
 /// Every member must retain its checked source owner before hints are merged.
 /// Missing mappings/generations withdraw hints without a recursive query cycle.
 #[salsa::tracked(returns(clone))]
@@ -97,6 +117,39 @@ pub fn project_class_factories_for_inputs(
         })
         .collect::<Option<Vec<_>>>();
     merge_class_factories(parts.unwrap_or_default())
+}
+
+/// Complete source-header capture for an explicitly requested project snapshot.
+/// The returned cards retain conditional source evidence only; callers must
+/// check the snapshot is current and account for unrepresented occupants.
+#[salsa::tracked(returns(clone))]
+pub fn project_factory_header_census_for_inputs(
+    db: &dyn TclDb,
+    project: Project,
+) -> Option<
+    Arc<
+        Vec<(
+            u64,
+            tcl_compiler::registry_invocation::source_structure::OriginalProjectFactoryHeaders,
+        )>,
+    >,
+> {
+    use salsa::plumbing::AsId as _;
+    let mut seen = HashSet::new();
+    let mut headers = project
+        .files(db)
+        .iter()
+        .filter(|&&file| seen.insert(file))
+        .map(|&file| {
+            let config = project_token_inputs::configuration_for_file(db, project, file)?;
+            Some((
+                file.as_id().as_bits(),
+                file_factory_headers(db, file, config)?,
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    headers.sort_unstable_by_key(|(identity, _)| *identity);
+    Some(Arc::new(headers))
 }
 
 /// Genuine original source headers, independent of body entry and publication.

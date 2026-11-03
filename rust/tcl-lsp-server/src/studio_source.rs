@@ -254,6 +254,47 @@ impl DocumentPathAdmission {
         }
     }
 
+    pub(super) fn with_current_sources<T>(
+        admissions: &[&Self],
+        sources: &[(&Self, &[u8])],
+        store: &dyn vfs::SourceStore,
+        mut publish: impl FnMut() -> T,
+    ) -> DocumentSourceResult<T> {
+        let mut mappings = Vec::new();
+        for admission in admissions {
+            admission.check_current(store)?;
+            if !matches!(admission, Self::NoFilesystemPath { .. }) {
+                mappings.push(admission.current_saved_source_path(store)?);
+            }
+        }
+        let mut saved = Vec::with_capacity(sources.len());
+        for (admission, bytes) in sources {
+            saved.push((admission.current_saved_source_path(store)?, *bytes));
+        }
+        if mappings.is_empty() && saved.is_empty() {
+            return Ok(publish());
+        }
+        let uri = admissions
+            .first()
+            .copied()
+            .or_else(|| sources.first().map(|(admission, _)| *admission))
+            .expect("selected source inputs retain an admission")
+            .uri();
+        let mut result = None;
+        store
+            .with_current_source_inputs(&mappings, &saved, &[], &mut || {
+                result = Some(publish());
+            })
+            .map_err(|cause| DocumentSourceUnavailable::Store {
+                uri: uri.clone(),
+                cause,
+            })?;
+        result.ok_or_else(|| DocumentSourceUnavailable::Store {
+            uri: uri.clone(),
+            cause: vfs::SourceUriPathUnavailable::ProviderUnavailable,
+        })
+    }
+
     pub(super) fn with_current_saved_sources<T>(
         sources: &[(&Self, &[u8])],
         store: &dyn vfs::SourceStore,

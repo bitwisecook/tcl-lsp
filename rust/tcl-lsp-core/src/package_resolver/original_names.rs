@@ -868,8 +868,9 @@ pub(super) struct OriginalAutoIndexRegistration {
 
 /// The `tclIndex` registrations whose target file exists.
 ///
-/// The source survey requests the existing structural analysis tier; its
-/// registration consumers retain source schemas, not diagnostic/reference data.
+/// The source survey owns a fresh complete source realm and exact per-release
+/// Registry input. Missing source/schema/path ownership keeps the full
+/// structural analyser; no partial analysis or runtime result is produced.
 /// It is a pure function of index bytes, directory, grammar and naming policy, so
 /// it is memoised across rescans (user decision 2026-10-19T11:00Z
 /// `product_fixes`: "host Tcl install rescan cache"): a folder add or
@@ -931,18 +932,93 @@ fn original_index_entries(
         .collect()
 }
 
+enum IndexSurveyContext {
+    Analysed(Box<tcl_compiler::analyser::AnalysisResult>),
+    Source(Box<tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext>),
+}
+
+impl IndexSurveyContext {
+    fn registry_context(&self) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+        match self {
+            Self::Analysed(analysis) => Some(analysis.resolved_input.as_ref()?.context_registry()),
+            Self::Source(source) => Some(source.editing_input().context_registry()),
+        }
+    }
+
+    fn loader<'a>(&'a self, content: &'a str) -> Option<index_loader::IndexLoader<'a>> {
+        match self {
+            Self::Analysed(analysis) => index_loader::IndexLoader::new(content, analysis),
+            Self::Source(source) => index_loader::IndexLoader::from_source_context(content, source),
+        }
+    }
+
+    fn words(
+        &self,
+        content: &str,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
+        match self {
+            Self::Analysed(analysis) => {
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    content, analysis, command,
+                )
+            }
+            Self::Source(source) => source.registration_words(command),
+        }
+    }
+}
+
 fn survey_index_entries(
     content: &str,
     index_dir: &Path,
     config: LexerConfig,
     policy: NamePolicyProtocol,
 ) -> Vec<OriginalAutoIndexRegistration> {
-    survey_index_entries_with(
+    survey_index_entries_from_source(content, index_dir, config, policy).unwrap_or_else(|| {
+        survey_index_entries_with(
+            content,
+            index_dir,
+            config,
+            policy,
+            crate::source_structure::analyse_autoload_registration_structure,
+        )
+    })
+}
+
+fn survey_index_entries_from_source(
+    content: &str,
+    index_dir: &Path,
+    config: LexerConfig,
+    policy: NamePolicyProtocol,
+) -> Option<Vec<OriginalAutoIndexRegistration>> {
+    survey_index_entries_using(
         content,
         index_dir,
         config,
         policy,
-        crate::source_structure::analyse_autoload_registration_structure,
+        |profile, registry, _| {
+            let (commands, expressions) = tcl_compiler::analyser::utils::document_stub_declarations(
+                content,
+                None,
+                profile.name,
+            );
+            if !commands.is_empty()
+                || !expressions.is_empty()
+                || !tcl_compiler::analyser::utils::parse_supports_directives(content).is_empty()
+                || !tcl_compiler::analyser::utils::parse_provides_directives(content).is_empty()
+            {
+                return None;
+            }
+            let generation = crate::context_for_dialect_profile(profile);
+            let context = std::sync::Arc::new(
+                generation.with_command_store(registry.snapshot().shared_registry()),
+            );
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            );
+            let source = tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(content, input);
+            Some(IndexSurveyContext::Source(Box::new(source)))
+        },
     )
 }
 
@@ -953,48 +1029,71 @@ fn survey_index_entries_with(
     policy: NamePolicyProtocol,
     analyse: IndexAnalysis,
 ) -> Vec<OriginalAutoIndexRegistration> {
+    survey_index_entries_using(
+        content,
+        index_dir,
+        config,
+        policy,
+        |profile, registry, count| {
+            Some(IndexSurveyContext::Analysed(Box::new(analyse_index_with(
+                content,
+                profile,
+                registry,
+                config,
+                index_dir,
+                Some(count),
+                analyse,
+            ))))
+        },
+    )
+    .unwrap_or_default()
+}
+
+fn survey_index_entries_using(
+    content: &str,
+    index_dir: &Path,
+    config: LexerConfig,
+    policy: NamePolicyProtocol,
+    capture: impl FnOnce(
+        &'static tcl_dialect::DialectProfile,
+        &tcl_registry::CommandRegistry,
+        usize,
+    ) -> Option<IndexSurveyContext>,
+) -> Option<Vec<OriginalAutoIndexRegistration>> {
     let image = SourceImage::document(content);
     let Some(lines) = SignatureSourceNameValue::original_source_lines(&image, config, policy)
     else {
-        return Vec::new();
+        return Some(Vec::new());
     };
     let mut entries = Vec::new();
     if lines.first().map(SignatureSourceNameValue::bytes)
         == Some(b"# Tcl autoload index file: each line identifies a Tcl".as_slice())
     {
         append_legacy_index_registrations(lines, index_dir, &mut entries);
-        return entries;
+        return Some(entries);
     }
     let Some(length) = u32::try_from(content.len()).ok() else {
-        return Vec::new();
+        return Some(Vec::new());
     };
     let Ok(plan) = tcl_lexer::native_script_words_in(image, Span::new(0, length), config) else {
-        return Vec::new();
+        return Some(Vec::new());
     };
     let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
-        return entries;
+        return Some(entries);
     };
     let profile =
         tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-    let analysis = analyse_index_with(
-        content,
-        profile,
-        registry,
-        config,
-        index_dir,
-        Some(plan.commands.len()),
-        analyse,
-    );
-    let Some(registry_context) = analysis
-        .resolved_input
-        .as_ref()
-        .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry)
-    else {
-        return entries;
+    let captured = capture(profile, registry, plan.commands.len())?;
+    let fresh = matches!(captured, IndexSurveyContext::Source(_));
+    if fresh && plan.fatal_tail.is_some() {
+        return None;
+    }
+    let Some(registry_context) = captured.registry_context() else {
+        return Some(entries);
     };
-    let Some(filenames) = index_loader::IndexLoader::new(content, &analysis) else {
-        return entries;
+    let Some(filenames) = captured.loader(content) else {
+        return Some(entries);
     };
     let commands =
         tcl_compiler::segmenter::segment_commands_with_offset_and_config(content, 0, config);
@@ -1018,17 +1117,19 @@ fn survey_index_entries_with(
         }) else {
             continue;
         };
-        let Some(schema) =
-            tcl_compiler::registry_invocation::source_structure::source_registry_words(
-                content, &analysis, command,
-            )
-        else {
+        let Some(schema) = captured.words(content, command) else {
+            if fresh {
+                return None;
+            }
             continue;
         };
-        if schema.with_source_schema(&registry_context, |schema| {
+        let selected = schema.with_source_schema(&registry_context, |schema| {
             schema.semantics.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Set)
-        }) != Some(true)
-        {
+        });
+        if fresh && selected.is_none() {
+            return None;
+        }
+        if selected != Some(true) {
             continue;
         }
         let Some(input) = SignatureSourceNameValue::from_original_variable_index(
@@ -1042,11 +1143,14 @@ fn survey_index_entries_with(
             continue;
         }
         let Some(file) = filenames.filename(&words[2], index_dir) else {
+            if fresh {
+                return None;
+            }
             continue;
         };
         entries.push(OriginalAutoIndexRegistration { input, file });
     }
-    entries
+    Some(entries)
 }
 
 fn append_legacy_index_registrations(
@@ -1075,6 +1179,70 @@ fn append_legacy_index_registrations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn autoload_source_context_matches_full_registration_consumer() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
+            let policy = NamePolicyProtocol::authored_tcl(version);
+            let directory = Path::new("/library");
+            let positive = "set auto_index(p) [list source [file join $dir p.tcl]]";
+            let fresh = survey_index_entries_from_source(positive, directory, config, policy)
+                .expect("positive source-only prerequisite");
+            assert_eq!(fresh.len(), 1, "{version:?}");
+            let records = |entries: &[OriginalAutoIndexRegistration]| {
+                entries
+                    .iter()
+                    .map(|entry| (entry.input.clone(), entry.file.clone()))
+                    .collect::<Vec<_>>()
+            };
+            for source in [
+                positive,
+                "set auto_index(p) [list source -encoding utf-8 [file join $dir p.tcl]]",
+                "set {auto_index(café name)} [list source [file join $dir { café.tcl }]]",
+                "proc set args {return ignored}; set auto_index(p) [list source [file join $dir p.tcl]]",
+                "proc list args {return ignored}; set auto_index(p) [list source [file join $dir p.tcl]]",
+                "proc file args {return ignored}; set auto_index(p) [list source [file join $dir p.tcl]]",
+                "rename file saved; set auto_index(p) [list source [file join $dir p.tcl]]",
+                "unavailable; set auto_index(p) [list source [file join $dir p.tcl]]",
+                "interp alias {} builder {} list source; set auto_index(p) [builder [file join $dir p.tcl]]",
+                "set auto_index(p) [list source {*}$unknown]",
+                "set auto_index(p) [list source $unknown]",
+                "set auto_index(p) [list source [file join $dir p.tcl]",
+            ] {
+                let old = survey_index_entries_with(
+                    source,
+                    directory,
+                    config,
+                    policy,
+                    crate::source_structure::analyse_autoload_registration_structure,
+                );
+                let current = survey_index_entries(source, directory, config, policy);
+                assert_eq!(records(&current), records(&old), "{version:?}: {source}");
+            }
+            for directive in [
+                "# tcl-lsp: supports tcl 8.6-9.0\n",
+                "# tcl-lsp: provides custom\n",
+            ] {
+                let source = format!("{directive}{positive}");
+                assert!(
+                    survey_index_entries_from_source(&source, directory, config, policy).is_none()
+                );
+                let old = survey_index_entries_with(
+                    &source,
+                    directory,
+                    config,
+                    policy,
+                    crate::source_structure::analyse_autoload_registration_structure,
+                );
+                assert_eq!(
+                    records(&survey_index_entries(&source, directory, config, policy)),
+                    records(&old)
+                );
+            }
+        }
+    }
+
     #[test]
     fn autoload_registration_structure_matches_full_source_records() {
         for version in tcl_dialect::TclVersion::ALL {

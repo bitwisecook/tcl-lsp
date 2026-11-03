@@ -223,6 +223,21 @@ result. Its negative answer excludes only this static source-advertisement
 shape, without establishing package absence, a successful loader, or interpreter
 execution. It does not change the separate standalone advertisement inventory.
 
+
+Original `tclIndex` registration advice can use a fresh readonly interpretation
+of the actual complete index Document. The source realm retains the exact
+loader profile, immutable Registry/availability input and full lexer
+configuration for that release. Root assignment words, nested original list/path
+producers and parsed deferred loader data keep their separate owners. The
+loader-data branch queries conditional descriptors and never enters those
+bytes as a new document or grants a successful Source invocation. An unknown
+source schema or filename producer, malformed tail, or source-context directive
+keeps the complete structural analyser. The source-only route constructs no
+analysis projection and does not share a realm across releases. Existing
+analysis-backed callers retain their original current-source guard; original
+loader words must also retain their Document channel. Existence is rechecked
+when cached registration data is read.
+
 9. `PackageResolver::scan_tree(root, max_dirs)` walks a workspace tree (each
    directory and its immediate subdirectories, bounded by `max_dirs`) and
    `scan_path(dir)` scans one directory, mirroring C Tcl's `tclPkgUnknown`.

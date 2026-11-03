@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 03 November 2026, 23:31 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
+Updated 03 November 2026, 23:29 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
 
 ## Scope and release verdict
 
@@ -76,10 +76,10 @@ Other adopted work includes incomplete-expression math completion, bounded liter
 | Root | Controlled integration/builds, state/publication, required CI, full E2E, host/editor, performance, packaging and release PR preparation. |
 | integration_continue — Sol 6.1 | Native hover 15/15 and independent reviews; factory draft review identified accidental unrelated semantic-token deletions, now held for repair. |
 | logical_continue — Terra 6.1 | Reviewed conditional source-plan rename is being adopted for actual compilation. Ordinary runtime-complete rename remains refused. The new API requires explicit confirmation annotations and single-document source correspondence; no execution/workspace-completeness authority. |
-| factory_continue — Terra 6.1 | Foreign factory declaration-site source hover, genuine census/provider parents and exact saved-byte custody. Draft remains uncompiled and must retain concurrent semantic-token repairs. Dispatch hover, cross-file definition and chained provenance remain unresolved. |
+| factory_continue — Terra 6.1 | Foreign factory declaration-site source hover, genuine census/provider parents and exact saved-byte custody. Narrowed, independently reviewed draft is adopted for compilation and retains concurrent semantic-token repairs. Dispatch hover, cross-file definition and chained provenance remain unresolved. |
 | Root | Closed workspace-symbol saved-byte draft and durable index recovery/controller remain unbuilt/open; no current lifecycle acceptance. |
 | native_review — Sol 6.1 | Native compiled-body custody adapter plus prefix-preserving correction are reviewed private drafts, uncompiled. No fabricated declaration card, Native value-provider or source-only-to-Native transfer is accepted. |
-| performance_continue — Sol 6.1 | Negative package preflight is adopted and tested; fresh original-source tclIndex consumer draft is under review, uncompiled. No completed startup acceptance. |
+| performance_continue — Sol 6.1 | Negative package preflight is adopted and tested; fresh original-source tclIndex consumer is statically reviewed and adopted for compilation, unexecuted. No completed startup acceptance. |
 | ci_triage_continue — Sol 6.1 | Current CI monitoring and grammarless opaque-body authoring-completion draft; completion-only purpose must remain separate from execution, scope and mutation. |
 
 A sequential, same-fixture/environment native startup comparison retained exact baseline `efb07a09…` and candidate `bbbb1b87…`. **Both timed out at 60 seconds before completed scan readiness**, so closed symbols, positive package definition and tclIndex requests were not reached. The candidate avoided all five real BLT full analyses (baseline 7.27–9.95 seconds each), retained five positive fixture full analyses, and progressed into real system Tcl/Tk tclIndex files. One traced baseline/candidate observation is not isolated prefilter attribution or a completed startup benefit. Receipt: `/workspace/tmp/package-startup-ab-20261103/receipt.json`. Fresh source-specific tclIndex extraction is only an uncompiled draft; partial-analysis and singleflight prototypes remain held.
@@ -117,3 +117,5 @@ Unadopted drafts stay local. Automatic review rejected exporting private draft a
 Publication paused after 22:42 UTC because remote `work` diverged from local product commit `ff22beef9`. The daemon recorded refusals at 22:47, 22:52 and 22:57 and did not force-push. Root merged the concurrent documentation correction as `ec079dd0666b28f93209b8eea98d1f86e07f6600` and successfully pushed at 23:01:35 UTC. Five-minute checkpoints resumed at 23:02 and continue through the exact last-success record above. This remains a real gap in the requested cadence.
 
 Registry receipt: `/workspace/tmp/lsp-merged-cohort/registry-current/result.json.gz` (15 exact controls, not whole-suite coverage). Conditional rename candidate `d0347b83…` has independent static review and is adopted before green tests for the next controlled build; its new APIs, tests and editor path remain unexecuted.
+
+The narrowed foreign factory source-hover patch `f87482b7…` and original-source tclIndex consumer `dedad92e…` are adopted before green tests after independent static review. The tclIndex path falls back to the unchanged full consumer for directives, malformed source or missing schema/path evidence. Both require actual focused execution and unsuppressed lint; no factory provider or startup acceptance follows.

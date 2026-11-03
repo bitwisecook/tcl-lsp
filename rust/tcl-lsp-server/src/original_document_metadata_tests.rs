@@ -1889,3 +1889,40 @@ async fn folder_context_exact_inputs_keep_compiler_report_available() {
         "{observations:?}"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn foreign_factory_method_hover_requires_current_source_owners() {
+    let backend = crate::tests::test_backend();
+    let library = Uri::from_str("file:///factory-hover/library.tcl").unwrap();
+    let caller = Uri::from_str("file:///factory-hover/caller.tcl").unwrap();
+    let source = "Meta create Made { method go {} {return 1} }";
+    for (uri, text) in [
+        (&library, "oo::class create Meta {superclass ::oo::class}"),
+        (&caller, source),
+    ] {
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::new(text.to_owned(), "tcl9.0".to_owned()),
+        );
+        backend
+            .db_set_source(uri, text, "tcl9.0".to_owned())
+            .await
+            .unwrap();
+    }
+    let handles = index_evidence_handles(&backend);
+    sync_workspace_class_factories(&handles, None).await;
+    let params: HoverParams = serde_json::from_value(serde_json::json!({
+        "textDocument": { "uri": caller.as_str() },
+        "position": { "line": 0, "character": source.find("go").unwrap() }
+    }))
+    .unwrap();
+    let hover = backend.hover(params.clone()).await.unwrap().unwrap();
+    let displayed = serde_json::to_string(&hover).unwrap();
+    assert!(displayed.contains("Conditional source method of `Made`"));
+    backend
+        .db_set_source(&library, "proc Meta {} {}", "tcl9.0".to_owned())
+        .await
+        .unwrap();
+    let stale = serde_json::to_string(&backend.hover(params).await.unwrap()).unwrap();
+    assert!(!stale.contains("Conditional source method"));
+}

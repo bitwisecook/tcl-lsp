@@ -27,7 +27,7 @@ struct OriginalReadonlyReferenceDocument {
     database_revision: salsa::Revision,
 }
 
-struct ReadonlySourceDocument {
+pub(super) struct ReadonlySourceDocument {
     uri: Uri,
     source: Arc<str>,
     file: tcl_lsp_db::SourceFile,
@@ -459,7 +459,7 @@ fn lift_logical_call_item(
 }
 
 impl Backend {
-    async fn capture_readonly_source_document(
+    pub(super) async fn capture_readonly_source_document(
         &self,
         owner: &str,
         source: Arc<str>,
@@ -1060,6 +1060,100 @@ impl Backend {
         .await
     }
 
+    pub(super) async fn publish_factory_source_if_current<T>(
+        &self,
+        documents: &[ReadonlySourceDocument],
+        inputs_epoch: u64,
+        factory_generation: u64,
+        revision: salsa::Revision,
+        caller: (&Uri, &super::DocumentState, u64),
+        value: T,
+    ) -> DocumentSourceResult<Option<T>> {
+        let (caller_uri, caller, caller_generation) = caller;
+        let selected = documents
+            .iter()
+            .find(|document| &document.uri == caller_uri);
+        let Some(selected) = selected else {
+            return Ok(None);
+        };
+        let selected_caller = &selected.publication.document;
+        if selected_caller.text != caller.text
+            || selected_caller.raw() != caller.raw()
+            || selected_caller.dialect != caller.dialect
+            || selected_caller.revision != caller.revision
+            || selected_caller.path_admission != caller.path_admission
+            || selected_caller.saved_source_bytes.is_some() != caller.saved_source_bytes.is_some()
+            || selected.publication.open_revision.is_none() != caller.saved_source_bytes.is_some()
+        {
+            return Ok(None);
+        }
+        let mut admissions = Vec::new();
+        let mut saved_documents = Vec::new();
+        if let Some(admission) = caller.path_admission.as_deref() {
+            if admission.uri() != caller_uri {
+                return Ok(None);
+            }
+            admissions.push(admission);
+        }
+        if caller.saved_source_bytes.is_some() {
+            if caller.path_admission.is_none() {
+                return Ok(None);
+            }
+            saved_documents.push(caller);
+        }
+        for document in documents {
+            admissions.push(document.admission.as_ref());
+            let source = &document.publication.document;
+            if let Some(admission) = source.path_admission.as_deref() {
+                if admission.uri() != &document.uri {
+                    return Ok(None);
+                }
+                admissions.push(admission);
+            }
+            if document.publication.open_revision.is_none() {
+                if source.path_admission.is_none() || source.saved_source_bytes.is_none() {
+                    return Ok(None);
+                }
+                saved_documents.push(source);
+            }
+        }
+        let saved_sources = super::DocumentState::saved_source_inputs(saved_documents);
+        let mut value = Some(value);
+        self.readonly_source_transaction(
+            inputs_epoch,
+            factory_generation,
+            &admissions,
+            (!saved_sources.is_empty()).then_some(saved_sources.as_slice()),
+            |state| {
+                (tcl_lsp_db::database_revision(state.db) == revision
+                    && state
+                        .uri_generations
+                        .get(caller_uri)
+                        .copied()
+                        .unwrap_or_default()
+                        == caller_generation
+                    && state.open.get(caller_uri).is_none_or(|current| {
+                        current.revision == caller.revision
+                            && current.raw() == caller.raw()
+                            && current.dialect == caller.dialect
+                    })
+                    && documents.iter().all(|document| {
+                        document.matches_current_snapshot(
+                            state.uri_generations,
+                            state.open,
+                            state.db,
+                            state.files,
+                            state.published,
+                        )
+                    }))
+                .then_some(())
+            },
+            |_, ()| value.take(),
+        )
+        .await
+        .map(ReadonlyTransaction::published)
+    }
+
     async fn readonly_documents_transaction<T>(
         &self,
         documents: &[OriginalReadonlyReferenceDocument],
@@ -1177,9 +1271,12 @@ impl Backend {
             return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let issued = if let Some(sources) = saved_sources {
-            DocumentPathAdmission::with_current_saved_sources(sources, self.store.as_ref(), || {
-                publish(&state, &checked)
-            })
+            DocumentPathAdmission::with_current_sources(
+                admissions,
+                sources,
+                self.store.as_ref(),
+                || publish(&state, &checked),
+            )
         } else {
             DocumentPathAdmission::with_current(admissions, self.store.as_ref(), || {
                 publish(&state, &checked)
@@ -5385,3 +5482,218 @@ mod coarse_semantic_source_tests {
 
 // Source-only retained interpretation owners and publication leases.
 pub(crate) mod source_views;
+
+#[cfg(test)]
+mod factory_source_custody_tests {
+    use super::*;
+    use crate::{DocumentState, vfs};
+
+    const CLOSED_SOURCE: &str = "proc factory_header {} {}\n";
+    const OPEN_SOURCE: &str = "proc caller {} {}\n";
+    const CLOSED_PATH: &str = "/factory-source-custody/closed.tcl";
+    const OPEN_PATH: &str = "/factory-source-custody/open.tcl";
+
+    struct Fixture {
+        backend: Backend,
+        store: Arc<vfs::MemoryStore>,
+        closed: Uri,
+        open: Uri,
+    }
+
+    impl Fixture {
+        async fn new() -> Self {
+            let mut backend = crate::tests::test_backend();
+            let store = Arc::new(vfs::MemoryStore::new());
+            let closed: Uri = "file:///factory-source-custody/closed.tcl".parse().unwrap();
+            let open: Uri = "file:///factory-source-custody/open.tcl".parse().unwrap();
+            store.upsert_uri(
+                closed.as_str(),
+                CLOSED_PATH,
+                CLOSED_SOURCE.as_bytes().to_vec(),
+            );
+            store.upsert_uri(open.as_str(), OPEN_PATH, b"saved backing".to_vec());
+            backend.state_mut_for_test().store = store.clone();
+            for (uri, source) in [(&closed, CLOSED_SOURCE), (&open, OPEN_SOURCE)] {
+                backend
+                    .db_set_source(uri, source, "tcl8.6".to_owned())
+                    .await
+                    .unwrap();
+            }
+            backend
+                .documents
+                .lock("factory source custody open")
+                .await
+                .insert(
+                    open.clone(),
+                    DocumentState::with_version(OPEN_SOURCE.to_owned(), "tcl8.6".to_owned(), 7),
+                );
+            Self {
+                backend,
+                store,
+                closed,
+                open,
+            }
+        }
+
+        async fn leases(&self) -> Vec<ReadonlySourceDocument> {
+            let mut leases = Vec::new();
+            for (uri, source) in [(&self.closed, CLOSED_SOURCE), (&self.open, OPEN_SOURCE)] {
+                leases.push(
+                    self.backend
+                        .capture_readonly_source_document(uri.as_str(), Arc::from(source))
+                        .await
+                        .unwrap()
+                        .unwrap(),
+                );
+            }
+            leases
+        }
+
+        async fn publish(
+            &self,
+            leases: &[ReadonlySourceDocument],
+        ) -> DocumentSourceResult<Option<u8>> {
+            let revision = tcl_lsp_db::database_revision(&*self.backend.db.lock().await);
+            let epoch = self.backend.diag_inputs_epoch();
+            let generation = *self.backend.class_factory_generation.read().await;
+            let caller = self
+                .backend
+                .documents
+                .lock("factory source test caller")
+                .await
+                .get(&self.open)
+                .unwrap()
+                .clone();
+            let caller_generation = self.backend.live_publication_uri_generation(&self.open);
+            self.backend
+                .publish_factory_source_if_current(
+                    leases,
+                    epoch,
+                    generation,
+                    revision,
+                    (&self.open, &caller, caller_generation),
+                    17,
+                )
+                .await
+        }
+    }
+
+    #[tokio::test]
+    async fn factory_source_final_lease_refuses_saved_image_change_with_unchanged_owners() {
+        let fixture = Fixture::new().await;
+        let leases = fixture.leases().await;
+        assert_eq!(fixture.publish(&leases).await.unwrap(), Some(17));
+        let admission = leases[0]
+            .publication
+            .document
+            .path_admission
+            .as_ref()
+            .unwrap();
+        for bytes in [
+            CLOSED_SOURCE
+                .replace("factory_header", "another_header")
+                .into_bytes(),
+            CLOSED_SOURCE.replace('\n', "\r").into_bytes(),
+        ] {
+            fixture.store.upsert(CLOSED_PATH, bytes);
+            admission
+                .check_for(&fixture.closed, fixture.store.as_ref())
+                .unwrap();
+            assert!(matches!(
+                fixture.publish(&leases).await,
+                Err(super::super::DocumentSourceUnavailable::Store {
+                    cause: vfs::SourceUriPathUnavailable::SourceImageUnavailable,
+                    ..
+                })
+            ));
+        }
+        fixture
+            .store
+            .upsert(CLOSED_PATH, CLOSED_SOURCE.as_bytes().to_vec());
+        assert_eq!(fixture.publish(&leases).await.unwrap(), Some(17));
+    }
+
+    #[tokio::test]
+    async fn factory_source_refuses_original_closed_caller_after_normalised_equal_change() {
+        let fixture = Fixture::new().await;
+        let caller = fixture
+            .backend
+            .read_document(&fixture.closed)
+            .await
+            .unwrap()
+            .unwrap();
+        let caller_generation = fixture
+            .backend
+            .live_publication_uri_generation(&fixture.closed);
+        fixture
+            .store
+            .upsert(CLOSED_PATH, CLOSED_SOURCE.replace('\n', "\r").into_bytes());
+        let leases = fixture.leases().await;
+        let revision = tcl_lsp_db::database_revision(&*fixture.backend.db.lock().await);
+        let epoch = fixture.backend.diag_inputs_epoch();
+        let generation = *fixture.backend.class_factory_generation.read().await;
+        assert!(
+            fixture
+                .backend
+                .publish_factory_source_if_current(
+                    &leases,
+                    epoch,
+                    generation,
+                    revision,
+                    (&fixture.closed, &caller, caller_generation),
+                    17,
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn factory_source_saved_lease_keeps_independent_unsaved_open_mapping() {
+        let fixture = Fixture::new().await;
+        let leases = fixture.leases().await;
+        assert_eq!(fixture.publish(&leases).await.unwrap(), Some(17));
+        assert!(fixture.store.remove_uri(fixture.open.as_str()));
+        fixture
+            .store
+            .upsert_uri(fixture.open.as_str(), OPEN_PATH, b"saved backing".to_vec());
+        assert!(matches!(
+            fixture.publish(&leases).await,
+            Err(super::super::DocumentSourceUnavailable::Store {
+                cause: vfs::SourceUriPathUnavailable::WithdrawnMapping,
+                ..
+            })
+        ));
+    }
+}
+
+#[cfg(test)]
+mod saved_source_allocation_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn saved_images_share_only_the_original_admission_and_byte_allocations() {
+        let mut backend = crate::tests::test_backend();
+        let store = Arc::new(crate::vfs::MemoryStore::new());
+        let uri: Uri = "file:///factory-source-image-allocations.tcl"
+            .parse()
+            .unwrap();
+        store.upsert_uri(
+            uri.as_str(),
+            "/factory-source-image-allocations.tcl",
+            b"proc p {} {}\n".to_vec(),
+        );
+        backend.state_mut_for_test().store = store;
+        let first = backend.read_document(&uri).await.unwrap().unwrap();
+        let shared_first = first.clone();
+        let independent = backend.read_document(&uri).await.unwrap().unwrap();
+        assert_eq!(first.text, independent.text);
+        assert_eq!(first.path_admission, independent.path_admission);
+        assert_eq!(
+            super::super::DocumentState::saved_source_inputs([&first, &shared_first, &independent])
+                .len(),
+            2,
+        );
+    }
+}

@@ -779,7 +779,7 @@ impl AnalyserConfig {
     }
 }
 
-fn document_analyser(
+fn document_analyser_without_factory_oracle(
     db: &dyn salsa::Database,
     file: SourceFile,
     config: AnalyserConfig,
@@ -794,8 +794,16 @@ fn document_analyser(
         .with_declared_targets(config.targets(db).clone())
         .with_package_provides(config.package_provides(db).clone())
         .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone())
+}
+
+fn document_analyser(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Analyser {
+    document_analyser_without_factory_oracle(db, file, config)
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
 }
 
 /// The checked document input shared by analysis and compilation. This query
@@ -812,7 +820,7 @@ pub fn document_analysis_input(
     if config.spec_pack_key(db) != 0 {
         let _epoch = OverlayEpoch::try_get(db).map_or(0, |epoch| epoch.generation(db));
     }
-    document_analyser(db, file, config)
+    document_analyser_without_factory_oracle(db, file, config)
         .prepare_analysis_input(file.dialect(db))
         .map(Arc::new)
 }
@@ -4748,7 +4756,8 @@ mod project_source_inputs;
 pub use project_source_inputs::{
     item_sigs_for_config, item_tree_for_config,
     project_callback_diagnostics_for_analysis_with_inputs, project_callback_diagnostics_for_inputs,
-    project_class_factories_for_inputs, project_original_command_signatures_for_inputs,
+    project_class_factories_for_inputs, project_factory_header_census_for_inputs,
+    project_original_command_signatures_for_inputs,
 };
 use project_source_inputs::{
     original_command_signatures_for_inputs, original_lookup_command_signatures_for_inputs,

@@ -21,6 +21,9 @@ pub(in crate::package_resolver) struct IndexLoader<'a> {
 
 enum LoaderInput<'a> {
     Original(&'a AnalysisResult),
+    OriginalSource(
+        &'a tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+    ),
     Standalone,
 }
 
@@ -41,6 +44,38 @@ impl<'a> IndexLoader<'a> {
                 config: input.lexer_config(),
                 input: LoaderInput::Original(analysis),
             })
+    }
+
+    pub(super) fn from_source_context(
+        source: &'a str,
+        context: &'a tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+    ) -> Option<Self> {
+        (context.source_image() == &SourceImage::document(source)).then_some(Self {
+            source,
+            config: context.editing_input().lexer_config(),
+            input: LoaderInput::OriginalSource(context),
+        })
+    }
+
+    fn original_input(&self) -> Option<&tcl_compiler::analyser::ResolvedAnalysisInput> {
+        match self.input {
+            LoaderInput::Original(analysis) => analysis.resolved_input.as_ref(),
+            LoaderInput::OriginalSource(source) => Some(source.editing_input()),
+            LoaderInput::Standalone => None,
+        }
+    }
+
+    fn source_words_at(
+        &self,
+        offset: u32,
+    ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
+        match self.input {
+            LoaderInput::Original(analysis) => {
+                source_registry_words_at(self.source, analysis, offset)
+            }
+            LoaderInput::OriginalSource(source) => source.registration_words_at(offset),
+            LoaderInput::Standalone => None,
+        }
     }
 
     /// Explicit compatibility source data, without an analysis or Native issuer.
@@ -70,6 +105,8 @@ impl<'a> IndexLoader<'a> {
         checked_parent: Option<&tcl_lexer::NativeScriptWordsPlan>,
     ) -> Option<PathBuf> {
         if loader.image().bytes() != self.source.as_bytes()
+            || (!matches!(self.input, LoaderInput::Standalone)
+                && loader.image().channel() != tcl_lexer::SourceChannel::Document)
             || loader.config() != self.config
             || loader.group().expand
         {
@@ -93,13 +130,9 @@ impl<'a> IndexLoader<'a> {
             None => original_single_source_command_substitution(loader)?,
         };
         let (words, origin) = match self.input {
-            LoaderInput::Original(analysis) => {
-                let schema = source_registry_words_at(
-                    self.source,
-                    analysis,
-                    child.command().words.first()?.span().start(),
-                )?;
-                let input = analysis.resolved_input.as_ref()?;
+            LoaderInput::Original(_) | LoaderInput::OriginalSource(_) => {
+                let schema = self.source_words_at(child.command().words.first()?.span().start())?;
+                let input = self.original_input()?;
                 let context = input.context_registry();
                 let range = schema.with_source_schema(&context, |selected| {
                     selected.authored_source_list_arguments()
@@ -291,7 +324,9 @@ impl<'a> IndexLoader<'a> {
                 _ => None,
             });
             let grammar = match self.input {
-                LoaderInput::Original(_) => arguments.dialect()?.source_file_grammar()?,
+                LoaderInput::Original(_) | LoaderInput::OriginalSource(_) => {
+                    arguments.dialect()?.source_file_grammar()?
+                }
                 // This API's explicit compatibility grammar retains encoding
                 // syntax; it does not select an actual runtime release.
                 LoaderInput::Standalone => tcl_registry::source_file::SourceFileGrammar::Encoding,
@@ -340,18 +375,13 @@ impl<'a> IndexLoader<'a> {
         project: impl FnOnce(&ResolvedInvocation<'_, '_>) -> T,
     ) -> Option<T> {
         let context = match self.input {
-            LoaderInput::Original(analysis) => analysis
-                .resolved_input
-                .as_ref()?
-                .borrowed_context_registry(),
+            LoaderInput::Original(_) | LoaderInput::OriginalSource(_) => {
+                self.original_input()?.borrowed_context_registry()
+            }
             LoaderInput::Standalone => crate::context_for_dialect("tcl"),
         };
         if matches!(origin, WordOrigin::Original) {
-            let LoaderInput::Original(analysis) = self.input else {
-                return None;
-            };
-            let schema =
-                source_registry_words_at(self.source, analysis, words.first()?.span().start())?;
+            let schema = self.source_words_at(words.first()?.span().start())?;
             if schema.origins().len() != words.len()
                 || schema
                     .origins()
@@ -391,7 +421,9 @@ impl<'a> IndexLoader<'a> {
             .collect::<Vec<_>>();
         let (&head, arguments) = values.split_first()?;
         let profile = match self.input {
-            LoaderInput::Original(analysis) => analysis.resolved_input.as_ref()?.unit_profile(),
+            LoaderInput::Original(_) | LoaderInput::OriginalSource(_) => {
+                self.original_input()?.unit_profile()
+            }
             LoaderInput::Standalone => tcl_dialect::DialectProfile::plain_tcl(),
         };
         let mut dialect = InvocationDialect::of_profile(profile);
@@ -464,6 +496,61 @@ mod tests {
         let mut changed = analysis.clone();
         changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
         assert!(IndexLoader::new(source, &changed).is_none());
+    }
+
+    #[test]
+    fn fresh_source_loader_keeps_complete_image_channel_and_configuration() {
+        let source = "set auto_index(p) [list source [file join $dir p.tcl]]";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let generation = crate::context_for_dialect_profile(profile);
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                generation.with_command_store(generation.commands().snapshot().shared_registry()),
+            ),
+            config,
+        );
+        let context = tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(source, input);
+        let loader = IndexLoader::from_source_context(source, &context).unwrap();
+        assert!(
+            IndexLoader::from_source_context(&format!("{source}\n# changed"), &context).is_none()
+        );
+        let plan = |image, config| {
+            tcl_lexer::native_script_words_in(
+                image,
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap()
+        };
+        let actual = plan(SourceImage::document(source), config);
+        assert_eq!(
+            loader.filename(&actual.commands[0].words[2], Path::new("/library")),
+            Some(PathBuf::from("/library/p.tcl"))
+        );
+        let native = plan(
+            SourceImage::from_bytes(source.as_bytes(), tcl_lexer::SourceChannel::NativeValue),
+            config,
+        );
+        assert!(
+            loader
+                .filename(&native.commands[0].words[2], Path::new("/library"))
+                .is_none()
+        );
+        let changed = plan(
+            SourceImage::document(source),
+            tcl_lexer::LexerConfig {
+                strict_quoting: !config.strict_quoting,
+                ..config
+            },
+        );
+        assert!(
+            loader
+                .filename(&changed.commands[0].words[2], Path::new("/library"))
+                .is_none()
+        );
     }
 
     #[test]

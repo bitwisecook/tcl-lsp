@@ -1,6 +1,6 @@
 # LSP naming migration on work
 
-Updated 03 November 2026, 23:31 UTC. [current-state.md](current-state.md) is the authority for current scope, committed work, validation, drafts and blockers. [outstanding/README.md](outstanding/README.md) lists active responsibilities.
+Updated 03 November 2026, 23:29 UTC. [current-state.md](current-state.md) is the authority for current scope, committed work, validation, drafts and blockers. [outstanding/README.md](outstanding/README.md) lists active responsibilities.
 
 The user prioritises the LSP and its transitive libraries. Separate VM, BIG-IP and ancillary feature development is deferred; required linked dependencies and repository gates remain in scope. **The LSP is not release-ready.**
 

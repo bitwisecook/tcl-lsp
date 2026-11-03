@@ -80,6 +80,12 @@ pub use source_load::{
 mod logical_variable_operands;
 pub(crate) use logical_variable_operands::OriginalLogicalVariableOperands;
 
+mod project_factory_headers;
+pub use project_factory_headers::{
+    ForeignFactoryMemberSyntax, ForeignFactorySourceObligation, OriginalForeignFactoryBody,
+    OriginalForeignFactoryClassSyntax, OriginalProjectFactoryHeaders,
+    original_foreign_factory_bodies,
+};
 mod project_procedure_roles;
 pub use project_procedure_roles::{
     OriginalProjectProcedureArguments, OriginalProjectProcedureRoles,
@@ -444,6 +450,52 @@ impl OriginalSourceRegistryContext {
             return Some(selected);
         }
         native_source_registry_words(source, config, &self.realm, &context, segment, None)
+    }
+
+    /// Conditional registration vocabulary retains the complete source's
+    /// known shadow/delete barrier before projecting a Registry descriptor.
+    /// This does not issue execution, Native dispatch or an analysis result.
+    #[must_use]
+    pub fn registration_words(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> Option<OriginalRegistryWords> {
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(&self.image),
+            self.input.lexer_config(),
+            segment,
+        );
+        self.realm.stamp_original_tokens(&mut tokens);
+        if self
+            .realm
+            .original_source_registry_barrier(self.input.borrowed_context_registry(), &tokens)
+        {
+            return None;
+        }
+        self.words(segment)
+    }
+
+    /// The unchanged complete original invocation at a document offset.
+    /// Stored source geometry is preferred; a parsed tail still has to match
+    /// this context's complete image, realm, input and configured original argv.
+    #[must_use]
+    pub fn registration_words_at(&self, offset: u32) -> Option<OriginalRegistryWords> {
+        let config = self.input.lexer_config();
+        let binding = self.realm.invocation_at_source("", offset);
+        let segment = if let Some((segment, _)) = binding.original_recorded_command() {
+            segment
+        } else if let Some(segment) = self
+            .realm
+            .original_source_catalogue_segment_at(&self.input, offset)
+        {
+            segment
+        } else {
+            let source = self.image.try_text().ok()?;
+            let tail = source.get(usize::try_from(offset).ok()?..)?;
+            first_tail_command(tail, offset, config.nested())?
+        };
+        (segment.argv.first()?.span.start() == offset).then_some(())?;
+        self.registration_words(&segment)
     }
 
     /// Conditional Native source words for the syntax-only case-body walker.

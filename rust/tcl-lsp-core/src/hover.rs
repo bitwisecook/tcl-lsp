@@ -97,6 +97,86 @@ impl Hover {
 /// Word-delimiter set used by `find_word_span_at_position`.
 const WORD_DELIMS: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
 
+/// Cheap local shape gate for the conditional foreign factory source query.
+/// It grants no command, class or member identity.
+#[must_use]
+pub fn may_have_foreign_factory_hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> bool {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    if tcl_compiler::source_graph::current_analysis(source, analysis).is_none() {
+        return false;
+    }
+    let index = tcl_lexer::LineIndex::new(source);
+    let offset = crate::definition::byte_offset_at(&index, source, line, character);
+    tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .iter()
+    .any(|command| {
+        !command.is_partial
+            && command
+                .argv
+                .get(2)
+                .is_some_and(|word| word.span.start() <= offset && offset < command.span.end())
+    })
+}
+
+/// Present an original conditional foreign class or member occurrence.
+/// The host must rejoin the complete current source census and owners before
+/// publishing this source-only answer; it does not identify runtime dispatch.
+#[must_use]
+pub fn conditional_foreign_factory_hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    caller_document: u64,
+    headers: &[(
+        u64,
+        tcl_compiler::registry_invocation::source_structure::OriginalProjectFactoryHeaders,
+    )],
+) -> Option<Hover> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let offset = crate::definition::byte_offset_at(&index, source, line, character);
+    let mut results = Vec::new();
+    for body in tcl_compiler::registry_invocation::source_structure::original_foreign_factory_bodies(
+        source,
+        analysis,
+        caller_document,
+        headers,
+    ) {
+        let class = body.class_syntax()?;
+        let name = std::str::from_utf8(class.name_input().bytes()).ok()?;
+        let name_span = class.name().span();
+        if name_span.start() <= offset && offset < name_span.end() {
+            results.push(Hover::markdown(format!(
+                "`{name}`\n\nConditional source class."
+            )));
+        }
+        for member in class.callable_syntax()? {
+            let span = member.name_word().span();
+            if span.start() <= offset && offset < span.end() {
+                results.push(Hover::markdown(format!(
+                    "`{}`\n\nConditional source method of `{name}`.",
+                    member.name()
+                )));
+            }
+        }
+    }
+    let [only] = results.as_slice() else {
+        return None;
+    };
+    Some(only.clone())
+}
+
 /// Compute hover text for a position in `source`.
 ///
 /// `analysis` is the pre-computed analyser result; the caller is
@@ -4066,6 +4146,133 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn foreign_factory_method_hover_keeps_the_source_parent() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::registry_invocation::source_structure::{
+            OriginalProjectFactoryHeaders, original_foreign_factory_bodies,
+        };
+        let library =
+            Analyser::new().analyse("oo::class create Meta {superclass ::oo::class}", "tcl9.0");
+        let header = OriginalProjectFactoryHeaders::capture(&library).unwrap();
+        let source = "Meta create Made { method go {} {return 1} }";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let caller_header = OriginalProjectFactoryHeaders::capture(&analysis).unwrap();
+        let headers = [(1, header.clone()), (2, caller_header.clone())];
+        let bodies = original_foreign_factory_bodies(source, &analysis, 2, &headers);
+        let [body] = bodies.as_slice() else {
+            panic!("unique foreign body");
+        };
+        let class = body.class_syntax().unwrap();
+        let members = class.callable_syntax().unwrap();
+        let [member] = members.as_slice() else {
+            panic!("one written method");
+        };
+        assert_eq!(member.parent().body().caller_document(), 2);
+        assert_eq!(member.parent().body().declaring_document(), 1);
+        assert_eq!(member.name(), "go");
+        let position = u32::try_from(source.find("go").unwrap()).unwrap();
+        assert!(super::may_have_foreign_factory_hover(
+            source, 0, position, &analysis
+        ));
+        assert!(!super::may_have_foreign_factory_hover(
+            source, 0, 0, &analysis
+        ));
+        let hover =
+            super::conditional_foreign_factory_hover(source, 0, position, &analysis, 2, &headers)
+                .unwrap();
+        assert!(hover.value.contains("Conditional source method of `Made`"));
+        assert_eq!(
+            super::conditional_foreign_factory_hover(
+                source,
+                0,
+                position,
+                &analysis,
+                2,
+                &[
+                    (1, header.clone()),
+                    (3, header.clone()),
+                    (2, caller_header.clone())
+                ]
+            ),
+            None
+        );
+        let blocker = Analyser::new().analyse("proc Meta args {}", "tcl9.0");
+        let blocker = OriginalProjectFactoryHeaders::capture(&blocker).unwrap();
+        assert_eq!(
+            super::conditional_foreign_factory_hover(
+                source,
+                0,
+                position,
+                &analysis,
+                2,
+                &[
+                    (1, header.clone()),
+                    (3, blocker),
+                    (2, caller_header.clone())
+                ]
+            ),
+            None
+        );
+        for blocked in [
+            "interp alias {} Meta {} other; Meta create Made {method go {} {}}",
+            "proc Meta args {}; Meta create Made {method go {} {}}",
+            "unknown_effect; Meta create Made {method go {} {}}",
+            "Meta create [set name] {method go {} {}}",
+            "Meta create {*}$args",
+        ] {
+            let blocked_analysis = Analyser::new().analyse(blocked, "tcl9.0");
+            let blocked_header = OriginalProjectFactoryHeaders::capture(&blocked_analysis)
+                .unwrap_or_else(|| caller_header.clone());
+            let position = u32::try_from(blocked.find("go").unwrap_or(0)).unwrap();
+            assert_eq!(
+                super::conditional_foreign_factory_hover(
+                    blocked,
+                    0,
+                    position,
+                    &blocked_analysis,
+                    2,
+                    &[(1, header.clone()), (2, blocked_header)]
+                ),
+                None,
+                "{blocked}"
+            );
+        }
+        assert_eq!(
+            super::conditional_foreign_factory_hover(
+                &format!("{source} "),
+                0,
+                position,
+                &analysis,
+                2,
+                &headers
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn foreign_factory_hover_uses_the_manufacturer_selected_body_ordinal() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::registry_invocation::source_structure::OriginalProjectFactoryHeaders;
+        let producer = concat!(
+            "oo::class create Meta {superclass oo::class; ",
+            "self method create {name extra body} {next $name $body}}",
+        );
+        let library = Analyser::new().analyse(producer, "tcl9.0");
+        let source = "Meta create Made ignored {method go {} {return 1}}";
+        let caller = Analyser::new().analyse(source, "tcl9.0");
+        let headers = [
+            (1, OriginalProjectFactoryHeaders::capture(&library).unwrap()),
+            (2, OriginalProjectFactoryHeaders::capture(&caller).unwrap()),
+        ];
+        let position = u32::try_from(source.find("go").unwrap()).unwrap();
+        let hover =
+            super::conditional_foreign_factory_hover(source, 0, position, &caller, 2, &headers)
+                .unwrap();
+        assert!(hover.value.contains("Conditional source method of `Made`"));
+    }
+
     #[test]
     fn original_property_hover_uses_unique_current_source_declaration() {
         let source = "oo::configurable create C {property p\\uD800 p\\uD801; self method make {} {}}\nreturn p\\uD800\n";

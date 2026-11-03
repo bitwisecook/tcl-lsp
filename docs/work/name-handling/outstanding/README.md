@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 03 November 2026, 23:31 UTC. Work is active. Root owns publication and the [current snapshot](../current-state.md). Historical role handoffs do not certify current execution or ownership.
+Updated 03 November 2026, 23:29 UTC. Work is active. Root owns publication and the [current snapshot](../current-state.md). Historical role handoffs do not certify current execution or ownership.
 
 | Current owner | Work | Open acceptance |
 | --- | --- | --- |

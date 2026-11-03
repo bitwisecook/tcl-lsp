@@ -682,3 +682,32 @@ fn configured_project_diagnostics_do_not_default_missing_native_members() {
         );
     }
 }
+
+#[test]
+fn factory_header_census_retains_blockers_and_distinct_documents_without_an_oracle() {
+    let mut db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let source = "proc ::Meta {} {}";
+    let first = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let second = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![first, second],
+        Some(vec![(first, config), (second, config)]),
+    );
+    let initial = project_factory_header_census_for_inputs(&db, project).unwrap();
+    assert_eq!(initial.len(), 2);
+    assert_ne!(initial[0].0, initial[1].0);
+    assert_eq!(first.workspace_class_factories(&db), &None);
+    assert_eq!(
+        project_factory_header_census_for_inputs(&db, project).unwrap(),
+        initial
+    );
+    second.set_text(&mut db).to(String::new());
+    assert_ne!(
+        project_factory_header_census_for_inputs(&db, project).unwrap(),
+        initial
+    );
+    project.set_token_configurations(&mut db).to(None);
+    assert!(project_factory_header_census_for_inputs(&db, project).is_none());
+}
