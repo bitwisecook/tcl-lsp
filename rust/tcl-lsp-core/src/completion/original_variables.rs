@@ -71,6 +71,18 @@ pub(super) fn items(
         candidates.sort_by(|left, right| left.insert_text.cmp(&right.insert_text));
         candidates.dedup_by(|left, right| left.insert_text == right.insert_text);
     }
+    if prefix.index_span().is_none() {
+        let frame = analysis.original_variable_frame_in_source(&image, config, cursor);
+        extend_loop_list_candidates(
+            source,
+            analysis,
+            &image,
+            config,
+            frame.as_ref(),
+            prefix.is_braced(),
+            &mut candidates,
+        );
+    }
     for item in &mut candidates {
         item.text_edit = Some(CompletionEdit {
             start_char: begin.character.get(),
@@ -195,6 +207,163 @@ fn reference_candidates(
         );
     }
     candidates
+}
+
+// This receipt holds the applicability-bearing registry owner alongside the
+// original body occurrence and field; it is only projected as conditional UI.
+struct ConditionalLoopListField {
+    command: tcl_compiler::command_binding::OriginalNativeProcedureBodyCommand,
+    words: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    argument: usize,
+    ordinal: usize,
+    field: tcl_syntax::word_rules::OriginalSourceListElement,
+    frame: SourceOriginalVariableFrame,
+}
+
+// A list field is authored source evidence only: it supplies neither a
+// variable cell nor proof that the loop executes or writes that field.
+fn extend_loop_list_candidates(
+    source: &str,
+    analysis: &AnalysisResult,
+    image: &SourceImage,
+    config: LexerConfig,
+    frame: Option<&SourceOriginalVariableFrame>,
+    braced: bool,
+    candidates: &mut Vec<CompletionItem>,
+) {
+    let Some(frame) = frame else { return };
+    let receipts = collect_loop_list_fields(source, analysis, image, config, frame);
+    for receipt in receipts {
+        let Some(word) = receipt.words.original_argument_word(receipt.argument) else {
+            continue;
+        };
+        let Some(fields) = tcl_syntax::word_rules::original_static_word_list_elements(word) else {
+            continue;
+        };
+        if receipt.command.caller_declaration(analysis).is_none()
+            || fields.get(receipt.ordinal) != Some(&receipt.field)
+            || &receipt.frame != frame
+            || !receipt.words.roles().is_some_and(|roles| {
+                roles.contains(&(receipt.argument, tcl_registry::ArgRole::LoopVarList))
+            })
+        {
+            continue;
+        }
+        let Some(policy) = receipt
+            .words
+            .dialect()
+            .and_then(|d| d.authored_name_policy())
+        else {
+            continue;
+        };
+        let Some(spelling) = reference_spelling(
+            receipt.field.value().as_bytes(),
+            None,
+            braced,
+            config,
+            policy,
+        ) else {
+            continue;
+        };
+        if candidates.iter().any(|item| item.insert_text == spelling) {
+            continue;
+        }
+        candidates.push(CompletionItem {
+            label: spelling.clone(),
+            insert_text: spelling,
+            kind: CompletionKind::Variable,
+            detail: Some("variable — conditional loop-list source candidate".to_owned()),
+            ..CompletionItem::default()
+        });
+    }
+}
+
+fn collect_loop_list_fields(
+    source: &str,
+    analysis: &AnalysisResult,
+    image: &SourceImage,
+    config: LexerConfig,
+    frame: &SourceOriginalVariableFrame,
+) -> Vec<ConditionalLoopListField> {
+    use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
+    let Some(commands) = source_structure::source_native_procedure_body_commands(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let mut receipts = Vec::new();
+    for command in commands {
+        if command.caller_declaration(analysis).is_none() {
+            continue;
+        }
+        let original = command.original_words();
+        let Some(head) = original.first() else {
+            continue;
+        };
+        let Some(words) =
+            source_structure::source_registry_words_at(source, analysis, head.span().start())
+        else {
+            continue;
+        };
+        if !matches!(
+            words.source(),
+            source_structure::OriginalRegistrySource::Selected
+                | source_structure::OriginalRegistrySource::SourceTransitions(_)
+        ) || words.head_source().and_then(|head| head.word()) != Some(head)
+            || words.origins().len() != original.len()
+            || words.arguments().len() + 1 != original.len()
+            || !words
+                .origins()
+                .iter()
+                .enumerate()
+                .skip(1)
+                .all(|(index, origin)| {
+                    *origin == InvocationWordOrigin::Written(index)
+                        && words.original_argument_word(index - 1) == original.get(index)
+                })
+        {
+            continue;
+        }
+        for &(index, role) in words.roles().unwrap_or_default() {
+            if role != tcl_registry::ArgRole::LoopVarList {
+                continue;
+            }
+            let Some(word) = words.original_argument_word(index) else {
+                continue;
+            };
+            let Some(fields) = tcl_syntax::word_rules::original_static_word_list_elements(word)
+            else {
+                continue;
+            };
+            for (ordinal, field) in fields.into_iter().enumerate() {
+                let Some(span) = field.source_span() else {
+                    continue;
+                };
+                let name = field.value();
+                let mut bytes = name.bytes();
+                if !bytes
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == b'_')
+                    || !bytes.all(|c| c.is_ascii_alphanumeric() || c == b'_')
+                    || source.get(span.as_range()) != Some(name)
+                    || analysis
+                        .original_variable_frame_in_source(image, config, span.start())
+                        .as_ref()
+                        != Some(frame)
+                {
+                    continue;
+                }
+                receipts.push(ConditionalLoopListField {
+                    command: command.clone(),
+                    words: words.clone(),
+                    argument: index,
+                    ordinal,
+                    field,
+                    frame: frame.clone(),
+                });
+            }
+        }
+    }
+    receipts
 }
 
 fn vendor_reference_candidates(
@@ -679,6 +848,132 @@ mod tests {
             return Some(Vec::new());
         }
         super::items(source, line, character, analysis, &prefix)
+    }
+
+    #[test]
+    fn loop_list_candidates_are_conditional_same_frame_source_fields() {
+        for body in [
+            "dict for {k v} {a 1} {puts $}",
+            "foreach {k v} {a 1} {puts $}",
+        ] {
+            let source = format!("proc p {{}} {{{body}}}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let offset = u32::try_from(source.find("puts $").unwrap() + 6).unwrap();
+            let index = tcl_lexer::LineIndex::new(&source);
+            let position = index.position_at_utf16(offset, &source);
+            let got = items(
+                &source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                "",
+                '$',
+            )
+            .unwrap();
+            for name in ["$k", "$v"] {
+                assert!(
+                    got.iter().any(|item| item.insert_text == name
+                        && item.detail.as_deref()
+                            == Some("variable — conditional loop-list source candidate")),
+                    "{body}: {got:?}"
+                );
+            }
+            let choices = source_references(&source, &analysis, offset).unwrap();
+            assert!(
+                !choices.iter().any(|name| name == "$k" || name == "$v"),
+                "{choices:?}"
+            );
+        }
+        for source in [
+            r"proc p {} {foreach {a\x62 arr(x)} {} {puts $}}",
+            "proc p {} {foreach {k v} {} {}}; proc q {} {puts $}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let offset = u32::try_from(source.find("puts $").unwrap() + 6).unwrap();
+            let index = tcl_lexer::LineIndex::new(source);
+            let position = index.position_at_utf16(offset, source);
+            let got = items(
+                source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                "",
+                '$',
+            )
+            .unwrap();
+            assert!(
+                !got.iter().any(|item| item.detail.as_deref()
+                    == Some("variable — conditional loop-list source candidate")),
+                "{got:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn loop_list_observer_shadow_and_stale_context_stay_conditional() {
+        let shadowed = "proc dict args {}; proc p {} {dict for {k v} {} {puts $}}";
+        let traced = "proc observe args {}; trace add execution dict enter observe; proc p {} {dict for {k v} {} {puts $}}";
+        for (source, shadow) in [(shadowed, true), (traced, false)] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let offset = u32::try_from(source.find("puts $").unwrap() + 6).unwrap();
+            let index = tcl_lexer::LineIndex::new(source);
+            let position = index.position_at_utf16(offset, source);
+            let got = items(
+                source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                "",
+                '$',
+            )
+            .unwrap();
+            let relevant = got
+                .iter()
+                .filter(|item| item.insert_text == "$k" || item.insert_text == "$v")
+                .collect::<Vec<_>>();
+            if shadow {
+                assert!(relevant.is_empty(), "{relevant:?}");
+            } else {
+                assert!(
+                    relevant.iter().all(|item| item.detail.as_deref()
+                        == Some("variable — conditional loop-list source candidate")),
+                    "{relevant:?}"
+                );
+            }
+            let changed = format!("{source} ");
+            assert!(
+                items(
+                    &changed,
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    "",
+                    '$'
+                )
+                .unwrap()
+                .is_empty()
+            );
+        }
+        let source = "proc p {} {foreach {k v} {} {puts $}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let other = Analyser::new().analyse(source, "tcl8.5");
+        assert_ne!(analysis.resolved_input, other.resolved_input);
+        analysis.resolved_input = other.resolved_input;
+        let offset = u32::try_from(source.find("puts $").unwrap() + 6).unwrap();
+        let index = tcl_lexer::LineIndex::new(source);
+        let position = index.position_at_utf16(offset, source);
+        assert!(
+            items(
+                source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                "",
+                '$'
+            )
+            .unwrap()
+            .is_empty()
+        );
     }
 
     #[test]
