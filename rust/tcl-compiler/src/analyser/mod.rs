@@ -73,6 +73,7 @@ pub mod scope;
 pub mod snapshot;
 pub mod source_integrity;
 pub(crate) mod source_settings;
+pub use source_settings::OriginalAnalyserSourceSettings;
 pub mod state;
 pub mod syntax_checks;
 pub mod tk_checks;

@@ -1105,6 +1105,8 @@ pub struct Lowerer<'r> {
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     native_entry: Option<std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,
     source_point_entry: Option<crate::command_binding::OriginalSourcePointEntry>,
+    analyser_source_settings:
+        Option<std::sync::Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
     source_channel: tcl_lexer::SourceChannel,
     incoming_formals: Vec<String>,
     /// `class qualified name -> every instance variable declared for it`,
@@ -1403,6 +1405,7 @@ impl<'r> Lowerer<'r> {
             vendor_source_input: None,
             native_entry: None,
             source_point_entry: None,
+            analyser_source_settings: None,
             source_channel: tcl_lexer::SourceChannel::Document,
             incoming_formals: Vec::new(),
             class_instance_vars: HashMap::new(),
@@ -1600,7 +1603,7 @@ impl<'r> Lowerer<'r> {
         self.metadata_input = Some(input.clone());
         self.metadata_origin = LoweringMetadataOrigin::Supplied;
         if fresh {
-            self.set_supplied_source_analysis_input(input);
+            self.set_supplied_source_analysis_input(input, None);
         }
     }
 
@@ -1608,12 +1611,15 @@ impl<'r> Lowerer<'r> {
     pub(crate) fn set_supplied_source_analysis_input(
         &mut self,
         input: &crate::analyser::ResolvedAnalysisInput,
+        settings: Option<&std::sync::Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
     ) {
         let (entry, issued) = crate::command_binding::SuppliedSourceAnalysisIssuance::issue(
             self.registry,
             input,
             self.config,
             self.dialect,
+            settings,
+            self.declared_commands,
         );
         self.set_source_analysis_options(entry.options());
         self.supplied_source = Some(issued);
@@ -1857,6 +1863,7 @@ impl<'r> Lowerer<'r> {
         self.module.plain_command_dispatch = self.target.is_trace_visible();
         self.module.source_entry = crate::command_binding::SourceAnalysisEntry {
             source_point_entry: self.source_point_entry.clone(),
+            analyser_source_settings: self.analyser_source_settings.clone(),
             metadata_context: self.source_metadata_input().retain(),
             hosted_execution_context: self.hosted_execution_context,
             execution_name_policy: self.execution_name_policy,
@@ -2295,6 +2302,7 @@ impl<'r> Lowerer<'r> {
         }) {
             SourceAnalysisOptions {
                 source_point_entry: options.source_point_entry,
+                analyser_source_settings: options.analyser_source_settings,
                 metadata_context:
                     crate::registry_invocation::InvocationMetadataInput::SuppliedSource(None),
                 unknown_entry: true,
@@ -2304,6 +2312,7 @@ impl<'r> Lowerer<'r> {
             options
         };
         self.source_point_entry = options.source_point_entry.cloned();
+        self.analyser_source_settings = options.analyser_source_settings.cloned();
         self.compilation_scope = options.compilation_scope;
         self.invocation_realm = options.invocation_realm;
         self.incoming_formals = options.incoming_formals.to_vec();
@@ -2400,6 +2409,7 @@ impl<'r> Lowerer<'r> {
             self.config,
             self.registry,
             SourceAnalysisOptions {
+                analyser_source_settings: self.analyser_source_settings.as_ref(),
                 source_point_entry: self
                     .source_point_entry
                     .as_ref()
@@ -9340,6 +9350,63 @@ mod tests {
 
     // A proc body homes nested definitions to the proc's *defining*
     // namespace, not the lexical namespace of the `proc` call.
+
+    #[test]
+    fn analyser_settings_preserve_factory_through_original_unit_rebuild() {
+        let source = "set value VALUE";
+        let mut analyser = crate::analyser::Analyser::new();
+        let settings = analyser.source_compilation_settings();
+        let analysis = analyser.analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let options = crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
+            external_call_sites: None,
+            declared_commands: analyser.declared_commands.as_ref(),
+        };
+        let fresh = |unit: &crate::compilation_unit::CompilationUnit| {
+            unit.ir_module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .fresh_native_source_analysis(&unit.ir_module, registry)
+                .is_some()
+        };
+        let unit =
+            crate::compilation_unit::CompilationUnit::build_with_analysis_input_and_source_settings(
+                source, options, None, input, &settings,
+            );
+        assert!(fresh(&unit));
+        assert_eq!(
+            unit.ir_module
+                .source_entry
+                .analyser_source_settings
+                .as_ref(),
+            Some(&settings)
+        );
+        let rebuilt = analysis
+            .original_optimiser_source_unit(source, registry, None)
+            .unwrap();
+        assert!(fresh(&rebuilt));
+        assert_eq!(
+            unit.original_optimiser_source_origin(),
+            rebuilt.original_optimiser_source_origin()
+        );
+        let entry = unit.ir_module.source_entry.clone();
+        let explicit =
+            crate::compilation_unit::CompilationUnit::build_with_analysis_input_and_source_settings(
+                source,
+                options,
+                Some(&entry),
+                input,
+                &settings,
+            );
+        assert_eq!(explicit.ir_module.source_entry, entry);
+        assert!(!fresh(&explicit));
+    }
 
     #[test]
     fn explicit_equal_options_revoke_supplied_source_issuance() {

@@ -447,11 +447,13 @@ impl Analyser {
                 // variable the command writes.
                 declared_commands: self.declared_commands.as_ref(),
             };
-            let cu = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            let settings = self.source_compilation_settings();
+            let cu = crate::compilation_unit::CompilationUnit::build_with_analysis_input_and_source_settings(
                 source,
                 options,
                 self.source_analysis_entry.as_deref(),
                 &input,
+                &settings,
             )
             .with_interprocedural(registry, dialect_opt);
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);

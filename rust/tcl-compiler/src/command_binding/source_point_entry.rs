@@ -361,8 +361,11 @@ impl OriginalSourcePointEntry {
         &self,
         options: super::SourceAnalysisOptions<'_>,
     ) -> bool {
-        options.retained_declared_command_contracts()
-            == self.payload.snapshot.state.baseline.declared_surface
+        options
+            .analyser_source_settings
+            .is_none_or(|settings| settings == &self.payload.settings)
+            && options.retained_declared_command_contracts()
+                == self.payload.snapshot.state.baseline.declared_surface
             && !options.unknown_entry
             && options.incoming_formals.is_empty()
             && options.trusted_source_modules
@@ -877,6 +880,67 @@ mod tests {
             );
             assert!(bindings.original_completed_root_state.is_none());
         }
+    }
+
+    #[test]
+    fn inherited_settings_refuse_foreign_producer_before_source_interpretation() {
+        let point = point();
+        let input = point.input();
+        let registry = input.borrowed_context_registry().commands();
+        let source = "set local VALUE";
+        let mut entry = point.source_analysis_entry(registry, input).unwrap();
+        for settings in [None, Some(point.analyser_source_settings())] {
+            entry.analyser_source_settings = settings;
+            assert!(
+                point
+                    .child_state(registry, entry.options(), Some(input.lexer_config()))
+                    .is_some()
+            );
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                input.lexer_config(),
+                registry,
+                entry.options(),
+            );
+            assert_eq!(bindings.original_inherited_source_entry(), Some(&point));
+        }
+        let foreign = crate::analyser::Analyser::new()
+            .with_extra_commands(std::collections::HashSet::from(["foreign_hint".to_owned()]))
+            .with_resolved_input(input.clone());
+        entry.analyser_source_settings = Some(foreign.source_compilation_settings());
+        assert_ne!(
+            entry.analyser_source_settings.as_ref(),
+            Some(&point.payload.settings)
+        );
+        assert!(
+            point
+                .child_state(registry, entry.options(), Some(input.lexer_config()))
+                .is_none()
+        );
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            input.lexer_config(),
+            registry,
+            entry.options(),
+        );
+        assert!(bindings.original_inherited_source_entry().is_none());
+        assert!(
+            bindings
+                .source_metadata_owner()
+                .source_analysis_input()
+                .is_none()
+        );
+        assert!(bindings.original_completed_root_state.is_none());
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, input.lexer_config());
+        lowerer.set_source_analysis_options(entry.options());
+        let module = lowerer.lower(source);
+        assert!(
+            module
+                .source_entry
+                .metadata_context
+                .source_analysis_input()
+                .is_none()
+        );
     }
 
     #[test]

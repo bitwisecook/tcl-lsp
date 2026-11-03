@@ -21,6 +21,7 @@ struct OriginalReadonlyReferenceDocument {
     config: tcl_lsp_db::AnalyserConfig,
     configuration: tcl_lsp_db::DiagnosticConfigurationSnapshot,
     input: Arc<ResolvedAnalysisInput>,
+    external_call_sites: Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
     admission: Arc<DocumentPathAdmission>,
     publication: LibraryPublicationSource,
     database_revision: salsa::Revision,
@@ -34,6 +35,7 @@ struct ReadonlySourceDocument {
     /// Configuration values read under the same database lock as `input`.
     configuration: tcl_lsp_db::DiagnosticConfigurationSnapshot,
     input: Arc<ResolvedAnalysisInput>,
+    external_call_sites: Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
     admission: Arc<DocumentPathAdmission>,
     publication: LibraryPublicationSource,
     database_revision: salsa::Revision,
@@ -475,7 +477,7 @@ impl Backend {
         let Some(publication) = self.library_publication_source(&uri, document).await else {
             return Ok(None);
         };
-        let (file, configuration, input, admission, database_revision) = {
+        let (file, configuration, input, external_call_sites, admission, database_revision) = {
             let db = self.db.lock().await;
             let files = self.db_files.lock().await;
             let Some(&file) = files.get(&uri) else {
@@ -509,6 +511,7 @@ impl Backend {
                 file,
                 config.diagnostic_report_configuration(&*db),
                 input,
+                file.external_call_sites(&*db).clone(),
                 retained.admission.clone(),
                 tcl_lsp_db::database_revision(&db),
             )
@@ -520,6 +523,7 @@ impl Backend {
             config,
             configuration,
             input,
+            external_call_sites,
             admission,
             publication,
             database_revision,
@@ -541,6 +545,7 @@ impl Backend {
             config,
             configuration,
             input,
+            external_call_sites,
             admission,
             publication,
             database_revision,
@@ -552,10 +557,18 @@ impl Backend {
         let producer_source = source.clone();
         let dialect = publication.document.dialect.clone();
         let original_uri = uri.clone();
-        let seed =
-            crate::rt::spawn_blocking(move || driver.analyse(&producer_source, &dialect, None))
-                .await
-                .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??;
+        let producer_input = Arc::clone(&input);
+        let producer_evidence = external_call_sites.clone();
+        let seed = crate::rt::spawn_blocking(move || {
+            driver.analyse_readonly_document(
+                &producer_source,
+                &dialect,
+                &producer_input,
+                producer_evidence.as_deref(),
+            )
+        })
+        .await
+        .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??;
         if seed.path_admission.as_ref() != admission.as_ref() {
             return Ok(None);
         }
@@ -567,6 +580,7 @@ impl Backend {
             config,
             configuration,
             input,
+            external_call_sites,
             admission,
             publication,
             database_revision,
@@ -2262,6 +2276,7 @@ impl OriginalReadonlyReferenceDocument {
             config: self.config,
             configuration: self.configuration.clone(),
             input: self.input.clone(),
+            external_call_sites: self.external_call_sites.clone(),
             admission: self.admission.clone(),
             publication: LibraryPublicationSource {
                 uri: self.publication.uri.clone(),
@@ -2572,6 +2587,7 @@ impl ReadonlySourceDocument {
             })
             && self.file.path(db).as_deref() == self.admission.analyser_path()
             && self.file.text(db).as_str() == self.source.as_ref()
+            && self.file.external_call_sites(db) == &self.external_call_sites
             && self.file.dialect(db) == &self.publication.document.dialect
             && with_pack_hooks(|| tcl_lsp_db::document_analysis_input(db, self.file, self.config))
                 .is_ok_and(|input| input.as_ref() == self.input.as_ref())
@@ -4357,6 +4373,104 @@ mod code_action_source_version_tests {
             .await
             .insert(uri.clone(), document.clone());
         document
+    }
+
+    fn assert_original_fold_matches_project_evidence(
+        owner: &OriginalCodeActionSource,
+        source: &str,
+        evidence: Option<&tcl_compiler::unit_scope::CallSiteEvidence>,
+    ) {
+        let WorkspaceSymbolAnalysisKind::Database(document) = &owner.analysis.kind else {
+            panic!("the fixture must exercise the actual database-backed readonly capture");
+        };
+        assert_eq!(document.external_call_sites.as_deref(), evidence);
+        let analysis = owner.analysis();
+        let registry = analysis.resolved_registry().unwrap();
+        assert!(
+            analysis
+                .original_optimiser_source_unit(source, registry, evidence)
+                .is_some()
+        );
+        let checks = tcl_lsp_db::compiler_check_diagnostics_uncached_from_analysis(
+            source, registry, &analysis, None, evidence,
+        );
+        let rewrite = checks
+            .optimisations
+            .into_iter()
+            .find(|row| row.code == tcl_core_types::DiagCode::O101)
+            .expect("the actual source worker must issue the constant fold");
+        assert_eq!(rewrite.replacement, "set x 3");
+        assert!(rewrite.original_rewrite_batch().is_some());
+        let finding = tcl_lsp_core::diagnostic_policy::Finding::from(rewrite);
+        let current =
+            tcl_lsp_core::code_actions::DiagnosticEditSource::for_analysis(source, &analysis)
+                .unwrap();
+        assert!(current.matches_optimiser_rewrite_group(&[&finding]));
+    }
+
+    #[tokio::test]
+    async fn readonly_action_producer_retains_exact_optional_project_evidence() {
+        use salsa::Setter as _;
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///source-action-project-evidence.tcl"
+            .parse()
+            .unwrap();
+        let source = "set x [expr {1 + 2}]\n";
+        let document = open(&backend, &uri, source).await;
+        let mut nonempty = tcl_compiler::unit_scope::CallSiteEvidence::default();
+        nonempty.record_opaque_caller("::outside");
+        assert!(!nonempty.is_empty());
+        let versions = [
+            None,
+            Some(Arc::new(
+                tcl_compiler::unit_scope::CallSiteEvidence::default(),
+            )),
+            Some(Arc::new(nonempty)),
+        ];
+        for (index, evidence) in versions.iter().enumerate() {
+            let file = *backend.db_files.lock().await.get(&uri).unwrap();
+            file.set_external_call_sites(&mut *backend.db.lock().await)
+                .to(evidence.clone());
+            let owner = backend
+                .capture_code_action_source(&uri, &document)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_original_fold_matches_project_evidence(&owner, source, evidence.as_deref());
+            assert!(
+                backend
+                    .finish_code_action_response(&owner, Vec::new(), None)
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+            let original_input = owner.analysis().resolved_input.clone().unwrap();
+            let next = versions[(index + 1) % versions.len()].clone();
+            assert_ne!(evidence, &next);
+            file.set_external_call_sites(&mut *backend.db.lock().await)
+                .to(next);
+            let config = backend.resolved_db_config(&uri).await;
+            let input =
+                tcl_lsp_db::document_analysis_input(&*backend.db.lock().await, file, config)
+                    .unwrap();
+            assert_eq!(input.as_ref(), &original_input);
+            assert_eq!(
+                backend
+                    .documents
+                    .lock("unchanged action evidence source")
+                    .await[&uri]
+                    .text
+                    .as_ref(),
+                source
+            );
+            assert!(
+                backend
+                    .finish_code_action_response(&owner, Vec::new(), None)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+        }
     }
 
     #[tokio::test]

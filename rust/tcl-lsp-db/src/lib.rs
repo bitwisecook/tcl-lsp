@@ -3095,7 +3095,7 @@ fn build_unit_with_keys<'db>(
     CompilationUnit,
     HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
 ) {
-    build_unit_with_keys_and_input(db, source, options, None)
+    build_unit_with_keys_and_input(db, source, options, None, None)
 }
 
 fn lattice_memo_context<'db>(db: &'db dyn TclDb, req: &LatticeRequest<'_>) -> CfgContext<'db> {
@@ -3226,6 +3226,7 @@ fn build_unit_with_keys_and_input<'db>(
     source: &str,
     options: UnitBuildOptions<'_>,
     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+    settings: Option<&Arc<tcl_compiler::analyser::OriginalAnalyserSourceSettings>>,
 ) -> (
     CompilationUnit,
     HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
@@ -3286,15 +3287,28 @@ fn build_unit_with_keys_and_input<'db>(
             let key = SourceProcBodyKey::new(db, request.clone());
             lower_proc_body_source(db, key)
         };
-        CompilationUnit::build_memoized_with_original_body_lowering(
-            source,
-            options,
-            &mut lattice_memo,
-            &body_memo,
-            &source_body_memo,
-            None,
-            input,
-        )
+        match input.zip(settings) {
+            Some(input) => {
+                CompilationUnit::build_memoized_with_original_body_lowering_and_source_settings(
+                    source,
+                    options,
+                    &mut lattice_memo,
+                    &body_memo,
+                    &source_body_memo,
+                    None,
+                    input,
+                )
+            }
+            None => CompilationUnit::build_memoized_with_original_body_lowering(
+                source,
+                options,
+                &mut lattice_memo,
+                &body_memo,
+                &source_body_memo,
+                None,
+                input,
+            ),
+        }
     };
     // Validate the candidate returned after current source restoration, rather
     // than its cached donor. Rejected callbacks cannot seed downstream memos.
@@ -4218,8 +4232,9 @@ pub fn compilation_unit_for_config<'db>(
         &declared,
         &input,
     )?;
+    let settings = document_analyser(db, file, config).source_compilation_settings();
     Some(Arc::new(
-        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input)).0,
+        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), Some(&settings)).0,
     ))
 }
 
@@ -4243,7 +4258,9 @@ pub fn proc_taint_solve_for_config<'db>(
         &declared,
         &input,
     )?;
-    let (cu, keys) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input));
+    let settings = document_analyser(db, file, config).source_compilation_settings();
+    let (cu, keys) =
+        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), Some(&settings));
     Some(solve_checks_for_unit(
         db,
         file.dialect(db),
@@ -8774,7 +8791,8 @@ p\uD801 ordinary";
         let declared = declared_command_surface(db, file);
         let options = supplied_unit_build_options(db, file, cfg, registry, None, &declared, &input)
             .expect("the document's original grammar and Registry");
-        let (cu, _) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input));
+        let (cu, _) =
+            build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), None);
         let source_bodies: Vec<_> = cu
             .ir_module
             .procedures

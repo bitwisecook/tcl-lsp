@@ -1206,6 +1206,41 @@ impl FreshAnalysisDriver {
         self
     }
 
+    fn analyse_readonly_document(
+        mut self: Box<Self>,
+        text: &str,
+        dialect: &str,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        external_call_sites: Option<&tcl_compiler::unit_scope::CallSiteEvidence>,
+    ) -> DocumentSourceResult<FreshAnalysisSeed> {
+        self.path_admission
+            .check_current(self.source_store.as_ref())?;
+        let text = tcl_lexer::normalise_lone_cr(text);
+        let registry = input.borrowed_context_registry().commands();
+        let declared = tcl_compiler::analyser::utils::document_declared_surface(
+            &text,
+            self.path_admission.analyser_path(),
+            input.unit_profile().name,
+        );
+        let settings = self.analyser.source_compilation_settings();
+        let unit = tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input_and_source_settings(
+            &text,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites,
+                declared_commands: Some(&declared),
+            },
+            None,
+            input,
+            &settings,
+        ).with_interprocedural(registry, Some(input.unit_profile()));
+        self.analyser.set_cu_override(Arc::new(unit));
+        self.analyse(&text, dialect, None)
+    }
+
     fn analyse(
         mut self: Box<Self>,
         text: &str,

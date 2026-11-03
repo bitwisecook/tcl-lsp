@@ -187,8 +187,12 @@ impl SuppliedSourceAnalysisIssuance {
         input: &crate::analyser::ResolvedAnalysisInput,
         config: tcl_lexer::LexerConfig,
         profile: Option<&tcl_dialect::DialectProfile>,
+        settings: Option<&Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
+        declared_commands: Option<&tcl_registry::model::DeclaredSurface>,
     ) -> (SourceAnalysisEntry, Self) {
-        let entry = SourceAnalysisEntry::for_supplied_source(registry, input, config, profile);
+        let mut entry = SourceAnalysisEntry::for_supplied_source(registry, input, config, profile);
+        entry.analyser_source_settings = settings.cloned();
+        entry.declared_commands = declared_commands.cloned();
         let options = entry.options();
         let grammar = options.native_lexer_config(config);
         let dialect = options.source_invocation_dialect(grammar);

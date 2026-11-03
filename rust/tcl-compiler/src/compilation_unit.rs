@@ -2806,9 +2806,16 @@ fn lower_and_build_cfg(
         source_entry,
         context,
         input,
-        standalone,
+        (standalone, None),
     )
 }
+
+type SourceSyntaxInputs<'a, 'b, 'c, 'd, 'e> = (
+    Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    Option<&'b crate::lowering::SourceBodySyntaxCache<'c>>,
+    Option<crate::lowering::StandaloneSourceInput<'d>>,
+    Option<&'e Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
+);
 
 #[derive(Clone, Copy)]
 struct OriginalBodyCacheInputs<'a> {
@@ -2831,7 +2838,10 @@ fn lower_and_build_cfg_with_original_caches(
     source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
     context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     input: Option<&crate::analyser::ResolvedAnalysisInput>,
-    standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
+    (standalone, source_settings): (
+        Option<crate::lowering::StandaloneSourceInput<'_>>,
+        Option<&Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
+    ),
 ) -> (
     IrModule,
     CfgModule,
@@ -2874,10 +2884,15 @@ fn lower_and_build_cfg_with_original_caches(
     } else if let Some(context) = context {
         lowerer = lowerer.with_context_registry(context);
     }
-    if let Some(entry) = source_entry {
+    let configured_entry = source_entry.zip(source_settings).map(|(entry, settings)| {
+        let mut entry = entry.clone();
+        entry.analyser_source_settings = Some(Arc::clone(settings));
+        entry
+    });
+    if let Some(entry) = configured_entry.as_ref().or(source_entry) {
         lowerer.set_source_analysis_options(entry.options());
     } else if let Some(input) = input.filter(|_| standalone.is_none()) {
-        lowerer.set_supplied_source_analysis_input(input);
+        lowerer.set_supplied_source_analysis_input(input, source_settings);
     }
     lowerer = lowerer.with_original_optimiser_lowering(caches.original, caches.integrity);
     if let Some(cache) = caches.source {
@@ -3637,6 +3652,7 @@ struct RetainedLoweringInput<'a, 'b> {
     input: Option<&'b crate::analyser::ResolvedAnalysisInput>,
     source_body_cache: Option<&'b crate::lowering::SourceBodySyntaxCache<'b>>,
     standalone: Option<crate::lowering::StandaloneSourceInput<'b>>,
+    source_settings: Option<&'b Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
 }
 
 fn lower_retained_source(
@@ -3652,6 +3668,7 @@ fn lower_retained_source(
         input,
         source_body_cache,
         standalone,
+        source_settings,
     } = request;
     let integrity = std::cell::Cell::new(true);
     let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
@@ -3667,7 +3684,7 @@ fn lower_retained_source(
             entry,
             context,
             input,
-            standalone,
+            (standalone, source_settings),
         );
     #[cfg(any(test, debug_assertions))]
     {
@@ -4462,7 +4479,7 @@ impl CompilationUnit {
             },
             entry,
             None,
-            (input, Some(source_body_cache), None),
+            (input, Some(source_body_cache), None, None),
         )
     }
 
@@ -4488,7 +4505,36 @@ impl CompilationUnit {
             },
             entry,
             None,
-            (input, Some(source_body_cache), None),
+            (input, Some(source_body_cache), None, None),
+        )
+    }
+
+    /// Memoise original lowering under the actual analyser's producer settings.
+    /// Settings retain no execution entry or factory intent of their own.
+    #[must_use]
+    pub fn build_memoized_with_original_body_lowering_and_source_settings(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
+        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        (input, settings): (
+            &crate::analyser::ResolvedAnalysisInput,
+            &Arc<crate::analyser::OriginalAnalyserSourceSettings>,
+        ),
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            Some(cache),
+            OriginalBodyCacheInputs {
+                legacy: None,
+                original: Some(body_cache),
+            },
+            entry,
+            None,
+            (Some(input), Some(source_body_cache), None, Some(settings)),
         )
     }
 
@@ -4584,6 +4630,31 @@ impl CompilationUnit {
         Self::build_with_retained_entry(source, options, None, None, entry, None, Some(input))
     }
 
+    /// Build under settings captured by the actual analyser before compilation.
+    /// The independent optional entry retains its purpose: absent entries still
+    /// use the supplied-document factory and explicit entries remain explicit.
+    #[must_use]
+    pub fn build_with_analysis_input_and_source_settings(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        settings: &Arc<crate::analyser::OriginalAnalyserSourceSettings>,
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            None,
+            OriginalBodyCacheInputs {
+                legacy: None,
+                original: None,
+            },
+            entry,
+            None,
+            (Some(input), None, None, Some(settings)),
+        )
+    }
+
     /// Build an explicitly Standalone authoring request with its complete source
     /// metadata. Availability does not choose this purpose: the caller selects it
     /// independently. Missing/foreign store, profile or full grammar refuses.
@@ -4611,7 +4682,7 @@ impl CompilationUnit {
             },
             None,
             None,
-            (Some(input), None, Some(owner)),
+            (Some(input), None, Some(owner), None),
         ))
     }
 
@@ -4645,7 +4716,7 @@ impl CompilationUnit {
             },
             entry,
             context,
-            (input, None, None),
+            (input, None, None, None),
         )
     }
 
@@ -4656,11 +4727,13 @@ impl CompilationUnit {
         body_caches: OriginalBodyCacheInputs<'_>,
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
-        (input, source_body_cache, standalone): (
-            Option<&crate::analyser::ResolvedAnalysisInput>,
-            Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
-            Option<crate::lowering::StandaloneSourceInput<'_>>,
-        ),
+        (input, source_body_cache, standalone, source_settings): SourceSyntaxInputs<
+            '_,
+            '_,
+            '_,
+            '_,
+            '_,
+        >,
     ) -> Self {
         // Optional callback/cache outputs need their own authentic analysis
         // receipts before this source-action producer can reborrow them.
@@ -4669,6 +4742,8 @@ impl CompilationUnit {
             optimiser_source_owner::OriginalSourceBuildIngress::ExplicitStandalone
         } else if entry.is_none() && context.is_none() && input.is_none() {
             optimiser_source_owner::OriginalSourceBuildIngress::DefaultAuthoring
+        } else if entry.is_none() {
+            optimiser_source_owner::OriginalSourceBuildIngress::SuppliedDocument
         } else {
             optimiser_source_owner::OriginalSourceBuildIngress::RetainedEntry
         };
@@ -4687,6 +4762,7 @@ impl CompilationUnit {
                 input,
                 source_body_cache,
                 standalone,
+                source_settings,
             },
             #[cfg(any(test, debug_assertions))]
             &mut phase_trace,

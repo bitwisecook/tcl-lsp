@@ -84,6 +84,8 @@ impl SourceDeclaredCommandContracts {
 /// catalogue availability or a package require spelling.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SourceAnalysisOptions<'a> {
+    /// Actual analyser naming/recovery configuration, captured by its producer.
+    pub analyser_source_settings: Option<&'a Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
     /// Authentic source-only parent point; no runtime or Native entry follows.
     pub source_point_entry: Option<&'a super::OriginalSourcePointEntry>,
     /// Actual metadata ingress, independent of naming/frame/handler entry.
@@ -366,6 +368,8 @@ impl SourceAnalysisOptions<'_> {
 /// Owned entry proof carried from source lowering into every later consumer.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct SourceAnalysisEntry {
+    /// Actual analyser naming/recovery configuration, captured before compilation.
+    pub analyser_source_settings: Option<Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
     /// Same source-only parent point retained through every analysis consumer.
     pub source_point_entry: Option<super::OriginalSourcePointEntry>,
     /// Complete actual availability/source ownership, independently of entry.
@@ -514,6 +518,7 @@ impl SourceAnalysisEntry {
     #[must_use]
     pub fn options(&self) -> SourceAnalysisOptions<'_> {
         SourceAnalysisOptions {
+            analyser_source_settings: self.analyser_source_settings.as_ref(),
             source_point_entry: self.source_point_entry.as_ref(),
             metadata_context: crate::registry_invocation::InvocationMetadataInput::Retained(
                 &self.metadata_context,

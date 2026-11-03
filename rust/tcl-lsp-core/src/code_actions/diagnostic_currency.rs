@@ -192,6 +192,53 @@ mod tests {
     }
 
     #[test]
+    fn optimiser_groups_keep_producer_settings_and_refuse_foreign_settings() {
+        let source = "set x [expr {1 + 2}]\n";
+        let current = Analyser::new().analyse(source, "tcl8.6");
+        let input = current.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let unit = current
+            .original_optimiser_source_unit(source, registry, None)
+            .unwrap()
+            .with_interprocedural(registry, Some(input.unit_profile()));
+        let rewrite =
+            tcl_compiler::optimiser::optimise_unit(&unit, registry, Some(input.unit_profile()))
+                .into_iter()
+                .find(|row| row.code == tcl_core_types::DiagCode::O101)
+                .expect("actual constant-fold worker result");
+        assert_eq!(rewrite.replacement, "set x 3");
+        let issuer = rewrite
+            .original_rewrite_batch()
+            .expect("final worker group");
+        assert!(issuer.matches_source_realm(current.retained_command_realm().unwrap()));
+        assert!(current.matches_optimiser_source_origin(issuer.source_origin()));
+        let finding = crate::diagnostic_policy::Finding::from(rewrite);
+        let guard = DiagnosticEditSource::for_analysis(source, &current).unwrap();
+        assert!(guard.matches_optimiser_rewrite_group(&[&finding]));
+
+        let foreign = Analyser::new()
+            .with_extra_commands(HashSet::from(["extra_foreign_command".to_owned()]))
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl8.6");
+        assert_eq!(foreign.resolved_input.as_ref(), Some(input));
+        assert!(
+            foreign.matches_original_source_image(
+                &SourceImage::document(source),
+                input.lexer_config()
+            )
+        );
+        let foreign_guard = DiagnosticEditSource::for_analysis(source, &foreign).unwrap();
+        assert!(!foreign_guard.matches_optimiser_rewrite_group(&[&finding]));
+        let stale_source = "set x [expr {4 + 5}]\n";
+        assert!(DiagnosticEditSource::for_analysis(stale_source, &current).is_none());
+        let changed = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(stale_source, "tcl8.6");
+        let changed_guard = DiagnosticEditSource::for_analysis(stale_source, &changed).unwrap();
+        assert!(!changed_guard.matches_optimiser_rewrite_group(&[&finding]));
+    }
+
+    #[test]
     fn original_diagnostic_actions_require_current_whole_source_and_owned_fixes() {
         // Implementation contract: naming.editor.original-diagnostic-edit-currency
         // docs/design/analysis/name-resolution-proofs/original-diagnostic-edit-currency.md

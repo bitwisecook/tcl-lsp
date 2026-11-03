@@ -282,30 +282,34 @@ pub fn standalone_findings(
         Arc::new(context),
         LexerConfig::for_file_grammar(doc.dialect.grammar),
     );
+    let mut analyser =
+        Analyser::with_disabled_diagnostics(skip.iter().map(ToString::to_string).collect())
+            .with_file_path(doc.file_path.map(str::to_owned))
+            .with_pack_overlay(doc.pack_overlay)
+            .with_resolved_input(input.clone());
+    let settings = analyser.source_compilation_settings();
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
         doc.registry,
         &input,
         input.lexer_config(),
         Some(input.unit_profile()),
     );
-    let unit = Arc::new(CompilationUnit::build_with_analysis_input(
-        doc.source,
-        UnitBuildOptions {
-            registry: doc.registry,
-            defer_top_level: false,
-            config: input.lexer_config(),
-            dialect: Some(input.unit_profile()),
-            external_call_sites: doc.external_call_sites,
-            declared_commands: Some(&declared),
-        },
-        Some(&entry),
-        &input,
-    ));
-    let mut analyser =
-        Analyser::with_disabled_diagnostics(skip.iter().map(ToString::to_string).collect())
-            .with_file_path(doc.file_path.map(str::to_owned))
-            .with_pack_overlay(doc.pack_overlay)
-            .with_resolved_input(input);
+    let unit = Arc::new(
+        CompilationUnit::build_with_analysis_input_and_source_settings(
+            doc.source,
+            UnitBuildOptions {
+                registry: doc.registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: doc.external_call_sites,
+                declared_commands: Some(&declared),
+            },
+            Some(&entry),
+            &input,
+            &settings,
+        ),
+    );
     analyser.set_cu_override(Arc::clone(&unit));
     let analysis = analyser.analyse(doc.source, doc.dialect.name);
     let mut produced: Vec<Finding> = analysis
@@ -640,6 +644,43 @@ mod tests {
             assert!(result.applied.is_empty());
             assert_eq!(result.iterations, 0);
         }
+    }
+
+    #[test]
+    fn standalone_optimiser_group_keeps_actual_producer_settings() {
+        let source = "set x [expr {1 + 2}]\n";
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let registry = crate::context_for_dialect_profile(profile)
+            .commands()
+            .clone();
+        let findings = standalone_findings(
+            &StandaloneDocument {
+                source,
+                file_path: Some("settings.tcl"),
+                dialect: profile,
+                registry: &registry,
+                pack_overlay: 0,
+                external_call_sites: None,
+            },
+            &BTreeSet::new(),
+        );
+        let rewrite = findings
+            .optimisation_candidates(source)
+            .into_iter()
+            .find(|row| row.code == DiagCode::O101)
+            .expect("actual standalone worker result");
+        assert_eq!(rewrite.replacement, "set x 3");
+        assert!(rewrite.original_rewrite_batch().is_some());
+        let finding = Finding::from(rewrite);
+        let guard =
+            crate::code_actions::DiagnosticEditSource::for_analysis(source, &findings.analysis)
+                .unwrap();
+        assert!(guard.matches_optimiser_rewrite_group(&[&finding]));
+        assert!(
+            findings
+                .optimisation_candidates("set x [expr {4 + 5}]\n")
+                .is_empty()
+        );
     }
 
     #[test]

@@ -2297,6 +2297,22 @@ facts), and exact optional effective dialect. Its prepared witness retains all
 actual compilation and function analyses. Public CU/FunctionUnit fields remain
 report-compatible; changing any pass input cannot inherit the old witness.
 
+The actual analyser captures its naming and recovery settings before source
+compilation. Lowering, source-point cache/history keys and original-unit
+rebuilds retain those settings and compare them with the original producer.
+A source-point entry refuses foreign settings before source interpretation.
+Settings do not carry factory intent. At the configured-document build ingress,
+an absent entry uses the supplied-source factory; an explicit entry remains
+explicit even when its values are equal. Supplying settings does not grant
+runtime entry or rewrite authority.
+
+Read-only code-action analysis captures the database's optional external
+call-site evidence with its original input and source snapshot, before building
+the compilation unit. `None`, `Some(empty)` and nonempty evidence retain their
+separate values. The final response rechecks that evidence along with the
+existing revision, source, input and publication guards; an unchanged source
+and analysis input do not admit a response after its evidence changes.
+
 Memo callbacks have independent genuine producer obligations. The actual
 source-loop lattice request and exact actual worker result must rejoin; a
 publicly modified request, key or function never acquires that correspondence

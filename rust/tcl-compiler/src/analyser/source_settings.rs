@@ -9,8 +9,9 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+/// Opaque actual naming and recovery settings retained by source producers.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OriginalAnalyserSourceSettings {
+pub struct OriginalAnalyserSourceSettings {
     extra_commands: Arc<HashSet<String>>,
     pack_overlay: u64,
     library_versions: tcl_dialect::LibraryVersionOverrides,
@@ -73,6 +74,15 @@ impl OriginalAnalyserSourceSettings {
         analyser
             .workspace_subclass_methods
             .clone_from(&self.workspace_subclass_methods);
+    }
+}
+
+impl Analyser {
+    /// Capture the actual naming/recovery settings before source compilation.
+    /// This supplies no runtime entry, handler selection or rewrite authority.
+    #[must_use]
+    pub fn source_compilation_settings(&self) -> Arc<OriginalAnalyserSourceSettings> {
+        Arc::new(OriginalAnalyserSourceSettings::capture(self))
     }
 }
 

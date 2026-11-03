@@ -7784,9 +7784,11 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
     ) -> Self {
         Self {
-            analyser_source_settings: options
-                .source_point_entry
-                .map(OriginalSourcePointEntry::analyser_source_settings),
+            analyser_source_settings: options.analyser_source_settings.cloned().or_else(|| {
+                options
+                    .source_point_entry
+                    .map(OriginalSourcePointEntry::analyser_source_settings)
+            }),
             logical_conditional_source_control,
             compilation_scope: options.compilation_scope,
             lexer_config: Some(config),
@@ -8564,6 +8566,7 @@ impl SourceCommandBindings {
             .cloned()
             .collect::<Vec<_>>();
         let options = SourceAnalysisOptions {
+            analyser_source_settings: self.analyser_source_settings.as_ref(),
             source_point_entry: None,
             metadata_context: crate::registry_invocation::InvocationMetadataInput::Retained(
                 &self.final_state.baseline.metadata_context,

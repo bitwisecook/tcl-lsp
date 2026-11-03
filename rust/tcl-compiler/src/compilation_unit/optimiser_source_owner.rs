@@ -32,6 +32,9 @@ struct SourceBuildInputs {
 pub(super) enum OriginalSourceBuildIngress {
     DefaultAuthoring,
     ExplicitStandalone,
+    // An absent entry selected the actual supplied-document factory. Equal
+    // explicit entry values cannot reconstruct that independent choice.
+    SuppliedDocument,
     RetainedEntry,
 }
 
@@ -415,8 +418,27 @@ impl OriginalOptimiserSourceOrigin {
                     },
                     None,
                     None,
-                    (None, None, None),
+                    (None, None, None, None),
                 )
+            }
+            OriginalSourceBuildIngress::SuppliedDocument => {
+                match self.0.entry.analyser_source_settings.as_ref() {
+                    Some(settings) => {
+                        CompilationUnit::build_with_analysis_input_and_source_settings(
+                            source,
+                            options,
+                            None,
+                            &self.0.input,
+                            settings,
+                        )
+                    }
+                    None => CompilationUnit::build_with_analysis_input(
+                        source,
+                        options,
+                        None,
+                        &self.0.input,
+                    ),
+                }
             }
             OriginalSourceBuildIngress::RetainedEntry => {
                 CompilationUnit::build_with_analysis_input(

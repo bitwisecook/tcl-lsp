@@ -65,6 +65,7 @@ impl SourceAnalysisCacheKey {
             frame: frame.clone(),
             registry: registry.snapshot().semantic_key(),
             entry: SourceAnalysisEntry {
+                analyser_source_settings: options.analyser_source_settings.cloned(),
                 source_point_entry: options.source_point_entry.cloned(),
                 metadata_context: options.retained_metadata_context(),
                 hosted_execution_context: options.hosted_execution_context,
@@ -136,6 +137,7 @@ impl SourcePointHistoryKey {
     }
     fn entry_matches(&self, entry: &SourceAnalysisEntry) -> bool {
         let SourceAnalysisEntry {
+            analyser_source_settings,
             source_point_entry,
             metadata_context,
             hosted_execution_context,
@@ -162,6 +164,7 @@ impl SourcePointHistoryKey {
         same_point
             && self.entry.source_point_entry.is_none()
             && &self.entry.metadata_context == metadata_context
+            && &self.entry.analyser_source_settings == analyser_source_settings
             && &self.entry.hosted_execution_context == hosted_execution_context
             && &self.entry.execution_name_policy == execution_name_policy
             && &self.entry.logical_source_input == logical_source_input
@@ -182,6 +185,7 @@ impl SourcePointHistoryKey {
 
 fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
     let SourceAnalysisEntry {
+        analyser_source_settings,
         source_point_entry: _,
         metadata_context,
         hosted_execution_context,
@@ -201,6 +205,7 @@ fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
         native_compilation,
     } = entry;
     SourceAnalysisEntry {
+        analyser_source_settings: analyser_source_settings.clone(),
         source_point_entry: None,
         metadata_context: metadata_context.clone(),
         hosted_execution_context: *hosted_execution_context,
@@ -729,6 +734,17 @@ mod tests {
         changed = key.clone();
         changed.config.strict_quoting = !changed.config.strict_quoting;
         assert!(lookup(&changed).is_none());
+        let foreign_settings = crate::analyser::Analyser::new()
+            .with_extra_commands(std::collections::HashSet::from(["foreign_hint".to_owned()]))
+            .source_compilation_settings();
+        changed = key.clone();
+        changed.entry.analyser_source_settings = Some(foreign_settings);
+        assert_ne!(
+            key.entry.analyser_source_settings,
+            changed.entry.analyser_source_settings
+        );
+        assert!(lookup(&changed).is_none());
+        assert!(!SourcePointHistoryKey::new(&key).matches(&changed));
         let foreign = source_point_for_cache();
         changed = key.clone();
         changed.entry.source_point_entry = Some(foreign);
