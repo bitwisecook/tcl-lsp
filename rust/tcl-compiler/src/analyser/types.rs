@@ -5789,6 +5789,7 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     #[test]
     fn substituted_heads_and_consumed_names_retain_original_lookup() {
         // naming.source.original-command-lookup
+        // docs/design/analysis/name-resolution-proofs/source-original-command-lookup.md
         // tclsh 8.6.18 / 9.0.4: each `greet` below runs (or, for `info body`,
         // names) the procedure declared at offset 0.
         let declaration = "proc greet {} { return hi }\n";
@@ -5857,7 +5858,8 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
 
     #[test]
     fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
-        // naming.source.closed-leaf-handler-completion
+        // naming.source.original-command-lookup
+        // docs/design/analysis/name-resolution-proofs/source-original-command-lookup.md
         // The completed command world is the world after the document runs
         // to normal completion: a command that may raise (`puts`, `list`
         // arity) only adds a path that never reaches it. `exit` or an

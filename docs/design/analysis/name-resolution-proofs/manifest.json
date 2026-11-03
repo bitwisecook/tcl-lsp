@@ -1124721,6 +1124721,124 @@
       }
     },
     {
+      "id": "naming.source.original-command-lookup",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-command-lookup.md",
+      "problem_statement": "Readonly source consumers must join a command use to its original declaration without treating reporting names or a possible root completion as proof of native dispatch.",
+      "question": "How are original command lookup and declaration joins retained in source analysis, independently of a modeled completed command world?",
+      "conclusion": "`invocation_targets_declaration_in` requires current consumer and declaration source images, original lookup and name-input agreement, a reference matching the original invocation site, and a selected definition allocation whose original declaration site matches. Direct joins also require the original publication slot and name policy; following a retained link is an explicit separate choice. `original_completed_command_world` separately projects a modeled whole-root Normal publication ledger only from its retained completed state, and withholds it for an unknown entry, unavailable world, observed source step or source execution. An original lookup can remain retained in a procedure body independently of whether the completed world is available. These source carriers supply no native dispatch, entered frame, executed completion or edit authority.",
+      "scope": "Readonly original source lookup/declaration joins and modeled root command-world projection. Two fixed source-defined controls cover substituted command heads, consumed command names, selected world-available and unavailable shapes, and retained body lookups under Tcl 8.6 and 9.0 analysis. Their bindings attach no execution result. Provider behavior, callback execution and physical command-table state remain separate obligations.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No appliance execution for this source contract.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/types.rs",
+          "selector": "substituted_heads_and_consumed_names_retain_original_lookup",
+          "assertion": "For fixed direct, nested substitution, quoted and info-body source shapes in Tcl 8.6 and 9.0, source graph declaration joins are counted against the original greet declaration. This source-defined control has no attached execution or native-provider result.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/types.rs",
+          "selector": "completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups",
+          "assertion": "Fixed Tcl 8.6 and 9.0 source forms distinguish expected modeled completed-world availability from separately retained original body lookups, including unknown commands, exit and callback or observer registrations. This source-defined control has no attached execution or native-provider result.",
+          "status": "linked"
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/source_graph.rs",
+          "symbol": "invocation_targets_declaration_in",
+          "purpose": "Require current original invocation and declaration source owners before comparing retained command references."
+        },
+        {
+          "path": "rust/tcl-compiler/src/source_graph.rs",
+          "symbol": "reference_matches_declaration",
+          "purpose": "Compare the selected definition allocation’s declaration site, with direct slot and policy checks unless a caller explicitly follows links."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "symbol": "original_completed_command_world",
+          "purpose": "Project the separately retained conditional completed-root source publication ledger only when its state is available."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Inspected current source and linked control bodies only; no executable replay, test execution or provider execution is attached."
+      }
+    },
+    {
       "id": "naming.source.original-command-name-publications",
       "kind": "implementation-contract",
       "document": "docs/design/analysis/name-resolution-proofs/original-command-name-publications.md",
