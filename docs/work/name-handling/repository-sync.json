@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-11-03T17:20:47.386470+00:00",
+  "branch": "work",
+  "head_before_status_commit": "df4aae6da2d4a3ddc2e2772ceb829c74e02a211d",
+  "remote_head_at_fetch": "df4aae6da2d4a3ddc2e2772ceb829c74e02a211d",
+  "sync": "no new remote commits",
+  "release_ready": false,
+  "required_gates": "failed or incomplete; see timestamped manual snapshot",
+  "manual_status": "current-state.md",
+  "manual_status_sha256": "73c0b2904670a64718a32d4288d106363ad5ece9c8894f49e99f79301108b220",
+  "working_tree_at_check": [],
+  "ci_run": 41669761498,
+  "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
+  "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
+}
