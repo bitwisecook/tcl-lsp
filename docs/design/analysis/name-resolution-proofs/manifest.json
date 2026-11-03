@@ -825868,6 +825868,30 @@
           "selector": "readonly_member_reports_keep_source_spans_out_of_edit_inventories",
           "assertion": "Authored source/API control readonly_member_reports_keep_source_spans_out_of_edit_inventories is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+          "selector": "readonly_self_selectors_follow_nested_potential_evaluation_bodies",
+          "assertion": "For the fixed Tcl 8.6 and 9.0 source examples, the readonly partial catalogue returns the original selector span within nested potential script bodies. This source-defined control has no attached execution or native-provider result.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "selector": "readonly_method_census_completes_only_proven_self_dispatch_shapes",
+          "assertion": "For three fixed Tcl 8.6 source shapes, the readonly report expects complete source-occurrence coverage with zero, two, and one selector spans respectively. This source-defined control has no attached execution or native-provider result.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "selector": "readonly_member_census_fails_closed_for_deferred_and_unproven_dispatch",
+          "assertion": "Fixed callback, dynamic, helper, member and object-dispatch source examples expect partial coverage; selected Tcl 9 property examples also expect partial coverage. This source-defined control has no attached execution or native-provider result.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "selector": "readonly_member_census_stays_partial_for_other_class_families",
+          "assertion": "For fixed Snit source in Tcl 8.5 and 8.6, the control requires at least one method identity and rejects a complete source-occurrence census for every checked identity. This source-defined control has no attached execution or native-provider result.",
+          "status": "linked"
         }
       ],
       "owners": [
@@ -1123392,6 +1123416,12 @@
           "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
           "selector": "c_source_namespace_class_declarations_retain_original_body_and_conditional_scope",
           "assertion": "Authored source/API control c_source_namespace_class_declarations_retain_original_body_and_conditional_scope is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+          "selector": "c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutation",
+          "assertion": "For two unentered TclOO definition-body forms in Tcl 8.6 and 9.0, the later namespace class source card retains its canonical qualified name and the UnknownEarlierMutation obligation. This source-defined control has no attached execution or native-provider result.",
           "status": "linked"
         }
       ],

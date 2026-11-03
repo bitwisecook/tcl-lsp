@@ -601,6 +601,7 @@ mod tests {
     #[test]
     fn readonly_self_selectors_follow_nested_potential_evaluation_bodies() {
         // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
         // tclsh 8.6.18 / 9.0.4: every body below dispatches `my ping` in the
         // method frame (`get a` reaches `ping` once for each form).
         let mut failures = Vec::new();
