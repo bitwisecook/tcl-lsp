@@ -37,7 +37,7 @@ tcl-host-native = { path = "../tcl-host-native" }
 tcl-test-support = { path = "../tcl-test-support" }
 clap = { version = "4", features = ["derive", "wrap_help"] }
 anyhow = "1"
-pulldown-cmark = { version = "=0.13.4", default-features = false }
+pulldown-cmark = { version = "=0.13.6", default-features = false }
 jsonc-parser = "=0.34.0"
 toml = "1.1.6"
 cargo-config2 = "0.1.45"
