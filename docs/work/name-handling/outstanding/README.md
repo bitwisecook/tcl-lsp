@@ -1,10 +1,10 @@
 # Outstanding LSP release work
 
-Updated 3 November 2026, 21:34 GMT. Work is active. Root owns publication and the [current snapshot](../current-state.md). Historical role handoffs do not certify current execution or ownership.
+Updated 03 November 2026, 22:15 UTC. Work is active. Root owns publication and the [current snapshot](../current-state.md). Historical role handoffs do not certify current execution or ownership.
 
 | Current owner | Work | Open acceptance |
 | --- | --- | --- |
-| root | Review/adoption, shared current-source builds, truthful state, five-minute fetch/push, CI | Current Core cohort is 27/31; three additional hover controls fail. Complete E2E, hosts, performance, packaging and required gates remain open. |
+| root | Review/adoption, shared current-source builds, truthful state, five-minute fetch/push, CI | Current Core cohort is 29/31; seven of eight additional controls pass. Post-unknown negative/mixed-frame fixtures need producer review; ordinary Logical rename remains refused. Complete E2E, hosts, performance, packaging and required gates remain open. |
 | integration_resume (Sol 6.1) | Typed special-variable source-reference hover; nested SpecTcl Unicode routing; real protocol acceptance | Existing adopted hover code still fails current controls. Fresh native server and candidate execution pending. |
 | logical_rename_resume (Terra 6.1) | Actual Logical uncertainty diagnosis and bounded authored-source correspondence | Execution-complete rename remains refused. Conditional source edits require their own proof and truthful user-facing contract. |
 | factory_resume (Terra 6.1) | Genuine project header census and foreign factory body-owner transport | Preserve empty-map blockers, distinct document identities, exact currentness and stable repeated sync without oracle feedback. Scratch implementation unvalidated. |
