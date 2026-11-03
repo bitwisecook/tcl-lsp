@@ -1223,6 +1223,16 @@ fn original_method_candidate_items_with_own_at(
     use tcl_compiler::analyser::class_hierarchy::original_metadata::original_instance_metadata_order;
     use tcl_compiler::analyser::types::MemberSide;
     let providers = original_instance_metadata_order(analysis, root).unwrap_or_else(|| vec![root]);
+    if side == MemberSide::Instance
+        && providers.iter().any(|provider| {
+            !provider
+                .metadata()
+                .original_properties
+                .side_matches_producer_input(side, analysis)
+        })
+    {
+        return Vec::new();
+    }
     let mut names = Vec::<(
         tcl_core_types::NameBytes,
         tcl_syntax::naming::NamePolicyProtocol,
@@ -3237,7 +3247,10 @@ fn extend_original_property_method_items(
 ) {
     use tcl_compiler::analyser::types::MemberSide;
     if side == MemberSide::Instance
-        && let Some(properties) = provider.metadata().original_properties.properties(side)
+        && let Some(properties) = provider
+            .metadata()
+            .original_properties
+            .properties_for_analysis(side, analysis)
     {
         for property in properties {
             let key = property.declaration().name_input();
@@ -8206,5 +8219,42 @@ mod logical_scoped_environment_tests {
                 env: &tcl_registry::scoped::REPORT_DEFSTYLE_ENV,
             });
         assert!(environment(source, &analysis, source.len()).is_none());
+    }
+}
+
+#[cfg(test)]
+mod property_producer_completion_tests {
+    use super::original_method_candidate_items;
+    use tcl_compiler::analyser::types::MemberSide;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    #[test]
+    fn foreign_property_ledger_terminates_method_candidates() {
+        let source = "oo::configurable create C {property size; method own {} {}}";
+        let current = Analyser::new().analyse(source, "tcl9.0");
+        let class = current.original_class_declarations().next().unwrap();
+        assert!(
+            !original_method_candidate_items(&current, class, "", MemberSide::Instance).is_empty()
+        );
+        let input = current.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let distinct = std::sync::Arc::new(
+            context.with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        let other_input = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            distinct,
+            input.lexer_config(),
+        );
+        let other = Analyser::new()
+            .with_resolved_input(other_input)
+            .analyse(source, "tcl9.0");
+        let mut mixed = current.clone();
+        mixed.original_class_metadata = other.original_class_metadata;
+        let class = mixed.original_class_declarations().next().unwrap();
+        assert!(
+            original_method_candidate_items(&mixed, class, "", MemberSide::Instance).is_empty()
+        );
     }
 }

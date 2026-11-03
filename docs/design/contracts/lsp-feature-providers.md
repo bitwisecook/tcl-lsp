@@ -25,6 +25,9 @@ members or relations.
 
 Property declaration hover uses metadata issued for the document's current
 resolved analysis input and labels the declaration as conditional on execution.
+Other property consumers also check the producer input and source origin.
+Effective-property folds refuse a side containing foreign metadata before
+folding, rather than treating the refused rows as absent.
 
 ## Decision rules / contracts
 

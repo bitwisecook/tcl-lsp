@@ -82,15 +82,21 @@ fn candidate_items(
         return Some(Vec::new());
     }
     let providers = tcl_compiler::analyser::class_hierarchy::original_metadata::original_instance_metadata_order(analysis, root)?;
+    if providers.iter().any(|provider| {
+        !provider
+            .metadata()
+            .original_properties
+            .side_matches_producer_input(MemberSide::Instance, analysis)
+    }) {
+        return Some(Vec::new());
+    }
     let mut seen_names = Vec::new();
     let mut seen_options = Vec::new();
     let mut items = Vec::new();
     let mut recognised = false;
     for provider in providers {
-        let properties = provider
-            .metadata()
-            .original_properties
-            .properties(MemberSide::Instance)?;
+        let ledger = &provider.metadata().original_properties;
+        let properties = ledger.properties(MemberSide::Instance)?;
         for property in properties {
             let input = property.original_name_input();
             let name = (NameBytes::from(input.bytes()), input.policy());
@@ -326,6 +332,32 @@ mod tests {
         .unwrap();
         assert_eq!(read.len(), 2, "{read:?}");
         assert_eq!(write.len(), 2, "{write:?}");
+        let mut mixed = analysis.clone();
+        mixed.original_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.1")
+            .original_class_metadata;
+        let foreign_root = mixed.original_class_declarations().next().unwrap();
+        assert!(
+            foreign_root
+                .metadata()
+                .original_properties
+                .declarations()
+                .next()
+                .is_some()
+        );
+        assert!(
+            candidate_items(
+                source,
+                &mixed,
+                foreign_root,
+                &selector,
+                (0, 0),
+                (0, 1),
+                (None, "")
+            )
+            .expect("foreign property context must remain terminal")
+            .is_empty()
+        );
         let option_bytes =
             |item: &CompletionItem| original_property_option_bytes(item, config, policy);
         let read_bytes: Vec<_> = read.iter().map(option_bytes).collect();

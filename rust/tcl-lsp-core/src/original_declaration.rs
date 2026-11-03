@@ -348,6 +348,9 @@ impl OriginalDeclarationIdentity {
             return None;
         };
         let class_identity = Self::for_class(uri, source, analysis, class)?;
+        if !property.matches_producer_input(analysis) {
+            return None;
+        }
         if !class
             .metadata()
             .original_properties
@@ -3171,5 +3174,43 @@ mod source_view_publication_tests {
             changed["schema"] = serde_json::json!(schema);
             assert!(serde_json::from_value::<OriginalDeclarationHandle>(changed).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod property_producer_context_tests {
+    use super::OriginalDeclarationIdentity;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn property_identity_refuses_same_source_foreign_producer() {
+        let source = "oo::configurable create C {property size}";
+        let current = Analyser::new().analyse(source, "tcl9.0");
+        let class = current.original_class_declarations().next().unwrap();
+        let property = class
+            .metadata()
+            .original_properties
+            .declarations()
+            .next()
+            .unwrap();
+        assert!(
+            OriginalDeclarationIdentity::for_property("", source, &current, class, property)
+                .is_some()
+        );
+        let mut foreign = current.clone();
+        foreign.original_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.1")
+            .original_class_metadata;
+        let class = foreign.original_class_declarations().next().unwrap();
+        let property = class
+            .metadata()
+            .original_properties
+            .declarations()
+            .next()
+            .unwrap();
+        assert!(
+            OriginalDeclarationIdentity::for_property("", source, &foreign, class, property)
+                .is_none()
+        );
     }
 }

@@ -157,6 +157,14 @@ pub fn original_source_self_property_references(
         .source_bindings_ref()
         .original_source_transition_advice_tape(&context)?;
     let records = analysis.original_class_declarations().collect::<Vec<_>>();
+    if records.iter().any(|class| {
+        !class
+            .metadata()
+            .original_properties
+            .side_matches_producer_input(MemberSide::Instance, analysis)
+    }) {
+        return None;
+    }
     let occupied = analysis
         .original_procedure_declarations()
         .map(SourceDeclarationMetadata::name)
@@ -199,7 +207,7 @@ fn capture_property(
         let mut properties = class
             .metadata()
             .original_properties
-            .properties(MemberSide::Instance)?
+            .properties_for_analysis(MemberSide::Instance, analysis)?
             .into_iter()
             .filter(|property| {
                 property.original_name_input().policy() == selector.policy()
@@ -712,6 +720,49 @@ mod tests {
             .analyse("puts foreign", "tcl9.0")
             .resolved_input;
         assert!(original_source_self_property_references(source, &foreign).is_none());
+    }
+
+    #[test]
+    fn property_reference_census_refuses_foreign_producer_rows() {
+        let source = "oo::class create C {property size; method body {} {my size}}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        assert_eq!(
+            original_source_self_property_references(source, &analysis)
+                .unwrap()
+                .len(),
+            1
+        );
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let nominal = Analyser::new().analyse("puts foreign", "tcl9.0");
+        assert_eq!(nominal.resolved_input.as_ref(), Some(input));
+        let context = input.context_registry();
+        let distinct = std::sync::Arc::new(
+            context.with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        let other_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            distinct,
+            input.lexer_config(),
+        );
+        assert_ne!(&other_input, input);
+        let other = Analyser::new()
+            .with_resolved_input(other_input)
+            .analyse(source, "tcl9.0");
+        let mut foreign_rows = analysis.clone();
+        foreign_rows.original_class_metadata = other.original_class_metadata;
+        assert!(
+            foreign_rows
+                .original_class_declarations()
+                .next()
+                .unwrap()
+                .metadata()
+                .original_properties
+                .declarations()
+                .next()
+                .is_some()
+        );
+        assert!(original_source_self_property_references(source, &foreign_rows).is_none());
     }
 }
 

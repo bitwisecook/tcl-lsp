@@ -349,7 +349,7 @@ fn extend_class_outline(
                     .any(|span| span_to_range(source, index, *span) == child.selection_range)
         });
         let mut seen = FxHashSet::default();
-        extend_class_source_members(metadata, position, &mut children, &mut seen);
+        extend_class_source_members(analysis, metadata, position, &mut children, &mut seen);
         let detail = super::class_detail(metadata);
         nodes.push(Node {
             symbol: DocumentSymbol {
@@ -367,6 +367,7 @@ fn extend_class_outline(
 }
 
 fn extend_class_source_members(
+    analysis: &AnalysisResult,
     metadata: &tcl_compiler::analyser::ClassDef,
     position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
     children: &mut Vec<DocumentSymbol>,
@@ -418,7 +419,10 @@ fn extend_class_source_members(
                 children: Vec::new(),
             });
         }
-        if let Some(properties) = metadata.original_properties.properties(side) {
+        if let Some(properties) = metadata
+            .original_properties
+            .properties_for_analysis(side, analysis)
+        {
             for property in properties {
                 let original = property.declaration().name_input();
                 if original.source_image() != image || original.lexer_config() != config {
@@ -827,6 +831,28 @@ mod tests {
             .collect::<Vec<_>>();
         kinds.sort_unstable();
         assert_eq!(kinds, ["readwrite", "writable"]);
+        let mut foreign = analysis.clone();
+        foreign.original_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.1")
+            .original_class_metadata;
+        assert!(
+            foreign
+                .original_class_declarations()
+                .next()
+                .unwrap()
+                .metadata()
+                .original_properties
+                .declarations()
+                .next()
+                .is_some()
+        );
+        let symbols = super::super::document_symbols_from_analysis(source, &foreign);
+        let mut flat = Vec::new();
+        collect(&symbols, &mut flat);
+        assert!(
+            flat.iter()
+                .all(|symbol| symbol.kind != SymbolKind::Property)
+        );
     }
 
     #[test]

@@ -61,6 +61,9 @@ impl OriginalTokenRoles {
                 roles.member(&image, config, member);
             }
             for property in declaration.metadata().original_properties.declarations() {
+                if !property.matches_producer_input(analysis) {
+                    continue;
+                }
                 roles.name(
                     &image,
                     property.declaration().name_input(),
@@ -73,6 +76,9 @@ impl OriginalTokenRoles {
                 roles.member(&image, config, member);
             }
             for property in configuration.properties().declarations() {
+                if !property.matches_producer_input(analysis) {
+                    continue;
+                }
                 roles.name(
                     &image,
                     property.declaration().name_input(),
@@ -85,6 +91,9 @@ impl OriginalTokenRoles {
                 roles.member(&image, config, member);
             }
             for property in configuration.properties().declarations() {
+                if !property.matches_producer_input(analysis) {
+                    continue;
+                }
                 roles.name(
                     &image,
                     property.declaration().name_input(),
@@ -1589,6 +1598,24 @@ pub(super) fn emit_expanded_role_extents(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_property_roles_refuse_foreign_producer_input() {
+        let source = "oo::configurable create C {property p\\uD800}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let offset = u32::try_from(source.find("p\\uD800").unwrap()).unwrap();
+        let roles = OriginalTokenRoles::capture(source, Some(&analysis));
+        assert!(matches!(
+            roles.names.get(&offset),
+            Some((_, ArgOverride::MemberName))
+        ));
+        let mut foreign = analysis.clone();
+        foreign.original_class_metadata = Analyser::new()
+            .analyse(source, "tcl9.1")
+            .original_class_metadata;
+        let roles = OriginalTokenRoles::capture(source, Some(&foreign));
+        assert!(!roles.names.contains_key(&offset));
+    }
 
     #[test]
     fn counted_initial_method_roles_keep_exact_bytes_sides_and_source_context() {

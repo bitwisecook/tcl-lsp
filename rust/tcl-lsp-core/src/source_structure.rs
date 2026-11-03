@@ -1978,6 +1978,7 @@ fn declared_bodies(
             class.metadata().original_members.declarations(),
             class.metadata().original_special_members.declarations(),
             class.metadata().original_properties.declarations(),
+            analysis,
             image,
             config,
             &mut bodies,
@@ -1989,6 +1990,7 @@ fn declared_bodies(
             row.members().declarations(),
             row.special_members().declarations(),
             row.properties().declarations(),
+            analysis,
             image,
             config,
             &mut bodies,
@@ -2000,6 +2002,7 @@ fn declared_bodies(
             row.members().declarations(),
             row.special_members().declarations(),
             row.properties().declarations(),
+            analysis,
             image,
             config,
             &mut bodies,
@@ -2067,6 +2070,7 @@ fn retain_member_bodies<'a>(
         Item = &'a tcl_compiler::analyser::types::OriginalSourceSpecialMemberMetadata,
     >,
     properties: impl Iterator<Item = &'a tcl_compiler::analyser::types::OriginalSourcePropertyMetadata>,
+    analysis: &AnalysisResult,
     image: &SourceImage,
     config: LexerConfig,
     bodies: &mut Vec<BodyGeometry>,
@@ -2098,6 +2102,7 @@ fn retain_member_bodies<'a>(
         }
     }
     for property in properties {
+        property.matches_producer_input(analysis).then_some(())?;
         let declaration = property.declaration();
         (declaration.site().source.source_image() == image
             && declaration.name_input().lexer_config() == config)
