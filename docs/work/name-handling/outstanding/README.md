@@ -5,7 +5,7 @@ Updated 3 November 2026, 19:46 GMT. Work is active. Root owns publication and th
 | Current role | Active responsibility | Open acceptance |
 | --- | --- | --- |
 | root | Reviewed integration, truthful state, five-minute sync/push, CI and shared merged validation | Registry controls; complete native E2E, editor/browser/WASI hosts, performance, packaging, required gates and reduced release PR |
-| optimiser_final | O101 producer settings, factory intent and optional project evidence | Final label-cohort server/Core/protocol reruns, source seal and adoption |
+| optimiser_final | O101 producer settings, factory intent and optional project evidence committed as `a9a163ff7` | Focused controls pass; unsuppressed lint and final shared/host gates remain open |
 | integration | Loop variable completion and real-server applied-edit validation; editor host fixes | Extracted loop draft needs current lint/unit/protocol results; real editor hosts remain open |
 | factory_final | Genuine factory source advice is committed; Logical formal and Native foreign-header work remains draft | Combined controls, authenticated foreign body/relation lineage and five broader server factory cases |
 | cache_final | Focused rename input/provider custody; durable index recovery remains unfinished | Draft is uncompiled with known lock/ingress/attempt gaps; actual source/index recovery and publisher/reader lifecycle integration |
