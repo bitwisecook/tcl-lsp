@@ -1,22 +1,14 @@
 {
-  "checked_at": "2026-11-03T22:42:52.039939+00:00",
+  "checked_at": "2026-11-03T23:02:51.896067+00:00",
   "branch": "work",
-  "head_before_status_commit": "cec5dc259f4ed623e3e7e1552f558fbcb2a31432",
-  "remote_head_at_fetch": "cec5dc259f4ed623e3e7e1552f558fbcb2a31432",
+  "head_before_status_commit": "ec079dd0666b28f93209b8eea98d1f86e07f6600",
+  "remote_head_at_fetch": "ec079dd0666b28f93209b8eea98d1f86e07f6600",
   "sync": "no new remote commits",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "c998de33d515fa93763bda2f7d829f9115ca23bf5c350990e6bf246d41118c62",
-  "working_tree_at_check": [
-    " M docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md",
-    " M docs/design/contracts/package-loading.md",
-    " M rust/tcl-lsp-core/src/hover.rs",
-    " M rust/tcl-lsp-core/src/hover/original_registry.rs",
-    " M rust/tcl-lsp-core/src/package_resolver/original_names.rs",
-    " M rust/tcl-lsp-core/src/variable_symbol.rs",
-    "?? rust/tcl-lsp-core/src/package_resolver/original_names/advertisement_eligibility.rs"
-  ],
+  "manual_status_sha256": "1dd348a61ff91c8c47129f8ee779700e8009e0bd9cdf0c41b75d3e7536097469",
+  "working_tree_at_check": [],
   "ci_run": 41669761498,
   "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
