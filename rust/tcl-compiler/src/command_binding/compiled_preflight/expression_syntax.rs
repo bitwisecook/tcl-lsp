@@ -56,7 +56,7 @@ fn exact_child(child: &SourceExpressionSyntaxChild, site: &CommandAllocationSite
     let Some(program) = expression_program(&child.preparation) else {
         return false;
     };
-    let Some(scripts) = program.c86_eager_compiler_scripts() else {
+    let Some(scripts) = program.c_eager_compiler_scripts() else {
         return false;
     };
     let image = child.preparation.compilation_site.source.source_image();
@@ -230,7 +230,7 @@ impl CompilerTraversal<'_> {
                 .structured
                 .as_ref()
                 .and_then(|preparation| expression_program(preparation))
-                .is_some_and(|program| program.c86_eager_compiler_scripts().is_none())
+                .is_some_and(|program| program.c_eager_compiler_scripts().is_none())
         }) {
             return None;
         }
@@ -249,7 +249,7 @@ impl CompilerTraversal<'_> {
         context: SourceExecutionContext<'_>,
     ) {
         let Some(scripts) = program
-            .c86_eager_compiler_scripts()
+            .c_eager_compiler_scripts()
             .filter(|scripts| !scripts.is_empty())
         else {
             return;

@@ -412,16 +412,25 @@ pub fn native_expression_boolean_word84(bytes: &[u8]) -> bool {
 }
 
 impl NativeExpressionProgram {
-    /// C8.6 eager arithmetic compiler scripts from this exact retained byte tree.
-    /// This correspondence supplies only source visitation. The caller must
-    /// retain the selected original Inline Expr recipe and Native emission
-    /// policy; it grants no admission, frame, handler or Normal completion.
-    /// Lazy, function, string, indexed-variable and recovery shapes abstain.
+    /// Tcl eager arithmetic compiler scripts from this exact retained byte tree.
+    /// This source-visit correspondence requires the caller's original Inline
+    /// Expr preparation and per-version Native emission policy; it grants no
+    /// handler entry, frame, or Normal completion. For newly admitted releases,
+    /// only ASCII and short digit-only literal spellings are covered. Lazy,
+    /// function, string, indexed-variable, and recovery shapes abstain.
     #[must_use]
-    pub fn c86_eager_compiler_scripts(&self) -> Option<Vec<Span>> {
+    pub fn c_eager_compiler_scripts(&self) -> Option<Vec<Span>> {
+        use tcl_dialect::TclVersion;
         use tcl_syntax::expr::parser::NativeExprSyntax;
         use tcl_syntax::expr::{BinOp, ExprNode};
-        if self.context.native_syntax != NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_6) {
+        let NativeExprSyntax::Tcl(version) = self.context.native_syntax else {
+            return None;
+        };
+        if !matches!(
+            version,
+            TclVersion::V8_5 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
+        ) || (version != TclVersion::V8_6 && !self.source.is_ascii())
+        {
             return None;
         }
         let NativeExpressionTree::Parsed(tree) = &self.tree else {
@@ -430,7 +439,13 @@ impl NativeExpressionProgram {
         let mut pending = vec![tree];
         while let Some(node) = pending.pop() {
             match node {
-                ExprNode::Literal { .. } | ExprNode::Command { .. } => {}
+                ExprNode::Literal { text, .. }
+                    if version == TclVersion::V8_6
+                        || (!text.is_empty()
+                            && text.len() <= 9
+                            && (text.len() == 1 || text[0] != b'0')
+                            && text.iter().all(u8::is_ascii_digit)) => {}
+                ExprNode::Command { .. } => {}
                 ExprNode::Var { text, .. } if !text.contains(&b'(') && !text.contains(&b'[') => {}
                 ExprNode::Binary {
                     op: BinOp::Add | BinOp::Sub | BinOp::Mul,
@@ -444,6 +459,14 @@ impl NativeExpressionProgram {
             }
         }
         original_expression_scripts(tree, &self.source, &self.context)
+    }
+
+    /// Existing C8.6-only source visitation API.
+    #[must_use]
+    pub fn c86_eager_compiler_scripts(&self) -> Option<Vec<Span>> {
+        (self.context.native_syntax
+            == tcl_syntax::expr::parser::NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_6))
+        .then(|| self.c_eager_compiler_scripts())?
     }
 
     /// Select only the original compiler's name operation. Modern C function
@@ -1207,7 +1230,75 @@ mod tests {
         }
     }
 
+    #[test]
+    fn c_eager_source_visits_are_release_scoped_and_refuse_unproved_shapes() {
+        use tcl_dialect::TclVersion;
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let program = prepare("$n * [fact [expr {$n - 1}]]", version);
+            let scripts = program
+                .c_eager_compiler_scripts()
+                .expect("eager arithmetic source visit");
+            assert_eq!(scripts.len(), 1, "{version:?}");
+            assert_eq!(
+                &program.source[scripts[0].as_range()],
+                b"[fact [expr {$n - 1}]]"
+            );
+            let product = prepare("(999999999 * 999999999 * 999999999) + [expr {1}]", version);
+            assert_eq!(
+                product.c_eager_compiler_scripts().unwrap().len(),
+                1,
+                "{version:?}"
+            );
+            for expression in [
+                "08 + [expr {1}]",
+                "09 + [expr {1}]",
+                "$n && [expr {1}]",
+                "$n ? [expr {1}] : 2",
+                "abs([expr {1}])",
+                "1 + $a([expr {1}])",
+                "1 +",
+                "(1 / 0) + [expr {1}]",
+            ] {
+                assert!(
+                    try_prepare(expression, version)
+                        .is_none_or(|program| program.c_eager_compiler_scripts().is_none()),
+                    "{version:?}: {expression}"
+                );
+            }
+        }
+        assert!(
+            prepare("1 + [expr {3 + 4}]", TclVersion::V8_4)
+                .c_eager_compiler_scripts()
+                .is_none()
+        );
+        for version in [TclVersion::V8_5, TclVersion::V9_0, TclVersion::V9_1] {
+            for expression in [
+                "1.5 + [expr {1}]",
+                "9999999999 + [expr {1}]",
+                "$café + [expr {1}]",
+            ] {
+                assert!(
+                    try_prepare(expression, version)
+                        .is_none_or(|program| program.c_eager_compiler_scripts().is_none()),
+                    "{version:?}: {expression}"
+                );
+            }
+        }
+    }
+
     fn prepare(expression: &str, version: tcl_dialect::TclVersion) -> NativeExpressionProgram {
+        try_prepare(expression, version).expect("expected a prepared expression")
+    }
+
+    fn try_prepare(
+        expression: &str,
+        version: tcl_dialect::TclVersion,
+    ) -> Option<NativeExpressionProgram> {
         let source = format!("expr {{{expression}}}");
         let image = tcl_lexer::SourceImage::native(source.as_bytes());
         let dialect = crate::InvocationDialect::for_version(version);
@@ -1225,9 +1316,8 @@ mod tests {
         )
         .unwrap();
         native_expression_instruction(&words, 1, dialect)
-            .unwrap()
+            .ok()?
             .program
-            .unwrap()
     }
 
     #[test]

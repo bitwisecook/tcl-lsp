@@ -905,3 +905,35 @@ fn native_word_operators_remove_safe_gaps_without_changing_tokens_or_data() {
         }
     }
 }
+
+#[test]
+fn source_expression_gaps_use_the_actual_eager_compiler_for_each_supported_release() {
+    let source = "puts [expr {3 + 4 * 2}]\nproc fact {n} {\nif {$n <= 1} { return 1 }\nreturn [expr { $n * [ fact   [expr { $n - 1 }] ] }]\n}\nputs [fact 5]\n";
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let output = min_dialect(source, dialect);
+        assert!(
+            output.contains("expr {$n*[fact [expr {$n-1}]]}"),
+            "{dialect}: {output}"
+        );
+        assert_eq!(
+            min_dialect(&output, dialect),
+            output,
+            "{dialect}: idempotence"
+        );
+        for prefix in [
+            "proc expr args {return $args}; ",
+            "proc callback args {}; trace add execution expr enter callback; ",
+        ] {
+            let observed = format!("{prefix}{source}");
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(&observed, dialect);
+            assert!(
+                analysis
+                    .original_procedure_declarations()
+                    .any(|row| row.name_input().bytes() == b"fact"),
+                "{dialect}: missing fact source owner"
+            );
+            let output = min_dialect(&observed, dialect);
+            assert!(output.contains("$n - 1"), "{dialect}: {prefix}: {output}");
+        }
+    }
+}
