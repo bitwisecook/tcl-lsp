@@ -1,14 +1,22 @@
 {
-  "checked_at": "2026-11-03T18:30:54.666846+00:00",
+  "checked_at": "2026-11-03T19:03:02.781389+00:00",
   "branch": "work",
-  "head_before_status_commit": "a17c61af2b7a476ce487feda02767331bdc1646c",
-  "remote_head_at_fetch": "a17c61af2b7a476ce487feda02767331bdc1646c",
-  "sync": "no new remote commits",
+  "head_before_status_commit": "4287b9b32671b6701f86e119c6c629b3c42648dc",
+  "remote_head_at_fetch": "7b7edf64076831bf96745537c6792d6b0946e208",
+  "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "4fee238f213ffb6d1d031910bff3a3364199e1bb758550a6fd2933e8bee48a76",
-  "working_tree_at_check": [],
+  "manual_status_sha256": "b7831af23a978b977f45eea386908966a7242c5559e1c78396f66122da003cab",
+  "working_tree_at_check": [
+    " M docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md",
+    " M docs/design/analysis/name-resolution-proofs/manifest.json",
+    " M docs/design/contracts/tcloo-implementation.md",
+    " M rust/tcl-compiler/src/analyser/handlers.rs",
+    " M rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+    " M rust/tcl-syntax/src/expr/parser.rs",
+    "?? docs/design/analysis/name-resolution-proofs/rust-validation/expression-preflight-20261103/"
+  ],
   "ci_run": 41669761498,
   "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
