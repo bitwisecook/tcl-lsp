@@ -889441,15 +889441,15 @@
           "id": "naming-expression-selected-reference-root-ast.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/ast.rs",
-          "sha256": "413ac4dfb166e72b5dab1ae7db62c2a65f30e66afd82b8d7bbf9810904bce4b7",
-          "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
+          "sha256": "aa5907213e2792289837dade230ef1432540c8c290c9a1f77f7186787ae5eeb4",
+          "description": "Raw analytical reads preserve lexical token/source span correspondence before selecting the original variable root. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution."
         },
         {
           "id": "naming-expression-selected-reference-root-checked.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/checked.rs",
-          "sha256": "c15fc517688dbabac8152db03191ab52131736a6ebfcc6fb72a8c16a621a7be7",
-          "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
+          "sha256": "6f952010b214c05f1f44620927e1929e3cad05ef17b80fa822a607d0f5301d60",
+          "description": "Checked byte-source parser carries independently selected context and root source bytes through checked parsing. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution."
         },
         {
           "id": "naming-expression-selected-reference-root-jim_function_tree.rs",
@@ -889462,8 +889462,8 @@
           "id": "naming-expression-selected-reference-root-parser.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/parser.rs",
-          "sha256": "236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40",
-          "description": "This implementation entry retains its recorded earlier source digest; the separate software receipt records one corrected current-source control. No Native provider result follows."
+          "sha256": "bafc27f5487b8b4f41b2aa564fcda0a12b13dc81cf4c61afc4428defbcf7dd80",
+          "description": "Permissive Pratt profile, grammar and context entry points retain selected root handling; fixed Tcl 8.4 profile preflight remains separate. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution."
         },
         {
           "id": "naming-expression-selected-reference-root-naming.rs",
@@ -889485,6 +889485,13 @@
           "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-naming-20261103/receipt.json",
           "sha256": "1c2318b1facfaaec3af7780fd8b41c3119fb230d1ed1692cc59b95141679eef5",
           "description": "Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows."
+        },
+        {
+          "id": "expression-topology-fixed-software-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/expression-topology-20261103/receipt.json",
+          "sha256": "c646615a794fcdfd4a985fa291f6f7332534ccb90f857d8cd9ab870d4b705e3c",
+          "description": "Separate current-owned Syntax software receipt for six named raw-read and substitution/topology controls; only the relevant named cases apply to this proof. No Native/provider, compiler/editor, consumer or whole-proof outcome follows; reused dependency artifacts and external tools/cache are outside custody."
         }
       ],
       "source_anchors": [],
@@ -892277,7 +892284,7 @@
       "problem_statement": "A retained expression may use Jim variable-name grammar or Tcl 9 comments while its native expression operator syntax comes from another selected context. Reconstructing the lexer from a baseline profile shortens Unicode roots or treats inert comment brackets as commands. Array indices also need the original scanner boundaries, including empty indices; an equal foreign byte buffer supplies no original geometry.",
       "question": "Does the checked expression substitution bridge retain the complete supplied grammar and original lexical boundaries without claiming lazy-branch execution or reads inside a command script?",
       "conclusion": "Both substitution bridges retain the complete ExprParseContext lexer grammar and use scan_var_ref for original index boundaries. Native checked_expression_substitutions requires its separate NativeSyntax parse; NativeExprSyntax::Unknown remains Unsupported(UnknownNativeSyntax). The source-only checked_source_expression_substitutions uses the shared checked lexer/Pratt worker with SourceTopology purpose and returns Option topology without Native syntax certification, preparation actions, diagnostics, result representation or entry authority. Complete lexing, selected operators, depth limits and whole-token consumption remain required; rejected or unsupported source topology returns None. Both lazy branches are inventoried and command-script boundaries retain independent ownership. The caller must separately prove reads, conversions, handler selection and completion.",
-      "scope": "Rust implementation contract under the explicit contexts used by the linked tests. The two linked original_source_topology_tests cover complete BOM/Unicode bracket spans and both lazy branches under Unknown Native syntax, malformed lexical/index delimiters, trailing/unconsumed syntax, selected operator availability and selected comment grammar. They directly assert unchanged Native Unknown refusal. They contain no positive scalar/array/brace-root matrix or SourceTopology depth-limit assertion. The source-only Option topology supplies no preparation, Native object identity, result representation or entry authority. All linked definitions remain source coverage obligations without a current executed assertion result here. This record makes no C Tcl, Jim or BIG-IP observation claim and no successful evaluation claim.",
+      "scope": "Rust implementation contract under the explicit contexts used by the linked tests. The two linked original_source_topology_tests cover complete BOM/Unicode bracket spans and both lazy branches under Unknown Native syntax, malformed lexical/index delimiters, trailing/unconsumed syntax, selected operator availability and selected comment grammar. They directly assert unchanged Native Unknown refusal. They contain no positive scalar/array/brace-root matrix or SourceTopology depth-limit assertion. The source-only Option topology supplies no preparation, Native object identity, result representation or entry authority. Five named tcl-syntax controls passed in the separate scoped software receipt; the linked lexer geometry definition remains a separate source coverage obligation without a new assertion outcome. This record makes no C Tcl, Jim or BIG-IP observation claim and no successful evaluation claim.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -892355,29 +892362,36 @@
           "id": "current-original-source-purpose-c44258ad16e1b6be",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/checked.rs",
-          "sha256": "c15fc517688dbabac8152db03191ab52131736a6ebfcc6fb72a8c16a621a7be7",
-          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+          "sha256": "6f952010b214c05f1f44620927e1929e3cad05ef17b80fa822a607d0f5301d60",
+          "description": "Checked parser owns distinct NativeSyntax and SourceTopology admission and the latter returns no Native certification. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution."
         },
         {
           "id": "current-original-source-purpose-aea7fd4e8800e02f",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/parser.rs",
-          "sha256": "236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40",
-          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+          "sha256": "bafc27f5487b8b4f41b2aa564fcda0a12b13dc81cf4c61afc4428defbcf7dd80",
+          "description": "Shared Pratt and parser context implementation retains complete selected grammar and token boundaries. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution."
         },
         {
           "id": "current-original-source-purpose-2760f3974abf9410",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
-          "sha256": "6d41034ca56825004b7f6ef806c4f0fe17acc62854d1567e213c78cc0b904a53",
-          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+          "sha256": "6b78d2472d22112f97ecd2cc3718fc0be21ca0ce0be7ac1a08bf8288eeaa60bb",
+          "description": "Checked substitution bridges preserve original index and command boundaries, including separate source-only topology. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution."
         },
         {
           "id": "current-original-source-purpose-44d7eae1482b2716",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/mod.rs",
-          "sha256": "ea2e6c3fcdd3f993e71646ec424afd505e06ba36f0e709ead8a188af764ddaaa",
-          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+          "sha256": "d924cf340e15d500a57387ee5f37aca402b4bf8f41a12329cf66d15e87d24b55",
+          "description": "Expression module exposes the parser and substitution APIs; this module export is a source role only. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution."
+        },
+        {
+          "id": "expression-topology-fixed-software-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/expression-topology-20261103/receipt.json",
+          "sha256": "c646615a794fcdfd4a985fa291f6f7332534ccb90f857d8cd9ab870d4b705e3c",
+          "description": "Separate current-owned Syntax software receipt for six named raw-read and substitution/topology controls; only the relevant named cases apply to this proof. No Native/provider, compiler/editor, consumer or whole-proof outcome follows; reused dependency artifacts and external tools/cache are outside custody."
         }
       ],
       "source_anchors": [],
@@ -892404,19 +892418,19 @@
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
           "selector": "expr::substitution::original_expression_span_tests::inclusive_expression_extent_keeps_complete_multibyte_source_and_checked_boundaries",
           "status": "linked",
-          "assertion": "Finite source-defined control: inclusive expression extent keeps complete multibyte source and checked boundaries. Checked inclusive expression extent -> half-open UTF8 geometry; actual nonzero multibyte matcher retains original guards, invalid boundary/overflow refuses. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+          "assertion": "Finite source-defined control: inclusive expression extent keeps complete multibyte source and checked boundaries. Checked inclusive expression extent -> half-open UTF8 geometry; actual nonzero multibyte matcher retains original guards, invalid boundary/overflow refuses. The separate scoped software receipt records this exact control passing. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
         },
         {
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
           "selector": "expr::substitution::original_source_topology_tests::original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax",
           "status": "linked",
-          "assertion": "Under an actual Unknown Native syntax context, the source-only bridge retains complete original BOM/Unicode bracket spans in both lazy branches with no variable reads in this fixture. The Native bridge declines and the checked Native parser explicitly remains Unsupported(UnknownNativeSyntax); the context stays Unknown. This control supplies no positive scalar/array/brace-root matrix, preparation or Native object/entry authority. Source definition only; no current executed assertion or provider outcome is attached."
+          "assertion": "Under an actual Unknown Native syntax context, the source-only bridge retains complete original BOM/Unicode bracket spans in both lazy branches with no variable reads in this fixture. The Native bridge declines and the checked Native parser explicitly remains Unsupported(UnknownNativeSyntax); the context stays Unknown. This control supplies no positive scalar/array/brace-root matrix, preparation or Native object/entry authority. The separate scoped software receipt records this exact control passing; no provider outcome is attached."
         },
         {
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
           "selector": "expr::substitution::original_source_topology_tests::original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix",
           "status": "linked",
-          "assertion": "The source-only bridge declines incomplete expression, bracket, quote and array-index syntax, unsupported or unconsumed suffixes, and a selected unavailable operator. Selected Tcl 8/Tcl 9 comment grammar independently refuses or inventories the complete outer command span. The final known Native context keeps unavailable-operator refusal in both bridges. This control does not assert a SourceTopology depth limit or Native execution. Source definition only; no current executed assertion or provider outcome is attached."
+          "assertion": "The source-only bridge declines incomplete expression, bracket, quote and array-index syntax, unsupported or unconsumed suffixes, and a selected unavailable operator. Selected Tcl 8/Tcl 9 comment grammar independently refuses or inventories the complete outer command span. The final known Native context keeps unavailable-operator refusal in both bridges. This control does not assert a SourceTopology depth limit or Native execution. The separate scoped software receipt records this exact control passing; no provider outcome is attached."
         }
       ],
       "owners": [
@@ -892449,7 +892463,7 @@
           "rust/Cargo.toml",
           "expr::substitution::tests::checked_substitutions_retain_overridden_variable_and_comment_grammar"
         ],
-        "limitations": "Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records."
+        "limitations": "The separate scoped receipt records five named Syntax controls. The linked lexer geometry control remains source-only in this record. Native interpreter measurements, consumer execution and whole-proof results remain separate."
       }
     },
     {
