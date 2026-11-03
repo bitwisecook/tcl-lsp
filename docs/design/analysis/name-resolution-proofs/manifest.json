@@ -52693,8 +52693,8 @@
           "id": "metadata-projection-source-6",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/reporting.rs",
-          "sha256": "009349c67795cd1cab75ab2066d12f180eda1af8f71ff2265656d776cd6e00f5",
-          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+          "sha256": "881dc5451ad8a2765c23c112e98ff8bc4a96b152e3d3dff5f2527f74ba320d9f",
+          "description": "Pure literal reporting QName namespace projection under its explicitly selected purpose; no source or Native namespace/lookup authority. Source entry alone does not execute a consumer; a separately retained Syntax control checks fixed reporting examples."
         },
         {
           "id": "metadata-projection-source-7",
@@ -52807,6 +52807,13 @@
           "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-projection-20261103/receipt.json",
           "sha256": "27d7546f0c5c82d21ea7474a7e4039c4f15b72f0f48c519792ba4548d342ea03",
           "description": "Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows."
+        },
+        {
+          "id": "syntax-reporting-source-role-review",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-reporting-20261103/source-review.json",
+          "sha256": "ba6c3e4280c1bf91aa0fb64a2c418338b069430a23b5bcfe034ec7954e21638a",
+          "description": "Separate source review references the earlier retained named Syntax reporting control; no new execution, compiler/W214 consumer, Native provider, lookup or whole-proof result."
         }
       ],
       "source_anchors": [],
@@ -53436,8 +53443,8 @@
           "id": "reporting-source-1",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/reporting.rs",
-          "sha256": "009349c67795cd1cab75ab2066d12f180eda1af8f71ff2265656d776cd6e00f5",
-          "description": "Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect."
+          "sha256": "881dc5451ad8a2765c23c112e98ff8bc4a96b152e3d3dff5f2527f74ba320d9f",
+          "description": "Pure literal reporting QName namespace projection under its explicitly selected purpose; no source or Native namespace/lookup authority. Source entry alone does not execute a consumer; a separately retained Syntax control checks fixed reporting examples."
         },
         {
           "id": "reporting-source-2",
@@ -53501,6 +53508,13 @@
           "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-naming-20261103/receipt.json",
           "sha256": "1c2318b1facfaaec3af7780fd8b41c3119fb230d1ed1692cc59b95141679eef5",
           "description": "Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows."
+        },
+        {
+          "id": "syntax-reporting-source-role-review",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-reporting-20261103/source-review.json",
+          "sha256": "ba6c3e4280c1bf91aa0fb64a2c418338b069430a23b5bcfe034ec7954e21638a",
+          "description": "Separate source review references the earlier retained named Syntax reporting control; no new execution, compiler/W214 consumer, Native provider, lookup or whole-proof result."
         }
       ],
       "source_anchors": [],
