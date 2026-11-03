@@ -16,7 +16,7 @@ SignatureCommandInvocation::logical_callback_candidate_keys returns no compatibi
 
 ## Scope
 
-Current database implementation contract. The regression obtains an authentic original cb invocation from analysis, removes its lookup and reporting reference, supplies an appended arity of two and a conflicting display-key arity map, then asserts empty candidate keys and no legacy project callback diagnostic. The positive original-lookup path and shared exact/range calculation are inspected owners, not asserted by this refusal regression. No Rust execution outcome or C Tcl, Jim or BIG-IP result is claimed.
+Current database implementation contract. The refusal regression obtains a genuine original cb invocation from analysis, removes its direct lookup and reporting reference, and supplies an appended arity of two. A separate same-name zero-formal declaration remains available in the project. The invocation has no independently issued callback registration/target lookup: compatibility candidate keys remain empty and project callback advice emits no arity diagnostic. This control does not test a populated callback lookup or the positive original-lookup path. Those paths and shared exact/range calculation remain inspected owners. No Rust execution outcome or C Tcl, Jim or BIG-IP result is claimed.
 
 ## Provider answers
 
@@ -64,7 +64,7 @@ No native provider was invoked for this Rust callback-consumer contract.
 
 ## Exact evidence
 
-- `database-callback-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `f8add3e39e66650ed0570d72ce9477cdb1fcece2d8e5d45f9ecdc1c748fd46f5`. Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression.
+- `database-callback-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `e23c9f7a7e27f6022df1bff310c9bede5be64b761cf924973599f9a2f815c8ad`. Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression.
 
 ## Source inspection
 
@@ -73,9 +73,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/signature_scan/types.rs](../../../../rust/tcl-compiler/src/signature_scan/types.rs), `SignatureCommandInvocation::logical_callback_candidate_keys`: Withdraw compatibility reporting-name candidates for retained original callback/name inputs; actual Logical DB readers share this projection.
-- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `apply_original_callback_arity`: Demand current original source declaration headers through the immutable callback prefix lookup and typed source-signature subject.
+- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `apply_original_callback_arity_with_mode`: Demand current original source declaration headers through the immutable callback prefix lookup and typed source-signature subject.
 - [rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs), `SourceCallbackAritySubject::from_selected_signatures`: Compose exact finite or at-least callback counts from the retained prefix, baked/captured arguments and selected current declaration signatures, then classify mismatch before presentation.
-- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::original_callback_missing_future_lookup_declines_reporting_candidates` (linked): An authentic retained cb input with its future lookup removed and a conflicting legacy arity map has no candidate keys and produces no project callback diagnostic.
+- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::original_callback_missing_future_lookup_declines_reporting_candidates` (linked): A genuine original cb invocation with its direct lookup and reporting reference removed has no compatibility candidate keys. Appended Exactly(2) metadata and a same-name zero-formal project declaration cannot manufacture a project callback arity diagnostic; no positive callback registration/target lookup is supplied.
 
 A named test is a coverage binding, not a claim that it executed.
 

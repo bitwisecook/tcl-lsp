@@ -808854,7 +808854,7 @@
           "id": "database-call-consumer",
           "role": "implementation",
           "path": "rust/tcl-lsp-db/src/lib.rs",
-          "sha256": "f8add3e39e66650ed0570d72ce9477cdb1fcece2d8e5d45f9ecdc1c748fd46f5",
+          "sha256": "e23c9f7a7e27f6022df1bff310c9bede5be64b761cf924973599f9a2f815c8ad",
           "description": "Current authentic-call arity demand, original-site diagnostic partition and exact opaque-slot/unrelated-namespace regression assertions."
         }
       ],
@@ -808890,7 +808890,7 @@
       "problem_statement": "A retained original callback name identifies the actual source producer but does not select the namespace, frame or command table where a later callback runs. Using reporting candidates or the printed tail when its future lookup is missing can report an arity error for a different command. The diagnostic consumer must withdraw until that independent lookup exists.",
       "question": "Does the database callback arity consumer refuse reporting-name candidates when an original input has no independently selected future lookup?",
       "conclusion": "SignatureCommandInvocation::logical_callback_candidate_keys returns no compatibility candidate keys for a retained original input or callback prefix. The source callback consumer uses the immutable prefix lookup to demand exact current original declaration headers and typed source-signature incompatibility. Missing independent lookup supplies no diagnostic and cannot be replaced by a printed name, reporting reference or mutable candidate list. Legacy exact/range arithmetic remains in its independently selected compatibility purpose. This establishes source-consumer refusal, not callback execution, registration, future frame selection or a native descriptor. The authentic retained source callback receiver additionally joins canonical local headers or independently authored held external target slots. UnknownSourceTarget alone permits genuine external prefix lookup; known source barriers, unavailable frame/interpreter and ambiguous horizons remain terminal. Separate alias-capture/baked/suffix counts survive mutable reporting changes. No external header supplies registration or future callable occupancy.",
-      "scope": "Current database implementation contract. The regression obtains an authentic original cb invocation from analysis, removes its lookup and reporting reference, supplies an appended arity of two and a conflicting display-key arity map, then asserts empty candidate keys and no legacy project callback diagnostic. The positive original-lookup path and shared exact/range calculation are inspected owners, not asserted by this refusal regression. No Rust execution outcome or C Tcl, Jim or BIG-IP result is claimed.",
+      "scope": "Current database implementation contract. The refusal regression obtains a genuine original cb invocation from analysis, removes its direct lookup and reporting reference, and supplies an appended arity of two. A separate same-name zero-formal declaration remains available in the project. The invocation has no independently issued callback registration/target lookup: compatibility candidate keys remain empty and project callback advice emits no arity diagnostic. This control does not test a populated callback lookup or the positive original-lookup path. Those paths and shared exact/range calculation remain inspected owners. No Rust execution outcome or C Tcl, Jim or BIG-IP result is claimed.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -808968,7 +808968,7 @@
           "id": "database-callback-consumer",
           "role": "implementation",
           "path": "rust/tcl-lsp-db/src/lib.rs",
-          "sha256": "f8add3e39e66650ed0570d72ce9477cdb1fcece2d8e5d45f9ecdc1c748fd46f5",
+          "sha256": "e23c9f7a7e27f6022df1bff310c9bede5be64b761cf924973599f9a2f815c8ad",
           "description": "Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression."
         }
       ],
@@ -808977,7 +808977,7 @@
         {
           "path": "rust/tcl-lsp-db/src/lib.rs",
           "selector": "tests::original_callback_missing_future_lookup_declines_reporting_candidates",
-          "assertion": "An authentic retained cb input with its future lookup removed and a conflicting legacy arity map has no candidate keys and produces no project callback diagnostic.",
+          "assertion": "A genuine original cb invocation with its direct lookup and reporting reference removed has no compatibility candidate keys. Appended Exactly(2) metadata and a same-name zero-formal project declaration cannot manufacture a project callback arity diagnostic; no positive callback registration/target lookup is supplied.",
           "status": "linked"
         }
       ],
@@ -808989,7 +808989,7 @@
         },
         {
           "path": "rust/tcl-lsp-db/src/lib.rs",
-          "symbol": "apply_original_callback_arity",
+          "symbol": "apply_original_callback_arity_with_mode",
           "purpose": "Demand current original source declaration headers through the immutable callback prefix lookup and typed source-signature subject."
         },
         {
@@ -809242,7 +809242,7 @@
           "id": "database-source-owner",
           "role": "implementation",
           "path": "rust/tcl-lsp-db/src/lib.rs",
-          "sha256": "f8add3e39e66650ed0570d72ce9477cdb1fcece2d8e5d45f9ecdc1c748fd46f5",
+          "sha256": "e23c9f7a7e27f6022df1bff310c9bede5be64b761cf924973599f9a2f815c8ad",
           "description": "Current body-free header aggregation, exact byte/policy arity key, shared lookup matcher and concrete cache regression assertions."
         }
       ],
