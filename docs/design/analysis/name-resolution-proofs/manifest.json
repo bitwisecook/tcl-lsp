@@ -781624,27 +781624,34 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/hover.rs",
-          "sha256": "5d82ab10ff65d039c0bc822dde9a1e0749a479cebe926f519cfeb6d6d224479c",
-          "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
+          "sha256": "96979b63de2edaf47c3a5bd94f0fae91c7a1eecd17ebd35b7dae4ac06d45dcbd",
+          "description": "Reviewed current source role: original_math_function_hover renders only selected procedure or Registry metadata; FixedTable omits command synopsis/wrapper claims, and the shared original selector terminates before compatibility advice. Its two named controls distinguish fixed tables from command wrappers, genuine override allocation after reporting-map clearing, and displaced-source refusal. Other hover contracts and failed hover controls in the retained cohort are outside this source role. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation."
         },
         {
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/math_function_symbol.rs",
-          "sha256": "19e7526b19fdb64d24bf81cf54b46e04a146afb9b27b007697afaea09f4d9f6f",
-          "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
+          "sha256": "4b0af8e77c5af5d820c685a8d084de0c00dd0d83200b8c8eb6580eae59720a37",
+          "description": "Reviewed current source role: occurrences checks complete source image/configuration and exact Registry correspondence; select_at_offset keeps missing original selection terminal, joins procedure metadata by original allocation site, and never looks up a same-named reporting procedure. Three exact controls cover six selected profiles, original override allocation after cleared reporting maps, changed source, and unrelated same-named procedure refusal. These readonly selectors issue no command-word edit or runtime result. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation."
         },
         {
           "id": "implementation-2",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding/original_math_function.rs",
-          "sha256": "36dc5cf970e350b7846fe2f337b182830875cf6e8bc1cd2910d3cdacc6aa3d96",
-          "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
+          "sha256": "8c68c5fd0d7d697ce4c622e3b7a4dc2dc03cfe63a67b6f30fd130cb06d7d5a58",
+          "description": "Reviewed current source role: OriginalMathFunctionOccurrence retains source origin/configuration, checked expression ordinal/span, selected dispatch and exact Registry semantic key. selected_registry_spec checks that retained key; fixed table metadata has no command reference. Occurrence production consumes original declaration/expression receipts and declines conflicting selected metadata. The five direct Core math controls and the separate original-allocation hierarchy control exercise these readonly producer/consumer joins; this review supplies no new diagnostic-presence, effect-absence or Native lookup observation. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation."
+        },
+        {
+          "id": "core-math-scoped-software-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/core-math-current-20261103/receipt.json.gz",
+          "sha256": "a157dd577db2446d5aeff50342f6a97941a0c1fed1fc071c43778c20ba4fe5ce",
+          "description": "Separate receipt records 2 exact Core math controls for this question, six reviewed source roles across two questions, original failed cohort context and complete parent custody limitations. The Registry catalogue control is unexecuted. No Native/provider or complete gate result follows."
         }
       ],
       "replay": {
         "command": [],
-        "limitations": "Named fixed Rust selectors bind validation obligations. No Rust execution receipt is attached to this implementation contract. Native function-table and command-table observations remain separate questions. Missing target, original source or configuration ownership remains explicit."
+        "limitations": "The separately retained receipt records 2 exact Core math controls for this question from the current sealed executable. The parent Core31 cohort has 29 passes and two failures, and eight additional source-card controls have seven passes and one failure; the original mixed source-pin batch remains held. Native function-table and command-table observations, runtime behavior, editor hosts and the complete proof gate remain separate. Source/configuration ownership and all parent custody limits remain explicit."
       }
     },
     {
@@ -781654,7 +781661,7 @@
       "problem_statement": "An expression function identifier is not an original script command head. C 8.4 and Jim select fixed function tables, while later Tcl can select a command-table implementation. Looking up a same-named procedure or constructing a qualified wrapper from the displayed identifier confuses these purposes and loses current source allocation identity.",
       "question": "Does readonly Core math-function selection preserve the original expression producer and its independently selected function-table or command-table target?",
       "conclusion": "The current-image facade consumes the authentic complete source, full lexer configuration, retained Registry and expression-function inventory. It retains each original identifier and selected dispatch purpose. Procedure metadata is joined only through the independently retained actual implementation allocation; cleared reporting maps and command invocation rows do not erase the original inventory. Missing target remains terminal, and no script-head input, wrapper command, execution or edit authority is issued. Command-function navigation, incoming call edges and reference spans share that canonical procedure allocation under an independently owned current document inventory. Equal-source duplicate provider owners remain ambiguous. Lexical expression-function presentation independently reads the actual retained environment core release/build through ResolvedContext::source_math_function. Only known membership supplies defaultLibrary; missing core or unknown build abstains. Declared compatibility targets do not retarget assistance. This source catalogue supplies no current math command, implementation allocation, Native dispatch or edit authority; the independent original selected-function path is unchanged.",
-      "scope": "Core readonly expression-function selection, including local overrides, independent same-named procedures, missing targets, stale source and fixed-table metadata. Command-table reference and function syntax ownership remain separate from any writable identifier contract. Independent lexical source-catalogue presentation under the actual configured environment core selector, with no Native observation or executed software result attached.",
+      "scope": "Core readonly expression-function selection, including local overrides, independent same-named procedures, missing targets, stale source and fixed-table metadata. Command-table reference and function syntax ownership remain separate from any writable identifier contract. Independent lexical source-catalogue presentation under the actual configured environment core selector, with the named Core token control retained separately; the linked Registry release/build/missing/unknown control remains unexecuted and its source pin remains held. No Native observation is attached.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -781774,7 +781781,7 @@
         {
           "path": "rust/tcl-lsp-core/src/math_function_symbol.rs",
           "selector": "math_function_symbol::tests::original_math_selection_keeps_fixed_and_command_metadata_purposes_separate",
-          "assertion": "The source-defined control selects builtin metadata after clearing command invocations and procedure reporting maps for six analysis profiles. C8.4 and Jim select the fixed table without a command reference; the other selected profiles use command-table dispatch. No test execution or native provider result is attached.",
+          "assertion": "The source-defined control selects builtin metadata after clearing command invocations and procedure reporting maps for six analysis profiles. C8.4 and Jim select the fixed table without a command reference; the other selected profiles use command-table dispatch. The separate receipt records this exact Core software control; no Native provider result is attached.",
           "status": "linked"
         },
         {
@@ -781813,15 +781820,15 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/math_function_symbol.rs",
-          "sha256": "19e7526b19fdb64d24bf81cf54b46e04a146afb9b27b007697afaea09f4d9f6f",
-          "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
+          "sha256": "4b0af8e77c5af5d820c685a8d084de0c00dd0d83200b8c8eb6580eae59720a37",
+          "description": "Reviewed current source role: occurrences checks complete source image/configuration and exact Registry correspondence; select_at_offset keeps missing original selection terminal, joins procedure metadata by original allocation site, and never looks up a same-named reporting procedure. Three exact controls cover six selected profiles, original override allocation after cleared reporting maps, changed source, and unrelated same-named procedure refusal. These readonly selectors issue no command-word edit or runtime result. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation."
         },
         {
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding/original_math_function.rs",
-          "sha256": "36dc5cf970e350b7846fe2f337b182830875cf6e8bc1cd2910d3cdacc6aa3d96",
-          "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
+          "sha256": "8c68c5fd0d7d697ce4c622e3b7a4dc2dc03cfe63a67b6f30fd130cb06d7d5a58",
+          "description": "Reviewed current source role: OriginalMathFunctionOccurrence retains source origin/configuration, checked expression ordinal/span, selected dispatch and exact Registry semantic key. selected_registry_spec checks that retained key; fixed table metadata has no command reference. Occurrence production consumes original declaration/expression receipts and declines conflicting selected metadata. The five direct Core math controls and the separate original-allocation hierarchy control exercise these readonly producer/consumer joins; this review supplies no new diagnostic-presence, effect-absence or Native lookup observation. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation."
         },
         {
           "id": "source-catalogue-implementation-0",
@@ -781834,13 +781841,20 @@
           "id": "source-catalogue-implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
-          "sha256": "81e8ee1afa3697056f2260492bfe21eabf6c6d2ea6688cd8c0c6feaa710f9de8",
-          "description": "Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result."
+          "sha256": "9e3b4eaf9fc50a52bb8c9aae04780604e1d19a9c3d6d3021a247bb3df6c86873",
+          "description": "Reviewed current source role: collect_expr uses source_math_function only for independent lexical catalogue presentation; only CapabilityAnswer::Yes sets defaultLibrary. Native presentation instead requires the original occurrence and selected Registry spec. The exact Core token control checks configured known sqrt versus unknown/unavailable cbrt and invented names. The separate Registry release/build/missing-core control is unexecuted, and its context.rs evidence pin remains held. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation."
+        },
+        {
+          "id": "core-math-scoped-software-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/core-math-current-20261103/receipt.json.gz",
+          "sha256": "a157dd577db2446d5aeff50342f6a97941a0c1fed1fc071c43778c20ba4fe5ce",
+          "description": "Separate receipt records 5 exact Core math controls for this question, six reviewed source roles across two questions, original failed cohort context and complete parent custody limitations. The Registry catalogue control is unexecuted. No Native/provider or complete gate result follows."
         }
       ],
       "replay": {
         "command": [],
-        "limitations": "Named fixed Rust selectors bind validation obligations. No Rust execution receipt is attached to this implementation contract. Native function-table and command-table observations remain separate questions. Missing target, original source or configuration ownership remains explicit."
+        "limitations": "The separately retained receipt records 5 exact Core math controls for this question from the current sealed executable. The parent Core31 cohort has 29 passes and two failures, and eight additional source-card controls have seven passes and one failure; the original mixed source-pin batch remains held. The linked Registry release/build/missing/unknown catalogue control is not executed, and its context.rs source pin remains held. Native function-table and command-table observations, runtime behavior, editor hosts and the complete proof gate remain separate. Source/configuration ownership and all parent custody limits remain explicit."
       }
     },
     {
