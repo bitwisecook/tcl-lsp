@@ -21,12 +21,7 @@ import * as fs from "fs";
 import * as path from "path";
 import {
   CurrentDiagnosticsUnavailableError,
-  captureAnalysisContext,
-  currentDiagnosticsReportIsStillPublished,
-  currentDiagnosticsReportMatches,
-  isAnalysisContextCurrent,
-  resourceConfiguration,
-  waitForDiagnosticsReport,
+  CurrentDiagnosticsSuppressedError,
   type CurrentDiagnosticsReport,
 } from "../chat/diagnosticAccess";
 
@@ -49,6 +44,33 @@ export {
   scaledTimeout,
   sleep,
 } from "./signal";
+
+/** Borrow the diagnostics owner installed by the active extension bundle. */
+function activeDiagnosticsOwner(): typeof import("../chat/diagnosticAccess").currentDiagnosticsOwner {
+  const extension = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
+  const owner = extension?.isActive ? extension.exports?.currentDiagnosticsOwner : undefined;
+  if (!owner) throw new CurrentDiagnosticsUnavailableError("context");
+  return owner;
+}
+
+async function ownerDiagnosticsReport(
+  owner: ReturnType<typeof activeDiagnosticsOwner>,
+  uri: vscode.Uri,
+  opts: { timeout?: number; minCount?: number; expectedSource?: string },
+): Promise<CurrentDiagnosticsReport> {
+  try {
+    return await owner.waitForDiagnosticsReport(uri, opts);
+  } catch (error) {
+    // The active extension and the test host load distinct module instances.
+    if (error instanceof owner.CurrentDiagnosticsUnavailableError) {
+      throw new CurrentDiagnosticsUnavailableError(error.reason);
+    }
+    if (error instanceof owner.CurrentDiagnosticsSuppressedError) {
+      throw new CurrentDiagnosticsSuppressedError(error.reason, error.receipt);
+    }
+    throw error;
+  }
+}
 
 /**
  * Resolve a fixture file name to a URI.
@@ -249,6 +271,7 @@ export async function waitForDeepDiagnostics(
   docUri: vscode.Uri,
   opts?: { timeout?: number; since?: number },
 ): Promise<DeepDiagnosticsSnapshot | undefined> {
+  const owner = activeDiagnosticsOwner();
   const uri = docUri.toString();
   const base = opts?.timeout ?? 20_000;
   const deadline = Date.now() + scaledTimeout(base);
@@ -257,8 +280,8 @@ export async function waitForDeepDiagnostics(
   );
   const source = document?.getText();
   const version = document?.version;
-  const initialContext = document ? captureAnalysisContext() : undefined;
-  const initialConfiguration = document ? resourceConfiguration(document) : undefined;
+  const initialContext = document ? owner.captureAnalysisContext() : undefined;
+  const initialConfiguration = document ? owner.resourceConfiguration(document) : undefined;
   if (document && (!initialContext || initialConfiguration === undefined)) {
     throw new CurrentDiagnosticsUnavailableError("context");
   }
@@ -278,16 +301,16 @@ export async function waitForDeepDiagnostics(
 
   const remaining = deadline - Date.now();
   if (remaining <= 0) throw new CurrentDiagnosticsUnavailableError("timeout");
-  const report = await waitForDiagnosticsReport(docUri, {
+  const report = await ownerDiagnosticsReport(owner, docUri, {
     timeout: remaining,
     expectedSource: source,
   });
   const isCurrent = () =>
-    report.analysisContext.transport === initialContext.transport &&
+    report.analysisContext.transport.sessionIdentity === initialContext.transport.sessionIdentity &&
     report.analysisContext.overrideGeneration === initialContext.overrideGeneration &&
-    isAnalysisContextCurrent(initialContext) &&
+    owner.isAnalysisContextCurrent(initialContext) &&
     report.resourceConfiguration === initialConfiguration &&
-    currentDiagnosticsReportMatches(report, {
+    owner.currentDiagnosticsReportMatches(report, {
       document,
       uri: docUri,
       version,
@@ -656,6 +679,7 @@ export async function waitForCurrentDiagnosticsSnapshot(
     predicate?: (diagnostics: vscode.Diagnostic[]) => boolean;
   },
 ): Promise<CurrentDiagnosticsSnapshot> {
+  const owner = activeDiagnosticsOwner();
   if (opts?.predicate && opts.timeout === undefined) {
     throw new Error("Predicate-based current diagnostics require a bounded timeout");
   }
@@ -668,8 +692,8 @@ export async function waitForCurrentDiagnosticsSnapshot(
   if (document.getText() !== source) {
     throw new CurrentDiagnosticsUnavailableError("stale");
   }
-  const initialContext = captureAnalysisContext();
-  const initialConfiguration = resourceConfiguration(document);
+  const initialContext = owner.captureAnalysisContext();
+  const initialConfiguration = owner.resourceConfiguration(document);
   if (!initialContext || initialConfiguration === undefined) {
     throw new CurrentDiagnosticsUnavailableError("context");
   }
@@ -682,17 +706,18 @@ export async function waitForCurrentDiagnosticsSnapshot(
       if (remaining <= 0) {
         throw new CurrentDiagnosticsUnavailableError("timeout");
       }
-      const report = await waitForDiagnosticsReport(uri, {
+      const report = await ownerDiagnosticsReport(owner, uri, {
         timeout: remaining,
         minCount: opts?.minCount,
         expectedSource: source,
       });
       const isCurrent = () =>
-        report.analysisContext.transport === initialContext.transport &&
+        report.analysisContext.transport.sessionIdentity ===
+          initialContext.transport.sessionIdentity &&
         report.analysisContext.overrideGeneration === initialContext.overrideGeneration &&
-        isAnalysisContextCurrent(initialContext) &&
+        owner.isAnalysisContextCurrent(initialContext) &&
         report.resourceConfiguration === initialConfiguration &&
-        currentDiagnosticsReportMatches(report, {
+        owner.currentDiagnosticsReportMatches(report, {
           document,
           uri,
           version,
@@ -701,7 +726,7 @@ export async function waitForCurrentDiagnosticsSnapshot(
       const isStillPublished = async () => {
         const remaining = deadline - Date.now();
         if (remaining <= 0) return false;
-        return currentDiagnosticsReportIsStillPublished(
+        return owner.currentDiagnosticsReportIsStillPublished(
           report,
           { document, uri, version, source },
           remaining,

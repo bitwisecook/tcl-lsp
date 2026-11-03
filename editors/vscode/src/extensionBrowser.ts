@@ -87,6 +87,7 @@ import {
 import { applyDocumentWrite } from "./chat/codeUtils";
 import {
   captureAnalysisContext,
+  currentDiagnosticsOwner,
   isAnalysisContextCurrent,
   invalidateAnalysisContext,
   setCurrentDiagnosticsTransportProvider,
@@ -306,7 +307,7 @@ export async function activate(context: ExtensionContext) {
   }
 
   log(`[timing] extension activation: ${Date.now() - activateStart}ms`);
-  return { getClient };
+  return { getClient, currentDiagnosticsOwner };
 }
 
 export async function deactivate(): Promise<void> {

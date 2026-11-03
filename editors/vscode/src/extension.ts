@@ -76,6 +76,7 @@ import { registerTclParticipant } from "./chat/tclParticipant";
 import { registerTkParticipant } from "./chat/tkParticipant";
 import {
   captureAnalysisContext,
+  currentDiagnosticsOwner,
   currentDiagnosticsReportMatches,
   invalidateAnalysisContext,
   isAnalysisContextCurrent,
@@ -625,7 +626,7 @@ export async function activate(context: ExtensionContext) {
   }
 
   ch.appendLine(`[timing] extension activation: ${Date.now() - activateStart}ms`);
-  return { getClient, applyDialectForDocument, waitForCurrentDiagnostics };
+  return { getClient, applyDialectForDocument, waitForCurrentDiagnostics, currentDiagnosticsOwner };
 }
 
 export async function deactivate(): Promise<void> {

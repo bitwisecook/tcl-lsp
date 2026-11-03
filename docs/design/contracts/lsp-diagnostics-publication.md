@@ -284,6 +284,13 @@ Only a successful current restore can return the context used to publish a later
 source action. These client receipts do not establish the server's independent
 source/result applicability or optimiser transformation authority.
 
+The desktop and browser activation APIs expose the active diagnostics owner to
+consumers loaded outside the extension bundle. Such consumers retain that owner
+for context capture, report validation and publisher rejoin; a separately loaded
+module's transport state cannot stand in for it. Fresh transport wrappers are
+joined by their stable session identity and override generation, with each
+wrapper's currentness checked independently.
+
 
 ### Negative editor diagnostic evidence
 

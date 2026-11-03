@@ -541,7 +541,14 @@ suite("Multi-folder per-folder dialect change after open (#407)", () => {
           source,
         );
       });
-      const w002Initial = await waitForDiagnostic(fileUri, "W002", true);
+      const initialReport = await waitForCurrentDiagnosticsSnapshot(fileUri, {
+        timeout: 6000,
+        expectedSource: source,
+        predicate: (diagnostics) => diagnostics.some((d) => d.code === "W002"),
+      });
+      assert.ok(await initialReport.isStillPublished());
+      const originalVersion = doc.version;
+      const w002Initial = initialReport.report.diagnostics.filter((d) => d.code === "W002");
       assert.ok(
         w002Initial.length > 0,
         `precondition: W002 should fire under tcl8.6.  Got: ${JSON.stringify(
@@ -554,6 +561,14 @@ suite("Multi-folder per-folder dialect change after open (#407)", () => {
       //    detect the per-folder dialect change and re-analyse the
       //    already-open file, clearing the now-stale W002.
       await cfgB.update("dialect", "f5-irules", vscode.ConfigurationTarget.WorkspaceFolder);
+      assert.strictEqual(doc.version, originalVersion, "settings changes do not edit the document");
+      assert.strictEqual(doc.getText(), source);
+      assert.strictEqual(
+        initialReport.isCurrent(),
+        false,
+        "old folder settings must invalidate the report",
+      );
+      assert.strictEqual(await initialReport.isStillPublished(), false);
       await waitForConfigSettled({ "proj-a": "tcl8.4", "proj-b": "f5-irules" });
       const w002Cleared = await waitForDiagnostic(fileUri, "W002", false);
       assert.strictEqual(

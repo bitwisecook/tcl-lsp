@@ -1168,3 +1168,15 @@ export function renderDiagnosticSection(
     );
   }
 }
+
+/** Source-current diagnostics owned by the active extension session. */
+export const currentDiagnosticsOwner = Object.freeze({
+  CurrentDiagnosticsUnavailableError,
+  CurrentDiagnosticsSuppressedError,
+  captureAnalysisContext,
+  isAnalysisContextCurrent,
+  resourceConfiguration,
+  waitForDiagnosticsReport,
+  currentDiagnosticsReportMatches,
+  currentDiagnosticsReportIsStillPublished,
+});
