@@ -91,6 +91,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs), `command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate` (linked): Original source Pi absence carries a sealed lookup value and no command reference; actual Unknown, operand commands and replaced/unknown source barriers decline.
 - [rust/tcl-registry/src/mathfunc.rs](../../../../rust/tcl-registry/src/mathfunc.rs), `mathfunc::tests::selected_fixed_math_metadata_survives_command_surface_projection` (linked): Fixed-table math-function metadata remains available independently of command-surface projection; absent command-table entries and unknown fixed names remain separate negative cases. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
 
+- [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs), `command_binding::original_math_function::tests::original_math_occurrences_cover_expressions_in_command_substitutions` (linked): Four fixed command-substitution and quoted nesting forms each retain one readonly custom function occurrence, its exact original byte extent, and source/configuration/Registry correspondence under the selected Tcl8.5–9.1 analysis contexts. This does not establish runtime evaluation, a command allocation, dispatch, result or a new native-provider observation.
+
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
