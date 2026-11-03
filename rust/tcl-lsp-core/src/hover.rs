@@ -979,11 +979,11 @@ fn source_role_hover(
         }
         std::ops::ControlFlow::Break(None) => {
             // A unique written declaration supplies syntax, not a resolved method.
-            return std::ops::ControlFlow::Break(counted_initial_method_hover(
-                source,
-                analysis,
-                cursor_offset,
-            ));
+            return std::ops::ControlFlow::Break(
+                counted_initial_method_hover(source, analysis, cursor_offset).or_else(|| {
+                    original_registry::conditional_hover(source, analysis, cursor_offset)
+                }),
+            );
         }
         std::ops::ControlFlow::Continue(()) => {}
     }

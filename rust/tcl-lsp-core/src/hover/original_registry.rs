@@ -15,6 +15,31 @@ use tcl_lexer::{NativeWord, SourceImage, Span};
 use tcl_registry::model::ResolvedContext;
 use tcl_registry::{CommandSpec, ResolvedInvocation, SubCommand};
 
+/// A positively retained conditional Registry schema may document an operand
+/// even when an unknown command world cannot select an object method. This
+/// does not turn the unavailable method query into a runtime selection.
+pub(super) fn conditional_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<Hover> {
+    let structure = crate::source_structure::SourceStructure::capture(
+        source,
+        Some(analysis),
+        analysis.body_lexer_config?,
+    )?;
+    let command = structure
+        .commands
+        .iter()
+        .filter(|command| contains(command.span, cursor))
+        .min_by_key(|command| command.span.end() - command.span.start())?;
+    let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, command,
+    )?;
+    matches!(words.source(), OriginalRegistrySource::Conditional(_)).then_some(())?;
+    schema_hover(analysis, &words, cursor).map(Hover::markdown)
+}
+
 pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
     // naming.core.original-registry-source-hover
     // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
@@ -666,6 +691,8 @@ mod tests {
             "proc string args {return custom}\nstring length value",
             "rename string {}\nstring length value",
             "proc regexp args {}\nregexp -nocase p text",
+            "opaque\nproc string args {return custom}\nstring length value",
+            "opaque\nrename string {}\nstring length value",
         ] {
             let mut analysis = Analyser::new().analyse(source, "tcl8.6");
             analysis.all_procs.clear();
@@ -679,6 +706,10 @@ mod tests {
         }
         let source = "opaque\nstring length value";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(matches!(
+            crate::method_symbol::local_candidate(source, &analysis, 1, 8),
+            ControlFlow::Break(None)
+        ));
         let advice = at(source, &analysis, "length").expect("conditional source documentation");
         assert!(
             advice.value.contains("Source documentation"),
