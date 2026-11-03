@@ -93,6 +93,8 @@ Unadopted drafts remain in their local handoff locations above. Automatic approv
 
 `e4aa68cd2` adopts the reviewed Registry fixes before merged validation: complete fixed option values are required before declaring the leading prefix known; editor span reporting is unchanged. Jim `exists` declares its actual closed role set. A creation-protocol test now constructs genuinely conflicting explicit/typed points, retains refusal checks and adds canonical 9.1 selection. Seven exact controls and Registry compilation/lint are pending; no production creation protocol changed.
 
+The reviewed immutable-family release-ladder cache is also adopted as a development checkpoint before its Registry controls. It caches pure parsed version data only, preserving per-declaration applicability and fallback. A 160-sample intrusive CPU profile identified this path as worth testing; no speedup is claimed.
+
 The next build will use a single controlled merged source/target after the completed optimiser handoff: Registry, loop completion, actual server edits and 31 Core selectors. This replaces separate duplicate rebuilds. Before/after source, manifest/config, include and binary seals are prepared and independently reviewed, but have not run. Qualitative CPU sampling uses the retained O101 server from before the later Registry/loop commits; it is not latency or release acceptance. Reused toolchain/dependency artifacts and untraced indirect runtime inputs remain outside that bounded custody. The singleflight performance prototype is held: it is uncompiled and static review found unresolved saturation/progress behavior; no latency benefit is claimed.
 
 ## Acceptance and next actions
