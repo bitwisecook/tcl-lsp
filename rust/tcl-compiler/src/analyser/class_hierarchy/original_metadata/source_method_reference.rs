@@ -716,9 +716,19 @@ mod tests {
                 .is_none()
         );
         let mut foreign = analysis.clone();
-        foreign.resolved_input = Analyser::new()
-            .analyse("puts foreign", "tcl9.0")
-            .resolved_input;
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let distinct = std::sync::Arc::new(
+            context.with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        let other_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            distinct,
+            input.lexer_config(),
+        );
+        assert_ne!(&other_input, input);
+        foreign.resolved_input = Some(other_input);
         assert!(original_source_self_property_references(source, &foreign).is_none());
     }
 
