@@ -119,6 +119,7 @@ pub(super) fn spec() -> CommandSpec {
         ]),
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(argument_roles),
+        arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::Name],
         return_type: Some(TclType::Boolean),
         traits: Traits::REFLECTS_COMMAND_NAMES,
         runtime_backing: RuntimeBacking::shipped("exists"),

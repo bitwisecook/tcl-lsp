@@ -245,8 +245,20 @@ mod tests {
         missing.core_point = None;
         missing.native_family = None;
         assert!(missing.native_command_creation_protocol().is_none());
+        let canonical = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+        assert_eq!(
+            canonical
+                .native_command_creation_protocol()
+                .unwrap()
+                .protocol(),
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1)
+        );
         let mut foreign = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        foreign.core_point = Some(tcl_dialect::model::DialectPoint::for_tcl_version(
+            tcl_dialect::TclVersion::V8_6,
+        ));
         foreign.tcl_version = Some(tcl_dialect::TclVersion::V9_1);
+        assert!(foreign.execution_point().is_none());
         assert!(foreign.native_command_creation_protocol().is_none());
     }
 }

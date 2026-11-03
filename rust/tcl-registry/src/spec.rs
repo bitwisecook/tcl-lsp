@@ -2773,7 +2773,8 @@ fn resolve_option_prefix_in<'a>(
 /// Prove where a leading option grammar ends in evaluated source words.
 /// Unknown words while option scanning is live leave the boundary unknown;
 /// a known positional prefix or declared terminator permits unknown trailing
-/// values. Expansion never supplies an exact argv boundary.
+/// values. Every declared fixed option value must be present. Expansion never
+/// supplies an exact argv boundary.
 #[must_use]
 pub fn leading_option_word_count_for_arguments(
     options: &[&OptionSpec],
@@ -2797,7 +2798,20 @@ pub fn leading_option_word_count_for_arguments(
             return Some(index);
         }
         let option = resolve_available_option_prefix_with(options, word, prefix_matching)?;
-        index += 1 + option.value_word_count_for_arguments(args, index)?;
+        let width = match option.value {
+            crate::hover::OptionValue::Flag => 0,
+            crate::hover::OptionValue::Takes(value) => match value.arity {
+                crate::hover::OptionArity::One => 1,
+                crate::hover::OptionArity::Fixed(width) => usize::from(width),
+                crate::hover::OptionArity::Hook(_) => {
+                    option.value_word_count_for_arguments(args, index)?
+                }
+            },
+        };
+        index = index.checked_add(1)?.checked_add(width)?;
+        if index > count {
+            return None;
+        }
         if option.name == "--" {
             return Some(index);
         }
@@ -5415,6 +5429,109 @@ impl SubCommand {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn option_prefix_requires_all_declared_fixed_value_words() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        use crate::hover::{OptionArg, OptionArity, OptionSpec, OptionValue};
+        let one = OptionSpec {
+            name: "-one",
+            value: OptionValue::value("value"),
+            ..OptionSpec::DEFAULT
+        };
+        let pair = OptionSpec {
+            name: "-pair",
+            value: OptionValue::Takes(OptionArg {
+                arity: OptionArity::Fixed(2),
+                ..OptionArg::DEFAULT
+            }),
+            ..OptionSpec::DEFAULT
+        };
+        let options = [&one, &pair];
+        for (words, expected) in [
+            (vec![Literal("-one")], None),
+            (vec![Literal("-one"), Expanded], None),
+            (vec![Literal("-pair")], None),
+            (vec![Literal("-pair"), Dynamic], None),
+            (vec![Literal("-one"), Dynamic], Some(2)),
+            (vec![Literal("-pair"), Dynamic, Literal("-one")], Some(3)),
+            (
+                vec![Literal("-pair"), Dynamic, Dynamic, Literal("body")],
+                Some(3),
+            ),
+        ] {
+            assert_eq!(
+                super::leading_option_word_count_for_arguments(
+                    &options,
+                    crate::InvocationArguments::structured(&words),
+                    crate::abbrev::PrefixMatching::Enabled,
+                    0,
+                ),
+                expected,
+                "{words:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn option_prefix_keeps_zero_width_terminator_hook_and_reserved_suffix_rules() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        use crate::hover::{OptionArg, OptionArity, OptionSpec, OptionValue, OptionValueOutcome};
+        fn rest(args: &[&str], start: usize) -> OptionValueOutcome {
+            OptionValueOutcome {
+                words: args.len() - start,
+                invalid: None,
+            }
+        }
+        let options = [
+            OptionSpec {
+                name: "-zero",
+                value: OptionValue::fixed(0, crate::ArgRole::Value, ""),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-one",
+                value: OptionValue::value("value"),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-rest",
+                value: OptionValue::Takes(OptionArg {
+                    arity: OptionArity::Hook(rest),
+                    ..OptionArg::DEFAULT
+                }),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "--",
+                ..OptionSpec::DEFAULT
+            },
+        ];
+        let options = options.iter().collect::<Vec<_>>();
+        for (words, reserved, expected) in [
+            (vec![Literal("-zero")], 0, Some(1)),
+            (vec![Literal("--"), Dynamic], 0, Some(1)),
+            (
+                vec![Literal("-rest"), Literal("a"), Literal("b")],
+                0,
+                Some(3),
+            ),
+            (vec![Literal("-rest"), Dynamic], 0, None),
+            (vec![Literal("-one"), Dynamic, Literal("body")], 1, Some(2)),
+            (vec![Dynamic], 1, Some(0)),
+        ] {
+            assert_eq!(
+                super::leading_option_word_count_for_arguments(
+                    &options,
+                    crate::InvocationArguments::structured(&words),
+                    crate::abbrev::PrefixMatching::Enabled,
+                    reserved,
+                ),
+                expected,
+                "{words:?} reserved={reserved}"
+            );
+        }
+    }
+
     #[test]
     fn case_option_effects_preserve_the_selected_value_width() {
         use super::{CaseListSpec, CaseMatchMode};
