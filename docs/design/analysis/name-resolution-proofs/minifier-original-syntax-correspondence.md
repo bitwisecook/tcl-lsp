@@ -20,7 +20,7 @@ An additional marked Server source definition checks compact formal-renamed outp
 
 Current Core minifier lexical syntax and typed refusals across six selected protocols. Independently authenticated descendant script gaps may change within an outer body word; separately selected expression gaps preserve their exact configured tokens. Other word content remains exact. Separately authorised alpha edits are reanalysed with the same retained input before syntax correspondence. No runtime reflection equivalence or native result is attached.
 
-Syntax output and reporting symbols do not prove Native rename identity or execution/edit equivalence. The local formal contract and isolated refusal remain distinct; no provider or software assertion outcome is attached.
+Syntax output and reporting symbols do not prove Native rename identity or execution/edit equivalence. The local formal contract and isolated refusal remain distinct; four named lexer lexical-plan controls passed in the separately retained scoped software receipt; no Core minifier assertion or provider outcome is attached.
 
 ## Provider answers
 
@@ -68,8 +68,10 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
+- `minifier-lexer-original-plan-20261103` (observation): [Scoped lexer geometry receipt](rust-validation/lexer-geometry-20261103/receipt.json). SHA-256 `fa851940064a10b31bbb6554433d70516bd5a7dce3e02fd410f0c22fb2779285`. Four exact current-owned lexer original-plan source-geometry controls, in a shared scoped receipt. No Core minifier, Native provider or whole-proof result follows.
+
 - `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). SHA-256 `c96d983aa91a639d27bd4e0416eee420b0ec9be1aab8523aa4a49638a51229fe`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lexer/src/native_script_words.rs](../../../../rust/tcl-lexer/src/native_script_words.rs). SHA-256 `14c62d582c456b59b1b6a09c42bc04c62edba0d75dc580da5a8afcb6b663300a`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lexer/src/native_script_words.rs](../../../../rust/tcl-lexer/src/native_script_words.rs). SHA-256 `2e0fb60a8f6e91f07e90575f14254c53ad75cf4bd07a5da4f7d91139efeeec71`. Current lexical source owner and fixed authored assertions. This source entry supplies no execution or Native result; the separate receipt reports only four named lexer plan controls.
 
 ## Source inspection
 
@@ -98,4 +100,4 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 
 ## Replay
 
-The named Rust selectors exercise the scoped implementation premises. No Rust execution receipt or native provider observation is attached to this contract. Missing permissions and the bounded complete-source subset remain explicit.
+The named Rust selectors exercise the scoped implementation premises. Four named lexer lexical-plan controls passed in the separately retained scoped software receipt; no Core minifier execution receipt or native provider observation is attached. Missing permissions and the bounded complete-source subset remain explicit.
