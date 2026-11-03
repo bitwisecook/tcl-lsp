@@ -64,7 +64,9 @@ No native process receipt for this source-only document/workspace declaration im
 
 ## Exact evidence
 
-- `original-compiler-purpose-2dbda1a4b26a` (implementation): [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs). SHA-256 `4f5051bd55271c2c04474edd7378c50f98f0b0b04a2a5aec2ecf074464f10594`. Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome.
+- `original-compiler-purpose-2dbda1a4b26a` (implementation): [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs). SHA-256 `992adf965d9045749e8778fd90294df163acb62e48434548015ac501392fbb54`. Authored source name geometry retains valid Unicode components and candidate order and refuses unmodelled source units. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider.
+
+- `syntax-source-naming-fixed-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-source-naming-20261103/receipt.json). SHA-256 `9519ba35848bb10ec6c3d435760bac35d29900b0f5f697ea75a05f58d5f49120`. Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
 
 ## Source inspection
 
@@ -158,4 +160,4 @@ Recorded argument vector:
 ]
 ```
 
-Selectors are linked authored coverage; executed results require independently retained validation receipts. No native process experiment belongs to this source-only implementation question; all seven provider statuses remain not-tested.
+The separately retained Syntax receipt records four authored-name helper controls only; Compiler/Core consumer execution and all seven Native provider answers remain independent.

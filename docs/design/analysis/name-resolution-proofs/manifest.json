@@ -1122625,8 +1122625,15 @@
           "id": "implementation",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/variable_spelling.rs",
-          "sha256": "aa25b2802cf45b7409f23ae58531db9eff20e56426de69253ddd7c9455a4e386",
-          "description": "Current Rust source and fixed meaningful coverage selectors; no Rust or native execution receipt."
+          "sha256": "1e9d3b1a662c082ddc8345ad1db736751273d57f3ad16f626eef56d98589ce43",
+          "description": "Selected scalar source spelling validates independently supplied name protocol, channel and scanner before returning complete source proposals. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider."
+        },
+        {
+          "id": "syntax-source-naming-fixed-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-source-naming-20261103/receipt.json",
+          "sha256": "9519ba35848bb10ec6c3d435760bac35d29900b0f5f697ea75a05f58d5f49120",
+          "description": "Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody."
         }
       ],
       "source_anchors": [],
@@ -1122647,7 +1122654,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "The linked Rust selectors check this implementation contract. No native interpreter executes this editor or source-rendering owner, and no test execution receipt is asserted."
+        "limitations": "The separately retained Syntax receipt records the named scalar-spelling control; no Native interpreter, editor or consumer execution follows."
       }
     },
     {
@@ -1132158,8 +1132165,15 @@
           "id": "original-compiler-purpose-2dbda1a4b26a",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/authored_source.rs",
-          "sha256": "4f5051bd55271c2c04474edd7378c50f98f0b0b04a2a5aec2ecf074464f10594",
-          "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
+          "sha256": "992adf965d9045749e8778fd90294df163acb62e48434548015ac501392fbb54",
+          "description": "Authored source name geometry retains valid Unicode components and candidate order and refuses unmodelled source units. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider."
+        },
+        {
+          "id": "syntax-source-naming-fixed-controls",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/syntax-source-naming-20261103/receipt.json",
+          "sha256": "9519ba35848bb10ec6c3d435760bac35d29900b0f5f697ea75a05f58d5f49120",
+          "description": "Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody."
         }
       ],
       "source_anchors": [],
@@ -1132538,7 +1132552,7 @@
           "tcl-compiler",
           "original_declared_words_"
         ],
-        "limitations": "Selectors are linked authored coverage; executed results require independently retained validation receipts. No native process experiment belongs to this source-only implementation question; all seven provider statuses remain not-tested."
+        "limitations": "The separately retained Syntax receipt records four authored-name helper controls only; Compiler/Core consumer execution and all seven Native provider answers remain independent."
       }
     },
     {

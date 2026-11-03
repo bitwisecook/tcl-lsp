@@ -64,7 +64,9 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation` (implementation): [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs). SHA-256 `aa25b2802cf45b7409f23ae58531db9eff20e56426de69253ddd7c9455a4e386`. Current Rust source and fixed meaningful coverage selectors; no Rust or native execution receipt.
+- `implementation` (implementation): [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs). SHA-256 `1e9d3b1a662c082ddc8345ad1db736751273d57f3ad16f626eef56d98589ce43`. Selected scalar source spelling validates independently supplied name protocol, channel and scanner before returning complete source proposals. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider.
+
+- `syntax-source-naming-fixed-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-source-naming-20261103/receipt.json). SHA-256 `9519ba35848bb10ec6c3d435760bac35d29900b0f5f697ea75a05f58d5f49120`. Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
 
 ## Source inspection
 
@@ -79,4 +81,4 @@ A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
-The linked Rust selectors check this implementation contract. No native interpreter executes this editor or source-rendering owner, and no test execution receipt is asserted.
+The separately retained Syntax receipt records the named scalar-spelling control; no Native interpreter, editor or consumer execution follows.
