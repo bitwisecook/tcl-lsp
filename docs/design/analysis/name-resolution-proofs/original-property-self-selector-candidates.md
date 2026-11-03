@@ -1,29 +1,81 @@
-# Original property self-selector candidates
+# naming.editor.original-property-self-selector-candidates
 
-`original_source_self_property_references` retains a possible property selector
-only when the current whole source/input and source transition tape select the
-actual member-body schema, the original member body, and one original instance
-property with the same exact source-name policy and bytes. It reports original
-selector spans for readonly references and code-lens lower bounds.
+Kind: `implementation-contract`
 
-This source facet alone remains positive-only. An exact code-lens count is
-available only when the checked potential-source walk is complete, every
-Registry-selected self-dispatch command occurs in a potential body, and each
-command span joins exactly once to the compiler-owned typed property or method
-catalogue. Dynamic, ambiguous, unselected, and otherwise unrepresented commands
-retain partial or unavailable coverage. Property installation, receiver
-allocation, body entry, lookup/accessor execution, observers, and runtime
-inheritance remain separate obligations; the census claims no Native execution.
+## Problem statement
 
-The Core readonly report emits the exact coverage variant only after its
-checked walk and tape join; the server preserves the explicit
-`complete-direct-self-source-census` wire tag and exposes a clickable command only for
-nonempty exact results.
+A readonly property reference report needs original selector and declaring-property ownership, while incomplete source coverage cannot establish that no other occurrence exists.
 
-The corresponding API is listed under the original class member source
-association in `docs/design/contracts/shared-utility-contracts-rust.md` and is
-checked by the `xtask-owner-resolution` source ownership gate.
+## Question
 
-Exact readonly counts are emitted only when the checked potential-source walk is complete, each Registry-selected self-dispatch command is in a potential body, and its command span appears exactly once across the compiler-owned typed property and method source catalogues. Unselected, dynamic, ambiguous, or otherwise unrepresented commands retain partial coverage; this census proves source occurrences only, not property installation, receiver state, accessor dispatch, or Native behavior.
+How do readonly self-property selector candidates retain original source ownership, and when can their report claim a complete source occurrence census?
 
-V5 classifies every visited command through an authentic original Registry source schema or genuine selected definition-member vector before claiming the source census complete. Unclassified object receivers, unknown heads, dynamic selectors and missing or duplicate typed occurrences retain Partial. Generic count assertions and UI labels remain unchanged.
+## Conclusion
+
+`original_source_self_property_references` retains positive selector candidates only under the current source image, resolved input and source-transition tape, matching an original instance property through its exact source-name policy and bytes and member-body ownership. Core reports a complete source occurrence census only when its independent checked source walk and typed method/property correspondence establish coverage; otherwise it retains partial or unavailable coverage. The server limits a source census to one retained document and maps complete coverage to `complete-source-census`. A nonempty complete or partial report can supply a clickable reference command. This source projection does not establish property installation, receiver allocation, body entry, runtime lookup, observer state, Native execution or edit permission.
+
+## Scope
+
+Readonly source selectors and source occurrence reporting for original instance properties. Complete coverage requires a nonempty ASCII original property name and the checked potential-source walk to cover selected self-dispatch commands and each command span to join exactly once to the typed method or property catalogue. Dynamic, ambiguous, unselected and otherwise unrepresented commands stay partial or unavailable. A positive catalogue alone does not establish complete occurrence coverage or runtime absence. No provider execution or software test result is attached.
+
+The original class member source association is documented in `docs/design/contracts/shared-utility-contracts-rust.md` and checked by the owner-resolution gate.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+
+No provider execution for this source contract.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+
+No provider execution for this source contract.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
+
+No provider execution for this source contract.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
+
+No provider execution for this source contract.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+
+No provider execution for this source contract.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+
+No provider execution for this source contract.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+
+No appliance execution for this source contract.
+
+## Exact evidence
+
+No provider evidence or test execution is attached.
+
+## Owner-resolution map
+
+| Purpose | Existing owner | Limitation |
+| --- | --- | --- |
+| Selector source ownership | `original_source_self_property_references` | Positive candidates alone do not close an occurrence census. |
+| Core coverage | `readonly_reference_report` | Exact coverage requires its independent source checks. |
+| Server presentation | `single_document_coverage` and `coverage_tag` | Multiple retained documents keep coverage partial; no runtime or edit authority follows. |
+
+## Replay
+
+Inspected current source ownership only; no executable replay, software test execution or provider execution is attached.

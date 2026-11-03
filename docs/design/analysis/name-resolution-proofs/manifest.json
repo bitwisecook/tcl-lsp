@@ -826402,6 +826402,116 @@
       }
     },
     {
+      "id": "naming.editor.original-property-self-selector-candidates",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/original-property-self-selector-candidates.md",
+      "problem_statement": "A readonly property reference report needs original selector and declaring-property ownership, while incomplete source coverage cannot establish that no other occurrence exists.",
+      "question": "How do readonly self-property selector candidates retain original source ownership, and when can their report claim a complete source occurrence census?",
+      "conclusion": "`original_source_self_property_references` retains positive selector candidates only under the current source image, resolved input and source-transition tape, matching an original instance property through its exact source-name policy and bytes and member-body ownership. Core reports a complete source occurrence census only when its independent checked source walk and typed method/property correspondence establish coverage; otherwise it retains partial or unavailable coverage. The server limits a source census to one retained document and maps complete coverage to `complete-source-census`. A nonempty complete or partial report can supply a clickable reference command. This source projection does not establish property installation, receiver allocation, body entry, runtime lookup, observer state, Native execution or edit permission.",
+      "scope": "Readonly source selectors and source occurrence reporting for original instance properties. Complete coverage requires a nonempty ASCII original property name and the checked potential-source walk to cover selected self-dispatch commands and each command span to join exactly once to the typed method or property catalogue. Dynamic, ambiguous, unselected and otherwise unrepresented commands stay partial or unavailable. A positive catalogue alone does not establish complete occurrence coverage or runtime absence. No provider execution or software test result is attached.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No appliance execution for this source contract.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+          "symbol": "original_source_self_property_references",
+          "purpose": "Select positive original self-property source references only from current image, input, source tape and original instance property owners."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "symbol": "readonly_reference_report",
+          "purpose": "Independently distinguish complete typed source occurrences, partial positive candidates and unavailable source coverage."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "symbol": "single_document_coverage",
+          "purpose": "Withdraw complete source occurrence coverage when the retained document count is not one."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "symbol": "coverage_tag",
+          "purpose": "Expose the current complete-source-census wire tag without granting native execution or edit authority."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Inspected current source ownership only; no executable replay, software test execution or provider execution is attached."
+      }
+    },
+    {
       "id": "naming.editor.original-reference-highlight-selection",
       "kind": "implementation-contract",
       "document": "docs/design/analysis/name-resolution-proofs/original-reference-highlight-selection.md",
