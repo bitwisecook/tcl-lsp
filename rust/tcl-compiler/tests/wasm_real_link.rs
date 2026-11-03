@@ -758,9 +758,9 @@ fn emitted_modules_run_against_the_real_runtime() {
     };
 
     // (program run by `::top`, the query the bootstrap then evaluates, expected).
-    // The single literal command uses the completion-returning generic plan.
+    // The lowered Set uses the general plan and its void entry ABI.
     assert_eq!(
-        run_real_link_literal(&runtime, "mixed0", "set x 42\n", "set x"),
+        run_real_link(&runtime, "mixed0", "set x 42\n", "set x"),
         "42"
     );
     let cases = [
@@ -785,22 +785,6 @@ fn emitted_modules_run_against_the_real_runtime() {
             "program {program:?}, query {query:?}"
         );
     }
-}
-
-/// Run one literal command through the completion-returning generic plan,
-/// then query the same interpreter through the matching hosted entry ABI.
-fn run_real_link_literal(runtime: &Path, tag: &str, program: &str, query: &str) -> String {
-    let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
-    let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
-    assert!(
-        matches!(output.plan, WasmCodegenPlan::GenericInvoke { .. }),
-        "literal command must select the whole-function generic argv: {:?}",
-        output.plan
-    );
-    let abi = top_abi(&output);
-    assert_eq!(abi, TopAbi::Completion);
-    run_link_bytes_with_top_abi(runtime, tag, &output.to_bytes(), program, query, abi)
 }
 
 /// A module states the ABI and the intrinsic table it was emitted against in
