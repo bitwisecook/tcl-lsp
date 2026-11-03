@@ -397,18 +397,47 @@ impl OriginalSourceMethodMetadata {
             parameters,
             tcl_syntax::word_rules::WordValueRules::from_config(&parameters.config()),
         )?;
-        let topology =
-            crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
-                key,
-                self.source_dialect()?,
+        let dialect = self.source_dialect()?;
+        let matches_parameters = if matches!(
+            purpose,
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::Logical(..)
+        ) {
+            let text = std::str::from_utf8(key.bytes()).ok()?;
+            let parsed = tcl_syntax::formal_params::parse_formal_parameters_in(
+                text,
+                tcl_dialect::ParameterGrammar::Tcl,
+            )
+            .ok()?;
+            let bindings = crate::signature_scan::formal_count::logical_formal_argument_bindings(
+                text,
+                &parsed,
+                parsed.len(),
             )?;
-        (topology.parameters().len() == metadata.params.len()
-            && topology
-                .parameters()
-                .iter()
-                .zip(&metadata.params)
-                .all(|(actual, report)| actual.name.as_slice() == report.name.as_bytes()))
-        .then(|| OriginalSourceMethodNameBody {
+            parsed.iter().all(|parameter| parameter.default.is_none() && parameter.name != "args")
+                && bindings.iter().enumerate().all(|(index, binding)| matches!(
+                    binding,
+                    tcl_syntax::formal_params::FormalByteArgumentBinding::Value { parameter, argument }
+                        if *parameter == index && *argument == index
+                ))
+                && parsed.len() == metadata.params.len()
+                && parsed.iter().zip(&metadata.params).all(|(actual, report)| {
+                    actual.name == report.name
+                        && actual.default.is_some() == report.has_default
+                        && actual.default == report.default_value
+                })
+        } else {
+            let topology =
+                crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
+                    key, dialect,
+                )?;
+            topology.parameters().len() == metadata.params.len()
+                && topology
+                    .parameters()
+                    .iter()
+                    .zip(&metadata.params)
+                    .all(|(actual, report)| actual.name.as_slice() == report.name.as_bytes())
+        };
+        matches_parameters.then(|| OriginalSourceMethodNameBody {
             parameters: metadata
                 .params
                 .iter()

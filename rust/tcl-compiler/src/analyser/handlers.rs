@@ -12783,6 +12783,29 @@ mod tests {
     }
 
     #[test]
+    fn logical_factory_override_uses_the_retained_original_member_formals() {
+        for (body, expected) in [("next $name $body", true), ("return opaque", false)] {
+            let source = format!(
+                "oo::class create Meta {{superclass ::oo::class; self method create {{name body}} {{{body}}}}}"
+            );
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(&source, "tcl");
+            let class = analyser
+                .result
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            let factory = analyser.class_factory_of(class);
+            assert_eq!(factory.is_some(), expected, "{source}");
+            if let Some(factory) = factory {
+                let layout = factory.overrides.get("create").unwrap();
+                assert_eq!((layout.name_arg, layout.body_arg), (1, 2));
+            }
+        }
+    }
+
+    #[test]
     fn original_factory_headers_require_the_actual_graph_occupancy_and_arguments() {
         for (source, key, expected) in [
             ("External create Made {}", "::External", true),

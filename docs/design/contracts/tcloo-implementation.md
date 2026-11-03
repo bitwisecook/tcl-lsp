@@ -84,6 +84,11 @@ for the same original class declaration. This conditional source metadata does
 not establish normal completion; statement and procedure completion use their
 own selected-invocation and procedure-body owners.
 
+For Logical member declarations, the readonly parameter/body projection keeps
+the original source and input and accepts only distinct, non-default, non-rest
+formals whose Tcl and Jim bindings agree on direct argument positions. This
+supplies conditional source layout, not a Native activation or completion.
+
 SpecTcl and Studio share the shipped `tcloo-abstract` grammar name, preserving
 these defaults when a selected command descriptor is imported or rendered.
 Custom definers must describe their actual manufactured-class visibility in

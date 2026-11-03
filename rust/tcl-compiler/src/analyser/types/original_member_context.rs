@@ -993,4 +993,41 @@ mod original_class_object_source_tests {
             }
         }
     }
+    #[test]
+    fn logical_member_formals_keep_original_source_and_agreeing_grammars() {
+        for (formals, expected) in [
+            ("name body", true),
+            ("{{name}} body", false),
+            ("&name body", false),
+            ("name {body X}", false),
+            ("name args", false),
+        ] {
+            let source = format!(
+                "oo::class create Meta {{superclass ::oo::class; self method create {{{formals}}} {{next $name $body}}}}"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl").clone();
+            let class = analysis
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            let methods = crate::analyser::class_hierarchy::original_metadata::original_definition_members_for_class(&analysis, class, MemberSide::ClassObject).unwrap();
+            let method = methods
+                .iter()
+                .find(|method| method.original_name_input().bytes() == b"create")
+                .unwrap();
+            let member = method.original_parameter_names_and_body(&analysis);
+            assert_eq!(member.is_some(), expected, "{source}");
+            if let Some(member) = member {
+                assert_eq!(
+                    member.parameter_names().collect::<Vec<_>>(),
+                    ["name", "body"]
+                );
+                let changed = Analyser::new()
+                    .analyse(&(source.clone() + " "), "tcl")
+                    .clone();
+                assert!(method.original_parameter_names_and_body(&changed).is_none());
+            }
+        }
+    }
 }
