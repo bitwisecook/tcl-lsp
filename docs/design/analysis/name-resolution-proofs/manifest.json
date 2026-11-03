@@ -892519,7 +892519,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md",
       "problem_statement": "Core, Registry, syntax and lexer consumers can repeat colon-boundary scans while selecting different counted, CString, Jim and bare-variable inputs. A shared byte span must preserve complete written separator runs without substituting a generic QName projection for the selected input, result or runtime identity owner.",
       "question": "How do actual counted qualifier/tail and nested ASCII variable consumers share the canonical boundary workers while retaining independent original C/Jim input/result contracts and selected Registry stock-function identity?",
-      "conclusion": "written_separator_extent derives the complete final written separator from qualifier_component_extents, and written_command_tail reuses that span. Core neutral and Registry counted qualifier/tail adapters share these queries. Native C qualifier reporting keeps its original CString selection before the query; Jim keeps its separate last-colon branch and original-object result roles. The array-index scanner delegates its existing ASCII bare-variable door to the core-types worker without changing selected braced/array styles. VM math dispatch uses the Registry direct-global function descriptor after actual stock identity selection and refuses an unavailable descriptor through the typed Host boundary. Three fixed software control definitions exercise counted spans/Core adapters/actual nested array scanning. No software assertion or provider execution outcome is attached. Studio extension probes retain exact supplied command reports. ExtensionImport::merge_probe compares full strings, merges only an identical report and preserves distinct :p, ::p and :::::p rows without stripping root markers. C-source registration expressions remain separate unresolved authoring inputs. Reporting rows and provenance establish no native registration slot, namespace context or callable identity.",
+      "conclusion": "written_separator_extent derives the complete final written separator from qualifier_component_extents, and written_command_tail reuses that span. Core neutral and Registry counted qualifier/tail adapters share these queries. Native C qualifier reporting keeps its original CString selection before the query; Jim keeps its separate last-colon branch and original-object result roles. The array-index scanner delegates its existing ASCII bare-variable door to the core-types worker without changing selected braced/array styles. VM math dispatch uses the Registry direct-global function descriptor after actual stock identity selection and refuses an unavailable descriptor through the typed Host boundary. Three fixed software control definitions exercise counted spans/Core adapters/actual nested array scanning. The nested array scanner and a separate core-types leaf scanner passed the two named, scoped current-owned software controls in the retained receipt. No other software assertion or provider execution outcome is attached. Studio extension probes retain exact supplied command reports. ExtensionImport::merge_probe compares full strings, merges only an identical report and preserves distinct :p, ::p and :::::p rows without stripping root markers. C-source registration expressions remain separate unresolved authoring inputs. Reporting rows and provenance establish no native registration slot, namespace context or callable identity.",
       "scope": "Current pure counted written span/tail API, its actual syntax/Core/Registry consumers and exact supplied extension-report merging. Linked fixed software controls remain independent of execution acceptance. Complete separator runs, lone colons, empty/trailing forms, Unicode and embedded NUL are source/counting examples only. Original C CString extent and Jim primitive/result-object behavior keep their separate owners; no Native language/name-key/namespace/source-edit/dispatch/reference or callback chronology is inferred. Existing Native proofs remain independently scoped and unchanged.",
       "providers": [
         {
@@ -892647,14 +892647,14 @@
           "id": "shared-name-boundary-source-7",
           "role": "implementation",
           "path": "rust/tcl-core-types/src/naming.rs",
-          "sha256": "9ac4c6fe7233ed17119b159e4834c8dd59611b1d745df4290a2c9a15a6653e83",
+          "sha256": "a208b4ffb3d837180a51e3d3a2d531f151e0f0f30ce98b15c21f7300e7bb15f6",
           "description": "Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome."
         },
         {
           "id": "shared-name-boundary-source-8",
           "role": "implementation",
           "path": "rust/tcl-core-types/src/lib.rs",
-          "sha256": "a25c183654dae774adfb9882e58790b34781a8b170b2b07e1fd7536b74410844",
+          "sha256": "4400be6b37ecd871e9cd4e050393c8f8957304b4ff232e99c3626c978c0c5558",
           "description": "Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome."
         },
         {
@@ -892733,6 +892733,13 @@
           "path": "rust/tcl-spectcl/src/loader/semantics.rs",
           "sha256": "e4811304b56916c60ba27125d2f393d102d245df158c6c7d733aa7a8dbd7e50f",
           "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "shared-name-boundary-current-leaf-lexer-20261103",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/shared-boundary-20261103/receipt-v2.json",
+          "sha256": "4137228c0ee716a42140c9c6944912c15dfcec3af55b8e1ad0374ada9abd87ba",
+          "description": "Two exact scoped current-owned software controls for the core-types name scanner and its lexer nested-array consumer, with source inventories and binary-hash reruns. No Native provider, other control or whole-proof result follows."
         }
       ],
       "source_anchors": [],
@@ -892753,7 +892760,7 @@
           "path": "rust/tcl-lexer/src/ranges.rs",
           "selector": "ranges::shared_boundary_tests::array_index_nested_variables_use_the_shared_ascii_name_scanner",
           "status": "linked",
-          "assertion": "Fixed actual array-index structural scanner cases use the shared ASCII nested bare-variable boundary with complete colon runs and the existing selected braced/array style. Non-ASCII/lone-colon text is not promoted to a scanned bare name; no runtime variable lookup or Native grammar outcome is asserted. Source-defined control only; no matched owned executable/assertion outcome is attached."
+          "assertion": "The fixed nested array-index scanner control checks the closing offsets and absence of invalid flags for four source forms, including complete colon runs, a lone colon and non-ASCII input. This named control passed in the separately retained current-owned software receipt; it supplies no Native grammar, runtime variable lookup or provider result."
         },
         {
           "path": "rust/tcl-spectcl/src/loader/semantics.rs",
@@ -892848,7 +892855,7 @@
       ],
       "replay": {
         "command": [],
-        "limitations": "Three exact fixed software control definitions and current producer/consumer/API bindings support later reconfirmation. No assertion execution or new C/Jim/BIG-IP observation is attached; Native input, object-result roles and actual implementation ownership must be reconfirmed through their independently selected contracts."
+        "limitations": "Three fixed software control definitions and current producer/consumer/API bindings support later reconfirmation. The separately retained receipt records only the named current-owned leaf and nested-array scanner passes; no other assertion execution or C/Jim/BIG-IP observation is attached. Native input, object-result roles and actual implementation ownership must be reconfirmed through their independently selected contracts."
       }
     },
     {
