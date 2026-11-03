@@ -2321,12 +2321,7 @@ impl Builder<'_> {
         let bytes = spelling.as_bytes();
         if bytes.first() != Some(&b'[')
             || bytes.last() != Some(&b']')
-            || site
-                .source
-                .source_image()
-                .bytes()
-                .get(span.start() as usize..=span.end() as usize)
-                != Some(bytes)
+            || site.source.source_image().bytes().get(span.as_range()) != Some(bytes)
         {
             output.push(Event::Unknown);
             return;
@@ -3280,6 +3275,73 @@ mod tests {
                     .contains_key("missing"),
                 "{source}"
             );
+        }
+    }
+
+    #[test]
+    fn declaration_substitution_keeps_exact_original_component_ranges() {
+        let config = tcl_lexer::LexerConfig::default();
+        for command in [
+            "list [set x] ",
+            "list \"[set x]\" ",
+            "list \"before[set x]after\" ",
+            "list pre[set x] ",
+            "list [] ",
+            "list [list [set x]] ",
+        ] {
+            let source = format!("# original prefix\n{command}");
+            let base = u32::try_from(source.len() - command.len()).unwrap();
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(command, base, config)
+                    .remove(0);
+            let tokens = CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(&source),
+                config,
+                &segment,
+            );
+            let parts = match tokens.words().last().unwrap() {
+                WordExpr::CommandSubstitution { spelling, source } => {
+                    vec![(spelling, source.span)]
+                }
+                WordExpr::Template { parts, .. } => parts
+                    .iter()
+                    .filter_map(|part| match part {
+                        WordPart::CommandSubstitution { spelling, source } => {
+                            Some((spelling, source.span))
+                        }
+                        _ => None,
+                    })
+                    .collect(),
+                _ => panic!("original command component missing: {command}"),
+            };
+            assert_eq!(parts.len(), 1, "{command}");
+            let (spelling, span) = parts[0];
+            let site = CommandAllocationSite {
+                source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(
+                    source.as_str(),
+                ))),
+                offset: base,
+            };
+            let mut events = Vec::new();
+            Builder::substitution(spelling, span, &site, &mut events);
+            let [Event::Script(script)] = events.as_slice() else {
+                panic!("exact original component must retain its script: {command}");
+            };
+            assert_eq!(script.origin, site.source);
+            assert_eq!(script.base(), span.start() + 1);
+            assert_eq!(
+                script.text.bytes(),
+                &spelling.as_bytes()[1..spelling.len() - 1]
+            );
+            for changed in [
+                tcl_lexer::Span::new(span.start(), span.end() + 1),
+                tcl_lexer::Span::new(span.start(), span.end() - 1),
+                tcl_lexer::Span::new(span.start() + 1, span.end()),
+            ] {
+                let mut events = Vec::new();
+                Builder::substitution(spelling, changed, &site, &mut events);
+                assert!(matches!(events.as_slice(), [Event::Unknown]), "{command}");
+            }
         }
     }
 
