@@ -12,7 +12,7 @@ When may an existing analysis expose Registry-authored source roles for a generi
 
 ## Conclusion
 
-`source_registry_words_in_definition_body_at` first retains the complete parent body and its member-region plan. `generic_definition_child_source_words` then requires the same current document image, full resolved input, lexer configuration, context registry, parent source body, and exact original child `NativeWord` vector. It selects the child through the actual resolved context’s authoring realm, using the existing Registry `resolve_invocation_words_in_context` owner, and the parent’s retained invocation dialect; it returns roles only when that selected schema reports complete authored source roles. The parent owner attached to `OriginalRegistryWords` is provenance for revalidating this source projection. It grants no execution, entered frame, dispatch, object identity, edit permission, or complete reference census. Unsupported nested regions, dynamic or changed words, mismatched input/context, and incomplete roles remain unavailable. The retained parent member plan currently supports only the complete original parent region; this contract makes no claim that every deeper or partial nested region is covered.
+`source_registry_words_in_definition_body_at` first retains the complete parent body and its member-region plan. `generic_definition_child_source_words` then requires the same current document image, full resolved input, lexer configuration, context registry, parent source body, and exact original child `NativeWord` vector. It selects the child through the actual resolved context’s authoring realm, using the existing Registry `resolve_invocation_words_in_context` owner, and the parent’s retained invocation dialect; it returns roles only when that selected schema reports complete authored source roles. The parent owner attached to `OriginalRegistryWords` is provenance for revalidating this source projection. It grants no execution, entered frame, dispatch, object identity, edit permission, or complete reference census. Unsupported nested regions, dynamic command heads, changed child word vectors, mismatched input/context, and incomplete authored roles remain unavailable. Dynamic or expanded operands can remain represented as such when the selected schema supplies complete source roles; this projection does not establish their values or expansion cardinality. The retained parent member plan currently supports only the complete original parent region; this contract makes no claim that every deeper or partial nested region is covered.
 
 ## Scope
 
@@ -71,12 +71,12 @@ No provider evidence or test execution is attached.
 | Purpose | Existing owner | Consumer | Limitation |
 | --- | --- | --- | --- |
 | Complete parent body and child-word correspondence | `OriginalSourceScriptBody` and `OriginalSourceDefinitionMemberRegion` in `rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs` | `source_registry_words_in_definition_body_at` in `rust/tcl-compiler/src/registry_invocation/source_structure.rs` | Only complete retained parent plans and exact original child vectors qualify. |
-| Actual child Registry schema and authored roles | `ResolvedAnalysisInput::context_registry`, parent `InvocationDialect`, and `ResolvedInvocation::authored_source_argument_roles` | `generic_definition_child_source_words` in `rust/tcl-compiler/src/registry_invocation/source_structure.rs` | Missing selection, dynamic/changed source, or incomplete roles return unavailable. |
+| Actual child Registry schema and authored roles | `ResolvedAnalysisInput::context_registry`, parent `InvocationDialect`, and `ResolvedInvocation::authored_source_argument_roles` | `generic_definition_child_source_words` in `rust/tcl-compiler/src/registry_invocation/source_structure.rs` | Missing selection, dynamic command heads, changed child vectors, or incomplete roles return unavailable; dynamic or expanded operands retain their own uncertainty. |
 | Parent provenance for later revalidation | `OriginalRegistryWords::definition_parent` | Existing source-structure consumers | Provenance only; it is not an execution or dispatch receipt. |
 
 ## Replay
 
-No test or provider was run for this contract. Static source review and patch checks are recorded in the candidate manifest and do not establish runtime behavior.
+This record indexes inspected source ownership only. No executable replay, test execution or provider execution is attached; source inspection does not establish runtime behavior.
 
 The same `OriginalRegistryWords::with_source_schema` reborrow uses that existing
 context-owned authoring resolver. Neither initial capture nor later revalidation

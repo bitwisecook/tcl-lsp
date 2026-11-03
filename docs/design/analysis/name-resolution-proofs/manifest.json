@@ -1125009,6 +1125009,116 @@
       }
     },
     {
+      "id": "naming.source.original-configured-class-transition-roles",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-class-transition-roles.md",
+      "problem_statement": "A TclOO class configuration command can be reached through a genuine alias or move. Re-resolving its displayed command name or target label loses the original selected command, whole argv, and transition lineage needed to project source roles.",
+      "question": "When may source consumers obtain Registry-authored roles for the exact configured-class transition already retained by the analysis?",
+      "conclusion": "`source_configured_class_words_at` requires the current resolved input, matching body lexer configuration, current document image, and a source-current `OriginalSourceConfiguredClassReference`. It derives the role words from that reference’s retained transition consumer, preserving the actual original command and its alias/move lineage. The configured target’s report label does not choose a Registry descriptor. Missing or stale source ownership or foreign configuration returns no words projection. The retained words preserve the transition advice’s optional role set: unavailable or incomplete roles remain unknown, rather than necessarily withdrawing the complete words wrapper. This API supplies conditional source roles only; it does not establish class installation, method dispatch, runtime mutation, a physical object, Native admission, or edit permission.",
+      "scope": "This is a read-only projection for a typed configured-class source transition. It does not provide a complete mutation census or make absence of a reference prove that no mutation exists.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No appliance execution for this source contract.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs",
+          "symbol": "OriginalSourceConfiguredClassReference",
+          "purpose": "Retain the selected configuration consumer, pretransition class declaration and unresolved source obligations."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "source_configured_class_words_at",
+          "purpose": "Require current whole image/input/configuration and the genuine configured-class source reference before projecting its transition words."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "source_transition_words_from_advice",
+          "purpose": "Reborrow the exact original argv and preserve transition lineage, origins and optional roles without selecting from display labels."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+          "symbol": "MemberReferenceScan",
+          "purpose": "Consume conditional configuration source words for member-reference hazard coverage without turning missing roles into complete mutation or rename authority."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Inspected current source ownership only; no executable replay, test execution or provider execution is attached. Missing source roles, execution, dispatch, installation, source census and edit authority keep their independent limits."
+      }
+    },
+    {
       "id": "naming.source.original-configured-script-completeness",
       "kind": "native-observation",
       "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md",
@@ -1133030,6 +1133140,126 @@
       "replay": {
         "command": [],
         "limitations": "Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent."
+      }
+    },
+    {
+      "id": "naming.source.original-generic-definition-child-registry-roles",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-generic-definition-child-registry-roles.md",
+      "problem_statement": "A nested command in a selected definition body may have no independent document-root source tape entry. Reconstructing its Registry roles from a label, raw string, or parent command grammar can misidentify the selected child schema and lose the child’s original word geometry.",
+      "question": "When may an existing analysis expose Registry-authored source roles for a generic child command inside a definition body?",
+      "conclusion": "`source_registry_words_in_definition_body_at` first retains the complete parent body and its member-region plan. `generic_definition_child_source_words` then requires the same current document image, full resolved input, lexer configuration, context registry, parent source body, and exact original child `NativeWord` vector. It selects the child through the actual resolved context’s authoring realm, using the existing Registry `resolve_invocation_words_in_context` owner, and the parent’s retained invocation dialect; it returns roles only when that selected schema reports complete authored source roles. The parent owner attached to `OriginalRegistryWords` is provenance for revalidating this source projection. It grants no execution, entered frame, dispatch, object identity, edit permission, or complete reference census. Unsupported nested regions, dynamic command heads, changed child word vectors, mismatched input/context, and incomplete authored roles remain unavailable. Dynamic or expanded operands can remain represented as such when the selected schema supplies complete source roles; this projection does not establish their values or expansion cardinality. The retained parent member plan currently supports only the complete original parent region; this contract makes no claim that every deeper or partial nested region is covered.",
+      "scope": "This contract concerns conditional read-only source role projection for one exact child argv under an existing analysis. It supplies no Native authority, semantic dispatch, runtime behavior, mutation, rename permission, provider result, or whole-source completeness claim.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No provider execution for this source contract.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No appliance execution for this source contract.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+          "symbol": "OriginalSourceScriptBody",
+          "purpose": "Retain the authentic complete parent source body and context used to issue a definition-member region."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+          "symbol": "OriginalSourceDefinitionMemberRegion",
+          "purpose": "Keep the complete original parent command vectors and typed member/non-member dispositions."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "source_registry_words_in_definition_body_at",
+          "purpose": "Require current image/input/configuration/context and exact child argv in the complete parent plan before selecting its source schema."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "generic_definition_child_source_words",
+          "purpose": "Select a static child head through the genuine context authoring resolver and retain complete authored roles plus original operand uncertainty and parent provenance."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "OriginalRegistryWords::with_source_schema",
+          "purpose": "Revalidate the same source schema under the current retained context and parent provenance without manufacturing a runtime realm."
+        },
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "symbol": "ResolvedInvocation::authored_source_argument_roles",
+          "purpose": "Issue the selected descriptor’s source argument roles and their explicit completeness flag."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Inspected current source ownership only; no executable replay, test execution or provider execution is attached. Missing source roles, execution, dispatch, installation, source census and edit authority keep their independent limits."
       }
     },
     {
