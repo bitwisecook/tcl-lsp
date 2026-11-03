@@ -65,7 +65,11 @@ async fn install_workspace_read_pack(
     sequence: u64,
     reads: bool,
 ) -> Arc<CommandRegistry> {
-    let role = if reads { "arg 0 -role VarRead" } else { "" };
+    let role = if reads {
+        "arg 0 -role VarRead\nvariable_receivers {0}"
+    } else {
+        ""
+    };
     let packs = tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::PackFile {
             tier: tcl_spectcl::Tier::Workspace,
