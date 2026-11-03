@@ -597,7 +597,10 @@ fn formatting_returns_single_full_document_edit_when_dirty() {
 #[test]
 fn formatting_returns_no_edit_when_already_normalised() {
     // The no-op path: an already-canonical document yields an empty edit list.
-    assert!(formatting("proc f {} {\n    set x 1\n}\n", reg()).is_empty());
+    assert_eq!(
+        formatting("proc f {} {\n    set x 1\n}\n", reg()),
+        [] as [tcl_lsp_core::rename::TextEdit; 0]
+    );
 }
 
 #[test]
