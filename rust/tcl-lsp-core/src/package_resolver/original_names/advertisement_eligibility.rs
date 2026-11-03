@@ -38,8 +38,9 @@ pub(super) fn may_advertise(content: &str, version: tcl_dialect::TclVersion) -> 
     let registry =
         tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
     let generation = crate::context_for_dialect_profile(profile);
-    let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
-    let input = ResolvedAnalysisInput::new(profile, profile, context, config);
+    let loader_context =
+        Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+    let input = ResolvedAnalysisInput::new(profile, profile, loader_context, config);
     let mut queries = 64 * 1024;
     vectors
         .iter()
