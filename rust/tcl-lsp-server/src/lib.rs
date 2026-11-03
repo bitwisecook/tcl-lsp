@@ -71117,7 +71117,8 @@ mod conditional_rename_annotation_tests {
                 .unwrap()
                 .is_none()
         );
-        assert!(backend.rename(params.clone()).await.unwrap().is_none());
+        let error = backend.rename(params.clone()).await.unwrap_err();
+        assert_eq!(error.code, jsonrpc::ErrorCode::InvalidRequest);
         backend
             .conditional_variable_rename_supported
             .store(true, std::sync::atomic::Ordering::Relaxed);

@@ -411,7 +411,8 @@ pub fn original_name_input_edits(
 }
 
 /// Replace the authentic name extent of one executable variable component.
-/// The original image/configuration and literal native units are checked, then
+/// The original image/configuration and literal units under the retained source
+/// formation are checked, then
 /// its complete substitution is reparsed. Delimiters, the separate index and
 /// every byte after the name remain unchanged. This does not turn a lexical
 /// root into a complete-word key or establish variable-cell identity.
@@ -421,27 +422,16 @@ pub fn original_variable_root_name_edit(
     root: &tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot,
     new_name: &str,
 ) -> Option<OriginalNameSourceEdit> {
-    use tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot;
     if root.source_image() != source {
         return None;
     }
     let name = root.name_span()?;
     let raw = source.bytes().get(name.as_range())?;
-    let original = tcl_syntax::backslash::native_source_literal_bytes(
-        raw,
-        source.channel(),
-        root.policy().string_protocol(),
-    )
-    .ok()?;
+    let original = root.source_literal_bytes(raw)?;
     if original.as_ref() != root.bytes() {
         return None;
     }
-    let wanted = tcl_syntax::backslash::native_source_literal_bytes(
-        new_name.as_bytes(),
-        source.channel(),
-        root.policy().string_protocol(),
-    )
-    .ok()?;
+    let wanted = root.source_literal_bytes(new_name.as_bytes())?;
     let part = source.bytes().get(root.part_span().as_range())?;
     let mut replacement = std::str::from_utf8(part).ok()?.to_owned();
     let local = usize::try_from(name.start().checked_sub(root.part_span().start())?).ok()?;
@@ -461,14 +451,7 @@ pub fn original_variable_root_name_edit(
     let [component] = arena.list(arena.root()) else {
         return None;
     };
-    let selected = SignatureSourceVariableRoot::from_original_executable(
-        &arena,
-        &check,
-        root.lexer_config(),
-        component.span,
-        tcl_syntax::word_rules::WordValueRules::from_config(&root.lexer_config()),
-        root.policy(),
-    )?;
+    let selected = root.reparse_original_component(&arena, &check, component.span)?;
     let selected_name = selected.name_span()?;
     if component.span != span
         || selected_name.start() as usize != local

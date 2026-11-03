@@ -21,6 +21,7 @@ pub struct SignatureSourceVariableRoot {
     bytes: NameBytes,
     rules: WordValueRules,
     policy: NamePolicyProtocol,
+    formation: VariableRootFormation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -29,7 +30,7 @@ enum OriginalVariableRootOwner {
     Executable(ExecutablePartArena),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum VariableRootFormation {
     NativeRecipe,
     LogicalSource,
@@ -158,7 +159,51 @@ impl SignatureSourceVariableRoot {
             bytes: bytes.into(),
             rules,
             policy,
+            formation,
         })
+    }
+
+    /// Reparse an exact component using this root's retained source authority.
+    #[must_use]
+    pub fn reparse_original_component(
+        &self,
+        arena: &ExecutablePartArena,
+        image: &SourceImage,
+        exact_part: Span,
+    ) -> Option<Self> {
+        (arena.image() == image
+            && image.channel() == self.source_image().channel()
+            && arena.config() == self.lexer_config())
+            .then_some(())?;
+        Self::from_owner(
+            OriginalVariableRootOwner::Executable(arena.clone()),
+            exact_part,
+            self.rules,
+            self.policy,
+            self.formation,
+        )
+    }
+
+    /// Literal root bytes under the same source authority as this root.
+    #[must_use]
+    pub fn source_literal_bytes<'a>(&self, raw: &'a [u8]) -> Option<std::borrow::Cow<'a, [u8]>> {
+        match self.formation {
+            VariableRootFormation::NativeRecipe => {
+                tcl_syntax::backslash::native_source_literal_bytes(
+                    raw,
+                    self.source_image().channel(),
+                    self.policy.string_protocol(),
+                )
+                .ok()
+            }
+            VariableRootFormation::LogicalSource => {
+                std::str::from_utf8(raw).ok()?;
+                Some(tcl_syntax::backslash::source_literal_bytes(
+                    raw,
+                    self.source_image().channel(),
+                ))
+            }
+        }
     }
 
     pub(super) fn arena(&self) -> &ExecutablePartArena {
