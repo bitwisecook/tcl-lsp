@@ -1,20 +1,14 @@
 {
-  "checked_at": "2026-11-03T19:08:07.401389+00:00",
+  "checked_at": "2026-11-03T19:13:07.567695+00:00",
   "branch": "work",
-  "head_before_status_commit": "e3611d81b72d9025c72b139b5820f4bd3ea72dae",
-  "remote_head_at_fetch": "3038a5a0caa96e503328ba507266ca11c22be77f",
+  "head_before_status_commit": "cbece1617d25ffffd897fd0d695b69c0a3a29670",
+  "remote_head_at_fetch": "3296d2e53a7d7616d47c1c746a79a5fb259feaf8",
   "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "b7831af23a978b977f45eea386908966a7242c5559e1c78396f66122da003cab",
-  "working_tree_at_check": [
-    " M docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md",
-    " M docs/design/analysis/name-resolution-proofs/manifest.json",
-    " M rust/tcl-lsp-server/src/current_diagnostics.rs",
-    " M rust/tcl-syntax/src/expr/parser.rs",
-    "?? docs/design/analysis/name-resolution-proofs/rust-validation/expression-preflight-20261103/"
-  ],
+  "manual_status_sha256": "9f1800b4650c219506db04bf2f37498eaf5e73694ff87eb407e67736b1553e4e",
+  "working_tree_at_check": [],
   "ci_run": 41669761498,
   "ci_note": "This sync heartbeat does not poll or certify CI. See the manual snapshot and the run.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
