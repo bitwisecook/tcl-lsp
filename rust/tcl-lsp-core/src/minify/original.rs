@@ -959,7 +959,7 @@ mod tests {
         let operands = inventory
             .expression_operands(source, &analysis, command)
             .expect("independent compiler-source Expr proof");
-        assert!(!operands.is_empty());
+        assert_ne!(operands, [] as [(usize, tcl_lexer::NativeWord); 0]);
         assert!(
             inventory
                 .script_bodies(source, &analysis, command)
@@ -1172,7 +1172,10 @@ mod tests {
             &analyse(expansion, "tcl8.6"),
             MinifyOptions::default(),
         );
-        assert!(result.refusals.is_empty());
+        assert_eq!(
+            result.refusals,
+            [] as [crate::minify::original::MinifyRefusal; 0]
+        );
         assert_eq!(result.source, "{*}{puts p\\uD800} café");
     }
 
@@ -1872,7 +1875,10 @@ mod tests {
             Some("if"),
         );
         let result = minify_with_analysis(source, &analysis, MinifyOptions::default());
-        assert!(result.refusals.is_empty());
+        assert_eq!(
+            result.refusals,
+            [] as [crate::minify::original::MinifyRefusal; 0]
+        );
         assert_eq!(result.source, "if {1} {puts payload}");
         // This readonly projection did not replace the retained execution fact.
         assert!(realm.invocation_at_source("if", 0).unknown);
@@ -2392,7 +2398,7 @@ mod tests {
             assert!(advice.obligations().contains(
                 &tcl_compiler::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
             ));
-            assert!(!advice.uncertain_operations().is_empty());
+            assert_ne!(advice.uncertain_operations(), []);
             assert!(
                 super::super::lexical_metadata::with_command_schema(env, command, |_| ()).is_some()
             );

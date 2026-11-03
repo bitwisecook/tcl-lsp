@@ -489,7 +489,7 @@ mod tests {
         assert_eq!(original.subject().try_text().unwrap(), "{$x}");
         let result = switch_to_dict(source, 0, &analysis, &LineIndex::new(source))
             .expect("selected source action with independent missing permission");
-        assert!(result.edits.is_empty());
+        assert_eq!(result.edits, [] as [crate::refactor::RefactorEdit; 0]);
         assert!(
             result
                 .disabled

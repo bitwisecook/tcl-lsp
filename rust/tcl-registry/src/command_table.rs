@@ -186,11 +186,11 @@ mod tests {
                 }) if source.is_empty() && target.is_empty()
             ));
         }
-        assert!(
+        assert_eq!(
             descriptor
                 .resolve(InvocationArguments::literals(&["only"]))
-                .facts()
-                .is_empty()
+                .facts(),
+            []
         );
         let dynamic = [InvocationWord::Dynamic, InvocationWord::Literal("puts")];
         assert!(

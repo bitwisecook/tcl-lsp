@@ -1294,7 +1294,7 @@ mod tests {
             false,
             true,
         );
-        assert!(hints.is_empty());
+        assert_eq!(hints, [] as [crate::inlay_hints::InlayHint; 0]);
     }
 
     #[test]
@@ -2222,11 +2222,17 @@ mod original_hint_tests {
                 .collect::<Vec<_>>(),
             ["first:", "second:"]
         );
-        assert!(parameter_hints(&format!("#{source}"), &analysis).is_empty());
+        assert_eq!(
+            parameter_hints(&format!("#{source}"), &analysis),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
         for invocation in &mut analysis.command_invocations {
             invocation.original_lookup = None;
         }
-        assert!(parameter_hints_from(source, &analysis, start).is_empty());
+        assert_eq!(
+            parameter_hints_from(source, &analysis, start),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
     }
 
     #[test]
@@ -2307,7 +2313,10 @@ mod original_hint_tests {
         );
         let source = "string range {*}$unknown 2";
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
-        assert!(builtin_hints(source, &analysis).is_empty());
+        assert_eq!(
+            builtin_hints(source, &analysis),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
     }
 
     #[test]
@@ -2376,8 +2385,14 @@ mod original_hint_tests {
             out[0].position_character as usize,
             source.find(r"\x25d").unwrap() + 5
         );
-        assert!(hints(r#"interp alias {} fmt {} format "%d"; fmt 3"#).is_empty());
-        assert!(hints("format {*}$unknown 3").is_empty());
+        assert_eq!(
+            hints(r#"interp alias {} fmt {} format "%d"; fmt 3"#),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
+        assert_eq!(
+            hints("format {*}$unknown 3"),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
     }
 
     #[test]
@@ -2454,18 +2469,24 @@ mod original_variable_type_tests {
             |hint| (hint.position_line, hint.label.as_str()) != (0, ": str")
                 && (hint.position_line, hint.label.as_str()) != (1, ": int")
         ));
-        assert!(
+        assert_eq!(
             super::original_variable_type_tests::hints(
                 &format!("{source}# changed elsewhere"),
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::inlay_hints::InlayHint; 0]
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
-        assert!(super::original_variable_type_tests::hints(source, &missing).is_empty());
+        assert_eq!(
+            super::original_variable_type_tests::hints(source, &missing),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
         analysis.original_variable_symbols.clear();
-        assert!(super::original_variable_type_tests::hints(source, &analysis).is_empty());
+        assert_eq!(
+            super::original_variable_type_tests::hints(source, &analysis),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
     }
 
     #[test]
@@ -2577,7 +2598,7 @@ mod original_procedure_topology_hint_tests {
             ["first:"]
         );
         assert!(!hints.iter().any(|hint| hint.label == "second:"));
-        assert!(
+        assert_eq!(
             inlay_hints(
                 &format!("#{source}"),
                 analysis.resolved_profile().unwrap(),
@@ -2591,8 +2612,8 @@ mod original_procedure_topology_hint_tests {
                 None,
                 false,
                 true
-            )
-            .is_empty()
+            ),
+            [] as [crate::inlay_hints::InlayHint; 0]
         );
     }
 }
@@ -2686,14 +2707,14 @@ mod retained_hint_context_tests {
                 expected,
                 "{environment}: {out:?}"
             );
-            assert!(
+            assert_eq!(
                 hints(
                     &source.replace("%Y", "%m"),
                     &analysis,
                     input.unit_profile(),
                     context.commands()
-                )
-                .is_empty()
+                ),
+                [] as [crate::inlay_hints::InlayHint; 0]
             );
             analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
                 input.analyser_profile(),
@@ -2703,7 +2724,10 @@ mod retained_hint_context_tests {
                 ),
                 input.lexer_config(),
             ));
-            assert!(hints(source, &analysis, input.unit_profile(), context.commands()).is_empty());
+            assert_eq!(
+                hints(source, &analysis, input.unit_profile(), context.commands()),
+                [] as [crate::inlay_hints::InlayHint; 0]
+            );
         }
     }
 
@@ -2877,21 +2901,27 @@ mod retained_hint_context_tests {
                 .iter()
                 .any(|hint| hint.label == "value:")
         );
-        assert!(
+        assert_eq!(
             hints(
                 &source.replace("VALUE", "OTHER"),
                 &original,
                 profile,
                 registry
-            )
-            .is_empty()
+            ),
+            [] as [crate::inlay_hints::InlayHint; 0]
         );
         let mut changed = original.clone();
         changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
-        assert!(hints(source, &changed, profile, registry).is_empty());
+        assert_eq!(
+            hints(source, &changed, profile, registry),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
         changed = original.clone();
         changed.resolved_input = None;
-        assert!(hints(source, &changed, profile, registry).is_empty());
+        assert_eq!(
+            hints(source, &changed, profile, registry),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
     }
 
     #[test]
@@ -2912,14 +2942,14 @@ mod retained_hint_context_tests {
                 expected,
                 "{environment}: {out:?}"
             );
-            assert!(
+            assert_eq!(
                 hints(
                     "string cat C D",
                     &analysis,
                     input.unit_profile(),
                     context.commands()
-                )
-                .is_empty()
+                ),
+                [] as [crate::inlay_hints::InlayHint; 0]
             );
             analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
                 input.analyser_profile(),
@@ -2929,7 +2959,10 @@ mod retained_hint_context_tests {
                 ),
                 input.lexer_config(),
             ));
-            assert!(hints(source, &analysis, input.unit_profile(), context.commands()).is_empty());
+            assert_eq!(
+                hints(source, &analysis, input.unit_profile(), context.commands()),
+                [] as [crate::inlay_hints::InlayHint; 0]
+            );
         }
     }
 
@@ -3088,7 +3121,10 @@ mod retained_hint_context_tests {
         analysis.global_scope.variables.clear();
         analysis.dialect = "foreign presentation label".to_owned();
         assert_eq!(hints(source, &analysis, profile, registry), expected);
-        assert!(hints("format {%x} 3", &analysis, profile, registry).is_empty());
+        assert_eq!(
+            hints("format {%x} 3", &analysis, profile, registry),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
 
         let input = analysis.resolved_input.as_ref().unwrap();
         let context = input.context_registry();
@@ -3101,7 +3137,10 @@ mod retained_hint_context_tests {
             input.lexer_config(),
         );
         analysis.resolved_input = Some(foreign);
-        assert!(hints(source, &analysis, profile, registry).is_empty());
+        assert_eq!(
+            hints(source, &analysis, profile, registry),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
     }
 
     #[test]
@@ -3131,19 +3170,22 @@ mod retained_hint_context_tests {
             ),
             expected,
         );
-        assert!(hints(&format!("{source} "), &analysis, profile, registry).is_empty());
+        assert_eq!(
+            hints(&format!("{source} "), &analysis, profile, registry),
+            [] as [crate::inlay_hints::InlayHint; 0]
+        );
         let config = analysis.body_lexer_config.unwrap();
         let mut different = config;
         different.strict_quoting = !different.strict_quoting;
         analysis.body_lexer_config = Some(different);
-        assert!(
+        assert_eq!(
             hints(
                 source,
                 &analysis,
                 profile,
                 crate::registry_for_dialect("tcl8.6")
-            )
-            .is_empty()
+            ),
+            [] as [crate::inlay_hints::InlayHint; 0]
         );
     }
 
@@ -3295,7 +3337,7 @@ mod retained_hint_context_tests {
         assert!(labels(2).contains(&": double"), "{hints:?}");
         assert!(!labels(2).contains(&": int"), "{hints:?}");
         let changed = format!("# changed\n{source}");
-        assert!(
+        assert_eq!(
             inlay_hints(
                 &changed,
                 analysis.resolved_profile().unwrap(),
@@ -3304,10 +3346,10 @@ mod retained_hint_context_tests {
                 Some(registry),
                 true,
                 false,
-            )
-            .is_empty()
+            ),
+            [] as [crate::inlay_hints::InlayHint; 0]
         );
-        assert!(
+        assert_eq!(
             inlay_hints(
                 source,
                 analysis.resolved_profile().unwrap(),
@@ -3316,8 +3358,8 @@ mod retained_hint_context_tests {
                 Some(registry),
                 true,
                 false,
-            )
-            .is_empty()
+            ),
+            [] as [crate::inlay_hints::InlayHint; 0]
         );
     }
 }

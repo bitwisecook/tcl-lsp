@@ -44,7 +44,7 @@ fn original_instance_candidates_join_genuine_construction_without_reporting_maps
                     .unwrap(),
                 receiver.class
             );
-            assert!(!receipt.obligations().is_empty());
+            assert_ne!(receipt.obligations(), []);
             assert_eq!(
                 instance_method_completion_record(&analysis, source, at).unwrap(),
                 receiver.class

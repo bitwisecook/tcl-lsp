@@ -390,12 +390,12 @@ mod tests {
     #[test]
     fn case_and_unavailable_apply_when_words_are_not_events() {
         let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
-        assert!(
+        assert_eq!(
             scan_file_events(
                 src,
                 tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -565,12 +565,12 @@ mod tests {
             ),
             None
         );
-        assert!(
+        assert_eq!(
             scan_file_events(
                 "",
                 tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -631,6 +631,6 @@ mod tests {
             "when HTTP_REQUEST {}",
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
-        assert!(tcl.file_events().is_empty());
+        assert_eq!(tcl.file_events(), [] as [std::string::String; 0]);
     }
 }

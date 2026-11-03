@@ -465,7 +465,10 @@ mod tests {
     #[test]
     fn a_script_document_has_no_block_outline() {
         let script = "oo::class create Greeter {\n    method hi {} { return 1 }\n}\n";
-        assert!(declarations(script, profile_for_dialect("tcl9.0")).is_empty());
+        assert_eq!(
+            declarations(script, profile_for_dialect("tcl9.0")),
+            [] as [crate::declaration_outline::BlockDeclaration; 0]
+        );
     }
 
     fn configured_analysis(source: &str, config: LexerConfig) -> AnalysisResult {
@@ -486,7 +489,10 @@ mod tests {
         assert_eq!(outline[0].children[0].label(), "hsts");
 
         let stale = DOC.replace("www.example.test", "stale.example.test");
-        assert!(declarations_from_analysis(&stale, &analysis).is_empty());
+        assert_eq!(
+            declarations_from_analysis(&stale, &analysis),
+            [] as [crate::declaration_outline::BlockDeclaration; 0]
+        );
     }
 
     #[test]
@@ -523,6 +529,9 @@ mod tests {
         let malformed = "sslictcl 1\nendpoint /Common/broken {\n  hsts {\n";
         let malformed_analysis =
             configured_analysis(malformed, LexerConfig::from_grammar(sslictcl().grammar));
-        assert!(declarations_from_analysis(malformed, &malformed_analysis).is_empty());
+        assert_eq!(
+            declarations_from_analysis(malformed, &malformed_analysis),
+            [] as [crate::declaration_outline::BlockDeclaration; 0]
+        );
     }
 }

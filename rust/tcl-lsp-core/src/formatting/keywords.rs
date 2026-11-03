@@ -774,8 +774,14 @@ mod tests {
         };
         assert_eq!(run(&["-fi"]), vec![(0, "-first".to_owned())]);
         assert_eq!(run(&["-se", "data"]), vec![(0, "-second".to_owned())]);
-        assert!(run(&["-fi", "data"]).is_empty());
-        assert!(run(&["data", "-se"]).is_empty());
+        assert_eq!(
+            run(&["-fi", "data"]),
+            [] as [(usize, std::string::String); 0]
+        );
+        assert_eq!(
+            run(&["data", "-se"]),
+            [] as [(usize, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -816,9 +822,9 @@ mod tests {
         assert_eq!(original.form.unwrap().name, replacement.form.unwrap().name);
         assert!(!original.source_literal_replacement_keeps_selection(0, "-first"));
         assert!(original.source_literal_replacement_keeps_selection(0, "-fi"));
-        assert!(
-            rewrites_for_selected_invocation(&original, &config(true, BooleanForm::Preserve))
-                .is_empty()
+        assert_eq!(
+            rewrites_for_selected_invocation(&original, &config(true, BooleanForm::Preserve)),
+            [] as [crate::formatting::keywords::KeywordRewrite; 0]
         );
     }
 
@@ -924,7 +930,7 @@ mod tests {
             &["-2", "-noc"][..],
             &["data", "-noc"][..],
         ] {
-            assert!(run(args).is_empty());
+            assert_eq!(run(args), [] as [(usize, std::string::String); 0]);
         }
     }
 
@@ -959,7 +965,7 @@ mod tests {
         );
         let mut dynamic = [false; 3];
         dynamic[0] = true;
-        assert!(
+        assert_eq!(
             rewrites_for_command(
                 &registry,
                 None,
@@ -967,8 +973,8 @@ mod tests {
                 "format_source_anywhere",
                 &args,
                 &dynamic
-            )
-            .is_empty()
+            ),
+            [] as [crate::formatting::keywords::KeywordRewrite; 0]
         );
     }
 
@@ -980,14 +986,23 @@ mod tests {
             vec![(0, "length".to_owned())]
         );
         // Already canonical — idempotent, no rewrite.
-        assert!(rewrites("string", &["length", "$s"], &cfg).is_empty());
+        assert_eq!(
+            rewrites("string", &["length", "$s"], &cfg),
+            [] as [(usize, std::string::String); 0]
+        );
     }
 
     #[test]
     fn an_ambiguous_or_unknown_subcommand_is_left_alone() {
         let cfg = config(true, BooleanForm::Preserve);
-        assert!(rewrites("string", &["l", "$s"], &cfg).is_empty());
-        assert!(rewrites("string", &["zzz", "$s"], &cfg).is_empty());
+        assert_eq!(
+            rewrites("string", &["l", "$s"], &cfg),
+            [] as [(usize, std::string::String); 0]
+        );
+        assert_eq!(
+            rewrites("string", &["zzz", "$s"], &cfg),
+            [] as [(usize, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -998,14 +1013,23 @@ mod tests {
             vec![(0, "-nocase".to_owned()), (1, "-all".to_owned())]
         );
         // An ambiguous option prefix stays.
-        assert!(rewrites("lsearch", &["-a", "$x", "$p"], &cfg).is_empty());
+        assert_eq!(
+            rewrites("lsearch", &["-a", "$x", "$p"], &cfg),
+            [] as [(usize, std::string::String); 0]
+        );
     }
 
     #[test]
     fn expansion_can_be_turned_off() {
         let cfg = config(false, BooleanForm::Preserve);
-        assert!(rewrites("string", &["le", "$s"], &cfg).is_empty());
-        assert!(rewrites("lsearch", &["-noc", "$x", "$p"], &cfg).is_empty());
+        assert_eq!(
+            rewrites("string", &["le", "$s"], &cfg),
+            [] as [(usize, std::string::String); 0]
+        );
+        assert_eq!(
+            rewrites("lsearch", &["-noc", "$x", "$p"], &cfg),
+            [] as [(usize, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -1022,7 +1046,7 @@ mod tests {
             &args,
             &[true, false],
         );
-        assert!(out.is_empty());
+        assert_eq!(out, [] as [crate::formatting::keywords::KeywordRewrite; 0]);
     }
 
     #[test]
@@ -1030,7 +1054,10 @@ mod tests {
         // `str` is not `string` — the rewrite map is keyed on argument
         // indices only, and an unknown command yields nothing at all.
         let cfg = config(true, BooleanForm::Preserve);
-        assert!(rewrites("str", &["length", "$s"], &cfg).is_empty());
+        assert_eq!(
+            rewrites("str", &["length", "$s"], &cfg),
+            [] as [(usize, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -1194,7 +1221,10 @@ mod tests {
             vec![(1, "true".to_owned())]
         );
         // TN: the numeric spelling is a count there, and keeps its bytes.
-        assert!(run(&["-validate", "0"], BooleanForm::TrueFalse).is_empty());
+        assert_eq!(
+            run(&["-validate", "0"], BooleanForm::TrueFalse),
+            [] as [(usize, std::string::String); 0]
+        );
         // The purely boolean option beside it rewrites either spelling.
         assert_eq!(
             run(&["-strict", "0"], BooleanForm::TrueFalse),
@@ -1273,8 +1303,8 @@ mod tests {
         // TP: a word spelling normalises.
         assert_eq!(run(&["yes"]), vec![(0, "true".to_owned())]);
         // TN: `0`/`1` are numbers here too — byte-identical round trip.
-        assert!(run(&["0"]).is_empty());
-        assert!(run(&["1"]).is_empty());
+        assert_eq!(run(&["0"]), [] as [(usize, std::string::String); 0]);
+        assert_eq!(run(&["1"]), [] as [(usize, std::string::String); 0]);
     }
 
     /// A subcommand-scoped positional boolean must honour both preserved
@@ -1323,7 +1353,10 @@ mod tests {
         // FN guard (dialect): a document targeting a release that does not
         // carry the subcommand never reaches the positional pass at all — the
         // subcommand scan itself abstains, same as an ambiguous/unknown word.
-        assert!(run(Some(SurfaceQuery::core(Family::Tcl, "8.6")), None).is_empty());
+        assert_eq!(
+            run(Some(SurfaceQuery::core(Family::Tcl, "8.6")), None),
+            [] as [(usize, std::string::String); 0]
+        );
 
         // The range-agreement half, exercised directly: a range
         // spanning a release that drops the subcommand drags the verdict to

@@ -426,7 +426,10 @@ mod tests {
         );
         assert!(card.value.contains("command availability is unresolved"));
         assert!(!card.value.contains("**Requires**:"));
-        assert!(analysis.package_requires.is_empty());
+        assert_eq!(
+            analysis.package_requires,
+            [] as [tcl_compiler::signature_scan::types::SignaturePackageRequire; 0]
+        );
     }
 
     #[test]

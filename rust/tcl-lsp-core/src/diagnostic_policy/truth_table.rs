@@ -1477,7 +1477,10 @@ mod tests {
             Want::Suppressed(Reason::Disabled(PolicyLayer::Invocation)),
             "the flags occupy the editor layer's slot"
         );
-        assert!(disabled.expected(Surface::Lsp).is_empty());
+        assert_eq!(
+            disabled.expected(Surface::Lsp),
+            [] as [crate::diagnostic_policy::truth_table::Expect; 0]
+        );
 
         let overlap = &ROWS[35];
         assert_eq!(overlap.name, "a_within_span_overlap");

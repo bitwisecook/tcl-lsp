@@ -514,12 +514,16 @@ mod tests {
                 .iter()
                 .any(|fold| fold.start_line == 0 && fold.end_line == 2)
         );
-        assert!(
-            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis).is_empty()
+        assert_eq!(
+            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis),
+            [] as [crate::folding::FoldingRange; 0]
         );
         let config = analysis.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
-        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &analysis),
+            [] as [crate::folding::FoldingRange; 0]
+        );
     }
 
     #[test]
@@ -552,8 +556,9 @@ mod tests {
             ),
             expected
         );
-        assert!(
-            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis).is_empty()
+        assert_eq!(
+            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis),
+            [] as [crate::folding::FoldingRange; 0]
         );
         let mut foreign_config = analysis.clone();
         foreign_config
@@ -561,9 +566,15 @@ mod tests {
             .as_mut()
             .unwrap()
             .strict_quoting ^= true;
-        assert!(folding_ranges_with_analysis(source, &foreign_config).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &foreign_config),
+            [] as [crate::folding::FoldingRange; 0]
+        );
         analysis.resolved_input = None;
-        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &analysis),
+            [] as [crate::folding::FoldingRange; 0]
+        );
     }
 
     #[test]
@@ -572,14 +583,20 @@ mod tests {
         let source = "set data {\n inert first\n inert second\n}\n";
         let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
         assert!(analysis.allows_lexical_declaration_advice());
-        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &analysis),
+            [] as [crate::folding::FoldingRange; 0]
+        );
         let mut invented = Scope::new(ScopeKind::Namespace, "presentation-only");
         invented.body_span = Some(tcl_lexer::Span::new(
             u32::try_from(source.find('{').unwrap() + 1).unwrap(),
             u32::try_from(source.rfind('}').unwrap()).unwrap(),
         ));
         analysis.global_scope.children.push(invented);
-        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &analysis),
+            [] as [crate::folding::FoldingRange; 0]
+        );
     }
 
     fn logical_analysis_with_availability(source: &str, environment: &str) -> AnalysisResult {
@@ -614,13 +631,22 @@ mod tests {
                 .any(|fold| fold.start_line == 0 && fold.end_line == 2)
         );
         let older = logical_analysis_with_availability(source, "tcl8.4");
-        assert!(folding_ranges_with_analysis(source, &older).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &older),
+            [] as [crate::folding::FoldingRange; 0]
+        );
         let mut missing = current.clone();
         missing.resolved_input = None;
-        assert!(folding_ranges_with_analysis(source, &missing).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &missing),
+            [] as [crate::folding::FoldingRange; 0]
+        );
         let mut changed = current;
         changed.resolved_input = older.resolved_input;
-        assert!(folding_ranges_with_analysis(source, &changed).is_empty());
+        assert_eq!(
+            folding_ranges_with_analysis(source, &changed),
+            [] as [crate::folding::FoldingRange; 0]
+        );
     }
 
     #[test]
@@ -641,8 +667,9 @@ mod tests {
                 .iter()
                 .any(|fold| fold.start_line == 2)
         );
-        assert!(
-            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis).is_empty()
+        assert_eq!(
+            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis),
+            [] as [crate::folding::FoldingRange; 0]
         );
     }
 
@@ -654,12 +681,12 @@ mod tests {
 
     #[test]
     fn empty_source_yields_no_folds() {
-        assert!(
+        assert_eq!(
             folding_ranges_default(
                 "",
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [crate::folding::FoldingRange; 0]
         );
     }
 
@@ -669,7 +696,7 @@ mod tests {
             "proc foo {} { return 1 }\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
+        assert_eq!(fold_lines(&ranges, FoldKind::Region), [] as [(u32, u32); 0]);
     }
 
     // backslash line-continuation folding
@@ -780,7 +807,10 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry(),
         );
-        assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
+        assert_eq!(
+            fold_lines(&ranges, FoldKind::Comment),
+            [] as [(u32, u32); 0]
+        );
     }
 
     #[test]
@@ -789,7 +819,10 @@ mod tests {
             "# Just one comment\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
+        assert_eq!(
+            fold_lines(&ranges, FoldKind::Comment),
+            [] as [(u32, u32); 0]
+        );
     }
 
     #[test]
@@ -799,7 +832,7 @@ mod tests {
             source,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
+        assert_ne!(fold_lines(&ranges, FoldKind::Region), [] as [(u32, u32); 0]);
     }
 
     /// `switch`'s braced form is a single clause-list argument, so a generic
@@ -1050,7 +1083,7 @@ mod tests {
             source,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
+        assert_ne!(fold_lines(&ranges, FoldKind::Region), [] as [(u32, u32); 0]);
     }
 
     /// `apply`'s lambda-literal argument is
@@ -1530,7 +1563,10 @@ mod tests {
     #[test]
     fn normalise_overlaps_empty_input() {
         // Pure smoke — empty input stays empty without panicking.
-        assert!(normalise_overlaps(Vec::new()).is_empty());
+        assert_eq!(
+            normalise_overlaps(Vec::new()),
+            [] as [crate::folding::FoldingRange; 0]
+        );
     }
 
     #[test]

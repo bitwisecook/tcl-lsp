@@ -9370,13 +9370,12 @@ p\uD801";
                 .all(|required| required.prefer() == PackagePrefer::Latest)
         );
         index.remove_document("file:///library.tcl");
-        assert!(
-            index
-                .original_package_requirement_advice_for(
-                    "file:///library.tcl",
-                    PackagePrefer::Stable
-                )
-                .is_empty()
+        assert_eq!(
+            index.original_package_requirement_advice_for(
+                "file:///library.tcl",
+                PackagePrefer::Stable
+            ),
+            [] as [crate::package_resolver::PackageRequirementAdvice; 0]
         );
     }
 
@@ -9530,8 +9529,14 @@ p\uD801";
         assert!(call.resolved_definition.is_some());
         assert!(!call.resolved_user_definition);
         assert_eq!(index.linked_invocations_of("::origin::helper", "").len(), 1);
-        assert!(index.invocations_of("::origin::helper", "").is_empty());
-        assert!(index.invocations_of("::app::helper", "").is_empty());
+        assert_eq!(
+            index.invocations_of("::origin::helper", ""),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
+        );
+        assert_eq!(
+            index.invocations_of("::app::helper", ""),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
+        );
     }
 
     #[test]
@@ -9542,7 +9547,10 @@ p\uD801";
         assert_eq!(index.invocations_of("::app::helper", "").len(), 1);
         assert_eq!(index.linked_invocations_of("::app::helper", "").len(), 1);
         assert_eq!(index.linked_invocations_of("::origin::helper", "").len(), 1);
-        assert!(index.invocations_of("::origin::helper", "").is_empty());
+        assert_eq!(
+            index.invocations_of("::origin::helper", ""),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
+        );
     }
 
     #[test]
@@ -9857,10 +9865,9 @@ p\uD801";
         );
         // …and from internal (`my`) dispatch too — the member is gone, not
         // merely unexported.
-        assert!(
-            index
-                .method_dispatch_chain("::C", "m", MethodAccess::Internal)
-                .is_empty(),
+        assert_eq!(
+            index.method_dispatch_chain("::C", "m", MethodAccess::Internal),
+            [] as [&crate::workspace_index::WorkspaceClass; 0],
         );
     }
 
@@ -10192,10 +10199,9 @@ p\uD801";
         let a = analyse("oo::class create ::C { method m {} { return 1 } }\n");
         let b = analyse("oo::define ::C { deletemethod m }\n");
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
-        assert!(
-            index
-                .method_dispatch_chain("::C", "m", MethodAccess::External)
-                .is_empty(),
+        assert_eq!(
+            index.method_dispatch_chain("::C", "m", MethodAccess::External),
+            [] as [&crate::workspace_index::WorkspaceClass; 0],
         );
         assert!(
             index.classes().all(|c| !c.arrives_method("m")),
@@ -10660,7 +10666,10 @@ p\uD801";
         assert_eq!(defs[0].uri, "file:///a.tcl");
         // The same-document exclusion drops it when querying
         // from a.tcl itself.
-        assert!(index.proc_definitions("helper", "file:///a.tcl").is_empty());
+        assert_eq!(
+            index.proc_definitions("helper", "file:///a.tcl"),
+            [] as [&crate::workspace_index::WorkspaceProc; 0]
+        );
     }
 
     #[test]
@@ -11011,10 +11020,9 @@ p\uD801";
         );
         // The alias `TARGET` word needs no separate link span — it is already
         // an invocation the ordinary reference/rename path covers.
-        assert!(
-            index
-                .link_target_spans("::mymod::helper", "file:///mymod.tcl")
-                .is_empty(),
+        assert_eq!(
+            index.link_target_spans("::mymod::helper", "file:///mymod.tcl"),
+            [] as [(std::string::String, tcl_lexer::Span); 0],
         );
     }
 
@@ -11051,10 +11059,9 @@ p\uD801";
         );
         // The `OLD` word needs no separate link span — it is already an
         // invocation the ordinary reference/rename path covers.
-        assert!(
-            index
-                .link_target_spans("::mymod::helper", "file:///mymod.tcl")
-                .is_empty(),
+        assert_eq!(
+            index.link_target_spans("::mymod::helper", "file:///mymod.tcl"),
+            [] as [(std::string::String, tcl_lexer::Span); 0],
         );
     }
 
@@ -11423,13 +11430,18 @@ p\uD801";
             ("file:///proj/app.tcl", &shadow),
             ("file:///proj/lib.tcl", &child),
         ]);
-        assert!(!index.sources().collect::<Vec<_>>().is_empty());
-        assert!(index.resolved_source_edges().is_empty());
+        assert_ne!(
+            index.sources().collect::<Vec<_>>(),
+            [] as [&crate::workspace_index::WorkspaceSource; 0]
+        );
+        assert_eq!(
+            index.resolved_source_edges(),
+            [] as [crate::source_graph::RunEdge; 0]
+        );
         assert!(index.source_seed_map(test_resolve).is_empty());
-        assert!(
-            index
-                .source_ancestor_package_requires_from_resolved("file:///proj/lib.tcl")
-                .is_empty()
+        assert_eq!(
+            index.source_ancestor_package_requires_from_resolved("file:///proj/lib.tcl"),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -13698,10 +13710,9 @@ p\uD801";
         );
         // The declaring document is excluded on request, which is how the
         // cross-document definition tier avoids re-reporting local answers.
-        assert!(
-            index
-                .namespace_declarations_qualified("::mypkg", "file:///decl.tcl")
-                .is_empty(),
+        assert_eq!(
+            index.namespace_declarations_qualified("::mypkg", "file:///decl.tcl"),
+            [] as [&crate::workspace_index::WorkspaceNamespaceRef; 0],
         );
     }
 
@@ -13731,10 +13742,9 @@ p\uD801";
         );
         assert_eq!(index.namespace_declarations_under("::p", "").len(), 1);
         // TN — an exact match is a real declaration, not an implicit one.
-        assert!(
-            index
-                .namespace_declarations_under("::p::q::r", "")
-                .is_empty(),
+        assert_eq!(
+            index.namespace_declarations_under("::p::q::r", ""),
+            [] as [&crate::workspace_index::WorkspaceNamespaceRef; 0],
         );
         // TN — a segment prefix is a different namespace entirely.
         assert!(
@@ -13745,8 +13755,14 @@ p\uD801";
         );
         // TN — the global namespace is created by the interpreter, so nothing
         // implicitly creates it.
-        assert!(index.namespace_declarations_under("::", "").is_empty());
-        assert!(index.namespace_declarations_under("", "").is_empty());
+        assert_eq!(
+            index.namespace_declarations_under("::", ""),
+            [] as [&crate::workspace_index::WorkspaceNamespaceRef; 0]
+        );
+        assert_eq!(
+            index.namespace_declarations_under("", ""),
+            [] as [&crate::workspace_index::WorkspaceNamespaceRef; 0]
+        );
     }
 
     #[test]
@@ -13761,10 +13777,9 @@ p\uD801";
             1
         );
         index.remove_document("file:///a.tcl");
-        assert!(
-            index
-                .namespace_declarations_qualified("::gone", "")
-                .is_empty()
+        assert_eq!(
+            index.namespace_declarations_qualified("::gone", ""),
+            [] as [&crate::workspace_index::WorkspaceNamespaceRef; 0]
         );
         assert!(index.namespace_refs().next().is_none());
     }
@@ -13787,7 +13802,10 @@ p\uD801";
             1,
         );
         assert_eq!(index.namespace_refs_of("::outer::inner", "").len(), 1);
-        assert!(index.namespace_refs_of("::inner", "").is_empty());
+        assert_eq!(
+            index.namespace_refs_of("::inner", ""),
+            [] as [&crate::workspace_index::WorkspaceNamespaceRef; 0]
+        );
     }
 
     #[test]
@@ -13973,7 +13991,10 @@ p\uD801";
     fn cell_alias_index_does_not_match_a_different_cell() {
         let other = analyse("proc p {} {\n    namespace upvar ::ns other local\n}\n");
         let index = WorkspaceIndex::from_documents([("file:///other.tcl", &other)]);
-        assert!(index.documents_aliasing_variable("::ns::v").is_empty());
+        assert_eq!(
+            index.documents_aliasing_variable("::ns::v"),
+            [] as [std::string::String; 0]
+        );
         assert_eq!(
             index.documents_aliasing_variable("::ns::other"),
             vec!["file:///other.tcl".to_string()]
@@ -14004,10 +14025,9 @@ p\uD801";
         );
 
         // TN: an unrelated cell name matches nothing.
-        assert!(
-            index
-                .variable_definitions_qualified("::app::colors::other", "")
-                .is_empty(),
+        assert_eq!(
+            index.variable_definitions_qualified("::app::colors::other", ""),
+            [] as [&crate::workspace_index::WorkspaceVariable; 0],
         );
         index.remove_document("file:///decl.tcl");
         assert!(
@@ -14414,10 +14434,9 @@ p\uD801";
         let got = index.source_ancestor_package_requires("file:///proj/lib/util.tcl", resolve);
         assert_eq!(got, vec!["Tk".to_owned()]);
         // The entry file itself inherits nothing.
-        assert!(
-            index
-                .source_ancestor_package_requires("file:///proj/app.tcl", resolve)
-                .is_empty()
+        assert_eq!(
+            index.source_ancestor_package_requires("file:///proj/app.tcl", resolve),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -14432,10 +14451,9 @@ p\uD801";
         ]);
         let resolve =
             |_p: &str, _r: &str| -> Option<String> { panic!("non-literal must not resolve") };
-        assert!(
-            index
-                .source_ancestor_package_requires("file:///proj/util.tcl", resolve)
-                .is_empty()
+        assert_eq!(
+            index.source_ancestor_package_requires("file:///proj/util.tcl", resolve),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -15429,11 +15447,22 @@ mod original_settlement_transport_tests {
             index.replace_document(uri, &deleted);
             assert_eq!(index.original_class_declarations().count(), 1);
             assert!(index.original_class_source_candidates().next().is_none());
-            assert!(
+            assert_eq!(
                 index.docs[0]
                     .settlement_dependencies()
-                    .original_source_class_candidates
-                    .is_empty()
+                    .original_source_class_candidates,
+                [] as [(
+                    tcl_core_types::CommandSlot<
+                        tcl_core_types::NameBytes,
+                        tcl_core_types::ByteNamespacePath,
+                    >,
+                    tcl_syntax::naming::NamePolicyProtocol,
+                    tcl_core_types::CommandSlot<
+                        tcl_core_types::NameBytes,
+                        tcl_core_types::ByteNamespacePath,
+                    >,
+                    std::vec::Vec<tcl_compiler::command_binding::SourceCommandTransitionObligation>
+                ); 0]
             );
         }
     }
@@ -15512,10 +15541,9 @@ mod original_settlement_transport_tests {
                 rows[0].original_name_input.as_ref().unwrap().bytes(),
                 name.slot().simple.as_bytes()
             );
-            assert!(
-                index
-                    .original_invocations_of(name, "file:///caller.tcl", false)
-                    .is_empty()
+            assert_eq!(
+                index.original_invocations_of(name, "file:///caller.tcl", false),
+                [] as [&crate::workspace_index::WorkspaceInvocation; 0]
             );
         }
         assert_eq!(index.settled_invocations[0].settled_documents(), 2);
@@ -15738,17 +15766,26 @@ mod original_settlement_transport_tests {
             refused.resolved_input = None;
             index.replace_document(uri, &refused);
             assert!(index.diagnostic_source_context(uri).is_none());
-            assert!(index.symbols_matching("visible", 100).is_empty());
+            assert_eq!(
+                index.symbols_matching("visible", 100),
+                [] as [crate::workspace_symbols::IndexedWorkspaceSymbol; 0]
+            );
         }
         let mut stale_config = Analyser::new().analyse(source, "tcl8.6");
         let config = stale_config.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
         index.replace_document(uri, &stale_config);
         assert!(index.diagnostic_source_context(uri).is_none());
-        assert!(index.symbols_matching("visible", 100).is_empty());
+        assert_eq!(
+            index.symbols_matching("visible", 100),
+            [] as [crate::workspace_symbols::IndexedWorkspaceSymbol; 0]
+        );
         index.remove_document(uri);
         index.add_document(uri, &AnalysisResult::default());
-        assert!(index.symbols_matching("", 100).is_empty());
+        assert_eq!(
+            index.symbols_matching("", 100),
+            [] as [crate::workspace_symbols::IndexedWorkspaceSymbol; 0]
+        );
     }
 
     #[test]
@@ -15806,8 +15843,14 @@ mod original_settlement_transport_tests {
             ("file:///library.tcl", &library),
             ("file:///caller.tcl", &caller),
         ]);
-        assert!(index.original_invocations_of(&name, "", false).is_empty());
-        assert!(index.original_invocations_of(&name, "", true).is_empty());
+        assert_eq!(
+            index.original_invocations_of(&name, "", false),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
+        );
+        assert_eq!(
+            index.original_invocations_of(&name, "", true),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
+        );
     }
 
     #[test]
@@ -15834,7 +15877,10 @@ mod original_settlement_transport_tests {
             ("file:///library.tcl", &library),
             ("file:///caller.tcl", &caller),
         ]);
-        assert!(index.original_invocations_of(&name, "", false).is_empty());
+        assert_eq!(
+            index.original_invocations_of(&name, "", false),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
+        );
     }
 
     #[test]
@@ -15884,10 +15930,9 @@ mod original_settlement_transport_tests {
         let mut removed = original_analysis("proc p\\uD801 {} {}\n");
         clear_reporting(&mut removed);
         index.replace_document("file:///library.tcl", &removed);
-        assert!(
-            index
-                .original_invocations_of(&names[0], "", false)
-                .is_empty()
+        assert_eq!(
+            index.original_invocations_of(&names[0], "", false),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
         );
         assert_eq!(index.original_invocations_of(&names[1], "", false).len(), 1);
         assert_eq!(
@@ -16001,7 +16046,7 @@ mod original_namespace_export_index_tests {
             .next()
             .unwrap()
             .name();
-        assert!(!analysis.original_namespace_export_unknowns().is_empty());
+        assert_ne!(analysis.original_namespace_export_unknowns(), []);
         let index = WorkspaceIndex::from_documents([("file:///unknown.tcl", &analysis)]);
         assert_eq!(
             index.export_snapshot().exported_at_original(
@@ -16104,7 +16149,10 @@ mod retained_store_consumer_tests {
                 .unwrap()
                 .declares_command_at("::Target::p")
         );
-        assert!(index.linked_invocations_of("::Mine::p", "").is_empty());
+        assert_eq!(
+            index.linked_invocations_of("::Mine::p", ""),
+            [] as [&crate::workspace_index::WorkspaceInvocation; 0]
+        );
         index.replace_document(uri, &first);
         assert_eq!(index.linked_invocations_of("::Mine::p", "").len(), 1);
     }
@@ -16360,7 +16408,10 @@ mod typed_variable_source_index_tests {
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
-        assert!(!expected.is_empty());
+        assert_ne!(
+            expected,
+            [] as [crate::workspace_index::WorkspaceVariable; 0]
+        );
         assert_eq!(
             index.documents_aliasing_variable("::N::$literal"),
             ["file:///actual.tcl"]
@@ -16392,15 +16443,13 @@ mod typed_variable_source_index_tests {
             changed.documents_aliasing_variable("::N::$literal"),
             ["file:///actual.tcl"]
         );
-        assert!(
-            changed
-                .variable_definitions_qualified("::REPORT_ONLY::REPORT_ONLY", "")
-                .is_empty()
+        assert_eq!(
+            changed.variable_definitions_qualified("::REPORT_ONLY::REPORT_ONLY", ""),
+            [] as [&crate::workspace_index::WorkspaceVariable; 0]
         );
-        assert!(
-            changed
-                .documents_aliasing_variable("::COUNTERFEIT")
-                .is_empty()
+        assert_eq!(
+            changed.documents_aliasing_variable("::COUNTERFEIT"),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -16413,13 +16462,15 @@ mod typed_variable_source_index_tests {
             index.documents_with_ambiguous_alias_of("::N::value"),
             ["file:///unknown.tcl"]
         );
-        assert!(index.documents_aliasing_variable("::$ns::$name").is_empty());
+        assert_eq!(
+            index.documents_aliasing_variable("::$ns::$name"),
+            [] as [std::string::String; 0]
+        );
         let mut removed = index.clone();
         removed.remove_document("file:///unknown.tcl");
-        assert!(
-            removed
-                .documents_with_ambiguous_alias_of("::N::value")
-                .is_empty()
+        assert_eq!(
+            removed.documents_with_ambiguous_alias_of("::N::value"),
+            [] as [std::string::String; 0]
         );
         let source = "namespace eval ::N {set value 1; puts $value}";
         let mut analysis = Analyser::new().analyse(source, "tcl");
@@ -16445,10 +16496,9 @@ mod typed_variable_source_index_tests {
         let foreign_symbol = foreign_occurrence.symbol().clone();
         analysis.original_variable_symbols.push(foreign_occurrence);
         let current = WorkspaceIndex::from_documents([("file:///current.tcl", &analysis)]);
-        assert!(
-            current
-                .variable_definitions_qualified("::Other::forged", "")
-                .is_empty()
+        assert_eq!(
+            current.variable_definitions_qualified("::Other::forged", ""),
+            [] as [&crate::workspace_index::WorkspaceVariable; 0]
         );
         assert!(
             current
@@ -16472,10 +16522,9 @@ mod typed_variable_source_index_tests {
                 .next()
                 .is_none()
         );
-        assert!(
-            missing
-                .variable_definitions_qualified("::N::value", "")
-                .is_empty()
+        assert_eq!(
+            missing.variable_definitions_qualified("::N::value", ""),
+            [] as [&crate::workspace_index::WorkspaceVariable; 0]
         );
         assert_eq!(
             missing.documents_with_ambiguous_alias_of("::N::value"),
@@ -16864,7 +16913,7 @@ mod logical_variable_input_correspondence_tests {
         let foreign = Analyser::new()
             .with_resolved_input(foreign_input)
             .analyse(source, "tcl");
-        assert!(!foreign.original_variable_symbols.is_empty());
+        assert_ne!(foreign.original_variable_symbols, [] as [tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence; 0]);
         let occurrence = caller_analysis
             .original_variable_symbols
             .iter()

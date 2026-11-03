@@ -310,7 +310,13 @@ fn an_elseif_chain_selects_one_arm_per_release() {
 fn the_then_noise_word_and_a_braceless_return_are_understood() {
     let src = "if {1} then {return}\n\
                package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
-    assert!(availabilities(src, V90).is_empty());
+    assert_eq!(
+        availabilities(src, V90),
+        [] as [(
+            std::string::String,
+            crate::package_resolver::reachability::Availability
+        ); 0]
+    );
 
     let bare = "if {![package vsatisfies [package provide Tcl] 8.5 9]} return\n\
                 package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
@@ -423,7 +429,13 @@ fn if_branches_keep_their_symbolic_conditions() {
 #[test]
 fn a_dynamic_lambda_is_not_descended() {
     let src = "apply $loader $dir\n";
-    assert!(availabilities(src, V90).is_empty());
+    assert_eq!(
+        availabilities(src, V90),
+        [] as [(
+            std::string::String,
+            crate::package_resolver::reachability::Availability
+        ); 0]
+    );
 }
 
 /// A requirement the members of a release *line* disagree about abstains —

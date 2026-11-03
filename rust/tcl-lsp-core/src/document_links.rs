@@ -845,21 +845,21 @@ mod tests {
 
     #[test]
     fn empty_links_for_non_source_commands() {
-        assert!(
+        assert_eq!(
             document_links(
                 "set x 1\n",
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_links::DocumentLink; 0]
         );
-        assert!(
+        assert_eq!(
             document_links(
                 "puts hello\n",
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_links::DocumentLink; 0]
         );
     }
 
@@ -967,7 +967,10 @@ mod tests {
     #[test]
     fn a_surface_roster_include_is_not_a_file_link() {
         let src = "speclib mylib 1 {\n    include from vendor into mylib { a b }\n}\n";
-        assert!(pack_links(src, crate::profile_for_dialect("spectcl")).is_empty());
+        assert_eq!(
+            pack_links(src, crate::profile_for_dialect("spectcl")),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
     }
 
     /// The gate is the document's own grammar: an ordinary Tcl script calling
@@ -975,12 +978,12 @@ mod tests {
     #[test]
     fn an_ordinary_tcl_include_call_is_not_a_link() {
         let src = "speclib mylib 1 {\n    include shared.tclspec\n}\n";
-        assert!(
+        assert_eq!(
             pack_links(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_links::DocumentLink; 0]
         );
     }
 
@@ -1035,7 +1038,10 @@ mod tests {
             ..LinkContext::default()
         };
         // Public Native links need current values independently of source advice.
-        assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+        assert_eq!(
+            document_links_from_analysis(source, &analysis, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
         let inventory = tcl_compiler::auto_path_eval::constant_path_assignments_from_analysis(
             source, &analysis,
         )
@@ -1065,8 +1071,14 @@ mod tests {
             )
             .is_none()
         );
-        assert!(lexical_document_links_in_context(source, &unavailable, &context).is_empty());
-        assert!(document_links_from_analysis(source, &unavailable, &context).is_empty());
+        assert_eq!(
+            lexical_document_links_in_context(source, &unavailable, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
+        assert_eq!(
+            document_links_from_analysis(source, &unavailable, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
     }
 
     #[test]
@@ -1088,16 +1100,19 @@ mod tests {
             assert_eq!(links.len(), 1, "{source}: {links:?}");
             assert_eq!(links[0].target, "file:///tmp/%C3%A9.tcl");
             assert_eq!(links[0].tooltip.as_deref(), Some("/tmp/é.tcl"));
-            assert!(
-                lexical_document_links_in_context(&source.replace("é", "x"), &analysis, &context)
-                    .is_empty()
+            assert_eq!(
+                lexical_document_links_in_context(&source.replace("é", "x"), &analysis, &context),
+                [] as [crate::document_links::DocumentLink; 0]
             );
             let mut stale = analysis.clone();
             stale.body_lexer_config = Some(tcl_lexer::LexerConfig {
                 braced_var: tcl_dialect::BracedVarStyle::FirstClose,
                 ..config
             });
-            assert!(lexical_document_links_in_context(source, &stale, &context).is_empty());
+            assert_eq!(
+                lexical_document_links_in_context(source, &stale, &context),
+                [] as [crate::document_links::DocumentLink; 0]
+            );
         }
         // tclsh 8.4-9.1: `rename source load` fails with "can't rename to
         // \"load\": command already exists", so nothing is sourced.
@@ -1558,14 +1573,14 @@ mod tests {
             .unwrap()
         );
         for home in ["", "relative"] {
-            assert!(
+            assert_eq!(
                 document_links_with_home(
                     "source ~/helper.tcl\n",
                     profile,
                     root.to_str(),
                     Some(home)
-                )
-                .is_empty()
+                ),
+                [] as [crate::document_links::DocumentLink; 0]
             );
         }
     }
@@ -1760,13 +1775,13 @@ mod original_document_link_tests {
                 panic!("one original path link: {dialect}: {links:?}")
             };
             assert_eq!(link.target, "file:///work/a%5Cb.tcl");
-            assert!(
+            assert_eq!(
                 document_links_from_analysis(
                     &source.replace("a\\b", "a/b"),
                     &analysis,
                     &LinkContext::default()
-                )
-                .is_empty()
+                ),
+                [] as [crate::document_links::DocumentLink; 0]
             );
         }
     }
@@ -1788,7 +1803,10 @@ mod original_document_link_tests {
         analysis.command_invocations.clear();
         analysis.dialect = "f5-irules".into();
         assert_eq!(document_links_from_analysis(source, &analysis, &ctx), links);
-        assert!(document_links_from_analysis(&format!("#{source}"), &analysis, &ctx).is_empty());
+        assert_eq!(
+            document_links_from_analysis(&format!("#{source}"), &analysis, &ctx),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
         for source in [
             "proc source args {}; source {a.tcl}",
             "source [unknown]",
@@ -1829,7 +1847,10 @@ mod original_document_link_tests {
         let links = document_links_from_analysis(source, &analysis, &ctx);
         assert_eq!(links.len(), 1);
         assert!(links[0].tooltip.as_ref().unwrap().contains("p$[x]"));
-        assert!(document_links_from_analysis("package require other", &analysis, &ctx).is_empty());
+        assert_eq!(
+            document_links_from_analysis("package require other", &analysis, &ctx),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
     }
 }
 
@@ -1863,9 +1884,9 @@ mod original_hosted_document_link_tests {
                 links.iter().any(|link| link.tooltip.as_deref()
                     == Some("Package requirement candidate: pkg $[x]"))
             );
-            assert!(
-                document_links_from_analysis(&source.replace("a $b", "z $b"), &analysis, &context)
-                    .is_empty()
+            assert_eq!(
+                document_links_from_analysis(&source.replace("a $b", "z $b"), &analysis, &context),
+                [] as [crate::document_links::DocumentLink; 0]
             );
             for source in [
                 "source {f\\uD800.tcl}",
@@ -1884,7 +1905,10 @@ mod original_hosted_document_link_tests {
         }
         let source = "source a.tcl\npackage require P";
         let analysis = Analyser::new().analyse(source, "f5-irules");
-        assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+        assert_eq!(
+            document_links_from_analysis(source, &analysis, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
     }
     #[test]
     fn original_source_path_links_use_selected_operations_and_authentic_bound_values() {
@@ -1910,7 +1934,10 @@ mod original_hosted_document_link_tests {
             "proc file {args} {}; source [file join /ROOT leaf]",
         ] {
             let analysis = path_analysis(source, profile, config);
-            assert!(lexical_document_links_in_context(source, &analysis, &context).is_empty());
+            assert_eq!(
+                lexical_document_links_in_context(source, &analysis, &context),
+                [] as [crate::document_links::DocumentLink; 0]
+            );
         }
     }
 }
@@ -1953,12 +1980,15 @@ mod original_link_parse_purpose_tests {
             (links[0].end_line, links[0].end_character),
             (end.line, end.character.get())
         );
-        assert!(
-            document_links_from_analysis(&format!("# changed\n{source}"), &analysis, &context)
-                .is_empty()
+        assert_eq!(
+            document_links_from_analysis(&format!("# changed\n{source}"), &analysis, &context),
+            [] as [crate::document_links::DocumentLink; 0]
         );
         analysis.resolved_input = None;
-        assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+        assert_eq!(
+            document_links_from_analysis(source, &analysis, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
     }
     #[test]
     fn original_link_anchors_parse_actual_substitution_content_without_file_prologue_rules() {
@@ -1979,7 +2009,7 @@ mod original_link_parse_purpose_tests {
         );
         let analysis = super::tests::path_analysis(source, profile, config);
         // Geometry cannot resolve the unknown marked command as a file producer.
-        assert!(
+        assert_eq!(
             document_links_from_analysis(
                 source,
                 &analysis,
@@ -1987,8 +2017,8 @@ mod original_link_parse_purpose_tests {
                     workspace_root: Some("/actual"),
                     ..LinkContext::default()
                 }
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_links::DocumentLink; 0]
         );
         for source in [
             "source [# leaf.tcl]",
@@ -2027,14 +2057,20 @@ mod original_logical_link_prefix_tests {
             "set dir /ROOT; opaque; source [file join $dir leaf.tcl]",
             "set dir /ROOT; proc source args {}; source [file join $dir leaf.tcl]",
         ] {
-            assert!(document_links_in_context(source, profile, &context).is_empty());
+            assert_eq!(
+                document_links_in_context(source, profile, &context),
+                [] as [crate::document_links::DocumentLink; 0]
+            );
         }
-        assert!(
-            document_links_from_analysis(&format!("# changed\n{source}"), &analysis, &context,)
-                .is_empty()
+        assert_eq!(
+            document_links_from_analysis(&format!("# changed\n{source}"), &analysis, &context,),
+            [] as [crate::document_links::DocumentLink; 0]
         );
         let native = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-        assert!(document_links_in_context(source, native, &context).is_empty());
+        assert_eq!(
+            document_links_in_context(source, native, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
     }
 
     #[test]
@@ -2141,7 +2177,10 @@ mod authored_source_link_purpose_tests {
         let links = lexical_document_links_in_context(source, &analysis, &context);
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///FIRST/a.tcl");
-        assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+        assert_eq!(
+            document_links_from_analysis(source, &analysis, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
         let mut foreign = analysis.clone();
         let mut changed_config = config;
         changed_config.leading_bom = match config.leading_bom {
@@ -2150,10 +2189,13 @@ mod authored_source_link_purpose_tests {
         };
         assert_ne!(changed_config, config);
         foreign.body_lexer_config = Some(changed_config);
-        assert!(lexical_document_links_in_context(source, &foreign, &context).is_empty());
-        assert!(
-            lexical_document_links_in_context(&format!("# changed\n{source}"), &analysis, &context)
-                .is_empty()
+        assert_eq!(
+            lexical_document_links_in_context(source, &foreign, &context),
+            [] as [crate::document_links::DocumentLink; 0]
+        );
+        assert_eq!(
+            lexical_document_links_in_context(&format!("# changed\n{source}"), &analysis, &context),
+            [] as [crate::document_links::DocumentLink; 0]
         );
     }
 }

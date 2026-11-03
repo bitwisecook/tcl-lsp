@@ -2251,7 +2251,7 @@ mod readonly_source_reference_tests {
             )
             .is_none()
         );
-        assert!(
+        assert_eq!(
             crate::rename::method_spans_in_document(
                 source,
                 analysis.resolved_profile().unwrap(),
@@ -2259,8 +2259,8 @@ mod readonly_source_reference_tests {
                 "::C",
                 "ping",
                 false,
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
@@ -2518,7 +2518,7 @@ mod readonly_source_reference_tests {
             unused_report.coverage(),
             ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
         );
-        assert!(unused_report.spans().is_empty());
+        assert_eq!(unused_report.spans(), []);
         let dynamic_source = "oo::class create C {property size; method body {} {my $selector}}";
         let dynamic_analysis = Analyser::new().analyse(dynamic_source, "tcl9.0");
         let dynamic_class = dynamic_analysis
@@ -2546,7 +2546,7 @@ mod readonly_source_reference_tests {
             dynamic_report.coverage(),
             ReadonlyReferenceCoverage::Partial
         );
-        assert!(dynamic_report.spans().is_empty());
+        assert_eq!(dynamic_report.spans(), []);
         let mut foreign = analysis.clone();
         foreign.resolved_input = Analyser::new()
             .analyse("puts foreign", "tcl9.0")

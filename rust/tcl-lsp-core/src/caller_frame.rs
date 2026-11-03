@@ -1032,11 +1032,11 @@ oo::class create chart {
             let mut body_config = config;
             body_config.leading_bom = tcl_lexer::LeadingBom::Content;
             changed.body_lexer_config = Some(body_config);
-            assert!(
-                caller_frame_bindings(&changed, source, profile, resolution, read, "shared")
-                    .is_empty()
+            assert_eq!(
+                caller_frame_bindings(&changed, source, profile, resolution, read, "shared"),
+                [] as [crate::caller_frame::CallerFrameBinding; 0]
             );
-            assert!(
+            assert_eq!(
                 caller_frame_bindings(
                     &analysis,
                     &format!("{source}# changed"),
@@ -1044,8 +1044,8 @@ oo::class create chart {
                     resolution,
                     read,
                     "shared"
-                )
-                .is_empty()
+                ),
+                [] as [crate::caller_frame::CallerFrameBinding; 0]
             );
             let equivalent_generation = std::sync::Arc::new(
                 context.with_command_store(context.commands().snapshot().shared_registry()),
@@ -1057,9 +1057,9 @@ oo::class create chart {
                 equivalent_generation,
                 config,
             ));
-            assert!(
-                caller_frame_bindings(&foreign, source, profile, resolution, read, "shared")
-                    .is_empty()
+            assert_eq!(
+                caller_frame_bindings(&foreign, source, profile, resolution, read, "shared"),
+                [] as [crate::caller_frame::CallerFrameBinding; 0]
             );
         }
     }
@@ -1184,7 +1184,7 @@ oo::class create chart {
         let src = "proc plain {v} { return $v }\nproc caller {} { plain thing\n puts $thing }\n";
         let analysis = analyse(src);
         let read = offset_of(src, "$thing") + 1;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 src,
@@ -1192,8 +1192,8 @@ oo::class create chart {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "thing"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -1205,7 +1205,7 @@ oo::class create chart {
                    proc caller {n} { setdef $n\n puts $thing }\n";
         let analysis = analyse(src);
         let read = offset_of(src, "$thing") + 1;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 src,
@@ -1213,8 +1213,8 @@ oo::class create chart {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "thing"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -1227,7 +1227,7 @@ oo::class create chart {
                    proc caller {} { puts $shared }\n";
         let analysis = analyse(src);
         let read = offset_of(src, "$shared") + 1;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 src,
@@ -1235,8 +1235,8 @@ oo::class create chart {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -1335,7 +1335,7 @@ oo::class create chart {
                    proc caller {} { getcfg shared\n puts $shared }\n";
         let analysis = analyse(src);
         let read = offset_of(src, "puts $shared") + 6;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 src,
@@ -1343,8 +1343,8 @@ oo::class create chart {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -1637,7 +1637,7 @@ oo::class create Widget {
     fn a_mixin_method_binds_only_the_name_its_upvar_spells() {
         let analysis = analyse(MIXIN_SRC);
         let read = offset_of(MIXIN_SRC, "$name\"") + 1;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 MIXIN_SRC,
@@ -1645,8 +1645,8 @@ oo::class create Widget {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "other"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -1667,7 +1667,7 @@ oo::class create Widget {
 ";
         let analysis = analyse(src);
         let read = offset_of(src, "$name\"") + 1;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 src,
@@ -1675,8 +1675,8 @@ oo::class create Widget {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -1703,7 +1703,7 @@ oo::class create Derived {
 ";
         let analysis = analyse(src);
         let read = offset_of(src, "$name\"") + 1;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 src,
@@ -1711,8 +1711,8 @@ oo::class create Derived {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -1724,7 +1724,7 @@ oo::class create Derived {
                    proc build {} { np\n puts $FocusGrab }\n";
         let analysis = analyse(src);
         let read = offset_of(src, "$FocusGrab") + 1;
-        assert!(
+        assert_eq!(
             caller_frame_bindings(
                 &analysis,
                 src,
@@ -1732,8 +1732,8 @@ oo::class create Derived {
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "FocusGrab"
-            )
-            .is_empty()
+            ),
+            [] as [crate::caller_frame::CallerFrameBinding; 0]
         );
     }
 
@@ -2361,7 +2361,7 @@ mod original_logical_caller_read_geometry_tests {
         let spans = substituted_read_spans(source, &analysis, 0, source.len(), cursor, "a");
         assert_eq!(spans.len(), 2, "{spans:?}");
         assert!(spans.iter().all(|span| &source[span.as_range()] == "a"));
-        assert!(
+        assert_eq!(
             substituted_read_spans(
                 &format!("{source}\n# changed"),
                 &analysis,
@@ -2369,8 +2369,8 @@ mod original_logical_caller_read_geometry_tests {
                 source.len(),
                 cursor,
                 "a"
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
 
         let source = "proc caller {} {puts ${a{b}c}}";
@@ -2396,8 +2396,9 @@ mod original_logical_caller_read_geometry_tests {
             assert_eq!(&source[spans[0].as_range()], name);
             let mut missing = analysis.clone();
             missing.resolved_input = None;
-            assert!(
-                substituted_read_spans(source, &missing, 0, source.len(), cursor, name).is_empty()
+            assert_eq!(
+                substituted_read_spans(source, &missing, 0, source.len(), cursor, name),
+                [] as [tcl_lexer::Span; 0]
             );
         }
     }

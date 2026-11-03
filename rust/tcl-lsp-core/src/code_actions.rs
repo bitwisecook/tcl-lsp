@@ -2814,14 +2814,14 @@ mod tests {
 
     #[test]
     fn empty_actions_when_analysis_is_none() {
-        assert!(
+        assert_eq!(
             code_actions(
                 "set x 1\n",
                 whole_document_range("set x 1\n"),
                 None,
                 &Report::default()
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 
@@ -2885,8 +2885,9 @@ mod tests {
             end_line: 99,
             end_character: 10,
         };
-        assert!(
-            code_actions("set x 1\n", far_range, Some(&r), &report_of(&r.diagnostics)).is_empty()
+        assert_eq!(
+            code_actions("set x 1\n", far_range, Some(&r), &report_of(&r.diagnostics)),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 
@@ -3364,7 +3365,10 @@ mod tests {
         // `frobnicate` is unresolved, but its name carries no evidence about
         // which package would define it. Guessing from a textual resemblance
         // is exactly the behaviour the namespace gate replaced.
-        assert!(package_titles("frobnicate 1\n", at(0, 2)).is_empty());
+        assert_eq!(
+            package_titles("frobnicate 1\n", at(0, 2)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -3372,7 +3376,10 @@ mod tests {
         // `myapp` names no package in the registry catalogue, so there is
         // nothing evidence-backed to suggest — a project's own namespace
         // must never be read as a missing dependency.
-        assert!(package_titles("myapp::helper x\n", at(0, 2)).is_empty());
+        assert_eq!(
+            package_titles("myapp::helper x\n", at(0, 2)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -3380,32 +3387,47 @@ mod tests {
         // A computed `package require` may register the command at run time,
         // which is the same reason W123 stands down in such a file.
         let src = "set p http\npackage require $p\nhttp::foo\n";
-        assert!(package_titles(src, at(2, 2)).is_empty());
+        assert_eq!(
+            package_titles(src, at(2, 2)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn fp_package_require_not_offered_inside_a_comment() {
         let src = "# Documentation: http::geturl\n";
-        assert!(package_titles(src, at(0, 20)).is_empty());
+        assert_eq!(
+            package_titles(src, at(0, 20)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn fp_package_require_not_offered_inside_a_quoted_string() {
         let src = "set example \"http::geturl\"\n";
-        assert!(package_titles(src, at(0, 16)).is_empty());
+        assert_eq!(
+            package_titles(src, at(0, 16)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn fp_package_require_not_offered_inside_a_braced_word() {
         let src = "set example {http::geturl}\n";
-        assert!(package_titles(src, at(0, 16)).is_empty());
+        assert_eq!(
+            package_titles(src, at(0, 16)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn fp_package_require_not_offered_on_an_argument_word() {
         // `http::geturl` here is data passed to `dict set`, not a call.
         let src = "dict set docs command http::geturl\n";
-        assert!(package_titles(src, at(0, 25)).is_empty());
+        assert_eq!(
+            package_titles(src, at(0, 25)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -3413,7 +3435,10 @@ mod tests {
         // The name word of a `proc` is a definition, not an invocation — and
         // the file is defining the very command a package would provide.
         let src = "proc http::geturl {} {}\n";
-        assert!(package_titles(src, at(0, 8)).is_empty());
+        assert_eq!(
+            package_titles(src, at(0, 8)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -3422,7 +3447,10 @@ mod tests {
         // unknown-command diagnostic covers the head and no package is
         // suggested for it.
         let src = "proc http::geturl {} {}\nhttp::geturl\n";
-        assert!(package_titles(src, at(1, 2)).is_empty());
+        assert_eq!(
+            package_titles(src, at(1, 2)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -3439,7 +3467,10 @@ mod tests {
     #[test]
     fn tn_package_require_not_offered_for_a_resolved_builtin() {
         // `puts` resolves in the registry, so nothing is unresolved here.
-        assert!(package_titles("puts hello\n", at(0, 1)).is_empty());
+        assert_eq!(
+            package_titles("puts hello\n", at(0, 1)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -3447,12 +3478,18 @@ mod tests {
         // `$cmd` is recorded as an invocation, but its written name is not
         // the command that will run, so matching it against a package
         // catalogue is meaningless.
-        assert!(package_titles("set cmd http::geturl\n$cmd\n", at(1, 1)).is_empty());
+        assert_eq!(
+            package_titles("set cmd http::geturl\n$cmd\n", at(1, 1)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn tn_package_require_not_offered_for_a_short_prefix() {
-        assert!(package_titles("x::y\n", at(0, 0)).is_empty());
+        assert_eq!(
+            package_titles("x::y\n", at(0, 0)),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -3460,7 +3497,10 @@ mod tests {
         // No analysis, no evidence — the provider declines rather than
         // falling back to scanning the text.
         let registry = tcl_registry::CommandRegistry::build_default();
-        assert!(package_require_actions("http::foo\n", at(0, 2), &registry, None, &[]).is_empty());
+        assert_eq!(
+            package_require_actions("http::foo\n", at(0, 2), &registry, None, &[]),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     #[test]
@@ -3680,15 +3720,15 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl8.6");
         let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
         let none_disabled = std::collections::HashSet::new();
-        assert!(
+        assert_eq!(
             check_actions(
                 &current,
                 whole_document_range(src),
                 &[],
                 &none_disabled,
                 &no_suppression(),
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 
@@ -4544,8 +4584,9 @@ mod tests {
                 end_character: 15,
             },
         }];
-        assert!(
-            spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags).is_empty()
+        assert_eq!(
+            spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "spectcl"), &diags),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 
@@ -4579,8 +4620,9 @@ mod tests {
                 end_character: 15,
             },
         }];
-        assert!(
-            spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "tcl"), &diags,).is_empty()
+        assert_eq!(
+            spec_pack_quick_fixes(src, &Analyser::new().analyse(src, "tcl"), &diags,),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 }
@@ -4630,24 +4672,24 @@ mod original_docstring_tests {
             assert!(found[0].edits[0].new_text.contains(formal));
             assert_eq!(found[0].edits[0].range.start_line, line);
         }
-        assert!(
+        assert_eq!(
             actions(
                 &format!("# displaced\n{source}"),
                 &analysis,
                 1,
                 crate::formatting::DocstringStyle::Preceding
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         analysis.body_lexer_config = None;
-        assert!(
+        assert_eq!(
             actions(
                 source,
                 &analysis,
                 0,
                 crate::formatting::DocstringStyle::Preceding
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 
@@ -4681,23 +4723,23 @@ mod original_docstring_tests {
             .len(),
             1
         );
-        assert!(
+        assert_eq!(
             actions(
                 computed,
                 &analysis,
                 1,
                 crate::formatting::DocstringStyle::Body
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
-        assert!(
+        assert_eq!(
             actions(
                 computed,
                 &analysis,
                 1,
                 crate::formatting::DocstringStyle::None
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 }
@@ -4734,15 +4776,15 @@ mod original_package_suggestion_tests {
         let actions = package_require_actions(source, at(0), &registry, Some(&analysis), &[]);
         assert_eq!(actions.len(), 1);
         assert_eq!(actions[0].edits[0].new_text, "package require http\n");
-        assert!(
+        assert_eq!(
             package_require_actions(
                 &format!("# displaced\n{source}"),
                 at(1),
                 &registry,
                 Some(&analysis),
                 &[]
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let context = [ContextDiagnostic {
             data: None,
@@ -4753,8 +4795,9 @@ mod original_package_suggestion_tests {
         for diagnostic in &mut analysis.diagnostics {
             diagnostic.subject = None;
         }
-        assert!(
-            package_require_actions(source, at(0), &registry, Some(&analysis), &context).is_empty()
+        assert_eq!(
+            package_require_actions(source, at(0), &registry, Some(&analysis), &context),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 
@@ -4780,7 +4823,10 @@ mod original_package_suggestion_tests {
             })
             .unwrap();
         invocation.original_lookup = None;
-        assert!(package_require_actions(source, at(0), &registry, Some(&analysis), &[]).is_empty());
+        assert_eq!(
+            package_require_actions(source, at(0), &registry, Some(&analysis), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
         let source = "package require h\\u0074tp\nhttp::missing\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let requirement = analysis.package_requires.first_mut().unwrap();
@@ -4793,7 +4839,10 @@ mod original_package_suggestion_tests {
                 .matches_ascii("http")
         );
         requirement.name = "unrelated-report".into();
-        assert!(package_require_actions(source, at(1), &registry, Some(&analysis), &[]).is_empty());
+        assert_eq!(
+            package_require_actions(source, at(1), &registry, Some(&analysis), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
     #[test]
     fn original_package_action_uses_genuine_provision_and_requirement_operands() {
@@ -4867,9 +4916,9 @@ mod original_package_suggestion_tests {
             context.clone(),
             config,
         ));
-        assert!(
-            package_require_actions(source, at(0), context.commands(), Some(&analysis), &[])
-                .is_empty()
+        assert_eq!(
+            package_require_actions(source, at(0), context.commands(), Some(&analysis), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let native = Analyser::new().analyse(source, "tcl8.6");
         assert!(
@@ -4932,23 +4981,23 @@ mod original_package_suggestion_tests {
             actions[0].edits[0].new_text,
             "package require tools-runtime\n"
         );
-        assert!(
-            package_require_actions("tools::changed\n", at(0), &store, Some(&analysis), &[])
-                .is_empty()
+        assert_eq!(
+            package_require_actions("tools::changed\n", at(0), &store, Some(&analysis), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let argument_source = "tools::missing operand\n";
         let argument_analysis = Analyser::new()
             .with_resolved_input(input.clone())
             .analyse(argument_source, profile.name);
-        assert!(
+        assert_eq!(
             package_require_actions(
                 argument_source,
                 at(18),
                 &store,
                 Some(&argument_analysis),
                 &[]
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut wrong_config = config;
         wrong_config.leading_bom = match config.leading_bom {
@@ -4962,7 +5011,10 @@ mod original_package_suggestion_tests {
             Arc::clone(&context),
             wrong_config,
         ));
-        assert!(package_require_actions(source, at(0), &store, Some(&changed), &[]).is_empty());
+        assert_eq!(
+            package_require_actions(source, at(0), &store, Some(&changed), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     #[test]
@@ -5033,9 +5085,9 @@ mod original_package_suggestion_tests {
             let analysis = Analyser::new()
                 .with_resolved_input(input)
                 .analyse(source, profile.name);
-            assert!(
-                package_require_actions(source, at(0), &conflicting, Some(&analysis), &[])
-                    .is_empty()
+            assert_eq!(
+                package_require_actions(source, at(0), &conflicting, Some(&analysis), &[]),
+                [] as [crate::code_actions::CodeAction; 0]
             );
         }
         let foreign = Arc::new(
@@ -5048,9 +5100,9 @@ mod original_package_suggestion_tests {
         let analysis = Analyser::new()
             .with_resolved_input(input)
             .analyse("tools::missing\n", profile.name);
-        assert!(
-            package_require_actions("tools::missing\n", at(0), &store, Some(&analysis), &[])
-                .is_empty()
+        assert_eq!(
+            package_require_actions("tools::missing\n", at(0), &store, Some(&analysis), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 }
@@ -5099,18 +5151,21 @@ mod original_refactor_context_tests {
                 .any(|action| action.data_group_definition.is_some())
         );
         let displaced = format!("#{source}");
-        assert!(
+        assert_eq!(
             extract_inline_actions(
                 &displaced,
                 range,
                 &vendor,
                 &LineIndex::new(&displaced),
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         vendor.body_lexer_config = None;
-        assert!(extract_inline_actions(source, range, &vendor, &index, None).is_empty());
+        assert_eq!(
+            extract_inline_actions(source, range, &vendor, &index, None),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 }
 
@@ -5221,7 +5276,10 @@ mod original_expression_action_tests {
         }
         analysis.command_invocations.clear();
         assert_eq!(actions(source, &analysis).len(), 1);
-        assert!(actions(&format!("#{source}"), &analysis).is_empty());
+        assert_eq!(
+            actions(&format!("#{source}"), &analysis),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
         for source in [
             "set data {!(1 && 0)}",
             "# expr {!(1 && 0)}",
@@ -5324,7 +5382,10 @@ mod package_presence_census_tests {
             end_character: 2,
         };
         let registry = tcl_registry::CommandRegistry::build_default();
-        assert!(package_require_actions(source, range, &registry, Some(&analysis), &[]).is_empty());
+        assert_eq!(
+            package_require_actions(source, range, &registry, Some(&analysis), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     #[test]
@@ -5380,7 +5441,10 @@ mod package_presence_census_tests {
             original_source_package_already_named(source, &analysis, "http"),
             None
         );
-        assert!(package_require_actions(source, range, &registry, Some(&analysis), &[]).is_empty());
+        assert_eq!(
+            package_require_actions(source, range, &registry, Some(&analysis), &[]),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     #[test]
@@ -5532,29 +5596,29 @@ mod issued_optimiser_rewrite_currency_tests {
             .with_resolved_input(analysis.resolved_input.clone().unwrap())
             .analyse(source, "tcl8.6");
         let supplied_current = DiagnosticEditSource::for_analysis(source, &supplied).unwrap();
-        assert!(
+        assert_eq!(
             rewrite_actions(
                 &report,
                 source,
                 range(),
                 &supplied_current,
                 &LineIndex::new_lsp(source)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let partial = apply(
             vec![Finding::from(pair[0].clone())],
             &Policy::unrestricted(),
         );
-        assert!(
+        assert_eq!(
             rewrite_actions(
                 &partial,
                 source,
                 range(),
                 &current,
                 &LineIndex::new_lsp(source)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let changed = source.replace("puts", "list");
         let changed_analysis = Analyser::new()
@@ -5562,15 +5626,15 @@ mod issued_optimiser_rewrite_currency_tests {
             .analyse(&changed, "tcl8.6");
         let changed_current =
             DiagnosticEditSource::for_analysis(&changed, &changed_analysis).unwrap();
-        assert!(
+        assert_eq!(
             rewrite_actions(
                 &report,
                 &changed,
                 range(),
                 &changed_current,
                 &LineIndex::new_lsp(&changed)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut changed_member = pair[0].clone();
         changed_member.replacement.push_str("; injected");
@@ -5581,15 +5645,15 @@ mod issued_optimiser_rewrite_currency_tests {
             ],
             &Policy::unrestricted(),
         );
-        assert!(
+        assert_eq!(
             rewrite_actions(
                 &changed_report,
                 source,
                 range(),
                 &current,
                 &LineIndex::new_lsp(source)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 }

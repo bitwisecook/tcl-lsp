@@ -61,7 +61,13 @@ fn authored_index_written_heads_keep_version_and_termination_conditions() {
         ":::return\n:::package ifneeded café 1.0 {source café.tcl}\n",
         ":::if {1} {:::::return}\n:::package ifneeded café 1.0 {source café.tcl}\n",
     ] {
-        assert!(availabilities(source, V90).is_empty());
+        assert_eq!(
+            availabilities(source, V90),
+            [] as [(
+                std::string::String,
+                crate::package_resolver::reachability::Availability
+            ); 0]
+        );
     }
     let loop_source =
         ":::foreach x {1} {:::::return}\n:::package ifneeded café 1.0 {source café.tcl}\n";

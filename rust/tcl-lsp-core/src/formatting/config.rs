@@ -481,7 +481,7 @@ mod tests {
         );
         // `f5-irules` names its own runtime, not a core release: no forward
         // range to widen an abbreviation over.
-        assert!(cfg.target_range().is_empty());
+        assert_eq!(cfg.target_range(), [] as [&str; 0]);
     }
 
     #[test]
@@ -524,7 +524,7 @@ mod tests {
         // No dialect declared, so no candidate filter and no range — the
         // conservative direction.
         assert_eq!(cfg.dialect_query(), None);
-        assert!(cfg.target_range().is_empty());
+        assert_eq!(cfg.target_range(), [] as [&str; 0]);
         assert_eq!(cfg.line_ending, LINE_ENDING_AUTO);
     }
 

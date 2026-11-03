@@ -1818,7 +1818,12 @@ mod tests {
         assert!(!stale.current);
         assert!(stale.class_heads.is_empty());
         let foreign = Analyser::new().analyse(source, "jim");
-        assert!(foreign.original_counted_class_metadata.is_empty());
+        assert_eq!(
+            foreign.original_counted_class_metadata,
+            [] as [tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+                tcl_compiler::analyser::types::OriginalCountedClass,
+            >; 0]
+        );
     }
 
     #[test]
@@ -2163,7 +2168,7 @@ mod original_source_schema_tests {
         ));
         let mut missing = analysis.clone();
         missing.resolved_input = None;
-        assert!(
+        assert_eq!(
             full_with_cu_and_analysis(
                 source,
                 profile,
@@ -2171,8 +2176,8 @@ mod original_source_schema_tests {
                 None,
                 Some(&missing),
             )
-            .data
-            .is_empty()
+            .data,
+            [] as [u32; 0]
         );
     }
 
@@ -2465,7 +2470,7 @@ mod original_source_schema_tests {
                 ),
                 input.lexer_config(),
             ));
-            assert!(
+            assert_eq!(
                 full_with_cu_and_analysis(
                     source,
                     profile,
@@ -2473,8 +2478,8 @@ mod original_source_schema_tests {
                     None,
                     Some(&analysis)
                 )
-                .data
-                .is_empty()
+                .data,
+                [] as [u32; 0]
             );
         }
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -2696,7 +2701,7 @@ mod original_source_schema_tests {
                 ),
                 input.lexer_config(),
             ));
-            assert!(
+            assert_eq!(
                 full_with_cu_and_analysis(
                     source,
                     profile,
@@ -2704,8 +2709,8 @@ mod original_source_schema_tests {
                     None,
                     Some(&analysis)
                 )
-                .data
-                .is_empty()
+                .data,
+                [] as [u32; 0]
             );
         }
     }
@@ -2741,7 +2746,7 @@ mod original_source_schema_tests {
                 expected,
                 "{environment}"
             );
-            assert!(
+            assert_eq!(
                 full_with_cu_and_analysis(
                     &source.replace("a+", "b+"),
                     profile,
@@ -2749,8 +2754,8 @@ mod original_source_schema_tests {
                     None,
                     Some(&analysis)
                 )
-                .data
-                .is_empty()
+                .data,
+                [] as [u32; 0]
             );
             analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
                 profile,
@@ -2760,7 +2765,7 @@ mod original_source_schema_tests {
                 ),
                 input.lexer_config(),
             ));
-            assert!(
+            assert_eq!(
                 full_with_cu_and_analysis(
                     source,
                     profile,
@@ -2768,8 +2773,8 @@ mod original_source_schema_tests {
                     None,
                     Some(&analysis)
                 )
-                .data
-                .is_empty()
+                .data,
+                [] as [u32; 0]
             );
         }
     }
@@ -2847,7 +2852,7 @@ mod original_source_schema_tests {
                 expected,
                 "{environment}"
             );
-            assert!(
+            assert_eq!(
                 full_with_cu_and_analysis(
                     &source.replace("a+", "b+"),
                     profile,
@@ -2855,8 +2860,8 @@ mod original_source_schema_tests {
                     None,
                     Some(&analysis)
                 )
-                .data
-                .is_empty()
+                .data,
+                [] as [u32; 0]
             );
             analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
                 profile,
@@ -2866,7 +2871,7 @@ mod original_source_schema_tests {
                 ),
                 input.lexer_config(),
             ));
-            assert!(
+            assert_eq!(
                 full_with_cu_and_analysis(
                     source,
                     profile,
@@ -2874,8 +2879,8 @@ mod original_source_schema_tests {
                     None,
                     Some(&analysis)
                 )
-                .data
-                .is_empty()
+                .data,
+                [] as [u32; 0]
             );
         }
     }
@@ -3018,7 +3023,7 @@ mod original_source_schema_tests {
             TokenKind::Variable,
             MOD_DECLARATION
         ));
-        assert!(
+        assert_eq!(
             full_with_cu_and_analysis(
                 &format!("#{source}"),
                 analysis.resolved_profile().unwrap(),
@@ -3026,8 +3031,8 @@ mod original_source_schema_tests {
                 None,
                 Some(&analysis)
             )
-            .data
-            .is_empty()
+            .data,
+            [] as [u32; 0]
         );
     }
 
@@ -3068,7 +3073,7 @@ mod original_source_schema_tests {
             TokenKind::Parameter,
             MOD_DECLARATION
         ));
-        assert!(
+        assert_eq!(
             full_with_cu_and_analysis(
                 &source.replace("marker", "absent"),
                 analysis.resolved_profile().unwrap(),
@@ -3076,8 +3081,8 @@ mod original_source_schema_tests {
                 None,
                 Some(&analysis)
             )
-            .data
-            .is_empty()
+            .data,
+            [] as [u32; 0]
         );
     }
 

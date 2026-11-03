@@ -493,7 +493,7 @@ mod tests {
             &mut candidates,
             0,
         );
-        assert!(candidates.is_empty());
+        assert_eq!(candidates, [] as [std::path::PathBuf; 0]);
         let changed_config = tcl_lexer::LexerConfig {
             strict_quoting: !config.strict_quoting,
             ..config
@@ -504,7 +504,7 @@ mod tests {
             &mut candidates,
             0,
         );
-        assert!(candidates.is_empty());
+        assert_eq!(candidates, [] as [std::path::PathBuf; 0]);
     }
 
     #[test]

@@ -368,7 +368,7 @@ mod tests {
                 calls[0].dispatch(),
                 tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable
             );
-            assert!(
+            assert_eq!(
                 procedure_references_in(
                     consumer,
                     &consumer_analysis,
@@ -377,8 +377,8 @@ mod tests {
                     row,
                     true
                 )
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+                [] as [tcl_compiler::command_binding::OriginalMathFunctionOccurrence; 0]
             );
         }
     }

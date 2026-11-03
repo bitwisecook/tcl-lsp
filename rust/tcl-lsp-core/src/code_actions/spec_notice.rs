@@ -460,33 +460,33 @@ mod tests {
             actions
         );
         diagnostic.data = None;
-        assert!(
+        assert_eq!(
             crate::code_actions::spec_pack_quick_fixes(
                 source,
                 &analysis,
                 std::slice::from_ref(&diagnostic)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         diagnostic.data = Some(data);
         let changed = format!("# changed owner\n{source}");
         let changed_analysis = Analyser::new().analyse(&changed, "spectcl");
-        assert!(
+        assert_eq!(
             crate::code_actions::spec_pack_quick_fixes(
                 &changed,
                 &changed_analysis,
                 std::slice::from_ref(&diagnostic)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-        assert!(
+        assert_eq!(
             crate::code_actions::spec_pack_quick_fixes(
                 source,
                 &analysis,
                 std::slice::from_ref(&diagnostic)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         assert!(
             ContextDiagnosticData::from_value(

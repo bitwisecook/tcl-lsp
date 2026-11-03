@@ -1444,7 +1444,7 @@ mod tests {
                     }
                     Err(refusal) => {
                         assert_eq!(result, Err(refusal));
-                        assert!(pending.is_empty());
+                        assert_eq!(pending, [] as [(usize, usize, u32); 0]);
                     }
                 }
             }

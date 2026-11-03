@@ -1730,7 +1730,7 @@ mod original_inline_tests {
             };
             let result = action(source, call, false).expect("actual original call");
             assert!(result.disabled.is_some());
-            assert!(result.edits.is_empty());
+            assert_eq!(result.edits, [] as [crate::refactor::RefactorEdit; 0]);
         }
     }
 
@@ -1757,7 +1757,7 @@ mod original_inline_tests {
         let arity = "proc p {x} {puts $x}\np 1 2\n";
         let result = action(arity, "p 1 2", true).unwrap();
         assert!(result.disabled.is_some());
-        assert!(result.edits.is_empty());
+        assert_eq!(result.edits, [] as [crate::refactor::RefactorEdit; 0]);
     }
 }
 
@@ -1780,7 +1780,7 @@ mod original_inline_destination_tests {
         )
         .expect("actual original procedure call");
         assert!(result.disabled.is_some());
-        assert!(result.edits.is_empty());
+        assert_eq!(result.edits, [] as [crate::refactor::RefactorEdit; 0]);
     }
 }
 

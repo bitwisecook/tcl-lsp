@@ -1048,7 +1048,13 @@ mod tests {
             1,
             "reference syntax remains available to navigation"
         );
-        assert!(words.source_script_bodies_for(&context, tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation).is_empty());
+        assert_eq!(
+            words.source_script_bodies_for(
+                &context,
+                tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation
+            ),
+            [] as [tcl_compiler::registry_invocation::OriginalSourceScriptBody; 0]
+        );
     }
 
     #[test]
@@ -1191,7 +1197,12 @@ mod tests {
                 .len(),
             1
         );
-        assert!(words.source_script_bodies_for(tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation).is_empty());
+        assert_eq!(
+            words.source_script_bodies_for(
+                tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation
+            ),
+            [] as [tcl_compiler::registry_invocation::OriginalDeclaredSourceScriptBody; 0]
+        );
         let mut visited = Vec::new();
         visit_analysis_executable_commands(source, &analysis, &mut |command, _, _| {
             if command.name() == "format" {
@@ -1301,7 +1312,10 @@ mod original_compound_region_parser_purpose_tests {
         );
         let mut foreign = operand;
         foreign.span = tcl_lexer::Span::new(0, u32::try_from(source.len() + 1).unwrap());
-        assert!(command_substitution_regions(source, config, foreign).is_empty());
+        assert_eq!(
+            command_substitution_regions(source, config, foreign),
+            [] as [(usize, usize); 0]
+        );
         assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
     }
 }

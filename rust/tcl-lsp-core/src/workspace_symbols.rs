@@ -455,7 +455,10 @@ mod tests {
         let changed = source.replace("sample-case", "samplx-case");
         assert!(owner.validated_span(&changed, &analysis).is_none());
         index.remove_document("file:///cases.tcl");
-        assert!(index.symbols_matching("", 100).is_empty());
+        assert_eq!(
+            index.symbols_matching("", 100),
+            [] as [crate::workspace_symbols::IndexedWorkspaceSymbol; 0]
+        );
     }
 
     #[test]
@@ -542,10 +545,9 @@ mod tests {
                 .all(|member| member.original_name_input().bytes() != b"factory")
         }));
         let earlier_index = WorkspaceIndex::from_documents([("file:///class.tcl", &earlier)]);
-        assert!(
-            earlier_index
-                .symbols_matching("factory", MAX_WORKSPACE_SYMBOL_RESULTS)
-                .is_empty()
+        assert_eq!(
+            earlier_index.symbols_matching("factory", MAX_WORKSPACE_SYMBOL_RESULTS),
+            [] as [crate::workspace_symbols::IndexedWorkspaceSymbol; 0]
         );
     }
 

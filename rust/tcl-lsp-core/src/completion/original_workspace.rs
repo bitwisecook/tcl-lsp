@@ -282,8 +282,14 @@ mod tests {
             .params
             .clear();
         let changed_header = WorkspaceIndex::from_documents([("file:///producer.tcl", &producer)]);
-        assert!(items("hel\n", 3, &consumer, &changed_header, "hel").is_empty());
-        assert!(items("# changed\nhel\n", 3, &consumer, &index, "hel").is_empty());
+        assert_eq!(
+            items("hel\n", 3, &consumer, &changed_header, "hel"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
+        assert_eq!(
+            items("# changed\nhel\n", 3, &consumer, &index, "hel"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 
     use tcl_compiler::analyser::Analyser;
@@ -315,7 +321,10 @@ mod tests {
         assert_eq!(suggestions.len(), 1, "{suggestions:?}");
         assert_eq!(suggestions[0].label, "other");
         index.remove_document("file:///producer.tcl");
-        assert!(items(source, 1, &consumer, &index, "").is_empty());
+        assert_eq!(
+            items(source, 1, &consumer, &index, ""),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 
     #[test]
@@ -366,9 +375,15 @@ mod tests {
         }).collect::<Vec<_>>();
         assert!(expected.iter().all(|slot| actual.contains(slot)));
         assert_ne!(actual[0], actual[1]);
-        assert!(items("# changed\np\n", 1, &consumer, &index, "p").is_empty());
+        assert_eq!(
+            items("# changed\np\n", 1, &consumer, &index, "p"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         consumer.command_invocations.clear();
-        assert!(items(source, 1, &consumer, &index, "p").is_empty());
+        assert_eq!(
+            items(source, 1, &consumer, &index, "p"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 
     // Implementation contract: naming.core.original-workspace-procedure-completion
@@ -431,7 +446,13 @@ mod tests {
                 .contains("Hosted source declaration")
         );
         let foreign = Analyser::new().analyse(source, "f5-iapps");
-        assert!(items(source, 1, &foreign, &index, "p").is_empty());
-        assert!(items("# displaced\np\n", 1, &consumer, &index, "p").is_empty());
+        assert_eq!(
+            items(source, 1, &foreign, &index, "p"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
+        assert_eq!(
+            items("# displaced\np\n", 1, &consumer, &index, "p"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 }

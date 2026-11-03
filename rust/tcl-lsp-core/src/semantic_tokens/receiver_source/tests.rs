@@ -290,7 +290,7 @@ fn original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source
             next
         },
     ] {
-        assert!(
+        assert_eq!(
             full_with_cu_and_analysis(
                 source,
                 tcl_dialect::DialectProfile::plain_tcl(),
@@ -298,11 +298,11 @@ fn original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source
                 None,
                 Some(&withdrawn)
             )
-            .data
-            .is_empty()
+            .data,
+            [] as [u32; 0]
         );
     }
-    assert!(
+    assert_eq!(
         full_with_cu_and_analysis(
             &source.replace("new]", "create other]"),
             analysis.resolved_profile().unwrap(),
@@ -310,8 +310,8 @@ fn original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source
             None,
             Some(&analysis)
         )
-        .data
-        .is_empty()
+        .data,
+        [] as [u32; 0]
     );
 }
 

@@ -850,7 +850,10 @@ mod tests {
             );
         } else {
             assert!(binding.unknown);
-            assert!(binding.targets.is_empty());
+            assert_eq!(
+                binding.targets,
+                [] as [tcl_compiler::command_binding::SourceCommandTarget; 0]
+            );
             assert!(!binding.unobserved_native_dispatch());
         }
         let input = binding

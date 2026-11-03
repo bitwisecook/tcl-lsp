@@ -1313,7 +1313,10 @@ mod tests {
             panic!("expected a readonly source registration candidate");
         };
         assert_eq!(call.target, None);
-        assert!(!candidate.obligations.is_empty());
+        assert_ne!(
+            candidate.obligations,
+            [] as [tcl_irules::ilx::IlxSourceObligation; 0]
+        );
         let location = candidate.location;
         assert_eq!(
             location.path,
@@ -1456,7 +1459,10 @@ mod tests {
             panic!("expected the declared workspace to resolve");
         };
         assert_eq!(call.target, None);
-        assert!(!candidate.obligations.is_empty());
+        assert_ne!(
+            candidate.obligations,
+            [] as [tcl_irules::ilx::IlxSourceObligation; 0]
+        );
         let location = candidate.location;
         assert_eq!(
             location.path,
@@ -1492,7 +1498,10 @@ mod tests {
             panic!("expected the declared workspace to win outright");
         };
         assert_eq!(call.target, None);
-        assert!(!candidate.obligations.is_empty());
+        assert_ne!(
+            candidate.obligations,
+            [] as [tcl_irules::ilx::IlxSourceObligation; 0]
+        );
         let location = candidate.location;
         assert_eq!(
             location.path,
@@ -1620,7 +1629,10 @@ mod tests {
             panic!("expected a readonly source registration candidate");
         };
         assert_eq!(call.target, None);
-        assert!(!candidate.obligations.is_empty());
+        assert_ne!(
+            candidate.obligations,
+            [] as [tcl_irules::ilx::IlxSourceObligation; 0]
+        );
         let location = candidate.location;
         assert_eq!(
             location.path,
@@ -1880,7 +1892,7 @@ mod tests {
             super::location(doc.path, doc.text, calls[0].method_span, IlxSite::Call)
         );
         let changed = format!("{source}\n# unrelated source change");
-        assert!(
+        assert_eq!(
             references(
                 IlxDocument {
                     text: &changed,
@@ -1888,15 +1900,18 @@ mod tests {
                 },
                 context,
                 &calls[0]
-            )
-            .is_empty()
+            ),
+            [] as [crate::ilx_navigation::IlxLocation; 0]
         );
         let mut forged = calls[0].clone();
         forged.target = Some(super::IlxExtension {
             plugin: "p".to_owned(),
             extension: "e".to_owned(),
         });
-        assert!(references(doc, context, &forged).is_empty());
+        assert_eq!(
+            references(doc, context, &forged),
+            [] as [crate::ilx_navigation::IlxLocation; 0]
+        );
         assert!(matches!(
             definition(doc, context, &forged),
             IlxTarget::Unresolved(_)
@@ -1971,20 +1986,26 @@ mod tests {
             panic!("genuine inline source constructor should suggest a registration");
         };
         assert_eq!(call.target, None);
-        assert!(!candidate.obligations.is_empty());
+        assert_ne!(
+            candidate.obligations,
+            [] as [tcl_irules::ilx::IlxSourceObligation; 0]
+        );
         assert!(
             super::hover_markdown(&call, &IlxTarget::SourceCandidate(candidate))
                 .contains("evaluated handle result remain unresolved")
         );
         let mut forged = call.clone();
         forged.source_target.as_mut().unwrap().plugin = "other_plugin".to_owned();
-        assert!(super::source_candidates(document, context, &forged).is_empty());
+        assert_eq!(
+            super::source_candidates(document, context, &forged),
+            [] as [crate::ilx_navigation::IlxSourceLocation; 0]
+        );
         assert!(matches!(
             definition(document, context, &forged),
             IlxTarget::Unresolved(_)
         ));
         let changed = format!("{RULE}# whole image changed\n");
-        assert!(
+        assert_eq!(
             super::source_candidates(
                 IlxDocument {
                     text: &changed,
@@ -1992,8 +2013,8 @@ mod tests {
                 },
                 context,
                 &call
-            )
-            .is_empty()
+            ),
+            [] as [crate::ilx_navigation::IlxSourceLocation; 0]
         );
         let source = "when HTTP_REQUEST {set h [ILX::init my_plugin my_extension]; ILX::call $h my_js_function}";
         let document = IlxDocument {
@@ -2003,7 +2024,10 @@ mod tests {
         let call = method_fixture_call(document, context);
         assert_eq!(call.target, None);
         assert_eq!(call.source_target, None);
-        assert!(super::source_candidates(document, context, &call).is_empty());
+        assert_eq!(
+            super::source_candidates(document, context, &call),
+            [] as [crate::ilx_navigation::IlxSourceLocation; 0]
+        );
         assert_eq!(
             definition(document, context, &call),
             IlxTarget::Unresolved(IlxUnresolved::HandleNotStatic)
@@ -2081,26 +2105,32 @@ mod tests {
         );
         let different_config =
             IlxContext::new(context.commands(), &store).with_analysis(&content_analysis);
-        assert!(super::current_method_calls(document, different_config).is_empty());
-        assert!(super::source_candidates(document, different_config, &call).is_empty());
+        assert_eq!(
+            super::current_method_calls(document, different_config),
+            [] as [tcl_irules::IlxMethodCall; 0]
+        );
+        assert_eq!(
+            super::source_candidates(document, different_config, &call),
+            [] as [crate::ilx_navigation::IlxSourceLocation; 0]
+        );
         let changed = format!("{source}# changed");
-        assert!(
+        assert_eq!(
             super::current_method_calls(
                 IlxDocument {
                     text: &changed,
                     ..document
                 },
                 owned
-            )
-            .is_empty()
+            ),
+            [] as [tcl_irules::IlxMethodCall; 0]
         );
         let foreign_store = CommandRegistry::build_default();
-        assert!(
+        assert_eq!(
             super::current_method_calls(
                 document,
                 IlxContext::new(&foreign_store, &store).with_analysis(&skipping)
-            )
-            .is_empty()
+            ),
+            [] as [tcl_irules::IlxMethodCall; 0]
         );
     }
 

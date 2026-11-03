@@ -1523,13 +1523,19 @@ mod tests {
         );
         // TN: a `-clear` that provably follows takes both away.
         let mut evs = [ev("a", 10), ev("b", 20), clear(30)].into_iter();
-        assert!(exports_in_effect(&mut evs, &order, at(DOC, 100)).is_empty());
+        assert_eq!(
+            exports_in_effect(&mut evs, &order, at(DOC, 100)),
+            [] as [&str; 0]
+        );
         // FN guard: a re-export after the tombstone survives it.
         let mut evs = [ev("a", 10), clear(20), ev("b", 30)].into_iter();
         assert_eq!(exports_in_effect(&mut evs, &order, at(DOC, 100)), vec!["b"],);
         // FP guard: nothing written after the import site is visible.
         let mut evs = [ev("a", 200)].into_iter();
-        assert!(exports_in_effect(&mut evs, &order, at(DOC, 100)).is_empty());
+        assert_eq!(
+            exports_in_effect(&mut evs, &order, at(DOC, 100)),
+            [] as [&str; 0]
+        );
     }
 }
 

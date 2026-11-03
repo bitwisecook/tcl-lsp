@@ -762,7 +762,7 @@ mod tests {
             )
             .unwrap();
             assert!(action.disabled.is_some());
-            assert!(action.edits.is_empty());
+            assert_eq!(action.edits, [] as [crate::refactor::RefactorEdit; 0]);
             analysis.all_procs.clear();
             analysis.global_scope.variables.clear();
             analysis.dialect = "f5-irules".to_owned();
@@ -799,7 +799,7 @@ mod tests {
         let valid = extract_variable(source, (start, start + 7), "result", &analysis, &index)
             .expect("one original complete value word remains a candidate");
         assert!(valid.disabled.is_some());
-        assert!(valid.edits.is_empty());
+        assert_eq!(valid.edits, [] as [crate::refactor::RefactorEdit; 0]);
         for malformed_name in ["a b", "arr(k)", "ns::result", "::result", "", "a; puts x"] {
             assert!(
                 extract_variable(
@@ -815,7 +815,7 @@ mod tests {
         let unicode = extract_variable(source, (start, start + 7), "café", &analysis, &index)
             .expect("a complete Unicode scalar reference remains valid unlicensed advice");
         assert!(unicode.disabled.is_some());
-        assert!(unicode.edits.is_empty());
+        assert_eq!(unicode.edits, [] as [crate::refactor::RefactorEdit; 0]);
         assert!(
             extract_variable(source, (start, start + 6), "result", &analysis, &index).is_none()
         );

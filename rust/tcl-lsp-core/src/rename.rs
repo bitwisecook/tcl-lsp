@@ -2790,7 +2790,7 @@ mod tests {
             &analysis,
             None,
         );
-        assert!(!edits.is_empty());
+        assert_ne!(edits, [] as [crate::rename::TextEdit; 0]);
         assert!(edits.iter().all(|e| e.new_text == "hi"));
         // First edit is the declaration on line 0 col 5.
         assert_eq!(edits[0].range.start_line, 0);
@@ -2909,7 +2909,7 @@ mod tests {
     fn rename_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(
+        assert_eq!(
             rename(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -2918,8 +2918,8 @@ mod tests {
                 "x",
                 &analysis,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 
@@ -3259,7 +3259,7 @@ mod tests {
             &analysis,
             None,
         );
-        assert!(!edits.is_empty());
+        assert_ne!(edits, [] as [crate::rename::TextEdit; 0]);
         // Declaration replaces just `x` → `y`; reference
         // replaces `$x` → `$y` so the `$` prefix is preserved.
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
@@ -3785,7 +3785,7 @@ mod tests {
             let edits = rename(&source, profile, 1, 7, "new", &analysis, None);
             assert!(!edits.is_empty(), "{name}");
             assert_eq!(apply_edits(&source, &edits), "set {new} 1\nputs ${new}\n");
-            assert!(
+            assert_eq!(
                 rename(
                     &(source.clone() + " "),
                     profile,
@@ -3794,8 +3794,8 @@ mod tests {
                     "new",
                     &analysis,
                     None,
-                )
-                .is_empty()
+                ),
+                [] as [crate::rename::TextEdit; 0]
             );
         }
     }
@@ -3829,7 +3829,7 @@ mod tests {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         // Whitespace in the new name fails the shape gate.
-        assert!(
+        assert_eq!(
             rename(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -3838,11 +3838,11 @@ mod tests {
                 "bad name",
                 &analysis,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
         // Leading digit fails.
-        assert!(
+        assert_eq!(
             rename(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -3851,11 +3851,11 @@ mod tests {
                 "1lead",
                 &analysis,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
         // Dash fails.
-        assert!(
+        assert_eq!(
             rename(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -3864,8 +3864,8 @@ mod tests {
                 "with-dash",
                 &analysis,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 
@@ -3874,7 +3874,7 @@ mod tests {
         // The shape gate applies to variable renames too.
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
-        assert!(
+        assert_eq!(
             rename(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -3883,8 +3883,8 @@ mod tests {
                 "bad name",
                 &analysis,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 
@@ -5531,7 +5531,7 @@ mod tests {
         assert!(err.range.is_some(), "the refusal must point at the site");
         // And the plain entry point must produce no edits at all — never a
         // partial set.
-        assert!(
+        assert_eq!(
             rename(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -5540,8 +5540,8 @@ mod tests {
                 "GetX",
                 &analysis,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 
@@ -5786,8 +5786,9 @@ mod selected_replacement_qualification_tests {
             crate::workspace_index::WorkspaceIndex::from_documents([("provider", &analysis)]);
         assert!(index.allows_lexical_rename_advice());
         for replacement in ["", "::escape", "nested::escape", "has space", "$computed"] {
-            assert!(
-                cross_document_symbol_edits("::original", replacement, &index, "caller").is_empty()
+            assert_eq!(
+                cross_document_symbol_edits("::original", replacement, &index, "caller"),
+                [] as [crate::rename::WorkspaceTextEdit; 0]
             );
             assert!(workspace_symbol_rename_edits("::original", replacement, &index).is_none());
         }
@@ -5851,7 +5852,7 @@ mod source_declaration_rename_tests {
         let offset = u32::try_from(source.find(" data;").unwrap() + 1).unwrap();
         let index = LineIndex::new(source);
         let position = index.position_at_utf16(offset, source);
-        assert!(
+        assert_eq!(
             rename_var(
                 source,
                 position.line,
@@ -5860,8 +5861,8 @@ mod source_declaration_rename_tests {
                 &analysis,
                 &index,
                 "data"
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 }
@@ -5891,22 +5892,23 @@ mod typed_namespace_variable_rename_tests {
             namespace_variable_rename_edits(source, &analysis, "::N::value", "changed"),
             expected
         );
-        assert!(
-            namespace_variable_rename_edits(source, &analysis, "::COUNTERFEIT", "changed")
-                .is_empty()
+        assert_eq!(
+            namespace_variable_rename_edits(source, &analysis, "::COUNTERFEIT", "changed"),
+            [] as [crate::rename::TextEdit; 0]
         );
-        assert!(
+        assert_eq!(
             namespace_variable_rename_edits(
                 "namespace eval ::N {set value 2; puts $value}",
                 &analysis,
                 "::N::value",
                 "changed"
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
         analysis.resolved_input = None;
-        assert!(
-            namespace_variable_rename_edits(source, &analysis, "::N::value", "changed").is_empty()
+        assert_eq!(
+            namespace_variable_rename_edits(source, &analysis, "::N::value", "changed"),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 }

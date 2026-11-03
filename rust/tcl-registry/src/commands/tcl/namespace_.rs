@@ -2189,15 +2189,17 @@ mod tests {
                 [3, 5],
                 "{environment}: both local alias names retain their repeated role",
             );
-            assert!(
-                registry
-                    .arg_indices_for_role("namespace", &["tail", "::ns::v"], ArgRole::NamespaceName)
-                    .is_empty()
+            assert_eq!(
+                registry.arg_indices_for_role(
+                    "namespace",
+                    &["tail", "::ns::v"],
+                    ArgRole::NamespaceName
+                ),
+                [] as [usize; 0]
             );
-            assert!(
-                registry
-                    .arg_indices_for_role("namespace", &["tail", "::ns::v"], ArgRole::VarWrite)
-                    .is_empty()
+            assert_eq!(
+                registry.arg_indices_for_role("namespace", &["tail", "::ns::v"], ArgRole::VarWrite),
+                [] as [usize; 0]
             );
         }
         let registry = crate::model::ingress::static_context_for("tcl8.4").commands();

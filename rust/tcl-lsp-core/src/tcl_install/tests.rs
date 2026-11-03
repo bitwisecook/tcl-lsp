@@ -119,7 +119,10 @@ fn library_paths_from_ini_multiline_and_comma_forms() {
         vec!["/opt/tcl-extras/lib", "/home/me/tcl-stubs"]
     );
     // The [project] section is not the [global] one.
-    assert!(library_paths_from_ini(global, "project").is_empty());
+    assert_eq!(
+        library_paths_from_ini(global, "project"),
+        [] as [std::string::String; 0]
+    );
 
     // One-line comma form.
     let project = "[project]\nlibraryPaths = /a/lib, /b/lib\n";
@@ -133,7 +136,10 @@ fn library_paths_from_ini_multiline_and_comma_forms() {
     assert_eq!(library_paths_from_ini(one, "global"), vec!["/only/one"]);
 
     // Absent key.
-    assert!(library_paths_from_ini("[global]\ndialect = tcl9.0\n", "global").is_empty());
+    assert_eq!(
+        library_paths_from_ini("[global]\ndialect = tcl9.0\n", "global"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]
@@ -320,8 +326,11 @@ fn discovery_list_data_preserves_literal_paths_and_refuses_release_ambiguity() {
     for raw in [r"\U00010000", "{unfinished", "\"unfinished", "{path}tail"] {
         assert!(tcllibpath_value_dirs(raw).is_empty(), "{raw:?}");
     }
-    assert!(tcllibpath_value_dirs("").is_empty());
-    assert!(tcllibpath_value_dirs(" \t\n").is_empty());
+    assert_eq!(tcllibpath_value_dirs(""), [] as [std::path::PathBuf; 0]);
+    assert_eq!(
+        tcllibpath_value_dirs(" \t\n"),
+        [] as [std::path::PathBuf; 0]
+    );
 }
 
 #[test]
@@ -354,12 +363,15 @@ fn library_paths_keep_shared_section_key_and_single_line_rules() {
         vec!["/project with spaces"]
     );
     assert_eq!(library_paths_from_ini(content, "other"), vec!["/other"]);
-    assert!(library_paths_from_ini(content, "absent").is_empty());
-    assert!(
+    assert_eq!(
+        library_paths_from_ini(content, "absent"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
         library_paths_from_ini(
             "[global]\n# libraryPaths = /comment\nlibraryPathsExtra = /wrong\n",
             "global"
-        )
-        .is_empty()
+        ),
+        [] as [std::string::String; 0]
     );
 }

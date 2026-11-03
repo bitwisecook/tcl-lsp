@@ -2458,11 +2458,12 @@ mod conditional_user_signature_transport_controls {
         assert_eq!(value["subject"]["kind"], "userSourceArity");
         assert_eq!(value["subject"]["declaredMinimum"], 3);
         assert_eq!(value["subject"]["capturedArgumentCount"], 2);
-        assert!(
-            !value["subject"]["obligations"]
+        assert_ne!(
+            value["subject"]["obligations"]
                 .as_array()
                 .unwrap()
-                .is_empty()
+                .as_slice(),
+            [] as [serde_json::Value; 0]
         );
         let decoded = super::DiagnosticSubjectData::from_value(&value, "E002").unwrap();
         assert_eq!(decoded.to_value().unwrap(), value);

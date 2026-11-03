@@ -5516,7 +5516,7 @@ mod tests {
             &mut report,
             &mut edits,
         );
-        assert!(edits.is_empty());
+        assert_eq!(edits, [] as [(usize, usize, std::string::String); 0]);
         assert!(report.variables.is_empty());
         compact_logical_formals(
             source,
@@ -5527,7 +5527,7 @@ mod tests {
             &mut report,
             &mut edits,
         );
-        assert!(edits.is_empty());
+        assert_eq!(edits, [] as [(usize, usize, std::string::String); 0]);
     }
 
     #[test]
@@ -5600,8 +5600,14 @@ mod constructed_compatibility_tests {
             )]
         );
         let detached = selected.clone();
-        assert!(current_proc_call_sites(source, &detached, &analysis).is_empty());
-        assert!(current_proc_call_sites(&format!("{source} "), selected, &analysis).is_empty());
+        assert_eq!(
+            current_proc_call_sites(source, &detached, &analysis),
+            [] as [tcl_lexer::Span; 0]
+        );
+        assert_eq!(
+            current_proc_call_sites(&format!("{source} "), selected, &analysis),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     #[test]

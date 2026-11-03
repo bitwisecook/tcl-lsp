@@ -2655,7 +2655,7 @@ mod source_catalogue_word_tests {
             assert!(source_method_name_word(&analysis, "a\0b").is_none());
             let mut missing = analysis.clone();
             missing.resolved_input = None;
-            assert!(
+            assert_eq!(
                 completions(
                     source,
                     0,
@@ -2664,8 +2664,8 @@ mod source_catalogue_word_tests {
                     None,
                     None,
                     analysis.resolved_profile().unwrap()
-                )
-                .is_empty()
+                ),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
     }
@@ -2699,10 +2699,16 @@ mod source_catalogue_word_tests {
         );
         let mut missing = current.clone();
         missing.resolved_input = None;
-        assert!(event_name_completions("", &missing).is_empty());
+        assert_eq!(
+            event_name_completions("", &missing),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         let mut changed = current.clone();
         changed.body_lexer_config = Some(tcl_lexer::LexerConfig::for_dialect("jim"));
-        assert!(event_name_completions("", &changed).is_empty());
+        assert_eq!(
+            event_name_completions("", &changed),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 }
 
@@ -2756,7 +2762,7 @@ mod original_command_cursor_tests {
                 }
                 let mut missing = analysis.clone();
                 missing.body_lexer_config = None;
-                assert!(
+                assert_eq!(
                     completions(
                         &source,
                         position.line,
@@ -2765,8 +2771,8 @@ mod original_command_cursor_tests {
                         None,
                         None,
                         analysis.resolved_profile().unwrap()
-                    )
-                    .is_empty()
+                    ),
+                    [] as [crate::completion::CompletionItem; 0]
                 );
             }
         }
@@ -2828,7 +2834,7 @@ mod original_command_cursor_tests {
         let analysis = Analyser::new().analyse(source, "tcl");
         let end = tcl_lexer::LineIndex::new(source)
             .position_at_utf16(u32::try_from(source.len()).unwrap(), source);
-        assert!(
+        assert_eq!(
             completions(
                 source,
                 0,
@@ -2837,8 +2843,8 @@ mod original_command_cursor_tests {
                 None,
                 None,
                 analysis.resolved_profile().unwrap()
-            )
-            .is_empty()
+            ),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 }
@@ -5564,7 +5570,7 @@ mod tests {
         let FilteredCandidates { candidates, fuzzy } =
             filter_candidates("q", vec!["set", "puts"], |n| *n);
         assert!(!fuzzy);
-        assert!(candidates.is_empty());
+        assert_eq!(candidates, [] as [&str; 0]);
     }
 
     #[test]
@@ -5595,7 +5601,7 @@ mod tests {
         let FilteredCandidates { candidates, fuzzy } =
             filter_candidates("xyzzy", vec!["set", "puts"], |n| *n);
         assert!(!fuzzy);
-        assert!(candidates.is_empty());
+        assert_eq!(candidates, [] as [&str; 0]);
     }
 
     // Pinned prefix lists — the byte-identical contract for fragments
@@ -5843,7 +5849,10 @@ mod tests {
             1
         );
         analysis.original_procedure_metadata.clear();
-        assert!(proc_completions(&analysis, "gre", &FxHashMap::default()).is_empty());
+        assert_eq!(
+            proc_completions(&analysis, "gre", &FxHashMap::default()),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 
     #[test]
@@ -6031,7 +6040,10 @@ mod original_proc_completion_tests {
             .unwrap()
             .params
             .clear();
-        assert!(proc_completions(&analysis, "hel", &FxHashMap::default()).is_empty());
+        assert_eq!(
+            proc_completions(&analysis, "hel", &FxHashMap::default()),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
     use tcl_compiler::analyser::Analyser;
 
@@ -6113,7 +6125,10 @@ mod original_proc_completion_tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].label, "moved");
         assert_eq!(items[0].detail.as_deref(), Some("value"));
-        assert!(proc_completions(&analysis, "old", &FxHashMap::default()).is_empty());
+        assert_eq!(
+            proc_completions(&analysis, "old", &FxHashMap::default()),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         let policy = analysis
             .original_procedure_declarations()
             .next()
@@ -6191,7 +6206,7 @@ mod original_proc_completion_tests {
                 .starts_with("Source declaration:")
         );
         assert!(items.iter().all(|item| !item.label.contains("D800")));
-        assert!(
+        assert_eq!(
             completions(
                 &format!("# displaced\n{source}"),
                 2,
@@ -6200,8 +6215,8 @@ mod original_proc_completion_tests {
                 None,
                 None,
                 profile
-            )
-            .is_empty()
+            ),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -6239,7 +6254,10 @@ mod original_proc_completion_tests {
         for proc_def in analysis.all_procs.values_mut() {
             proc_def.source_name = None;
         }
-        assert!(proc_completions(&analysis, "", &FxHashMap::default()).is_empty());
+        assert_eq!(
+            proc_completions(&analysis, "", &FxHashMap::default()),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         let mut unsupported = Analyser::new().analyse("proc café {} {}", "f5-irules");
         assert!(!unsupported.allows_lexical_declaration_advice());
         assert!(unsupported.has_original_vendor_source_names());
@@ -6256,9 +6274,15 @@ mod original_proc_completion_tests {
                 .literal_units(tcl_syntax::naming::VendorSourceNamePurpose::ProcedureName)
                 .is_none()
         );
-        assert!(proc_completions(&unsupported, "", &FxHashMap::default()).is_empty());
+        assert_eq!(
+            proc_completions(&unsupported, "", &FxHashMap::default()),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         unsupported.body_lexer_config = None;
-        assert!(proc_completions(&unsupported, "", &FxHashMap::default()).is_empty());
+        assert_eq!(
+            proc_completions(&unsupported, "", &FxHashMap::default()),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 }
 
@@ -6435,9 +6459,9 @@ mod original_inherited_completion_tests {
             items[0].detail.as_deref(),
             Some("method — property declaration candidate")
         );
-        assert!(
-            original_method_candidate_items(&analysis, record, "", MemberSide::ClassObject)
-                .is_empty()
+        assert_eq!(
+            original_method_candidate_items(&analysis, record, "", MemberSide::ClassObject),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 }
@@ -6476,9 +6500,9 @@ mod original_property_completion_tests {
             accessor.detail.as_deref(),
             Some("method — property declaration candidate")
         );
-        assert!(
-            original_method_candidate_items(&analysis, record, "", MemberSide::ClassObject)
-                .is_empty()
+        assert_eq!(
+            original_method_candidate_items(&analysis, record, "", MemberSide::ClassObject),
+            [] as [crate::completion::CompletionItem; 0]
         );
         let ordinary = Analyser::new().analyse("oo::class create C {method own {} {}}", "tcl9.1");
         let record = ordinary.original_class_declarations().next().unwrap();
@@ -6567,7 +6591,10 @@ mod original_own_object_completion_tests {
                 .any(|item| item.label == "own")
         );
         analysis.original_object_configuration_metadata.clear();
-        assert!(items(source, &analysis, "object own").is_empty());
+        assert_eq!(
+            items(source, &analysis, "object own"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         let unknown = "oo::class create C {}; C create object; oo::objdefine object {unknown_worker}; object own";
         let analysis = Analyser::new().analyse(unknown, "tcl8.6");
         let offset = u32::try_from(unknown.rfind("object own").unwrap()).unwrap();
@@ -6773,7 +6800,7 @@ mod original_scoped_completion_tests {
             .map(|item| item.label)
             .collect::<Vec<_>>();
         assert!(labels.iter().any(|label| label == "top"), "{labels:?}");
-        assert!(
+        assert_eq!(
             completions(
                 &source.replace("st", "zz"),
                 1,
@@ -6782,8 +6809,8 @@ mod original_scoped_completion_tests {
                 None,
                 None,
                 profile
-            )
-            .is_empty()
+            ),
+            [] as [crate::completion::CompletionItem; 0]
         );
         for prefix in [
             "namespace eval ::report {}\nproc ::report::defstyle {args} {}\n",
@@ -6856,7 +6883,10 @@ mod original_snippet_context_tests {
             snippet.insert_text
         );
         assert!(!snippet.insert_text.contains("D800"));
-        assert!(at(&format!("#{source}"), &analysis, source.len() + 1).is_empty());
+        assert_eq!(
+            at(&format!("#{source}"), &analysis, source.len() + 1),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 
     #[test]
@@ -6901,12 +6931,15 @@ mod original_snippet_context_tests {
                 "{environment}: {}",
                 snippet.insert_text,
             );
-            assert!(at(&format!("#{source}"), &analysis, cursor + 1).is_empty());
+            assert_eq!(
+                at(&format!("#{source}"), &analysis, cursor + 1),
+                [] as [crate::completion::CompletionItem; 0]
+            );
             let mut missing = analysis.clone();
             missing.resolved_input = None;
             let position = tcl_lexer::LineIndex::new(source)
                 .position_at_utf16(u32::try_from(cursor).unwrap(), source);
-            assert!(
+            assert_eq!(
                 completions(
                     source,
                     position.line,
@@ -6915,12 +6948,15 @@ mod original_snippet_context_tests {
                     None,
                     None,
                     profile
-                )
-                .is_empty()
+                ),
+                [] as [crate::completion::CompletionItem; 0]
             );
             let mut changed = analysis.clone();
             changed.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-            assert!(at(source, &changed, cursor).is_empty());
+            assert_eq!(
+                at(source, &changed, cursor),
+                [] as [crate::completion::CompletionItem; 0]
+            );
         }
     }
 
@@ -6996,7 +7032,7 @@ mod original_package_completion_tests {
             wrong_profile,
         );
         assert!(items.iter().any(|item| item.label == "button"));
-        assert!(
+        assert_eq!(
             completions(
                 &format!("{source} "),
                 1,
@@ -7005,8 +7041,8 @@ mod original_package_completion_tests {
                 analysis.resolved_registry(),
                 None,
                 wrong_profile
-            )
-            .is_empty()
+            ),
+            [] as [crate::completion::CompletionItem; 0]
         );
         let plain_source = "butt\n";
         let mut plain = Analyser::new().analyse(plain_source, "tcl8.6");
@@ -7319,16 +7355,20 @@ mod configured_receiver_completion_tests {
             .unwrap()
             .properties
             .clear();
-        assert!(
-            generated_property_method_items(&changed, changed.resolved_registry(), "::C")
-                .is_empty()
+        assert_eq!(
+            generated_property_method_items(&changed, changed.resolved_registry(), "::C"),
+            [] as [crate::completion::CompletionItem; 0]
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
-        assert!(generated_property_method_items(&missing, Some(registry), "::C").is_empty());
+        assert_eq!(
+            generated_property_method_items(&missing, Some(registry), "::C"),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         let foreign = tcl_registry::model::ingress::static_context_for("jim");
-        assert!(
-            generated_property_method_items(&analysis, Some(foreign.commands()), "::C").is_empty()
+        assert_eq!(
+            generated_property_method_items(&analysis, Some(foreign.commands()), "::C"),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -7497,7 +7537,7 @@ mod configured_receiver_completion_tests {
                 "{items:?}"
             );
             let changed = format!("# changed\n{source}");
-            assert!(
+            assert_eq!(
                 completions(
                     &changed,
                     3,
@@ -7506,8 +7546,8 @@ mod configured_receiver_completion_tests {
                     analysis.resolved_registry(),
                     None,
                     analysis.resolved_profile().unwrap()
-                )
-                .is_empty()
+                ),
+                [] as [crate::completion::CompletionItem; 0]
             );
             for head in [
                 "${箱}suffix",
@@ -7576,17 +7616,26 @@ mod configured_receiver_completion_tests {
             assert!(items.iter().all(|item| !item.label.contains("UNOWNED")));
             let mut missing = analysis.clone();
             missing.resolved_input = None;
-            assert!(variable_completions(source, 5, 10, &missing, "arr(", '$').is_empty());
+            assert_eq!(
+                variable_completions(source, 5, 10, &missing, "arr(", '$'),
+                [] as [crate::completion::CompletionItem; 0]
+            );
             let mut changed = analysis.clone();
             changed.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-            assert!(variable_completions(source, 5, 10, &changed, "arr(", '$').is_empty());
-            assert!(
-                variable_completions(&format!("#{source}"), 5, 10, &analysis, "arr(", '$')
-                    .is_empty()
+            assert_eq!(
+                variable_completions(source, 5, 10, &changed, "arr(", '$'),
+                [] as [crate::completion::CompletionItem; 0]
+            );
+            assert_eq!(
+                variable_completions(&format!("#{source}"), 5, 10, &analysis, "arr(", '$'),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
         let native = Analyser::new().analyse(source, "tcl9.1");
-        assert!(variable_completions(source, 5, 10, &native, "arr(", '$').is_empty());
+        assert_eq!(
+            variable_completions(source, 5, 10, &native, "arr(", '$'),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 
     #[test]
@@ -7618,20 +7667,30 @@ mod configured_receiver_completion_tests {
             assert!(items.iter().all(|item| !item.label.contains("closebrace")));
             let mut missing = analysis.clone();
             missing.resolved_input = None;
-            assert!(variable_completions(source, 3, 6, &missing, "", '$').is_empty());
+            assert_eq!(
+                variable_completions(source, 3, 6, &missing, "", '$'),
+                [] as [crate::completion::CompletionItem; 0]
+            );
             let mut changed = analysis.clone();
             changed.body_lexer_config.as_mut().unwrap().braced_var = if nested {
                 tcl_dialect::BracedVarStyle::FirstClose
             } else {
                 tcl_dialect::BracedVarStyle::Tcl9Nesting
             };
-            assert!(variable_completions(source, 3, 6, &changed, "", '$').is_empty());
-            assert!(
-                variable_completions(&format!("#{source}"), 3, 6, &analysis, "", '$').is_empty()
+            assert_eq!(
+                variable_completions(source, 3, 6, &changed, "", '$'),
+                [] as [crate::completion::CompletionItem; 0]
+            );
+            assert_eq!(
+                variable_completions(&format!("#{source}"), 3, 6, &analysis, "", '$'),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
         let native = Analyser::new().analyse(source, "tcl9.1");
-        assert!(variable_completions(source, 3, 6, &native, "", '$').is_empty());
+        assert_eq!(
+            variable_completions(source, 3, 6, &native, "", '$'),
+            [] as [crate::completion::CompletionItem; 0]
+        );
         let source = "namespace eval N {set {a{b}c} VALUE}\nputs $";
         let selected = tcl_registry::model::ingress::resolve_environment("tcl9.1");
         let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
@@ -7720,15 +7779,13 @@ mod configured_receiver_completion_tests {
             assert_eq!(edit.new_text, spelling);
             let mut missing = analysis.clone();
             missing.resolved_input = None;
-            assert!(
-                variable_trigger_completions(&source, 1, cursor, &missing)
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                variable_trigger_completions(&source, 1, cursor, &missing).unwrap(),
+                [] as [crate::completion::CompletionItem; 0]
             );
-            assert!(
-                variable_trigger_completions(&format!("#{source}"), 1, cursor, &analysis)
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                variable_trigger_completions(&format!("#{source}"), 1, cursor, &analysis).unwrap(),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
     }
@@ -7737,15 +7794,13 @@ mod configured_receiver_completion_tests {
     fn variable_cursor_completion_rejects_non_utf16_boundaries() {
         let source = "set alpha 1\nputs ${😀alpha}";
         let analysis = Analyser::new().analyse(source, "tcl9.1");
-        assert!(
-            variable_trigger_completions(source, 1, 8, &analysis)
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            variable_trigger_completions(source, 1, 8, &analysis).unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
-        assert!(
-            variable_trigger_completions(source, 1, 1000, &analysis)
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            variable_trigger_completions(source, 1, 1000, &analysis).unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -7954,7 +8009,7 @@ mod selected_catalogue_provider_tests {
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
-        assert!(
+        assert_eq!(
             builtin_completions(
                 &registry,
                 profile,
@@ -7963,12 +8018,12 @@ mod selected_catalogue_provider_tests {
                 false,
                 &missing,
                 frame
-            )
-            .is_empty()
+            ),
+            [] as [crate::completion::CompletionItem; 0]
         );
         let mut changed = analysis.clone();
         changed.body_lexer_config = None;
-        assert!(
+        assert_eq!(
             builtin_completions(
                 &registry,
                 profile,
@@ -7977,8 +8032,8 @@ mod selected_catalogue_provider_tests {
                 false,
                 &changed,
                 frame
-            )
-            .is_empty()
+            ),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -8292,8 +8347,9 @@ mod property_producer_completion_tests {
         let source = "oo::configurable create C {property size; method own {} {}}";
         let current = Analyser::new().analyse(source, "tcl9.0");
         let class = current.original_class_declarations().next().unwrap();
-        assert!(
-            !original_method_candidate_items(&current, class, "", MemberSide::Instance).is_empty()
+        assert_ne!(
+            original_method_candidate_items(&current, class, "", MemberSide::Instance),
+            [] as [crate::completion::CompletionItem; 0]
         );
         let input = current.resolved_input.as_ref().unwrap();
         let context = input.context_registry();
@@ -8312,8 +8368,9 @@ mod property_producer_completion_tests {
         let mut mixed = current.clone();
         mixed.original_class_metadata = other.original_class_metadata;
         let class = mixed.original_class_declarations().next().unwrap();
-        assert!(
-            original_method_candidate_items(&mixed, class, "", MemberSide::Instance).is_empty()
+        assert_eq!(
+            original_method_candidate_items(&mixed, class, "", MemberSide::Instance),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 }

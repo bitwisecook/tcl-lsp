@@ -236,7 +236,7 @@ mod tests {
                 .unwrap()
                 .contains("missing-control-flow-equivalence")
         );
-        assert!(action.edits.is_empty());
+        assert_eq!(action.edits, [] as [crate::refactor::RefactorEdit; 0]);
     }
 
     use super::*;

@@ -389,11 +389,12 @@ mod tests {
         for invocation in &mut absent.command_invocations {
             invocation.original_lookup = None;
         }
-        assert!(
+        assert_eq!(
             procedure_view(source, &absent, None).unwrap()["edges"]
                 .as_array()
                 .unwrap()
-                .is_empty()
+                .as_slice(),
+            [] as [serde_json::Value; 0]
         );
     }
 

@@ -435,8 +435,11 @@ mod tests {
             end_character: 1,
         };
         let expected = formatting_with_analysis(source, &config, &analysis);
-        assert!(!expected.is_empty());
-        assert!(!range_formatting_with_analysis(source, range, &config, &analysis).is_empty());
+        assert_ne!(expected, [] as [crate::rename::TextEdit; 0]);
+        assert_ne!(
+            range_formatting_with_analysis(source, range, &config, &analysis),
+            [] as [crate::rename::TextEdit; 0]
+        );
         let mut reported = analysis.clone();
         reported.dialect = "presentation only".into();
         assert_eq!(
@@ -463,13 +466,22 @@ mod tests {
             input.lexer_config(),
         ));
         for withdrawn in [&unavailable, &missing, &changed, &foreign] {
-            assert!(formatting_with_analysis(source, &config, withdrawn).is_empty());
-            assert!(range_formatting_with_analysis(source, range, &config, withdrawn).is_empty());
+            assert_eq!(
+                formatting_with_analysis(source, &config, withdrawn),
+                [] as [crate::rename::TextEdit; 0]
+            );
+            assert_eq!(
+                range_formatting_with_analysis(source, range, &config, withdrawn),
+                [] as [crate::rename::TextEdit; 0]
+            );
         }
-        assert!(formatting_with_analysis("set replacement 1", &config, &analysis).is_empty());
-        assert!(
-            range_formatting_with_analysis("set replacement 1", range, &config, &analysis)
-                .is_empty()
+        assert_eq!(
+            formatting_with_analysis("set replacement 1", &config, &analysis),
+            [] as [crate::rename::TextEdit; 0]
+        );
+        assert_eq!(
+            range_formatting_with_analysis("set replacement 1", range, &config, &analysis),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 
@@ -532,7 +544,10 @@ mod tests {
             end_line: 3,
             end_character: 1,
         };
-        assert!(range_formatting_with_analysis(source, data, &config, &analysis).is_empty());
+        assert_eq!(
+            range_formatting_with_analysis(source, data, &config, &analysis),
+            [] as [crate::rename::TextEdit; 0]
+        );
     }
 
     #[test]
@@ -643,7 +658,7 @@ mod tests {
             &config,
             &registry,
         );
-        assert!(edits.is_empty());
+        assert_eq!(edits, [] as [crate::rename::TextEdit; 0]);
     }
 
     #[test]

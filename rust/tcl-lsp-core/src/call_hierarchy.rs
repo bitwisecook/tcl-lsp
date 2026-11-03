@@ -1830,14 +1830,14 @@ mod tests {
                 .iter()
                 .all(|command| command.caller_declaration(&independent).is_none())
         );
-        assert!(
+        assert_eq!(
             unresolved_outgoing_calls(
                 &source.replace("COMMAND", "CHANGED"),
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 &item,
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::call_hierarchy::UnresolvedOutgoingCall; 0]
         );
     }
 
@@ -1858,7 +1858,10 @@ mod tests {
                 .values()
                 .any(|class| class.methods.contains_key("x"))
         );
-        assert!(prepare(source, 0, variable, &analysis).is_empty());
+        assert_eq!(
+            prepare(source, 0, variable, &analysis),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
         let declaration =
             u32::try_from(source.find("method x").unwrap() + "method ".len()).unwrap();
         analysis.all_classes.clear();
@@ -1874,7 +1877,10 @@ mod tests {
             identity.role(),
             crate::original_declaration::OriginalDeclarationRole::Method(_)
         ));
-        assert!(prepare(&format!("#{source}"), 0, declaration, &analysis).is_empty());
+        assert_eq!(
+            prepare(&format!("#{source}"), 0, declaration, &analysis),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -1890,7 +1896,10 @@ mod tests {
     fn prepare_returns_empty_for_unknown_word() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(prepare(src, 0, 6, &analysis).is_empty());
+        assert_eq!(
+            prepare(src, 0, 6, &analysis),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -2088,14 +2097,14 @@ mod tests {
                 end_character: 0,
             },
         };
-        assert!(
+        assert_eq!(
             outgoing_calls(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 &bogus,
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::call_hierarchy::OutgoingCall; 0]
         );
     }
 
@@ -2889,16 +2898,19 @@ mod original_source_context_tests {
                 .iter()
                 .any(|(head, _)| head == "source_dispatch")
         );
-        assert!(
+        assert_eq!(
             segment_body_calls(
                 &source.replace("source_dispatch", "other_dispatch"),
                 &current,
                 body
-            )
-            .is_empty()
+            ),
+            [] as [(std::string::String, tcl_lexer::Span); 0]
         );
         current.resolved_input = None;
-        assert!(segment_body_calls(source, &current, body).is_empty());
+        assert_eq!(
+            segment_body_calls(source, &current, body),
+            [] as [(std::string::String, tcl_lexer::Span); 0]
+        );
     }
 }
 

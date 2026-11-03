@@ -410,7 +410,7 @@ mod nested_procedure_navigation_tests {
                 let call = tcl_compiler::registry_invocation::source_structure::source_original_procedure_call_at(
                     source, &analysis, offset,
                 ).unwrap();
-                assert!(call.uncertain_operations().is_empty());
+                assert_eq!(call.uncertain_operations(), []);
                 assert!(!call.has_lookup_operand_effects());
                 let independent = Analyser::new().analyse(source, dialect);
                 assert!(call.declaration(&independent).is_none());

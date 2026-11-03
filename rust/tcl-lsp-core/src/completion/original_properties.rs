@@ -242,7 +242,7 @@ mod tests {
         assert!(
             candidate_items(source, analysis, root, selector, (0, 0), (1, 2), (None, "")).is_none()
         );
-        assert!(
+        assert_eq!(
             candidate_items(
                 &format!("#{source}"),
                 analysis,
@@ -252,8 +252,8 @@ mod tests {
                 (0, 1),
                 (None, "")
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -275,7 +275,7 @@ mod tests {
                 .next()
                 .is_some()
         );
-        assert!(
+        assert_eq!(
             candidate_items(
                 source,
                 &mixed,
@@ -285,8 +285,8 @@ mod tests {
                 (0, 1),
                 (None, "")
             )
-            .expect("foreign property context must remain terminal")
-            .is_empty()
+            .expect("foreign property context must remain terminal"),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -446,10 +446,9 @@ mod source_instance_tests {
                     .as_ref()
                     .is_some_and(|edit| edit.start_char == cursor && edit.end_char == cursor)
             }));
-            assert!(
-                items(source, cursor, 0, &analysis, "ordinary-value")
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                items(source, cursor, 0, &analysis, "ordinary-value").unwrap(),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
     }

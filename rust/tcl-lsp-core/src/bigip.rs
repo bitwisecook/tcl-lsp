@@ -818,7 +818,10 @@ ltm rule /Common/r {
 
     #[test]
     fn empty_source_yields_no_symbols() {
-        assert!(document_symbols("").is_empty());
+        assert_eq!(
+            document_symbols(""),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
+        );
     }
 
     /// `(start_line, end_line)` pairs for every region fold, in order.
@@ -863,7 +866,7 @@ ltm rule /Common/r {
     fn single_line_block_does_not_fold() {
         // `1.2.3.4:80 { }` opens and closes on one line — nothing to hide.
         assert!(regions("ltm pool /Common/p {\n    1.2.3.4:80 { }\n}\n").contains(&(0, 1)));
-        assert!(regions("x { }\n").is_empty());
+        assert_eq!(regions("x { }\n"), [] as [(u32, u32); 0]);
     }
 
     #[test]
@@ -882,7 +885,10 @@ ltm virtual /Common/v {
     fn unbalanced_input_degrades_quietly() {
         // An unclosed stanza yields no fold rather than a bogus one, and a
         // stray closer is ignored.
-        assert!(regions("ltm pool /Common/p {\n    members {\n").is_empty());
+        assert_eq!(
+            regions("ltm pool /Common/p {\n    members {\n"),
+            [] as [(u32, u32); 0]
+        );
         assert_eq!(
             regions("}\nltm pool /Common/p {\n    a 1\n}\n"),
             vec![(1, 2)]
@@ -933,7 +939,7 @@ ltm virtual /Common/v {
 
     #[test]
     fn empty_source_yields_no_folds() {
-        assert!(folding_ranges("").is_empty());
+        assert_eq!(folding_ranges(""), [] as [crate::folding::FoldingRange; 0]);
     }
 
     /// A stanza whose closing `}` is the file's last line must not fold past

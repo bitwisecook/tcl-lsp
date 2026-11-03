@@ -1197,10 +1197,9 @@ mod tests {
             &program.source[scripts[0].as_range()],
             b"[fact [expr {$n - 1}]]"
         );
-        assert!(
-            program
-                .compiler_steps(|_| panic!("modern early preflight stays empty"))
-                .is_empty()
+        assert_eq!(
+            program.compiler_steps(|_| panic!("modern early preflight stays empty")),
+            [] as [crate::native_compilation::NativeExpressionCompilerStep; 0]
         );
         for expression in [
             "$n && [expr {1}]",

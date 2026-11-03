@@ -9287,7 +9287,7 @@ mod tests {
         // One trailing token removed, nothing spliced in.
         assert_eq!(edit.start, 5);
         assert_eq!(edit.delete_count, 5);
-        assert!(edit.data.is_empty());
+        assert_eq!(edit.data, [] as [u32; 0]);
     }
 
     #[test]
@@ -9564,7 +9564,7 @@ mod tests {
 
     #[test]
     fn empty_source_returns_empty_data() {
-        assert!(full("", tcl(), &reg()).data.is_empty());
+        assert_eq!(full("", tcl(), &reg()).data, [] as [u32; 0]);
     }
 
     #[test]
@@ -10068,7 +10068,7 @@ mod tests {
         assert_eq!(roles("::foreach", &["{a b}", "$l", "{}"]), vec![0]);
         assert_eq!(roles("::dict", &["for", "{k v}", "$d", "{}"]), vec![1]);
         // A command with no loop-variable list reports none.
-        assert!(roles("puts", &["hi"]).is_empty());
+        assert_eq!(roles("puts", &["hi"]), [] as [usize; 0]);
     }
 
     #[test]
@@ -10470,7 +10470,7 @@ mod original_proc_role_tests {
         let read = roles.original_roles_at(&analysis, source, read_at).unwrap();
         assert_eq!(write.write, [0]);
         assert_eq!(read.read, [0]);
-        assert!(read.write.is_empty());
+        assert_eq!(read.write, [] as [u32; 0]);
         assert_ne!(write.name.slot(), read.name.slot());
         assert!(
             roles
@@ -10515,12 +10515,12 @@ mod original_proc_role_tests {
         let roles = VarNameArgRoles::from_analysis(&analysis);
         let local_at = u32::try_from(source.find("touch ordinary").unwrap()).unwrap();
         let global_at = u32::try_from(source.find("touch declared").unwrap()).unwrap();
-        assert!(
+        assert_eq!(
             roles
                 .original_roles_at(&analysis, source, local_at)
                 .unwrap()
-                .write
-                .is_empty()
+                .write,
+            [] as [u32; 0]
         );
         assert_eq!(
             roles
@@ -10740,7 +10740,7 @@ mod original_realm_consumer_tests {
         unowned.all_procs.clone_from(&analysis.all_procs);
         unowned.all_variables.clone_from(&analysis.all_variables);
         assert!(unowned.retained_command_realm().is_none());
-        assert!(
+        assert_eq!(
             collect_entries(
                 source,
                 profile,
@@ -10750,8 +10750,8 @@ mod original_realm_consumer_tests {
                     analysis: Some(&unowned),
                     ..WorkspaceTokenFacts::default()
                 }
-            )
-            .is_empty()
+            ),
+            [] as [(u32, u32, u32, crate::semantic_tokens::TokenKind, u32); 0]
         );
     }
 }
@@ -11201,19 +11201,19 @@ puts $x";
         let tokens = |source: &str, analysis: &AnalysisResult| {
             full_with_cu_and_analysis(source, profile, &registry, None, Some(analysis))
         };
-        assert!(!tokens(source, &analysis).data.is_empty());
-        assert!(
+        assert_ne!(tokens(source, &analysis).data, [] as [u32; 0]);
+        assert_eq!(
             tokens(
                 "set y 1
 puts $y",
                 &analysis
             )
-            .data
-            .is_empty()
+            .data,
+            [] as [u32; 0]
         );
         let config = analysis.body_lexer_config.unwrap();
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-        assert!(tokens(source, &analysis).data.is_empty());
+        assert_eq!(tokens(source, &analysis).data, [] as [u32; 0]);
         analysis.body_lexer_config = Some(config);
         analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
@@ -11221,9 +11221,9 @@ puts $y",
             tcl_registry::model::resolve_environment("tcl8.4").default_context_registry(),
             config,
         ));
-        assert!(tokens(source, &analysis).data.is_empty());
+        assert_eq!(tokens(source, &analysis).data, [] as [u32; 0]);
         analysis.resolved_input = None;
-        assert!(tokens(source, &analysis).data.is_empty());
+        assert_eq!(tokens(source, &analysis).data, [] as [u32; 0]);
     }
 }
 
@@ -11516,13 +11516,16 @@ mod original_comment_token_tests {
         let source = "# retained\nheld-script {\n# owned\n}\n";
         let analysis = analysis(source);
         assert_eq!(comments(source, &analysis), vec!["# retained", "# owned"]);
-        assert!(comments(&format!("{source} "), &analysis).is_empty());
+        assert_eq!(
+            comments(&format!("{source} "), &analysis),
+            [] as [std::string::String; 0]
+        );
         let mut changed = analysis.clone();
         changed.resolved_input = None;
-        assert!(comments(source, &changed).is_empty());
+        assert_eq!(comments(source, &changed), [] as [std::string::String; 0]);
         let mut changed = analysis.clone();
         changed.body_lexer_config.as_mut().unwrap().strict_quoting = false;
-        assert!(comments(source, &changed).is_empty());
+        assert_eq!(comments(source, &changed), [] as [std::string::String; 0]);
         let mut changed = analysis.clone();
         let profile = crate::profile_for_dialect("tcl8.6");
         changed.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -11531,7 +11534,7 @@ mod original_comment_token_tests {
             tcl_registry::model::context_for_profile(profile),
             analysis.body_lexer_config.unwrap(),
         ));
-        assert!(comments(source, &changed).is_empty());
+        assert_eq!(comments(source, &changed), [] as [std::string::String; 0]);
     }
 }
 
@@ -11708,10 +11711,9 @@ mod irules_overlay_tests {
         );
         let tcl = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let plain = CommandRegistry::build_default();
-        assert!(
-            plain
-                .commands_with_trait(tcl_registry::Traits::IS_EVENT_HANDLER)
-                .is_empty()
+        assert_eq!(
+            plain.commands_with_trait(tcl_registry::Traits::IS_EVENT_HANDLER),
+            [] as [&str; 0]
         );
         assert!(events(&full(source, tcl, &plain)).is_empty(), "plain Tcl");
     }

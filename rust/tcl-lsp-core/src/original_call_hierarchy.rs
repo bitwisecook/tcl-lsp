@@ -951,17 +951,20 @@ mod tests {
                     ..documents[0]
                 },
             ];
-            assert!(
+            assert_eq!(
                 prepare(
                     documents[0].uri,
                     position.line,
                     position.character.get(),
                     &duplicates,
                     None,
-                )
-                .is_empty()
+                ),
+                [] as [crate::call_hierarchy::CallHierarchyItem; 0]
             );
-            assert!(references(identity, &duplicates, None).is_empty());
+            assert_eq!(
+                references(identity, &duplicates, None),
+                [] as [(std::string::String, tcl_lexer::Span); 0]
+            );
             assert!(crate::math_function_symbol::at("expr {abs(2)}", &analysis, 6).is_none());
         }
     }
@@ -996,13 +999,19 @@ mod tests {
             source: "proc changed {} {}",
             analysis: &analysis,
         }];
-        assert!(incoming(&identities[0], &stale, None).is_empty());
+        assert_eq!(
+            incoming(&identities[0], &stale, None),
+            [] as [(std::string::String, crate::call_hierarchy::IncomingCall); 0]
+        );
         let foreign_owner = [OriginalCallDocument {
             uri: "file:///copy.tcl",
             source,
             analysis: &analysis,
         }];
-        assert!(outgoing(&identities[0], &foreign_owner, None).is_empty());
+        assert_eq!(
+            outgoing(&identities[0], &foreign_owner, None),
+            [] as [(std::string::String, crate::call_hierarchy::OutgoingCall); 0]
+        );
         analysis
             .command_invocations
             .iter_mut()
@@ -1012,7 +1021,10 @@ mod tests {
             source,
             analysis: &analysis,
         }];
-        assert!(incoming(&identities[0], &missing, None).is_empty());
+        assert_eq!(
+            incoming(&identities[0], &missing, None),
+            [] as [(std::string::String, crate::call_hierarchy::IncomingCall); 0]
+        );
     }
 }
 
@@ -1055,7 +1067,10 @@ mod own_object_call_tests {
             source: &changed,
             analysis: &analysis,
         }];
-        assert!(incoming(identity, &stale, None).is_empty());
+        assert_eq!(
+            incoming(identity, &stale, None),
+            [] as [(std::string::String, crate::call_hierarchy::IncomingCall); 0]
+        );
     }
 }
 
@@ -1177,20 +1192,32 @@ mod positioned_procedure_advice_tests {
             1
         );
         let argument = u32::try_from(source.rfind("target").unwrap()).unwrap();
-        assert!(prepare(documents[0].uri, 0, argument, &documents, None).is_empty());
-        assert!(prepare(documents[0].uri, u32::MAX, 0, &documents, None).is_empty());
+        assert_eq!(
+            prepare(documents[0].uri, 0, argument, &documents, None),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
+        assert_eq!(
+            prepare(documents[0].uri, u32::MAX, 0, &documents, None),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
         let stale = [OriginalCallDocument {
             source: "proc changed {} {}",
             ..documents[0]
         }];
-        assert!(prepare(documents[0].uri, 0, head, &stale, None).is_empty());
+        assert_eq!(
+            prepare(documents[0].uri, 0, head, &stale, None),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
         let missing = [OriginalCallDocument {
             analysis: &missing,
             ..documents[0]
         }];
-        assert!(prepare(documents[0].uri, 0, head, &missing, None).is_empty());
+        assert_eq!(
+            prepare(documents[0].uri, 0, head, &missing, None),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -1343,7 +1370,10 @@ mod external_procedure_advice_tests {
                     ..documents[1]
                 },
             ];
-            assert!(prepare(documents[0].uri, 0, 0, &duplicates, None).is_empty());
+            assert_eq!(
+                prepare(documents[0].uri, 0, 0, &duplicates, None),
+                [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+            );
             if command.argv.len() > 1 {
                 let mut whole_command = invocation.clone();
                 whole_command.range = command.span;
@@ -1356,7 +1386,10 @@ mod external_procedure_advice_tests {
                     ..documents[1]
                 },
             ];
-            assert!(prepare(documents[0].uri, 0, 0, &stale, None).is_empty());
+            assert_eq!(
+                prepare(documents[0].uri, 0, 0, &stale, None),
+                [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+            );
         }
     }
 
@@ -1413,6 +1446,9 @@ mod external_procedure_advice_tests {
             source,
             analysis: &analysis,
         }];
-        assert!(prepare(documents[0].uri, 0, 0, &documents, None).is_empty());
+        assert_eq!(
+            prepare(documents[0].uri, 0, 0, &documents, None),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
     }
 }

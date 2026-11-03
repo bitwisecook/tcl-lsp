@@ -941,7 +941,7 @@ mod tests {
                 );
             }
             let changed = format!("{source} ");
-            assert!(
+            assert_eq!(
                 items(
                     &changed,
                     position.line,
@@ -950,8 +950,8 @@ mod tests {
                     "",
                     '$'
                 )
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
         let source = "proc p {} {foreach {k v} {} {puts $}}";
@@ -962,7 +962,7 @@ mod tests {
         let offset = u32::try_from(source.find("puts $").unwrap() + 6).unwrap();
         let index = tcl_lexer::LineIndex::new(source);
         let position = index.position_at_utf16(offset, source);
-        assert!(
+        assert_eq!(
             items(
                 source,
                 position.line,
@@ -971,8 +971,8 @@ mod tests {
                 "",
                 '$'
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -1045,7 +1045,7 @@ mod tests {
                 &line[edit.end_char as usize..]
             );
             assert_eq!(applied, format!("puts {insertion}"));
-            assert!(
+            assert_eq!(
                 items(
                     &format!("{source} "),
                     1,
@@ -1054,8 +1054,8 @@ mod tests {
                     partial,
                     trigger
                 )
-                .unwrap_or_default()
-                .is_empty()
+                .unwrap_or_default(),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
     }
@@ -1105,32 +1105,34 @@ mod tests {
         let mut missing = logical.clone();
         missing.resolved_input = None;
         assert!(!missing.allows_retained_logical_declaration_advice());
-        assert!(
-            items(source, 1, 9, &missing, "ord", '$')
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            items(source, 1, 9, &missing, "ord", '$').unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
-        assert!(
-            super::super::variable_trigger_completions(source, 1, 9, &missing)
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            super::super::variable_trigger_completions(source, 1, 9, &missing).unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
-        assert!(source_references(source, &missing, 0).unwrap().is_empty());
+        assert_eq!(
+            source_references(source, &missing, 0).unwrap(),
+            [] as [std::string::String; 0]
+        );
         for dialect in ["tcl8.6", "f5-irules"] {
             let mut original = Analyser::new().analyse(source, dialect);
             assert!(!original.allows_retained_logical_declaration_advice());
-            assert!(
-                items(source, 0, 0, &original, "ord", '$')
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                items(source, 0, 0, &original, "ord", '$').unwrap(),
+                [] as [crate::completion::CompletionItem; 0]
             );
             original.body_lexer_config = None;
-            assert!(
-                super::super::variable_trigger_completions(source, 1, 9, &original)
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                super::super::variable_trigger_completions(source, 1, 9, &original).unwrap(),
+                [] as [crate::completion::CompletionItem; 0]
             );
-            assert!(source_references(source, &original, 0).unwrap().is_empty());
+            assert_eq!(
+                source_references(source, &original, 0).unwrap(),
+                [] as [std::string::String; 0]
+            );
         }
     }
 
@@ -1177,7 +1179,7 @@ mod tests {
             !names.contains(&"$other") && !names.contains(&"$foreign"),
             "{names:?}"
         );
-        assert!(
+        assert_eq!(
             items(
                 &format!("{source} "),
                 position.line,
@@ -1186,8 +1188,8 @@ mod tests {
                 "",
                 '$'
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -1239,8 +1241,8 @@ mod tests {
             "{names:?}"
         );
         assert!(names.iter().all(|name| !name.contains("D800")));
-        assert!(analysis.original_variable_symbols.is_empty());
-        assert!(
+        assert_eq!(analysis.original_variable_symbols, [] as [tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence; 0]);
+        assert_eq!(
             items(
                 &format!("{source} "),
                 position.line,
@@ -1249,8 +1251,8 @@ mod tests {
                 "",
                 '$'
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
     }
 
@@ -1369,12 +1371,14 @@ mod write_advice_tests {
             candidates[0].detail.as_deref(),
             Some("variable — conditional write-name candidate")
         );
-        assert!(
-            items(&format!("# displaced\n{source}"), 2, 7, &analysis, "o", '$')
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            items(&format!("# displaced\n{source}"), 2, 7, &analysis, "o", '$').unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
         );
         analysis.original_variable_write_advice.clear();
-        assert!(items(source, 1, 7, &analysis, "o", '$').unwrap().is_empty());
+        assert_eq!(
+            items(source, 1, 7, &analysis, "o", '$').unwrap(),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 }

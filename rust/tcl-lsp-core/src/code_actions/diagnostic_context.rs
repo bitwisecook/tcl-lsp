@@ -407,7 +407,10 @@ mod tests {
                     diagnostic.span,
                 ),
             };
-            assert!(actions(source, &analysis, &projected).is_empty());
+            assert_eq!(
+                actions(source, &analysis, &projected),
+                [] as [crate::code_actions::CodeAction; 0]
+            );
         }
     }
 
@@ -594,7 +597,10 @@ mod tests {
         diagnostic.message = "Tainted $other flows into eval; presentation changed".to_owned();
         assert_eq!(actions(source, &analysis, &diagnostic), expected);
         diagnostic.data = None;
-        assert!(actions(source, &analysis, &diagnostic).is_empty());
+        assert_eq!(
+            actions(source, &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     // Implementation contract: naming.consumer.original-diagnostic-source-actions
@@ -603,11 +609,20 @@ mod tests {
     fn original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range() {
         let source = "set x [gets stdin]\nsubst $x\n";
         let (mut analysis, diagnostic) = issued_logical(source, "T100");
-        assert!(!actions(source, &analysis, &diagnostic).is_empty());
-        assert!(actions(&format!("{source}# changed\n"), &analysis, &diagnostic).is_empty());
+        assert_ne!(
+            actions(source, &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
+        assert_eq!(
+            actions(&format!("{source}# changed\n"), &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
         let mut moved = diagnostic.clone();
         moved.range.start_character += 1;
-        assert!(actions(source, &analysis, &moved).is_empty());
+        assert_eq!(
+            actions(source, &analysis, &moved),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
         let mut forged = diagnostic.data.as_ref().unwrap().to_value();
         forged["kind"] = serde_json::json!("arbitrary source subject");
         assert!(ContextDiagnosticData::from_value(&forged, "T100").is_none());
@@ -618,17 +633,20 @@ mod tests {
             )
             .is_none()
         );
-        assert!(
+        assert_eq!(
             context_diagnostic_actions_in_analysis(
                 source,
                 &analysis,
                 crate::registry_for_dialect("tcl9.1"),
                 std::slice::from_ref(&diagnostic)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
-        assert!(actions(source, &analysis, &diagnostic).is_empty());
+        assert_eq!(
+            actions(source, &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     #[test]
@@ -668,7 +686,10 @@ mod tests {
             )
         );
         assert!(!data.matches(source, &older, registry, &diagnostic));
-        assert!(actions(source, &older, &diagnostic).is_empty());
+        assert_eq!(
+            actions(source, &older, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     // Implementation contract: naming.consumer.original-diagnostic-source-actions
@@ -713,7 +734,10 @@ mod tests {
         );
         let occupied = format!("proc {{html_encode}} {{value}} {{return $value}}\n{body}");
         let (analysis, diagnostic) = issued(&occupied, "f5-irules", "IRULE3001");
-        assert!(actions(&occupied, &analysis, &diagnostic).is_empty());
+        assert_eq!(
+            actions(&occupied, &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     // Implementation contract: naming.consumer.original-diagnostic-source-actions
@@ -723,7 +747,10 @@ mod tests {
         let source = "set x [gets stdin]\nputs $x\n";
         let (analysis, diagnostic) = issued(source, "tcl8.6", "T101");
         assert!(diagnostic.data.is_some());
-        assert!(actions(source, &analysis, &diagnostic).is_empty());
+        assert_eq!(
+            actions(source, &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     // Implementation contract: naming.consumer.original-diagnostic-source-actions
@@ -751,14 +778,14 @@ mod tests {
             diagnostic.message =
                 "TCP::collect in an unrelated event; counterfactual prose".to_owned();
             assert_eq!(actions(source, &analysis, &diagnostic), expected);
-            assert!(
+            assert_eq!(
                 context_diagnostic_actions_in_analysis(
                     source,
                     &analysis,
                     crate::registry_for_dialect("tcl8.6"),
                     std::slice::from_ref(&diagnostic)
-                )
-                .is_empty()
+                ),
+                [] as [crate::code_actions::CodeAction; 0]
             );
         }
     }
@@ -853,7 +880,7 @@ mod tests {
             )
             .expect("conditional source advice retains the unavailable transition obligation");
         assert!(metadata.authored_barriers().has_unknown_transitions());
-        assert!(!metadata.obligations().is_empty());
+        assert_ne!(metadata.obligations(), []);
         assert!(
             current_commands(source, &analysis, registry)
                 .unwrap()

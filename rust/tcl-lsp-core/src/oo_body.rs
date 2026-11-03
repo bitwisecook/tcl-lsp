@@ -616,7 +616,10 @@ mod tests {
         );
         // Bare script-block form: arg 0 is the definition-script body.
         assert_eq!(member_body_indices(g, "private", &["{body}"]), vec![0]);
-        assert!(member_param_indices(g, "private", &["{body}"]).is_empty());
+        assert_eq!(
+            member_param_indices(g, "private", &["{body}"]),
+            [] as [usize; 0]
+        );
         // `self` shares the same dual shape.
         assert_eq!(
             member_body_indices(g, "self", &["method", "m", "{}", "body"]),
@@ -644,7 +647,10 @@ mod tests {
             member_param_indices(g, "self", &["method", "n", "{a}", "b"]),
             vec![2]
         );
-        assert!(member_param_indices(g, "destructor", &["b"]).is_empty());
+        assert_eq!(
+            member_param_indices(g, "destructor", &["b"]),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
@@ -668,14 +674,14 @@ mod tests {
     fn tcloo_method_option_layout_is_profile_aware() {
         let g = &TCLOO_GRAMMAR;
         let args = ["m", "-private", "{x}", "body"];
-        assert!(
+        assert_eq!(
             member_body_indices_in(
                 g,
                 "method",
                 &args,
                 Some(SurfaceQuery::core(Family::Tcl, "8.6")),
-            )
-            .is_empty()
+            ),
+            [] as [usize; 0]
         );
         assert_eq!(
             member_body_indices_in(
@@ -728,9 +734,9 @@ mod tests {
     #[test]
     fn member_indices_reject_short_forms() {
         let g = &TCLOO_GRAMMAR;
-        assert!(member_body_indices(g, "method", &["n"]).is_empty());
-        assert!(member_body_indices(g, "destructor", &[]).is_empty());
-        assert!(member_body_indices(g, "set", &["x", "1"]).is_empty());
+        assert_eq!(member_body_indices(g, "method", &["n"]), [] as [usize; 0]);
+        assert_eq!(member_body_indices(g, "destructor", &[]), [] as [usize; 0]);
+        assert_eq!(member_body_indices(g, "set", &["x", "1"]), [] as [usize; 0]);
     }
 
     #[test]

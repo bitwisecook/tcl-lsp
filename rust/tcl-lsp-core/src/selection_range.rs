@@ -446,7 +446,7 @@ mod tests {
     fn selection_range_chain_grows_outward() {
         let src = "set x 1\nputs hi\n";
         let ranges = selection_range(src, 0, 5, None);
-        assert!(!ranges.is_empty());
+        assert_ne!(ranges, [] as [crate::selection_range::SelectionRange; 0]);
         // Innermost should be the word `1` (or `x` if cursor was earlier).
         let inner = &ranges[0];
         assert_eq!(inner.range.start_line, 0);

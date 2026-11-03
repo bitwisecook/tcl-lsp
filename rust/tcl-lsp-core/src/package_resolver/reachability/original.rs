@@ -865,7 +865,10 @@ mod original_package_region_purpose_tests {
             super::super::walk_command_words_with_config(body, first_close.at_depth(1)).len(),
             2
         );
-        assert!(super::super::walk_command_words_with_config(body, config.at_depth(1)).is_empty());
+        assert_eq!(
+            super::super::walk_command_words_with_config(body, config.at_depth(1)),
+            [] as [std::vec::Vec<std::vec::Vec<tcl_lexer::Token>>; 0]
+        );
     }
 }
 

@@ -2048,7 +2048,10 @@ pack .w -\x69n \x2e"#;
 
         let alternatives =
             model("frame .holder\nif {$mode} {pack .a -in .holder} else {grid .b -in .holder}");
-        assert!(alternatives.geometry_conflicts.is_empty());
+        assert_eq!(
+            alternatives.geometry_conflicts,
+            [] as [crate::tk_preview::TkGeometryConflict; 0]
+        );
     }
 
     #[test]
@@ -2072,7 +2075,7 @@ pack .w -\x69n \x2e"#;
         let dialect = crate::profile_for_dialect("tk");
         let registry = crate::registry_for_dialect_profile(dialect);
         let managers = registry.commands_with_trait(Traits::TK_GEOMETRY_MANAGER);
-        assert!(!managers.is_empty());
+        assert_ne!(managers, [] as [&str; 0]);
         for manager in managers {
             let source = format!("frame .w; {manager} .w");
             let ui = analyse_tk_ui(&source, dialect, registry);
@@ -2114,8 +2117,14 @@ pack .w -\x69n \x2e"#;
         );
         assert!(old.tk_active);
         assert_eq!(old.widget_count, 1);
-        assert!(old.root.as_ref().expect("Tk is active").children.is_empty());
-        assert!(old.geometry_conflicts.is_empty());
+        assert_eq!(
+            old.root.as_ref().expect("Tk is active").children,
+            [] as [crate::tk_preview::TkWidget; 0]
+        );
+        assert_eq!(
+            old.geometry_conflicts,
+            [] as [crate::tk_preview::TkGeometryConflict; 0]
+        );
 
         let current = model_in_dialect("package require Tk\nttk::toggleswitch .switch", "tcl9.1");
         assert_eq!(current.widget_count, 2);
@@ -2247,7 +2256,10 @@ pack .w -\x69n \x2e"#;
                 .map(|placement| placement.manager.as_str()),
             Some("grid")
         );
-        assert!(ui.geometry_conflicts.is_empty());
+        assert_eq!(
+            ui.geometry_conflicts,
+            [] as [crate::tk_preview::TkGeometryConflict; 0]
+        );
     }
 
     #[test]
@@ -2277,12 +2289,18 @@ pack .w -\x69n \x2e"#;
     #[test]
     fn geometry_conflicts_use_registry_policy_and_effective_in_container() {
         let place = model("frame .a\nframe .b\nplace .a\ngrid .b\n");
-        assert!(place.geometry_conflicts.is_empty());
+        assert_eq!(
+            place.geometry_conflicts,
+            [] as [crate::tk_preview::TkGeometryConflict; 0]
+        );
 
         let separate = model(
             "frame .left\nframe .right\nframe .a\nframe .b\npack .a -in .left\ngrid .b -in .right\n",
         );
-        assert!(separate.geometry_conflicts.is_empty());
+        assert_eq!(
+            separate.geometry_conflicts,
+            [] as [crate::tk_preview::TkGeometryConflict; 0]
+        );
         let a = separate
             .root
             .as_ref()
@@ -2505,7 +2523,10 @@ pack .w -\x69n \x2e"#;
             widget.geometry.is_none(),
             "old pack evidence must not attach to the recreated instance: {ui:#?}"
         );
-        assert!(ui.geometry_conflicts.is_empty());
+        assert_eq!(
+            ui.geometry_conflicts,
+            [] as [crate::tk_preview::TkGeometryConflict; 0]
+        );
         assert!(
             ui.uncertainties
                 .iter()

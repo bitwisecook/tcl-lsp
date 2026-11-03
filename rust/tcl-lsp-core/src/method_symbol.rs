@@ -1523,7 +1523,7 @@ mod tests {
                         assert_eq!(call.written_argument(0), None);
                         assert_eq!(query.selector_input().bytes(), b"ping");
                         assert!(query.span().start() < command.argv[0].span.start());
-                        assert!(!call.obligations().is_empty());
+                        assert_ne!(call.obligations(), []);
                     }
                     candidate_for_analysis(&result, &query)
                 }
@@ -1634,8 +1634,11 @@ mod tests {
             local_candidate(&stale, &result, 0, cursor),
             ControlFlow::Break(None)
         ));
-        assert!(crate::definition::definition(&stale, 0, cursor, &result).is_empty());
-        assert!(
+        assert_eq!(
+            crate::definition::definition(&stale, 0, cursor, &result),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
             crate::references::references(
                 &stale,
                 crate::profile_for_dialect("tcl8.6"),
@@ -1643,8 +1646,8 @@ mod tests {
                 cursor,
                 &result,
                 true
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
         assert!(crate::hover::hover(&stale, 0, cursor, &result, None).is_none());
     }
@@ -1661,8 +1664,11 @@ mod tests {
             local_candidate(source, &result, 2, 5),
             ControlFlow::Break(None)
         ));
-        assert!(crate::definition::definition(source, 2, 5, &result).is_empty());
-        assert!(
+        assert_eq!(
+            crate::definition::definition(source, 2, 5, &result),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
             crate::references::references(
                 source,
                 crate::profile_for_dialect("tcl8.6"),
@@ -1670,8 +1676,8 @@ mod tests {
                 5,
                 &result,
                 true
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
         assert!(crate::hover::hover(source, 2, 5, &result, None).is_none());
     }
@@ -1739,8 +1745,11 @@ mod tests {
             local_candidate(source, &result, 0, 2),
             ControlFlow::Break(None)
         ));
-        assert!(crate::definition::definition(source, 0, 2, &result).is_empty());
-        assert!(
+        assert_eq!(
+            crate::definition::definition(source, 0, 2, &result),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
             crate::references::references(
                 source,
                 crate::profile_for_dialect("tcl8.6"),
@@ -1748,8 +1757,8 @@ mod tests {
                 2,
                 &result,
                 true
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
         assert!(crate::hover::hover(source, 0, 2, &result, None).is_none());
         let foreign = analysis("D m\n")

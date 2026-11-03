@@ -1438,7 +1438,7 @@ mod tests {
             call.original_words().first().unwrap().span().start(),
             u32::try_from(source.rfind("shortcut").unwrap()).unwrap()
         );
-        assert!(!call.lineage().is_empty());
+        assert_ne!(call.lineage(), []);
         let incoming = logical_incoming_from_inventory(identity, &docs).unwrap();
         assert_eq!(incoming.possible_source_edges().len(), 1);
         assert!(incoming.is_current(&docs));

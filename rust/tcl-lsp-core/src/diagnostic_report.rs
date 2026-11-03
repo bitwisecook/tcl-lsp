@@ -600,10 +600,9 @@ mod tests {
             optimise_under_policy_from_analysis(&marked, &registry, &marked_analysis, 3, &policy);
         assert_eq!(kept.text, marked);
         assert!(kept.applied.iter().all(|row| row.code != DiagCode::O100));
-        assert!(
-            optimise_under_policy_from_analysis(&marked, &registry, &analysis, 3, &policy)
-                .applied
-                .is_empty()
+        assert_eq!(
+            optimise_under_policy_from_analysis(&marked, &registry, &analysis, 3, &policy).applied,
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
         );
     }
 
@@ -617,10 +616,9 @@ mod tests {
         let analysis = supplied_source_analysis(source, context);
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
-        assert!(
-            !optimise_under_policy_from_analysis(source, &registry, &analysis, 3, &policy)
-                .applied
-                .is_empty()
+        assert_ne!(
+            optimise_under_policy_from_analysis(source, &registry, &analysis, 3, &policy).applied,
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
@@ -641,7 +639,10 @@ mod tests {
             let result =
                 optimise_under_policy_from_analysis(source, &registry, &refused, 3, &policy);
             assert_eq!(result.text, source);
-            assert!(result.applied.is_empty());
+            assert_eq!(
+                result.applied,
+                [] as [tcl_compiler::optimiser::Optimisation; 0]
+            );
             assert_eq!(result.iterations, 0);
         }
     }
@@ -676,10 +677,9 @@ mod tests {
             crate::code_actions::DiagnosticEditSource::for_analysis(source, &findings.analysis)
                 .unwrap();
         assert!(guard.matches_optimiser_rewrite_group(&[&finding]));
-        assert!(
-            findings
-                .optimisation_candidates("set x [expr {4 + 5}]\n")
-                .is_empty()
+        assert_eq!(
+            findings.optimisation_candidates("set x [expr {4 + 5}]\n"),
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
         );
     }
 
@@ -780,27 +780,38 @@ mod tests {
         assert!(source.get(branch.span.as_range()).is_some());
         assert!(branch.replacement.contains("retained"));
         assert!(!branch.replacement.contains("omitted"));
-        assert!(
-            findings
-                .optimisation_candidates(&source.replace("retained", "changed"))
-                .is_empty()
+        assert_eq!(
+            findings.optimisation_candidates(&source.replace("retained", "changed")),
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
         );
         findings.unit = None;
         assert!(findings.analysis.resolved_input.is_some());
-        assert!(findings.optimisation_candidates(source).is_empty());
+        assert_eq!(
+            findings.optimisation_candidates(source),
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
+        );
         findings.unit = Some(unit);
         let original = findings.analysis.clone();
         findings.analysis.resolved_input = None;
-        assert!(findings.optimisation_candidates(source).is_empty());
+        assert_eq!(
+            findings.optimisation_candidates(source),
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
+        );
         findings.analysis = original.clone();
         findings.analysis.body_lexer_config = None;
-        assert!(findings.optimisation_candidates(source).is_empty());
+        assert_eq!(
+            findings.optimisation_candidates(source),
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
+        );
         findings.analysis = original.clone();
         findings.analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
             environment: "tcl".to_owned(),
             overlay: u64::MAX - 436,
         });
-        assert!(findings.optimisation_candidates(source).is_empty());
+        assert_eq!(
+            findings.optimisation_candidates(source),
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
+        );
         findings.analysis = original;
         assert_eq!(findings.optimisation_candidates(source), candidates);
     }
@@ -909,7 +920,10 @@ mod tests {
             },
             &BTreeSet::new(),
         );
-        assert!(standalone.produced.is_empty());
+        assert_eq!(
+            standalone.produced,
+            [] as [crate::diagnostic_policy::Finding; 0]
+        );
         assert!(standalone.analysis.all_procs.is_empty());
         let miss = standalone
             .analysis
@@ -1044,7 +1058,7 @@ mod tests {
             .directives(Directives::scan(text, tcl9()))
             .build();
         let report = document_report(&tcl_doc(text), Vec::new(), &policy);
-        assert!(codes(&report).is_empty());
+        assert_eq!(codes(&report), [] as [tcl_core_types::DiagCode; 0]);
         let w112 = report
             .iter()
             .find(|(f, _)| f.code == DiagCode::W112)
@@ -1206,7 +1220,10 @@ mod tests {
             kept.text, marked,
             "a `# noqa` on the command keeps the rewrite off"
         );
-        assert!(kept.applied.is_empty());
+        assert_eq!(
+            kept.applied,
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
+        );
 
         let whole = "# tcl-lsp: disable=*\nset x [expr {1 + 2}]\n";
         let untouched = optimise_under_policy(whole, &registry, Some(&input), 5, &policy);
@@ -1228,7 +1245,10 @@ mod tests {
 
         let missing = optimise_under_policy(source, &registry, None, 3, &policy);
         assert_eq!(missing.text, source);
-        assert!(missing.applied.is_empty());
+        assert_eq!(
+            missing.applied,
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
+        );
         assert_eq!(missing.iterations, 0);
 
         // The retained input names a different immutable command-store
@@ -1240,7 +1260,10 @@ mod tests {
         });
         let refused = optimise_under_policy(source, &foreign_registry, Some(&input), 3, &policy);
         assert_eq!(refused.text, source);
-        assert!(refused.applied.is_empty());
+        assert_eq!(
+            refused.applied,
+            [] as [tcl_compiler::optimiser::Optimisation; 0]
+        );
         assert_eq!(refused.iterations, 0);
     }
 

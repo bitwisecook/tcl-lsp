@@ -255,15 +255,15 @@ fn parse_pkg_index_rejects_bad_version_and_falls_back_to_dir_listing() {
     // Unconventional version → skipped.
     let bad = "package ifneeded x notaversion [list source [file join $dir x.tcl]]";
     let dir = Path::new("/pkg");
-    assert!(
+    assert_eq!(
         parse_pkg_index(
             bad,
             dir,
             &dir.join("pkgIndex.tcl"),
             &always_exists,
             &no_tcl_files
-        )
-        .is_empty()
+        ),
+        [] as [crate::package_resolver::PackageInfo; 0]
     );
 
     // No explicit source → fall back to the directory's `*.tcl` listing.
@@ -389,8 +389,14 @@ fn resolver_scans_immediate_subdirs_like_tcl_pkg_unknown() {
         resolver.resolve("mylib", Some("2.1")),
         vec![pkg_dir.join("mylib.tcl")]
     );
-    assert!(resolver.resolve("mylib", Some("9.9")).is_empty());
-    assert!(resolver.resolve("nonexistent", None).is_empty());
+    assert_eq!(
+        resolver.resolve("mylib", Some("9.9")),
+        [] as [std::path::PathBuf; 0]
+    );
+    assert_eq!(
+        resolver.resolve("nonexistent", None),
+        [] as [std::path::PathBuf; 0]
+    );
 }
 
 /// A version constraint selects the release Tcl would load, with `package
@@ -443,8 +449,14 @@ fn resolve_picks_the_highest_release_satisfying_the_constraint() {
     );
     // TN: a constraint no release satisfies resolves to nothing — never a
     // silent fallback to the first provider.
-    assert!(resolver.resolve("widget", Some("9.9")).is_empty());
-    assert!(resolver.resolve("widget", Some("3.0")).is_empty());
+    assert_eq!(
+        resolver.resolve("widget", Some("9.9")),
+        [] as [std::path::PathBuf; 0]
+    );
+    assert_eq!(
+        resolver.resolve("widget", Some("3.0")),
+        [] as [std::path::PathBuf; 0]
+    );
 
     // An **unconstrained** require picks the highest, not the first
     // discovered — `package require widget` loads 2.3 on 8.6.14 and 9.0.4
@@ -525,10 +537,9 @@ fn exact_require_selects_that_release_or_nothing() {
     // though it does satisfy the ranged form.
     let mut alpha_only = PackageResolver::new();
     alpha_only.scan_path(&root.join("v4"));
-    assert!(
-        alpha_only
-            .resolve_require("widget", Some("2.0"), true, PackagePrefer::default())
-            .is_empty(),
+    assert_eq!(
+        alpha_only.resolve_require("widget", Some("2.0"), true, PackagePrefer::default()),
+        [] as [std::path::PathBuf; 0],
     );
     assert_eq!(
         alpha_only.resolve_require("widget", Some("2.0"), false, PackagePrefer::default()),
@@ -870,7 +881,10 @@ fn resolver_auto_command_uses_auto_qualify_candidates() {
         vec![dir.join("h.tcl")]
     );
     // A bare global `nope` resolves to nothing.
-    assert!(resolver.resolve_auto_command("nope", "::").is_empty());
+    assert_eq!(
+        resolver.resolve_auto_command("nope", "::"),
+        [] as [std::path::PathBuf; 0]
+    );
 }
 
 #[test]
@@ -1154,16 +1168,15 @@ fn requirement_candidates_respect_release_and_keep_unpinned_alternatives() {
     let unpinned =
         resolver.candidate_providers_for_require("p", &[], false, PackagePrefer::Latest, None);
     assert_eq!(unpinned.len(), 2);
-    assert!(
-        resolver
-            .candidate_providers_for_require(
-                "p",
-                &["1", "2"],
-                false,
-                PackagePrefer::Latest,
-                Some(tcl_dialect::TclVersion::V8_4)
-            )
-            .is_empty()
+    assert_eq!(
+        resolver.candidate_providers_for_require(
+            "p",
+            &["1", "2"],
+            false,
+            PackagePrefer::Latest,
+            Some(tcl_dialect::TclVersion::V8_4)
+        ),
+        [] as [&crate::package_resolver::PackageInfo; 0]
     );
 }
 
@@ -1190,8 +1203,14 @@ set fake {package require INERT}
             "decoded"
         ]
     );
-    assert!(package_requires_in("package require {unterminated").is_empty());
-    assert!(package_requires_in("package require literal\0opaque").is_empty());
+    assert_eq!(
+        package_requires_in("package require {unterminated"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        package_requires_in("package require literal\0opaque"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]
@@ -1381,5 +1400,8 @@ fn logical_source_command_coordinate_selects_tcl_index_without_name_roundtrip() 
         tcl_core_types::ByteNamespacePath::from_segments(["widgets"]),
         tcl_core_types::NameBytes::from("other"),
     );
-    assert!(resolver.resolve_logical_auto_command(&unrelated).is_empty());
+    assert_eq!(
+        resolver.resolve_logical_auto_command(&unrelated),
+        [] as [std::path::PathBuf; 0]
+    );
 }

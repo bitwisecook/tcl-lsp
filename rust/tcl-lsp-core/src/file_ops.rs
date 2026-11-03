@@ -315,7 +315,7 @@ mod tests {
             &idx,
             &[],
         );
-        assert!(edits.is_empty());
+        assert_eq!(edits, [] as [crate::file_ops::RenameEdit; 0]);
     }
 
     #[test]

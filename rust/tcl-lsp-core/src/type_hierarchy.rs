@@ -936,7 +936,10 @@ mod tests {
         let src = "oo::class create Shape {}\nputs hello\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "hello", 1);
-        assert!(prepare(src, l, c, &analysis).is_empty());
+        assert_eq!(
+            prepare(src, l, c, &analysis),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -984,7 +987,10 @@ mod tests {
     #[test]
     fn supertypes_of_unknown_class_is_empty() {
         let analysis = analyse("oo::class create A {}\n");
-        assert!(supertypes("::Nope", "oo::class create A {}\n", &analysis).is_empty());
+        assert_eq!(
+            supertypes("::Nope", "oo::class create A {}\n", &analysis),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -1055,7 +1061,7 @@ mod original_hierarchy_tests {
             vec![b"B\xed\xa0\x80".as_slice(), b"B\xed\xa0\x81".as_slice()]
         );
         let changed = format!("# changed\n{source}");
-        assert!(
+        assert_eq!(
             related_from_inventory(
                 identity,
                 &[OriginalHierarchyDocument {
@@ -1064,13 +1070,14 @@ mod original_hierarchy_tests {
                     analysis: &analysis
                 }],
                 false
-            )
-            .is_empty()
+            ),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
         );
         let mut without_config = analysis.clone();
         without_config.body_lexer_config = None;
-        assert!(
-            prepare_for_document("file:///classes.tcl", source, 2, 17, &without_config).is_empty()
+        assert_eq!(
+            prepare_for_document("file:///classes.tcl", source, 2, 17, &without_config),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
         );
     }
 
@@ -1125,7 +1132,10 @@ mod original_hierarchy_tests {
                 analysis: &child,
             },
         ];
-        assert!(related_from_inventory(identity, &duplicates, false).is_empty());
+        assert_eq!(
+            related_from_inventory(identity, &duplicates, false),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -1145,7 +1155,7 @@ mod original_hierarchy_tests {
             record,
         )
         .unwrap();
-        assert!(
+        assert_eq!(
             related_from_inventory(
                 &identity,
                 &[OriginalHierarchyDocument {
@@ -1154,8 +1164,8 @@ mod original_hierarchy_tests {
                     analysis: &analysis
                 }],
                 false
-            )
-            .is_empty()
+            ),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
         );
         let offset = u32::try_from(source.rfind("Base").unwrap()).unwrap();
         assert!(matches!(
@@ -1193,7 +1203,10 @@ mod logical_source_selection_tests {
                 .collect::<Vec<_>>(),
             vec!["::N::Base"]
         );
-        assert!(at(source, source.rfind("puts Base").unwrap() + 5, &analysis).is_empty());
+        assert_eq!(
+            at(source, source.rfind("puts Base").unwrap() + 5, &analysis),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
+        );
         analysis
             .all_classes
             .get_mut("::N::Base")
@@ -1207,8 +1220,14 @@ mod logical_source_selection_tests {
                 .collect::<Vec<_>>(),
             vec!["::N::Base"]
         );
-        assert!(supertypes("report-only", source, &analysis).is_empty());
-        assert!(prepare(source, u32::MAX, 0, &analysis).is_empty());
+        assert_eq!(
+            supertypes("report-only", source, &analysis),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
+        );
+        assert_eq!(
+            prepare(source, u32::MAX, 0, &analysis),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -1491,7 +1510,10 @@ mod conditional_local_hierarchy_tests {
                 .collect::<Vec<_>>(),
             vec!["::N::Base"]
         );
-        assert!(supertypes("display-only", source, &analysis).is_empty());
+        assert_eq!(
+            supertypes("display-only", source, &analysis),
+            [] as [crate::type_hierarchy::TypeHierarchyItem; 0]
+        );
         let identity = LogicalHierarchyClass::capture(
             "",
             source,

@@ -6047,7 +6047,7 @@ mod tests {
     fn references_to_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(
+        assert_eq!(
             references(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -6055,8 +6055,8 @@ mod tests {
                 6,
                 &analysis,
                 true
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
     }
 
@@ -6618,15 +6618,18 @@ mod tests {
     fn document_highlights_empty_for_unknown_symbol() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(
+        assert_eq!(
             document_highlights(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [(
+                crate::definition::LspRange,
+                crate::references::HighlightKind
+            ); 0]
         );
     }
 
@@ -6908,7 +6911,7 @@ mod tests {
                         prefix.producer().original_words()[0].bytes(),
                         b"::makePrefix"
                     );
-                    assert!(!prefix.producer().lineage().is_empty());
+                    assert_ne!(prefix.producer().lineage(), []);
                     assert!(prefix.obligations().contains(
                         &tcl_compiler::command_binding::SourceCommandTransitionObligation::AuthoredCommandPrefixApplicability
                     ));
@@ -8419,16 +8422,25 @@ mod tests {
                 expected
             );
             analysis.body_lexer_config.as_mut().unwrap().expand_syntax = !config.expand_syntax;
-            assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+            assert_eq!(
+                scan_my_method_sites(source, &analysis, &[body], "selected", None),
+                [] as [tcl_lexer::Span; 0]
+            );
             analysis.body_lexer_config = Some(config);
             let foreign = tcl_registry::model::ingress::resolve_environment("tcl8.6")
                 .default_context_registry();
             analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
                 profile, profile, foreign, config,
             ));
-            assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+            assert_eq!(
+                scan_my_method_sites(source, &analysis, &[body], "selected", None),
+                [] as [tcl_lexer::Span; 0]
+            );
             analysis.resolved_input = None;
-            assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+            assert_eq!(
+                scan_my_method_sites(source, &analysis, &[body], "selected", None),
+                [] as [tcl_lexer::Span; 0]
+            );
         }
         let source = "proc source_dispatch args {}; source_dispatch selected";
         let context = Arc::new(
@@ -8440,7 +8452,10 @@ mod tests {
             .with_resolved_input(input)
             .analyse(source, profile.name);
         let body = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
-        assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+        assert_eq!(
+            scan_my_method_sites(source, &analysis, &[body], "selected", None),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     fn callback_source_store(gate: &str) -> std::sync::Arc<tcl_registry::CommandRegistry> {
@@ -8528,9 +8543,15 @@ mod tests {
             let mut missing_point = AnalysisResult::default();
             missing_point.resolved_input = analysis.resolved_input.clone();
             missing_point.body_lexer_config = Some(config);
-            assert!(callback_source_spans(source, &missing_point, "selected").is_empty());
+            assert_eq!(
+                callback_source_spans(source, &missing_point, "selected"),
+                [] as [tcl_lexer::Span; 0]
+            );
             analysis.body_lexer_config.as_mut().unwrap().expand_syntax = !config.expand_syntax;
-            assert!(callback_source_spans(source, &analysis, "selected").is_empty());
+            assert_eq!(
+                callback_source_spans(source, &analysis, "selected"),
+                [] as [tcl_lexer::Span; 0]
+            );
             analysis.body_lexer_config = Some(config);
             analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
                 tcl_dialect::DialectProfile::plain_tcl(),
@@ -8539,9 +8560,15 @@ mod tests {
                     .default_context_registry(),
                 config,
             ));
-            assert!(callback_source_spans(source, &analysis, "selected").is_empty());
+            assert_eq!(
+                callback_source_spans(source, &analysis, "selected"),
+                [] as [tcl_lexer::Span; 0]
+            );
             analysis.resolved_input = None;
-            assert!(callback_source_spans(source, &analysis, "selected").is_empty());
+            assert_eq!(
+                callback_source_spans(source, &analysis, "selected"),
+                [] as [tcl_lexer::Span; 0]
+            );
         }
     }
 
@@ -8557,7 +8584,10 @@ mod tests {
             callback_source_spans(source, &available, "selected").len(),
             1
         );
-        assert!(callback_source_spans(source, &unavailable, "selected").is_empty());
+        assert_eq!(
+            callback_source_spans(source, &unavailable, "selected"),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     #[test]
@@ -8697,9 +8727,15 @@ mod tests {
         );
         assert_eq!(sites[0].start() as usize, source.find("my m").unwrap() + 3);
         let stale = source.replace("custom-body", "custom-bodz");
-        assert!(scan_my_method_sites(&stale, &analysis, &[body], "m", None).is_empty());
+        assert_eq!(
+            scan_my_method_sites(&stale, &analysis, &[body], "m", None),
+            [] as [tcl_lexer::Span; 0]
+        );
         analysis.resolved_input = None;
-        assert!(scan_my_method_sites(source, &analysis, &[body], "m", None).is_empty());
+        assert_eq!(
+            scan_my_method_sites(source, &analysis, &[body], "m", None),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     #[test]
@@ -8732,19 +8768,23 @@ mod tests {
                     .any(|&(start, end)| &source[start..end] == "puts nested"),
                 visible
             );
-            assert!(nested_dispatch_regions(source, &analysis, profile, &command).is_empty());
-            assert!(
+            assert_eq!(
+                nested_dispatch_regions(source, &analysis, profile, &command),
+                [] as [(usize, usize); 0]
+            );
+            assert_eq!(
                 frame_shifted_dispatch_regions(
                     &source.replace("puts", "gets"),
                     &analysis,
                     profile,
                     &command
-                )
-                .is_empty()
+                ),
+                [] as [(usize, usize); 0]
             );
             analysis.resolved_input = None;
-            assert!(
-                frame_shifted_dispatch_regions(source, &analysis, profile, &command).is_empty()
+            assert_eq!(
+                frame_shifted_dispatch_regions(source, &analysis, profile, &command),
+                [] as [(usize, usize); 0]
             );
         }
     }
@@ -9026,8 +9066,17 @@ p\uD800";
         assert_eq!(highlights[1].0.start_line, 2);
         assert_eq!(references(source, profile, 0, 7, &analysis, true).len(), 2);
         let stale = source.replace(r"p\uD800", r"q\uD800");
-        assert!(document_highlights(&stale, profile, 0, 7, &analysis).is_empty());
-        assert!(references(&stale, profile, 0, 7, &analysis, true).is_empty());
+        assert_eq!(
+            document_highlights(&stale, profile, 0, 7, &analysis),
+            [] as [(
+                crate::definition::LspRange,
+                crate::references::HighlightKind
+            ); 0]
+        );
+        assert_eq!(
+            references(&stale, profile, 0, 7, &analysis, true),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -9052,14 +9101,17 @@ p\uD800";
                 .is_none(),
             "typed original declarations cannot enter lexical tuple selection"
         );
-        assert!(method_reference_spans_in_document(
-            source, profile, &analysis, "::C", "m", true, false,
-        ).is_empty());
-        assert!(
-            obj_method_call_sites(source, profile, &analysis, "::C", "m", false, &[],).is_empty()
+        assert_eq!(
+            method_reference_spans_in_document(source, profile, &analysis, "::C", "m", true, false,),
+            [] as [tcl_lexer::Span; 0]
         );
-        assert!(
-            method_next_dispatch_spans(&analysis, source, profile, "::C", "m", false,).is_empty()
+        assert_eq!(
+            obj_method_call_sites(source, profile, &analysis, "::C", "m", false, &[],),
+            [] as [tcl_lexer::Span; 0]
+        );
+        assert_eq!(
+            method_next_dispatch_spans(&analysis, source, profile, "::C", "m", false,),
+            [] as [tcl_lexer::Span; 0]
         );
     }
 }
@@ -9164,7 +9216,10 @@ mod original_next_dispatch_context_tests {
         assert_eq!(spans(source, &current).len(), 1);
         let config = current.body_lexer_config.unwrap();
         current.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-        assert!(spans(source, &current).is_empty());
+        assert_eq!(
+            spans(source, &current),
+            [] as [(tcl_lexer::Span, std::option::Option<std::string::String>); 0]
+        );
         current.body_lexer_config = Some(config);
         current.resolved_input = Some(ResolvedAnalysisInput::new(
             tcl_dialect::DialectProfile::plain_tcl(),
@@ -9172,9 +9227,15 @@ mod original_next_dispatch_context_tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
             config,
         ));
-        assert!(spans(source, &current).is_empty());
+        assert_eq!(
+            spans(source, &current),
+            [] as [(tcl_lexer::Span, std::option::Option<std::string::String>); 0]
+        );
         current.resolved_input = None;
-        assert!(spans(source, &current).is_empty());
+        assert_eq!(
+            spans(source, &current),
+            [] as [(tcl_lexer::Span, std::option::Option<std::string::String>); 0]
+        );
     }
 }
 
@@ -9247,16 +9308,19 @@ mod original_dispatch_parser_purpose_tests {
         );
         let mut changed = analysis.clone();
         changed.body_lexer_config = Some(config);
-        assert!(scan_my_method_sites(source, &changed, &[body], "selected", None).is_empty());
-        assert!(
+        assert_eq!(
+            scan_my_method_sites(source, &changed, &[body], "selected", None),
+            [] as [tcl_lexer::Span; 0]
+        );
+        assert_eq!(
             scan_my_method_sites(
                 &format!("{source}#changed"),
                 &analysis,
                 &[body],
                 "selected",
                 None
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
     }
 }
@@ -9327,14 +9391,14 @@ mod logical_class_selector_tests {
             &source[expected[0].start() as usize..expected[0].end() as usize],
             "mβ::x"
         );
-        assert!(
+        assert_eq!(
             logical_class_command_method_sites(
                 &source.replace("mβ::x", "other"),
                 &analysis,
                 receiver,
                 "mβ::x"
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
         analysis.dialect = "copied reporting label".into();
         assert_eq!(
@@ -9360,14 +9424,14 @@ mod logical_class_selector_tests {
             );
         }
         analysis.resolved_input = None;
-        assert!(
+        assert_eq!(
             logical_class_command_method_sites(
                 source,
                 &analysis,
                 &analysis.all_classes["::C"],
                 "mβ::x"
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
     }
 }
@@ -9580,19 +9644,20 @@ mod itcl_original_source_geometry_tests {
         }
         let source = "itcl::class Factory {proc make {} {return 1}}\nFactory::make";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
-        assert!(
+        assert_eq!(
             itcl_class_proc_call_sites(
                 &source.replace("return 1", "return 2"),
                 &analysis,
                 profile,
                 "::Factory",
                 "make"
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
         analysis.resolved_input = None;
-        assert!(
-            itcl_class_proc_call_sites(source, &analysis, profile, "::Factory", "make").is_empty()
+        assert_eq!(
+            itcl_class_proc_call_sites(source, &analysis, profile, "::Factory", "make"),
+            [] as [tcl_lexer::Span; 0]
         );
     }
 }
@@ -9623,7 +9688,10 @@ mod logical_reference_source_owner_tests {
             logical_proc_reference_spans(source, &analysis, &target),
             original
         );
-        assert!(logical_proc_reference_spans(&format!("{source} "), &analysis, &target).is_empty());
+        assert_eq!(
+            logical_proc_reference_spans(&format!("{source} "), &analysis, &target),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     #[test]
@@ -9645,8 +9713,9 @@ mod logical_reference_source_owner_tests {
         let mut changed = analysis.clone();
         changed.body_lexer_config.as_mut().unwrap().strict_quoting =
             !analysis.body_lexer_config.unwrap().strict_quoting;
-        assert!(
-            logical_class_reference_spans(source, &changed, &changed.all_classes["::C"]).is_empty()
+        assert_eq!(
+            logical_class_reference_spans(source, &changed, &changed.all_classes["::C"]),
+            [] as [tcl_lexer::Span; 0]
         );
     }
 
@@ -9660,9 +9729,15 @@ mod logical_reference_source_owner_tests {
             1
         );
         analysis.resolved_input = None;
-        assert!(logical_proc_reference_spans(source, &analysis, &target).is_empty());
+        assert_eq!(
+            logical_proc_reference_spans(source, &analysis, &target),
+            [] as [tcl_lexer::Span; 0]
+        );
         let native = Analyser::new().analyse(source, "tcl8.6");
-        assert!(logical_proc_reference_spans(source, &native, &native.all_procs["::p"]).is_empty());
+        assert_eq!(
+            logical_proc_reference_spans(source, &native, &native.all_procs["::p"]),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 }
 
@@ -9693,7 +9768,10 @@ mod logical_consumed_and_callback_reference_tests {
             logical_proc_reference_spans(source, &analysis, &target),
             spans
         );
-        assert!(logical_proc_reference_spans(&format!("{source} "), &analysis, &target).is_empty());
+        assert_eq!(
+            logical_proc_reference_spans(&format!("{source} "), &analysis, &target),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     #[test]
@@ -9764,7 +9842,7 @@ mod logical_consumed_and_callback_reference_tests {
             class
         ));
         assert!(reference.declaration(&analysis).is_none());
-        assert!(!reference.lineage().is_empty());
+        assert_ne!(reference.lineage(), []);
     }
 
     #[test]

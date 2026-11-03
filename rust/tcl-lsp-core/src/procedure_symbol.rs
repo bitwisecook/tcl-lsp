@@ -119,10 +119,9 @@ mod tests {
             for_literal_name(source, &analysis, "::a::p").unwrap().len(),
             1
         );
-        assert!(
-            for_literal_name(source, &analysis, "b::p")
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            for_literal_name(source, &analysis, "b::p").unwrap(),
+            [] as [&tcl_compiler::analyser::ProcDef; 0]
         );
         analysis.all_procs.clear();
         analysis.superseded_procs.clear();
@@ -207,10 +206,9 @@ mod tests {
                 4,
                 "{dialect}"
             );
-            assert!(
-                for_literal_name(source, &analysis, "duplicate")
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                for_literal_name(source, &analysis, "duplicate").unwrap(),
+                [] as [&tcl_compiler::analyser::ProcDef; 0]
             );
             let chosen = for_literal_name(source, &analysis, "z::duplicate").unwrap();
             assert_eq!(chosen.len(), 1, "{dialect}");
@@ -232,10 +230,9 @@ mod tests {
                     "{dialect}: {name}"
                 );
             }
-            assert!(
-                for_literal_name(source, &analysis, "literalA")
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                for_literal_name(source, &analysis, "literalA").unwrap(),
+                [] as [&tcl_compiler::analyser::ProcDef; 0]
             );
         }
     }

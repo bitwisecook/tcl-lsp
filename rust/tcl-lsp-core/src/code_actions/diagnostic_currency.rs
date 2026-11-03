@@ -275,32 +275,32 @@ mod tests {
                 .iter()
                 .all(|edit| edit.range.start_line == 0 && edit.range.end_line == 0)
         }));
-        assert!(
+        assert_eq!(
             code_actions(
                 "set y [foo\n# tail",
                 all(),
                 Some(&current),
                 &report_of(&current.diagnostics)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
-        assert!(
+        assert_eq!(
             code_actions(
                 &format!("{source} "),
                 all(),
                 Some(&current),
                 &report_of(&current.diagnostics)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
-        assert!(
+        assert_eq!(
             code_actions(
                 source,
                 all(),
                 Some(&AnalysisResult::default()),
                 &report_of(&current.diagnostics)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut published = current.diagnostics.clone();
         for row in &mut published {
@@ -332,14 +332,14 @@ mod tests {
             .as_mut()
             .unwrap()
             .expand_syntax = false;
-        assert!(
+        assert_eq!(
             code_actions(
                 source,
                 all(),
                 Some(&changed_config),
                 &report_of(&current.diagnostics)
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 
@@ -411,29 +411,33 @@ incr x
 ";
         let foreign = analysis(foreign_source, &registry, config);
         let other = DiagnosticEditSource::for_analysis(foreign_source, &foreign).unwrap();
-        assert!(
-            check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
+        assert_eq!(
+            check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut foreign_config = config;
         foreign_config.expand_syntax = !config.expand_syntax;
         let foreign = analysis(source, &registry, foreign_config);
         let other = DiagnosticEditSource::for_analysis(source, &foreign).unwrap();
-        assert!(
-            check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
+        assert_eq!(
+            check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut foreign_registry = CommandRegistry::build_default();
         foreign_registry.load_irules();
         let foreign = analysis(source, &foreign_registry, config);
         let other = DiagnosticEditSource::for_analysis(source, &foreign).unwrap();
-        assert!(
-            check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
+        assert_eq!(
+            check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut absent = checks.clone();
         for row in &mut absent {
             row.source_context = None;
         }
-        assert!(
-            check_diagnostic_actions(&guard, all(), &absent, &disabled, &suppressed).is_empty()
+        assert_eq!(
+            check_diagnostic_actions(&guard, all(), &absent, &disabled, &suppressed),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut prose = checks;
         for row in &mut prose {
@@ -465,8 +469,9 @@ incr x
         let guard = DiagnosticEditSource::for_analysis(source, &current).unwrap();
         let disabled = HashSet::new();
         let suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
-        assert!(
-            !check_diagnostic_actions(&guard, all(), &checks, &disabled, &suppressed).is_empty()
+        assert_ne!(
+            check_diagnostic_actions(&guard, all(), &checks, &disabled, &suppressed),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let older_context = tcl_registry::model::resolve_environment("tcl8.4")
             .default_context_registry()
@@ -486,9 +491,9 @@ incr x
             .with_resolved_input(older_input)
             .analyse(source, profile.name);
         let older_guard = DiagnosticEditSource::for_analysis(source, &older).unwrap();
-        assert!(
-            check_diagnostic_actions(&older_guard, all(), &checks, &disabled, &suppressed)
-                .is_empty()
+        assert_eq!(
+            check_diagnostic_actions(&older_guard, all(), &checks, &disabled, &suppressed),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let mut missing_unit = unit.clone();
         missing_unit.ir_module.source_metadata_input = None;
@@ -499,8 +504,9 @@ incr x
             &mut missing,
         );
         assert!(missing.iter().all(|row| row.source_context.is_none()));
-        assert!(
-            check_diagnostic_actions(&guard, all(), &missing, &disabled, &suppressed).is_empty()
+        assert_eq!(
+            check_diagnostic_actions(&guard, all(), &missing, &disabled, &suppressed),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 

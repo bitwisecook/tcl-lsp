@@ -593,8 +593,11 @@ mod tests {
         unowned.global_scope = analysis.global_scope.clone();
         assert!(!unowned.allows_lexical_declaration_advice());
         assert!(unowned.retained_command_realm().is_none());
-        assert!(declaration(source, line, character + 1, profile, &unowned, registry).is_empty());
-        assert!(
+        assert_eq!(
+            declaration(source, line, character + 1, profile, &unowned, registry),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
             declaration(
                 &format!("#{source}"),
                 line,
@@ -602,8 +605,8 @@ mod tests {
                 profile,
                 &analysis,
                 registry
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
     }
 
@@ -720,7 +723,10 @@ mod tests {
                 );
                 assert_eq!(locations[0].start_character, expected);
             }
-            assert!(declaration_at_read(source, &analysis, "$::other::foo").is_empty());
+            assert_eq!(
+                declaration_at_read(source, &analysis, "$::other::foo"),
+                [] as [crate::definition::LspRange; 0]
+            );
             let offset = source.rfind("$foo").unwrap();
             let locations = declaration_at_read(&source[offset..], &analysis, "$foo");
             assert!(
@@ -775,13 +781,22 @@ mod tests {
                 registry,
             )
         };
-        assert!(select(&analysis, &format!("#{source}")).is_empty());
+        assert_eq!(
+            select(&analysis, &format!("#{source}")),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.resolved_input = None;
-        assert!(select(&analysis, source).is_empty());
+        assert_eq!(
+            select(&analysis, source),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.resolved_input = Some(input.clone());
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting =
             !input.lexer_config().strict_quoting;
-        assert!(select(&analysis, source).is_empty());
+        assert_eq!(
+            select(&analysis, source),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.body_lexer_config = Some(input.lexer_config());
         let older = tcl_registry::model::resolve_environment("tcl8.4").default_context_registry();
         analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -798,20 +813,29 @@ mod tests {
             ),
             input.lexer_config(),
         ));
-        assert!(select(&analysis, source).is_empty());
+        assert_eq!(
+            select(&analysis, source),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
             input.analyser_profile(),
             input.unit_profile(),
             older,
             input.lexer_config(),
         ));
-        assert!(select(&analysis, source).is_empty());
+        assert_eq!(
+            select(&analysis, source),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.resolved_input = Some(input.clone());
         analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
             environment: "tcl9.0".to_owned(),
             overlay: u64::MAX,
         });
-        assert!(select(&analysis, source).is_empty());
+        assert_eq!(
+            select(&analysis, source),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -1136,7 +1160,7 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
         assert_eq!(scanned_declaration_lines(&src, "local"), vec![2]);
         // Guard: an unbound `decl` declares nothing.
         let src = upvar_body("set y 1\n", "decl");
-        assert!(scanned_declaration_lines(&src, "local").is_empty());
+        assert_eq!(scanned_declaration_lines(&src, "local"), [] as [u32; 0]);
     }
 
     #[test]
@@ -1146,7 +1170,7 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
         // local argument can be a source declaration position.
         let src = src.replace("decl 1 other local", "decl local");
         assert_eq!(scanned_declaration_lines(&src, "local"), vec![2]);
-        assert!(scanned_declaration_lines(&src, "other").is_empty());
+        assert_eq!(scanned_declaration_lines(&src, "other"), [] as [u32; 0]);
     }
 
     #[test]
@@ -1159,7 +1183,7 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
     fn declaration_scan_uses_the_declared_local_tail_of_a_global_name() {
         let src = "namespace eval ::n {variable x 1}\nproc f {} {\nglobal ::n::x\nputs $x\n}\n";
         assert_eq!(scanned_declaration_lines(src, "x"), vec![2]);
-        assert!(scanned_declaration_lines(src, "n::x").is_empty());
+        assert_eq!(scanned_declaration_lines(src, "n::x"), [] as [u32; 0]);
     }
 
     #[test]
@@ -1207,10 +1231,10 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
             let src = format!(
                 "rename $old decl\nproc wrap {{}} {{\n{replacement}\nupvar 1 other local\nreturn $local\n}}\n"
             );
-            assert!(scanned_declaration_lines(&src, "local").is_empty());
+            assert_eq!(scanned_declaration_lines(&src, "local"), [] as [u32; 0]);
         }
         let src = upvar_body("rename $old decl\nproc proc args {}\n", "upvar");
-        assert!(scanned_declaration_lines(&src, "local").is_empty());
+        assert_eq!(scanned_declaration_lines(&src, "local"), [] as [u32; 0]);
     }
 
     /// The body recursion is registry-driven too: a `global` buried in an
@@ -1230,7 +1254,7 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
                    maybe {[info exists x]} { global x }\n\
                    puts $x\n\
                    }\n";
-        assert!(scanned_declaration_lines(src, "x").is_empty());
+        assert_eq!(scanned_declaration_lines(src, "x"), [] as [u32; 0]);
     }
 }
 

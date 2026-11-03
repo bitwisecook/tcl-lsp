@@ -942,8 +942,11 @@ mod tests {
         let reference = definition_reference_at_cursor(&analysis, source, cursor).unwrap();
         assert!(reference.method_entry().is_none());
         assert!(method_at_cursor(&analysis, source, cursor).is_none());
-        assert!(crate::definition::definition(source, 0, cursor, &analysis).is_empty());
-        assert!(
+        assert_eq!(
+            crate::definition::definition(source, 0, cursor, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
             crate::references::references(
                 source,
                 analysis.resolved_profile().unwrap(),
@@ -951,8 +954,8 @@ mod tests {
                 cursor,
                 &analysis,
                 true
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
         assert!(crate::hover::hover(source, 0, cursor, &analysis, None).is_none());
         assert!(crate::rename::prepare_rename(source, 0, cursor, &analysis).is_none());
@@ -1060,7 +1063,10 @@ mod tests {
         let analysis = analyse(deferred);
         let cursor = u32::try_from(deferred.find("my ping").unwrap() + 3).unwrap();
         assert!(method_at_cursor(&analysis, deferred, cursor).is_none());
-        assert!(crate::definition::definition(deferred, 0, cursor, &analysis).is_empty());
+        assert_eq!(
+            crate::definition::definition(deferred, 0, cursor, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -1310,7 +1316,7 @@ mod current_method_cursor_tests {
             );
             assert!(method_at_cursor(&stale, source, cursor).is_none());
             assert!(crate::rename::prepare_rename(source, 0, cursor, &stale).is_none());
-            assert!(
+            assert_eq!(
                 crate::references::references_in_program(
                     source,
                     analysis.resolved_profile().unwrap(),
@@ -1319,10 +1325,10 @@ mod current_method_cursor_tests {
                     &stale,
                     true,
                     None
-                )
-                .is_empty()
+                ),
+                [] as [crate::definition::LspRange; 0]
             );
-            assert!(
+            assert_eq!(
                 crate::references::document_highlights_in_program(
                     source,
                     analysis.resolved_profile().unwrap(),
@@ -1330,8 +1336,11 @@ mod current_method_cursor_tests {
                     cursor,
                     &stale,
                     crate::definition::CallResolution::document_only()
-                )
-                .is_empty()
+                ),
+                [] as [(
+                    crate::definition::LspRange,
+                    crate::references::HighlightKind
+                ); 0]
             );
             assert!(
                 crate::rename::method_target_with_access_in_workspace(

@@ -156,13 +156,23 @@ mod tests {
 
     fn editors_withhold(source: &str, analysis: &AnalysisResult) {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        assert!(
-            crate::completion::completions(source, 0, 14, analysis, None, None, profile).is_empty()
+        assert_eq!(
+            crate::completion::completions(source, 0, 14, analysis, None, None, profile),
+            [] as [crate::completion::CompletionItem; 0]
         );
-        assert!(crate::definition::definition(source, 0, 13, analysis).is_empty());
+        assert_eq!(
+            crate::definition::definition(source, 0, 13, analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         assert!(crate::hover::hover(source, 0, 13, analysis, None).is_none());
-        assert!(crate::type_definition::type_definition(source, 0, 13, analysis).is_empty());
-        assert!(crate::call_hierarchy::prepare(source, 0, 13, analysis).is_empty());
+        assert_eq!(
+            crate::type_definition::type_definition(source, 0, 13, analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
+            crate::call_hierarchy::prepare(source, 0, 13, analysis),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
     }
 
     #[test]
@@ -172,11 +182,17 @@ mod tests {
         let source = "proc p {} {}; p";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert!(CurrentSourceContext::capture(source, &analysis).is_some());
-        assert!(!crate::definition::definition(source, 0, 13, &analysis).is_empty());
+        assert_ne!(
+            crate::definition::definition(source, 0, 13, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         assert!(crate::hover::hover(source, 0, 13, &analysis, None).is_some());
-        assert!(!crate::call_hierarchy::prepare(source, 0, 13, &analysis).is_empty());
-        assert!(
-            !crate::completion::completions(
+        assert_ne!(
+            crate::call_hierarchy::prepare(source, 0, 13, &analysis),
+            [] as [crate::call_hierarchy::CallHierarchyItem; 0]
+        );
+        assert_ne!(
+            crate::completion::completions(
                 source,
                 0,
                 14,
@@ -184,8 +200,8 @@ mod tests {
                 None,
                 None,
                 tcl_dialect::DialectProfile::plain_tcl()
-            )
-            .is_empty()
+            ),
+            [] as [crate::completion::CompletionItem; 0]
         );
         editors_withhold("proc q {} {}; q", &analysis);
         let config = analysis.body_lexer_config.unwrap();
@@ -207,16 +223,19 @@ mod tests {
             crate::type_definition::type_definition(source, 0, cursor, &analysis).len(),
             1
         );
-        assert!(
+        assert_eq!(
             crate::type_definition::type_definition(
                 &source.replace("my m", "my x"),
                 0,
                 cursor,
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
         analysis.resolved_input = None;
-        assert!(crate::type_definition::type_definition(source, 0, cursor, &analysis).is_empty());
+        assert_eq!(
+            crate::type_definition::type_definition(source, 0, cursor, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 }

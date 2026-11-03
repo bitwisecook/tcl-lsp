@@ -4655,7 +4655,10 @@ mod tests {
         );
         assert_eq!(definition(source, 1, 0, &analysis), vec![expected]);
         assert_eq!(definition(source, 3, 0, &analysis), vec![expected]);
-        assert!(definition(&format!("#{source}"), 1, 0, &analysis).is_empty());
+        assert_eq!(
+            definition(&format!("#{source}"), 1, 0, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -4672,8 +4675,14 @@ mod tests {
                 vec![span_to_range(source, &index, span)]
             );
         }
-        assert!(definition(&format!("#{source}"), 2, 0, &analysis).is_empty());
-        assert!(definition(source, 2, 7, &analysis).is_empty());
+        assert_eq!(
+            definition(&format!("#{source}"), 2, 0, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
+            definition(source, 2, 7, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -4702,7 +4711,10 @@ mod tests {
         duplicate
             .original_counted_class_metadata
             .push(duplicate.original_counted_class_metadata[0].clone());
-        assert!(definition(source, 2, 0, &duplicate).is_empty());
+        assert_eq!(
+            definition(source, 2, 0, &duplicate),
+            [] as [crate::definition::LspRange; 0]
+        );
         let mut swapped = analysis.clone();
         let reference = swapped
             .command_invocations
@@ -4724,12 +4736,18 @@ mod tests {
             })
             .unwrap();
         first.resolved_command_reference = reference;
-        assert!(definition(source, 2, 0, &swapped).is_empty());
+        assert_eq!(
+            definition(source, 2, 0, &swapped),
+            [] as [crate::definition::LspRange; 0]
+        );
         let mut foreign = analysis.clone();
         foreign.original_counted_class_metadata = Analyser::new()
             .analyse(source, "tcl9.0")
             .original_counted_class_metadata;
-        assert!(definition(source, 2, 0, &foreign).is_empty());
+        assert_eq!(
+            definition(source, 2, 0, &foreign),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
     use std::fmt::Write as _;
     use tcl_compiler::analyser::Analyser;
@@ -5026,8 +5044,9 @@ mod tests {
                 source, &analysis, offset,
             ).is_none());
             let position = LineIndex::new(source).position_at_utf16(offset + 1, source);
-            assert!(
-                definition(source, position.line, position.character.get(), &analysis).is_empty()
+            assert_eq!(
+                definition(source, position.line, position.character.get(), &analysis),
+                [] as [crate::definition::LspRange; 0]
             );
         }
         let offset = u32::try_from(source.find("data helper").unwrap() + 5).unwrap();
@@ -5042,7 +5061,10 @@ mod tests {
             .is_none()
         );
         let changed = source.replace("helper ignored", "helper altered");
-        assert!(definition(&changed, 2, 1, &analysis).is_empty());
+        assert_eq!(
+            definition(&changed, 2, 1, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -5052,10 +5074,16 @@ mod tests {
         assert_eq!(definition(source, 1, 1, &analysis).len(), 1);
         let mut missing = analysis.clone();
         missing.resolved_input = None;
-        assert!(definition(source, 1, 1, &missing).is_empty());
+        assert_eq!(
+            definition(source, 1, 1, &missing),
+            [] as [crate::definition::LspRange; 0]
+        );
         let mut foreign = analysis.clone();
         foreign.resolved_input = Analyser::new().analyse(source, "tcl8.6").resolved_input;
-        assert!(definition(source, 1, 1, &foreign).is_empty());
+        assert_eq!(
+            definition(source, 1, 1, &foreign),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     fn external_mask_at(
@@ -5376,14 +5404,14 @@ mod tests {
                     selected.span()
                 )]
             );
-            assert!(
+            assert_eq!(
                 definition(
                     &format!("# displaced\n{source}"),
                     line,
                     character,
                     &analysis
-                )
-                .is_empty()
+                ),
+                [] as [crate::definition::LspRange; 0]
             );
             assert!(
                 analysis.original_procedure_declarations().next().is_none(),
@@ -7658,7 +7686,10 @@ p\uD800";
     fn no_definition_for_unknown_word() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(definition(src, 0, 6, &analysis).is_empty());
+        assert_eq!(
+            definition(src, 0, 6, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -8388,7 +8419,10 @@ p\uD800";
             "rex <ReadProp-x>\n",
         );
         let analysis = analyse(src);
-        assert!(definition(src, 4, 8, &analysis).is_empty());
+        assert_eq!(
+            definition(src, 4, 8, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -8488,7 +8522,10 @@ p\uD800";
     fn native_classmethod_requires_the_selected_engine_or_a_provider() {
         let source = "oo::class create C {classmethod find {} {return OK}}\nC find\n";
         let unavailable = Analyser::new().analyse(source, "tcl8.6").clone();
-        assert!(definition(source, 1, 2, &unavailable).is_empty());
+        assert_eq!(
+            definition(source, 1, 2, &unavailable),
+            [] as [crate::definition::LspRange; 0]
+        );
         let provided = Analyser::new().analyse(source, "tcl9.1").clone();
         let locations = definition(source, 1, 2, &provided);
         assert_eq!(locations.len(), 1, "{locations:?}");
@@ -8768,7 +8805,10 @@ p\uD800";
             resolved_indirect_head_target(&analysis, invocation.range.start()).is_none(),
             "the alias slot has no current class definition"
         );
-        assert!(definition(source, 4, 5, &analysis).is_empty());
+        assert_eq!(
+            definition(source, 4, 5, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -9350,7 +9390,7 @@ mod itcl_family_context_tests {
             source.find("C::make").unwrap() + 3
         );
         let changed = format!("{source}# changed");
-        assert!(
+        assert_eq!(
             crate::references::obj_method_call_sites(
                 &changed,
                 tcl_dialect::DialectProfile::plain_tcl(),
@@ -9359,12 +9399,12 @@ mod itcl_family_context_tests {
                 "make",
                 true,
                 &[]
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
         let mut missing = itcl.clone();
         missing.resolved_input = None;
-        assert!(
+        assert_eq!(
             crate::references::obj_method_call_sites(
                 source,
                 tcl_dialect::DialectProfile::plain_tcl(),
@@ -9373,8 +9413,8 @@ mod itcl_family_context_tests {
                 "make",
                 true,
                 &[]
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
         let other = analyse(source, Some(&OTHER_FAMILY));
         assert!(
@@ -9497,7 +9537,10 @@ mod logical_variable_scope_owner_tests {
                     )
                     .is_none()
             );
-            assert!(definition(source, line, character, &analysis).is_empty());
+            assert_eq!(
+                definition(source, line, character, &analysis),
+                [] as [crate::definition::LspRange; 0]
+            );
         }
     }
 
@@ -9526,7 +9569,7 @@ mod logical_variable_scope_owner_tests {
             assert_eq!((edit.start_char, edit.end_char), (6, expected_end));
             assert_eq!(edit.new_text, "$arr(key)");
             let stale = format!("{source} ");
-            assert!(
+            assert_eq!(
                 crate::completion::completions(
                     &stale,
                     1,
@@ -9535,8 +9578,8 @@ mod logical_variable_scope_owner_tests {
                     analysis.resolved_registry(),
                     None,
                     analysis.resolved_profile().unwrap()
-                )
-                .is_empty()
+                ),
+                [] as [crate::completion::CompletionItem; 0]
             );
         }
     }
@@ -9593,7 +9636,10 @@ mod logical_variable_scope_owner_tests {
         let foreign = Analyser::new()
             .with_resolved_input(foreign_input)
             .analyse(source, "tcl");
-        assert!(!foreign.original_variable_write_advice.is_empty());
+        assert_ne!(
+            foreign.original_variable_write_advice,
+            [] as [tcl_compiler::signature_scan::variable_symbol::OriginalVariableWriteAdvice; 0]
+        );
         let mut donated = analysis.clone();
         donated.original_variable_write_advice = foreign.original_variable_write_advice;
         assert!(query(source, &donated).is_none());
@@ -9941,7 +9987,7 @@ mod logical_variable_scope_owner_tests {
                 .is_none()
         );
         let stale = format!("{SCOPED} ");
-        assert!(
+        assert_eq!(
             crate::rename::rename(
                 &stale,
                 analysis.resolved_profile().unwrap(),
@@ -9950,8 +9996,8 @@ mod logical_variable_scope_owner_tests {
                 "other",
                 &analysis,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 
@@ -9995,7 +10041,7 @@ mod logical_variable_scope_owner_tests {
         );
         let alias = u32::try_from(source.find("link;").unwrap()).unwrap();
         let position = LineIndex::new(source).position_at_utf16(alias, source);
-        assert!(
+        assert_eq!(
             crate::rename::rename(
                 source,
                 analysis.resolved_profile().unwrap(),
@@ -10004,8 +10050,8 @@ mod logical_variable_scope_owner_tests {
                 "other",
                 &analysis,
                 analysis.resolved_registry()
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
     #[test]
@@ -10256,10 +10302,22 @@ mod exact_source_position_advice_tests {
             CurrentSourcePosition::capture(source, &analysis, 0, end.character.get() + 1).is_none()
         );
         assert!(CurrentSourcePosition::capture(source, &analysis, 20, 0).is_none());
-        assert!(definition(source, 1, 11, &analysis).is_empty());
-        assert!(definition(source, 0, u32::MAX, &analysis).is_empty());
-        assert!(definition(source, u32::MAX, 0, &analysis).is_empty());
-        assert!(!definition(source, 0, 18, &analysis).is_empty());
+        assert_eq!(
+            definition(source, 1, 11, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
+            definition(source, 0, u32::MAX, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
+            definition(source, u32::MAX, 0, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_ne!(
+            definition(source, 0, 18, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -10271,7 +10329,10 @@ mod exact_source_position_advice_tests {
         let config = analysis.body_lexer_config.unwrap();
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
         assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_none());
-        assert!(definition(source, 0, 14, &analysis).is_empty());
+        assert_eq!(
+            definition(source, 0, 14, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.body_lexer_config = Some(config);
         analysis.resolved_input = None;
         assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_none());
@@ -10341,16 +10402,17 @@ mod exact_source_position_advice_tests {
         let analysis = Analyser::new().analyse(source, "tcl");
         let profile = analysis.resolved_profile().unwrap();
         let registry = analysis.resolved_registry().unwrap();
-        assert!(
-            !crate::declaration::declaration(source, 0, 14, profile, &analysis, registry)
-                .is_empty()
+        assert_ne!(
+            crate::declaration::declaration(source, 0, 14, profile, &analysis, registry),
+            [] as [crate::definition::LspRange; 0]
         );
-        assert!(
-            crate::declaration::declaration(source, 0, 100, profile, &analysis, registry)
-                .is_empty()
+        assert_eq!(
+            crate::declaration::declaration(source, 0, 100, profile, &analysis, registry),
+            [] as [crate::definition::LspRange; 0]
         );
-        assert!(
-            crate::declaration::declaration(source, 2, 0, profile, &analysis, registry).is_empty()
+        assert_eq!(
+            crate::declaration::declaration(source, 2, 0, profile, &analysis, registry),
+            [] as [crate::definition::LspRange; 0]
         );
     }
 }

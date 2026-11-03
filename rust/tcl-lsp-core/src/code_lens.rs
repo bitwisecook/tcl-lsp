@@ -339,21 +339,33 @@ mod tests {
             let current = lenses(source, &analysis);
             assert_eq!(current.len(), 1);
             assert_eq!(current[0].qname, "::p");
-            assert!(lenses("proc q {} {q}; q", &analysis).is_empty());
+            assert_eq!(
+                lenses("proc q {} {q}; q", &analysis),
+                [] as [crate::code_lens::CodeLens; 0]
+            );
             let mut stale = analysis.clone();
             let config = stale.body_lexer_config.as_mut().unwrap();
             config.strict_quoting = !config.strict_quoting;
-            assert!(lenses(source, &stale).is_empty());
+            assert_eq!(
+                lenses(source, &stale),
+                [] as [crate::code_lens::CodeLens; 0]
+            );
             let mut missing = analysis.clone();
             missing.resolved_input = None;
             assert!(!missing.all_procs.is_empty());
-            assert!(lenses(source, &missing).is_empty());
+            assert_eq!(
+                lenses(source, &missing),
+                [] as [crate::code_lens::CodeLens; 0]
+            );
             let mut unavailable = analysis.clone();
             unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
                 environment: environment.into(),
                 overlay: u64::MAX - 404,
             });
-            assert!(lenses(source, &unavailable).is_empty());
+            assert_eq!(
+                lenses(source, &unavailable),
+                [] as [crate::code_lens::CodeLens; 0]
+            );
             let mut foreign_store = tcl_registry::CommandRegistry::build_default();
             let mut descriptor = foreign_store.get("set").unwrap().clone();
             descriptor.name = "source_currency_pack_control";
@@ -362,7 +374,10 @@ mod tests {
                 source_currency_analysis(source, environment, std::sync::Arc::new(foreign_store));
             let mut foreign = analysis.clone();
             foreign.resolved_input = donor.resolved_input;
-            assert!(lenses(source, &foreign).is_empty());
+            assert_eq!(
+                lenses(source, &foreign),
+                [] as [crate::code_lens::CodeLens; 0]
+            );
             assert_eq!(lenses(source, &analysis).len(), 1);
         }
     }
@@ -389,29 +404,29 @@ mod tests {
                     &analysis
                 ))
         );
-        assert!(
+        assert_eq!(
             code_lenses(
                 "proc changed {} {}",
                 profile,
                 Some(&analysis),
                 None,
                 "file:///lenses.tcl"
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_lens::CodeLens; 0]
         );
     }
 
     #[test]
     fn empty_lenses_when_analysis_is_none() {
-        assert!(
+        assert_eq!(
             code_lenses(
                 "proc foo {} {}\n",
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 None,
                 None,
                 ""
-            )
-            .is_empty()
+            ),
+            [] as [crate::code_lens::CodeLens; 0]
         );
     }
 

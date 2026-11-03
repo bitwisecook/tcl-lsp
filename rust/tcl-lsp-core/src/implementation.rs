@@ -472,7 +472,10 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "hello", 1);
-        assert!(implementation(src, l, c, &analysis).is_empty());
+        assert_eq!(
+            implementation(src, l, c, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     /// Two namespaces each define a class named `Shape`, each with its own
@@ -691,7 +694,10 @@ mod original_implementation_tests {
         );
         let other = u32::try_from(source.find("m\\uD801").unwrap()).unwrap();
         assert_eq!(implementation(source, 0, other, &analysis).len(), 1);
-        assert!(implementation(&format!("# changed\n{source}"), 1, cursor, &analysis).is_empty());
+        assert_eq!(
+            implementation(&format!("# changed\n{source}"), 1, cursor, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
     #[test]
     fn original_method_implementations_keep_cross_document_owners_and_block_ambiguous_parents() {
@@ -760,7 +766,10 @@ mod original_implementation_tests {
             source: "# unrelated source",
             analysis: &base_analysis,
         }];
-        assert!(method_implementations_in_inventory(&method, &stale).is_empty());
+        assert_eq!(
+            method_implementations_in_inventory(&method, &stale),
+            [] as [crate::implementation::OriginalImplementationTarget; 0]
+        );
     }
     #[test]
     fn original_class_object_implementation_does_not_borrow_instance_superclass_order() {
@@ -799,10 +808,16 @@ mod current_source_implementation_tests {
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert!(analysis.allows_lexical_declaration_advice());
         assert_eq!(implementation(source, 1, 1, &analysis).len(), 1);
-        assert!(implementation(&format!("{source}\n# changed"), 1, 1, &analysis).is_empty());
+        assert_eq!(
+            implementation(&format!("{source}\n# changed"), 1, 1, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         let config = analysis.body_lexer_config.unwrap();
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-        assert!(implementation(source, 1, 1, &analysis).is_empty());
+        assert_eq!(
+            implementation(source, 1, 1, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.body_lexer_config = Some(config);
         let input = analysis.resolved_input.take().unwrap();
         analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -811,9 +826,15 @@ mod current_source_implementation_tests {
             tcl_registry::model::resolve_environment("tcl8.4").default_context_registry(),
             config,
         ));
-        assert!(implementation(source, 1, 1, &analysis).is_empty());
+        assert_eq!(
+            implementation(source, 1, 1, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         analysis.resolved_input = None;
-        assert!(implementation(source, 1, 1, &analysis).is_empty());
+        assert_eq!(
+            implementation(source, 1, 1, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 }
 
@@ -841,8 +862,14 @@ mod logical_source_selection_tests {
                 .collect::<Vec<_>>(),
             vec![0, 1]
         );
-        assert!(at(source, source.find("puts run").unwrap() + 5, &analysis).is_empty());
-        assert!(at(source, source.rfind("run").unwrap(), &analysis).is_empty());
+        assert_eq!(
+            at(source, source.find("puts run").unwrap() + 5, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
+            at(source, source.rfind("run").unwrap(), &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -850,17 +877,20 @@ mod logical_source_selection_tests {
         let source = "oo::class create C {method 茶 {} {}; method again {} {my 茶}}";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert_eq!(at(source, source.rfind('茶').unwrap(), &analysis).len(), 1);
-        assert!(
+        assert_eq!(
             at(
                 &format!("{source}\n# changed"),
                 source.rfind('茶').unwrap(),
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::definition::LspRange; 0]
         );
         let config = analysis.body_lexer_config.unwrap();
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-        assert!(at(source, source.rfind('茶').unwrap(), &analysis).is_empty());
+        assert_eq!(
+            at(source, source.rfind('茶').unwrap(), &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
     #[test]
     fn logical_implementation_lifts_lone_cr_source_positions() {

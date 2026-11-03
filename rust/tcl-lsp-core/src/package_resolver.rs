@@ -1454,6 +1454,6 @@ mod standalone_filename_data_tests {
             &|_| true,
             &|_| Vec::new(),
         );
-        assert!(packages[0].source_files.is_empty());
+        assert_eq!(packages[0].source_files, [] as [std::path::PathBuf; 0]);
     }
 }

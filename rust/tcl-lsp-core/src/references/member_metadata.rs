@@ -421,12 +421,16 @@ mod tests {
             let mut analysis = analyse(source, dialect);
             let class = analysis.all_classes["::C"].clone();
             assert_eq!(member_spans(source, &analysis, &class).len(), 2);
-            assert!(
-                member_spans(&source.replace("export", "filter"), &analysis, &class).is_empty()
+            assert_eq!(
+                member_spans(&source.replace("export", "filter"), &analysis, &class),
+                [] as [tcl_lexer::Span; 0]
             );
             let mut unowned = class.clone();
             unowned.name_span = Span::new(0, 0);
-            assert!(member_spans(source, &analysis, &unowned).is_empty());
+            assert_eq!(
+                member_spans(source, &analysis, &unowned),
+                [] as [tcl_lexer::Span; 0]
+            );
             let mut stale_config = analysis.clone();
             let bom = &mut stale_config.body_lexer_config.as_mut().unwrap().leading_bom;
             *bom = if *bom == tcl_lexer::LeadingBom::Skip {
@@ -434,11 +438,17 @@ mod tests {
             } else {
                 tcl_lexer::LeadingBom::Skip
             };
-            assert!(member_spans(source, &stale_config, &class).is_empty());
+            assert_eq!(
+                member_spans(source, &stale_config, &class),
+                [] as [tcl_lexer::Span; 0]
+            );
             analysis.resolved_input = None;
             // Keep the original requested profile; a missing input must not be repaired.
             let profile = ingress::resolve_environment(dialect).analyser_profile();
-            assert!(spans(source, &analysis, profile, &class, "m").is_empty());
+            assert_eq!(
+                spans(source, &analysis, profile, &class, "m"),
+                [] as [tcl_lexer::Span; 0]
+            );
         }
     }
 }

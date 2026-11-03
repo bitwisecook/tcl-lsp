@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(info2.params[1].name, "y");
         assert_eq!(info2.returns, "the sum");
         // The `#`-prefixed form treats the whole line as description text.
-        assert!(info.brief.is_empty());
+        assert_eq!(info.brief, "");
     }
 
     #[test]

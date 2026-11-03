@@ -698,12 +698,12 @@ mod tests {
                 .count(),
             2
         );
-        assert!(
+        assert_eq!(
             super::super::document_symbols_from_analysis(
                 &format!("# displaced\n{source}"),
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
         );
     }
 
@@ -733,9 +733,9 @@ mod tests {
             assert_eq!(matching.len(), count, "{kind:?}: {symbols:?}");
             assert_ne!(matching[0].name, matching[1].name);
         }
-        assert!(
-            super::super::document_symbols_from_analysis(&format!("{source} "), &analysis)
-                .is_empty()
+        assert_eq!(
+            super::super::document_symbols_from_analysis(&format!("{source} "), &analysis),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
         );
     }
 
@@ -758,13 +758,13 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(variables.len(), 2, "{symbols:?}");
         assert_ne!(variables[0].name, variables[1].name);
-        assert!(analysis.original_variable_symbols.is_empty());
-        assert!(
+        assert_eq!(analysis.original_variable_symbols, [] as [tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence; 0]);
+        assert_eq!(
             super::super::document_symbols_from_analysis(
                 &format!("# displaced\n{source}"),
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
         );
         analysis.original_variable_write_advice.clear();
         let symbols = super::super::document_symbols_from_analysis(source, &analysis);
@@ -903,10 +903,9 @@ mod registry_ledger_tests {
                 |symbol| symbol.kind == SymbolKind::from(tcl_registry::DefinedSymbolKind::Test)
             )
         );
-        assert!(
-            source_outline(&format!("# changed\n{source}"), &analysis)
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            source_outline(&format!("# changed\n{source}"), &analysis).unwrap(),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
         );
     }
 }

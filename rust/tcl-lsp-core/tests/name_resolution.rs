@@ -1507,7 +1507,10 @@ fn nested_class_hover_uses_the_original_namespace_path() {
     assert_eq!(hierarchy.len(), 1);
     assert_eq!(hierarchy[0].name, "::left::C");
     assert_eq!(hierarchy[0].selection_range.start_line, 0);
-    assert!(tcl_lsp_core::type_hierarchy::prepare(source, 11, 10, &analysis).is_empty());
+    assert_eq!(
+        tcl_lsp_core::type_hierarchy::prepare(source, 11, 10, &analysis),
+        [] as [tcl_lsp_core::type_hierarchy::TypeHierarchyItem; 0]
+    );
     if let Some(hover) = tcl_lsp_core::hover::hover(source, 11, 10, &analysis, None) {
         assert!(!hover.value.contains("oo::class create"), "{}", hover.value);
     }
@@ -1573,7 +1576,10 @@ fn class_hover_does_not_borrow_a_stale_or_other_call_reference() {
     );
     let stale = source.replace("C new", "D new");
     assert!(tcl_lsp_core::hover::hover(&stale, 2, 0, &analysis, None).is_none());
-    assert!(tcl_lsp_core::type_hierarchy::prepare(&stale, 2, 0, &analysis).is_empty());
+    assert_eq!(
+        tcl_lsp_core::type_hierarchy::prepare(&stale, 2, 0, &analysis),
+        [] as [tcl_lsp_core::type_hierarchy::TypeHierarchyItem; 0]
+    );
 }
 #[test]
 fn class_navigation_does_not_ignore_info_object_execution_trace() {

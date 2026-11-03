@@ -565,13 +565,16 @@ mod tests {
         // 120 chars + CRLF must not fire (length counts exclude \r).
         let src = format!("{}\r\nshort", "y".repeat(120));
         let diags = check_line_length(&src, DEFAULT_LINE_LENGTH);
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [crate::source_style::StyleDiagnostic; 0]);
     }
 
     #[test]
     fn w111_boundary_exactly_max_is_clean() {
         let line = "z".repeat(120);
-        assert!(check_line_length(&line, DEFAULT_LINE_LENGTH).is_empty());
+        assert_eq!(
+            check_line_length(&line, DEFAULT_LINE_LENGTH),
+            [] as [crate::source_style::StyleDiagnostic; 0]
+        );
     }
 
     #[test]
@@ -607,7 +610,7 @@ mod tests {
     #[test]
     fn w112_does_not_flag_crlf() {
         let diags = check_trailing_whitespace("set x 1\r\nset y 2\r\n");
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [crate::source_style::StyleDiagnostic; 0]);
     }
 
     #[test]
@@ -624,7 +627,10 @@ mod tests {
 
     #[test]
     fn w118_clean_when_all_lf_and_lf_expected() {
-        assert!(check_line_endings("a\nb\nc\n", "\n").is_empty());
+        assert_eq!(
+            check_line_endings("a\nb\nc\n", "\n"),
+            [] as [crate::source_style::StyleDiagnostic; 0]
+        );
     }
 
     #[test]
@@ -687,26 +693,26 @@ mod tests {
         let braced = "set payload {# hidden \\\nputs live}\n";
         let quoted = "set payload \"# hidden \\\nputs live\"\n";
         let tail = "set marker \"noqa\"; # ordinary comment \\\nputs live\n";
-        assert!(
+        assert_eq!(
             check_comment_continuation_for_dialect(
                 braced,
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [crate::source_style::StyleDiagnostic; 0]
         );
-        assert!(
+        assert_eq!(
             check_comment_continuation_for_dialect(
                 quoted,
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [crate::source_style::StyleDiagnostic; 0]
         );
-        assert!(
+        assert_eq!(
             check_comment_continuation_for_dialect(
                 tail,
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [crate::source_style::StyleDiagnostic; 0]
         );
     }
 
@@ -959,11 +965,17 @@ mod tests {
 
     #[test]
     fn w115_skips_plain_comment() {
-        assert!(check_comment_continuation("# normal comment\nputs hi").is_empty());
+        assert_eq!(
+            check_comment_continuation("# normal comment\nputs hi"),
+            [] as [crate::source_style::StyleDiagnostic; 0]
+        );
     }
 
     #[test]
     fn w115_trailing_space_breaks_the_continuation() {
-        assert!(check_comment_continuation("# note \\ \nputs next\n").is_empty());
+        assert_eq!(
+            check_comment_continuation("# note \\ \nputs next\n"),
+            [] as [crate::source_style::StyleDiagnostic; 0]
+        );
     }
 }

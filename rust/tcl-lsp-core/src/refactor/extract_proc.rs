@@ -2419,7 +2419,7 @@ puts done";
                     "the original selected body is retained"
                 );
             } else {
-                assert!(action.edits.is_empty());
+                assert_eq!(action.edits, [] as [crate::refactor::RefactorEdit; 0]);
                 assert!(
                     action
                         .disabled

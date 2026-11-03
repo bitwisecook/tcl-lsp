@@ -1743,9 +1743,9 @@ evaluate {[set hidden 1]}";
         let dynamic = "eval $script";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(dynamic, "tcl");
         let walk = FrameWalk::new(dynamic, &analysis).unwrap();
-        assert!(
-            walk.same_frame_regions(dynamic, &walk.segment_document(dynamic)[0])
-                .is_empty()
+        assert_eq!(
+            walk.same_frame_regions(dynamic, &walk.segment_document(dynamic)[0]),
+            [] as [(usize, usize); 0]
         );
         assert!(
             !walk.complete(),
@@ -1802,9 +1802,9 @@ mod original_parse_purpose_tests {
             "set final DONE"
         );
         assert!(walk.complete());
-        assert!(
-            walk.segment_document("\u{feff}set changed VALUE")
-                .is_empty()
+        assert_eq!(
+            walk.segment_document("\u{feff}set changed VALUE"),
+            [] as [tcl_compiler::segmenter::SegmentedCommand; 0]
         );
         assert!(!walk.complete());
     }

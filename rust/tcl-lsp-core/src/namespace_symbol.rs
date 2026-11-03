@@ -893,7 +893,10 @@ mod tests {
             namespace_cell_at_offset(src, &analysis, outside).as_deref(),
             Some("::inner"),
         );
-        assert!(namespace_declaration_spans(&analysis, "::inner").is_empty());
+        assert_eq!(
+            namespace_declaration_spans(&analysis, "::inner"),
+            [] as [tcl_lexer::Span; 0]
+        );
         assert_eq!(
             texts(
                 src,
@@ -970,7 +973,10 @@ mod tests {
         let src = "namespace eval mypkg {}\n# namespace children ::mypkg here\n";
         assert_eq!(cell_at(src, "::mypkg here"), None);
         let analysis = analyse(src);
-        assert!(namespace_reference_spans(&analysis, "::mypkg").is_empty());
+        assert_eq!(
+            namespace_reference_spans(&analysis, "::mypkg"),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     // TN: the same inside a **braced data word** — `set d {namespace children
@@ -980,7 +986,10 @@ mod tests {
         let src = "namespace eval mypkg {}\nset d {namespace children ::mypkg}\n";
         assert_eq!(cell_at(src, "::mypkg}"), None);
         let analysis = analyse(src);
-        assert!(namespace_reference_spans(&analysis, "::mypkg").is_empty());
+        assert_eq!(
+            namespace_reference_spans(&analysis, "::mypkg"),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     // A **computed** target is recorded only when its value is
@@ -1050,7 +1059,10 @@ mod tests {
             texts(src, &namespace_declaration_spans(&analysis, "::p::q::r")),
             vec!["::p::q::r"],
         );
-        assert!(namespace_implicit_parent_spans(src, &analysis, "::p::q::r").is_empty(),);
+        assert_eq!(
+            namespace_implicit_parent_spans(src, &analysis, "::p::q::r"),
+            [] as [tcl_lexer::Span; 0],
+        );
     }
 
     #[test]
@@ -1081,8 +1093,14 @@ mod tests {
         // read as a parent of `::p::q::r`.
         let src = "namespace eval ::p::q::r {}\n";
         let analysis = analyse(src);
-        assert!(namespace_implicit_parent_spans(src, &analysis, "::pq").is_empty());
-        assert!(namespace_implicit_parent_spans(src, &analysis, "::q").is_empty());
+        assert_eq!(
+            namespace_implicit_parent_spans(src, &analysis, "::pq"),
+            [] as [tcl_lexer::Span; 0]
+        );
+        assert_eq!(
+            namespace_implicit_parent_spans(src, &analysis, "::q"),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     /// The row-wise form the workspace tier calls, given a
@@ -1139,7 +1157,10 @@ mod tests {
         // TN — `::` is created by the interpreter, not by any block.
         let src = "namespace eval ::p::q {}\n";
         let analysis = analyse(src);
-        assert!(namespace_implicit_parent_spans(src, &analysis, "::").is_empty());
+        assert_eq!(
+            namespace_implicit_parent_spans(src, &analysis, "::"),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 
     #[test]
@@ -1162,7 +1183,10 @@ mod tests {
     fn fn_inscope_is_a_reference_not_a_declaration() {
         let src = "namespace inscope ::a {set x 1}\n";
         let analysis = analyse(src);
-        assert!(namespace_declaration_spans(&analysis, "::a").is_empty());
+        assert_eq!(
+            namespace_declaration_spans(&analysis, "::a"),
+            [] as [tcl_lexer::Span; 0]
+        );
         assert_eq!(
             texts(src, &namespace_reference_spans(&analysis, "::a")),
             vec!["::a"],
@@ -1277,7 +1301,10 @@ mod tests {
         // It is *recorded* — the word is a real namespace name — but it names
         // `::outer::`, the empty-named child, not `::outer`.
         assert_eq!(cell_at(src, "{}").as_deref(), Some("::outer::"));
-        assert!(namespace_declaration_spans(&analysis, "::outer::").is_empty());
+        assert_eq!(
+            namespace_declaration_spans(&analysis, "::outer::"),
+            [] as [tcl_lexer::Span; 0]
+        );
         assert!(
             namespace_reference_spans(&analysis, "::outer").is_empty(),
             "`{{}}` must not be folded into the enclosing namespace: {:?}",
@@ -1559,8 +1586,14 @@ mod tests {
         let src =
             "set ns ::a\nif {$c} { set ns ::b }\nnamespace eval $ns { proc go {} { return 1 } }\n";
         let analysis = analyse(src);
-        assert!(namespace_declaration_spans(&analysis, "::a").is_empty());
-        assert!(namespace_declaration_spans(&analysis, "::b").is_empty());
+        assert_eq!(
+            namespace_declaration_spans(&analysis, "::a"),
+            [] as [tcl_lexer::Span; 0]
+        );
+        assert_eq!(
+            namespace_declaration_spans(&analysis, "::b"),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 }
 

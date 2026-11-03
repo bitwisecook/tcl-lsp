@@ -656,7 +656,10 @@ mod tests {
             ),
             ControlFlow::Break(None)
         ));
-        assert!(crate::definition::definition(source, 0, offset, &analysis).is_empty());
+        assert_eq!(
+            crate::definition::definition(source, 0, offset, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]

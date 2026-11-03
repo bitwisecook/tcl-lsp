@@ -217,10 +217,11 @@ mod original_package_advice_tests {
         let registry = analysis.resolved_registry().unwrap();
         let spec = registry.get("entry").unwrap();
         assert!(analysis.package_requires[0].original_name.is_some());
-        assert!(
-            !analysis.package_requires[0]
-                .original_requirements
-                .is_empty()
+        assert_ne!(
+            analysis.package_requires[0].original_requirements,
+            [] as [std::option::Option<
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+            >; 0]
         );
         assert_eq!(
             DocumentFloor::new(&analysis, profile).for_spec(spec),

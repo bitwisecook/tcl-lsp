@@ -850,20 +850,26 @@ mod tests {
             document_symbols_from_analysis(source, &analysis)[0].name,
             "current"
         );
-        assert!(
+        assert_eq!(
             document_symbols_from_analysis(
                 "# shifted\nproc current {arg} {puts $arg}\n",
                 &analysis
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
-        assert!(document_symbols_from_analysis(source, &missing).is_empty());
+        assert_eq!(
+            document_symbols_from_analysis(source, &missing),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
+        );
         let mut stale = analysis.clone();
         stale.body_lexer_config.as_mut().unwrap().strict_quoting =
             !analysis.body_lexer_config.unwrap().strict_quoting;
-        assert!(document_symbols_from_analysis(source, &stale).is_empty());
+        assert_eq!(
+            document_symbols_from_analysis(source, &stale),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
+        );
         let mut foreign = analysis.clone();
         let input = analysis.resolved_input.as_ref().unwrap();
         foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -872,7 +878,10 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry(),
             input.lexer_config(),
         ));
-        assert!(document_symbols_from_analysis(source, &foreign).is_empty());
+        assert_eq!(
+            document_symbols_from_analysis(source, &foreign),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
+        );
     }
 
     #[test]
@@ -1314,12 +1323,12 @@ mod tests {
 
     #[test]
     fn empty_source_yields_no_symbols() {
-        assert!(
+        assert_eq!(
             document_symbols(
                 "",
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [crate::document_symbols::DocumentSymbol; 0]
         );
     }
 
@@ -1427,7 +1436,7 @@ mod tests {
                     &source,
                     tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 );
-                assert!(!symbols.is_empty());
+                assert_ne!(symbols, [] as [crate::document_symbols::DocumentSymbol; 0]);
             })
             .unwrap()
             .join()
@@ -1648,19 +1657,19 @@ mod tests {
                     .next()
                     .expect("ordinary Tcl8.6 factory source header")
                     .metadata();
-                assert!(
+                assert_eq!(
                     class
                         .original_members
                         .methods(MemberSide::ClassObject)
-                        .unwrap()
-                        .is_empty()
+                        .unwrap(),
+                    [] as [tcl_compiler::analyser::types::OriginalSourceMethodMetadata; 0]
                 );
-                assert!(
+                assert_eq!(
                     class
                         .original_properties
                         .properties(MemberSide::Instance)
-                        .unwrap()
-                        .is_empty()
+                        .unwrap(),
+                    [] as [&tcl_compiler::analyser::types::OriginalSourcePropertyMetadata; 0]
                 );
             } else {
                 assert!(
@@ -2441,7 +2450,10 @@ mod tests {
         assert_eq!(names(&symbols), vec!["greet", "top", "ns"]);
         // `msg` is proc-local, so it is not an outline symbol at all — and
         // `greet` must not swallow `top` or `ns`, which sit outside it.
-        assert!(names(&find(&symbols, "greet").unwrap().children).is_empty());
+        assert_eq!(
+            names(&find(&symbols, "greet").unwrap().children),
+            [] as [&str; 0]
+        );
         assert_eq!(names(&find(&symbols, "ns").unwrap().children), vec!["v"]);
     }
 

@@ -130,12 +130,12 @@ fn selection(line: u32, start: u32, end: u32) -> LspRange {
 #[test]
 fn symbols_empty_file_yields_nothing() {
     // An empty document has no outline.
-    assert!(
+    assert_eq!(
         document_symbols(
             "",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::document_symbols::DocumentSymbol; 0]
     );
 }
 
@@ -467,15 +467,15 @@ fn lens_on_line(lenses: &[CodeLens], line: u32) -> &CodeLens {
 #[test]
 fn lens_none_without_analysis() {
     // With `analysis = None` the provider emits nothing (the stub-call shape).
-    assert!(
+    assert_eq!(
         code_lenses(
             "proc foo {} {}\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None,
             None,
             ""
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::code_lens::CodeLens; 0]
     );
 }
 
@@ -629,21 +629,21 @@ fn link_start(link: &DocumentLink) -> (u32, u32) {
 fn links_none_for_non_source_commands() {
     // tclsh: `set` and `puts` are not path-bearing — `source` is the command
     // the provider keys on, so neither yields a link.
-    assert!(
+    assert_eq!(
         document_links(
             "set x 1\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::document_links::DocumentLink; 0]
     );
-    assert!(
+    assert_eq!(
         document_links(
             "puts hello\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::document_links::DocumentLink; 0]
     );
 }
 
@@ -684,13 +684,13 @@ fn links_relative_source_without_root_yields_none() {
     // No workspace root -> a relative path has nothing to anchor against, so no
     // link is produced (the path with no resolvable target is dropped).
     let src = "source helper.tcl\n";
-    assert!(
+    assert_eq!(
         document_links(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::document_links::DocumentLink; 0]
     );
 }
 
@@ -700,13 +700,13 @@ fn links_dynamic_source_path_yields_none() {
     // path is variable-substituted, not a literal — the provider can't resolve
     // it statically, so no link.
     let src = "source $somevar\n";
-    assert!(
+    assert_eq!(
         document_links(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::document_links::DocumentLink; 0]
     );
 }
 
@@ -836,7 +836,10 @@ fn fp_a_bare_variable_source_path_produces_no_link() {
     // FP guard — a whole-word `$var` is exactly one token, which is why the
     // old `single_token_word` test let it through as a "literal".
     let src = "source $dir\n";
-    assert!(links_in(src, "/proj/a.tcl").is_empty());
+    assert_eq!(
+        links_in(src, "/proj/a.tcl"),
+        [] as [tcl_lsp_core::document_links::DocumentLink; 0]
+    );
 }
 
 #[test]
@@ -865,7 +868,10 @@ fn fp_a_variable_assigned_twice_is_not_propagated() {
     // provider does not ask, so a re-assigned name is dropped entirely
     // rather than guessed at.
     let src = "set dir /one\nset dir /two\nsource [file join $dir x.tcl]\n";
-    assert!(links_in(src, "/proj/a.tcl").is_empty());
+    assert_eq!(
+        links_in(src, "/proj/a.tcl"),
+        [] as [tcl_lsp_core::document_links::DocumentLink; 0]
+    );
 }
 
 #[test]

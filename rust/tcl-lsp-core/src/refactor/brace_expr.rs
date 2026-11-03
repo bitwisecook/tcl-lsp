@@ -191,7 +191,7 @@ mod original_tests {
         for source in ["expr \"$value + 2\"", "expr 1 + 2", "expr \"abs(1)\""] {
             let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
             let action = brace_expr(source, 0, &analysis).expect("current expression shape");
-            assert!(action.edits.is_empty());
+            assert_eq!(action.edits, [] as [crate::refactor::RefactorEdit; 0]);
             assert!(
                 action
                     .disabled

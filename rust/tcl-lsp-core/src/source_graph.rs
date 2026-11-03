@@ -2330,7 +2330,10 @@ mod tests {
     fn a_root_with_no_ancestors_inherits_nothing() {
         let edges = vec![("app".to_owned(), "lib".to_owned())];
         let requires = reqs(&[("app", &["Tk"])]);
-        assert!(ancestor_requires("app", &edges, &requires).is_empty());
+        assert_eq!(
+            ancestor_requires("app", &edges, &requires),
+            [] as [std::string::String; 0]
+        );
     }
 
     // `package prefer latest` across the source graph.
@@ -2952,7 +2955,7 @@ mod tests {
             edge("other", "lib", 3),
             edge("lib", "deep", 1),
         ]);
-        assert!(order.alternatives(point("deep", 0)).is_empty());
+        assert_eq!(order.alternatives(point("deep", 0)), []);
     }
 
     /// TN: a document the graph has never heard of has no alternatives, and
@@ -2961,8 +2964,8 @@ mod tests {
     #[test]
     fn an_unknown_document_has_no_alternatives() {
         let order = RunOrder::build(&[require_edge("app", "lib", 10)]);
-        assert!(order.alternatives(point("never-indexed", 0)).is_empty());
-        assert!(RunOrder::default().alternatives(point("a", 0)).is_empty());
+        assert_eq!(order.alternatives(point("never-indexed", 0)), []);
+        assert_eq!(RunOrder::default().alternatives(point("a", 0)), []);
     }
 
     /// TP: many requires of one provider all reach it — the per-document
@@ -3048,7 +3051,10 @@ mod tests {
     fn descendant_requires_is_empty_for_a_sourced_file_with_no_requires() {
         let edges = vec![edge("main", "plain", 7)];
         let requires = reqs(&[("plain", &[])]);
-        assert!(descendant_requires("main", &edges, &requires).is_empty());
+        assert_eq!(
+            descendant_requires("main", &edges, &requires),
+            [] as [crate::source_graph::PlacedRequirement<std::string::String>; 0]
+        );
     }
 
     /// Transitive: `main` → `mid` → `leaf`. `leaf`'s package reaches `main`,
@@ -3101,7 +3107,10 @@ mod tests {
         let mut e = edge("main", "provider", 7);
         e.kind = RunEdgeKind::PackageRequire;
         let requires = reqs(&[("provider", &["Tk"])]);
-        assert!(descendant_requires("main", &[e], &requires).is_empty());
+        assert_eq!(
+            descendant_requires("main", &[e], &requires),
+            [] as [crate::source_graph::PlacedRequirement<std::string::String>; 0]
+        );
     }
 
     /// A file sourced from two places contributes at both positions, so a
@@ -3692,7 +3701,7 @@ mod original_package_alternative_owner_tests {
         );
         let parent_point = point("parent", query_at);
         let owned = point("child", 0);
-        assert!(!order.alternatives(owned).is_empty());
+        assert_ne!(order.alternatives(owned), []);
         let positive = order.navigation_precedence(owned, parent_point).unwrap();
         assert!(*positive.conditional_relation());
         assert_eq!(
@@ -3725,7 +3734,7 @@ mod original_package_alternative_owner_tests {
             .into_iter(),
         );
         let unowned_body = point("child", deferred_at);
-        assert!(!order.alternatives(unowned_body).is_empty());
+        assert_ne!(order.alternatives(unowned_body), []);
         assert!(
             order
                 .navigation_precedence(unowned_body, parent_point)
@@ -3756,7 +3765,7 @@ mod original_package_alternative_owner_tests {
         );
         // The actual require route remains. Missing original source transport
         // cannot become a point merely because its document has that route.
-        assert!(!order.alternatives(owned).is_empty());
+        assert_ne!(order.alternatives(owned), []);
         assert!(order.navigation_precedence(owned, parent_point).is_none());
         assert!(order.navigation_precedence(parent_point, owned).is_none());
         assert!(order.navigation_comparison(owned, parent_point).is_none());

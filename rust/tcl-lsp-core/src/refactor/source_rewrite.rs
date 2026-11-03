@@ -268,7 +268,7 @@ mod tests {
         analysis.all_procs.clear();
         let action =
             super::super::brace_expr(source, 0, &analysis).expect("selected original expr");
-        assert!(action.edits.is_empty());
+        assert_eq!(action.edits, [] as [crate::refactor::RefactorEdit; 0]);
         assert!(
             action
                 .disabled
@@ -439,7 +439,7 @@ mod tests {
                 &analysis,
                 &tcl_lexer::LineIndex::new(&source),
             ) {
-                assert!(action.edits.is_empty());
+                assert_eq!(action.edits, [] as [crate::refactor::RefactorEdit; 0]);
                 assert!(
                     action
                         .disabled
@@ -481,7 +481,7 @@ mod source_action_obligation_tests {
         }
         let action = super::super::brace_expr(source, 0, &analysis)
             .expect("selected source expression with missing equivalence");
-        assert!(action.edits.is_empty());
+        assert_eq!(action.edits, [] as [crate::refactor::RefactorEdit; 0]);
         assert!(
             action
                 .disabled

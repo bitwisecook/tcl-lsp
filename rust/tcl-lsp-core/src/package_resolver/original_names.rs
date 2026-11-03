@@ -1438,7 +1438,7 @@ mod tests {
                 .is_empty()
         );
         let source = "proc package args {return ignored}\npackage ifneeded p 1.0 {source p.tcl}";
-        assert!(
+        assert_eq!(
             original_package_entries(
                 source,
                 Path::new("/library"),
@@ -1446,8 +1446,8 @@ mod tests {
                 &|_| true,
                 &|_| Vec::new(),
                 version
-            )
-            .is_empty()
+            ),
+            [] as [crate::package_resolver::original_names::OriginalPackageInfo; 0]
         );
     }
 

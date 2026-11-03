@@ -528,7 +528,7 @@ mod tests {
     #[test]
     fn irules_templates_hidden_outside_irules_dialect() {
         let items = snippet_completions(&ctx("irule", &[]));
-        assert!(items.is_empty());
+        assert_eq!(items, [] as [crate::completion::CompletionItem; 0]);
     }
 
     #[test]
@@ -552,7 +552,7 @@ mod tests {
     fn rule_init_declines_when_event_already_declared() {
         let events = vec!["RULE_INIT".to_string()];
         let items = snippet_completions(&irule_ctx("irule-rule-init", &events));
-        assert!(items.is_empty());
+        assert_eq!(items, [] as [crate::completion::CompletionItem; 0]);
     }
 
     #[test]
@@ -586,6 +586,9 @@ mod tests {
             file_events: &events,
         };
         // Inside a `when` block none of the event templates are offered.
-        assert!(snippet_completions(&nested).is_empty());
+        assert_eq!(
+            snippet_completions(&nested),
+            [] as [crate::completion::CompletionItem; 0]
+        );
     }
 }

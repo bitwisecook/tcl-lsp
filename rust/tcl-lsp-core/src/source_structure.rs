@@ -2276,7 +2276,10 @@ mod tests {
             original_method_site_at(source, &analysis, cursor),
             Some(("puts".to_owned(), "$object method".to_owned(), false))
         );
-        assert!(crate::definition::definition(source, 0, cursor, &analysis).is_empty());
+        assert_eq!(
+            crate::definition::definition(source, 0, cursor, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         for (source, needle) in [
             ("# $object method", "method"),
             ("expr {$object < $other}", "<"),
@@ -2793,8 +2796,13 @@ mod tests {
             crate::original_invocation::OriginalRegistrySource::DefinitionMember(_)
         ));
         assert_eq!(child.source_script_bodies(&context).len(), 1);
-        assert!(child.source_script_bodies_for(&context,
-            tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation).is_empty());
+        assert_eq!(
+            child.source_script_bodies_for(
+                &context,
+                tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation
+            ),
+            [] as [tcl_compiler::registry_invocation::OriginalSourceScriptBody; 0]
+        );
         assert!(
             crate::original_invocation::source_registry_words_in_definition_body(
                 source,
@@ -2885,13 +2893,13 @@ mod tests {
         for needle in ["method missing", "method cooked"] {
             assert!(syntax.definition_member_at(head(needle)).is_err());
         }
-        assert!(
+        assert_eq!(
             syntax
                 .definition_member_at(head("superclass Base"))
                 .unwrap()
                 .unwrap()
-                .script_bodies()
-                .is_empty()
+                .script_bodies(),
+            []
         );
     }
 

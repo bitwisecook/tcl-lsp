@@ -1804,7 +1804,7 @@ mod tests {
                 hint_only: false,
             })
         );
-        assert!(f.fixes.is_empty());
+        assert_eq!(f.fixes, [] as [crate::diagnostic_policy::Fix; 0]);
     }
 
     #[test]
@@ -2588,7 +2588,7 @@ mod apply_tests {
             "the directive hides the member on line 3 alone"
         );
         assert!(report.applicable_rewrites().is_empty());
-        assert!(report.applicable_items(vec![0, 1]).is_empty());
+        assert_eq!(report.applicable_items(vec![0, 1]), [] as [i32; 0]);
 
         let plain = Policy {
             optimiser: OptimiserPolicy::all_on(),

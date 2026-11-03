@@ -1524,7 +1524,7 @@ mod tests {
             context,
             &mut warnings,
         );
-        assert!(warnings.is_empty());
+        assert_eq!(warnings, [] as [serde_json::Value; 0]);
         assert!(matches!(replays, TaintReplayAnalysis::Unavailable { .. }));
         assert!(!replays.is_complete());
     }

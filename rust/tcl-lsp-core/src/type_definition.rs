@@ -138,7 +138,10 @@ mod tests {
         let src = "set x 42\nputs $x\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "$x", 1);
-        assert!(type_definition(src, l, c + 1, &analysis).is_empty());
+        assert_eq!(
+            type_definition(src, l, c + 1, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -160,7 +163,10 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "hello", 1);
-        assert!(type_definition(src, l, c, &analysis).is_empty());
+        assert_eq!(
+            type_definition(src, l, c, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
@@ -225,7 +231,10 @@ mod original_type_tests {
                 span_to_range(source, &LineIndex::new(source), class.name_input().span())
             );
         }
-        assert!(type_definition(&format!("# changed\n{source}"), 1, 35, &analysis).is_empty());
+        assert_eq!(
+            type_definition(&format!("# changed\n{source}"), 1, 35, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 }
 
@@ -290,13 +299,22 @@ mod logical_member_type_tests {
         let source = "oo::class create C {method target {} {}; method caller {} {my target}}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let changed = format!("{source} ");
-        assert!(ranges(&changed, &analysis, "target}").is_empty());
+        assert_eq!(
+            ranges(&changed, &analysis, "target}"),
+            [] as [crate::definition::LspRange; 0]
+        );
         let mut changed = analysis.clone();
         changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
-        assert!(ranges(source, &changed, "target}").is_empty());
+        assert_eq!(
+            ranges(source, &changed, "target}"),
+            [] as [crate::definition::LspRange; 0]
+        );
         let mut changed = analysis.clone();
         changed.resolved_input = None;
-        assert!(ranges(source, &changed, "target}").is_empty());
+        assert_eq!(
+            ranges(source, &changed, "target}"),
+            [] as [crate::definition::LspRange; 0]
+        );
         let mut changed = analysis.clone();
         changed
             .all_classes
@@ -306,13 +324,19 @@ mod logical_member_type_tests {
             .get_mut("target")
             .unwrap()
             .body_span = tcl_lexer::Span::new(0, 1);
-        assert!(ranges(source, &changed, "target}").is_empty());
+        assert_eq!(
+            ranges(source, &changed, "target}"),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 
     #[test]
     fn logical_replaced_self_dispatcher_cannot_borrow_registry_semantics() {
         let source = "proc my {args} {}; oo::class create C {method target {} {}; method caller {} {my target}}";
         let analysis = Analyser::new().analyse(source, "tcl");
-        assert!(ranges(source, &analysis, "target}").is_empty());
+        assert_eq!(
+            ranges(source, &analysis, "target}"),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 }

@@ -4126,7 +4126,7 @@ mod tests {
                 .filter(|(offset, _)| *offset < source.find('\n').unwrap())
                 .map(|(offset, _)| offset)
                 .collect();
-            assert!(!offsets.is_empty());
+            assert_ne!(offsets, [] as [usize; 0]);
             for offset in offsets {
                 let card =
                     hover(source, 0, u32::try_from(offset).unwrap(), &analysis, None).unwrap();
@@ -5070,10 +5070,9 @@ mod tests {
             &["DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"]
         );
         // No `::` qualifier → unchanged (still empty).
-        assert!(
-            super::effective_event_requires(&descriptor("puts"), &base)
-                .profiles
-                .is_empty()
+        assert_eq!(
+            super::effective_event_requires(&descriptor("puts"), &base).profiles,
+            [] as [&str; 0]
         );
         // Already-populated profiles are left as-is.
         let with = tcl_registry::events::EventRequires {
@@ -6889,7 +6888,7 @@ mod tests {
                 &descriptor(surface),
                 super::EventRelease::Unconfigured,
             );
-            assert!(text.is_empty());
+            assert_eq!(text, "");
         }
         let own = tcl_registry::CommandSpec {
             name: "DIAMETER::fixture",
