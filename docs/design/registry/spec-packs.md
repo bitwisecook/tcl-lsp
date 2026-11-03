@@ -1065,6 +1065,16 @@ beside either is a contradiction the notice says; one with subcommands or forms,
 one with arity windows and one with another arity are left without, and so is a
 body the scan refuses, each with a warning on the command's row that says why.
 
+A declared implementation answers an explicit evaluation request over its known
+inputs. That answer does not establish that an original source invocation ran,
+that an unentered procedure acquired a Native frame, or that its parent stored
+the result. `pack_source_e2e` tests the loader/selected literal child/evaluator/
+host seam and keeps the unentered declaration's execution-SCCP value
+`Overdefined`. Native normal-store consumers need their own actual entry,
+receiver, observer and completion proofs. Source-only result advice needs a
+separate receipt retaining the unresolved runtime and observer premises; the
+literal evaluator seam alone supplies neither that receipt nor an LSP feature.
+
 How far the package that ships a pack sits from the workspace root narrows
 what the pack may declare, beside the gate above: a declaration must pass
 both. The workspace's own package may declare everything, a direct

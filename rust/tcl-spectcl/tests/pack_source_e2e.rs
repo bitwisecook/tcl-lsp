@@ -29,20 +29,27 @@
 //! [`tcl_spectcl::hooks`](tcl_spectcl::hooks), which the workspace install path
 //! runs for real. What this file still owns is the claim that the two halves
 //! line up end to end.
-
-#[path = "support/derived_first_decline.rs"]
-mod derived_first_decline;
+//!
+//! The derived reference-body cases test a separate Evaluate-family seam:
+//! original literal child selection → declared implementation → installed host
+//! under the actual call profile. Their explicit evaluator result is independent
+//! of an executable store in an unentered source declaration; execution SCCP
+//! must remain Overdefined for that declaration.
 
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use tcl_compiler::analyses::{ConstValue, LatticeValue};
+use tcl_compiler::analyses::LatticeValue;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::CommandRegistry;
 use tcl_registry::hover::ScriptTiming;
 use tcl_registry::pack_hooks::{self, HookInputs};
+use tcl_registry::value_transfer::{
+    AnalysisContext, Budget, EvalAnswer, ExactValueOrUnavailable, LiteralInputs, resolve_semantics,
+    validate_outcome,
+};
 use tcl_spec_hooks::tclvm_host;
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
 use tcl_spectcl::hooks;
@@ -254,32 +261,52 @@ fn reference_source(definition: &str, arity: usize) -> String {
     )
 }
 
-/// What the analyser proves `known` to be in a procedure that sets it to
-/// `call`, with the host the load's plan binds running the reference body of
-/// `vendor::f` for `definition`: the constant's text, or `None` when it proves
-/// none.
-fn proved(definition: &str, arity: usize, call: &str) -> Option<String> {
-    proved_under("tcl9.0", definition, arity, call)
+/// The installed derived evaluator's answer for this original literal call.
+/// The body is declaration source: its execution lattice must remain unknown.
+fn reference_evaluation(definition: &str, arity: usize, call: &str) -> Option<String> {
+    reference_evaluation_under("tcl9.0", definition, arity, call)
 }
 
-/// The same, with the call analysed under `dialect`.
-fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Option<String> {
+/// The same selected evaluator, using the original call's actual invocation axes.
+fn reference_evaluation_under(
+    dialect: &str,
+    definition: &str,
+    arity: usize,
+    call: &str,
+) -> Option<String> {
     let packs = pack_set_from("reference-body", &reference_source(definition, arity));
     let plan = hooks::plan_for(&packs);
     let host = Rc::new(tclvm_host());
     for programs in plan.packs() {
         let installed = host.install_pack_hooks(programs.clone());
-        assert!(
-            installed.iter().all(|entry| entry.declined.is_none()),
-            "the derived body installs: {installed:?}"
-        );
+        assert_eq!(installed.len(), programs.programs.len());
+        for (installation, program) in installed.iter().zip(&programs.programs) {
+            assert_eq!(installation.slot, program.slot);
+            assert!(
+                installation.declined.is_none(),
+                "the derived body installs: {installation:?}"
+            );
+        }
     }
     pack_hooks::install_host(host);
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
     let source = format!("proc ::p {{}} {{\n    set known [{call}]\n    return $known\n}}\n");
     let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect);
-    derived_first_decline::report(dialect, call, &registry, &unit);
+    let answer = original_reference_evaluation(&unit, &registry);
     pack_hooks::clear_host();
+    assert!(
+        original_reference_evaluation(&unit, &registry).is_none(),
+        "the same selected derived evaluator cannot answer without its installed host"
+    );
+    answer
+}
+
+/// The query joins the actual declaration and child; it supplies no executed
+/// store, completed procedure entry, result representation or erasure receipt.
+fn original_reference_evaluation(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> Option<String> {
     let mut candidates = unit
         .ir_module
         .procedures
@@ -296,20 +323,110 @@ fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Op
                     .original_procedure_for_body(**id)
                     .is_some_and(|original| std::ptr::eq(original, *body))
         });
-    let (id, _) = candidates.next()?;
+    let (id, body) = candidates.next()?;
     assert!(candidates.next().is_none(), "ambiguous original fixture p");
     assert!(unit.ir_module.procedure_ids.owns(*id));
     let function = unit.function_for_body(Some(*id))?;
     assert_eq!(function.body_id, Some(*id));
     let symbol = function.ssa.var_symbol("known")?;
-    match function.sccp.values.get(&(symbol, 1)) {
-        Some(LatticeValue::Const(value)) => Some(match value {
-            ConstValue::Int(number) => number.to_string(),
-            ConstValue::Float(number) => number.to_string(),
-            ConstValue::Bool(flag) => u8::from(*flag).to_string(),
-            ConstValue::String(text) => text.clone(),
-        }),
-        _ => None,
+    assert_eq!(
+        function.sccp.values.get(&(symbol, 1)),
+        Some(&LatticeValue::Overdefined),
+        "an unentered declaration does not acquire an executable stored value"
+    );
+    let input = unit.ir_module.source_metadata_input.as_ref()?;
+    let metadata =
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, input,
+        )?;
+    // Locate this fixture's one original whole-word substitution. This is
+    // lexical source geometry, not a NormalTransferInvocation or store receipt.
+    let mut parents = body.body.statements.iter().flat_map(|statement| {
+        statement.tokens().into_iter().flat_map(|tokens| {
+            tokens.words().iter().filter_map(move |word| {
+                word.sole_command_substitution()
+                    .map(|(_, site)| (tokens, site))
+            })
+        })
+    });
+    let (tokens, site) = parents.next()?;
+    assert!(
+        parents.next().is_none(),
+        "one original whole-word substitution"
+    );
+    let calls = tcl_compiler::word_subst::lifted_calls(Some(tokens), input.lexer_config().nested());
+    let [child] = calls.as_slice() else {
+        return None;
+    };
+    (child.span == site.span).then_some(())?;
+    original_literal_evaluation(
+        child.tokens.as_ref()?,
+        registry,
+        metadata,
+        input.unit_profile(),
+    )
+}
+
+/// Declared evaluation is deliberately independent of storing or replacing its
+/// result. Unknown arguments never become their original source spelling.
+fn original_literal_evaluation(
+    tokens: &tcl_compiler::ir::CommandTokens,
+    registry: &CommandRegistry,
+    metadata: tcl_compiler::registry_invocation::InvocationMetadataContext<'_>,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<String> {
+    let binding = tokens.source_binding.as_ref()?;
+    let target = binding
+        .proved_handler_target()
+        .filter(|target| target.registry_backed && target.prepended.is_empty())?;
+    (binding.proved_execution_target() == Some(target)).then_some(())?;
+    binding
+        .original_arguments_complete_normally(tokens)
+        .then_some(())?;
+    let dialect = binding.variable_context.invocation_dialect?;
+    (dialect == tcl_registry::InvocationDialect::of_profile(profile)).then_some(())?;
+    let args = tokens
+        .words()
+        .iter()
+        .skip(1)
+        .map(|word| {
+            let value = tcl_compiler::registry_invocation::effective_invocation_word(
+                word,
+                dialect.lexer_grammar.escapes,
+                dialect.word_values,
+            );
+            Some(std::str::from_utf8(value.literal_bytes()?).ok()?.to_owned())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let spec =
+        registry.get_for_surface(&target.command, Some(metadata.context().authoring_query()))?;
+    // `-evaluate` installs an implementation route, not a const_fold hook.
+    // These inputs are a separate literal evaluation request. They do not
+    // assert that this unentered source declaration ran or stored its result.
+    let selected = resolve_semantics(spec, None, None);
+    let semantics = selected.semantics()?;
+    semantics.as_declared()?.implementation()?;
+    let mut context = AnalysisContext::detached(Some(profile));
+    context.grammar = dialect.lexer_grammar;
+    let inputs =
+        LiteralInputs::new(&target.command, None, &refs, Some(profile)).with_context(context);
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    validate_outcome(
+        &semantics.structure(&inputs),
+        &semantics.store_targets(&inputs),
+        &outcome,
+    )
+    .expect("the installed derived evaluator returns a structurally valid outcome");
+    if !outcome.completion.is_normal() || outcome.has_stores() {
+        return None;
+    }
+    match outcome.result {
+        ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),
+        ExactValueOrUnavailable::Unavailable(_) => None,
     }
 }
 
@@ -337,12 +454,12 @@ fn executed(definition: &str, call: &str) -> String {
 }
 
 /// A reference body the sandbox can express is run on the real host as the
-/// declared implementation of its command, from the `.tclspec` source to a
-/// constant the analyser proves — and it answers what the procedure itself does
+/// declared implementation of its command, from the `.tclspec` source through
+/// the original call's selected declared evaluator — and it answers what the procedure does
 /// when the VM runs it, for the shapes a body takes: an expression, a final
 /// `return` of a variable and of a substitution, branches, loops, `switch`, a
 /// dict, and the empty `return`. The negatives: an argument the analysis does
-/// not know proves nothing, and a body that reaches for the frame is never run.
+/// not know supplies no evaluator input, and a body reaching for the frame is refused.
 #[test]
 fn a_reference_body_answers_through_the_host_as_the_procedure_does() {
     let cases: [(&str, usize, &str); 12] = [
@@ -402,22 +519,22 @@ fn a_reference_body_answers_through_the_host_as_the_procedure_does() {
     for (definition, arity, call) in cases {
         let ran = executed(definition, call);
         assert_eq!(
-            proved(definition, arity, call).as_deref(),
+            reference_evaluation(definition, arity, call).as_deref(),
             Some(ran.as_str()),
             "{definition}\n{call}"
         );
     }
     assert_eq!(
-        proved(
+        reference_evaluation(
             "proc vendor::f {x} {expr {$x * 2}}",
             1,
             "vendor::f $::unknown"
         ),
         None,
-        "an argument the analysis does not know is not folded"
+        "an argument without a retained literal value supplies no evaluator input"
     );
     assert_eq!(
-        proved(
+        reference_evaluation(
             "proc vendor::f {x} {upvar 1 $x y; expr {$y * 2}}",
             1,
             "vendor::f 21"
@@ -468,7 +585,7 @@ fn real_shell(release: &str, definition: &str, call: &str) -> Shell {
         .map_or(Shell::Raised, |value| Shell::Answered(value.to_owned()))
 }
 
-/// The body runs under the release the call is analysed under: `string cat` is
+/// The selected evaluator runs under the original call's invocation release: `string cat` is
 /// 8.6's, so a body that calls it answers under 8.6 and later and abstains under
 /// 8.4 and 8.5, and a leading zero is octal up to 8.6 and decimal from 9.0, so one
 /// body answers differently under 8.6 and 9.0.
@@ -478,7 +595,7 @@ fn real_shell(release: &str, definition: &str, call: &str) -> Shell {
 /// `tcl_precision` under 8.4, `incr` of an unset local, `lreplace` and `lindex`
 /// bounds and index forms, `1.0/0`, `int(1e20)` and `1<<64` under 8.4, `format
 /// %c`), so the rows below are those that hold, and each is held to the real shell
-/// of the release it is analysed under: the analysis answers what the shell does,
+/// of the selected release: the hook answers what the shell does,
 /// or abstains where the shell raises. A release with no shell on `PATH` skips its
 /// rows.
 #[test]
@@ -494,7 +611,7 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
         ("tcl9.1", Some("xy")),
     ] {
         assert_eq!(
-            proved_under(dialect, cat, 2, "vendor::f x y").as_deref(),
+            reference_evaluation_under(dialect, cat, 2, "vendor::f x y").as_deref(),
             expected,
             "{dialect}"
         );
@@ -502,7 +619,7 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
     let leading_zero = "proc vendor::f {x} {expr {$x + 010}}";
     for (dialect, expected) in [("tcl8.6", "8"), ("tcl9.0", "10")] {
         assert_eq!(
-            proved_under(dialect, leading_zero, 1, "vendor::f 0").as_deref(),
+            reference_evaluation_under(dialect, leading_zero, 1, "vendor::f 0").as_deref(),
             Some(expected),
             "{dialect}"
         );
@@ -561,10 +678,11 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
                 continue;
             }
             let shell = shell.answer();
-            let analysed = proved_under(&format!("tcl{release}"), definition, *arity, call);
+            let folded =
+                reference_evaluation_under(&format!("tcl{release}"), definition, *arity, call);
             assert_eq!(
-                analysed, shell,
-                "{row} under {release}: the analysis against the shell's own answer\n{definition}\n{call}"
+                folded, shell,
+                "{row} under {release}: the selected hook against the shell's own answer\n{definition}\n{call}"
             );
         }
     }
