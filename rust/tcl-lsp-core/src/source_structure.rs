@@ -179,6 +179,43 @@ impl DefinitionCursorRegion {
     }
 }
 
+/// A completion-only opaque operand under an authentic selected definition
+/// parent. Source/input currency is retained independently of script traversal.
+pub(crate) struct OpaqueScriptAuthoringContext {
+    region: tcl_compiler::registry_invocation::OpaqueScriptAuthoringRegion,
+    image: SourceImage,
+    input: ResolvedAnalysisInput,
+}
+
+impl OpaqueScriptAuthoringContext {
+    /// Select lexical command-position geometry solely inside the retained
+    /// opaque operand. No descendant script, scope or variable advice follows.
+    pub(crate) fn command_prefix(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+    ) -> Option<tcl_lexer::word_parts::WordCursorPrefix> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        if self.image != SourceImage::document(source)
+            || analysis.resolved_input.as_ref() != Some(&self.input)
+        {
+            return None;
+        }
+        let content =
+            self.region
+                .content_for_authoring(&self.image, current.config(), &current.context())?;
+        let prefix = tcl_lexer::word_parts::word_cursor_prefix_in(
+            &self.image,
+            content,
+            cursor,
+            current.config(),
+        )
+        .ok()??;
+        (prefix.word_index() == 0).then_some(prefix)
+    }
+}
+
 /// Why current source cannot select a nested definition vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DefinitionGrammarUnavailable {
@@ -1341,6 +1378,52 @@ impl SourceStructure {
         }
         self.commands.extend(commands);
         Some(())
+    }
+
+    /// Distinct authoring-only selection; opaque operands never enter the
+    /// ordinary script inventory or inherit a definition vocabulary.
+    pub(crate) fn opaque_script_authoring_at(
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+    ) -> Option<OpaqueScriptAuthoringContext> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let image = SourceImage::document(source);
+        let input = analysis.resolved_input.as_ref()?;
+        let context = current.context();
+        let structure = Self::capture_with_purpose(
+            source,
+            Some(analysis),
+            current.config(),
+            CapturePurpose::DefinitionCursor,
+        )?;
+        let mut selected = None;
+        for members in structure
+            .definition_cursor_regions
+            .iter()
+            .filter_map(|region| region.members.as_ref())
+        {
+            for words in members.original_commands() {
+                let Some(regions) = members.opaque_script_authoring_regions(&context, words) else {
+                    continue;
+                };
+                for region in regions {
+                    let content =
+                        region.content_for_authoring(&image, current.config(), &context)?;
+                    if content.start() <= cursor && cursor <= content.end() {
+                        if selected.is_some() {
+                            return None;
+                        }
+                        selected = Some(OpaqueScriptAuthoringContext {
+                            region,
+                            image: image.clone(),
+                            input: input.clone(),
+                        });
+                    }
+                }
+            }
+        }
+        selected
     }
 
     /// One purpose-specific cursor query over the existing genuine body walk.
@@ -3185,5 +3268,143 @@ mod original_hover_word_geometry_tests {
         let old = analysis.body_lexer_config.unwrap().strict_quoting;
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !old;
         assert!(original_complete_cursor_word(source, &analysis, offset).is_none());
+    }
+}
+
+#[cfg(test)]
+mod opaque_script_authoring_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn marked(marked: &str) -> (String, u32) {
+        let cursor = u32::try_from(marked.find("<|>").unwrap()).unwrap();
+        (marked.replacen("<|>", "", 1), cursor)
+    }
+
+    #[test]
+    fn retained_opaque_authoring_keeps_source_roles_separate_from_scripts() {
+        use tcl_compiler::registry_invocation::{
+            OriginalSourceScriptPurpose, source_registry_words_in_definition_body_at,
+        };
+        let (source, cursor) = marked(
+            "sslictcl 1\npolicy baseline {\n check bespoke {\n  predicate {\n   se<|>\n  }\n }\n}\n",
+        );
+        let analysis = Analyser::new().analyse(&source, "sslictcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let authoring = SourceStructure::opaque_script_authoring_at(&source, &analysis, cursor)
+            .expect("actual opaque role and current parent");
+        assert_eq!(
+            authoring
+                .command_prefix(&source, &analysis, cursor)
+                .unwrap()
+                .word_index(),
+            0
+        );
+        let image = SourceImage::document(&source);
+        let content = authoring
+            .region
+            .content_for_authoring(&image, config, &context)
+            .unwrap();
+        let structure = SourceStructure::capture(&source, Some(&analysis), config).unwrap();
+        assert!(!structure.scripts.iter().any(|(span, _)| *span == content));
+        let structure = SourceStructure::capture_with_purpose(
+            &source,
+            Some(&analysis),
+            config,
+            CapturePurpose::DefinitionCursor,
+        )
+        .unwrap();
+        let offset = u32::try_from(source.find("predicate").unwrap()).unwrap();
+        let parent = structure
+            .definition_cursor_regions
+            .iter()
+            .filter(|region| region.span.start() <= offset && offset < region.span.end())
+            .max_by_key(|region| region.depth)
+            .unwrap()
+            .parent
+            .as_ref()
+            .unwrap();
+        let words = source_registry_words_in_definition_body_at(&source, &analysis, offset, parent)
+            .unwrap();
+        assert!(
+            words
+                .source_script_bodies_for(&context, OriginalSourceScriptPurpose::Syntax)
+                .is_empty()
+        );
+        assert!(
+            words
+                .source_script_bodies_for(
+                    &context,
+                    OriginalSourceScriptPurpose::PotentialEvaluation
+                )
+                .is_empty()
+        );
+        assert!(
+            words
+                .source_script_bodies_for_mutation_coverage(&context)
+                .is_none()
+        );
+        let changed = source.replace("baseline", "changed_");
+        assert!(
+            authoring
+                .command_prefix(&changed, &analysis, cursor)
+                .is_none()
+        );
+        let foreign = Analyser::new().analyse(&source, "tcl8.6");
+        assert!(
+            authoring
+                .command_prefix(&source, &foreign, cursor)
+                .is_none()
+        );
+        let mut changed_config = Analyser::new().analyse(&source, "sslictcl");
+        changed_config.body_lexer_config = Some(LexerConfig {
+            strict_quoting: !config.strict_quoting,
+            ..config
+        });
+        assert!(
+            authoring
+                .command_prefix(&source, &changed_config, cursor)
+                .is_none()
+        );
+        let profile = analysis.resolved_profile().unwrap();
+        let overlay =
+            tcl_registry::registry_for_profile_with_overlay(profile, 0x0A0A_2026, |registry| {
+                let mut row = registry.get("set").unwrap().clone();
+                row.name = "opaque_authoring_control";
+                registry.insert(row);
+            });
+        let foreign_store = analyse_document(&source, profile, overlay.as_ref(), config);
+        assert!(
+            authoring
+                .command_prefix(&source, &foreign_store, cursor)
+                .is_none()
+        );
+        assert!(
+            SourceStructure::opaque_script_authoring_at(&source, &foreign_store, cursor)
+                .unwrap()
+                .command_prefix(&source, &foreign_store, cursor)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn opaque_authoring_refuses_unselected_or_cooked_operands() {
+        for input in [
+            "set data {se<|>}",
+            "policy baseline {check bespoke {$head {se<|>}}}",
+            "policy baseline {check bespoke {{*}predicate {se<|>}}}",
+            "policy baseline {check bespoke {predicate \"s\\x65<|>\"}}",
+            "policy baseline {check bespoke {predicate {se<|>} extra}}",
+            "policy baseline {check bespoke {message {se<|>}}}",
+            "policy baseline {check bespoke {predicate {*}{se<|>}}}",
+        ] {
+            let (source, cursor) = marked(input);
+            let analysis = Analyser::new().analyse(&source, "sslictcl");
+            assert!(
+                SourceStructure::opaque_script_authoring_at(&source, &analysis, cursor).is_none(),
+                "{input}"
+            );
+        }
     }
 }

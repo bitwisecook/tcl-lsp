@@ -36,6 +36,7 @@ use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_registry::CommandRegistry;
 
 mod original_context;
+mod original_opaque;
 mod original_properties;
 mod original_variables;
 mod original_workspace;
@@ -459,6 +460,16 @@ pub fn completions(
     else {
         return Vec::new();
     };
+    if let Some(items) = original_opaque::items(
+        source,
+        line,
+        character,
+        analysis,
+        caller_registry.is_some(),
+        &current,
+    ) {
+        return items;
+    }
     if let Some(items) = variable_trigger_completions(source, line, character, analysis) {
         return items;
     }

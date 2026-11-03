@@ -694,6 +694,44 @@ impl OriginalSourceScriptBody {
     }
 }
 
+/// Exact opaque-script operand selected for lexical command authoring only.
+/// This is neither a source script body nor a scope, frame or evaluated region.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpaqueScriptAuthoringRegion {
+    parent: OriginalSourceScriptBody,
+    original: Vec<NativeWord>,
+    container: NativeWord,
+    content: Span,
+}
+
+impl OpaqueScriptAuthoringRegion {
+    /// Reborrow the actual selected parent and operand under unchanged source
+    /// and Registry custody. The resulting geometry grants authoring only.
+    #[must_use]
+    pub fn content_for_authoring(
+        &self,
+        image: &SourceImage,
+        config: LexerConfig,
+        context: &ContextRegistry,
+    ) -> Option<Span> {
+        if !self.parent.matches_source(image, config)
+            || !self.parent.matches_context(context)
+            || self.container.image() != image
+            || self.container.config() != config
+        {
+            return None;
+        }
+        let members = self
+            .parent
+            .definition_member_region(context, self.parent.content_span())?;
+        members
+            .opaque_script_authoring_regions(context, &self.original)?
+            .iter()
+            .any(|region| region == self)
+            .then_some(self.content)
+    }
+}
+
 /// Original member script selected within an authentic definition body.
 /// The genuine parent source schema and complete original member argv stay
 /// retained. Member vocabulary is source syntax, never global command lookup.
@@ -1200,6 +1238,70 @@ impl OriginalSourceDefinitionMemberRegion {
         indices
             .into_iter()
             .map(|index| retained.get(index.checked_add(1)?))
+            .collect()
+    }
+
+    /// Opaque source scripts may supply lexical command authoring without
+    /// joining executable Body inventories. Complete argv and unchanged whole
+    /// container bytes must retain this actual parent's selected role.
+    #[must_use]
+    pub fn opaque_script_authoring_regions(
+        &self,
+        context: &ContextRegistry,
+        original: &[NativeWord],
+    ) -> Option<Vec<OpaqueScriptAuthoringRegion>> {
+        self.complete_original_commands()?;
+        let first = original.first()?;
+        if self.context != *context.context()
+            || !self.parent.matches_source(first.image(), first.config())
+            || !self.parent.matches_context(context)
+            || self
+                .parent
+                .source_words()
+                .with_source_schema(context, source_member_grammar)
+                .flatten()
+                .is_none_or(|grammar| !std::ptr::eq(grammar, self.grammar))
+        {
+            return None;
+        }
+        let values = self.member_values(original)?;
+        let keyword = values.first()?.as_deref()?;
+        let arguments = original
+            .iter()
+            .zip(&values)
+            .skip(1)
+            .map(|(word, value)| {
+                if word.group().expand {
+                    tcl_registry::InvocationWord::Expanded
+                } else {
+                    value.as_deref().map_or(
+                        tcl_registry::InvocationWord::Dynamic,
+                        tcl_registry::InvocationWord::KnownBytes,
+                    )
+                }
+            })
+            .collect::<Vec<_>>();
+        let indices = self.grammar.checked_source_member_arg_indices_for_role_in(
+            keyword,
+            tcl_registry::InvocationArguments::structured(&arguments),
+            Some(self.context.authoring_query()),
+            ArgRole::OpaqueScript,
+        )?;
+        indices
+            .into_iter()
+            .map(|argument| {
+                let container = original.get(argument.checked_add(1)?)?;
+                let geometry = original_word_script_body_geometry(container)?;
+                let value = tcl_syntax::word_rules::original_static_word_unicode_value(container)?;
+                (container.image().bytes().get(geometry.content.as_range())? == value.as_slice())
+                    .then_some(())?;
+                Some(OpaqueScriptAuthoringRegion {
+                    parent: self.parent.clone(),
+                    original: original.to_vec(),
+                    container: container.clone(),
+                    content: geometry.content,
+                })
+            })
             .collect()
     }
 

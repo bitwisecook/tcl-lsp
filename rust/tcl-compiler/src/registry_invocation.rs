@@ -125,10 +125,11 @@ pub(crate) use source_scoped_body::OriginalSourceDefinitionMemberBodyCorresponde
 /// Sealed readonly original argv and Registry source-role structure.
 pub mod source_structure;
 pub use source_scoped_body::{
-    OriginalDeclaredSourceScriptBody, OriginalLogicalScopedEnvironment,
-    OriginalSourceDefinitionMemberDisposition, OriginalSourceDefinitionMemberReference,
-    OriginalSourceDefinitionMemberRegion, OriginalSourceDefinitionMemberScriptBody,
-    OriginalSourceScopedBody, OriginalSourceScriptBody, OriginalSourceScriptPurpose,
+    OpaqueScriptAuthoringRegion, OriginalDeclaredSourceScriptBody,
+    OriginalLogicalScopedEnvironment, OriginalSourceDefinitionMemberDisposition,
+    OriginalSourceDefinitionMemberReference, OriginalSourceDefinitionMemberRegion,
+    OriginalSourceDefinitionMemberScriptBody, OriginalSourceScopedBody, OriginalSourceScriptBody,
+    OriginalSourceScriptPurpose,
 };
 pub(crate) use source_scoped_body::{
     OriginalSourceScriptBodyOrigin, declared_source_script_bodies_for,

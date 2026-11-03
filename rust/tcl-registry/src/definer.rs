@@ -3423,6 +3423,32 @@ impl DefinitionBodyGrammar {
         )
     }
 
+    /// Complete source-role layout for a purpose-specific readonly consumer.
+    /// This preserves exact argv, selector and availability checks without
+    /// converting an opaque role into an executable script argument.
+    #[must_use]
+    pub fn checked_source_member_arg_indices_for_role_in(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+        role: ArgRole,
+    ) -> Option<Vec<usize>> {
+        Some(
+            self.source_member_indices_where(
+                std::str::from_utf8(keyword).ok()?,
+                args,
+                dialect,
+                &|candidate| candidate == role,
+                true,
+                false,
+            )?
+            .into_iter()
+            .map(SourceDefinitionMemberScriptArgument::argument)
+            .collect(),
+        )
+    }
+
     /// Reference-list arguments and their entity kind, with wrapper operands
     /// and the leading slot operation mapped by this grammar.
     #[must_use]
