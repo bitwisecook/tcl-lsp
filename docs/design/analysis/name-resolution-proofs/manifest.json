@@ -781721,7 +781721,7 @@
         {
           "path": "rust/tcl-lsp-core/src/math_function_symbol.rs",
           "selector": "math_function_symbol::tests::original_math_selection_keeps_fixed_and_command_metadata_purposes_separate",
-          "assertion": "Fixed-table and command-table documentation survive cleared reporting maps without a fabricated wrapper.",
+          "assertion": "The source-defined control selects builtin metadata after clearing command invocations and procedure reporting maps for six analysis profiles. C8.4 and Jim select the fixed table without a command reference; the other selected profiles use command-table dispatch. No test execution or native provider result is attached.",
           "status": "linked"
         },
         {
@@ -781897,7 +781897,7 @@
         {
           "path": "rust/tcl-lsp-core/src/math_function_symbol.rs",
           "selector": "math_function_symbol::tests::original_math_references_cannot_supply_a_command_word_rename",
-          "assertion": "A genuine readonly function reference has no command-head input and prevents partial declaration/script-call edits even with reporting maps cleared; stale correspondence declines.",
+          "assertion": "With the procedure reporting map cleared, the source-defined control checks that a readonly function reference has no original command-head input, that rename refuses a partial declaration/script-call edit, and that displaced consumer source declines correspondence. No test execution or native provider result is attached.",
           "status": "linked"
         },
         {
@@ -784686,7 +784686,7 @@
       "problem_statement": "A cursor label or guarded source rename can select the wrong name when it scans delimiter characters independently of the actual analysis grammar. Whole scalar parentheses, literal dollars, nested array-index references and conditional source-body applicability require the same original component owner.",
       "question": "How do editor variable cursor labels and positively admitted Logical rename projections retain the actual complete analysis, selected variable grammar and original component geometry without granting a Native read, binding or edit?",
       "conclusion": "ExecutablePartArena::variable_part_at selects the smallest genuine original variable component, including nested index children. Core original_variable_reference_at joins that component through the complete current SourceStructure, actual source/config/input/context and independent comment/data applicability. Shared selected whole-reference roots and the closed-element name partition preserve scalar unmatched/tail parentheses and literal dollar units. Definition, hover, type-definition and declaration consume the same source geometry; their binding/type/navigation authorities remain independent. Hover inference retains the actual analysis context, and Logical declaration/lambda scans retain the actual realm/config and authentic lambda body word. Guarded Logical rename uses the original whole component and strict scanner correspondence, refusing source drift or missing geometry before edits. The standalone hover utility explicitly chooses its own source lexer configuration and supplies only a syntax label. None of these source labels or chosen rename controls proves Native cells, read completion, frame entry, AST/SSA runtime identity, current storage or Native edit authority. Independent native expression public rows remain separately scoped.",
-      "scope": "Seven marked source/API controls cover original nested components, literal dollars, C/Jim/iRules selected grammar and Unicode/UTF16 offsets, complete source roots/spans, custom ReferenceOnly/prefix roles, malformed/data and stale/missing/config refusal, and authentic positively retained Logical rename projections. The related pure Syntax closed-element control is bound to the selected-reference-root question. All seven providers are not tested for cursor/edit API assertions; standalone selected syntax and analysed navigation/edit authority remain distinct.",
+      "scope": "Seven marked source/API controls cover original nested components, literal dollars, selected FirstClose/Tcl9Nesting braced-variable styles and Unicode/UTF16 offsets, complete source roots/spans, custom ReferenceOnly/prefix roles, malformed/data and stale/missing/config refusal, and authentic positively retained Logical rename projections. The related pure Syntax closed-element control is bound to the selected-reference-root question. All seven providers are not tested for cursor/edit API assertions; standalone selected syntax and analysed navigation/edit authority remain distinct.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -784827,7 +784827,7 @@
         {
           "path": "rust/tcl-lsp-core/src/source_structure.rs",
           "selector": "source_structure::tests::original_variable_cursor_keeps_selected_roots_and_complete_source_geometry",
-          "assertion": "Current complete analyses retain actual selected C/Jim/iRules roots and whole original source spans, including Unicode offsets and nested index components, with stale/config/input refusal.",
+          "assertion": "The source-defined control uses Logical plain-Tcl analysis with FirstClose and Tcl9Nesting braced-variable styles to check selected roots, complete source spans, Unicode and nested components, and stale, changed-config or missing-input refusal. It attaches no test execution or native provider result.",
           "status": "linked"
         },
         {
@@ -784857,7 +784857,7 @@
         {
           "path": "rust/tcl-lsp-core/src/rename.rs",
           "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
-          "assertion": "Genuine retained Logical analysis and existing edit gates preserve exact scalar-parenthesis/literal-dollar name geometry across declarations and references; source/scanner mismatch refuses rather than reconstructing a Native target.",
+          "assertion": "The source-defined control uses retained Logical analysis to check scalar-parenthesis, literal-dollar and Unicode name edits across declaration and reference sites, and refuses changed complete source. It attaches no test execution or native provider result.",
           "status": "linked"
         }
       ],
@@ -824473,7 +824473,7 @@
           "path": "rust/tcl-lsp-core/src/rename.rs",
           "selector": "rename::tests::logical_rename_preserves_original_separator_runs_unicode_and_array_extent",
           "status": "linked",
-          "assertion": "Fixed source replacement helpers preserve complete separator runs, Unicode byte geometry and whole array suffixes under the supplied variable grammar. Actual Analyser source replacement retains current-image correspondence and declines changed input. These source extents require independent caller edit permission. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+          "assertion": "Fixed source replacement helpers preserve complete separator runs, Unicode byte geometry and whole array suffixes under the supplied variable grammar. Actual Analyser source replacement retains current-image correspondence and declines changed source. These source extents require independent caller edit permission. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         },
         {
           "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
