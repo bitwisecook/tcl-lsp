@@ -840,6 +840,48 @@ pub fn hover_with_profile(
     hover_in_program(source, line, character, analysis, registry, profile, None)
 }
 
+// An unresolved variable position remains terminal. The special-variable card
+// needs a genuine selected original root and an independently current Registry;
+// it does not turn an unavailable variable or a copied label into a lookup.
+fn current_special_variable_source_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    occurrence: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    cursor: u32,
+) -> Option<Hover> {
+    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    if !crate::variable_symbol::declaration_spans(analysis, occurrence.symbol()).is_empty() {
+        return None;
+    }
+    let SignatureSourceNameInput::OriginalVariableRoot(root) = occurrence.original_name_input()
+    else {
+        return None;
+    };
+    let reference =
+        crate::source_structure::original_variable_reference_at(source, analysis, cursor)?;
+    if root.name_span()? != reference.name_span || root.part_span() != reference.whole_span {
+        return None;
+    }
+    use tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+    let name = match occurrence.symbol().slot() {
+        SignatureSourceVariableSlot::C { namespace, simple } if namespace.is_root() => {
+            std::str::from_utf8(simple.as_bytes()).ok()?
+        }
+        SignatureSourceVariableSlot::Jim(key) => std::str::from_utf8(key.as_bytes()).ok()?,
+        SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Local { .. } => {
+            return None;
+        }
+    };
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let context = current.context();
+    let dialect = Some(context.context().authoring_query());
+    let spec = current.registry().special_var_in_dialect(name, dialect)?;
+    Some(Hover::markdown(special_var_hover_text(spec, dialect)))
+}
+
 fn source_role_hover(
     source: &str,
     line: u32,
@@ -890,7 +932,20 @@ fn source_role_hover(
     if let std::ops::ControlFlow::Break(selected) =
         crate::variable_symbol::select_navigation(source, analysis, line, character, ctx)
     {
-        return std::ops::ControlFlow::Break(selected.and_then(|selection| {
+        let Some(selection) = selected else {
+            return std::ops::ControlFlow::Break(None);
+        };
+        if let crate::variable_symbol::NavigationVariable::Original(occurrence) = &selection
+            && crate::variable_symbol::declaration_spans(analysis, occurrence.symbol()).is_empty()
+        {
+            return std::ops::ControlFlow::Break(current_special_variable_source_hover(
+                source,
+                analysis,
+                occurrence,
+                cursor_offset,
+            ));
+        }
+        let answer = Some(selection).and_then(|selection| {
             let mut text = selection.hover_text(analysis)?;
             if matches!(
                 selection,
@@ -905,7 +960,8 @@ fn source_role_hover(
                 append_var_annotations(&mut text, type_info.as_deref(), taint_info.as_deref());
             }
             Some(Hover::markdown(text))
-        }));
+        });
+        return std::ops::ControlFlow::Break(answer);
     }
     match crate::method_symbol::local_candidate(source, analysis, line, character) {
         std::ops::ControlFlow::Break(Some(candidate)) => {
@@ -7398,6 +7454,76 @@ mod original_special_variable_context_tests {
         Analyser::new()
             .with_resolved_input(input)
             .analyse(source, "reporting label")
+    }
+
+    #[test]
+    fn special_variable_source_card_never_overrides_declaration_or_unavailable_root() {
+        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        let source = "set auto_path custom; puts $auto_path";
+        let analysis = analyse_with(source, context.clone());
+        let cursor = u32::try_from(source.rfind("$auto_path").unwrap() + 2).unwrap();
+        let card = hover(source, 0, cursor, &analysis, None).unwrap();
+        assert!(!card.value.contains("special variable"), "{}", card.value);
+
+        for source in [
+            "proc p {} {puts $auto_path}",
+            "namespace eval ::foo {puts $env}",
+        ] {
+            let analysis = analyse_with(source, context.clone());
+            let cursor = u32::try_from(source.find('$').unwrap() + 2).unwrap();
+            if let Some(card) = hover(source, 0, cursor, &analysis, None) {
+                assert!(
+                    !card.value.contains("special variable")
+                        && !card.value.contains("special array"),
+                    "{}",
+                    card.value
+                );
+            }
+        }
+        let rooted = "puts $::auto_path";
+        let rooted_analysis = analyse_with(rooted, context.clone());
+        let rooted_cursor = u32::try_from(rooted.find("auto_path").unwrap() + 1).unwrap();
+        assert!(
+            hover(rooted, 0, rooted_cursor, &rooted_analysis, None)
+                .is_some_and(|card| card.value.contains("special variable"))
+        );
+
+        for source in ["puts {$auto_path}", "# $auto_path", "puts \\$auto_path"] {
+            let analysis = analyse_with(source, context.clone());
+            let cursor = u32::try_from(source.find("$auto_path").unwrap() + 2).unwrap();
+            assert!(
+                hover(source, 0, cursor, &analysis, None).is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn special_variable_card_requires_occurrence_and_excludes_array_index() {
+        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        let source = "puts $auto_path";
+        let mut analysis = analyse_with(source, context.clone());
+        let cursor = u32::try_from(source.find("auto_path").unwrap() + 1).unwrap();
+        assert!(hover(source, 0, cursor, &analysis, None).is_some());
+        analysis.original_variable_symbols.clear();
+        assert!(hover(source, 0, cursor, &analysis, None).is_none());
+
+        let source = "puts $tcl_platform(os)";
+        let analysis = analyse_with(source, context);
+        let root = u32::try_from(source.find("tcl_platform").unwrap() + 1).unwrap();
+        assert!(
+            hover(source, 0, root, &analysis, None)
+                .is_some_and(|card| card.value.contains("special array"))
+        );
+        let index = u32::try_from(source.find("(os)").unwrap() + 2).unwrap();
+        assert!(
+            hover(source, 0, index, &analysis, None)
+                .is_none_or(|card| !card.value.contains("special array"))
+        );
     }
 
     #[test]
