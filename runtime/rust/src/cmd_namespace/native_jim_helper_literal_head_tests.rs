@@ -126,6 +126,11 @@ fn original_jim_public_helper_lookup_retains_the_recognised_original_selector() 
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
+        crate::cmd_proc::install_stock_scripted_library(
+            &mut interp,
+            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+        );
+        assert!(interp.native_execution_refusal().is_none());
         if change & 1 != 0 {
             assert_eq!(
                 interp.eval_str(b"proc {namespace upvar} {args} {return [list FULL {*}$args]}"),

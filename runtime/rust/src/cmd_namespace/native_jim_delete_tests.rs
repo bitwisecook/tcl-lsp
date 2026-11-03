@@ -80,12 +80,18 @@ unsafe extern "C" fn delete_target(_: *mut std::ffi::c_void) {
     DELETIONS.with(|count| count.set(count.get() + 1));
 }
 fn native_jim() -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         crate::interp::default_host(),
         crate::environment::profile_for_dialect("jimtcl"),
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
-    .unwrap()
+    .unwrap();
+    crate::cmd_proc::install_stock_scripted_library(
+        &mut interp,
+        tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+    );
+    assert!(interp.native_execution_refusal().is_none());
+    interp
 }
 fn setup(interp: &mut Interp) {
     for name in [b"42::84::target".as_slice(), b"42::85::target"] {

@@ -12,12 +12,18 @@ use crate::obj::{self, Owned};
 mod reuse;
 
 fn jim() -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         crate::interp::default_host(),
         crate::environment::profile_for_dialect("jimtcl"),
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
-    .unwrap()
+    .unwrap();
+    crate::cmd_proc::install_stock_scripted_library(
+        &mut interp,
+        tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+    );
+    assert!(interp.native_execution_refusal().is_none());
+    interp
 }
 
 // Exercise the existing activation owner directly; public marked entry remains denied.

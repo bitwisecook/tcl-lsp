@@ -1430,6 +1430,11 @@ mod tests {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();
+            crate::cmd_proc::install_stock_scripted_library(
+                &mut interpreter,
+                tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+            );
+            assert!(interpreter.native_execution_refusal().is_none());
             if moved {
                 assert_eq!(
                     interpreter.eval_str(b"rename {namespace import} retained_original_import"),
@@ -1469,12 +1474,17 @@ mod tests {
 
     #[test]
     fn installed_jim_helpers_retain_the_static_body_source_and_shared_filename() {
-        let interpreter = Interp::with_native_core(
+        let mut interpreter = Interp::with_native_core(
             crate::interp::default_host(),
             crate::environment::profile_for_dialect("jimtcl"),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
+        crate::cmd_proc::install_stock_scripted_library(
+            &mut interpreter,
+            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+        );
+        assert!(interpreter.native_execution_refusal().is_none());
         let context = interpreter.native_jim_object_context().unwrap();
         let mut filename = None;
         for kind in tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
