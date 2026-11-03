@@ -837301,8 +837301,8 @@
         },
         {
           "path": "runtime/rust/src/interp.rs",
-          "selector": "interp::tests::active_original_command_keeps_client_data_until_dispatch_releases_its_handle",
-          "assertion": "An actual active command handle retains its original client data during replacement and releases it with dispatch ownership. The test does not resolve the independently documented C86 recreated-slot discard gap.",
+          "selector": "interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle",
+          "assertion": "The source-defined software control checks that replacement invokes the original delete procedure once before the active callback returns, installs a different command token and preserves the held word reference count. It does not resolve the independently documented C86 recreated-slot discard gap or establish a passed test or native provider result.",
           "status": "linked"
         },
         {
