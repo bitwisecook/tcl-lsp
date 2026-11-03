@@ -311,15 +311,18 @@ pub struct OriginalForeignFactoryBody {
 }
 
 impl OriginalForeignFactoryBody {
-    /// Capture the original written call under a unique selected foreign
-    /// header, using the caller's retained source graph and complete vector.
-    fn capture(
+    fn source_call<'a>(
         source: &str,
-        analysis: &AnalysisResult,
+        analysis: &'a AnalysisResult,
         segment: &crate::segmenter::SegmentedCommand,
         caller_document: u64,
         providers: &[(u64, OriginalProjectFactoryHeaders)],
-    ) -> Option<Self> {
+    ) -> Option<(
+        &'a ResolvedAnalysisInput,
+        SourceImage,
+        crate::ir::CommandTokens,
+        std::sync::Arc<crate::registry_invocation::OriginalSourceCommandProjection>,
+    )> {
         let input = analysis.resolved_input.as_ref()?;
         let config = analysis.body_lexer_config?;
         let image = SourceImage::document(source);
@@ -381,25 +384,15 @@ impl OriginalForeignFactoryBody {
         {
             return None;
         }
-        let registry = analysis.resolved_registry()?;
-        let (declaring_document, provider, declaration, factory_provider) =
-            if input.has_logical_source_name_context() {
-                let candidates =
-                crate::registry_invocation::source_structure::source_logical_command_candidates_at(
-                    source, analysis, offset,
-                )?;
-                (candidates.original_words() == projection.native_words()).then_some(())?;
-                let selected = select_logical_factory(providers, &candidates)?;
-                let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
-                    .authored_name_policy()?;
-                (selected.2.name().policy() == policy).then_some(())?;
-                selected
-            } else {
-                select_native_factory(providers, registry, &tokens)?
-            };
-        if declaring_document == caller_document {
-            return None;
-        }
+        Some((input, image, tokens, projection))
+    }
+
+    fn selected_grammar(
+        input: &ResolvedAnalysisInput,
+        provider: &OriginalProjectFactoryHeaders,
+        declaration: &SourceDeclarationMetadata<ClassDef>,
+        factory_provider: &crate::command_binding::OriginalSourceClassRelationProvider,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
         let class = declaration.metadata();
         if class.source_name.as_ref() != Some(declaration.name())
             || class.source_name_ambiguous.is_observed()
@@ -433,6 +426,44 @@ impl OriginalForeignFactoryBody {
         }
         let grammar = descriptor.definition_body?;
         (grammar.family == tcl_registry::definer::DefinerFamily::TclOo).then_some(())?;
+        Some(grammar)
+    }
+
+    /// Capture the original written call under a unique selected foreign
+    /// header, using the caller's retained source graph and complete vector.
+    fn capture(
+        source: &str,
+        analysis: &AnalysisResult,
+        segment: &crate::segmenter::SegmentedCommand,
+        caller_document: u64,
+        providers: &[(u64, OriginalProjectFactoryHeaders)],
+    ) -> Option<Self> {
+        let (input, image, tokens, projection) =
+            Self::source_call(source, analysis, segment, caller_document, providers)?;
+        let config = input.lexer_config();
+        let offset = segment.argv.first()?.span.start();
+        let binding = tokens.source_binding.as_ref()?;
+        let registry = analysis.resolved_registry()?;
+        let (declaring_document, provider, declaration, factory_provider) =
+            if input.has_logical_source_name_context() {
+                let candidates =
+                crate::registry_invocation::source_structure::source_logical_command_candidates_at(
+                    source, analysis, offset,
+                )?;
+                (candidates.original_words() == projection.native_words()).then_some(())?;
+                let selected = select_logical_factory(providers, &candidates)?;
+                let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                    .authored_name_policy()?;
+                (selected.2.name().policy() == policy).then_some(())?;
+                selected
+            } else {
+                select_native_factory(providers, registry, &tokens)?
+            };
+        if declaring_document == caller_document {
+            return None;
+        }
+        let grammar = Self::selected_grammar(input, provider, declaration, factory_provider)?;
+        let factory = declaration.metadata().factory.as_ref()?;
         let keyword = if input.has_logical_source_name_context() {
             tcl_syntax::word_rules::original_static_word_unicode_value(
                 projection.native_words().get(1)?,
@@ -518,19 +549,23 @@ impl OriginalForeignFactoryBody {
     }
 
     /// Original body word and source-only grammar; no body execution follows.
+    #[must_use]
     pub fn body(&self) -> &tcl_lexer::NativeWord {
         &self.projection.native_words()[self.body_ordinal]
     }
     /// Original written instance name in the caller document.
+    #[must_use]
     pub fn name(&self) -> &tcl_lexer::NativeWord {
         &self.projection.native_words()[self.name_ordinal]
     }
     /// Unresolved publication and applicability conditions of this source advice.
+    #[must_use]
     pub fn obligations(&self) -> &[ForeignFactorySourceObligation] {
         &self.obligations
     }
     /// The unchanged declaring source graph provider, including its retained
     /// parent advice and its separate applicability obligations.
+    #[must_use]
     pub fn factory_provider(&self) -> &crate::command_binding::OriginalSourceClassRelationProvider {
         &self.factory_provider
     }
@@ -538,6 +573,7 @@ impl OriginalForeignFactoryBody {
     /// The current declaring analysis must still own this exact source realm,
     /// input and one unique original declaration. Snapshot generation remains
     /// independently checked by the project host.
+    #[must_use]
     pub fn matches_declaring(&self, analysis: &AnalysisResult) -> bool {
         if analysis.resolved_input.as_ref() != Some(&self.provider.input)
             || !analysis
@@ -561,6 +597,7 @@ impl OriginalForeignFactoryBody {
         matches.next().is_some() && matches.next().is_none()
     }
     /// Recheck the exact caller source, input and retained realm.
+    #[must_use]
     pub fn matches_caller(&self, analysis: &AnalysisResult) -> bool {
         analysis.resolved_input.as_ref() == Some(&self.caller_input)
             && analysis
