@@ -1222,11 +1222,19 @@ mod tests {
             }
             for directive in [
                 "# tcl-lsp: supports tcl 8.6-9.0\n",
-                "# tcl-lsp: provides custom\n",
+                "# tcl-lsp: package custom provides Tk\n",
             ] {
                 let source = format!("{directive}{positive}");
+                assert_eq!(source.lines().last(), Some(positive));
+                assert_eq!(
+                    tcl_compiler::analyser::utils::parse_supports_directives(&source).len()
+                        + tcl_compiler::analyser::utils::parse_provides_directives(&source).len(),
+                    1,
+                    "{version:?}: directive must alter the source context: {source}"
+                );
                 assert!(
-                    survey_index_entries_from_source(&source, directory, config, policy).is_none()
+                    survey_index_entries_from_source(&source, directory, config, policy).is_none(),
+                    "{version:?}: recognized directive retains full analysis: {source}"
                 );
                 let old = survey_index_entries_with(
                     &source,

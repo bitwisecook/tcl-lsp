@@ -527,7 +527,8 @@ when cached registration data is read.
 - **Missing completions**: a `package require` not detected → the package's
   gated commands stay hidden. A **binary** extension that loads a package from
   its C `Init` is never detected by design; declare it with a
-  `# tcl-lsp: provides` comment or under `[packages.provides]`.
+  `# tcl-lsp: package LOADER provides LOADED_PACKAGE` comment or under
+  `[packages.provides]`.
 - **False W120 diagnostics**: a require not recorded, or the workspace not yet
   scanned, → W120 fires for a command that is actually imported (directly, via
   a wrapper package, or via an entry file that sources the module).
