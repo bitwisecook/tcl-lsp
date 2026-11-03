@@ -76,6 +76,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-spectcl/src/loader.rs](../../../../rust/tcl-spectcl/src/loader.rs), `world_effects_value`: Keep incomplete data separate from explicit empty semantics.
 - [rust/tcl-spectcl/src/loader.rs](../../../../rust/tcl-spectcl/src/loader.rs), `loader::tests::incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics` (linked): Reject unsupported transition/world rows and invalid composition, while retaining valid composition and explicit empty world effects.
 
+- [rust/tcl-spectcl/src/loader.rs](../../../../rust/tcl-spectcl/src/loader.rs), `loader::tests::state_transition_blocks_read_every_row_world_effects_only_composition_issue_2140` (linked): The composition-only control preserves Replace and resolver none. Every row in the fixed malformed-transition roster is read and suppresses command publication instead of exposing a partial descriptor; the unsupported-world-effect roster likewise suppresses command publication.
+
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay

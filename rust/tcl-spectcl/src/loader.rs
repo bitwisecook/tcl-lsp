@@ -9825,12 +9825,13 @@ mod tests {
         );
     }
 
-    // Implementation contract: naming.dsl.incomplete-effect-descriptors.
     // The original row-reading regression also covers malformed input. Invalid
     // rows now withdraw the complete descriptor instead of exposing a partial
     // EMPTY descriptor; the valid composition control remains independent.
     #[test]
     fn state_transition_blocks_read_every_row_world_effects_only_composition_issue_2140() {
+        // Implementation contract: naming.dsl.incomplete-effect-descriptors
+        // docs/design/analysis/name-resolution-proofs/dsl-incomplete-effect-descriptors.md
         assert_transition_composition_controls();
         assert_each_malformed_transition_row_is_read();
         assert_world_effects_rows_withdraw_complete_descriptor();
