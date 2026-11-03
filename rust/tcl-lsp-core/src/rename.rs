@@ -2257,6 +2257,9 @@ fn build_var_ref_replacement(
     new_tail: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
+    if source.as_bytes().get(span.start() as usize) != Some(&b'$') {
+        return None;
+    }
     let original =
         tcl_lexer::scan_var_ref(source.as_bytes(), span.start() as usize, config).ok()??;
     let whole = tcl_lexer::Span::new(span.start(), u32::try_from(original.next).ok()?);
@@ -5722,7 +5725,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
         for (written, expected) in [
             ("${::::茶:::箱(槽)}", "${::::茶:::total(槽)}"),
-            ("$::::茶:::箱(槽)", "$::::茶:::total(槽)"),
+            ("$::::lib:::box(槽)", "$::::lib:::total(槽)"),
             ("${茶:箱}", "${total}"),
         ] {
             let span = tcl_lexer::Span::new(0, u32::try_from(written.len()).unwrap());
@@ -5735,6 +5738,11 @@ mod tests {
                     .is_none()
             );
         }
+        let bare_unicode = "$::::茶:::箱(槽)";
+        let bare_unicode_span = tcl_lexer::Span::new(0, u32::try_from(bare_unicode.len()).unwrap());
+        assert!(
+            build_var_ref_replacement(bare_unicode, bare_unicode_span, "total", config).is_none()
+        );
         for (written, expected) in [
             ("::::茶:::méthode", "::::茶:::changed"),
             ("茶::::", "茶::::changed"),
