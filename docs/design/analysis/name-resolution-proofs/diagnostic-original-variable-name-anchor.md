@@ -66,8 +66,10 @@ This original-source implementation contract supplies no native process, reached
 
 - `naming-diagnostics-original-variable-name-anchor-dataflow.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs). SHA-256 `23a6715e7cde3633a4db0f6f30dfeb131771310f37667cecbc3c62380017e123`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-diagnostics-original-variable-name-anchor-var_command.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). SHA-256 `50bcf2ff935e4a4aae4b16d74382e1ea9c11eaaedd3f4bcac9196327fc0989df`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-variable-name-anchor-word_parts.rs` (implementation): [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs). SHA-256 `3e33b02d950a00b4d5474d38dee3492610713ee9c7caf9fae4f37b5e9e906c59`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-variable-name-anchor-word_parts.rs` (implementation): [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs). SHA-256 `15d1020c9b3d8417ca2e72501cfd88b5a0f4a6239aa032cf738d85f779b731c6`. Selected lexical scanner returns borrowed variable name/index extents under the supplied configuration and verifies original-source name geometry. This source entry alone does not establish compiler anchor or Native read; a separate receipt reports fixed lexer controls.
 - `naming-diagnostics-original-variable-name-anchor-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+
+- `lexer-anchor-fixed-helper-controls` (observation): [separate lexer helper receipt](rust-validation/lexer-anchor-20261103/receipt.json). SHA-256 `6c5898182d32f0c89e3dc927a85f3ba697ea55b362a0d2195dfb46eebca3e2ff`. Separate receipt for three exact lexer variable-reference controls only; no compiler anchor/callback, provider, complete-proof or six-dialect coverage result. Earlier original-allocation geometry receipt remains separate.
 
 ## Source inspection
 
@@ -87,4 +89,4 @@ A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+The separately retained receipt records three fixed lexer helper controls. The named compiler anchor and callback controls remain source bindings without new executed results; Native evidence and runtime/effect/frame/edit obligations remain independent.
