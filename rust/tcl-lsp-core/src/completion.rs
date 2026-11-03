@@ -464,14 +464,14 @@ pub fn completions(
     }
     let line_index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let Some(prefix) = word_prefix_at_position(source, line, character, analysis) else {
-        return Vec::new();
-    };
     if let Some(items) =
         expression_completion_items(source, (line, character, &line_index), analysis, &current)
     {
         return items;
     }
+    let Some(prefix) = word_prefix_at_position(source, line, character, analysis) else {
+        return Vec::new();
+    };
     let Some(partial) = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix) else {
         return Vec::new();
     };
@@ -6598,6 +6598,65 @@ mod original_own_object_completion_tests {
 mod original_expression_completion_tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn incomplete_root_expression_offers_registry_math_functions() {
+        for (source, needle, expected) in [
+            ("if {ma\n", "ma", true),
+            ("expr {si\n", "si", true),
+            ("proc if args {}; if {ma\n", "ma", false),
+            ("set data {ma\n", "ma", false),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let cursor = u32::try_from(source.rfind(needle).unwrap() + needle.len()).unwrap();
+            let items = completions(
+                source,
+                0,
+                cursor,
+                &analysis,
+                analysis.resolved_registry(),
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            assert_eq!(
+                items
+                    .iter()
+                    .any(|item| item.detail.as_deref() == Some("expr math function")),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn incomplete_nested_expression_offers_math_functions() {
+        let source = "set a [expr {si\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let items = completions(
+            source,
+            0,
+            15,
+            &analysis,
+            analysis.resolved_registry(),
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        assert!(items.iter().any(|item| item.label == "sin"));
+
+        let source = "proc sizzler {} {}\nset a [expr {si\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let items = completions(
+            source,
+            1,
+            15,
+            &analysis,
+            analysis.resolved_registry(),
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        assert!(items.iter().any(|item| item.label == "sin"));
+        assert!(!items.iter().any(|item| item.label == "sizzler"));
+    }
 
     #[test]
     // Implementation contract: naming.core.original-expression-source-selection

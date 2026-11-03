@@ -3790,8 +3790,6 @@ impl AnalysisResult {
         Some(entry)
     }
 
-    /// Exact temporal source world used by this analysis. Missing evidence
-    /// remains unknown; rebuilding a realm from the dialect label cannot
     /// Exact retained partial-region owner. Whole-document query APIs must not
     /// treat this as complete coverage; hosts retain publication leases separately.
     #[must_use]
@@ -3802,6 +3800,29 @@ impl AnalysisResult {
         region.matches_region_analysis(self).then_some(region)
     }
 
+    /// Conditional expression syntax in an incomplete final operand.
+    /// This supplies no evaluated argument, invocation, or dispatch fact.
+    #[must_use]
+    pub fn original_partial_expression_span(&self, source: &str) -> Option<tcl_lexer::Span> {
+        let input = self.resolved_input.as_ref()?;
+        let config = self.body_lexer_config?;
+        if config != input.lexer_config()
+            || !self
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        {
+            return None;
+        }
+        let realm = self.retained_command_realm()?;
+        if !realm.matches_resolved_analysis_input(input) {
+            return None;
+        }
+        realm
+            .source_bindings_ref()
+            .original_closed_prefix_expression_span(input)
+    }
+
+    /// Exact temporal source world used by this analysis. Missing evidence
+    /// remains unknown; rebuilding a realm from the dialect label cannot
     /// replace its native entry, provider or source-instance obligations.
     #[must_use]
     pub fn retained_command_realm(&self) -> Option<&crate::realm::CommandBindingRealm> {

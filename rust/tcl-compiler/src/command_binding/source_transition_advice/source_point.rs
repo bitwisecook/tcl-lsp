@@ -568,6 +568,18 @@ impl OriginalSourceTransitionSeed {
         Arc<OriginalSourcePointAdviceGraph>,
         super::OriginalSourceTransitionAdviceTape,
     )> {
+        self.source_outcome_advice(context, bindings, None)
+    }
+
+    fn source_outcome_advice(
+        &self,
+        context: &ContextRegistry,
+        bindings: &crate::command_binding::SourceCommandBindings,
+        purpose_override: Option<OriginalSourceCataloguePurpose>,
+    ) -> Option<(
+        Arc<OriginalSourcePointAdviceGraph>,
+        super::OriginalSourceTransitionAdviceTape,
+    )> {
         // Equal-source memo reuse has a distinct analysis attachment even when
         // the original source origin and baseline allocations are shared.
         if self
@@ -590,16 +602,18 @@ impl OriginalSourceTransitionSeed {
             refused: Cell::new(false),
             graph: RefCell::new(None),
         };
-        let purpose = if self
-            .baseline
-            .source_point_entry
-            .as_ref()
-            .is_some_and(|entry| entry.conditional_region().is_some())
-        {
-            OriginalSourceCataloguePurpose::ConditionalRegion
-        } else {
-            OriginalSourceCataloguePurpose::CompleteProgram
-        };
+        let purpose = purpose_override.unwrap_or_else(|| {
+            if self
+                .baseline
+                .source_point_entry
+                .as_ref()
+                .is_some_and(|entry| entry.conditional_region().is_some())
+            {
+                OriginalSourceCataloguePurpose::ConditionalRegion
+            } else {
+                OriginalSourceCataloguePurpose::CompleteProgram
+            }
+        });
         let tape = self.prepare_for_query(
             context,
             purpose,
@@ -610,6 +624,24 @@ impl OriginalSourceTransitionSeed {
             .graph
             .into_inner()
             .map(|graph| (Arc::new(graph), tape))
+    }
+}
+
+impl crate::command_binding::SourceCommandBindings {
+    pub(crate) fn original_closed_prefix_expression_span(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<tcl_lexer::Span> {
+        if self.source_metadata_owner().source_analysis_input() != Some(input) {
+            return None;
+        }
+        let seed = self.original_source_transition_seed()?;
+        let (_, tape) = seed.source_outcome_advice(
+            input.borrowed_context_registry(),
+            self,
+            Some(OriginalSourceCataloguePurpose::CompletePrefix),
+        )?;
+        tape.partial_expression_span
     }
 }
 

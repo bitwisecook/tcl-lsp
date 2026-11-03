@@ -993,6 +993,7 @@ fn conditional_procedure_declaration_selections(
 
 #[derive(Debug, Default)]
 pub(crate) struct OriginalSourceTransitionAdviceTape {
+    pub(crate) partial_expression_span: Option<tcl_lexer::Span>,
     arity_prefixes: BTreeMap<u32, Option<OriginalSourceArityPrefix>>,
     decoded_lambda_phases: BTreeMap<u32, Option<Arc<OriginalConditionalLambdaFormattingBody>>>,
     advice: BTreeMap<u32, OriginalSourceCommandTransitionAdvice>,
@@ -3184,6 +3185,139 @@ impl AdviceInvocationContext<'_> {
         }
     }
 
+    fn partial_expression_geometry(
+        &self,
+        tail: tcl_lexer::NativeScriptWordCut,
+    ) -> Option<(
+        tcl_lexer::NativeScriptWordCut,
+        tcl_lexer::SourceSegmentationPurpose,
+    )> {
+        let image = self.origin.source_image();
+        if tail.cut.kind != tcl_lexer::ParseIssueKind::MissingBrace
+            || image.bytes().get(tail.cut.term as usize) != Some(&b'{')
+        {
+            return None;
+        }
+        if tail.cut.offset as usize == image.bytes().len() {
+            Some((tail, tcl_lexer::SourceSegmentationPurpose::WholeInput))
+        } else {
+            let bracket = tail.cut.offset;
+            if image.bytes().get(bracket as usize) != Some(&b'[') {
+                return None;
+            }
+            let outer = tcl_lexer::native_script_words_in(
+                image.clone(),
+                tcl_lexer::Span::new(tail.command_start, bracket),
+                self.config,
+            )
+            .ok()?;
+            let [parent] = outer.commands.as_slice() else {
+                return None;
+            };
+            let last = parent.words.last()?;
+            if outer.fatal_tail.is_some()
+                || !image
+                    .bytes()
+                    .get(last.span().end() as usize..bracket as usize)?
+                    .iter()
+                    .all(u8::is_ascii_whitespace)
+                || last.span().end() == bracket
+                || parent.words.iter().any(|word| {
+                    word.group().expand
+                        || tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                            .is_none()
+                })
+            {
+                return None;
+            }
+            let child = tcl_lexer::native_script_words_in_with_purpose(
+                image.clone(),
+                tcl_lexer::Span::new(bracket + 1, image.bytes().len().try_into().ok()?),
+                self.config,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            )
+            .ok()?;
+            if !child.commands.is_empty() {
+                return None;
+            }
+            let child_tail = child.fatal_tail?;
+            if child_tail.cut.kind != tcl_lexer::ParseIssueKind::MissingBrace
+                || child_tail.cut.offset as usize != image.bytes().len()
+                || child_tail.cut.term != tail.cut.term
+            {
+                return None;
+            }
+            Some((
+                child_tail,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            ))
+        }
+    }
+
+    fn partial_expression_span(
+        &self,
+        graph: &AdviceGraph,
+        tail: tcl_lexer::NativeScriptWordCut,
+    ) -> Option<tcl_lexer::Span> {
+        if !graph.uncertain_operations.is_empty() || !graph.arity_debts.is_empty() {
+            return None;
+        }
+        let image = self.origin.source_image();
+        let (tail, purpose) = self.partial_expression_geometry(tail)?;
+        let prefix = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            tcl_lexer::Span::new(tail.command_start, tail.cut.term),
+            self.config,
+            purpose,
+        )
+        .ok()?;
+        let [command] = prefix.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        if prefix.fatal_tail.is_some()
+            || !image
+                .bytes()
+                .get(word.span().end() as usize..tail.cut.term as usize)?
+                .iter()
+                .all(u8::is_ascii_whitespace)
+        {
+            return None;
+        }
+        let written = original_words(&command.words, self.policy)?;
+        let head = written.first()?.input.as_ref()?;
+        if graph.blocks_registry_source(head) {
+            return None;
+        }
+        let (name, arguments, lineage) = graph.resolve(head)?;
+        if !arguments.is_empty() || !lineage.is_empty() {
+            return None;
+        }
+        let args = [tcl_registry::InvocationWord::Dynamic];
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                self.context.commands(),
+                Some(self.context.context()),
+                tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal(&name),
+                    &args,
+                )
+                .with_dialect(self.dialect),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            );
+        let schema = resolution.resolved()?;
+        if schema.facts().argument_offset != 0 {
+            return None;
+        }
+        let (roles, complete) = self.authored_roles(&schema);
+        (complete
+            && roles.iter().filter(|(index, _)| *index == 0).count() == 1
+            && roles.contains(&(0, tcl_registry::ArgRole::Expr)))
+        .then(|| tcl_lexer::Span::new(tail.cut.term + 1, tail.cut.offset))
+    }
+
     fn retain_original_invocation(
         &self,
         graph: &mut AdviceGraph,
@@ -3779,6 +3913,7 @@ impl OriginalSourceTransitionSeed {
             .cloned()
             .collect();
         let mut tape = OriginalSourceTransitionAdviceTape::default();
+        let partial_tail = plan.fatal_tail;
         if matches!(policy, AdviceNamingPolicy::Logical(_))
             && let Some(tail) = plan.fatal_tail
         {
@@ -3817,6 +3952,15 @@ impl OriginalSourceTransitionSeed {
                 &invocation,
                 logical_navigation::LogicalCallbackScope::Document,
             )?;
+        }
+        if purpose == OriginalSourceCataloguePurpose::CompletePrefix
+            && self.baseline.source_point_entry.is_none()
+            && self.baseline.hosted_execution_context.is_none()
+            && self.baseline.vendor_source_input.is_none()
+            && !self.baseline.unknown_entry
+            && let Some(tail) = partial_tail
+        {
+            tape.partial_expression_span = advice_context.partial_expression_span(&graph, tail);
         }
         advice_context.finish_normal_source_graph(&graph);
         advice_context.retain_future_original_procedure_bodies(&mut tape, &graph);

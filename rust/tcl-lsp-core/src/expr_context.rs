@@ -434,18 +434,25 @@ pub(crate) fn source_expr_arg_context_at(
     // The actual source-position owner validates UTF-16 rather than clamping
     // a foreign/out-of-range coordinate through a supplied display index.
     let _ = line_index;
-    let Some(operand) = source_expression_operand_at(source, analysis, offset) else {
-        return false;
-    };
-    let Some(span) = operand.content_span() else {
-        return false;
-    };
     let current = position.context();
-    if operand.word.image().bytes() != source.as_bytes()
-        || operand.word.config() != current.config()
-    {
-        return false;
-    }
+    let image = tcl_lexer::SourceImage::document(source);
+    let span = if let Some(operand) = source_expression_operand_at(source, analysis, offset) {
+        if operand.word.image() != &image || operand.word.config() != current.config() {
+            return false;
+        }
+        let Some(span) = operand.content_span() else {
+            return false;
+        };
+        span
+    } else {
+        let Some(span) = analysis.original_partial_expression_span(source) else {
+            return false;
+        };
+        if !(span.start() <= offset && offset <= span.end()) {
+            return false;
+        }
+        span
+    };
     let profile = analysis
         .resolved_input
         .as_ref()
@@ -459,10 +466,9 @@ pub(crate) fn source_expr_arg_context_at(
         expr_grammar_base: profile.expr_grammar_base,
         f5_word_grammar: profile.f5_core_expr_grammar(),
     };
-    tcl_lexer::original_expression_cursor_in(operand.word.image(), span, offset, grammar)
-        .is_some_and(|cursor| {
-            cursor.matches_source(operand.word.image(), grammar) && cursor.is_expression_position()
-        })
+    tcl_lexer::original_expression_cursor_in(&image, span, offset, grammar).is_some_and(|cursor| {
+        cursor.matches_source(&image, grammar) && cursor.is_expression_position()
+    })
 }
 
 #[cfg(test)]
@@ -621,6 +627,89 @@ mod configured_expression_cursor_tests {
             let analysis = Analyser::new().analyse(source, "tcl9.0");
             assert!(!at(source, &analysis, needle), "{source}");
         }
+    }
+
+    #[test]
+    fn incomplete_root_expression_requires_current_selected_role() {
+        for (source, expected) in [
+            ("if {ma\n", true),
+            ("expr {si\n", true),
+            ("proc if args {}; if {ma\n", false),
+            ("{*}{if} {ma\n", false),
+            ("$command {ma\n", false),
+            ("set data {ma\n", false),
+            ("unknown_command; if {ma\n", false),
+            ("set; if {ma\n", false),
+            ("if {ma}extra", false),
+            ("trace add execution if enter callback; if {ma\n", false),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let needle = if source.contains("si") { "si" } else { "ma" };
+            let offset = u32::try_from(source.rfind(needle).unwrap() + needle.len()).unwrap();
+            let index = tcl_lexer::LineIndex::new_lsp(source);
+            let position = index.position_at_utf16(offset, source);
+            assert_eq!(
+                source_expr_arg_context_at(
+                    source,
+                    &analysis,
+                    position.line,
+                    position.character.get(),
+                    &index
+                ),
+                expected,
+                "{source}"
+            );
+        }
+        let source = "if {ma\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(analysis.original_partial_expression_span(source).is_some());
+        assert!(!at("if {max\n", &analysis, "max"));
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        assert!(!source_expr_arg_context_at(
+            source, &analysis, 0, 500, &index
+        ));
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(analysis.original_partial_expression_span(source).is_none());
+    }
+
+    #[test]
+    fn incomplete_nested_expression_requires_authentic_quiet_prefix() {
+        for (source, expected) in [
+            ("set a [expr {si\n", true),
+            ("proc expr args {}; set a [expr {si\n", false),
+            ("unknown_command; set a [expr {si\n", false),
+            (
+                "trace add execution expr enter callback; set a [expr {si\n",
+                false,
+            ),
+            ("set $name [expr {si\n", false),
+            ("set {*}{a} [expr {si\n", false),
+            ("set a [puts x; expr {si\n", false),
+            ("set a {[expr {si\n", false),
+            ("set a [expr {si}extra", false),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let offset = u32::try_from(source.rfind("si").unwrap() + 2).unwrap();
+            let index = tcl_lexer::LineIndex::new_lsp(source);
+            let position = index.position_at_utf16(offset, source);
+            assert_eq!(
+                source_expr_arg_context_at(
+                    source,
+                    &analysis,
+                    position.line,
+                    position.character.get(),
+                    &index
+                ),
+                expected,
+                "{source}"
+            );
+        }
+        let source = "set 😀 [expr {si\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(at(source, &analysis, "si"));
+        assert!(!at("set 😀 [expr {six\n", &analysis, "six"));
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(analysis.original_partial_expression_span(source).is_none());
     }
 
     #[test]

@@ -888,8 +888,7 @@ fn uplevel_with_level_word_does_not_corrupt_sibling_scopes() {
 
 // expr math functions.
 
-/// Inside an `expr` expression argument the bare math functions are offered —
-/// a naive prefix match would surface only same-prefixed procs.
+/// Inside an `expr` argument offer math functions, not ordinary commands.
 #[test]
 fn math_functions_complete_inside_expr_974() {
     let mut lsp = Lsp::tcl();
@@ -899,8 +898,8 @@ fn math_functions_complete_inside_expr_974() {
     assert!(ls.contains(&"sin".to_owned()), "sin missing: {ls:?}");
     assert!(ls.contains(&"sinh".to_owned()), "sinh missing: {ls:?}");
     assert!(
-        ls.contains(&"sizzler".to_owned()),
-        "the proc still surfaces: {ls:?}"
+        !ls.contains(&"sizzler".to_owned()),
+        "ordinary commands are not math functions: {ls:?}"
     );
 }
 

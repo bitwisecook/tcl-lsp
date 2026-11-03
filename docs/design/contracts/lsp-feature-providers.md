@@ -82,6 +82,16 @@ The original Native namespace and command routes precede lexical assistance.
 Completion's partial-word predicates do not supply namespace lookup or edit
 permission; its retained declaration/candidate selection remains independent.
 
+For an incomplete final expression operand, completion can offer Registry math
+functions from the original source only after the complete preceding source
+prefix has a closed, observer-safe outcome and the current Registry selects an
+expression role for the written head. A nested bracket also requires a static,
+non-expanding parent prefix and the original matching child parse cut. The
+configured expression lexer selects the cursor position from the unchanged
+source. This is conditional authoring metadata; it grants no evaluated argument,
+command dispatch or edit authority. Ordinary global procedures are not math
+functions.
+
 Reference and minifier compatibility labels remove one optional root marker
 through `unroot_rooted_key`, preserving literal-colon components. Positioned
 known references terminate before lexical metadata assistance. Minifier call-site
