@@ -1800,7 +1800,8 @@ mod tests {
                     .unwrap()
                     .native_compilation
                     .unwrap();
-                let words = crate::InvocationWords::literals("namespace", &[member, "::A"]);
+                let arguments = [member, "::A"];
+                let words = crate::InvocationWords::literals("namespace", &arguments);
                 let shapes = [NativeCompilationWordShape::Literal; 2];
                 let context = NativeCompilationContext {
                     mode: NativeCompilationMode::BytecodeObject,
