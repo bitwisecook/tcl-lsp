@@ -8,4 +8,6 @@ Reviewed code and truthful status are committed and pushed to `work` every five 
 
 The canonical proof corpus remains the authority for semantic/provider claims. Older audit reports, ledgers and role notes retain their original snapshot claims; their counts and timestamps are not a current verified-completion recount. Scoped source/helper passes do not transfer Native provider authority. No new aggregate completion count is asserted.
 
+The 3 November external-reporter issue sweep is summarised in [current-state.md](current-state.md#external-reporter-issue-sweep) and itemised in [issues.md](issues.md#external-reporter-issue-sweep--3-november-2026).
+
 Use the [release plan](lsp-release-pr-plan.md) and current snapshot’s acceptance checklist. Historical pause/continue prompts do not override the user’s instruction to complete the LSP.

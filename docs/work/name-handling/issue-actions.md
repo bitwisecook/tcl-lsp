@@ -1,5 +1,7 @@
 # Current naming issue actions
 
+The 3 November external-reporter sweep fixed or guarded #2506, #2503, #2499, #2497, #2289, #2507, #2288 and #2181, and added regressions for the reports already correct on `work` ([issues.md](issues.md#external-reporter-issue-sweep--3-november-2026)). No issue state was changed. #2505's proc-body residual remains open.
+
 [#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286) stays OPEN. Its unchanged original selector ran first in M12 and passed in 71.841791191 seconds within the original 180-second budget. This does not close the complete issue acceptance, other naming consumers or required negative/import/shared-read/refusal obligations. Preserve both original `$absent` expectations and original init/Tcltest/support pairings.
 
 Latest executed ordinary M12 is frozen to `c9e826a23972590699a87d248c43a957858831ee23`: **1,546 controls; 1,133 PASS, 410 FAIL, one TIMEOUT, two NOT_ACCEPTED_RUN_COUNT**. All 1,491 predecessors remain, with four gains, zero prior-PASS regressions and zero drops. The 55 additions are 53 PASS and two FAIL. Seven original EPERM aborts and their exact successful permission repairs remain separate. Two nested Host raw-exit-zero runs remain rejected by the unchanged single-run guard. Its fresh single-job build produced 23 test binaries with zero compiler errors in 678.804699595 seconds. No newer execution follows from this audit.

@@ -29,6 +29,36 @@ Current Core receipts: `/workspace/tmp/lsp-merged-cohort/source-card-{before,aft
 
 Native protocol and extra-control receipts: `/workspace/tmp/integration-hover-acceptance-20261103/`. SpecTcl baseline/candidate/lint/Native-probe receipts: `/workspace/tmp/spectcl-current-cohort/RESULTS.md`. Reused toolchain/dependency caches and untraced indirect runtime inputs remain outside the bounded build custody.
 
+## External-reporter issue sweep
+
+The 18 open issues not opened by the maintainer (#2021 is excluded and handled separately) were reproduced on base `18e009bbc`; the commits were then rebased onto the later `work` tip without conflicts in code. The results below are from that base and have only been re-checked after the rebase where stated. Per-issue results are in [issues.md § External-reporter issue sweep](issues.md#external-reporter-issue-sweep--3-november-2026).
+
+- **Fixed with regressions:** #2506 (T100 on a comparison result), #2503 (W114 inside a quoted operand), #2499 (W212 on `[set $name]`), #2497 (`my` from a superclass now references a subclass method), #2289 (W140 after a refused creation proof) and #2507 (W100 `scan` suggestion).
+- **Guards only:** #2288 (W105 `+[list …]`) is guarded but not observable, because W105 is not emitted on `work`. #2181 changes the semantic-token refresh guard; its e2e tests pass, but it has not been checked in a VS Code host.
+- **Already correct on `work`, regression added:** #2265, #2242, #2501, #2502, #2498, #2500 and #2504 (on the production shimmer path), and #2286 (its three tcltest tests pass here).
+- **#2290:** the current upstream file is clean; no fixture.
+- **Residual:** #2505 inside a proc body. A list-built `uplevel` script whose brackets contain a backslash-newline still draws W301, because the nested `list` invocation has no recorded original binding. This is open.
+- **Shared-owner changes:** `BinOp`/`UnaryOp::yields_boolean` (`tcl-syntax`), `OriginalExpressionCommandRegion::whole_operand` (`tcl-syntax`), and set-literal typing through the shared numeral parser (`Inf`, `-Inf` and `1e3` are `Double`).
+
+Validation for this sweep:
+
+- **Targeted compiler tests:** 14 issue tests plus the `tcltest` controls pass.
+- **Compiler suite comparison:** the `fp::sh`, `type_infer`, `compilation_unit::tests::return_type`, `fp_sty_14` and `w212` suites were compared against a pristine stash of the same tree. There are no new failures. These tests already failed before the sweep: 52 in `fp::sh`/`type_infer`/`return_type`; four in `fp_sty_14` (W105 never fires); `w212_covers_registry_name_positions`; `nested_expression_advice_uses_actual_renamed_descriptor…`; and `lens_matches_peek_for_inherited_method_with_subclass_my_dispatch`.
+- **tcl-lsp-core:** both new tests pass.
+- **Server e2e `spec_packs::`:** 23 pass and 12 fail with `--test-threads=2`. The pristine baseline has the same 11 failures (outline, folding, trust, UPF hooks, notices and others). The extra failure, `a_pack_added_after_startup_reloads_and_re_analyses_open_documents`, passes twice when run alone, so it is load-flaky. The new #2242 test passes.
+- **Pipelines that emit nothing on `work`:** the CLI and LSP emit no S1xx shimmer diagnostics even for positive controls, and W105 is not emitted for quoted, composite or `bind` bodies. Both are recorded here and not fixed.
+- **Find References:** results from a debug server are intermittently empty for TclOO methods, in the same-class control too.
+- **Gates run for this sweep:**
+  - `cargo fmt --check` passes.
+  - `cargo clippy --all-targets -D warnings` passes for `tcl-syntax`, `tcl-core-types`, `tcl-compiler`, `tcl-lsp-core` and `tcl-lsp-server`.
+  - The `diag-tables`, `gen-ai-diagnostics`, `gen-vscode-package`, `gen-editor-catalogs`, `gen-editor-settings` and `gen-jetbrains-catalog` drift checks pass after regenerating for the W212 catalogue text.
+  - `cargo xtask owner-resolution` fails with the same 83 lines before and after this change.
+  - `make rust-check` and `make prep-pr` were not run in full.
+- **Re-checked after rebasing onto the newer `work` tip:**
+  - The 16 targeted compiler tests, both tcl-lsp-core tests and the three spec-pack e2e tests (#2242, plus the two semantic-token tests #2181 touches) pass.
+  - All six drift generators are in sync, and rustfmt is clean.
+  - Clippy finds nothing in `tcl-syntax`, `tcl-core-types` or `tcl-compiler`. The rebased tip's own `tcl-lsp-core/src/hover.rs:897` fails `needless_pass_by_value`; that code is not part of this change.
+
 ## Adopted repairs awaiting merged acceptance
 
 - `5a3cdeaa1` retains a typed Logical root-source reference for special-variable documentation. It requires the genuine current occurrence/root coordinate and available Registry row, and has empty declaration/reference projections.
