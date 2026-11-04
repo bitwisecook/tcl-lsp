@@ -49,6 +49,17 @@ and an identical Registry target. No declaration-graph edit or new
 Native/Normal fact is part of the draft. Exact current failure and runtime
 receipts remain in `tests/data/w210-empty-loop-exact-source` and `evidence/tcl`.
 
+The 19:48 checkpoint retains the red first-attempt receipt in
+`tests/data/w210-empty-loop-exact-source/attempt-1`. Existing 185 rows, 14
+guard cases and nine query tests pass; this does not establish the new fix.
+The next fixture/premise probe is unbuilt, keeps the production classifier
+byte-identical and retains strict source/availability/admission checks. Its
+planned public matrix adds MayBound conditional guard controls (90 rows),
+without counting any unexecuted row as passing. Generated loop source vectors
+must be distinguished from the genuine original invocation before interpreting
+the new private owner assertions. No declaration graph or Native owner changes
+have been made.
+
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
 
 A separate [36-process binding control audit](../rust/tcl-compiler/tests/data/binding-diagnostic-controls-2026-11-04/README.md)
