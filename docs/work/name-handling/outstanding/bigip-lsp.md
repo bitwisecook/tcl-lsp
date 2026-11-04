@@ -1,5 +1,9 @@
 # Outstanding work: bigip-lsp agent
 
+<!-- current-stop-snapshot -->
+Current coordination snapshot, 4 November 2026, 22:43 UTC: parallel work is stopped at the user's request. Only the current autoload repair/verification remains active before final push and stop. The [joint current state](../current-state.md) records newer scoped results and open failures; earlier lane notes below do not certify the latest source. The LSP is not release-ready.
+<!-- /current-stop-snapshot -->
+
 > Historical role handoff. Current work is active as of 3 November 2026; old STOPPED, unpushed, scheduling and completion claims below describe their dated snapshot. See [current state](../current-state.md) and [active roles](README.md). No current verification is inferred from these notes.
 
 

@@ -34,7 +34,7 @@ A fresh E2E build was started for #2181, then stopped at the coordinator's reque
 The LSP loads bundled vendor commands eagerly during its ordinary startup and
 reload path. It does not activate process-wide demand deferral or schedule a
 pack reload from a registry request. Finished-pack snapshots and segmentation
-memoisation remain enabled, and hook hosts still initialise per thread on demand.
+memoisation remain enabled, and native hook bodies use the shared service actor, and browser/WASI hosts use a synchronous thread-local service without OS threads.
 The CLI retains its synchronous demand-driven pack loading.
 
 The regression
@@ -51,10 +51,8 @@ sources refuse the shipped manifest and still evaluate in full. A deterministic
 hook publication control interleaves a real changed plan with host installation
 and checks its installed generation and result.
 
-Independent source review found no further blocker in these bounded repairs.
-Compilation and execution of these updated controls remain pending; source
-review is not Tcl execution evidence. Next checks are the focused SpecTcl cache
-and hook unit tests, `lazy_bundled`, the named server E2E control, generated
-manifest drift, then the required `rust-check` and `prep-pr` gates. LSP demand
-deferral requires explicit readiness before analysis and registry responses;
-this release does not enable that asynchronous path.
+Current scoped result: the fresh five-ELF SpecTcl/Registry diagnostic passes17/19. Cache domains, coherent publication, retirement, stale-table and quarantine controls pass. Two failures remain: pack display data containing CR becomes LF on an unisolated evaluation branch, and Constraints emitter registration overwrites the LiteralArgumentValidator family in a mixed engine. Neither failure is fixed or waived. `/workspace/tmp/lsp-merged-cohort/hook-publication19-postbuild-diagnostic/result.json` records each result; its parent prebuild refusal on20 late VM fixture inputs remains separate.
+
+Actual Browser and WASI host jobs succeed on e5b98d38, including non-tabulated hook execution and changed-content responses; newer run41919112254 also has successful Browser/WASI jobs. These do not certify every hook family or the final recapture source. The named vendor E2E control, generated manifest drift and full rust-check/prep-pr gates remain open.
+
+Parallel pack work is stopped at the user's request. Investigation notes are `/tmp/spec-hook-two-failures-stop-handoff/HANDOFF.md`; no partial emitter/CR patch is adopted. Finish only the active autoload fix, update status, push and stop.

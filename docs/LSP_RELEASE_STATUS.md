@@ -71,7 +71,7 @@ The source-owner/shimmer gap remains unresolved for #940 and related reports;
 no speculative authority or parser workaround was committed.
 
 
-Naming status at 21:49 UTC: **not release-ready**. Browser CI e5b98d38 passes44 protocol checks and11 staged web smoke checks; later stack changes are under run41919112254. Native WASI27 controls pass on the fresh rebuilt executable; the parent dep-info wrapper refusal remains separately recorded. Compiler47 passes44/46, Server18 mandatory36/37 and10/16 probe processes. Cursor correction passes public Core queries at6/7; Backend, bare-first-autoload, pattern occupancy, counted methods and O127 remain open. SpecTcl/Registry19 is building. Full gates, packages and matched release performance remain open. [Current snapshot](work/name-handling/current-state.md) records exact limits.
+Naming status at 21:49 UTC: **not release-ready**. Browser CI e5b98d38 passes44 protocol checks and11 staged web smoke checks; later stack changes are under run41919112254. Native WASI27 controls pass on the fresh rebuilt executable; the parent dep-info wrapper refusal remains separately recorded. Compiler47 passes44/46, Server18 mandatory36/37 and10/16 probe processes. Cursor correction passes public Core queries at6/7; stable repeated autoload, pattern occupancy, counted methods and O127 remain open. SpecTcl/Registry19 passes17/19; two failures remain. Core45 runs zero tests after ENOSPC. Full gates, packages and matched release performance remain open. [Current snapshot](work/name-handling/current-state.md) records exact limits.
 
 Baseline compiler lint repair, 19:36 UTC: the two oversized Logical source
 walkers are split into their existing static body/target selection and typed

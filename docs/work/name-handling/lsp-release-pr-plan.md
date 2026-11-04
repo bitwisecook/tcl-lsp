@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE plan; refreshed 4 November 2026, 21:49 UTC. Not release-ready.** [Current state](current-state.md) records exact results and limits. Browser e5b98d38 succeeds44+11; a newer host run is active. Native WASI27 controls pass in a separate direct run after fresh rebuild; parent wrapper refusal remains. Compiler47:44/46; Server18:36/37 mandatory and10/16 probe processes. SpecTcl/Registry19 is building; Core45 and VM11 await execution. Cursor public queries pass, while Backend, counted methods, pattern occupancy, bare autoload and O127 remain open. Full gates, packages and final release performance remain open. No PR or release exists.
+**ACTIVE plan; refreshed 4 November 2026, 21:49 UTC. Not release-ready.** [Current state](current-state.md) records exact results and limits. Browser e5b98d38 succeeds44+11; a newer host run is active. Native WASI27 controls pass in a separate direct run after fresh rebuild; parent wrapper refusal remains. Compiler47:44/46; Server18:36/37 mandatory and10/16 probe processes. SpecTcl/Registry19 is building; Core45 and VM11 await execution. Cursor public Backend queries pass, while counted methods, pattern occupancy, bare autoload and O127 remain open. Full gates, packages and final release performance remain open. No PR or release exists.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
