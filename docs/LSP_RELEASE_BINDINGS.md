@@ -81,6 +81,15 @@ It constrains the pending typed-stage repair to preserve argument evaluation
 and real unknown callees. The new 100-row compiler regression matrix and two
 actual-CFG controls are unbuilt; no #2441 fix is claimed yet.
 
+Coordinator checkpoint, 20:54 UTC: the narrow stage repair is now frozen on
+`f2b927c5c` plus reviewed patch
+`e663f5806d5f0772448501c8c3ae5ad27dcabd5eda2a68de27c6dec44bd34440`.
+Production compiler Clippy passes (62.01 s). The compiler unit and two
+integration no-run builds are active; the 100-row matrix and actual-CFG
+assertions are not yet runtime results. The first gate attempt stopped on two
+missing tracked registry include fixtures; only those exact files were restored
+before the new source seal. No source-callee authority fallback is included.
+
 The 20:23 checkpoint retains [public stage baseline controls](../rust/tcl-compiler/tests/data/w210-empty-loop-exact-source/stage-baseline/README.md).
 They confirm the loop-only opaque-name contribution and a genuine unseen-call
 contrast, while both nested word-effect controls are already quiet. All 138
