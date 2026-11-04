@@ -608,7 +608,7 @@ pub(crate) fn loop_termination_candidate(
         args,
         arg_tokens,
         registry,
-        shape,
+        &shape,
         lexer_config,
         grammar,
     )
@@ -666,7 +666,7 @@ pub(super) fn original_loop_termination_candidate(
         &args,
         &tokens,
         BoundsMetadataContext::Retained(original.context()),
-        shape,
+        &shape,
         config,
         &config.grammar_over(input.analyser_profile().grammar),
     )
@@ -677,7 +677,7 @@ fn loop_candidate_from_shape(
     args: &[String],
     arg_tokens: &[Token],
     registry: BoundsMetadataContext<'_>,
-    shape: LoopShape,
+    shape: &LoopShape,
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<LoopTerminationCandidate> {
