@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 RUN = ROOT / "experiments/name-handling/f5/answers/nh20261012aplbroad1"
 PATTERN_RUNS = {
     name: ROOT / "experiments/name-handling/patterns/f5/answers" / name
-    for name in ("nh20261012aplpat1", "nh20261012aplexact1")
+    for name in ("nh20261012aplpat1", "nh20261012aplexact1", "nh20261012aplwiki1")
 }
 PATTERN_QUESTIONS = {
     "alias-prefix-lifetime": "After an interpreter alias with a fixed multiword argument is renamed, what does querying the old alias name return, and how does the renamed command apply its retained prefix to a new argument?",
@@ -36,6 +36,36 @@ PATTERN_QUESTIONS = {
     "oo-self-prefix": "Can a TclOO method return a list prefix containing its own object command and a multiword argument for later method invocation?",
     "string-prefix-near-miss": "What happens when a command name containing spaces is interpolated into an eval script string rather than preserved as a list command-prefix element?",
     "tcltest-shared-lifecycle": "Do tcltest setup, body and cleanup share the expected namespace variable state, and is the setup variable absent after cleanup?",
+    "wiki-prefix-1": "Does invoking a list command prefix preserve arguments containing spaces and other embedded data as individual argument values?",
+    "wiki-prefix-2": "How does a newline in a command prefix behave when the prefix is evaluated as a script versus expanded as a list of command words?",
+    "wiki-prefix-3": "Can a command spelling that looks like a list-prefix builder be shadowed, and what does that mean for proving the constructed command words statically?",
+    "wiki-code-1": "Does namespace code capture the command lookup namespace when its result is later invoked from another namespace?",
+    "wiki-code-2": "Does namespace code capture a procedure's local variables, or only its namespace for later lookup?",
+    "wiki-code-3": "When a command used by namespace code is replaced after the callback is created, does invoking the callback use the original or the replacement command?",
+    "wiki-code-4": "What happens when a namespace inscope callback is invoked after its target namespace has been deleted?",
+    "wiki-code-5": "After a captured namespace is deleted and a namespace with the same name is recreated, which namespace does the old callback address?",
+    "wiki-code-6": "Can the legacy unknown-command handler repair an invocation of nested namespace code, and under which interpreter constraint?",
+    "wiki-code-7": "Does the modern unknown-command handler accept or reject nested namespace code, and under which interpreter constraint?",
+    "wiki-factory-1": "Do procedures created by a finite factory with list-constructed bodies retain the factory's individual constant values?",
+    "wiki-factory-2": "Does a braced procedure body created by a factory capture the factory's loop-local variable for later invocation?",
+    "wiki-alias-1": "When an alias target command is replaced, does the alias follow the target name while an imported command retains the earlier command identity?",
+    "wiki-alias-2": "Which interpreter supplies command lookup for an alias target when the alias crosses an interpreter boundary?",
+    "wiki-rename-1": "Does renaming a procedure into another namespace change the namespace context used when its body executes?",
+    "wiki-upvar-1": "How does upvar resolve a digit-leading variable name when the caller specifies the frame level explicitly?",
+    "wiki-upvar-2": "How does upvar distinguish an implicit frame level from a digit-leading variable name across Tcl releases?",
+    "wiki-upvar-3": "Can an upvar wrapper forward the caller frame so that it links the intended caller variable?",
+    "wiki-upvar-4": "Which frame receives an upvar link when a wrapper invokes upvar without forwarding the caller frame?",
+    "wiki-variable-1": "How does variable interpret alternating name and value arguments in a namespace declaration?",
+    "wiki-global-1": "Must a wrapper execute global in the caller's frame for the caller to receive the global-variable link?",
+    "wiki-autoload-1": "Can lookup of a missing command load its implementation from auto_index and then invoke it?",
+    "wiki-unknown-1": "Can an unknown handler make a previously absent command head executable, and how does that affect lookup?",
+    "wiki-oo-1": "Does namespace code preserve private my method dispatch when a callback created in an object context is invoked later?",
+    "wiki-oo-2": "What happens to a captured my callback when its object has been deleted?",
+    "wiki-oo-3": "Does a TclOO forward follow a command name when the target command is replaced?",
+    "wiki-oo-4": "Can metaclass methods dynamically define methods on a class, and how are those methods dispatched?",
+    "wiki-oo-5": "Can a metaclass override new to return a value that is not an object?",
+    "wiki-oo-6": "Does a TclOO forward through my resolve an internal method in the object context?",
+    "wiki-oo-7": "Does replacing a TclOO method preserve or reset that method's explicit export state?",
 }
 
 
@@ -52,7 +82,7 @@ def main() -> None:
         )
     cases = json.loads((run / "iapp-apl-cases.json").read_bytes())
     records = json.loads((run / "records.json").read_bytes())
-    providers = {row["case_id"]: row["provider"] for row in records}
+    records_by_case = {row["case_id"]: row for row in records}
     directory = run / "iapp-apl-0"
     source = (directory / "input.tcl").read_bytes()
     wrapper = (directory / "applied.conf").read_bytes()
@@ -113,11 +143,21 @@ def main() -> None:
                 + markdown_block(data, "text-visible")
             )
         scope = str(case.get("scope") or "Not recorded").replace("\n", " ")
-        provider = providers[identity]
+        record = records_by_case[identity]
+        provider = record["provider"]
         if provider.get("context") != "iapp-apl":
             raise ValueError(f"unexpected context for {identity}")
         version = provider.get("version") or "Not recorded"
         patchlevel = provider.get("interpreter_patchlevel") or "Not recorded"
+        reached_note = ""
+        if (
+            identity.startswith("wiki-")
+            and record.get("intended_lookup_reached") is False
+        ):
+            reached_note = (
+                "The retained record says the intended operation was not reached; "
+                "the result records the setup outcome, not an answer to that operation.\n\n"
+            )
         text = (
             f"# BIG-IP APL callback: {identity}\n\n"
             f"## Question\n\n{questions[question_id]}\n\n"
@@ -126,7 +166,8 @@ def main() -> None:
             "the LSP, compiler and VM, but does not establish the behavior of "
             "other cases or environments.\n\n"
             f"## Assumptions\n\nRecorded case scope: {scope}\n\n"
-            "Other assumptions were not separately recorded. The APL callback "
+            + reached_note
+            + "Other assumptions were not separately recorded. The APL callback "
             "was selected through the browser; this is not an iApp "
             "implementation, an iRule, or a stock Tcl measurement. A successful "
             "caught cleanup does not prove that every cleanup operation succeeded.\n\n"
