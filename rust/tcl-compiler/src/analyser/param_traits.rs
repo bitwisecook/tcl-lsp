@@ -3138,7 +3138,7 @@ mod tests {
                 if nested { &["a{b}c"][..] } else { &["a{b"][..] },
             );
             assert!(values("${arr($k)}").argument(0).is_none());
-            assert_eq!(values("{$arr($k)}").argument_components(0), []);
+            assert_eq!(values("{$arr($k)}").argument_components(0), [] as [&str; 0]);
         }
     }
 
