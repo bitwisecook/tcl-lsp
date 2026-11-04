@@ -165,10 +165,12 @@ owner-shaped implementation without updating the contract and its gate.
 For name representations, lookup context and consumer boundaries, read
 [name-handling.md](docs/design/contracts/name-handling.md).
 Maintain the [wild-pattern catalogue](experiments/name-handling/patterns/README.md)
-when discovering a naming idiom or adding oracle evidence. Link actual source
-provenance, positive/adversarial experiment inputs and each oracle's scoped
-result. An unanswered provider or unreached lookup stays explicit; existing
-canonical proof records remain the semantic evidence authority.
+when discovering a naming idiom. Record actual Tcl scripts, environments,
+questions, assumptions and measured results using the
+[Tcl execution evidence standard](docs/design/contracts/tcl-execution-evidence.md).
+An unanswered provider or unreached lookup stays explicit. Source reviews,
+implementation notes and older proof records are development material, not Tcl
+execution evidence.
 
 ### WASM command parity
 
