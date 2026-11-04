@@ -3283,8 +3283,6 @@ mod opaque_script_authoring_tests {
 
     #[test]
     fn retained_opaque_authoring_keeps_source_roles_separate_from_scripts() {
-        use tcl_compiler::registry_invocation::OriginalSourceScriptPurpose;
-        use tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body_at;
         let (source, cursor) = marked(
             "sslictcl 1\npolicy baseline {\n check bespoke {\n  predicate {\n   se<|>\n  }\n }\n}\n",
         );
@@ -3307,43 +3305,7 @@ mod opaque_script_authoring_tests {
             .unwrap();
         let structure = SourceStructure::capture(&source, Some(&analysis), config).unwrap();
         assert!(!structure.scripts.iter().any(|(span, _)| *span == content));
-        let structure = SourceStructure::capture_with_purpose(
-            &source,
-            Some(&analysis),
-            config,
-            CapturePurpose::DefinitionCursor,
-        )
-        .unwrap();
-        let offset = u32::try_from(source.find("predicate").unwrap()).unwrap();
-        let parent = structure
-            .definition_cursor_regions
-            .iter()
-            .filter(|region| region.span.start() <= offset && offset < region.span.end())
-            .max_by_key(|region| region.depth)
-            .unwrap()
-            .parent
-            .as_ref()
-            .unwrap();
-        let words = source_registry_words_in_definition_body_at(&source, &analysis, offset, parent)
-            .unwrap();
-        assert!(
-            words
-                .source_script_bodies_for(&context, OriginalSourceScriptPurpose::Syntax)
-                .is_empty()
-        );
-        assert!(
-            words
-                .source_script_bodies_for(
-                    &context,
-                    OriginalSourceScriptPurpose::PotentialEvaluation
-                )
-                .is_empty()
-        );
-        assert!(
-            words
-                .source_script_bodies_for_mutation_coverage(&context)
-                .is_none()
-        );
+        assert_opaque_member_purposes(&source, &analysis, cursor, content);
         let changed = source.replace("baseline", "changed_");
         assert!(
             authoring
@@ -3385,6 +3347,133 @@ mod opaque_script_authoring_tests {
                 .command_prefix(&source, &foreign_store, cursor)
                 .is_some()
         );
+    }
+
+    fn assert_opaque_member_purposes(
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+        content: Span,
+    ) {
+        use tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body_at;
+        use tcl_compiler::registry_invocation::{
+            OriginalSourceDefinitionMemberDisposition as MemberDisposition,
+            OriginalSourceScriptPurpose,
+        };
+        let config = analysis.body_lexer_config.unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let image = SourceImage::document(source);
+        let structure = SourceStructure::capture_with_purpose(
+            source,
+            Some(analysis),
+            config,
+            CapturePurpose::DefinitionCursor,
+        )
+        .unwrap();
+        let offset = u32::try_from(source.find("predicate").unwrap()).unwrap();
+        let region = structure
+            .definition_cursor_regions
+            .iter()
+            .filter(|region| region.span.start() <= offset && offset < region.span.end())
+            .max_by_key(|region| region.depth)
+            .unwrap();
+        let parent = region.parent.as_ref().unwrap();
+        assert_eq!(parent.source_words().command(), "check");
+        let members = region.members.as_ref().unwrap();
+        members.complete_original_commands().unwrap();
+        let original = members.original_command_words_at(offset).unwrap();
+        let member = members.member_keyword(original).unwrap();
+        assert_eq!(member.keyword, "predicate");
+        assert_eq!(member.arg_roles, &[(0, ArgRole::OpaqueScript)]);
+        assert_eq!(
+            members
+                .argument_words_for_role(original, ArgRole::OpaqueScript)
+                .unwrap(),
+            vec![&original[1]]
+        );
+        assert!(
+            members
+                .argument_words_for_role(original, ArgRole::Body)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(members.checked_script_bodies(original).unwrap().is_empty());
+        assert!(matches!(
+            members.script_body_disposition(&context, original),
+            MemberDisposition::CompleteMember(bodies)
+                if bodies.is_empty()
+        ));
+        let opaque = members
+            .opaque_script_authoring_regions(&context, original)
+            .unwrap();
+        assert_eq!(opaque.len(), 1);
+        assert_eq!(
+            opaque[0].content_for_authoring(&image, config, &context),
+            Some(content)
+        );
+        // Non-block rows retain their member role, without a block descriptor.
+        assert!(
+            source_registry_words_in_definition_body_at(source, analysis, offset, parent).is_none()
+        );
+        let descriptor = context.commands().get(member.keyword).unwrap();
+        assert_eq!(descriptor.arg_roles, &[(0, ArgRole::OpaqueScript)]);
+        assert!(descriptor.definition_body.is_none());
+        let words = parent.source_words();
+        let syntax = words
+            .source_script_bodies_for_syntax_coverage(&context)
+            .unwrap();
+        assert!(
+            syntax
+                .iter()
+                .any(|body| body.content_span() == parent.content_span())
+        );
+        assert!(syntax.iter().all(|body| body.content_span() != content));
+        assert!(
+            words
+                .source_script_bodies_for(&context, OriginalSourceScriptPurpose::Syntax)
+                .iter()
+                .all(|body| body.content_span() != content)
+        );
+        assert!(
+            words
+                .source_script_bodies_for(
+                    &context,
+                    OriginalSourceScriptPurpose::PotentialEvaluation
+                )
+                .is_empty()
+        );
+        assert!(
+            words
+                .source_script_bodies_for_mutation_coverage(&context)
+                .is_none()
+        );
+        assert_opaque_not_script(source, analysis, cursor, content);
+    }
+
+    fn assert_opaque_not_script(
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+        content: Span,
+    ) {
+        let config = analysis.body_lexer_config.unwrap();
+        for purpose in [
+            CapturePurpose::Readonly,
+            CapturePurpose::SyntaxCompaction,
+            CapturePurpose::CheckedSyntax,
+            CapturePurpose::DefinitionCursor,
+        ] {
+            let captured =
+                SourceStructure::capture_with_purpose(source, Some(analysis), config, purpose)
+                    .unwrap();
+            assert!(!captured.scripts.iter().any(|(span, _)| *span == content));
+        }
+        assert!(matches!(
+            SourceStructure::definition_grammar_at(source, analysis, cursor),
+            SourceDefinitionGrammar::Unavailable(
+                DefinitionGrammarUnavailable::UnrepresentedInterior
+            )
+        ));
     }
 
     #[test]
