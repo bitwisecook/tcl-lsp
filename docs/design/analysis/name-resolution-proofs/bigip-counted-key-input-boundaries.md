@@ -69,20 +69,16 @@ Run `r2286t` used a fresh VIP on port 18121 and backend port 18120. Its baseline
 forwarded 128 requests to `192.0.2.20`, where the server observed SNAT peer
 `192.0.2.21` 128 times. Response headers proved 32 baseline connections on
 each actual TMM. The exact counted-input source from the request matched the
-Markdown code block byte-for-byte: 1,791 ASCII/LF bytes, no CR or NUL, SHA-256
-`f1925eaf85382d68115f842ddccf108249de9f696efde04c66fbbaa31ea74a26`.
-Its complete rule wrapper SHA-256 was
-`35e634c49b43015e589dc4ab441a1e178319ceb58ef7d7b9977330c46b154033`.
+Markdown code block byte-for-byte: 1,791 ASCII/LF bytes, no CR or NUL.
+The [executed source and observations](../../../../evidence/tcl/bigip-r2286t-counted-input-boundaries.md) are retained together.
 
 The exact rule loaded with dynamic-name warnings and returned `OK` on all 128
 requests. The first 128 consecutive exact-rule markers in the continuous LTM
 capture contained 32 observations from each of TMM units 0, 1, 2 and 3. Its
 single log record was longer than the appliance's retained line, so it cannot
-be the source of complete row bytes. The separately hashed capture form changed
+be the source of complete row bytes. The [capture form](../../../../evidence/tcl/bigip-r2286t-counted-input-capture.md) changed
 only the response step: it hex-encoded the already-computed `rows` value into
-the HTTP body and added the TMM header. Its source/wrapper SHA-256 values were
-`1276bb8c7b70846a0362ff4ef31f7d3c0de6cd0a2719b98e143f2bbf8473afa8`
-and `361c2c5644f48cda56f328e974026aa4efa4f4d086a6f7d98e99a2ae7b8bc2e9`.
+the HTTP body and added the TMM header.
 All 128 full results were byte-identical across the four TMMs.
 
 | Input domain | Exact measured HTTP_REQUEST result |
@@ -101,9 +97,7 @@ case below, every write/read/upvar succeeded in both orders. Unsetting either
 plain or counted root preserved the other value. Direct trace callbacks
 received the complete root bytes and index `6b`; the alias write reported root
 hex `726f6f745f616c696173` (`root_alias`), keeping selected identity separate
-from callback spelling. All 128 response bodies had outer catch 0 and decoded
-result SHA-256
-`c79a936c910e9d3f82dab00670f3a0eefe8f939410d994f2f2374b8eb6be3885`.
+from callback spelling. All 128 response bodies had outer catch 0. The [array-root](../../../../evidence/tcl/bigip-r2286t-array-root-boundaries.md) and [array-index](../../../../evidence/tcl/bigip-r2286t-array-index-boundaries.md) records retain their scripts and observed results.
 
 The parentheses-root row is an important counterexample. The control appended
 `(k)` to root spelling `root(k)`. The resulting `root(k)(k)` was parsed as a

@@ -90,27 +90,27 @@ No appliance execution answers this exact question.
 
 ### GNU17 archive and loaded-image evidence
 
-The [complete original ZIP](https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12539375964/zip) from [run 40039950003](https://github.com/bitwisecook/tcl-lsp/actions/runs/40039950003), job `120708423833`, is 5,539,802 bytes with SHA-256 `a01b9f403fc3cf90e87551217bf2c9efcbdfcd485d81e8f5ec13e1d6a11076b1`. Its source is exactly `b52ff0b6c7ef223da6b920031be4d6b314346311`. This is one retained archive of all 62 original members; large maps are read in the ZIP without changing their bytes. The [unchanged original probe source](https://github.com/bitwisecook/tcl-lsp/blob/b52ff0b6c7ef223da6b920031be4d6b314346311/rust/tcl-host-c-abi/testdata/native_integer_formatter/probe.c) has SHA-256 `2c1e656d0a1bdc6a86f84a08a8601cb414eef16ce7f53ec9b1d882c99f91ff6e`.
+The [complete original ZIP](https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12539375964/zip) from [run 40039950003](https://github.com/bitwisecook/tcl-lsp/actions/runs/40039950003), job `120708423833`, is 5,539,802 bytes. Its source is exactly `b52ff0b6c7ef223da6b920031be4d6b314346311`. This is one retained archive of all 62 original members; large maps are read in the ZIP without changing their bytes. The [unchanged original probe source](https://github.com/bitwisecook/tcl-lsp/blob/b52ff0b6c7ef223da6b920031be4d6b314346311/rust/tcl-host-c-abi/testdata/native_integer_formatter/probe.c) is linked for inspection.
 
-| Original ZIP member | SHA-256 | Scope |
-| --- | --- | --- |
-| `native/provider-libtcl8.4.a` | `dc67eba353eeb83cbfb9ce5e0f6ff52972297374799156c09cef1ac06cc5cfff` | Actual archive, distinct from earlier builds |
-| `native/provider-tcl.h` | `824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf` | Exact public source header |
-| `native/provider-tclConfig.sh` | `33d929abbd1102f01624ca3aa217af1bcdc7e6023be2ea094e82e5228f8880e9` | Actual provider configuration |
-| `native/provider-tclObj.c` | `6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c` | Original updater source |
-| `native/libtcl8.4-observed.so` | `b381688d8da3cee9d558eef7a38503980a10635782a28f56141c7e5bc503892f` | Independently linked and loaded image |
-| `native/probe` | `6e920dd85a7de738463313be1fe801e60b2777d01e545b61624255d2b2120889` | Actual original probe executable |
-| `archive.stdout` and `loaded.stdout` | `cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c` each | Each complete 812-row output, 50,944 bytes |
-| `link.process.json` | `908e8e114cf174790fed16881e97ff2a79ae68788ec21c4c7a70ead7f0ae88d2` | Actual image producer, argv and lifecycle |
-| `compile.process.json` | `a233cdbeb0ff952f6f74321a83d55e7643d88672a1b3638ecfa9bac199567f8a` | Actual probe producer, argv and lifecycle |
-| `archive.process.json` | `80c0343e5deabed0524b8bb170b0e4fa227d8c5714b9e9bd3605c7bd44ea11af` | Original archive observation command |
-| `loaded.process.json` | `e4805bf58abdf8d3a55f6079b3936732bdbe5ef247f99c5ede726e6f7bf2fe74` | Original independently loaded observation command |
-| `provider-before.json` and `provider-after.json` | `e6815ffe105b7f7a3c0624328bb1bda3067ed7832bd0290cf9a8ed02dde7bb73` each | All 843 provider file identities unchanged |
-| `tools-before.json` and `tools-after.json` | `6ff9704653e200fa5387bf2b234a3f711b39423520f1f4d71172923d90b52c9e` each | Actual tool identities unchanged |
-| `tracked-source-before.json` | `65fa77d0d24c04317982748be31399d6aef027a345907c5853a6b6f19b6136df` | Complete 125,491-path source snapshot |
-| `source-after.stdout` | `d740221ffd496cb864ab8e0e8da5991e8ffb296623106c9a0b87f1dcc1b8ad00` | Strict complete source verification |
+| Original ZIP member | Scope |
+| --- | --- |
+| `native/provider-libtcl8.4.a` | Actual archive, distinct from earlier builds |
+| `native/provider-tcl.h` | Exact public source header |
+| `native/provider-tclConfig.sh` | Actual provider configuration |
+| `native/provider-tclObj.c` | Original updater source |
+| `native/libtcl8.4-observed.so` | Independently linked and loaded image |
+| `native/probe` | Actual original probe executable |
+| `archive.stdout` and `loaded.stdout` | Each complete 812-row output, 50,944 bytes |
+| `link.process.json` | Actual image producer, argv and lifecycle |
+| `compile.process.json` | Actual probe producer, argv and lifecycle |
+| `archive.process.json` | Original archive observation command |
+| `loaded.process.json` | Original independently loaded observation command |
+| `provider-before.json` and `provider-after.json` | All 843 provider file identities unchanged |
+| `tools-before.json` and `tools-after.json` | Actual tool identities unchanged |
+| `tracked-source-before.json` | Complete 125,491-path source snapshot |
+| `source-after.stdout` | Strict complete source verification |
 
-All four original link, compile, archive-observation and loaded-image-observation commands exit zero with empty stderr; both native observations match the unchanged complete original fixture. All 62 ZIP members have CRC and streamed SHA checks, source membership joins the exact Git tree, and all 14 owned processes close with empty process groups and complete streams. The provider bootstrap separately retains 36,414 bytes of compiler warnings in `bootstrap.stderr`; the empty-stderr statement applies only to the four original experiment commands. Archive object timestamps and ownership fields are zero in this build, but this does not establish why an older archive differs. No Rust loader/updater pass, other native build, universal integer conversion, compiler admission, full runtime gate or performance result follows from these finite original observations.
+All four original link, compile, archive-observation and loaded-image-observation commands exit zero with empty stderr; both native observations match the unchanged complete original fixture. Source membership joins the recorded Git tree, and all 14 owned processes close with empty process groups and complete streams. The provider bootstrap separately retains 36,414 bytes of compiler warnings in `bootstrap.stderr`; the empty-stderr statement applies only to the four original experiment commands. Archive object timestamps and ownership fields are zero in this build, but this does not establish why an older archive differs. No Rust loader/updater pass, other native build, universal integer conversion, compiler admission, full runtime gate or performance result follows from these finite original observations.
 
 ## Source inspection
 
