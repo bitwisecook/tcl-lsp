@@ -1,0 +1,1658 @@
+[
+  {
+    "case": "safe-and-missing",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "5609669930f691027db839d1791f079b6575e41c32fd40206f5d9f0ff73f941e",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-missing",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "5609669930f691027db839d1791f079b6575e41c32fd40206f5d9f0ff73f941e",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-missing",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "5609669930f691027db839d1791f079b6575e41c32fd40206f5d9f0ff73f941e",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-missing",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "5609669930f691027db839d1791f079b6575e41c32fd40206f5d9f0ff73f941e",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-missing",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "5609669930f691027db839d1791f079b6575e41c32fd40206f5d9f0ff73f941e",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-missing",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "5609669930f691027db839d1791f079b6575e41c32fd40206f5d9f0ff73f941e",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-negated-or-missing",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "3a5832d5653b1533de0405fc29fc630439e13fc141c638b5862c187ba20aa539",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] || $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-negated-or-missing",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "3a5832d5653b1533de0405fc29fc630439e13fc141c638b5862c187ba20aa539",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] || $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-negated-or-missing",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "3a5832d5653b1533de0405fc29fc630439e13fc141c638b5862c187ba20aa539",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] || $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-negated-or-missing",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "3a5832d5653b1533de0405fc29fc630439e13fc141c638b5862c187ba20aa539",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] || $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-negated-or-missing",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "3a5832d5653b1533de0405fc29fc630439e13fc141c638b5862c187ba20aa539",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] || $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-negated-or-missing",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "3a5832d5653b1533de0405fc29fc630439e13fc141c638b5862c187ba20aa539",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] || $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-double-not-and",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "dbcdd5929a77e3ce080fe1eb90501a5812d2b0ff2fd501e04860480c43673631",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {!![info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-double-not-and",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "dbcdd5929a77e3ce080fe1eb90501a5812d2b0ff2fd501e04860480c43673631",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {!![info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-double-not-and",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "dbcdd5929a77e3ce080fe1eb90501a5812d2b0ff2fd501e04860480c43673631",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {!![info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-double-not-and",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "dbcdd5929a77e3ce080fe1eb90501a5812d2b0ff2fd501e04860480c43673631",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {!![info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-double-not-and",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "dbcdd5929a77e3ce080fe1eb90501a5812d2b0ff2fd501e04860480c43673631",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {!![info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-double-not-and",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "dbcdd5929a77e3ce080fe1eb90501a5812d2b0ff2fd501e04860480c43673631",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {!![info exists x] && $x > 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-present",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "f3446bbb6142e7a1f02c7a47ce4cb37bf8020f122022e181c8511d8b57c7e1f4",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] && $x > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-present",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "f3446bbb6142e7a1f02c7a47ce4cb37bf8020f122022e181c8511d8b57c7e1f4",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] && $x > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-present",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "f3446bbb6142e7a1f02c7a47ce4cb37bf8020f122022e181c8511d8b57c7e1f4",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] && $x > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-present",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "f3446bbb6142e7a1f02c7a47ce4cb37bf8020f122022e181c8511d8b57c7e1f4",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] && $x > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-present",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "f3446bbb6142e7a1f02c7a47ce4cb37bf8020f122022e181c8511d8b57c7e1f4",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] && $x > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-and-present",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "f3446bbb6142e7a1f02c7a47ce4cb37bf8020f122022e181c8511d8b57c7e1f4",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] && $x > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-or-missing",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "0deef2a865ae3df416f9f0638022414542ef0d4aa7a5a2258da6ce99e5402aa3",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-or-missing",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "0deef2a865ae3df416f9f0638022414542ef0d4aa7a5a2258da6ce99e5402aa3",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-or-missing",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "0deef2a865ae3df416f9f0638022414542ef0d4aa7a5a2258da6ce99e5402aa3",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-or-missing",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "0deef2a865ae3df416f9f0638022414542ef0d4aa7a5a2258da6ce99e5402aa3",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-or-missing",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "0deef2a865ae3df416f9f0638022414542ef0d4aa7a5a2258da6ce99e5402aa3",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-or-missing",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "0deef2a865ae3df416f9f0638022414542ef0d4aa7a5a2258da6ce99e5402aa3",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-negated-and-missing",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "9df5b2c4443b627766c5b48b2cf18aee6fe77d89e96ad4fe8254a6d2c6a5287a",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] && $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-negated-and-missing",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "9df5b2c4443b627766c5b48b2cf18aee6fe77d89e96ad4fe8254a6d2c6a5287a",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] && $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-negated-and-missing",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "9df5b2c4443b627766c5b48b2cf18aee6fe77d89e96ad4fe8254a6d2c6a5287a",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] && $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-negated-and-missing",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "9df5b2c4443b627766c5b48b2cf18aee6fe77d89e96ad4fe8254a6d2c6a5287a",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] && $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-negated-and-missing",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "9df5b2c4443b627766c5b48b2cf18aee6fe77d89e96ad4fe8254a6d2c6a5287a",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] && $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "unsafe-negated-and-missing",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "9df5b2c4443b627766c5b48b2cf18aee6fe77d89e96ad4fe8254a6d2c6a5287a",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {![info exists x] && $x == 0} {puts yes}}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-or-skips-another-missing-variable",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "1401eef441c9118b1e91bb476942c2e67092669f4ce87fb58e874966bfe920ac",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] || $__rhs_missing > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-or-skips-another-missing-variable",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "1401eef441c9118b1e91bb476942c2e67092669f4ce87fb58e874966bfe920ac",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] || $__rhs_missing > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-or-skips-another-missing-variable",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "1401eef441c9118b1e91bb476942c2e67092669f4ce87fb58e874966bfe920ac",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] || $__rhs_missing > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-or-skips-another-missing-variable",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "1401eef441c9118b1e91bb476942c2e67092669f4ce87fb58e874966bfe920ac",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] || $__rhs_missing > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-or-skips-another-missing-variable",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "1401eef441c9118b1e91bb476942c2e67092669f4ce87fb58e874966bfe920ac",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] || $__rhs_missing > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "safe-or-skips-another-missing-variable",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "1401eef441c9118b1e91bb476942c2e67092669f4ce87fb58e874966bfe920ac",
+    "wrapper": "set status [catch {\nproc p {} {set x 1; if {[info exists x] || $__rhs_missing > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "yes\n0 {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "later-genuine-read-after-safe-and",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "c92c59e9089af5dbee7ed6fbe069951db945c9cc56b9dce326863306261ac62f",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "later-genuine-read-after-safe-and",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "c92c59e9089af5dbee7ed6fbe069951db945c9cc56b9dce326863306261ac62f",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "later-genuine-read-after-safe-and",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "c92c59e9089af5dbee7ed6fbe069951db945c9cc56b9dce326863306261ac62f",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "later-genuine-read-after-safe-and",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "c92c59e9089af5dbee7ed6fbe069951db945c9cc56b9dce326863306261ac62f",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "later-genuine-read-after-safe-and",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "c92c59e9089af5dbee7ed6fbe069951db945c9cc56b9dce326863306261ac62f",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "later-genuine-read-after-safe-and",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "c92c59e9089af5dbee7ed6fbe069951db945c9cc56b9dce326863306261ac62f",
+    "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}\np 0\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"x\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "standalone-missing-control",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "e33ed20709d5f8aafe7d9afc828def1d07e425fd33b4e5091cd70b16150f4d27",
+    "wrapper": "set status [catch {\nproc p {} {puts $__standalone_missing}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"__standalone_missing\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "standalone-missing-control",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "e33ed20709d5f8aafe7d9afc828def1d07e425fd33b4e5091cd70b16150f4d27",
+    "wrapper": "set status [catch {\nproc p {} {puts $__standalone_missing}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"__standalone_missing\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "standalone-missing-control",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "e33ed20709d5f8aafe7d9afc828def1d07e425fd33b4e5091cd70b16150f4d27",
+    "wrapper": "set status [catch {\nproc p {} {puts $__standalone_missing}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"__standalone_missing\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "standalone-missing-control",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "e33ed20709d5f8aafe7d9afc828def1d07e425fd33b4e5091cd70b16150f4d27",
+    "wrapper": "set status [catch {\nproc p {} {puts $__standalone_missing}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"__standalone_missing\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "standalone-missing-control",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "e33ed20709d5f8aafe7d9afc828def1d07e425fd33b4e5091cd70b16150f4d27",
+    "wrapper": "set status [catch {\nproc p {} {puts $__standalone_missing}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"__standalone_missing\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "standalone-missing-control",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "e33ed20709d5f8aafe7d9afc828def1d07e425fd33b4e5091cd70b16150f4d27",
+    "wrapper": "set status [catch {\nproc p {} {puts $__standalone_missing}\np\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {can't read \"__standalone_missing\": no such variable}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "5a2f044b5059cb7eded572e02a654b8ee183bd7a9603ae2dd91d4de2e5e6565c",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "5a2f044b5059cb7eded572e02a654b8ee183bd7a9603ae2dd91d4de2e5e6565c",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "5a2f044b5059cb7eded572e02a654b8ee183bd7a9603ae2dd91d4de2e5e6565c",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "5a2f044b5059cb7eded572e02a654b8ee183bd7a9603ae2dd91d4de2e5e6565c",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "5a2f044b5059cb7eded572e02a654b8ee183bd7a9603ae2dd91d4de2e5e6565c",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-zero-skips-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "5a2f044b5059cb7eded572e02a654b8ee183bd7a9603ae2dd91d4de2e5e6565c",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-one-skips-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "112ba8256a0856d33b8f7dd6db4deb2a8006f134bc54cc978063638c0842bf87",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-one-skips-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "112ba8256a0856d33b8f7dd6db4deb2a8006f134bc54cc978063638c0842bf87",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-one-skips-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "112ba8256a0856d33b8f7dd6db4deb2a8006f134bc54cc978063638c0842bf87",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-one-skips-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "112ba8256a0856d33b8f7dd6db4deb2a8006f134bc54cc978063638c0842bf87",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-one-skips-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "112ba8256a0856d33b8f7dd6db4deb2a8006f134bc54cc978063638c0842bf87",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-one-skips-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "112ba8256a0856d33b8f7dd6db4deb2a8006f134bc54cc978063638c0842bf87",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-one-runs-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "ad6b76d06f9b81cd94b0b989e0108fdd2e8524372dcdaba43f12e28219d6d2a8",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-one-runs-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "ad6b76d06f9b81cd94b0b989e0108fdd2e8524372dcdaba43f12e28219d6d2a8",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-one-runs-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "ad6b76d06f9b81cd94b0b989e0108fdd2e8524372dcdaba43f12e28219d6d2a8",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-one-runs-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "ad6b76d06f9b81cd94b0b989e0108fdd2e8524372dcdaba43f12e28219d6d2a8",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-one-runs-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "ad6b76d06f9b81cd94b0b989e0108fdd2e8524372dcdaba43f12e28219d6d2a8",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-one-runs-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "ad6b76d06f9b81cd94b0b989e0108fdd2e8524372dcdaba43f12e28219d6d2a8",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 1] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-zero-runs-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "d13c6b8cf8fa9d0eacbcd0e44096e1cc98182de6fcaed298e28c385087f1edcc",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-zero-runs-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "d13c6b8cf8fa9d0eacbcd0e44096e1cc98182de6fcaed298e28c385087f1edcc",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-zero-runs-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "d13c6b8cf8fa9d0eacbcd0e44096e1cc98182de6fcaed298e28c385087f1edcc",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-zero-runs-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "d13c6b8cf8fa9d0eacbcd0e44096e1cc98182de6fcaed298e28c385087f1edcc",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-zero-runs-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "d13c6b8cf8fa9d0eacbcd0e44096e1cc98182de6fcaed298e28c385087f1edcc",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-zero-runs-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "d13c6b8cf8fa9d0eacbcd0e44096e1cc98182de6fcaed298e28c385087f1edcc",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 9\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "negated-or-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "f2af6598705607f7d4e2b90b6d77d9b754f8f796041f0a008e385a811124fcb9",
+    "wrapper": "set status [catch {\nset x 7; if {![set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "negated-or-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "f2af6598705607f7d4e2b90b6d77d9b754f8f796041f0a008e385a811124fcb9",
+    "wrapper": "set status [catch {\nset x 7; if {![set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "negated-or-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "f2af6598705607f7d4e2b90b6d77d9b754f8f796041f0a008e385a811124fcb9",
+    "wrapper": "set status [catch {\nset x 7; if {![set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "negated-or-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "f2af6598705607f7d4e2b90b6d77d9b754f8f796041f0a008e385a811124fcb9",
+    "wrapper": "set status [catch {\nset x 7; if {![set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "negated-or-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "f2af6598705607f7d4e2b90b6d77d9b754f8f796041f0a008e385a811124fcb9",
+    "wrapper": "set status [catch {\nset x 7; if {![set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "negated-or-zero-skips-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "f2af6598705607f7d4e2b90b6d77d9b754f8f796041f0a008e385a811124fcb9",
+    "wrapper": "set status [catch {\nset x 7; if {![set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "double-not-and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "0a27d3ceedbd2d2a1543cb8f5d086b262ce35857373acc6fcf9b387aaf5c11e2",
+    "wrapper": "set status [catch {\nset x 7; if {!![set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "double-not-and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "0a27d3ceedbd2d2a1543cb8f5d086b262ce35857373acc6fcf9b387aaf5c11e2",
+    "wrapper": "set status [catch {\nset x 7; if {!![set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "double-not-and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "0a27d3ceedbd2d2a1543cb8f5d086b262ce35857373acc6fcf9b387aaf5c11e2",
+    "wrapper": "set status [catch {\nset x 7; if {!![set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "double-not-and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "0a27d3ceedbd2d2a1543cb8f5d086b262ce35857373acc6fcf9b387aaf5c11e2",
+    "wrapper": "set status [catch {\nset x 7; if {!![set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "double-not-and-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "0a27d3ceedbd2d2a1543cb8f5d086b262ce35857373acc6fcf9b387aaf5c11e2",
+    "wrapper": "set status [catch {\nset x 7; if {!![set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "double-not-and-zero-skips-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "0a27d3ceedbd2d2a1543cb8f5d086b262ce35857373acc6fcf9b387aaf5c11e2",
+    "wrapper": "set status [catch {\nset x 7; if {!![set x 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "ce4e77be3e1f1cdd4bb38750a55ed35ea62e37778dd15d0cc0a6385a8221eb33",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0.0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0.0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "ce4e77be3e1f1cdd4bb38750a55ed35ea62e37778dd15d0cc0a6385a8221eb33",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0.0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0.0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "ce4e77be3e1f1cdd4bb38750a55ed35ea62e37778dd15d0cc0a6385a8221eb33",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0.0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0.0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "ce4e77be3e1f1cdd4bb38750a55ed35ea62e37778dd15d0cc0a6385a8221eb33",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0.0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0.0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-zero-skips-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "ce4e77be3e1f1cdd4bb38750a55ed35ea62e37778dd15d0cc0a6385a8221eb33",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0.0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0.0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-zero-skips-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "ce4e77be3e1f1cdd4bb38750a55ed35ea62e37778dd15d0cc0a6385a8221eb33",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 0.0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0.0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-nonzero-skips-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "bfe4fc8904f7675498e8a35a9e65c82b00dd5192a137342724b8b3a9176287d3",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 2] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 2\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-nonzero-skips-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "bfe4fc8904f7675498e8a35a9e65c82b00dd5192a137342724b8b3a9176287d3",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 2] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 2\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-nonzero-skips-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "bfe4fc8904f7675498e8a35a9e65c82b00dd5192a137342724b8b3a9176287d3",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 2] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 2\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-nonzero-skips-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "bfe4fc8904f7675498e8a35a9e65c82b00dd5192a137342724b8b3a9176287d3",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 2] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 2\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-nonzero-skips-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "bfe4fc8904f7675498e8a35a9e65c82b00dd5192a137342724b8b3a9176287d3",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 2] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 2\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "numeric-nonzero-skips-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "bfe4fc8904f7675498e8a35a9e65c82b00dd5192a137342724b8b3a9176287d3",
+    "wrapper": "set status [catch {\nset x 7; if {[set x 2] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 2\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "left-error-has-no-normal-suffix",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "b7a3ae54e47d754487f1d9eaea2f3a688c9e741c2edfbd015cb15ec20d616ea9",
+    "wrapper": "set status [catch {\nset x 7; if {[error stop] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 stop\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "left-error-has-no-normal-suffix",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "b7a3ae54e47d754487f1d9eaea2f3a688c9e741c2edfbd015cb15ec20d616ea9",
+    "wrapper": "set status [catch {\nset x 7; if {[error stop] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 stop\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "left-error-has-no-normal-suffix",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "b7a3ae54e47d754487f1d9eaea2f3a688c9e741c2edfbd015cb15ec20d616ea9",
+    "wrapper": "set status [catch {\nset x 7; if {[error stop] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 stop\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "left-error-has-no-normal-suffix",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "b7a3ae54e47d754487f1d9eaea2f3a688c9e741c2edfbd015cb15ec20d616ea9",
+    "wrapper": "set status [catch {\nset x 7; if {[error stop] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 stop\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "left-error-has-no-normal-suffix",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "b7a3ae54e47d754487f1d9eaea2f3a688c9e741c2edfbd015cb15ec20d616ea9",
+    "wrapper": "set status [catch {\nset x 7; if {[error stop] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 stop\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "left-error-has-no-normal-suffix",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "b7a3ae54e47d754487f1d9eaea2f3a688c9e741c2edfbd015cb15ec20d616ea9",
+    "wrapper": "set status [catch {\nset x 7; if {[error stop] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 stop\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "invalid-boolean-is-not-false",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "07f346fc8eee32325786301b497eb3ef415bd8f5e71415cb4b2c0d49094a8d31",
+    "wrapper": "set status [catch {\nset x 7; if {[set x invalid] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {expected boolean value but got \"invalid\"}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "invalid-boolean-is-not-false",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "07f346fc8eee32325786301b497eb3ef415bd8f5e71415cb4b2c0d49094a8d31",
+    "wrapper": "set status [catch {\nset x 7; if {[set x invalid] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {expected boolean value but got \"invalid\"}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "invalid-boolean-is-not-false",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "07f346fc8eee32325786301b497eb3ef415bd8f5e71415cb4b2c0d49094a8d31",
+    "wrapper": "set status [catch {\nset x 7; if {[set x invalid] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {expected boolean value but got \"invalid\"}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "invalid-boolean-is-not-false",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "07f346fc8eee32325786301b497eb3ef415bd8f5e71415cb4b2c0d49094a8d31",
+    "wrapper": "set status [catch {\nset x 7; if {[set x invalid] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {expected boolean value but got \"invalid\"}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "invalid-boolean-is-not-false",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "07f346fc8eee32325786301b497eb3ef415bd8f5e71415cb4b2c0d49094a8d31",
+    "wrapper": "set status [catch {\nset x 7; if {[set x invalid] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {expected boolean value but got \"invalid\"}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "invalid-boolean-is-not-false",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "07f346fc8eee32325786301b497eb3ef415bd8f5e71415cb4b2c0d49094a8d31",
+    "wrapper": "set status [catch {\nset x 7; if {[set x invalid] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {expected boolean but got \"invalid\"}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "nan-is-not-truthy",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "1572b1f23787d908ac8e5b2e87f0008a929f49edfcf60fd252332ee882c26566",
+    "wrapper": "set status [catch {\nset x 7; if {[set x NaN] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 NaN\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "nan-is-not-truthy",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "1572b1f23787d908ac8e5b2e87f0008a929f49edfcf60fd252332ee882c26566",
+    "wrapper": "set status [catch {\nset x 7; if {[set x NaN] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {floating point value is Not a Number}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "nan-is-not-truthy",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "1572b1f23787d908ac8e5b2e87f0008a929f49edfcf60fd252332ee882c26566",
+    "wrapper": "set status [catch {\nset x 7; if {[set x NaN] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {floating point value is Not a Number}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "nan-is-not-truthy",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "1572b1f23787d908ac8e5b2e87f0008a929f49edfcf60fd252332ee882c26566",
+    "wrapper": "set status [catch {\nset x 7; if {[set x NaN] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {floating point value is Not a Number}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "nan-is-not-truthy",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "1572b1f23787d908ac8e5b2e87f0008a929f49edfcf60fd252332ee882c26566",
+    "wrapper": "set status [catch {\nset x 7; if {[set x NaN] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "1 {floating point value is Not a Number}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "nan-is-not-truthy",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "1572b1f23787d908ac8e5b2e87f0008a929f49edfcf60fd252332ee882c26566",
+    "wrapper": "set status [catch {\nset x 7; if {[set x NaN] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 NaN\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "composite-child-value-is-not-root-result",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "f80805c46cb62dedeecaf586b45cf31dd8a32ce028206be8e279697b881e3146",
+    "wrapper": "set status [catch {\nset x 7; if {~[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "composite-child-value-is-not-root-result",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "f80805c46cb62dedeecaf586b45cf31dd8a32ce028206be8e279697b881e3146",
+    "wrapper": "set status [catch {\nset x 7; if {~[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "composite-child-value-is-not-root-result",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "f80805c46cb62dedeecaf586b45cf31dd8a32ce028206be8e279697b881e3146",
+    "wrapper": "set status [catch {\nset x 7; if {~[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "composite-child-value-is-not-root-result",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "f80805c46cb62dedeecaf586b45cf31dd8a32ce028206be8e279697b881e3146",
+    "wrapper": "set status [catch {\nset x 7; if {~[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "composite-child-value-is-not-root-result",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "f80805c46cb62dedeecaf586b45cf31dd8a32ce028206be8e279697b881e3146",
+    "wrapper": "set status [catch {\nset x 7; if {~[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "composite-child-value-is-not-root-result",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "f80805c46cb62dedeecaf586b45cf31dd8a32ce028206be8e279697b881e3146",
+    "wrapper": "set status [catch {\nset x 7; if {~[set x 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "ca87e71253cb064cb07de266e0c7343a916c0a9c38dc441cfe7ae58ef734d8c9",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 0] [set x 1]] 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "ca87e71253cb064cb07de266e0c7343a916c0a9c38dc441cfe7ae58ef734d8c9",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 0] [set x 1]] 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "ca87e71253cb064cb07de266e0c7343a916c0a9c38dc441cfe7ae58ef734d8c9",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 0] [set x 1]] 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "ca87e71253cb064cb07de266e0c7343a916c0a9c38dc441cfe7ae58ef734d8c9",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 0] [set x 1]] 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "ca87e71253cb064cb07de266e0c7343a916c0a9c38dc441cfe7ae58ef734d8c9",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 0] [set x 1]] 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "and-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "ca87e71253cb064cb07de266e0c7343a916c0a9c38dc441cfe7ae58ef734d8c9",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 0] [set x 1]] 0] && [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 1\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH84",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+    ],
+    "source_sha256": "a2bd3368e55f3e860eaed8a7574a20d31be2e6035adc478176cdf811623397ac",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 1] [set x 0]] 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH85",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+    ],
+    "source_sha256": "a2bd3368e55f3e860eaed8a7574a20d31be2e6035adc478176cdf811623397ac",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 1] [set x 0]] 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH86",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+    ],
+    "source_sha256": "a2bd3368e55f3e860eaed8a7574a20d31be2e6035adc478176cdf811623397ac",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 1] [set x 0]] 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH90",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+    ],
+    "source_sha256": "a2bd3368e55f3e860eaed8a7574a20d31be2e6035adc478176cdf811623397ac",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 1] [set x 0]] 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_TCLSH91",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+    ],
+    "source_sha256": "a2bd3368e55f3e860eaed8a7574a20d31be2e6035adc478176cdf811623397ac",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 1] [set x 0]] 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "case": "or-command-value-precedes-later-argv-store",
+    "oracle": "TCL_LSP_JIMSH",
+    "command": [
+      "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+    ],
+    "source_sha256": "a2bd3368e55f3e860eaed8a7574a20d31be2e6035adc478176cdf811623397ac",
+    "wrapper": "set status [catch {\nset x 7; if {[lindex [list [set x 1] [set x 0]] 0] || [set x 9]} {}; set x\n\n} message]\nputs [list $status $message]\n",
+    "stdout": "0 0\n",
+    "stderr": "",
+    "exit": 0
+  }
+]
