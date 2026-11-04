@@ -40,6 +40,22 @@ appended numeric representations nor stale pre-operand producers can supply
 the target container representation. No shared values-tree write or Cargo
 invocation is claimed for this checkpoint; full push gates remain pending.
 
+The follow-up original-report scout is recorded in
+`/tmp/lsp-940-conditional-if-seam.md`. Existing conditional clause/body and
+error-exit topology can be reused, but a separate source-control phase must
+retain exact nested-body custody and expression conversion effects. The
+source-only expression parser cannot supply Native preparation. No if source
+change is implemented. A separate temporary registry child,
+`/tmp/lsp-940-conditional_list_index.rs` (SHA-256
+`6e31ba2244adc70fe859d26412b4578e7cd9d403410df0ccbd4395dbe4810f86`),
+projects one fixed literal index through the shared list/index owners. Unknown
+container bytes remain unknown and numeric-looking elements establish no
+result intrep. Its four fixed-input controls are prepared but unrun; only
+rustfmt passes. The manifest is
+`/tmp/lsp-940-conditional-list-index-manifest.json`. The original report still
+requires genuine typed append stores and condition/body coverage alongside
+an active repeated-conversion control; quiet diagnostics alone are not proof.
+
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,
 8.6.18, 9.0.4 and 9.1.0 interpreters. Latest JimTcl is available for applicable
