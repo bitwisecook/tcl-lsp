@@ -105,6 +105,12 @@ mutation and distrust `expr`; the propagation helper bypasses that fact.
 The implementation now retains the registry-resolved expression invocation
 and checks its descriptor against the whole-module trust gate before O115.
 No binding-owner, CLI, VM or F5 code is changed. Focused return/argument
-controls and execution under Tcl 8.4–9.1/current Jim are prepared; corrected
-verification is pending this required integration checkpoint. Older tooling
+controls and execution under Tcl 8.4–9.1/current Jim passed all three focused
+regressions at clean `c47d83bda` (15.60 seconds). Eight positive and eight
+negative return/argument controls include a proved computed `puts` head.
+The six-engine execution installs a mutating target after load, dispatches it
+through the public dynamic procedure and compares the resulting output.
+The sample README's dynamic-head row now says **not reported** and its former
+remaining-gap paragraph has been replaced. A rerun with the refreshed strict
+Jim reference and targeted Clippy is in progress. Older tooling
 and allocation/setup drafts remain stashed.

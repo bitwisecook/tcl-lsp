@@ -35,6 +35,10 @@ if {$x > 0} { ... }
 
 - Skipped when the inner expression contains side effects (e.g. command substitutions) whose evaluation order would change.
 - Skipped when the inner `[expr]` is unbraced, as removing it could alter substitution semantics.
+- Return values and command arguments use the same whole-module command
+  trust as standalone expressions. An unresolved command head in any procedure
+  can replace the expression command, so it blocks this rewrite. A computed
+  head proved to select an unchanged builtin remains eligible.
 
 ## How to disable
 
