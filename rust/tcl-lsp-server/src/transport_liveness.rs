@@ -355,6 +355,73 @@ mod tests {
         waiting.await.expect("waiting request panicked").unwrap();
     }
 
+    #[tokio::test]
+    async fn edit_barrier_waiters_do_not_starve_unrelated_requests_1657() {
+        #[derive(Clone)]
+        struct BarrierService {
+            backend: Arc<crate::Backend>,
+            calls: Arc<AtomicUsize>,
+            started: Arc<Semaphore>,
+        }
+
+        impl Service<Request> for BarrierService {
+            type Response = ();
+            type Error = Infallible;
+            type Future = Pin<Box<dyn Future<Output = Result<(), Infallible>> + Send>>;
+
+            fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+                Poll::Ready(Ok(()))
+            }
+
+            fn call(&mut self, _: Request) -> Self::Future {
+                let call = self.calls.fetch_add(1, Ordering::SeqCst);
+                let backend = Arc::clone(&self.backend);
+                let started = Arc::clone(&self.started);
+                Box::pin(async move {
+                    if call < DEFAULT_HANDLER_CONCURRENCY {
+                        started.add_permits(1);
+                        backend.edits_settled().await;
+                    }
+                    Ok(())
+                })
+            }
+        }
+
+        let backend = Arc::new(crate::tests::test_backend());
+        let uri = "file:///barrier.tcl".parse().unwrap();
+        let ticket = backend.edit_order.take_ticket("didChange", &uri);
+        let turn = backend.edit_order.wait_turn(ticket).await;
+        let started = Arc::new(Semaphore::new(0));
+        let mut service = DeferredConcurrency::new(
+            BarrierService {
+                backend: Arc::clone(&backend),
+                calls: Arc::new(AtomicUsize::new(0)),
+                started: Arc::clone(&started),
+            },
+            DEFAULT_HANDLER_CONCURRENCY,
+        );
+        let mut waiters = Vec::new();
+        for _ in 0..DEFAULT_HANDLER_CONCURRENCY {
+            waiters.push(tokio::spawn(service.call(request("waiting"))));
+        }
+        for _ in 0..DEFAULT_HANDLER_CONCURRENCY {
+            started.acquire().await.unwrap().forget();
+        }
+        tokio::time::timeout(Duration::from_secs(5), service.call(request("unrelated")))
+            .await
+            .expect("an unrelated request was stranded behind edit barrier waiters")
+            .unwrap();
+        assert!(waiters.iter().all(|waiter| !waiter.is_finished()));
+        drop(turn);
+        for waiter in waiters {
+            tokio::time::timeout(Duration::from_secs(5), waiter)
+                .await
+                .expect("edit barrier waiter did not resume")
+                .unwrap()
+                .unwrap();
+        }
+    }
+
     impl Service<Request> for InitiallyPendingService {
         type Response = ();
         type Error = Infallible;
