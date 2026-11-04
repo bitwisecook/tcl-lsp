@@ -82,6 +82,7 @@ async fn install_workspace_read_pack(
         ),
     )]);
     assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    install_pack_overlays(&packs);
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
     *backend.spec_packs.lock().await = PublishedPackSet {
         seq: sequence,
