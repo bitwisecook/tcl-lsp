@@ -1,0 +1,1112 @@
+{
+  "issue": 2376,
+  "purpose": "Fixed native Boolean/numeric boundaries, verbatim issue layout and distinct-cell controls. The compiler candidate remains unverified; this evidence creates no Native result/getter/callback or source-stage receipt.",
+  "engines": {
+    "TCL_LSP_TCLSH84": {
+      "command": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+      "resolved_binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+      "binary_sha256": "704c2caa06eddb67f97e128572395e1ed81a87bc07544b3b55efcd3139a1dc98",
+      "info_patchlevel": "8.4.20",
+      "version_stderr": "",
+      "version_exit": 0
+    },
+    "TCL_LSP_TCLSH85": {
+      "command": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+      "resolved_binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+      "binary_sha256": "ec41a6a74436030c15a3c45b9eeae821509148223711e9dd0993907fe5a59eb6",
+      "info_patchlevel": "8.5.19",
+      "version_stderr": "",
+      "version_exit": 0
+    },
+    "TCL_LSP_TCLSH86": {
+      "command": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+      "resolved_binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+      "binary_sha256": "d98e632bcfbb411d33841cd75873d374dc950bf1a34ce4b20b657208d51f746c",
+      "info_patchlevel": "8.6.18",
+      "version_stderr": "",
+      "version_exit": 0
+    },
+    "TCL_LSP_TCLSH90": {
+      "command": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+      "resolved_binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+      "binary_sha256": "843e6c3f41064c654932a3677be76baddf10e59d340fd6de2a0ea56cffaf5f35",
+      "info_patchlevel": "9.0.4",
+      "version_stderr": "",
+      "version_exit": 0
+    },
+    "TCL_LSP_TCLSH91": {
+      "command": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+      "resolved_binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+      "binary_sha256": "f185a54d2fff0c33aa3d8fd5b7f867be7eceba237dea736b86c24e15b3fae0fa",
+      "info_patchlevel": "9.1.0",
+      "version_stderr": "",
+      "version_exit": 0
+    },
+    "TCL_LSP_JIMSH": {
+      "command": "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh",
+      "resolved_binary": "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh",
+      "binary_sha256": "4086bc7223d3d0e853f7c094fdc6cf6f35f7e4c1837a3ff8f6abd0792cdedca8",
+      "info_patchlevel": "0.84-10-g82fb4d0",
+      "version_stderr": "",
+      "version_exit": 0
+    }
+  },
+  "observations": [
+    {
+      "scope": "completed-command-or",
+      "case": "cached-nan-is-not-literal-nan",
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n",
+      "source_sha256": "7e0d7d4f8f5192844dc8e53d809c08772a158e65a81108d6f5ccddfa26b3cf3e",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 nan\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "completed-command-or",
+      "case": "cached-nan-is-not-literal-nan",
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n",
+      "source_sha256": "7e0d7d4f8f5192844dc8e53d809c08772a158e65a81108d6f5ccddfa26b3cf3e",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "completed-command-or",
+      "case": "cached-nan-is-not-literal-nan",
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n",
+      "source_sha256": "7e0d7d4f8f5192844dc8e53d809c08772a158e65a81108d6f5ccddfa26b3cf3e",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "completed-command-or",
+      "case": "cached-nan-is-not-literal-nan",
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n",
+      "source_sha256": "7e0d7d4f8f5192844dc8e53d809c08772a158e65a81108d6f5ccddfa26b3cf3e",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "completed-command-or",
+      "case": "cached-nan-is-not-literal-nan",
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n",
+      "source_sha256": "7e0d7d4f8f5192844dc8e53d809c08772a158e65a81108d6f5ccddfa26b3cf3e",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "completed-command-or",
+      "case": "cached-nan-is-not-literal-nan",
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n",
+      "source_sha256": "7e0d7d4f8f5192844dc8e53d809c08772a158e65a81108d6f5ccddfa26b3cf3e",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {[set x $x] || [set x 9]} {}\nset x\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 NaN\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "set x NaN\nexpr {!$x}\n",
+      "source_sha256": "ffd4741c19d61983b2052576f55e43c33514b649ebd348e090f71b7664e836c8",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 0\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "set x NaN\nexpr {!$x}\n",
+      "source_sha256": "ffd4741c19d61983b2052576f55e43c33514b649ebd348e090f71b7664e836c8",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "set x NaN\nexpr {!$x}\n",
+      "source_sha256": "ffd4741c19d61983b2052576f55e43c33514b649ebd348e090f71b7664e836c8",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "set x NaN\nexpr {!$x}\n",
+      "source_sha256": "ffd4741c19d61983b2052576f55e43c33514b649ebd348e090f71b7664e836c8",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "set x NaN\nexpr {!$x}\n",
+      "source_sha256": "ffd4741c19d61983b2052576f55e43c33514b649ebd348e090f71b7664e836c8",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "set x NaN\nexpr {!$x}\n",
+      "source_sha256": "ffd4741c19d61983b2052576f55e43c33514b649ebd348e090f71b7664e836c8",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 0\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n",
+      "source_sha256": "bf81e4db482b3fb9f95886c221351c16ba8aa6cd304d77c0ff010b04ad98b90a",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 0\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n",
+      "source_sha256": "bf81e4db482b3fb9f95886c221351c16ba8aa6cd304d77c0ff010b04ad98b90a",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n",
+      "source_sha256": "bf81e4db482b3fb9f95886c221351c16ba8aa6cd304d77c0ff010b04ad98b90a",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n",
+      "source_sha256": "bf81e4db482b3fb9f95886c221351c16ba8aa6cd304d77c0ff010b04ad98b90a",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n",
+      "source_sha256": "bf81e4db482b3fb9f95886c221351c16ba8aa6cd304d77c0ff010b04ad98b90a",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n",
+      "source_sha256": "bf81e4db482b3fb9f95886c221351c16ba8aa6cd304d77c0ff010b04ad98b90a",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 0\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "set x NaN\nexpr {!!$x}\n",
+      "source_sha256": "e9dffe060ed7f933db210361fb1803f71818f5ae8351e9ee3835f9d6d9c901ba",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "set x NaN\nexpr {!!$x}\n",
+      "source_sha256": "e9dffe060ed7f933db210361fb1803f71818f5ae8351e9ee3835f9d6d9c901ba",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "set x NaN\nexpr {!!$x}\n",
+      "source_sha256": "e9dffe060ed7f933db210361fb1803f71818f5ae8351e9ee3835f9d6d9c901ba",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "set x NaN\nexpr {!!$x}\n",
+      "source_sha256": "e9dffe060ed7f933db210361fb1803f71818f5ae8351e9ee3835f9d6d9c901ba",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "set x NaN\nexpr {!!$x}\n",
+      "source_sha256": "e9dffe060ed7f933db210361fb1803f71818f5ae8351e9ee3835f9d6d9c901ba",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": false,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "set x NaN\nexpr {!!$x}\n",
+      "source_sha256": "e9dffe060ed7f933db210361fb1803f71818f5ae8351e9ee3835f9d6d9c901ba",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n",
+      "source_sha256": "0495fd256d5813c65dc21cb8f4bae3d302062fdb56100b5b20f240bf16d2af56",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n",
+      "source_sha256": "0495fd256d5813c65dc21cb8f4bae3d302062fdb56100b5b20f240bf16d2af56",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n",
+      "source_sha256": "0495fd256d5813c65dc21cb8f4bae3d302062fdb56100b5b20f240bf16d2af56",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't use non-numeric floating-point value as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n",
+      "source_sha256": "0495fd256d5813c65dc21cb8f4bae3d302062fdb56100b5b20f240bf16d2af56",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n",
+      "source_sha256": "0495fd256d5813c65dc21cb8f4bae3d302062fdb56100b5b20f240bf16d2af56",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {cannot use non-numeric floating-point value \"NaN\" as operand of \"!\"}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "!!$x",
+      "cached": true,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n",
+      "source_sha256": "0495fd256d5813c65dc21cb8f4bae3d302062fdb56100b5b20f240bf16d2af56",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {!!$x}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "set x NaN\nexpr {$x || 0}\n",
+      "source_sha256": "06ead8d5b23786b1b6187a81dc79301e62efd7251a50dda4c591a2cf994c6c58",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "set x NaN\nexpr {$x || 0}\n",
+      "source_sha256": "06ead8d5b23786b1b6187a81dc79301e62efd7251a50dda4c591a2cf994c6c58",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "set x NaN\nexpr {$x || 0}\n",
+      "source_sha256": "06ead8d5b23786b1b6187a81dc79301e62efd7251a50dda4c591a2cf994c6c58",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "set x NaN\nexpr {$x || 0}\n",
+      "source_sha256": "06ead8d5b23786b1b6187a81dc79301e62efd7251a50dda4c591a2cf994c6c58",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "set x NaN\nexpr {$x || 0}\n",
+      "source_sha256": "06ead8d5b23786b1b6187a81dc79301e62efd7251a50dda4c591a2cf994c6c58",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": false,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "set x NaN\nexpr {$x || 0}\n",
+      "source_sha256": "06ead8d5b23786b1b6187a81dc79301e62efd7251a50dda4c591a2cf994c6c58",
+      "wrapper": "set status [catch {\nset x NaN\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n",
+      "source_sha256": "7095c5ec967d45395b42f54d85779b21fba1c4a9762ddd595d7a2ebc17385f15",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n",
+      "source_sha256": "7095c5ec967d45395b42f54d85779b21fba1c4a9762ddd595d7a2ebc17385f15",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n",
+      "source_sha256": "7095c5ec967d45395b42f54d85779b21fba1c4a9762ddd595d7a2ebc17385f15",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n",
+      "source_sha256": "7095c5ec967d45395b42f54d85779b21fba1c4a9762ddd595d7a2ebc17385f15",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n",
+      "source_sha256": "7095c5ec967d45395b42f54d85779b21fba1c4a9762ddd595d7a2ebc17385f15",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "expression-operator",
+      "form": "$x || 0",
+      "cached": true,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n",
+      "source_sha256": "7095c5ec967d45395b42f54d85779b21fba1c4a9762ddd595d7a2ebc17385f15",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nexpr {$x || 0}\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "set x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "79037cec23fca3410d080bf7e3e0d20e3ad65dd09503ac948ebb08937336d8e6",
+      "wrapper": "set status [catch {\nset x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {domain error: argument not in valid range}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "set x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "79037cec23fca3410d080bf7e3e0d20e3ad65dd09503ac948ebb08937336d8e6",
+      "wrapper": "set status [catch {\nset x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {domain error: argument not in valid range}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "set x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "79037cec23fca3410d080bf7e3e0d20e3ad65dd09503ac948ebb08937336d8e6",
+      "wrapper": "set status [catch {\nset x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "set x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "79037cec23fca3410d080bf7e3e0d20e3ad65dd09503ac948ebb08937336d8e6",
+      "wrapper": "set status [catch {\nset x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": false,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "set x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "79037cec23fca3410d080bf7e3e0d20e3ad65dd09503ac948ebb08937336d8e6",
+      "wrapper": "set status [catch {\nset x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": false,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "set x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "79037cec23fca3410d080bf7e3e0d20e3ad65dd09503ac948ebb08937336d8e6",
+      "wrapper": "set status [catch {\nset x NaN\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "84fb6ddc4deaffbe88fa6d3562b8413f345beae4207640219e2909e799013e58",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {domain error: argument not in valid range}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "84fb6ddc4deaffbe88fa6d3562b8413f345beae4207640219e2909e799013e58",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {domain error: argument not in valid range}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "84fb6ddc4deaffbe88fa6d3562b8413f345beae4207640219e2909e799013e58",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "84fb6ddc4deaffbe88fa6d3562b8413f345beae4207640219e2909e799013e58",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": true,
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "84fb6ddc4deaffbe88fa6d3562b8413f345beae4207640219e2909e799013e58",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {floating point value is Not a Number}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "command-condition",
+      "form": "if-single-variable",
+      "cached": true,
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source": "binary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n",
+      "source_sha256": "84fb6ddc4deaffbe88fa6d3562b8413f345beae4207640219e2909e799013e58",
+      "wrapper": "set status [catch {\nbinary scan [binary format H* 000000000000f87f] d x\nif {$x} {set answer 1} else {set answer 0}\nset answer\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 1\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "scope": "verbatim-issue-layout",
+      "case": "original-report-layout",
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source_sha256": "36ce1844174c8fa7d5083b8b966b218020813dd8c83837c5db4a7c470e5c04fb",
+      "wrapper": "set status [catch {\nproc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 {}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n"
+    },
+    {
+      "scope": "verbatim-issue-layout",
+      "case": "original-report-layout",
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source_sha256": "36ce1844174c8fa7d5083b8b966b218020813dd8c83837c5db4a7c470e5c04fb",
+      "wrapper": "set status [catch {\nproc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 {}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n"
+    },
+    {
+      "scope": "verbatim-issue-layout",
+      "case": "original-report-layout",
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source_sha256": "36ce1844174c8fa7d5083b8b966b218020813dd8c83837c5db4a7c470e5c04fb",
+      "wrapper": "set status [catch {\nproc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 {}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n"
+    },
+    {
+      "scope": "verbatim-issue-layout",
+      "case": "original-report-layout",
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source_sha256": "36ce1844174c8fa7d5083b8b966b218020813dd8c83837c5db4a7c470e5c04fb",
+      "wrapper": "set status [catch {\nproc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 {}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n"
+    },
+    {
+      "scope": "verbatim-issue-layout",
+      "case": "original-report-layout",
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source_sha256": "36ce1844174c8fa7d5083b8b966b218020813dd8c83837c5db4a7c470e5c04fb",
+      "wrapper": "set status [catch {\nproc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 {}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n"
+    },
+    {
+      "scope": "verbatim-issue-layout",
+      "case": "original-report-layout",
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source_sha256": "36ce1844174c8fa7d5083b8b966b218020813dd8c83837c5db4a7c470e5c04fb",
+      "wrapper": "set status [catch {\nproc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "0 {}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-cell",
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source_sha256": "135f6a8a438c171976c2918414b61dcab9cce1fa3baabf32169810873fd22b22",
+      "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"__unrelated\": no such variable}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-cell",
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source_sha256": "135f6a8a438c171976c2918414b61dcab9cce1fa3baabf32169810873fd22b22",
+      "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"__unrelated\": no such variable}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-cell",
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source_sha256": "135f6a8a438c171976c2918414b61dcab9cce1fa3baabf32169810873fd22b22",
+      "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"__unrelated\": no such variable}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-cell",
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source_sha256": "135f6a8a438c171976c2918414b61dcab9cce1fa3baabf32169810873fd22b22",
+      "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"__unrelated\": no such variable}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-cell",
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source_sha256": "135f6a8a438c171976c2918414b61dcab9cce1fa3baabf32169810873fd22b22",
+      "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"__unrelated\": no such variable}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-cell",
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source_sha256": "135f6a8a438c171976c2918414b61dcab9cce1fa3baabf32169810873fd22b22",
+      "wrapper": "set status [catch {\nproc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"__unrelated\": no such variable}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-element",
+      "oracle": "TCL_LSP_TCLSH84",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4"
+      ],
+      "source_sha256": "55c7e96a3ca3d9792985a62c03cf81410f2d89ab8524a29405f08f5bcb9e141e",
+      "wrapper": "set status [catch {\nproc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"a(missing)\": no such element in array}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-element",
+      "oracle": "TCL_LSP_TCLSH85",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5"
+      ],
+      "source_sha256": "55c7e96a3ca3d9792985a62c03cf81410f2d89ab8524a29405f08f5bcb9e141e",
+      "wrapper": "set status [catch {\nproc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"a(missing)\": no such element in array}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-element",
+      "oracle": "TCL_LSP_TCLSH86",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6"
+      ],
+      "source_sha256": "55c7e96a3ca3d9792985a62c03cf81410f2d89ab8524a29405f08f5bcb9e141e",
+      "wrapper": "set status [catch {\nproc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"a(missing)\": no such element in array}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-element",
+      "oracle": "TCL_LSP_TCLSH90",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0"
+      ],
+      "source_sha256": "55c7e96a3ca3d9792985a62c03cf81410f2d89ab8524a29405f08f5bcb9e141e",
+      "wrapper": "set status [catch {\nproc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"a(missing)\": no such element in array}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-element",
+      "oracle": "TCL_LSP_TCLSH91",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1"
+      ],
+      "source_sha256": "55c7e96a3ca3d9792985a62c03cf81410f2d89ab8524a29405f08f5bcb9e141e",
+      "wrapper": "set status [catch {\nproc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"a(missing)\": no such element in array}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n"
+    },
+    {
+      "scope": "distinct-cell-control",
+      "case": "query-does-not-guard-another-element",
+      "oracle": "TCL_LSP_JIMSH",
+      "command": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+      ],
+      "source_sha256": "55c7e96a3ca3d9792985a62c03cf81410f2d89ab8524a29405f08f5bcb9e141e",
+      "wrapper": "set status [catch {\nproc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n\n} message]\nputs [list $status $message]\n",
+      "stdout": "1 {can't read \"a(missing)\": no such element in array}\n",
+      "stderr": "",
+      "exit": 0,
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n"
+    }
+  ]
+}
