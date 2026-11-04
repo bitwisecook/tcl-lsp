@@ -14,6 +14,7 @@ import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileDocumentManagerListener
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -739,7 +740,7 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
                                 }
                             }
                         }
-                        FileEditorManager.getInstance(project).openFile(file, true)
+                        OpenFileDescriptor(project, file).navigate(true)
                     }
                 } catch (error: Exception) {
                     SPEC_LOG.warn("Could not open Spec Studio $surface", error)
