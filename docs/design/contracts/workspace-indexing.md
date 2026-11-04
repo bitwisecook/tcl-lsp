@@ -628,3 +628,26 @@ second legacy autoload tier. Both an empty conditional report and a conditional
 candidate whose current owner cannot supply hover text terminate without a new
 autoload donor. Ordinary genuine misses retain their existing library lookup;
 Binding callers cannot receive either conditional selection variant.
+
+### Workspace symbol interpretation ownership
+
+An indexed original location retains its actual declaration interpretation.
+A fresh standalone source analysis cannot replace an inherited source origin,
+even when its URI, text, Registry and scanner configuration agree. The existing
+exact physical or Logical source-fact validation route remains authoritative
+when it already succeeds. Otherwise a source-view symbol requires exactly one
+actual indexed published interpretation whose unchanged `validated_span` API
+accepts the original fact. Missing or ambiguous interpreted ownership supplies
+no standalone, Registry-label or workspace-presence fallback.
+
+The final symbol transaction rejoins the retained producer, every ancestor,
+physical publication, complete input/configuration, table membership and index
+membership before rendering. Rehoming/table/index guards stay held through the
+same joint provider lease and projection. Only final current row ordinals add
+interpretation/ancestor admissions and saved images to that lease, so a retired
+interpretation cannot withdraw an independent current physical row. Closed
+owners contribute their originally captured publication bytes and read admission;
+new equal-normalized reads cannot renew an old interpretation. Open owners keep
+their genuine live-publication and mapping guards. Missing captured closed-byte
+proof remains unavailable. These source-only facts establish no Native dispatch,
+entered frame, completed world, Normal completion or edit permission.

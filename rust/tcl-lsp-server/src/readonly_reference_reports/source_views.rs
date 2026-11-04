@@ -8,6 +8,10 @@
 //! whole-program completeness, Native execution and edit authority.
 //! A view key is a locator; only a live table join under the source lease answers.
 
+mod symbol_sources;
+pub(super) use symbol_sources::WorkspaceSymbolViewGuards;
+pub(crate) use symbol_sources::{WorkspaceSymbolSourceView, WorkspaceSymbolSourceViewCache};
+
 use super::{
     Arc, Backend, DocumentSourceResult, ReadonlySourceDocument, ReadonlySourceState,
     WorkspaceSymbolFreshInput, original_readonly_analysis_matches_input,

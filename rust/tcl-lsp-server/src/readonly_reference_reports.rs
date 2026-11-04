@@ -133,7 +133,12 @@ impl OriginalCodeActionSource {
 
 type ReadonlySavedSources<'a> = std::borrow::Cow<'a, [(&'a DocumentPathAdmission, &'a [u8])]>;
 
-type WorkspaceSymbolRow = (
+struct ReadonlyPublicationInputs<'a> {
+    admissions: std::borrow::Cow<'a, [&'a DocumentPathAdmission]>,
+    saved_sources: Option<ReadonlySavedSources<'a>>,
+}
+
+pub(super) type WorkspaceSymbolRow = (
     tower_lsp_server::ls_types::SymbolInformation,
     Uri,
     super::DocumentState,
@@ -166,6 +171,117 @@ struct ReadonlySourceState<'a> {
     files: &'a std::collections::HashMap<Uri, tcl_lsp_db::SourceFile>,
     published: &'a std::collections::HashMap<Uri, super::PublishedSourcePath>,
     uri_generations: &'a std::collections::HashMap<Uri, u64>,
+}
+
+struct WorkspaceSymbolPublication<'a> {
+    analyses: &'a std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+    rows: &'a [WorkspaceSymbolRow],
+    views: &'a [Option<source_views::WorkspaceSymbolSourceView>],
+    epochs: (u64, u64),
+    diagnostic: &'a super::WorkspaceSymbolDiagnostic,
+}
+
+impl WorkspaceSymbolPublication<'_> {
+    fn current_rows(
+        &self,
+        state: &ReadonlySourceState<'_>,
+        index: &tcl_lsp_core::workspace_index::WorkspaceIndex,
+        view_guards: &source_views::WorkspaceSymbolViewGuards<'_>,
+    ) -> Vec<usize> {
+        let owners = self
+            .rows
+            .iter()
+            .map(|(_, uri, _, _)| uri.as_str())
+            .collect();
+        let current_inputs = Backend::workspace_symbol_current_inputs(
+            &owners,
+            self.analyses,
+            state,
+            self.epochs,
+            self.diagnostic,
+        );
+        let mut current = Vec::with_capacity(self.rows.len());
+        for (ordinal, (_, uri, snapshot, revision)) in self.rows.iter().enumerate() {
+            if !current_inputs.contains(uri.as_str())
+                || self
+                    .analyses
+                    .get(uri.as_str())
+                    .and_then(Option::as_ref)
+                    .is_none_or(|analysis| {
+                        !WorkspaceSymbolSourceAnalysis::matches_snapshot(analysis, uri, snapshot)
+                    })
+            {
+                continue;
+            }
+            if !workspace_symbol_index_snapshot_is_current(
+                uri,
+                snapshot,
+                *revision,
+                state.open.get(uri),
+                index,
+            ) {
+                self.diagnostic.record("lease.index_snapshot_refused", &[]);
+                continue;
+            }
+            if self
+                .views
+                .get(ordinal)
+                .and_then(Option::as_ref)
+                .is_some_and(|view| {
+                    !view_guards.matches(view, &self.rows[ordinal], state, index, self.epochs)
+                })
+            {
+                self.diagnostic.record("lease.source_view_refused", &[]);
+                continue;
+            }
+            current.push(ordinal);
+        }
+        current
+    }
+
+    fn source_inputs<'a>(
+        &'a self,
+        admissions: &[&'a DocumentPathAdmission],
+        current: &[usize],
+    ) -> ReadonlyPublicationInputs<'a> {
+        let mut admissions = admissions.to_vec();
+        let mut sources = super::DocumentState::saved_source_inputs(
+            current.iter().map(|&ordinal| &self.rows[ordinal].2),
+        );
+        // Subtractive deduplication only: independent retained receipts stay
+        // distinct even when their URI, path or byte values happen to agree.
+        let mut selected_admissions = admissions
+            .iter()
+            .map(|admission| std::ptr::from_ref(*admission))
+            .collect::<std::collections::HashSet<_>>();
+        let mut selected_images = sources
+            .iter()
+            .map(|(admission, bytes)| (std::ptr::from_ref(*admission), bytes.as_ptr(), bytes.len()))
+            .collect::<std::collections::HashSet<_>>();
+        for view in current
+            .iter()
+            .filter_map(|&ordinal| self.views.get(ordinal)?.as_ref())
+        {
+            for admission in view.admissions() {
+                if selected_admissions.insert(std::ptr::from_ref(admission)) {
+                    admissions.push(admission);
+                }
+            }
+            for (admission, bytes) in view.saved_sources() {
+                if selected_images.insert((
+                    std::ptr::from_ref(admission),
+                    bytes.as_ptr(),
+                    bytes.len(),
+                )) {
+                    sources.push((admission, bytes));
+                }
+            }
+        }
+        ReadonlyPublicationInputs {
+            admissions: std::borrow::Cow::Owned(admissions),
+            saved_sources: (!sources.is_empty()).then_some(std::borrow::Cow::Owned(sources)),
+        }
+    }
 }
 
 pub(super) struct OriginalReadonlyReferenceReport {
@@ -1095,12 +1211,33 @@ impl Backend {
         .await
     }
 
+    #[cfg(test)]
     pub(super) async fn workspace_symbol_response_transaction_diagnostic(
         &self,
         analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
         rows: &[WorkspaceSymbolRow],
         inputs_epoch: u64,
         factory_generation: u64,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> DocumentSourceResult<
+        ReadonlyTransaction<tower_lsp_server::ls_types::WorkspaceSymbolResponse>,
+    > {
+        self.workspace_symbol_response_transaction_with_views(
+            analyses,
+            rows,
+            &[],
+            (inputs_epoch, factory_generation),
+            diagnostic,
+        )
+        .await
+    }
+
+    pub(super) async fn workspace_symbol_response_transaction_with_views(
+        &self,
+        analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+        rows: &[WorkspaceSymbolRow],
+        views: &[Option<source_views::WorkspaceSymbolSourceView>],
+        epochs: (u64, u64),
         diagnostic: &super::WorkspaceSymbolDiagnostic,
     ) -> DocumentSourceResult<
         ReadonlyTransaction<tower_lsp_server::ls_types::WorkspaceSymbolResponse>,
@@ -1136,60 +1273,35 @@ impl Backend {
         else {
             return Ok(ReadonlyTransaction::PublishRefused);
         };
-        self.readonly_source_transaction_diagnostic(
-            (inputs_epoch, factory_generation),
-            &admissions,
-            |(_, current): &(_, Vec<usize>)| {
-                let sources = super::DocumentState::saved_source_inputs(
-                    current.iter().map(|&ordinal| &rows[ordinal].2),
-                );
-                (!sources.is_empty()).then_some(std::borrow::Cow::Owned(sources))
-            },
+        if !views.is_empty() && views.len() != rows.len() {
+            return Ok(ReadonlyTransaction::PublishRefused);
+        }
+        let publication = WorkspaceSymbolPublication {
+            analyses,
+            rows,
+            views,
+            epochs,
+            diagnostic,
+        };
+        self.readonly_source_transaction_with_inputs(
+            epochs,
+            |(_, _, current): &(_, _, Vec<usize>)| publication.source_inputs(&admissions, current),
             diagnostic,
             |state| {
-                // The established writer order is documents -> index. A busy
-                // index withdraws currency so the whole query can recapture.
-                // Retain this guard through the provider lease and projection.
+                // Keep view/table ownership before the existing index guard,
+                // through one combined provider lease and response projection.
+                let view_guards = self.workspace_symbol_view_guards(views)?;
                 let Ok(index) = self.workspace_index.try_read() else {
                     diagnostic.record("lease.index_busy", &[]);
                     return None;
                 };
-                let current_inputs = Self::workspace_symbol_current_inputs(
-                    &owners,
-                    analyses,
-                    state,
-                    (inputs_epoch, factory_generation),
-                    diagnostic,
-                );
-                let mut current = Vec::with_capacity(rows.len());
-                for (ordinal, (_, uri, snapshot, indexed_revision)) in rows.iter().enumerate() {
-                    if !current_inputs.contains(uri.as_str())
-                        || !WorkspaceSymbolSourceAnalysis::matches_snapshot(
-                            analyses.get(uri.as_str())?.as_ref()?,
-                            uri,
-                            snapshot,
-                        )
-                    {
-                        continue;
-                    }
-                    if workspace_symbol_index_snapshot_is_current(
-                        uri,
-                        snapshot,
-                        *indexed_revision,
-                        state.open.get(uri),
-                        &index,
-                    ) {
-                        current.push(ordinal);
-                    } else {
-                        diagnostic.record("lease.index_snapshot_refused", &[]);
-                    }
-                }
+                let current = publication.current_rows(state, &index, &view_guards);
                 if current.is_empty() {
                     diagnostic.record("lease.no_current_rows", &[]);
                 }
-                (!current.is_empty()).then_some((index, current))
+                (!current.is_empty()).then_some((view_guards, index, current))
             },
-            |_, (_, current)| {
+            |_, (_, _, current)| {
                 Some(tower_lsp_server::ls_types::WorkspaceSymbolResponse::Flat(
                     current
                         .iter()
@@ -1475,8 +1587,29 @@ impl Backend {
     async fn readonly_source_transaction_diagnostic<'saved, T, Checked>(
         &self,
         epochs: (u64, u64),
-        admissions: &[&DocumentPathAdmission],
+        admissions: &'saved [&'saved DocumentPathAdmission],
         mut saved_sources: impl FnMut(&Checked) -> Option<ReadonlySavedSources<'saved>>,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+        check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
+        publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
+    ) -> DocumentSourceResult<ReadonlyTransaction<T>> {
+        self.readonly_source_transaction_with_inputs(
+            epochs,
+            |checked| ReadonlyPublicationInputs {
+                admissions: std::borrow::Cow::Borrowed(admissions),
+                saved_sources: saved_sources(checked),
+            },
+            diagnostic,
+            check,
+            publish,
+        )
+        .await
+    }
+
+    async fn readonly_source_transaction_with_inputs<'saved, T, Checked>(
+        &self,
+        epochs: (u64, u64),
+        mut select_inputs: impl FnMut(&Checked) -> ReadonlyPublicationInputs<'saved>,
         diagnostic: &super::WorkspaceSymbolDiagnostic,
         mut check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
         mut publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
@@ -1521,8 +1654,9 @@ impl Backend {
             diagnostic.record("lease.source_or_index_state", &[]);
             return Ok(ReadonlyTransaction::CurrencyRefused);
         };
-        let sources = saved_sources(&checked);
-        let issued = if let Some(sources) = sources.as_deref() {
+        let selected = select_inputs(&checked);
+        let admissions = selected.admissions.as_ref();
+        let issued = if let Some(sources) = selected.saved_sources.as_deref() {
             DocumentPathAdmission::with_current_sources(
                 admissions,
                 sources,

@@ -1054,6 +1054,12 @@ struct WorkspaceSymbolCandidates {
     analyses: HashMap<String, Option<readonly_reference_reports::WorkspaceSymbolSourceAnalysis>>,
 }
 
+struct WorkspaceSymbolRows {
+    rows: Vec<readonly_reference_reports::WorkspaceSymbolRow>,
+    analyses: HashMap<String, Option<readonly_reference_reports::WorkspaceSymbolSourceAnalysis>>,
+    views: Vec<Option<readonly_reference_reports::source_views::WorkspaceSymbolSourceView>>,
+}
+
 struct OpenWorkspaceSymbolSnapshot {
     unindexed: Vec<(Uri, DocumentState)>,
     indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
@@ -31908,22 +31914,67 @@ impl Backend {
         // Bounded by the open-document set, empty in steady state, and the
         // analysis read here is the memoised one the pending publish is
         // already computing.
+        let candidates = self
+            .open_but_unindexed_symbols_diagnostic(query, limit, diagnostic)
+            .await?;
+        let WorkspaceSymbolRows {
+            rows: all,
+            analyses,
+            views: symbol_views,
+        } = match self
+            .map_workspace_symbol_candidates(candidates, limit, diagnostic)
+            .await?
+        {
+            readonly_reference_reports::source_views::OriginalSourceViewAttempt::Ready(rows) => {
+                rows
+            }
+            readonly_reference_reports::source_views::OriginalSourceViewAttempt::RetryCapture => {
+                return Ok(ControlFlow::Continue(()));
+            }
+            readonly_reference_reports::source_views::OriginalSourceViewAttempt::Unavailable => {
+                return Ok(ControlFlow::Break(None));
+            }
+        };
+        // Reuse each actual checked URI input without weakening its final
+        // source/configuration/provider/index currency. No await separates the
+        // final joint owner checks from response projection.
+        let result = self
+            .workspace_symbol_response_transaction_with_views(
+                &analyses,
+                &all,
+                &symbol_views,
+                (inputs_epoch, factory_generation),
+                diagnostic,
+            )
+            .await;
+        diagnostic.record_transaction(&result, all.len());
+        result.map(readonly_reference_reports::ReadonlyTransaction::into_attempt)
+    }
+
+    async fn map_workspace_symbol_candidates(
+        &self,
+        candidates: WorkspaceSymbolCandidates,
+        limit: usize,
+        diagnostic: &WorkspaceSymbolDiagnostic,
+    ) -> DocumentSourceResult<
+        readonly_reference_reports::source_views::OriginalSourceViewAttempt<WorkspaceSymbolRows>,
+    > {
         let WorkspaceSymbolCandidates {
             fallback_hits: mut hits,
             indexed_hits,
             indexed_revisions,
             mut sources,
             mut analyses,
-        } = self
-            .open_but_unindexed_symbols_diagnostic(query, limit, diagnostic)
-            .await?;
+        } = candidates;
         if hits.len() < limit {
             let remaining = limit - hits.len();
             hits.extend(indexed_hits.into_iter().take(remaining));
         }
         if hits.is_empty() {
             diagnostic.record("attempt.no_hits", &[]);
-            return Ok(ControlFlow::Break(None));
+            return Ok(
+                readonly_reference_reports::source_views::OriginalSourceViewAttempt::Unavailable,
+            );
         }
         // A name span becomes an LSP range only against a checked source
         // snapshot for its own URI. The index retains immutable validation
@@ -31932,39 +31983,33 @@ impl Backend {
         // there is one, else from disk.
         let mut all: Vec<(SymbolInformation, Uri, DocumentState, Option<u64>)> =
             Vec::with_capacity(hits.len());
+        let mut symbol_views = Vec::with_capacity(hits.len());
+        let mut view_cache =
+            readonly_reference_reports::source_views::WorkspaceSymbolSourceViewCache::default();
         for hit in hits {
-            if !sources.contains_key(&hit.uri) {
-                let loaded = match Uri::from_str(&hit.uri) {
-                    Ok(uri) => self.read_document(&uri).await?,
-                    Err(_) => None,
-                };
-                sources.insert(hit.uri.clone(), loaded);
-            }
+            self.capture_workspace_symbol_sources(
+                &hit.uri,
+                &mut sources,
+                &mut analyses,
+                diagnostic,
+            )
+            .await?;
             let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
             else {
                 diagnostic.record("attempt.no_source_snapshot", &[]);
                 continue;
             };
-            if !analyses.contains_key(&hit.uri) {
-                let current = self
-                    .capture_workspace_symbol_analysis_diagnostic(&uri, doc, diagnostic)
-                    .await?;
-                analyses.insert(hit.uri.clone(), current);
-            }
             let Some(Some(current)) = analyses.get(&hit.uri) else {
                 diagnostic.record("attempt.no_source_analysis", &[]);
                 continue;
             };
-            if !Self::workspace_symbol_hit_is_current(&hit, doc, current, &indexed_revisions) {
-                diagnostic.record(
-                    "attempt.hit_owner_refused",
-                    &[
-                        usize::from(hit.original_location.is_some()),
-                        usize::from(hit.logical_source.is_some()),
-                    ],
-                );
-                continue;
-            }
+            let view = match self.workspace_symbol_hit_source_view(
+                &hit, doc, current, &indexed_revisions, &mut view_cache, diagnostic,
+            ) {
+                readonly_reference_reports::source_views::OriginalSourceViewAttempt::Ready(view) => view,
+                readonly_reference_reports::source_views::OriginalSourceViewAttempt::RetryCapture => return Ok(readonly_reference_reports::source_views::OriginalSourceViewAttempt::RetryCapture),
+                readonly_reference_reports::source_views::OriginalSourceViewAttempt::Unavailable => continue,
+            };
             let symbol = Self::workspace_symbol_information(
                 hit.name,
                 hit.kind,
@@ -31973,6 +32018,7 @@ impl Backend {
                 &uri,
                 doc,
             );
+            symbol_views.push(view);
             all.push((
                 symbol,
                 uri.clone(),
@@ -31982,23 +32028,90 @@ impl Backend {
         }
         if all.is_empty() {
             diagnostic.record("attempt.no_mapped_rows", &[]);
-            return Ok(ControlFlow::Break(None));
+            return Ok(
+                readonly_reference_reports::source_views::OriginalSourceViewAttempt::Unavailable,
+            );
         }
 
-        // Reuse each actual checked URI input without weakening its final
-        // source/configuration/provider/index currency. No await separates the
-        // final joint owner checks from response projection.
-        let result = self
-            .workspace_symbol_response_transaction_diagnostic(
-                &analyses,
-                &all,
-                inputs_epoch,
-                factory_generation,
-                diagnostic,
-            )
-            .await;
-        diagnostic.record_transaction(&result, all.len());
-        result.map(readonly_reference_reports::ReadonlyTransaction::into_attempt)
+        Ok(
+            readonly_reference_reports::source_views::OriginalSourceViewAttempt::Ready(
+                WorkspaceSymbolRows {
+                    rows: all,
+                    analyses,
+                    views: symbol_views,
+                },
+            ),
+        )
+    }
+
+    async fn capture_workspace_symbol_sources(
+        &self,
+        owner: &str,
+        sources: &mut HashMap<String, Option<DocumentState>>,
+        analyses: &mut HashMap<
+            String,
+            Option<readonly_reference_reports::WorkspaceSymbolSourceAnalysis>,
+        >,
+        diagnostic: &WorkspaceSymbolDiagnostic,
+    ) -> DocumentSourceResult<()> {
+        if !sources.contains_key(owner) {
+            let loaded = match Uri::from_str(owner) {
+                Ok(uri) => self.read_document(&uri).await?,
+                Err(_) => None,
+            };
+            sources.insert(owner.to_owned(), loaded);
+        }
+        if !analyses.contains_key(owner)
+            && let (Some(Some(doc)), Ok(uri)) = (sources.get(owner), Uri::from_str(owner))
+        {
+            let current = self
+                .capture_workspace_symbol_analysis_diagnostic(&uri, doc, diagnostic)
+                .await?;
+            analyses.insert(owner.to_owned(), current);
+        }
+        Ok(())
+    }
+
+    fn workspace_symbol_hit_source_view(
+        &self,
+        hit: &core_workspace_symbols::IndexedWorkspaceSymbol,
+        doc: &DocumentState,
+        current: &readonly_reference_reports::WorkspaceSymbolSourceAnalysis,
+        indexed_revisions: &HashMap<String, u64>,
+        view_cache: &mut readonly_reference_reports::source_views::WorkspaceSymbolSourceViewCache,
+        diagnostic: &WorkspaceSymbolDiagnostic,
+    ) -> readonly_reference_reports::source_views::OriginalSourceViewAttempt<
+        Option<readonly_reference_reports::source_views::WorkspaceSymbolSourceView>,
+    > {
+        use readonly_reference_reports::source_views::OriginalSourceViewAttempt;
+        // Keep the existing exact source-fact route when it already owns the
+        // captured physical analysis. No view is required or substituted there.
+        if Self::workspace_symbol_hit_is_current(hit, doc, current, indexed_revisions) {
+            return OriginalSourceViewAttempt::Ready(None);
+        }
+        if hit.original_location.is_some() && indexed_revisions.contains_key(&hit.uri) {
+            match self.capture_workspace_symbol_source_view(hit, doc, view_cache) {
+                OriginalSourceViewAttempt::Ready(Some(view)) => {
+                    return OriginalSourceViewAttempt::Ready(Some(view));
+                }
+                OriginalSourceViewAttempt::Ready(None) => {}
+                OriginalSourceViewAttempt::RetryCapture => {
+                    return OriginalSourceViewAttempt::RetryCapture;
+                }
+                OriginalSourceViewAttempt::Unavailable => {
+                    diagnostic.record("attempt.source_view_unavailable", &[]);
+                    return OriginalSourceViewAttempt::Unavailable;
+                }
+            }
+        }
+        diagnostic.record(
+            "attempt.hit_owner_refused",
+            &[
+                usize::from(hit.original_location.is_some()),
+                usize::from(hit.logical_source.is_some()),
+            ],
+        );
+        OriginalSourceViewAttempt::Unavailable
     }
 
     fn workspace_symbol_information(
