@@ -1795,10 +1795,10 @@ pub fn original_authored_procedure_declaration_for_source_coverage(
         .original_source_advice_purpose(tokens, context, registry)?
         != crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
         || tokens.words().iter().enumerate().any(|(ordinal, word)| {
-            !matches!(
+            !(matches!(
                 word,
                 WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
-            ) && !(ordinal == 1
+            ) || ordinal == 1
                 && tokens.source_binding.as_ref().is_some_and(|binding| {
                     binding.original_completed_static_declaration_name(tokens)
                 }))

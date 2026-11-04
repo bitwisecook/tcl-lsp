@@ -98,3 +98,12 @@ an unchanged nonminimal boolean in `registry_invocation.rs`. Corrections are
 in progress. The original conditional-lappend report remains unsupported;
 native LSP S102 delivery and full release gates are unverified. This is a
 scoped positive control, not a #940 fix claim.
+
+The two unchanged phase8 lint blockers have a reviewed mechanical correction:
+callback candidate setup retains its original interpreter/role and declared-scope
+checks in small helpers, and the declaration-name predicate uses its equivalent
+De Morgan form. Per-operand assembly, refusal behavior and shared word-owner
+checks are unchanged. Patch SHA-256
+`584d46440cc809c1aceffb4dd34b198cf1a7464b142542bd89fc3bca933a6f1f`;
+standalone rustfmt and diff checks pass. Production Clippy is pending a fresh
+run; no full gate result is inferred.

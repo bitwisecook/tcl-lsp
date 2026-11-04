@@ -682,7 +682,97 @@ pub(super) enum LogicalCallbackScope<'a> {
     Unavailable,
 }
 
+fn is_bounded_single_script_head(
+    argument: &NativeWord,
+    element_count: usize,
+    head_bytes: &[u8],
+) -> bool {
+    let Some(script) = tcl_syntax::word_rules::original_static_word_source_bytes(argument) else {
+        return false;
+    };
+    element_count == 1
+        && script == head_bytes
+        && !script.is_empty()
+        && script
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'_' | b':'))
+}
+
 impl super::AdviceInvocationContext<'_> {
+    fn logical_callback_candidate_ordinals(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        arguments: &[super::SourceAdviceWord],
+    ) -> Option<Vec<(usize, tcl_registry::AppendedArity, bool)>> {
+        if schema.semantics.body_interpreter.resolve_with(|ordinal| {
+            std::str::from_utf8(arguments.get(ordinal)?.value.as_deref()?).ok()
+        }) != tcl_registry::InterpreterScope::Current
+        {
+            return None;
+        }
+        let mut candidates = schema
+            .authored_logical_source_command_prefix_arguments()?
+            .into_iter()
+            .map(|(ordinal, appended)| (ordinal, appended, false))
+            .collect::<Vec<_>>();
+        // Deferred global scripts are not command-prefix lists. Admit only the
+        // independently selected Body role, then validate its exact spelling.
+        if let Some(scripts) = schema.authored_logical_source_plain_script_arguments() {
+            let (roles, complete) = schema.authored_logical_source_argument_roles();
+            if complete {
+                for ordinal in scripts {
+                    let is_selected_global_body = schema.authored_source_script_timing_at(ordinal)
+                        == Some(tcl_registry::ScriptTiming::Deferred)
+                        && schema.facts().script_lookup_scope(ordinal)
+                            == Some(tcl_registry::ScriptLookupScope::GlobalFrame)
+                        && roles.iter().any(|(at, role)| {
+                            schema
+                                .semantics
+                                .argument_offset
+                                .checked_add(usize::from(*at))
+                                == Some(ordinal)
+                                && *role == tcl_registry::ArgRole::Body
+                        });
+                    if is_selected_global_body
+                        && !candidates
+                            .iter()
+                            .any(|(existing, _, _)| *existing == ordinal)
+                    {
+                        candidates.push((ordinal, tcl_registry::AppendedArity::Exactly(0), true));
+                    }
+                }
+            }
+        }
+        Some(candidates)
+    }
+
+    fn logical_callback_registration(
+        &self,
+        input: &ResolvedAnalysisInput,
+        invocation: super::AdviceInvocation<'_>,
+        graph: &AdviceGraph,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        frame: LogicalCallbackScope<'_>,
+    ) -> Option<(
+        super::OriginalSourceCommandTransitionAdvice,
+        Option<Arc<OriginalDeclaredLogicalBodyContext>>,
+    )> {
+        let mut registration = self.schema_advice(invocation, graph, schema)?;
+        if let LogicalCallbackScope::Declared(declared) = frame {
+            if !declared.matches_input(input)
+                || !declared.owns_words(invocation.native)
+                || graph.logical_namespace.as_ref() != Some(declared.namespace_recipe())
+            {
+                return None;
+            }
+            registration.logical_scope = Some(Arc::clone(declared));
+        }
+        let scope = match frame {
+            LogicalCallbackScope::Declared(scope) => Some(Arc::clone(scope)),
+            LogicalCallbackScope::Document | LogicalCallbackScope::Unavailable => None,
+        };
+        Some((registration, scope))
+    }
+
     pub(super) fn retain_logical_callback_candidates(
         &self,
         tape: &mut OriginalSourceTransitionAdviceTape,
@@ -698,63 +788,10 @@ impl super::AdviceInvocationContext<'_> {
             return;
         };
         let receipt = (|| {
-            if schema.semantics.body_interpreter.resolve_with(|ordinal| {
-                std::str::from_utf8(invocation.arguments.get(ordinal)?.value.as_deref()?).ok()
-            }) != tcl_registry::InterpreterScope::Current
-            {
-                return None;
-            }
-            let prefixes = schema.authored_logical_source_command_prefix_arguments()?;
-            let mut candidates = prefixes
-                .into_iter()
-                .map(|(ordinal, appended)| (ordinal, appended, false))
-                .collect::<Vec<_>>();
-            // A deferred global script is not a command-prefix list. Admit only
-            // the independently selected Body role and check its exact script
-            // spelling below before producing source-only candidate geometry.
-            if let Some(scripts) = schema.authored_logical_source_plain_script_arguments() {
-                let (roles, complete) = schema.authored_logical_source_argument_roles();
-                if complete {
-                    for ordinal in scripts {
-                        if schema.authored_source_script_timing_at(ordinal)
-                            == Some(tcl_registry::ScriptTiming::Deferred)
-                            && schema.facts().script_lookup_scope(ordinal)
-                                == Some(tcl_registry::ScriptLookupScope::GlobalFrame)
-                            && roles.iter().any(|(at, role)| {
-                                schema
-                                    .semantics
-                                    .argument_offset
-                                    .checked_add(usize::from(*at))
-                                    == Some(ordinal)
-                                    && *role == tcl_registry::ArgRole::Body
-                            })
-                            && !candidates
-                                .iter()
-                                .any(|(existing, _, _)| *existing == ordinal)
-                        {
-                            candidates.push((
-                                ordinal,
-                                tcl_registry::AppendedArity::Exactly(0),
-                                true,
-                            ));
-                        }
-                    }
-                }
-            }
-            let mut registration = self.schema_advice(invocation, graph, schema)?;
-            let scope = match frame {
-                LogicalCallbackScope::Declared(scope) => {
-                    if !scope.matches_input(input)
-                        || !scope.owns_words(invocation.native)
-                        || graph.logical_namespace.as_ref() != Some(scope.namespace_recipe())
-                    {
-                        return None;
-                    }
-                    registration.logical_scope = Some(Arc::clone(scope));
-                    Some(Arc::clone(scope))
-                }
-                LogicalCallbackScope::Document | LogicalCallbackScope::Unavailable => None,
-            };
+            let candidates =
+                Self::logical_callback_candidate_ordinals(schema, invocation.arguments)?;
+            let (registration, scope) =
+                self.logical_callback_registration(input, invocation, graph, schema, frame)?;
             let mut result = Vec::new();
             for (ordinal, appended, single_script_head) in candidates {
                 let argument = invocation.arguments.get(ordinal)?;
@@ -786,24 +823,14 @@ impl super::AdviceInvocationContext<'_> {
                 let Some(head) = elements.first() else {
                     continue;
                 };
-                if single_script_head {
-                    // This bounded spelling is both one Tcl script command and
-                    // one unchanged source list field. No script substitution,
-                    // separator, expansion, or extra argument can be hidden in it.
-                    let Some(script) = tcl_syntax::word_rules::original_static_word_source_bytes(
+                if single_script_head
+                    && !is_bounded_single_script_head(
                         &argument.original,
-                    ) else {
-                        continue;
-                    };
-                    if elements.len() != 1
-                        || script != head.value().as_bytes()
-                        || script.is_empty()
-                        || !script.iter().all(|byte| {
-                            byte.is_ascii_alphanumeric() || matches!(*byte, b'_' | b':')
-                        })
-                    {
-                        continue;
-                    }
+                        elements.len(),
+                        head.value().as_bytes(),
+                    )
+                {
+                    continue;
                 }
                 let Some(candidates) =
                     logical_coordinates(graph, namespace, head.value().as_bytes())
