@@ -10,10 +10,10 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2501, #2502 | Exact current report inputs have no W210 under supported profiles; removing their binders in local controls still misses genuine reads. See the external validation receipt. | Scoped non-reproduction; control limits |
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
-| #2374 | Distinct literal array elements emit W210 in the earlier reduced witness; fresh exact-input verification is owned by the registry lane. | Earlier baseline verified; fresh review pending |
-| #2441 | Fresh exact combined report warns for top-level `y` but misses procedure `x` under Tcl 8.4–9.1; Jim misses both. Isolated procedure witnesses did not establish the complete report. See the exact-source receipt. | Reproduced residual; prior baseline claim corrected |
+| #2374 | The exact guarded read of `a(j)` emits W210 for Tcl 8.4–9.1; Jim-profile analysis misses it. A same-element read after setting `a(k)` separately warns on base `a`. | Partial across profiles; adjacent false positive |
+| #2441 | Fresh exact combined report warns for top-level `y` but misses procedure `x` under Tcl 8.4–9.1; Jim misses both. See the exact-source receipt. | Reproduced residual; exact input verified |
 | #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Closed after coordinator proof review |
-| #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
+| #2379 | Exact size/names/get and may-set/exists-then-get inputs are quiet for Tcl 8.4–9.1; Jim substitutions can still warn. Tcl `statistics`/`startsearch` error controls currently receive no W210. | Partial; Tcl report rows clear, Jim/adjacent controls remain |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
 | #2289 | Complete current linked file and called creator have no W140, with positive W140 controls across Tcl 8.4–9.1. | Current input verified |
@@ -32,6 +32,68 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #1778 | The reported distinct colon-edge commands preserve their original distinct output under C Tcl 8.6–9.1 optimisation. Additional lifetime and index consumers require verification. | Partial verification |
 | #1796 | ResolveContext selects exact frames, but UpvarInfo still collapses all beyond-caller distances. | Confirmed remaining foundation |
 | #2332 | Qualified and variable-linked substitution reads are impure with global effects; explicit set reads remain conservatively impure with unknown effects. | Verified baseline |
+
+## Fresh exact-input W210 diagnostic receipt (2026-11-04)
+
+The production analyser was linked read-only from the frozen normal compiler
+library at source `f5b2f7d05ea1a322ef8f3f018e1af04394b36477` (joint patch
+SHA-256 `da4e3730ceb54fb84cebe0801e4f7e9699041e881ce623050950d5831030b4b1`;
+`libtcl_compiler.rlib` SHA-256
+`5d1be13ab0851b1f85a83172acaa6d1ac0465a1bd51d8db594d670546c32759c`). The
+current work head at capture was `bf9ec63be936a3c4eb2eb990194d3937914c8553`.
+The W210 dataflow owner, compiler test source and Tcl `array` registry source
+remain byte-identical through the current work head; later unrelated index
+diagnostic identity code is outside this probe's path. A standalone
+`ResolvedAnalysisInput` probe ran 17 fixed
+inputs under Tcl 8.4, 8.5, 8.6, 9.0, 9.1 and Jim profiles (102 rows); every
+row had a resolved profile and no analysis-context error. Probe source SHA-256
+`7e2060f1c79addc7662ff1df4416297b7c2d8b176648a9434a20fa2820b2bbef`, binary
+SHA-256 `165671b8fa32825071601cc5606273ffd2e4f2fd3a8529b8e5f5a9cff160fb8a`,
+and raw diagnostic output SHA-256
+`192be090b365cc1743f49728c2d99be161d56a87776df1efd11e5910ae1b2dd7` are
+retained under `/tmp` with the frozen rlib manifest.
+
+The Tcl-profile rows show no W210 for the exact #2379 standalone `array size`,
+may-set `size`/`names`, or `array exists` followed by `array get` inputs. The
+matching native script prints `0`, `1`/`k`, `0`/empty, and `0`/empty. However,
+the `array statistics` and `array startsearch` error controls also receive no
+W210, so the array-command result is partial. The exact #2374 input emits W210
+for `a(j)` in all five Tcl profiles, and native interpreters report the missing
+element. A same-element read after `set a(k) 1` also warns on `a`, an adjacent
+false positive; the Jim profile misses the exact `a(j)` warning. The #2441
+exact input emits W210 for top-level `y` but not procedure-local `x` after
+`[info exists x]`; an isolated unguarded procedure-local empty-loop read does
+emit W210. Native interpreters report missing-variable errors for both exact
+reads. The exact #2441 report therefore remains a residual.
+
+Jim's runtime agrees that the exact #2374 and #2441 reads fail, but its analyser
+profile emits neither warning on those exact inputs. Jim-profile W210 also
+differs for #2379: nested absent-array `size`, `names`, and `get` substitutions
+can warn, while the corresponding `puts` report inputs are quiet; `array get`
+after `array exists` also warns. The production matrix does not generalise
+Tcl-profile results to Jim. Absent-array `array statistics` and
+`array startsearch` raise under the C Tcl runtime and the generic Jim catalogue
+does not implement those commands, while the analyser probe emits no W210 for
+these command forms; they are adjacent controls, not claimed as part of the
+three original repro results.
+
+The byte-exact native script and per-interpreter results, including the
+`statistics`/`startsearch` error controls, are in
+[`w210-array-and-empty-foreach-runtime-controls-2026-11-04.md`](../evidence/tcl/w210-array-and-empty-foreach-runtime-controls-2026-11-04.md).
+Its fixed source was run with Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and Jim
+0.84. The retained analyser driver, all 102 rows, source/build hashes and the
+separate Jim #2376 guard controls are in
+[`w210-arrays-foreach-current`](../rust/tcl-compiler/tests/data/lsp-external-bindings/validation-2026-11-04/w210-arrays-foreach-current/README.md).
+`make check-tcl-evidence` passed on `587ba05cff2a3b166689b6f8d463357ec9379acc`
+(1,324 files and 14 format tests; log SHA-256
+`9667fa777796d1582e429785b478dc05169248213f44a15435ce53d88221a06c`). This is
+a diagnostic revalidation receipt only; #2374, #2379 and #2441 remain open.
+
+The same frozen rlib was also used for three focused Jim-profile #2376 checks:
+safe `&&` produced no W210, unsafe `||` warned on its `$x` operand, and the
+later genuine `$x` read warned at bytes 79–81. All three inputs resolved a Jim
+analysis context. This confirms those controls only; it does not establish
+full Jim parity for the broader #2376 matrix.
 
 The observations below are chronological history. The table above and the final
 read-local receipt describe the active #2376 snapshot; earlier uncompiled drafts

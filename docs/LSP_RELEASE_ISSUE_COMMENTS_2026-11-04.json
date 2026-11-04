@@ -165,5 +165,8 @@
       "outcome": "Verified W100/O111/scan recommendation and safe action behavior; seven tests pass."
     }
   ],
-  "last_follow_up_at": "2026-11-04 16:59 UTC"
+  "last_follow_up_at": "2026-11-04 16:59 UTC",
+  "last_inventory_at": "2026-11-04 18:27 UTC",
+  "open_external_count_at_last_inventory": 20,
+  "requested_external_count_at_last_inventory": 19
 }

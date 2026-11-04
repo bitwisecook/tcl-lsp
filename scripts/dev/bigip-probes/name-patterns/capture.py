@@ -20,7 +20,6 @@
 
 import argparse
 import datetime
-import hashlib
 import io
 import ipaddress
 import json
@@ -108,10 +107,6 @@ def probe_log_bytes(data):
         for line in data.splitlines(keepends=True)
         if b"NHO|" in line
     )
-
-
-def digest(data):
-    return hashlib.sha256(data).hexdigest()
 
 
 def literal(text):
@@ -330,6 +325,20 @@ def make_config(context, name, source, port=19912):
     return config, [("ltm rule", base)], None
 
 
+def config_comparison(remote_config, config):
+    """Compare the staged configuration with the exact generated text."""
+    if not config.endswith("\n"):
+        raise ValueError("generated configuration must end with a newline")
+    delimiter = "TCL_LSP_EXPECTED_CONFIG"
+    while delimiter in config.splitlines():
+        delimiter += "_"
+    return (
+        f"run input-match cmp -- {shlex.quote(remote_config)} - <<'{delimiter}'\n"
+        f"{config}{delimiter}\n"
+        'if [ "$(cat "$E/input-match.exit")" != 0 ]; then exit 4; fi\n'
+    )
+
+
 def run_job(dest, remote_root, context, name, source, wait=2):
     dest.mkdir(parents=True, exist_ok=False)
     (dest / "input.tcl").write_text(source)
@@ -344,7 +353,6 @@ def run_job(dest, remote_root, context, name, source, wait=2):
                 {
                     "argv": SSH + [command],
                     "exit_code": p.returncode,
-                    "stdin_sha256": digest(source.encode()),
                     "receipt_redactions": RECEIPT_REDACTIONS,
                 },
                 indent=2,
@@ -392,8 +400,7 @@ unset inventory
 echo absent > "$E/destination-check.stdout"
 echo 0 > "$E/destination-check.exit"
 """
-    script += f"run input-hash sha256sum {shlex.quote(remote_config)}\n"
-    script += f'if ! grep -q "^{digest(config.encode())} " "$E/input-hash.stdout"; then exit 4; fi\n'
+    script += config_comparison(remote_config, config)
     # Ownership begins only after every absence check, before a possibly partial merge.
     for kind, obj in objects:
         script += f"owned+=({shlex.quote(kind + ' ' + obj)})\n"
@@ -496,7 +503,6 @@ echo 0 > "$E/destination-check.exit"
             {
                 "argv": SSH + ["bash -s"],
                 "exit_code": p.returncode,
-                "stdin_sha256": digest(script.encode()),
                 "receipt_redactions": RECEIPT_REDACTIONS,
             },
             indent=2,

@@ -423,7 +423,6 @@ def main():
                 "configuration_saved": False,
                 "remote_staging": "/var/tmp/tcl_lsp_" + args.run,
                 "execution_requested": args.execute,
-                "prepared_config_sha256": capture.digest(plan["config"].encode()),
                 "receipt_redactions": capture.RECEIPT_REDACTIONS,
                 "limits": plan["limits"],
             },

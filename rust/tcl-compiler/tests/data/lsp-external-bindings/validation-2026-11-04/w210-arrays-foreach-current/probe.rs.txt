@@ -1,0 +1,45 @@
+use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+use tcl_lexer::LexerConfig;
+use tcl_registry::model::ingress::resolve_environment;
+
+const CASES: &[(&str, &str)] = &[
+    ("2379-array-size-absent", "proc p {} { return [array size absent] }"),
+    ("2379-array-names-absent", "proc p {} { return [array names absent] }"),
+    ("2379-array-get-absent", "proc p {} { return [array get absent] }"),
+    ("2379-array-statistics-read", "proc p {} { return [array statistics absent] }"),
+    ("2379-array-startsearch-read", "proc p {} { return [array startsearch absent] }"),
+    ("2379-exact-size-repro", "puts [array size a]"),
+    ("2379-may-set-array", "proc p {c} { if {$c} {set a(k) 1}; puts [array size a]; puts [array names a] }; p 1; p 0"),
+    ("2379-exists-then-get", "proc p {} { puts [array exists a]; puts [array get a] }"),
+    ("2374-same-element-positive", "proc p {} { set a(k) 1; return $a(k) }"),
+    ("2374-distinct-element-read", "proc p {} { set a(k) 1; if {[info exists a(k)]} { return $a(j) } }"),
+    ("2374-exact-element-guard", "proc p {} { set a(k) 1; if {[info exists a(j)]} { return $a(j) } }"),
+    ("2374-exact-repro", "proc p {} { set a(k) 1; if {[info exists a(k)]} { puts $a(j) } }; catch {p} m; puts $m"),
+    ("2374-missing-scalar-positive", "proc p {} { return $missing }"),
+    ("2441-empty-foreach-read", "proc p {} { foreach x {} {}; return $x }"),
+    ("2441-empty-foreach-guard", "proc p {} { foreach x {} {}; if {[info exists x]} { return $x }; return safe }"),
+    ("2441-nonempty-foreach", "proc p {} { foreach x {v} {}; return $x }"),
+    ("2441-exact-repro", "proc p {} { foreach x {} {}; if {[info exists x]} { puts yes }; puts $x }; foreach y {} {}; puts $y"),
+];
+
+fn main() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let env = resolve_environment(dialect);
+        let profile = env.analyser_profile();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            env.default_context_registry(),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        for (name, source) in CASES {
+            let result = Analyser::new().with_resolved_input(input.clone()).analyse(source, dialect);
+            let warnings: Vec<_> = result.diagnostics.iter()
+                .filter(|d| d.code.to_string() == "W210")
+                .map(|d| format!("{}..{}:{}", d.span.start(), d.span.end(), d.message))
+                .collect();
+            println!("{{\"dialect\":\"{dialect}\",\"case\":\"{name}\",\"resolved\":{},\"context_error\":{},\"w210\":{:?}}}",
+                result.resolved_input.is_some(), result.analysis_context_unavailable.is_some(), warnings);
+        }
+    }
+}

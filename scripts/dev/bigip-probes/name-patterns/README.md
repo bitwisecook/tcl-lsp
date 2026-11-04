@@ -16,7 +16,7 @@ python3 scripts/dev/bigip-probes/name-patterns/appliance.py --run UNIQUE
 
 Use a new alphanumeric run ID of 6–24 characters for every capture. A run snapshots
 its executed Python sources, Tcl, merged configuration, invocation, provider facts
-and raw output. Keep those files unchanged after review and sealing. The parser
+and raw output for later conversion into the per-script evidence format. The parser
 retains incomplete chunks, duplicate records and binary representations explicitly;
 it does not silently join ambiguous repeated invocations or assume UTF-8.
 
@@ -31,7 +31,7 @@ for destination conflicts before applying configuration, retaining only the
 collision or absence result. Set `BIGIP_PROBE_ADDRESS` to a dedicated IPv4
 destination; its default is the documentation address `192.0.2.10`. Saved receipts
 substitute that documentation address for the configured destination and identify
-these redactions. Input hashes describe the actual executed input. Full appliance
+these redactions. Full appliance
 hardware and unrelated virtual inventories are omitted. Run only one traffic
 campaign at a time. Every request carries its invocation ID; responses and logs
 retain actual TMM units. A response from one unit proves that unit only.
@@ -50,14 +50,13 @@ APL template creation and iApp `execute-action definition` do not establish APL
 callback execution. Leave the prepared template owned until the form has rendered
 and its results have been retained, then finish to prove template removal.
 `browser_receipt.py` retains probe option rows and the selected template, omits
-device chrome and removes the unsealed browser screenshot before reporting.
+device chrome and removes the browser screenshot before reporting.
 
 No probe saves configuration. Normal jobs prove absence before creation, remove
 only objects whose absence was established, and retain after-deletion receipts.
 An interrupted controller requires an independent recovery check. Remote staging
 files must be removed by the owner after local evidence retrieval.
 
-Generate derived reports with `report.py`. Register only independently reviewed,
-reached observations through the existing name-resolution proof authority;
-`register.py` prepares records without mutating that authority. Run the central
-proof gate after registration and report existing failures separately.
+Generate derived reports with `report.py`. Record actual script executions and
+their results using the [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+Derived reports and old proof records are development material, not evidence.

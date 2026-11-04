@@ -28,7 +28,6 @@ source evaluation, and cleanup is conditional on successful guard setup.
 JSON-serialisable original-input metadata accompanies every case.
 """
 
-import hashlib
 import json
 import re
 import tkinter
@@ -86,10 +85,6 @@ CAPABILITIES = {
 }
 
 
-def _sha(data):
-    return hashlib.sha256(data).hexdigest()
-
-
 def _questions():
     return json.loads(BUNDLE.read_text(encoding="utf-8"))["questions"]
 
@@ -97,10 +92,9 @@ def _questions():
 def _original(question):
     source = question["source"]
     data = (ROOT / source["path"]).read_bytes()
-    actual = _sha(data)
-    if actual != source["sha256"]:
-        raise ValueError("original input hash differs from bundle: " + source["path"])
-    return dict(source), data.decode("utf-8")
+    return {
+        key: value for key, value in source.items() if key != "sha256"
+    }, data.decode("utf-8")
 
 
 def _commands(source):
@@ -514,13 +508,15 @@ def wiki_cases():
 
 
 def originals():
-    """JSON-serialisable original paths/hashes and canonical identity."""
+    """JSON-serialisable original paths and canonical identity."""
     return [
         {
             "question_id": q["id"],
             "case_id": q["case_id"],
             "canonical_question_id": q["canonical_question_id"],
-            "source": dict(q["source"]),
+            "source": {
+                key: value for key, value in q["source"].items() if key != "sha256"
+            },
         }
         for q in _questions()
         if q["case_id"] in CAPABILITIES or q.get("source", {}).get("path") == WIKI_PATH

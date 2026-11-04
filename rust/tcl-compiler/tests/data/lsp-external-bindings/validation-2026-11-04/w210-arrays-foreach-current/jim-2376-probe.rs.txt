@@ -1,0 +1,24 @@
+use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+use tcl_lexer::LexerConfig;
+use tcl_registry::model::ingress::resolve_environment;
+
+const CASES: &[(&str, &str)] = &[
+    ("safe-and-missing", "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n"),
+    ("unsafe-or-missing", "proc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}\np 0\n"),
+    ("later-genuine-read-after-safe-and", "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}\np 0\n"),
+];
+
+fn main() {
+    let dialect = "jim";
+    let env = resolve_environment(dialect);
+    let profile = env.analyser_profile();
+    let input = ResolvedAnalysisInput::new(profile, profile, env.default_context_registry(), LexerConfig::for_file_grammar(profile.grammar));
+    for (name, source) in CASES {
+        let result = Analyser::new().with_resolved_input(input.clone()).analyse(source, dialect);
+        let warnings: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.code.to_string() == "W210")
+            .map(|d| format!("{}..{}:{}", d.span.start(), d.span.end(), d.message))
+            .collect();
+        println!("{{\"dialect\":\"jim\",\"case\":\"{name}\",\"resolved\":{},\"context_error\":{},\"w210\":{:?}}}", result.resolved_input.is_some(), result.analysis_context_unavailable.is_some(), warnings);
+    }
+}
