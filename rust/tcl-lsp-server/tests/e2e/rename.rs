@@ -381,7 +381,10 @@ fn rejects_proc_rename_to_builtin() {
     );
     let error = lsp.rename_error(&uri, 0, 6, "puts");
     assert_eq!(error["code"], -32602, "{error}");
-    assert_eq!(error["data"]["code"], "original-command-collision", "{error}");
+    assert_eq!(
+        error["data"]["code"], "original-command-collision",
+        "{error}"
+    );
 }
 
 #[test]
