@@ -1045,7 +1045,7 @@ jobs:
         if: env.RUN_EXT_WEB == 'true'
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasm-bindgen-cli@0.2.129
+          tool: wasm-bindgen-cli@0.2.130
 
       - name: Set up Node.js
         if: env.RUN_EXT_WEB == 'true'
@@ -1975,7 +1975,7 @@ jobs:
         if: env.RUN_LSP_WASM == 'true'
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasm-bindgen-cli@0.2.129
+          tool: wasm-bindgen-cli@0.2.130
 
       - name: Set up Node.js
         if: env.RUN_LSP_WASM == 'true'
@@ -3203,7 +3203,7 @@ jobs:
       - name: Install wasm-bindgen CLI
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasm-bindgen-cli@0.2.129
+          tool: wasm-bindgen-cli@0.2.130
 
       # No Python setup: the VSIX bundles native binaries and the build
       # (compile + filter-readme + vsce) is Node-only.
@@ -3407,7 +3407,7 @@ jobs:
       - name: Install wasm-bindgen CLI
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasm-bindgen-cli@0.2.129
+          tool: wasm-bindgen-cli@0.2.130
 
       - name: Set up Java 17
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
