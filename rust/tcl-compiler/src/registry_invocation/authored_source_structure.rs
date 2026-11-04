@@ -244,7 +244,7 @@ impl AuthoredSourceVariableAccess {
     }
 }
 
-fn authored_script_scalar_context_is_quiet(tokens: &CommandTokens) -> bool {
+pub(crate) fn authored_script_scalar_context_is_quiet(tokens: &CommandTokens) -> bool {
     let Some(binding) = tokens.source_binding.as_ref() else {
         return false;
     };

@@ -151,6 +151,47 @@ impl OrdinaryContainerCoercion {
     }
 }
 
+/// A source-only list-index coercion shape under conditional premises.
+///
+/// It describes the original selected handler only if that handler completes
+/// successfully on an ordinary object. It supplies no actual invocation,
+/// object identity, normal result, or native compilation authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConditionalSourceListIndexCoercion {
+    shape: OrdinaryContainerCoercion,
+    single_literal_zero: bool,
+}
+
+impl ConditionalSourceListIndexCoercion {
+    /// Absolute post-head operand index, including any subcommand offset.
+    #[must_use]
+    pub const fn argument(self) -> usize {
+        self.shape.argument()
+    }
+
+    /// Whether the conditional conversion can preserve this input object.
+    #[must_use]
+    pub fn may_preserve_input_for_bytes(self, bytes: Option<&[u8]>) -> bool {
+        self.shape.may_preserve_input_for_bytes(bytes)
+    }
+
+    /// Whether this conditional shape can preserve an audited integer result.
+    /// Integer rendering is nonempty. Call only with the separately retained
+    /// integer-result provenance and ordinary/no-observer premises, never a
+    /// semantic type or numeric-looking source text.
+    #[must_use]
+    pub const fn may_preserve_integer_result(self) -> bool {
+        self.shape.may_skip
+    }
+
+    /// Whether the original index vector consists of the one literal `0`.
+    /// This source shape is independent of dispatch and completion.
+    #[must_use]
+    pub const fn is_single_literal_zero(self) -> bool {
+        self.single_literal_zero
+    }
+}
+
 /// Native object dispatch used by an independently selected list-length handler.
 /// This identifies an effect obligation, not a value, completion or opcode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -308,6 +349,38 @@ impl RepresentationEffect {
     /// representation; ordinary Dict has no such callback in the pinned cores.
     #[must_use]
     pub fn successful_ordinary_container_coercion(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        argument_offset: usize,
+    ) -> Option<OrdinaryContainerCoercion> {
+        self.ordinary_container_coercion_shape(arguments, argument_offset)
+    }
+
+    /// Conditional source shape for an indexed list operation with an
+    /// independently used index. No conversion or successful handler follows
+    /// until the caller's separate conditional premises are satisfied.
+    #[must_use]
+    pub fn conditional_source_list_index_coercion(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        argument_offset: usize,
+    ) -> Option<ConditionalSourceListIndexCoercion> {
+        if !matches!(self, Self::CoerceOrdinaryListIndices { .. })
+            || self.indexed_list_input_is_used(arguments, argument_offset) != Some(true)
+        {
+            return None;
+        }
+        let (_, indices) = self.indexed_list_arguments(arguments, argument_offset)?;
+        let single_literal_zero =
+            matches!(indices.as_slice(), [index] if arguments.literal_at(*index) == Some("0"));
+        self.ordinary_container_coercion_shape(arguments, argument_offset)
+            .map(|shape| ConditionalSourceListIndexCoercion {
+                shape,
+                single_literal_zero,
+            })
+    }
+
+    fn ordinary_container_coercion_shape(
         self,
         arguments: crate::InvocationArguments<'_>,
         argument_offset: usize,
@@ -545,6 +618,82 @@ fn ordinary_list_pair_arguments(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn conditional_source_list_index_keeps_shape_and_native_premises_separate() {
+        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        let effect = RepresentationEffect::CoerceOrdinaryListIndices {
+            operand: 0,
+            indices_from: 1,
+        };
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            let words = [
+                InvocationWord::Literal("selector"),
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("0"),
+            ];
+            let arguments = InvocationArguments::structured(&words).with_dialect(dialect);
+            let conditional = effect
+                .conditional_source_list_index_coercion(arguments, 1)
+                .expect("an exact, used index has a conditional source shape");
+            let native = effect
+                .successful_ordinary_container_coercion(arguments, 1)
+                .unwrap();
+            assert_eq!(conditional.argument(), 1);
+            assert!(conditional.is_single_literal_zero());
+            assert_eq!(native.argument(), conditional.argument());
+            for bytes in [None, Some(&b""[..]), Some(&b"1"[..])] {
+                assert_eq!(
+                    conditional.may_preserve_input_for_bytes(bytes),
+                    native.may_preserve_input_for_bytes(bytes)
+                );
+            }
+            assert!(!conditional.may_preserve_integer_result());
+            if version >= tcl_dialect::TclVersion::V8_5 {
+                assert!(conditional.may_preserve_input_for_bytes(None));
+            }
+            let other = InvocationArguments::literals(&["1", "1"]).with_dialect(dialect);
+            assert!(
+                !effect
+                    .conditional_source_list_index_coercion(other, 0)
+                    .unwrap()
+                    .is_single_literal_zero()
+            );
+            for words in [
+                vec![InvocationWord::Dynamic],
+                vec![InvocationWord::Dynamic, InvocationWord::Literal("")],
+                vec![InvocationWord::Dynamic, InvocationWord::Dynamic],
+                vec![InvocationWord::Dynamic, InvocationWord::Expanded],
+            ] {
+                let arguments = InvocationArguments::structured(&words).with_dialect(dialect);
+                assert!(
+                    effect
+                        .conditional_source_list_index_coercion(arguments, 0)
+                        .is_none()
+                );
+            }
+            assert!(
+                RepresentationEffect::CoerceOrdinaryList { operand: 0 }
+                    .conditional_source_list_index_coercion(arguments, 1)
+                    .is_none()
+            );
+            assert!(
+                RepresentationEffect::None
+                    .conditional_source_list_index_coercion(arguments, 1)
+                    .is_none()
+            );
+        }
+        let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        let args = InvocationArguments::literals(&["1", "0"]).with_dialect(jim);
+        let selected = effect
+            .conditional_source_list_index_coercion(args, 0)
+            .unwrap();
+        assert_eq!(selected.argument(), 0);
+        assert!(!selected.may_preserve_input_for_bytes(Some(b"1")));
+    }
 
     #[test]
     fn numeric_conversion_effects_require_the_authored_original_layout() {

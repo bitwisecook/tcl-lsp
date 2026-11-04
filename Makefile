@@ -908,7 +908,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-object-recipe-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-object-recipe-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -1011,9 +1011,12 @@ xtask-gen-environment-docs: ## Verify the README dialect tables, docs/generated/
 	@echo "==> Checking generated environment documentation and the prompt manifest (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-environment-docs --check
 
-.PHONY: check-name-resolution-proofs
-check-name-resolution-proofs: ## Validate naming proof records and complete retained evidence coverage
-	cd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py
+.PHONY: check-tcl-evidence check-name-resolution-proofs
+check-tcl-evidence: ## Validate standalone Tcl execution evidence and byte-exact notation
+	cd $(ROOT) && python3 scripts/dev/check-tcl-evidence.py
+	cd $(ROOT) && python3 -m unittest discover -s scripts/dev -p 'test_tcl_evidence*.py'
+
+check-name-resolution-proofs: check-tcl-evidence ## Compatibility alias for the Tcl evidence check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"

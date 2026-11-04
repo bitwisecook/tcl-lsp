@@ -215,3 +215,28 @@ commands expire inherited guards. The draft includes unknown-entry safe/unsafe
 regressions and mutation-order owner checks, but has not been compiled or run.
 It is stashed for this integration; no new passing result is claimed. The
 canonical repair is published as `a6408fb3e`; #2376 remains open.
+
+The 16:30 UTC checkpoint records the first read-local attempt in
+[`w210-short-circuit-read-local-attempt`](../rust/tcl-compiler/tests/data/w210-short-circuit-read-local-attempt/README.md).
+The cleanly built production matrix passes 175/175 assertions with 41,094
+unchanged file hashes. The expanded owner suite is 6/7: a same-array-element
+positive has no guard. Subsequent trace/other-element owner cases did not run.
+The failing draft is stashed; no product fix is published or closure claimed.
+
+The separate S100 foundation review passes thirteen independent same-held-CU
+comparisons, with a genuine top-level S100 positive and seven negative controls.
+IR, SSA, source result/completion gates, Native admission and provider obligations
+remain unchanged; Bytecode/Traced snapshots agree. The named-procedure variant
+remains a measured warning gap, and #940/S102 is not claimed fixed. Exact library
+custody, source inputs and receipts are in
+[`independent-s100-guards`](../rust/tcl-compiler/tests/data/shimmer-940-source-owner/independent-s100-guards/README.md).
+
+The extra array owner's first failure was a fixture error: its query was
+provably false and retained no original RHS read. A public probe of the exact
+compiled candidate confirms that a conditional array-element write produces
+the required original Element identity/read. Thirty native observations pass
+on all six engines; see
+[`w210-short-circuit-array-boundaries`](../rust/tcl-compiler/tests/data/w210-short-circuit-array-boundaries/README.md).
+Only the positive harness changes; the production guard code is byte-identical
+to the 175-assertion passing snapshot. The corrected 185-row/14-case run and
+production Clippy are pending allocation.

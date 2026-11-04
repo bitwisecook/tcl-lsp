@@ -262,7 +262,7 @@ impl CommitState {
     /// Join with another predecessor's exit state (control-flow merge): the
     /// may-sets union (bounded), and the value is all-paths-committed only when
     /// both sides are.
-    fn join(&mut self, other: &Self) {
+    pub(crate) fn join(&mut self, other: &Self) {
         self.all_committed &= other.all_committed;
         self.overflowed |= other.overflowed;
         for &t in &other.may {

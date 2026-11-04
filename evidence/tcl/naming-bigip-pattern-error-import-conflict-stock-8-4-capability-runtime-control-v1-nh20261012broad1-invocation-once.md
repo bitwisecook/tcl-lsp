@@ -1,0 +1,137 @@
+# Tcl execution evidence
+
+## Question
+
+> Error conformance: missing command/variable/namespace, forbidden link and rename/import conflict: result, completion, `-errorcode`, `-errorinfo`, options.
+
+This record addresses only the case described below; it does not answer every part of the broader question. The distinction informs name resolution and diagnostics in the LSP, compiler and VM.
+
+> Related question F5-N15; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.
+
+> What completion and result did retained variant capability-runtime-control-v1 of case error-import-conflict produce in stock-8.4, run nh20261012broad1, unit None, invocation 'once'?
+
+## Assumptions
+
+Assumptions were not separately recorded in the retained capture.
+
+Recorded scope and limits:
+
+> Only retained case error-import-conflict, variant capability-runtime-control-v1, run nh20261012broad1, context stock-8.4; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Non-force import conflict between owned commands. Authored/generated source descriptor is the retained case metadata, not an unchanged portable Tcl program. This corpus receipt does not print Tcl patchlevel; see separate cap2 binary-path/version control. . Interpreter/action facts retained in the measurement: {"interpreter_path": "/usr/bin/tclsh8.4", "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.
+
+## Script
+
+```tcl-visible
+set nh_unit "none"
+set nh_invocation once
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c696374207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963743a3a736f75726365207b70726f632070207b7d207b72657475726e20534f555243457d3b206e616d657370616365206578706f727420707d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963743a3a636f6e73756d6572207b70726f632070207b7d207b72657475726e204c4f43414c7d7d0a]
+set nh_operation [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963743a3a636f6e73756d6572207b6e616d65737061636520696d706f7274203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963743a3a736f757263653a3a707d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012broad1|error-import-conflict|stock-8.4|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012broad1|error-import-conflict|stock-8.4|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963742a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963742a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963742a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963742a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963742a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963742a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963742a5d]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012broad1|error-import-conflict|stock-8.4|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+```
+
+## Results
+
+### bigip
+
+- Recorded version: 21.1.0.1
+- Recorded input channel: interpreter path: /usr/bin/tclsh8.4
+- Exit status: Not recorded
+- Standard output:
+
+```text-visible
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|setup|0|none|once|result|utf-8|0|1|
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|lookup|1|none|once|result|utf-8|0|1|63616e277420696d706f727420636f6d6d616e64202270223a20616c726561647920657869737473
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|lookup|1|none|once|errorinfo|utf-8|0|3|63616e277420696d706f727420636f6d6d616e64202270223a20616c7265616479206578697374730a202020207768696c6520657865637574696e670a226e616d65737061636520696d706f7274203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963743a3a736f757263653a3a70220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e6832303236313031
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|lookup|1|none|once|errorinfo|utf-8|1|3|3262726f616431305f6572726f725f696d706f72745f636f6e666c6963743a3a636f6e73756d65722220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431305f6572726f725f696d706f72745f636f6e666c6963743a3a636f6e73756d6572207b6e616d65737061636520696d706f7274203a3a5f5f74636c5f6c73705f70726f6265
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|lookup|1|none|once|errorinfo|utf-8|2|3|5f6e68323032363130313262726f616431305f6572726f725f696d706f72745f2e2e2e220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
+NHO|nh20261012broad1|error-import-conflict|stock-8.4|runtime-cleanup|0|none|once|result|utf-8|0|1|7b7d207b7d207b7d
+```
+
+- Standard error:
+
+```text-visible
+** WARNING: connection is not using a post-quantum key exchange algorithm.⟦CRLF⟧
+** This session may be vulnerable to "store now, decrypt later" attacks.⟦CRLF⟧
+** The server may need to be upgraded. See https://openssh.com/pq.html⟦CRLF⟧
+```

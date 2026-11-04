@@ -186,7 +186,9 @@ mod declaration_flow;
 pub(crate) use declaration_flow::{
     DeclarationInvocationFlow, DeclarationLifecycleInvocation, DeclarationSchemaOrigin,
     declaration_dictionary_scope_advice, declaration_invocation_flow,
-    declaration_lifecycle_invocation, declaration_source_read_flow, declared_argument_words,
+    declaration_invocation_flow_in_frame, declaration_lifecycle_invocation,
+    declaration_original_words_flow, declaration_source_flow_corresponds,
+    declaration_source_read_flow, declared_argument_words,
     source_advice_has_no_declared_lookup_mutation,
 };
 
@@ -1640,7 +1642,9 @@ fn source_cut_image_words_refused(
         || !source_cut_declaration_origins(words)
 }
 
-fn source_cut_declaration_origins(words: &source_structure::OriginalRegistryWords) -> bool {
+pub(crate) fn source_cut_declaration_origins(
+    words: &source_structure::OriginalRegistryWords,
+) -> bool {
     matches!(
         words.origins().first(),
         Some(InvocationWordOrigin::Written(0) | InvocationWordOrigin::ResolvedHead)

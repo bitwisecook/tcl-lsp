@@ -1,145 +1,19 @@
-# Name-resolution proof records
+# Historical name-resolution development records
 
-Each record answers one concrete question. The problem statement explains the
-trigger, competing interpretations and why the distinction matters to a
-consumer. The question, provider answers and conclusion keep the measured
-input, release and execution context explicit.
+This directory contains an older mixture of execution captures, source reviews,
+implementation contracts and inventories. The question index below is retained
+as development context and as an aid to finding historical captures; it is not
+an index of verified Tcl executions.
 
-Five kinds of evidence have different authority:
+Current execution evidence consists of one human-readable Markdown file per
+script actually run, with its fundamental question, assumptions, environment
+and recorded results. Use the [Tcl execution evidence standard](../../contracts/tcl-execution-evidence.md)
+and `make check-tcl-evidence`. Source reviews, build artifacts and inventories
+are development material, not execution evidence. Do not require content hashes
+or the retired legacy proof checker when collecting or maintaining evidence.
 
-| Kind | What it establishes |
-| --- | --- |
-| `native-observation` | The retained program's actual result on the recorded provider and channel. A guest error is an observation. It does not establish an unexecuted branch or a Rust implementation result. |
-| `native-attempt` | The retained original probe stopped during setup before its intended question was reached. Explicit input/receipt/capture joins retain the failure; every provider answer remains `not-tested` for that question and supplies no execution, teardown or implementation equivalence. |
-| `source-anchor` | The attached source excerpt at its recorded revision. A C source inspection does not establish Jim or closed-source BIG-IP behaviour. |
-| `implementation-contract` | A Rust ownership, withdrawal or consumer invariant. Native observations can motivate it; they do not execute its assertions. |
-| `environment-observation` | A separately identified SDK/libc/tool environment's actual retained result, including failed execution. Its version/target/input channel and answers stay separate from the seven original Tcl/Jim/BIG-IP provider answers. |
-
-The records are in [manifest.json](manifest.json). Each has its own Markdown
-document. [schema.json](schema.json) describes the record fields;
-[record-template.json](record-template.json) supplies the smallest complete
-shape. Provider answers include Tcl 8.4, 8.5, 8.6, 9.0, 9.1, Jim and BIG-IP.
-Use `not-tested` when that provider did not answer this question, `unavailable`
-when required evidence bytes are absent, and `unsupported` only for an actual
-captured guest rejection. Never infer a release from a pathname or another
-probe's build. Unrecorded versions, channels and build details stay explicit.
-A `native-attempt` record names the unreached intended question, original probe and source inputs, closed provider receipts, exact failed completion rows and reached failure stages. Its strict setup-only limitation belongs in the conclusion; it cannot carry a positive provider or environment answer.
-
-Each `source-anchor` answer uses `inspected` and that provider's own pinned
-excerpt. An executed guest result belongs to a separate `native-observation`
-record; a C excerpt cannot supply a Jim or appliance answer. An environment record retains explicit measured-environment answers and keeps original providers unmeasured; matching widths or macros cannot certify another runtime library.
-
-[corpus-inventory.json](corpus-inventory.json) inventories exact files in the
-native/authored fixture directories and the resolution-2286 appliance bundle.
-JSON capture candidates require an explicit question mapping or an inspected
-classification. Input manifests, provider scaffolding and duplicate evidence
-remain in the census with their reason and original digest. A different source
-or observation is retained separately even when it answers the same question.
-Artifact counts are not question counts.
-
-Source anchors can carry `line_unit: "physical LF only"` with an original half-open
-`byte_range`. The checker validates their paired units, counted UTF-8 snippet length
-and physical LF extent. This local geometry check does not establish an unrecorded
-whole-source offset correspondence; that join requires the retained complete source
-and independently checked excerpt bytes.
-
-Captured source and runner files retain their complete original bytes, including
-Python files. `Makefile`'s `PY_FILES` excludes native/authored fixture scripts,
-canonical proof evidence and the exact input-pinned
-`scripts/dev/replay-namespace-delete-callback-events.py` from formatting and
-linting. A formatter cannot replace an original input or its immutable digest.
-Maintained tooling recorded with the `implementation` evidence role can be
-formatted; its source digest requires a separately reviewed final source
-snapshot. Source formatting supplies no new native or Rust execution result.
-
-The maintained Rust software-control tables retain original provider streams
-separately from their authored expected-value representation. Their exact
-[seven-source contract](derived-public-projections/authored-fixture-source-contract.json)
-and [derivation receipt](derived-public-projections/authored-fixture-source-review.json)
-bind997 literal rows, field types, pure shared-borrow boolean storage and
-equivalent full-pair byte decoders. The
-[source comparison tool](../../../../scripts/dev/check-authored-fixture-source-review.py)
-requires authenticated original Git bytes; `--fetch-origin` explicitly permits
-immutable configured-origin reads when local objects are absent. A receipt
-digest cannot replace unavailable originals during reproduction. These authored
-source snapshots grant no original-capture renewal, native execution or
-layout/ABI equivalence.
-
-The registry namespace-ownership source has a separate exact
-[two-claim source contract](derived-public-projections/registry-ownership-source-contract.json)
-and [authenticated derivation](derived-public-projections/registry-ownership-source-review.json).
-Its [source comparison tool](../../../../scripts/dev/check-registry-ownership-source-review.py)
-requires original Git source bytes and permits only the recorded test fixture
-collection change. All production owner bytes and fixed assertions remain
-identical. These authored implementation bindings supply no test execution or
-native-capture renewal.
-
-Two maintained replay adapters retain an exact
-[twenty-binding source contract](derived-public-projections/maintained-replay-source-contract.json)
-and [authenticated derivation](derived-public-projections/maintained-replay-source-review.json).
-The [source comparison tool](../../../../scripts/dev/check-maintained-replay-source-review.py)
-requires original Git bytes and compares the complete Python AST and comments,
-permitting only the recorded ordered unique-key dictionary construction.
-Provider builds, original streams and historical execution receipts keep their
-independent authority; these source snapshots supply no new execution result.
-
-Three maintained proof tools retain a [scoped source contract](derived-public-projections/proof-tool-source-contract.json)
-and [authenticated derivation](derived-public-projections/proof-tool-source-review.json).
-The [source comparison tool](../../../../scripts/dev/check-proof-tool-source-review.py)
-requires original Git bytes and complete AST comparisons, admitting only the
-recorded identity cast, immediate JSON-anchor capture and loader guards.
-The classification merger remains unchanged; its separate render path now trims
-trailing whitespace, with no general rendering-equivalence claim. Historical
-control executions, provider answers and captures retain their original scope.
-
-Reviewed question arrays and exact artifact classifications are merged
-separately, with every update checked before the census is written:
-
-```sh
-python3 scripts/dev/update-name-resolution-proof-index.py --records reviewed-questions.json
-python3 scripts/dev/update-name-resolution-proof-index.py --classifications reviewed-artifacts.json
-```
-
-A classification cannot name an unissued question or replace a changed
-artifact's review. Duplicate evidence requires identical whole bytes.
-
-Run the mandatory complete gate from the repository root:
-
-```sh
-python3 scripts/dev/check-name-resolution-proofs.py
-```
-
-The gate checks evidence digests and selectors, document parity, provider scope,
-source/test bindings and corpus drift. A proof page or explicitly marked Rust
-test question must have an index record. Pending candidate classifications and
-unlinked test comments fail the complete gate. `--structure-only` is an audit
-mode: it reports pending coverage and cannot certify completion. It executes no
-native probe or Rust test. Execution results require their own retained receipt.
-[Executed Rust validation receipts](rust-validation/README.md) retain the exact
-execution source inventories separately from native provider answers.
-
-To inventory a deliberately added fixture, run `--write-inventory` and review
-the changed paths and classifications. This preserves existing classifications
-only when their path and complete file digest still match.
-
-[root-input-hash-audit.json](root-input-hash-audit.json) separates retained input
-bytes from metadata digest claims. [reconstructed-capture-inputs.json](reconstructed-capture-inputs.json)
-contains complete catch/binary-scan programs recovered by exact agreement with
-the original input digests. This byte reconstruction supplies no new execution.
-Missing original wrappers and probe variants remain explicit replay limits in
-their question records; a digest alone cannot reconstruct them.
-
-BIG-IP records distinguish rule load, reached TMM event, `RULE_INIT`, standalone
-appliance Tcl, and CLI/iApp channels. A load rejection supplies no runtime
-answer. A single responding TMM supplies no multi-TMM guarantee. Appliance
-implementation source is unavailable unless an actual source artifact is
-attached; C Tcl results cannot fill that gap.
-
-Consumer integration status belongs in
-[consumer-integrations.md](consumer-integrations.md). A source lookup receipt,
-a physical native object, a normal-read result and editable source geometry
-have separate manufacturers. Optional display text cannot manufacture any of
-them.
+The migration is incomplete. Preserve original captures while recovering exact
+scripts and results, and record missing details instead of inventing them.
 
 ## Question index
 

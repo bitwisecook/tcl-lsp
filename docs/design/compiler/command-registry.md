@@ -273,6 +273,13 @@ ordinary-container sharing; it supplies neither an index value nor numeric
 cache preservation. These declarations grant no handler identity, native
 compilation or result representation.
 
+For source diagnostics, `conditional_source_list_index_coercion` retains the
+same indexed-list shape only when an index is definitely used. Its distinct
+result carries successful original-handler and ordinary-object premises; it
+does not prove either, validate every index, or grant a native conversion.
+Consumers must preserve the possible empty-input branch and establish their
+own source, operand and applicability evidence.
+
 #### Argument semantics
 
 | Field | Type | Default | Purpose |

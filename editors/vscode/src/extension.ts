@@ -18,6 +18,7 @@
 
 import { registerSourceActionCommands } from "./codeActionSource";
 import { insertPackageRequirement } from "./packageRequire";
+import { findGenerateDocstringAction } from "./codeActionKinds";
 import {
   closeSync,
   existsSync,
@@ -590,7 +591,7 @@ export async function activate(context: ExtensionContext) {
         editor.document.uri,
         range,
       );
-      const docAction = actions?.find((a) => a.title.startsWith("Generate docstring"));
+      const docAction = findGenerateDocstringAction(actions);
       if (docAction?.command?.command === "tclLsp.applySourceCodeAction") {
         await commands.executeCommand(
           docAction.command.command,

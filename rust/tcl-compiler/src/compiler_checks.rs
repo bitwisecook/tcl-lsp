@@ -660,6 +660,7 @@ pub fn push_taint_and_module_checks(
     out: &mut Vec<Diagnostic>,
 ) -> crate::taint::TaintReplayAnalysis {
     let first = out.len();
+    push_conditional_source_shimmer(cu, registry, out);
     let mut taint_replays = crate::taint::TaintReplayAnalysis::Analysed {
         unavailable: Vec::new(),
     };
@@ -743,6 +744,28 @@ pub fn push_taint_and_module_checks(
     push_irules_flow_checks(cu, registry, dialect, generic_patterns, out);
     retain_diagnostic_source_context(cu, registry, &mut out[first..]);
     taint_replays
+}
+
+fn push_conditional_source_shimmer(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    out: &mut Vec<Diagnostic>,
+) {
+    for warning in crate::shimmer::conditional_source_shimmer_warnings(cu, registry) {
+        if out
+            .iter()
+            .any(|existing| existing.code == warning.code && existing.span == warning.span)
+        {
+            continue;
+        }
+        let Some(mut context) = DiagnosticSourceContext::for_unit(cu, registry) else {
+            continue;
+        };
+        context.authoring_purpose = DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction;
+        let mut diagnostic = Diagnostic::from_shimmer(&warning);
+        diagnostic.source_context = Some(context);
+        out.push(diagnostic);
+    }
 }
 
 /// Attach complete original issuer inputs after diagnostics have their final

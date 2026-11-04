@@ -54,6 +54,7 @@ use tcl_lexer::Span;
 use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
+use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::TypeLattice;
 
@@ -331,6 +332,72 @@ pub fn find_shimmer_warnings_for_cu(
         out.extend(find_shimmer_warnings_with_context(
             &fu.cfg, &fu.ssa, &fu.types, &fu.sccp, context,
         ));
+    }
+    for warning in conditional_source_shimmer_warnings(cu, registry) {
+        if !out.iter().any(|existing| {
+            existing.span == warning.span
+                && existing.variable == warning.variable
+                && existing.from_type == warning.from_type
+                && existing.to_type == warning.to_type
+        }) {
+            out.push(warning);
+        }
+    }
+    out
+}
+
+/// Source-only conditional conversion observations for module diagnostics.
+/// The caller retains the distinction from per-function executable facts.
+pub(crate) fn conditional_source_shimmer_warnings(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> Vec<ShimmerWarning> {
+    let mut out: Vec<ShimmerWarning> = Vec::new();
+    if let Some(bindings) = cu.ir_module.retained_source_bindings.as_ref()
+        && let Some(positioned) = bindings.positioned_for_module(&cu.ir_module, registry)
+    {
+        let observations =
+            positioned.conditional_representation_observations(&cu.ir_module, registry);
+        for observation in observations {
+            if observation.premises().is_empty() {
+                continue;
+            }
+            let name = match observation.symbol().slot() {
+                SignatureSourceVariableSlot::C { simple, .. }
+                | SignatureSourceVariableSlot::Local { simple, .. } => simple.try_utf8().ok(),
+                SignatureSourceVariableSlot::Jim(name) => name.try_utf8().ok(),
+            };
+            let Some(name) = name else { continue };
+            let from = observation.prior_type();
+            let to = observation.to_type();
+            if out.iter().any(|warning| {
+                warning.span == observation.span()
+                    && warning.variable == name
+                    && warning.from_type == from
+                    && warning.to_type == to
+            }) {
+                continue;
+            }
+            let command = observation.consumer().command().to_owned();
+            out.push(ShimmerWarning {
+                span: observation.span(),
+                variable: name.to_owned(),
+                from_type: from,
+                to_type: to,
+                command: command.clone(),
+                in_loop: false,
+                code: DiagCode::S100,
+                message: format!(
+                    "variable '{name}' may be converted from {} to {} by '{command}'",
+                    type_name(from),
+                    type_name(to)
+                ),
+                related: vec![(
+                    observation.producer_span(),
+                    "value produced here".to_owned(),
+                )],
+            });
+        }
     }
     out
 }

@@ -2276,22 +2276,43 @@ fn naming_proof_gate_is_current(root: &Path, makefile: &str) -> bool {
     let prerequisites = prerequisites.split('#').next().unwrap_or_default();
     if rules.next().is_some()
         || target != "check-name-resolution-proofs"
-        || !prerequisites.trim().is_empty()
+        || prerequisites.trim() != "check-tcl-evidence"
     {
         return false;
     }
-    // Only the complete retained-proof checker is this non-xtask gate.
-    lines[index + 1..]
+    // The legacy name remains an alias; evidence is checked without digests.
+    let alias_has_no_recipe = lines[index + 1..]
         .iter()
         .take_while(|line| {
             line.starts_with('\t') || line.starts_with('#') || line.trim().is_empty()
         })
-        .filter(|line| !line.trim().is_empty())
-        .copied()
-        .eq(["\tcd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py"])
-        && root
-            .join("scripts/dev/check-name-resolution-proofs.py")
-            .is_file()
+        .all(|line| line.trim().is_empty() || line.trim_start().starts_with('#'));
+    let mut evidence_rules = lines.iter().enumerate().filter_map(|(index, line)| {
+        let (target, prerequisites) = line.split_once(':')?;
+        (target.trim() == "check-tcl-evidence"
+            && prerequisites
+                .split('#')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .is_empty())
+        .then_some(index)
+    });
+    let Some(evidence_index) = evidence_rules.next() else {
+        return false;
+    };
+    alias_has_no_recipe
+        && evidence_rules.next().is_none()
+        && lines[evidence_index + 1..]
+            .iter()
+            .take_while(|line| line.starts_with('\t') || line.trim().is_empty())
+            .filter(|line| !line.trim().is_empty())
+            .copied()
+            .eq([
+                "\tcd $(ROOT) && python3 scripts/dev/check-tcl-evidence.py",
+                "\tcd $(ROOT) && python3 -m unittest discover -s scripts/dev -p 'test_tcl_evidence*.py'",
+            ])
+        && root.join("scripts/dev/check-tcl-evidence.py").is_file()
 }
 
 fn make_gate_command(makefile: &str, target: &str) -> Option<String> {
@@ -2843,29 +2864,17 @@ mod tests {
     }
 
     #[test]
-    fn naming_proof_gate_resolves_the_complete_python_checker() {
+    fn legacy_naming_gate_resolves_the_tcl_evidence_check() {
         let root = crate::util::repo_root();
         let makefile = read(&root, MAKEFILE_PATH).expect("Makefile");
         let main = read(&root, XTASK_MAIN_PATH).expect("xtask main");
         assert!(naming_proof_gate_is_current(&root, &makefile));
-        for target in [
-            "check-name-resolution-proofs :",
-            "  check-name-resolution-proofs:",
-        ] {
-            let spaced = format!(
-                "{target}\n\tcd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py\n"
-            );
-            assert!(naming_proof_gate_is_current(&root, &spaced));
-        }
         let contract = synthetic_manifest(
             "`rust/tcl-syntax/src/list.rs`",
             "`split_list`",
             "`check-name-resolution-proofs`",
         );
-        assert_eq!(
-            validate_manifest(&root, &contract, &makefile, &main).len(),
-            0
-        );
+        assert!(validate_manifest(&root, &contract, &makefile, &main).is_empty());
         assert!(!naming_proof_gate_is_current(
             &root.join(MAKEFILE_PATH),
             &makefile
@@ -2873,52 +2882,27 @@ mod tests {
     }
 
     #[test]
-    fn naming_proof_gate_rejects_incomplete_or_altered_routes() {
+    fn legacy_naming_gate_rejects_missing_or_altered_evidence_checks() {
         let root = crate::util::repo_root();
-        let rule = "check-name-resolution-proofs:\n";
-        let recipe = "\tcd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py\n";
+        let actual = read(&root, MAKEFILE_PATH).expect("Makefile");
         for makefile in [
             String::new(),
-            format!("# {rule}{recipe}"),
-            format!(
-                "{rule}\t# cd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py\n"
+            actual.replace(
+                "check-name-resolution-proofs: check-tcl-evidence",
+                "check-name-resolution-proofs:",
             ),
-            format!(
-                "{rule}\t@echo 'cd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py'\n"
+            actual.replace(
+                "python3 scripts/dev/check-tcl-evidence.py",
+                "python3 scripts/dev/other.py",
             ),
-            format!("{rule}{} --structure-only\n", recipe.trim_end()),
-            format!("{rule}{} --write-inventory\n", recipe.trim_end()),
-            format!("{rule}{} --root elsewhere\n", recipe.trim_end()),
-            format!("{rule}\tcd $(ROOT) && python3 scripts/dev/other.py\n"),
-            format!("{rule}\tcd $(ROOT) && cargo xtask owner-resolution\n"),
-            format!("{rule}{recipe}\ttrue\n"),
-            format!("{rule}{recipe}# recipe continuation\n\ttrue\n"),
-            format!("{rule}{recipe}{rule}{recipe}"),
-            format!("{rule}{recipe}check-name-resolution-proofs :\n{recipe}"),
-            format!("{rule}{recipe}  check-name-resolution-proofs:\n{recipe}"),
-            format!("{rule}{recipe}  check-name-resolution-proofs :\n\ttrue\n"),
-            format!("{rule}{recipe}other check-name-resolution-proofs:\n\ttrue\n"),
-            format!("other check-name-resolution-proofs:\n{recipe}"),
-            format!("check-name-resolution-proofs: other-gate\n{recipe}"),
-            format!("check-name-resolution-proofs::\n{recipe}"),
+            actual.replace(
+                "python3 -m unittest discover -s scripts/dev -p 'test_tcl_evidence*.py'",
+                "true",
+            ),
+            format!("{actual}\ncheck-name-resolution-proofs: check-tcl-evidence\n"),
         ] {
-            assert!(
-                !naming_proof_gate_is_current(&root, &makefile),
-                "{makefile}"
-            );
+            assert!(!naming_proof_gate_is_current(&root, &makefile));
         }
-        let main = read(&root, XTASK_MAIN_PATH).expect("xtask main");
-        let contract = synthetic_manifest(
-            "`rust/tcl-syntax/src/list.rs`",
-            "`split_list`",
-            "`other-python-gate`",
-        );
-        let makefile = format!("other-python-gate:\n{recipe}");
-        assert!(
-            validate_manifest(&root, &contract, &makefile, &main)
-                .iter()
-                .any(|problem| problem.contains("missing or non-xtask Makefile drift gate"))
-        );
     }
 
     fn synthetic_manifest(paths: &str, entries: &str, gate: &str) -> String {

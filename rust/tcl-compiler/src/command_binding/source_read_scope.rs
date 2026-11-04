@@ -93,6 +93,10 @@ impl SourceReadCatalogue {
         Some(Self { context, tape })
     }
 
+    pub(super) fn admits_original_site(&self, site: &CommandAllocationSite) -> bool {
+        !self.tape.blocks_registry_source(site.offset)
+    }
+
     /// A retained Logical body receipt owns its declared frame; the separate
     /// syntax catalogue deliberately carries no such interpretation. Prefer
     /// that existing receipt only when both original vectors and inputs agree.
@@ -128,6 +132,21 @@ impl SourceReadCatalogue {
         body: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
     ) -> Option<SourceReadScope> {
+        self.scope_with_ancestry(site, tokens, config, |advice, context| {
+            matches_read_body_ancestry(advice, body, context, config)
+        })
+    }
+
+    /// A separate diagnostic question may supply a stricter root endpoint.
+    /// The endpoint receives only retained transition advice; it cannot change
+    /// command selection, source obligations or the existing read projection.
+    pub(super) fn scope_with_ancestry(
+        &self,
+        site: &CommandAllocationSite,
+        tokens: &crate::ir::CommandTokens,
+        config: tcl_lexer::LexerConfig,
+        ancestry: impl FnOnce(&OriginalSourceCommandTransitionAdvice, &ContextRegistry) -> bool,
+    ) -> Option<SourceReadScope> {
         if tokens.synthetic.is_some() || self.tape.blocks_registry_source(site.offset) {
             trace_rbs_refusal(site.offset, "scope.synthetic-or-barrier");
             return None;
@@ -145,7 +164,7 @@ impl SourceReadCatalogue {
             return None;
         }
         let parent_matches = trace_rbs_condition(
-            matches_read_body_ancestry(advice, body, &self.context, config),
+            ancestry(advice, &self.context),
             site.offset,
             "scope.parent-ancestry",
         );
@@ -225,19 +244,57 @@ fn inherits_read_body_context(
 /// intermediate body retains its selected schema and its immediate parent;
 /// lexical containment alone cannot cross a namespace or frame boundary.
 fn matches_read_body_ancestry(
-    mut advice: &OriginalSourceCommandTransitionAdvice,
+    advice: &OriginalSourceCommandTransitionAdvice,
     body: tcl_lexer::Span,
     context: &ContextRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
+    matches_read_body_ancestry_until(
+        advice,
+        context,
+        config,
+        false,
+        |_| true,
+        |advice| {
+            let image = advice.site().source.source_image();
+            if let Some(parent) = advice.original_catalogue_source_body() {
+                return parent.matches_context(context)
+                    && parent.matches_source(image, config)
+                    && parent.content_span() == body;
+            }
+            advice
+                .original_procedure_source_body()
+                .or_else(|| advice.logical_source_body())
+                .is_some_and(|parent| {
+                    parent.matches_context(context)
+                        && parent.matches_source(image, config)
+                        && parent.content_span() == body
+                })
+        },
+    )
+}
+
+/// Follow only original, immediate same-frame body receipts until the caller's
+/// independently authenticated endpoint. No lexical containment grants a frame.
+pub(super) fn matches_read_body_ancestry_until(
+    mut advice: &OriginalSourceCommandTransitionAdvice,
+    context: &ContextRegistry,
+    config: tcl_lexer::LexerConfig,
+    allow_terminal_parent: bool,
+    valid_step: impl Fn(&OriginalSourceCommandTransitionAdvice) -> bool,
+    endpoint: impl Fn(&OriginalSourceCommandTransitionAdvice) -> bool,
+) -> bool {
     let image = advice.site().source.source_image();
     loop {
+        if !valid_step(advice) {
+            return false;
+        }
+        if endpoint(advice) {
+            return true;
+        }
         let current = if let Some(parent) = advice.original_catalogue_source_body() {
             if !parent.matches_context(context) || !parent.matches_source(image, config) {
                 return false;
-            }
-            if parent.content_span() == body {
-                return true;
             }
             let super::source_transition_advice::OriginalSourceCatalogueBody::Script(current) =
                 parent
@@ -255,9 +312,6 @@ fn matches_read_body_ancestry(
             if !parent.matches_context(context) || !parent.matches_source(image, config) {
                 return false;
             }
-            if parent.content_span() == body {
-                return true;
-            }
             parent
         };
         if !inherits_read_body_context(current, context) {
@@ -272,6 +326,13 @@ fn matches_read_body_ancestry(
         };
         if !parent.matches_context(context) || !parent.matches_source(image, config) {
             return false;
+        }
+        if allow_terminal_parent
+            && parent.site().offset < current.content_span().start()
+            && valid_step(parent)
+            && endpoint(parent)
+        {
+            return true;
         }
         let next = parent
             .original_catalogue_source_body()

@@ -6521,7 +6521,7 @@ fn unreached_arm_facts(
 /// names, the layout, and the operands with their kinds and roles. Roles
 /// come from the effective descriptor — the resolver over literal words,
 /// else the static roles — as the resolver's owned facts compute them.
-fn view_of<'a>(
+pub(crate) fn view_of<'a>(
     resolved: &ResolvedInvocation<'_, '_>,
     texts: &[&'a str],
     words: &[InvocationWord<'a>],
@@ -8191,7 +8191,7 @@ pub(crate) fn whole_variable_operand(text: &str, config: LexerConfig) -> Option<
 
 /// Inputs for a structure-only question over source words: literal words
 /// are exact, dynamic words are not, and a literal name is a place.
-struct StructureInputs<'a> {
+pub(crate) struct StructureInputs<'a> {
     view: ResolvedInvocationView<'a>,
     context: &'a AnalysisContext,
     /// What a prior store reads.
@@ -8217,7 +8217,7 @@ enum Prior<'a> {
 }
 
 impl<'a> StructureInputs<'a> {
-    fn new(view: ResolvedInvocationView<'a>, context: &'a AnalysisContext) -> Self {
+    pub(crate) fn new(view: ResolvedInvocationView<'a>, context: &'a AnalysisContext) -> Self {
         Self {
             view,
             context,
