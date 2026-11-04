@@ -972,34 +972,38 @@ pub fn optimise_raw_for_profile(
 /// half-open `[start, end)`, so the byte range is `span.start()..span.end()`.
 #[must_use]
 pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> String {
-    let mut edits: Vec<(usize, usize, &str)> = optimisations
+    apply_optimisations_reporting(source, optimisations).0
+}
+
+/// Apply edits and report only the candidates that actually changed text.
+fn apply_optimisations_reporting(
+    source: &str,
+    optimisations: &[Optimisation],
+) -> (String, Vec<Optimisation>) {
+    let mut edits: Vec<&Optimisation> = optimisations
         .iter()
-        .filter(|o| !o.hint_only)
-        .filter_map(|o| {
-            let start = o.span.start() as usize;
-            let end = o.span.end() as usize;
-            (start <= end && end <= source.len()).then_some((
-                start,
-                end - start,
-                o.replacement.as_str(),
-            ))
+        .filter(|optimisation| !optimisation.hint_only)
+        .filter(|optimisation| {
+            source
+                .get(optimisation.span.as_range())
+                .is_some_and(|text| text != optimisation.replacement)
         })
         .collect();
-    if edits.is_empty() {
-        return source.to_owned();
-    }
-    edits.sort_by_key(|e| std::cmp::Reverse(e.0));
-    let mut seen: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+    edits.sort_by_key(|optimisation| std::cmp::Reverse(optimisation.span.start()));
+    let mut seen = std::collections::HashSet::new();
     let mut result = source.to_owned();
-    for (offset, length, text) in edits {
-        if !seen.insert((offset, length)) {
+    let mut applied = Vec::with_capacity(edits.len());
+    for optimisation in edits {
+        let range = optimisation.span.as_range();
+        if !seen.insert(optimisation.span) {
             continue;
         }
-        if offset + length <= result.len() {
-            result.replace_range(offset..offset + length, text);
+        if result.get(range.clone()).is_some() {
+            result.replace_range(range, &optimisation.replacement);
+            applied.push(optimisation.clone());
         }
     }
-    result
+    (result, applied)
 }
 
 /// Iteratively optimise `source` until a fixpoint or `max_iterations` is
@@ -1202,8 +1206,8 @@ where
         if kept.is_empty() {
             break;
         }
-        let next = apply_optimisations(&current, &kept);
-        all.extend(kept);
+        let (next, applied) = apply_optimisations_reporting(&current, &kept);
+        all.extend(applied);
         if next == current {
             break;
         }
@@ -1231,8 +1235,8 @@ pub fn optimise_source_multipass(
         if opts.is_empty() {
             break;
         }
-        let next = apply_optimisations(&current, &opts);
-        all.extend(opts);
+        let (next, applied) = apply_optimisations_reporting(&current, &opts);
+        all.extend(applied);
         if next == current {
             break;
         }
@@ -1245,6 +1249,35 @@ pub fn optimise_source_multipass(
 mod tests {
     use super::*;
     use tcl_lexer::Span;
+
+    #[test]
+    fn multipass_reports_only_edits_that_change_source() {
+        let source = "set x 5";
+        let mut hint = Optimisation::new(DiagCode::O102, "hint", Span::new(0, 7), "set x 6");
+        hint.hint_only = true;
+        let unchanged = Optimisation::new(DiagCode::O100, "unchanged", Span::new(0, 7), source);
+        let invalid = Optimisation::new(DiagCode::O100, "invalid", Span::new(0, 99), "");
+        let changed = Optimisation::new(DiagCode::O100, "changed", Span::new(6, 7), "6");
+        let candidates = vec![hint, unchanged, invalid, changed.clone(), changed];
+        let (text, applied, iterations) = optimise_source_multipass_using(
+            source,
+            1,
+            |_| candidates.clone(),
+            |_, candidates| candidates,
+        );
+        assert_eq!(text, "set x 6");
+        assert_eq!(iterations, 1);
+        assert_eq!(applied.len(), 1);
+        assert_eq!(applied[0].message, "changed");
+        let (text, applied, _) = optimise_source_multipass_using(
+            source,
+            1,
+            |_| candidates[..3].to_vec(),
+            |_, candidates| candidates,
+        );
+        assert_eq!(text, source);
+        assert!(applied.is_empty());
+    }
 
     #[test]
     fn supplied_multipass_refreshes_conditional_candidates_for_each_source_image() {
