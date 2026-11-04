@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 16:40 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
+Updated 04 November 2026, 16:45 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
 
 | Work | Open acceptance |
 | --- | --- |
@@ -9,8 +9,8 @@ Updated 04 November 2026, 16:40 UTC. **Not release-ready.** [Current state](../c
 | Linked containment |Captured RMWv14 diagnostic30/31 (Engine7/7,hooks14/14,VM9/10) fails the actual Jim wrapper prerequisite. Reviewed72bbee3bd adopts scripted wrapper with original cache/current-binding join; RMWv16 first refuses71 missing literal fixtures; exact79,961B synced, then Compiler build fails private sibling access. Reviewed source/type corrections adopted; V17 all3freshbuilds0; captured30/32 fails (Engine7/7,hooks14/14,VM9/11). Jim wrapper member retention and absent cache warmup assertions fail; diagnosis ongoing, stickyMainfalse and old failures retained. Preserve v11 Engine4/6/hooks14/14/VM7/8 failures and all confinement/preflight guards. |
 | Autoload |Browserb067 passes40/41, only originalautoloadid4null fails. CompilerV3 actual first-producer refusal remains unresolved; unchanged-production bounded trace and alias-fixture correction are private/unexecuted. Source advice grants no ordinary lookup/Native/Normal/edit authority. |
 | Lint/drift |ClippyV22 recorded719d pass predates latest stack; new unsuppressed lint/fmt/rust-check/prep-pr/drift pending. |
-| Proof |Incoming AGENTS/Makefile now use standalone actual Tcl execution evidence and check-tcl-evidence. Prior2171 legacy audit remains historical/unrecounted, not a currentgate total. Source-only authenticated corrections grant no execution/provider authority; fresh currentgate pending. |
+| Proof | The active `make check-tcl-evidence` gate checks 321 standalone Tcl evidence files and passes all 11 checker tests; `/tmp/lsp-check-tcl-evidence-current-1644.log`. Legacy 2171 failures remain historical, not a current gate total. This scoped gate pass grants no new provider authority or full release acceptance. |
 | Hosts/packages/performance |Manual41859243999 exactb067: Browser40/41 passes, autoloadnull; emptydir/rename/UTF16/newrevision/opaque/incompletecoverage pass. WASI32/33 withbusyEOF12/12timeouts inboth original+diagnostic; Native jobstillrunning. Host V7 passes 12 private controls, full extension lint and TypeScript checking; real-host validation remains pending. Performance remains release-blocking. Packaging4no-build contracts pass narrowly; actualarchive/host/fullgateacceptance absent. |
-| Integration/release |Publisher278694 success13:57:57 eb15be082; historical interruptions retained, including actual11:43/11:47 recovery before user11:50 retry. V8 ENOSPC preserved; verified archives/retirement+atomic relocation recover space without validation. No PR/merge/tag/release. |
+| Integration/release | Publisher 278694 succeeds at 16:43:02, merging and pushing `f80a8a1aa3d33772d2b0fcc794a8fd56aa828875` without force; `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. Earlier ENOSPC/clean-tree interruptions remain historical. Resource recovery is not test acceptance. No PR, merge to `rust`, tag or release. |
 
 Separate VM/BIG-IP features stay deferred; linked dependencies and oracle provenance remain critical.

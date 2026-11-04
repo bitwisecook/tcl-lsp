@@ -116,6 +116,8 @@
 
 use std::collections::VecDeque;
 use std::io::{BufRead as _, Write as _};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
@@ -183,6 +185,57 @@ impl Stop {
     }
 }
 
+/// Default-off observations, sharing one row cap with detached handlers.
+struct LifecycleTrace {
+    rows: Arc<LifecycleTraceRows>,
+    active: bool,
+}
+
+#[derive(Default)]
+struct LifecycleTraceRows {
+    emitted: AtomicU16,
+    dropped: AtomicU16,
+}
+
+fn trace_lifecycle_row(rows: &LifecycleTraceRows, stage: &str) {
+    // Reserve 32 of the 160 rows for stop selection and its final drain.
+    let terminal = stage.starts_with("stop.")
+        || stage.starts_with("drain.")
+        || stage.ends_with(".exit")
+        || stage == "stdin.eof"
+        || stage == "route.exit-selected";
+    let limit = if terminal { 160 } else { 128 };
+    if let Ok(row) = rows
+        .emitted
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |row| {
+            (row < limit).then_some(row + 1)
+        })
+    {
+        eprintln!(
+            "WASI_LIFECYCLE row={} stage={stage} dropped_total={}",
+            row + 1,
+            rows.dropped.load(Ordering::Relaxed)
+        );
+    } else {
+        let _ = rows
+            .dropped
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |dropped| {
+                Some(dropped.saturating_add(1))
+            });
+    }
+}
+
+fn trace_method(method: &str) -> &'static str {
+    match method {
+        "initialize" => "initialize",
+        "initialized" => "initialized",
+        "textDocument/didOpen" => "didOpen",
+        "shutdown" => "shutdown",
+        "exit" => "exit",
+        _ => "other",
+    }
+}
+
 /// The stdin/stdout driver for one session.
 pub struct Driver<S> {
     /// The protocol core, wrapped by nothing: the two shims are applied at the
@@ -212,6 +265,7 @@ pub struct Driver<S> {
     /// Set once the host has told us it cannot poll stdin, so the wait degrades
     /// to a plain sleep instead of asking again every pass.
     stdin_pollable: bool,
+    lifecycle_trace: Option<LifecycleTrace>,
 }
 
 impl<S> Driver<S>
@@ -265,6 +319,18 @@ where
             last_activity: Instant::now(),
             shutdown_seen: false,
             stdin_pollable: true,
+            lifecycle_trace: std::env::var("TCL_LSP_WASI_LIFECYCLE_TRACE")
+                .is_ok_and(|value| value == "1")
+                .then(|| LifecycleTrace {
+                    rows: Arc::new(LifecycleTraceRows::default()),
+                    active: false,
+                }),
+        }
+    }
+
+    fn lifecycle_trace(&self, stage: &str) {
+        if let Some(trace) = &self.lifecycle_trace {
+            trace_lifecycle_row(&trace.rows, stage);
         }
     }
 
@@ -274,14 +340,30 @@ where
             // 1. Route everything already decodable, then everything held back
             //    behind `initialize`.
             if let Some(stop) = self.route() {
+                self.lifecycle_trace("stop.before-drain");
                 self.drain_for_exit().await;
+                self.lifecycle_trace("stop.after-drain");
                 return stop;
             }
             // 2. Hand the client whatever the server has produced so far.
             self.flush();
             // 3. Let the runtime run every ready task and fire every due timer.
             //    See the module docs: this is what makes step 5 safe.
+            if self
+                .lifecycle_trace
+                .as_ref()
+                .is_some_and(|trace| trace.active)
+            {
+                self.lifecycle_trace("loop.before-yield");
+            }
             rt::yield_now().await;
+            if self
+                .lifecycle_trace
+                .as_ref()
+                .is_some_and(|trace| trace.active)
+            {
+                self.lifecycle_trace("loop.after-yield");
+            }
             // 4. Anything the drain produced goes out before the thread parks.
             self.flush();
             // 5. Park the process — not the runtime, which is now quiescent —
@@ -293,7 +375,9 @@ where
                 // status, so route once more and honour what that says;
                 // end-of-input is only the answer if nothing was waiting.
                 let stop = self.route().unwrap_or(Stop::EndOfInput);
+                self.lifecycle_trace("stop.before-drain");
                 self.drain_for_exit().await;
+                self.lifecycle_trace("stop.after-drain");
                 return stop;
             }
         }
@@ -316,12 +400,21 @@ where
             match classify(&text) {
                 Some(Incoming::Request(request)) => {
                     let method = request.method().to_owned();
+                    if method == "textDocument/didOpen" || method == "exit" {
+                        if let Some(trace) = &mut self.lifecycle_trace {
+                            trace.active = true;
+                        }
+                    }
+                    if self.lifecycle_trace.is_some() {
+                        self.lifecycle_trace(&format!("route.{}", trace_method(&method)));
+                    }
                     if method == "shutdown" {
                         self.shutdown_seen = true;
                     }
                     self.held.push_back(*request);
                     self.admit();
                     if method == "exit" {
+                        self.lifecycle_trace("route.exit-selected");
                         return Some(if self.shutdown_seen {
                             Stop::CleanExit
                         } else {
@@ -377,13 +470,24 @@ where
             let Some(request) = self.held.pop_front() else {
                 return;
             };
+            let trace = self
+                .lifecycle_trace
+                .as_ref()
+                .map(|trace| (Arc::clone(&trace.rows), trace_method(request.method())));
             let call = self.service.call(normalise_request_uris(request));
             let tx = self.outbound_tx.clone();
             // Detached, always. A handler that awaited a client reply — which
             // `initialized` does — would otherwise be waiting on a message the
             // driver has stopped listening for.
             rt::spawn(async move {
-                if let Ok(Some(response)) = call.await {
+                if let Some((rows, method)) = &trace {
+                    trace_lifecycle_row(rows, &format!("call.begin.{method}"));
+                }
+                let response = call.await;
+                if let Some((rows, method)) = &trace {
+                    trace_lifecycle_row(rows, &format!("call.end.{method}"));
+                }
+                if let Ok(Some(response)) = response {
                     match serde_json::to_string(&inject_type_hierarchy_provider(response)) {
                         Ok(text) => {
                             let _ = tx.unbounded_send(text);
@@ -482,6 +586,7 @@ where
         let taken = match stdin.fill_buf() {
             Ok(chunk) => {
                 if chunk.is_empty() {
+                    self.lifecycle_trace("stdin.eof");
                     return true;
                 }
                 self.decoder.push(chunk);
@@ -494,6 +599,7 @@ where
             }
         };
         stdin.consume(taken);
+        self.lifecycle_trace("stdin.bytes");
         self.last_activity = Instant::now();
         false
     }
@@ -506,7 +612,9 @@ where
     /// of them is either CPU-ready or already gone.
     async fn drain_for_exit(&mut self) {
         for _ in 0..8 {
+            self.lifecycle_trace("drain.before-yield");
             rt::yield_now().await;
+            self.lifecycle_trace("drain.after-yield");
             self.flush();
         }
     }

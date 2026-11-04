@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 13:43 UTC. Not release-ready.** ServerV10 builds0 then parent Main proposal currency fails before tests. Separate pinned27 diagnostics give16/17mandatory,3/5probes and5/5 failed current-library repros; Native owner mismatch is proven, not browser/current-Main acceptance. Adopted symbolV3/normalization controls await ServerV11's26+6 plan. RMWv14 captured diagnostic passes30/31; parent Main-currency failure remains, CoreV7 is frozen/unrun; no repaired cohort pass. Four12:58 no-build packaging contracts pass narrowly. New stack lint/full gates pending; global2171 unrecounted after source-only corrections. [Current state](current-state.md) records strict custody, old failures and publication/resource limits. No PR/release; older material below is historical.
+**ACTIVE plan; status refreshed 04 November 2026, 16:45 UTC. Not release-ready.** [Current state](current-state.md) is the authoritative status. Purpose Compiler V3 builds successfully but passes 2/4; Core V12 fails ENOSPC before any of its 23 semantic controls and one observation. Captured Server V11 passes 26/26 mandatory controls with current-Main refusal; RMW v17 passes 30/32. Manual Browser 41859243999 passes 40/41 and WASI 32/33, retaining original autoload and busy-EOF failures. Host V7 private controls, extension lint and TypeScript checking pass; real-host validation remains pending. The current Tcl evidence gate checks 321 files and passes 11 checker tests, while full gates remain open. Publication succeeds at 16:43:02 without force. No PR or release exists. The 23 October plan and historical measurements below do not establish current acceptance; current-state.md supplies exact scoped receipts.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,16 +61,8 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Review and execute ServerV11's26 mandatory controls/6 probes with strict
-   all-Main currency. Captured tests after Main-only refusal remain diagnostic
-   with overallFAIL. Validate2f49 owner and ab1b normalization repairs; diagnose
-   five real library failures without blanket false-premise or guard weakening.
-   Execute frozen CoreV7 with approved stub-cfg/W153 inputs and fresh custody.
-2. Repair the Jim wrapper/unset prerequisite and repeat31 controls against452 and fixture665, preserving
-   v11 Engine4/6/hooks14/14/VM7/8 failures and all canonical binding, authored
-   random, genuine C8.4/F5/Jim issuer guards. Native diagnostics and no-build
-   packaging contracts do not establish actual Browser/WASI/release acceptance.
-   Separate VM/BIG-IP features remain deferred; linked regressions are critical.
+1. Preserve completed captured Server V11 diagnostics and their strict Main-currency refusal. Diagnose the original autoload null and five failed library repros; obtain a fresh current-source Server cohort after reviewed repairs. Preserve purpose Compiler V3's 2/4 result and Core V12's ENOSPC failure; validate reviewed corrections and retry Core with fresh custody and adequate disk capacity.
+2. Diagnose the two failed Jim/cache assertions in completed RMW v17 (30/32), then run a fresh linked cohort after reviewed repairs. Preserve all earlier failures and canonical binding, authored-random, genuine C8.4/F5/Jim issuer guards. Separate VM/BIG-IP feature work remains deferred; linked regressions remain critical.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected
    baseline/candidate inventories; unknown, skipped, cancelled and unreached
@@ -376,7 +368,7 @@ checks while active. Candidate snapshots require their own clear branch/SHA
 mapping; never mix source identities or green claims between the two branches.
 All validation records remain on work or external CI, excluded from candidate.
 
-Current external blockers are stale BIGIP/perf handoffs and CI artifact access.
+Historical 23 October external blockers included stale BIG-IP/performance handoffs and CI artifact access. Current blockers and the next source-bound validations are recorded in current-state.md.
 Potential genuinely new decisions are a numeric supported-workload/memory or
 long-request envelope, or an unrecorded functional restriction; ask and record
 only when needed. Existing naming, ILX, after-load, minify and authenticated

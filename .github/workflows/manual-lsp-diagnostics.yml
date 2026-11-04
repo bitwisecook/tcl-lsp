@@ -232,9 +232,15 @@ jobs:
         env:
           NODE_OPTIONS: --require=${{ github.workspace }}/scripts/dev/manual-lsp-rpc-capture.cjs
           LSP_RPC_RESPONSE_LOG: ${{ runner.temp }}/lsp-wasi-diagnostics/responses.jsonl
+          TCL_LSP_WASI_LIFECYCLE_TRACE: "1"
+          LSP_WASI_LIFECYCLE_DIR: ${{ runner.temp }}/lsp-wasi-diagnostics/lifecycle
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/lsp-wasi-diagnostics"
+          wasmtime --version > "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-runtime.txt"
+          getconf CLK_TCK >> "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-runtime.txt"
+          sha256sum rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.sources.sha256 > "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-module.before.sha256"
+          trap 'sha256sum rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.sources.sha256 > "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-module.after.sha256"' EXIT
           node rust/tcl-lsp-server-wasi/test/e2e.mjs 2>&1 | tee "$RUNNER_TEMP/lsp-wasi-diagnostics/reply-capture.log"
       - name: Upload failure diagnostics
         if: ${{ failure() }}

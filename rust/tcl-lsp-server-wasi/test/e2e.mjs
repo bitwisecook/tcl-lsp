@@ -56,9 +56,10 @@
  */
 
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { writeSync } from "node:fs";
 import { HOST_NAMING_SOURCE, runMixedNamingHostRefusal, runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
-import { cp, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -67,6 +68,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const defaultModule = join(here, "..", "dist", "tcl-lsp-server-wasi.wasm");
 const modulePath = resolve(process.argv[2] ?? defaultModule);
 const fixture = join(here, "fixture");
+const lifecycleTrace = process.env.TCL_LSP_WASI_LIFECYCLE_TRACE === "1";
+const lifecycleDirectory = process.env.LSP_WASI_LIFECYCLE_DIR;
+
 
 /** The guest path the fixture directory is preopened at. */
 const ROOT = "/w";
@@ -136,7 +140,8 @@ class Session {
         this.effectTraceOffset = 0;
         this.effectTraceRows = 0;
 
-        const envArgs = Object.entries(env).flatMap(([key, value]) => [
+        const guestEnv = lifecycleTrace ? { ...env, TCL_LSP_WASI_LIFECYCLE_TRACE: "1" } : env;
+        const envArgs = Object.entries(guestEnv).flatMap(([key, value]) => [
             "--env",
             `${key}=${value}`,
         ]);
@@ -582,6 +587,41 @@ async function closedStdinSession() {
  */
 const EOF_RACE_RUNS = 12;
 
+/** Observations only: preserve the workload, message order and existing deadlines. */
+async function lifecycleCpu(pid) {
+    try {
+        const text = await readFile(`/proc/${pid}/stat`, "utf8");
+        const fields = text.slice(text.lastIndexOf(")") + 2).trim().split(/\s+/);
+        const wchan = (await readFile(`/proc/${pid}/wchan`, "utf8")).trim().slice(0, 80);
+        return { observedAt: Date.now(), state: fields[0], userTicks: fields[11],
+            systemTicks: fields[12], threads: fields[17], rssPages: fields[21], wchan };
+    } catch (error) {
+        return { observedAt: Date.now(), unavailable: String(error?.code ?? "unknown").slice(0, 40) };
+    }
+}
+
+async function lifecycleRecord(session, observation, code, cpuAtEnd) {
+    if (!observation || !lifecycleDirectory) return;
+    try {
+        await mkdir(lifecycleDirectory, { recursive: true });
+        const moduleAfter = createHash("sha256").update(await readFile(modulePath)).digest("hex");
+        await writeFile(join(lifecycleDirectory, `eof-run-${String(observation.run).padStart(2, "0")}.json`),
+            JSON.stringify({ ...observation, observedEndAt: Date.now(), code,
+                cpuAtEnd, moduleAfter, moduleUnchanged: observation.moduleBefore === moduleAfter,
+                stderr: session.stderr.slice(-32768), stderrComplete: session.child.stderr.readableEnded,
+                stderrTruncated: session.stderr.length > 32768,
+                observedDriverRowsDroppedLowerBound: Math.max(0, ...Array.from(
+                    session.stderr.slice(-32768).matchAll(/dropped_total=(\d+)/g),
+                    (match) => Number(match[1]))),
+                bufferedStdoutBytes: session.buffer.length,
+                serverRequests: session.serverRequests.slice(0, 16),
+                logTail: session.logs.slice(-4).map((line) => line.slice(0, 512)) }) + "\n");
+    } catch (error) {
+        console.error(`WASI_LIFECYCLE_CAPTURE_ERROR ${String(error?.code ?? "unknown").slice(0, 40)}`);
+    }
+}
+
+
 async function exitClosingStdinSession() {
     // Enough work to keep the driver away from the poll for tens of
     // milliseconds, so `exit` and the close land while it is busy and are
@@ -600,6 +640,12 @@ async function exitClosingStdinSession() {
             session.kill();
             continue;
         }
+        const observation = lifecycleTrace ? {
+            run, pid: session.child.pid, initializedAt: Date.now(),
+            cpuBefore: await lifecycleCpu(session.child.pid),
+            moduleBefore: createHash("sha256").update(await readFile(modulePath)).digest("hex"),
+            fixture: { calls: 4000, preExitDelayMs: 60, exitBudgetMs: 30000, runs: EOF_RACE_RUNS },
+        } : undefined;
         session.notify("textDocument/didOpen", {
             textDocument: {
                 uri: `file://${ROOT}/busy.tcl`,
@@ -612,9 +658,12 @@ async function exitClosingStdinSession() {
         // One tick: the frame and the FIN go into the pipe together.
         session.notify("exit", null);
         session.child.stdin.end();
+        if (observation) observation.exitSentAt = Date.now();
         const code = await Promise.race([session.exited, sleep(30_000).then(() => "timeout")]);
+        const cpuAtEnd = observation ? await lifecycleCpu(session.child.pid) : undefined;
         codes.push(code);
         if (code === "timeout") session.kill();
+        if (observation) await lifecycleRecord(session, observation, code, cpuAtEnd);
     }
     const wrong = codes.filter((code) => code !== 1);
     check(

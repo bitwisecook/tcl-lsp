@@ -603,12 +603,33 @@ mod wasi {
     /// over), so neither wasm arm can settle a document after a worker panic.
     ///
     /// Like Tokio's, this must be called from within the runtime.
+    #[track_caller]
     pub fn spawn_blocking<F, R>(f: F) -> JoinHandle<R>
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,
     {
+        static TRACE_CALLS: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
+        let trace = if std::env::var("TCL_LSP_WASI_LIFECYCLE_TRACE").is_ok_and(|value| value == "1")
+        {
+            TRACE_CALLS
+                .fetch_update(
+                    std::sync::atomic::Ordering::Relaxed,
+                    std::sync::atomic::Ordering::Relaxed,
+                    |call| (call < 32).then_some(call + 1),
+                )
+                .ok()
+        } else {
+            None
+        };
+        let caller = std::panic::Location::caller();
+        if let Some(call) = trace {
+            eprintln!("WASI_INLINE_WORK call={call} stage=begin caller={caller}");
+        }
         let value = f();
+        if let Some(call) = trace {
+            eprintln!("WASI_INLINE_WORK call={call} stage=end caller={caller}");
+        }
         spawn(async move { value })
     }
 
