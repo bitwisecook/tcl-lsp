@@ -17,27 +17,27 @@ Why does the analyser flag a variable that oscillates between two types across l
 
 ## Why
 
-The value converts back and forth on every iteration, making the performance cost linear in the loop count.
+The value can convert back and forth on repeated iterations, making the performance cost grow with the loop count.
 
 ## Symptoms
 
-- A yellow squiggle under the variable, with the message "'total' oscillates
-  between string and int across loop iterations (thunking)". `S101` normally
-  reports the same line as well.
+- A yellow squiggle under the variable describing repeated conversion between
+  representations. A source-only warning can say the conversion **may** repeat
+  when it depends on the original handlers and unobserved variable cells.
 
 ## Example that triggers it
 
 ```tcl
 set total 0
 foreach item {1 2 3} {
-    set total [expr {$total + 1}]
-    set total [string range $total 0 end]
+    incr total
+    lindex $total 0
 }
 puts $total
 ```
 
-The analyser reports **`S102`** because `total` alternates between integer and
-string on every pass through the loop.
+The analyser reports **`S102`** because `incr` uses an integer representation
+and `lindex` converts the result to a list on each pass through the loop.
 
 ## Fix
 
@@ -47,18 +47,17 @@ flipping:
 ```tcl
 set total 0
 foreach item {1 2 3} {
-    set total [expr {$total + 1}]
+    incr total
 }
-puts [string range $total 0 end]
+puts [lindex $total 0]
 ```
 
 Keep one type inside the loop and convert once on the way out.
 
 ## How to suppress
 
-Add `# noqa: S102` on the line **above** the offending command, or apply
-the "Suppress S102 with a noqa comment" quick fix offered on the
-diagnostic.
+Add `# noqa: S102` on the line **above** the offending command. Some
+warnings also offer a "Suppress S102 with a noqa comment" quick fix.
 
 ## Related
 

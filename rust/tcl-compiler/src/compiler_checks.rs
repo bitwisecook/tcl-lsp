@@ -660,7 +660,7 @@ pub fn push_taint_and_module_checks(
     out: &mut Vec<Diagnostic>,
 ) -> crate::taint::TaintReplayAnalysis {
     let first = out.len();
-    push_conditional_source_shimmer(cu, registry, out);
+    push_conditional_source_representations(cu, registry, out);
     let mut taint_replays = crate::taint::TaintReplayAnalysis::Analysed {
         unavailable: Vec::new(),
     };
@@ -746,26 +746,42 @@ pub fn push_taint_and_module_checks(
     taint_replays
 }
 
-fn push_conditional_source_shimmer(
+fn push_conditional_source_representations(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     out: &mut Vec<Diagnostic>,
 ) {
     for warning in crate::shimmer::conditional_source_shimmer_warnings(cu, registry) {
-        if out
-            .iter()
-            .any(|existing| existing.code == warning.code && existing.span == warning.span)
-        {
-            continue;
-        }
-        let Some(mut context) = DiagnosticSourceContext::for_unit(cu, registry) else {
-            continue;
-        };
-        context.authoring_purpose = DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction;
-        let mut diagnostic = Diagnostic::from_shimmer(&warning);
-        diagnostic.source_context = Some(context);
-        out.push(diagnostic);
+        append_conditional_source_diagnostic(cu, registry, out, Diagnostic::from_shimmer(&warning));
     }
+    for warning in crate::shimmer::conditional_source_thunking_warnings(cu, registry) {
+        append_conditional_source_diagnostic(
+            cu,
+            registry,
+            out,
+            Diagnostic::from_thunking(&warning),
+        );
+    }
+}
+
+fn append_conditional_source_diagnostic(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    out: &mut Vec<Diagnostic>,
+    mut diagnostic: Diagnostic,
+) {
+    if out
+        .iter()
+        .any(|existing| existing.code == diagnostic.code && existing.span == diagnostic.span)
+    {
+        return;
+    }
+    let Some(mut context) = DiagnosticSourceContext::for_unit(cu, registry) else {
+        return;
+    };
+    context.authoring_purpose = DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction;
+    diagnostic.source_context = Some(context);
+    out.push(diagnostic);
 }
 
 /// Attach complete original issuer inputs after diagnostics have their final

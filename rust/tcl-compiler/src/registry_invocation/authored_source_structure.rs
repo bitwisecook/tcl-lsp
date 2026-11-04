@@ -244,15 +244,14 @@ impl AuthoredSourceVariableAccess {
     }
 }
 
-pub(crate) fn authored_script_scalar_context_is_quiet(tokens: &CommandTokens) -> bool {
+pub(crate) fn authored_script_scalar_context_has_no_known_counterevidence(
+    tokens: &CommandTokens,
+) -> bool {
     let Some(binding) = tokens.source_binding.as_ref() else {
         return false;
     };
     let variables = &binding.variable_context;
     variables.frame_kind == crate::var_resolve::VariableFrameKind::Global
-        && variables.namespace_known
-        && !variables.dynamic_bindings
-        && !variables.dynamic_traces
         && variables.globals.is_empty()
         && variables.ns_vars.is_empty()
         && variables.upvar_aliases.is_empty()
@@ -266,6 +265,16 @@ pub(crate) fn authored_script_scalar_context_is_quiet(tokens: &CommandTokens) ->
         && variables.trace_registration_receivers.is_empty()
         && variables.untracked_traces.is_empty()
         && variables.possible_trace_registrations.is_empty()
+}
+
+pub(crate) fn authored_script_scalar_context_is_quiet(tokens: &CommandTokens) -> bool {
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    authored_script_scalar_context_has_no_known_counterevidence(tokens)
+        && binding.variable_context.namespace_known
+        && !binding.variable_context.dynamic_bindings
+        && !binding.variable_context.dynamic_traces
 }
 
 type AuthoredScriptScalarVariable = (

@@ -218,6 +218,13 @@ impl CommandSemantics for IterationSemantics {
         }
     }
 
+    fn conditional_source_paired_loop_handler(
+        &self,
+    ) -> Option<crate::iteration_entry::ConditionalSourcePairedLoopHandler> {
+        (self.iterates == Iterates::Lists && !self.collects)
+            .then_some(crate::iteration_entry::CONDITIONAL_SOURCE_PAIRED_LOOP_HANDLER)
+    }
+
     fn route(&self) -> EvalRoute {
         EvalRoute::None {
             reason: NoRouteReason::Unauthored,

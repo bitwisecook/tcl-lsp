@@ -302,6 +302,24 @@ impl CommandSemantics for CellUpdateSemantics {
             })
     }
 
+    fn conditional_source_target_update(
+        &self,
+        input: &dyn AnalysisInputs,
+    ) -> Option<super::ConditionalSourceTargetUpdate> {
+        let profile = input.context().profile?;
+        (self.update == CellUpdate::Increment
+            && input.invocation().operands.len() == 1
+            && profile.is_tcl_release()
+            && profile.runtime_core_family() == Some(tcl_dialect::model::Family::Tcl)
+            && tcl_dialect::TclVersion::from_profile(profile).is_some())
+        .then_some(super::ConditionalSourceTargetUpdate {
+            target: Self::TARGET,
+            prior: crate::TclType::Int,
+            stored: crate::TclType::Int,
+            numbers: profile.grammar.numbers,
+        })
+    }
+
     fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
         let operands = input.invocation().operands.len();
         if !self.accepts(operands) {

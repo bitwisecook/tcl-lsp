@@ -21,12 +21,6 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
-const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    reads: true,
-    writes: true,
-    ..SideEffect::DEFAULT
-}];
-
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "foreach varlist1 list1 ?varlist2 list2 ...? body",
     ..FormSpec::DEFAULT
@@ -134,7 +128,7 @@ pub fn spec() -> CommandSpec {
             return_value: "An empty string.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::iteration_entry::PAIRED_LOOP_LEGACY_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Foreach),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::iteration::FOREACH),
         ..CommandSpec::DEFAULT
