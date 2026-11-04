@@ -31,21 +31,25 @@ def main() -> None:
         raise ValueError("the retained run does not identify this script")
     parts = [
         "# Tcl Wiki naming patterns across Tcl versions\n\n",
-        ("## Question\n\nThis script examines the following Tcl naming and "
-        "execution distinctions that affect LSP navigation and diagnostics, "
-        "compiler transformations, and VM command and variable lookup. "
-        "Each case answers only its stated question.\n"),
+        (
+            "## Question\n\nThis script examines the following Tcl naming and "
+            "execution distinctions that affect LSP navigation and diagnostics, "
+            "compiler transformations, and VM command and variable lookup. "
+            "Each case answers only its stated question.\n"
+        ),
     ]
     for name in names:
         parts.append(f"\n- **{name}:** {QUESTIONS[name]}\n")
     parts.extend(
         [
-            ("\n## Assumptions\n\nEach test creates a fresh child interpreter. "
-            "The real tcltest package supplies the test runner. A skipped "
-            "constraint is not an observation of the skipped behavior. The "
-            "Wiki examples motivate the reductions; they do not establish "
-            "runtime behavior themselves. BIG-IP and Jim were not measured "
-            "in this collection. Other assumptions were not separately recorded.\n\n"),
+            (
+                "\n## Assumptions\n\nEach test creates a fresh child interpreter. "
+                "The real tcltest package supplies the test runner. A skipped "
+                "constraint is not an observation of the skipped behavior. The "
+                "Wiki examples motivate the reductions; they do not establish "
+                "runtime behavior themselves. BIG-IP and Jim were not measured "
+                "in this collection. Other assumptions were not separately recorded.\n\n"
+            ),
             "## Script\n\n",
             markdown_block(script),
             "\n## Results\n",
@@ -54,7 +58,9 @@ def main() -> None:
     for record in provenance["records"]:
         version = record["patchlevel"]
         invocation = record.get("invocation") or []
-        if not invocation or not invocation[-1].endswith("/experiments/name-handling/patterns/wiki-probes.tcl"):
+        if not invocation or not invocation[-1].endswith(
+            "/experiments/name-handling/patterns/wiki-probes.tcl"
+        ):
             raise ValueError(f"the {version} invocation does not identify the script")
         status = record.get("exit_code")
         status = str(status) if type(status) is int else "Not recorded"
@@ -66,10 +72,15 @@ def main() -> None:
                 f"- Exit status: {status}\n",
             ]
         )
-        for field, suffix in (("Standard output", "stdout"), ("Standard error", "stderr")):
+        for field, suffix in (
+            ("Standard output", "stdout"),
+            ("Standard error", "stderr"),
+        ):
             data = (base / "wiki-results" / f"tcl{version}.{suffix}").read_bytes()
             if data:
-                parts.extend([f"- {field}:\n\n", markdown_block(data, "text-visible"), "\n"])
+                parts.extend(
+                    [f"- {field}:\n\n", markdown_block(data, "text-visible"), "\n"]
+                )
             else:
                 parts.append(f"- {field}: empty.\n")
     document = "".join(parts).rstrip() + "\n"
@@ -80,7 +91,9 @@ def main() -> None:
     if path.exists() and path.read_text() != document:
         raise ValueError(f"refusing to overwrite {path}")
     path.write_text(document)
-    print(f"Recovered {len(names)} questions across {len(provenance['records'])} Tcl versions")
+    print(
+        f"Recovered {len(names)} questions across {len(provenance['records'])} Tcl versions"
+    )
 
 
 if __name__ == "__main__":

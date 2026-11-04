@@ -270,3 +270,9 @@ of compiler-only admission, and preserve actual-call selection. The reviewed
 query correction is cfg(test)-only and awaits its focused retry. The root's
 separate #2426 typed index-subject deduplication draft is also stashed for the
 planned joint build; no unverified tests or product changes are published.
+
+The 17:43 UTC integration retains both reviewed joint drafts uncompiled: the
+query-fixture correction and the coordinator's typed IndexBounds identity
+comparison. The source-graph formatting correction is integrated separately.
+The functional guard receipt remains green; no new production result or
+closure is claimed while the #940 priority compiler job runs.

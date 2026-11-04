@@ -137,7 +137,9 @@ def recorded_channel(channel: str) -> str:
     """Avoid repeating a whole legacy scope as the input channel."""
     if not channel.startswith("Only retained case "):
         return channel
-    match = re.search(r"Interpreter/action facts retained in the measurement: (\{[^}]*\})", channel)
+    match = re.search(
+        r"Interpreter/action facts retained in the measurement: (\{[^}]*\})", channel
+    )
     if match:
         facts = json.loads(match.group(1))
         path, action = facts.get("interpreter_path"), facts.get("invoking_action")
@@ -184,13 +186,19 @@ def render(
     )
     for record in records:
         parts.extend(
-            ["Recorded scope and limits:\n\n", quote(recorded_scope(record["scope"])), "\n\n"]
+            [
+                "Recorded scope and limits:\n\n",
+                quote(recorded_scope(record["scope"])),
+                "\n\n",
+            ]
         )
     parts.extend(["## Script\n\n", markdown_block(captures[0][1]), "\n## Results\n"])
     for _, _, provider, version, channel, _, stdout, _, stderr, status in captures:
         label = provider.replace("\r", " ").replace("\n", " ")
         version = version.replace("\r", " ").replace("\n", " ")
-        channel = recorded_channel(channel.replace("\r", " ").replace("\n", " ").strip())
+        channel = recorded_channel(
+            channel.replace("\r", " ").replace("\n", " ").strip()
+        )
         parts.extend(
             [
                 f"\n### {label}\n\n",
