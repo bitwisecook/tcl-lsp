@@ -16486,7 +16486,7 @@ impl ModuleCommandBindings {
             if crate::analysis_control::checkpoint(
                 crate::analysis_control::AnalysisCheckpoint::Fixpoint,
             ) {
-                break;
+                return observed;
             }
             let before = live.clone();
             let root_count_before = retained_roots.len();
