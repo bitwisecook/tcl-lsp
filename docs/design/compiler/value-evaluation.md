@@ -349,7 +349,7 @@ struct TargetSemantics {
     numerals: Option<NumberSyntax>,
     character_model: Option<StringCharacterModel>,
     byte_strings: Option<ByteStringEncoding>,
-    source_encoding: Option<SourceEncoding>,
+    source_utf8: bool,
     profile: Option<&'static DialectProfile>,
 }
 ```
@@ -419,10 +419,13 @@ under `LC_ALL=C.UTF-8`, and **1** on `tclsh9.0` and `tclsh9.1` under
 either locale: the script encoding follows `encoding system` up to 8.6 and
 is UTF-8 from 9.0. Our front end decodes every source file as UTF-8, which
 is the 9.x answer, so an operand whose source spelling carries a non-ASCII
-byte is admissible only when the target names 9.0 or newer, or the
-workspace declares the source encoding; otherwise the releases disagree on
-that operand and the operation declines with
-`ReleaseAmbiguous(SourceEncoding)`.
+byte is currently admissible only when the target names 9.0 or newer;
+otherwise the releases disagree on that operand and the operation declines
+with `ReleaseAmbiguous(SourceEncoding)`. `TargetSemantics::source_utf8`
+records this release-derived admission. A workspace-declared encoding and
+its propagation from byte decoding into the target profile remain open in
+#2129; `DecodeReport` currently records UTF-8 integrity, not an independently
+selected target source encoding.
 
 `PLATFORM` and `WALL_CLOCK` are never satisfiable on the direct route,
 under any profile. That is how a clock-reading or host-reading core is

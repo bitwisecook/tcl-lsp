@@ -1,0 +1,153 @@
+{
+  "source_bytes_hex": "73657420732022c389220a737472696e67206c656e6774682024730a",
+  "source_sha256": "1b0c440d4863cf32be4bd0663578c54d81d224fd5576149f7c7ed1d606fa795c",
+  "jim_commit": "82fb4d0caf90240d94352a31fcbd16adf52658a7",
+  "rows": [
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "iso8859-1",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "8.4.20 iso8859-1 2\n",
+      "stderr": "",
+      "expected_length": "2",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "utf-8",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "8.4.20 utf-8 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "iso8859-1",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "8.5.19 iso8859-1 2\n",
+      "stderr": "",
+      "expected_length": "2",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "utf-8",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "8.5.19 utf-8 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "iso8859-1",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "8.6.18 iso8859-1 2\n",
+      "stderr": "",
+      "expected_length": "2",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "utf-8",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "8.6.18 utf-8 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "iso8859-1",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "9.0.4 iso8859-1 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "utf-8",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "9.0.4 utf-8 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "iso8859-1",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "9.1.0 iso8859-1 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+        "/tmp/lsp-2129-source-encoding/source.tcl",
+        "utf-8",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "9.1.0 utf-8 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh",
+        "/tmp/lsp-2129-source-encoding/jim-source.tcl",
+        "/tmp/lsp-2129-source-encoding/utf8.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "0.84-10-g82fb4d0 1\n",
+      "stderr": "",
+      "expected_length": "1",
+      "passed": true
+    }
+  ],
+  "scope": "Native source-reader evidence only; no product admission test or completed encoding-profile implementation is claimed.",
+  "source_text": "set s \"\u00c9\"\nstring length $s\n",
+  "tcl_launcher": "set enc [lindex $argv 0]\nset file [lindex $argv 1]\nencoding system $enc\nputs [list [info patchlevel] [encoding system] [source $file]]\n",
+  "jim_launcher": "puts [list [info patchlevel] [source [lindex $argv 0]]]\n"
+}
