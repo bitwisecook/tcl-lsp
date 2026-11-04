@@ -1,0 +1,99 @@
+{
+  "recorded_at": "2026-11-04T17:00:40.539169+00:00",
+  "kind": "documentation-source-review",
+  "source_head": "48f15e6bf09d6911ad36cd41a939f963b986f21e",
+  "branch": "work",
+  "method": "Read the final KCS wording and the corresponding source-owner implementation on the same clean published HEAD; inspect each correction commit. No product implementation was changed in this review.",
+  "limits": [
+    "These are documentation corrections, not new runtime-behaviour claims.",
+    "No native Tcl execution was performed for this review.",
+    "Full repository release gates remain pending."
+  ],
+  "issues": [
+    {
+      "issue": 2372,
+      "author_verified": "bitwisecook",
+      "correction_commit": "86de9458690681ff4d301b53c9f8a823488059a7",
+      "document": {
+        "path": "docs/kcs/codes/kcs-diagnostic-w210-variable-read-before-set.md",
+        "sha256": "0677692c4cd678fe53d17af827b193c5d811cd611c3072f04efda6269b133835"
+      },
+      "verified_wording": "The KCS explicitly says info vars/info locals membership and catch {set _ $X} do not narrow W210.",
+      "source_owner": {
+        "path": "docs/design/compiler/sccp-core-analyses.md",
+        "sha256": "b12439cd2f95b21d72371d775290e951ce2b36c0b0106fac9bf481870d2839c8"
+      },
+      "observed_owner_contract": "The Read-before-set section explicitly excludes those idioms as existence proofs."
+    },
+    {
+      "issue": 2446,
+      "author_verified": "bitwisecook",
+      "correction_commit": "61ddd4d4dc29c1b50e10bf42fef22f82c034fcb8",
+      "document": {
+        "path": "docs/kcs/kcs-qa-tcl-lsp-annotations.md",
+        "sha256": "ab7c5aea71aca74e7044c211c66d4126e72b2448514ba5041bb6eac75f83fa05"
+      },
+      "verified_wording": "Both stub paragraphs now say stub declarations do not check the call argument count.",
+      "source_owner": {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/validity.rs",
+        "sha256": "9bc240bf0923ec6cac8cb28b74b5d72ea0ae719486332eab0c8a88794ed36a32"
+      },
+      "observed_owner_contract": "UserResolutionFacts::resolves_to_user recognises stub names; flush_arity_diagnostics skips stubbed user-call candidates."
+    },
+    {
+      "issue": 2447,
+      "author_verified": "bitwisecook",
+      "correction_commit": "a134e03e0002dbe2e4dacf6ae809c33a056bc9a7",
+      "document": {
+        "path": "docs/kcs/kcs-howto-suppress-diagnostics.md",
+        "sha256": "f39a271e0dacabc4791beb4d9c7032c42f2cdefa66da3dc68b9d98271fbd304d"
+      },
+      "verified_wording": "The how-to says project configuration is watched, editor settings refresh when sent, and global config edits require restart.",
+      "source_owner": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "sha256": "37fb1380770f739cb0cfcab5c65e14e3c035bd84bd363a38743ac18f16b5a548"
+      },
+      "observed_owner_contract": "register_file_watchers registers PROJECT_CONFIG_GLOB; did_change_watched_files invokes refresh_watched_configuration, which re-pulls settings and reschedules open and closed diagnostics. The watcher list has no global config path."
+    },
+    {
+      "issue": 2448,
+      "author_verified": "bitwisecook",
+      "correction_commit": "7387aa8bcd949ebce0e5feb7e6cf0be5d84f75dc",
+      "document": {
+        "path": "docs/kcs/kcs-qa-how-tcl-lsp-loads-configuration.md",
+        "sha256": "733f4ba5d74ef15fa34cb8e48d91134b61c93b2981ba608ab11c04f88d3619dd"
+      },
+      "verified_wording": "The nonexistent local-only ignore-list workaround has been removed. Project-over-editor precedence and team coordination are stated.",
+      "source_owner": {
+        "path": "rust/tcl-lsp-core/src/config_ini.rs",
+        "sha256": "064607f3ef37d1beee314384502ef3a04090a2a518c748d46c806fde8dd80b59"
+      },
+      "observed_owner_contract": "settings_from_ini reads known INI settings; merge_settings recursively applies high-priority values over low-priority values. No per-key ignore-list facility is claimed."
+    },
+    {
+      "issue": 2449,
+      "author_verified": "bitwisecook",
+      "correction_commit": "222ed929dfb7fa37cef222ed9ffb5a5fc298ed9c",
+      "document": {
+        "path": "docs/kcs/kcs-howto-write-a-tclspec-pack.md",
+        "sha256": "36bd98ec4cbcabb907f3a543740990fe2bd1d406cbe1913602484b57b178a4e1"
+      },
+      "verified_wording": "The quickstart no longer calls vocabulary 2.0 current; its 2.0 example and explicit CLI upgrade statement remain.",
+      "source_owner": {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "sha256": "905e88e02b416921eadc6cc96cd3ff31365328ba9252052253de1e34154b661b"
+      },
+      "observed_owner_contract": "NEWEST_VOCABULARY_VERSION is 2.2. The CLI separately pins SpecUpgradeArgs.to to 2.0, although UpgradeOptions::default uses the newest vocabulary.",
+      "additional_source_owners": [
+        {
+          "path": "rust/tcl-cli/src/cli.rs",
+          "sha256": "9707f01b6efb4e6e882bf079bb2f9587839bd2995d55cb1483d52c57c5b5f1a3"
+        },
+        {
+          "path": "rust/tcl-spectcl/src/upgrade.rs",
+          "sha256": "c9219f2542d3296c41313b6205f5f8b8d88fa3eef8de2af50ace3dd569748d41"
+        }
+      ]
+    }
+  ]
+}
