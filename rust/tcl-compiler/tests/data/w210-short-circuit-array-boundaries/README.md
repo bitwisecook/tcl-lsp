@@ -17,3 +17,9 @@ guard. No physical/SSA proof or original occurrence is manufactured.
 The first red owner receipt is retained unchanged. The corrected MayBound
 fixture and additional trace/element controls await their scheduled build;
 this boundary evidence makes no new product-fix claim.
+
+The five exact executed scripts are also recorded as standalone human-readable
+[`evidence/tcl`](../../../../../evidence/tcl) records named `lsp-w210-array-*`,
+using the shared reversible notation. Missing assumptions and output-capture
+limits are explicit; the raw captures and executed Python controller remain
+here. Original-access/model probes remain separate Rust development material.
