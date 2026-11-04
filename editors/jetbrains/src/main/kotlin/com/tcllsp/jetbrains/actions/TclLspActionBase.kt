@@ -25,7 +25,6 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
@@ -152,8 +151,7 @@ abstract class TclLspActionBase : AnAction() {
         val ext = resultExtension(result)
         val name = scratchFileName(ext)
         val virtual = LightVirtualFile(name, text)
-        FileEditorManager.getInstance(project)
-            .openTextEditor(OpenFileDescriptor(project, virtual), true)
+        OpenFileDescriptor(project, virtual).navigate(true)
     }
 
     /**
