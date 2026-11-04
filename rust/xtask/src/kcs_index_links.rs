@@ -231,6 +231,7 @@ const EXPECTED_DIAGNOSTIC_STAGES: &[(&str, &str)] = &[
     ("W150", "command-walk"),
     ("W151", "command-walk"),
     ("W152", "command-walk"),
+    ("W153", "command-walk"),
     ("W200", "command-walk"),
     ("W201", "taint"),
     ("W202", "command-walk"),

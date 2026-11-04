@@ -2021,6 +2021,69 @@ mod policy_tests {
     use super::*;
     use serde_json::json;
 
+    #[test]
+    fn w153_uses_file_and_editor_suppression_policy() {
+        let source = "# tcl-lsp: stub db_eval {sql script:body}\n";
+        let analysis = analyser::Analyser::new().analyse(source, "tcl8.6");
+        let finding = Finding::from(
+            analysis
+                .diagnostics
+                .into_iter()
+                .find(|diagnostic| diagnostic.code == DiagCode::W153)
+                .expect("unbounded stub emits W153"),
+        );
+        assert_eq!(
+            apply(vec![finding.clone()], &Policy::default())
+                .shown()
+                .count(),
+            1
+        );
+
+        let editor = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Editor,
+                &json!({"diagnostics": {"W153": false}}),
+            )
+            .build();
+        assert_eq!(
+            apply(vec![finding.clone()], &editor)
+                .suppressed()
+                .next()
+                .map(|(_, reason)| reason),
+            Some(Reason::Disabled(PolicyLayer::Editor)),
+        );
+
+        let prefix = "# tcl-lsp: disable=W153\n";
+        let directed_source = format!("{prefix}{source}");
+        let mut directed_finding = finding;
+        let offset = u32::try_from(prefix.len()).unwrap();
+        directed_finding.span = Span::new(
+            directed_finding.span.start() + offset,
+            directed_finding.span.end() + offset,
+        );
+        let file = PolicyBuilder::new()
+            .directives(Directives::scan(
+                &directed_source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ))
+            .build();
+        assert_eq!(
+            apply(vec![directed_finding], &file)
+                .suppressed()
+                .next()
+                .map(|(_, reason)| reason),
+            Some(Reason::FileDirective),
+        );
+        assert!(
+            !analyser::Analyser::new()
+                .analyse(&directed_source, "tcl8.6")
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W153),
+            "the analyser's file-level skip agrees with the policy report",
+        );
+    }
+
     fn decision(policy: &Policy, code: DiagCode) -> Option<CodeDecision> {
         policy.codes.get(&code).copied()
     }

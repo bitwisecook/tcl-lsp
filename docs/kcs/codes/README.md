@@ -90,6 +90,7 @@ This index lists every per-code KCS page.
 - [W148 — numeral spelling is not accepted by the target Tcl release](kcs-diagnostic-w148-numeral-release.md)
 - [W149 — this call matches a different release of the command](kcs-diagnostic-w149-arity-matches-other-version.md)
 - [W152 — option relation unmet](kcs-diagnostic-w152-option-relation-unmet.md)
+- [W153 — stub directive outside a block](kcs-diagnostic-w153-stub-outside-block.md)
 - [W200 — binary format modifier needs a newer Tcl](kcs-diagnostic-w200-binary-format-modifier-needs-newer-tcl.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 - [W202 — binary field letter needs a newer Tcl](kcs-diagnostic-w202-binary-field-letter-needs-newer-tcl.md)
