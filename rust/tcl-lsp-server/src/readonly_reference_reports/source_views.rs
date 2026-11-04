@@ -752,6 +752,111 @@ impl Backend {
             .collect::<Vec<_>>()
     }
 
+    /// Build ownership carriers; the caller retains every host publication lock.
+    fn original_source_view_rows(
+        staged: &[(OriginalSourceViewId, OriginalSourceViewDraft)],
+    ) -> Option<Vec<tcl_lsp_core::workspace_index::WorkspaceOriginalSourceView>> {
+        staged
+            .iter()
+            .map(|(id, draft)| {
+                let publication =
+                    tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(*id);
+                let source = Arc::clone(&draft.physical.source);
+                let analysis = Arc::clone(&draft.producer.seed.analysis);
+                match &draft.region {
+                    None => tcl_lsp_core::workspace_index::WorkspaceOriginalSourceView::capture(
+                        publication,
+                        source,
+                        analysis,
+                    ),
+                    Some(owned) => {
+                        tcl_lsp_core::workspace_index::WorkspaceOriginalSourceView::capture_region(
+                            publication,
+                            source,
+                            analysis,
+                            owned.region.clone(),
+                        )
+                    }
+                }
+            })
+            .collect()
+    }
+
+    /// Issue only inside the current source transaction while the caller holds
+    /// the rehoming, table and index guards; this helper cannot renew a lease.
+    fn commit_original_source_view_batch(
+        uri: &Uri,
+        drafts: Vec<OriginalSourceViewDraft>,
+        mode: SourceViewPublicationMode,
+        ancestors: &[Vec<Arc<PublishedOriginalSourceView>>],
+        validation_drafts: &[OriginalSourceViewDraft],
+        table: &mut OriginalSourceViewTable,
+        index: &mut tcl_lsp_core::workspace_index::WorkspaceIndex,
+    ) -> Option<OriginalSourceViewAttempt<Vec<Arc<PublishedOriginalSourceView>>>> {
+        if ancestors
+            .iter()
+            .flatten()
+            .any(|view| !table.contains_actual(view) || !view.is_indexed(index))
+        {
+            return None;
+        }
+        if mode == SourceViewPublicationMode::ReplaceFirstEdge
+            && validation_drafts
+                .iter()
+                .all(|draft| !draft.is_interpreted())
+            && table.by_uri.get(uri).into_iter().flatten().any(|id| {
+                table
+                    .by_id
+                    .get(id)
+                    .is_some_and(|view| view.draft.is_interpreted_member())
+            })
+        {
+            return Some(OriginalSourceViewAttempt::Unavailable);
+        }
+        if mode == SourceViewPublicationMode::ReplaceFirstEdge
+            && let Some(existing) = table.reuse_current_batch(uri, &drafts, index)
+        {
+            return Some(OriginalSourceViewAttempt::Ready(existing));
+        }
+        let Some((next_id, staged)) = table.stage(drafts) else {
+            return Some(OriginalSourceViewAttempt::Unavailable);
+        };
+        if mode != SourceViewPublicationMode::ReplaceFirstEdge
+            && (staged.iter().any(|(id, _)| table.by_id.contains_key(id))
+                || (mode == SourceViewPublicationMode::AppendRegions
+                    && table.by_uri.get(uri).is_none_or(Vec::is_empty)))
+        {
+            return None;
+        }
+        let Some(indexed) = Self::original_source_view_rows(&staged) else {
+            return Some(OriginalSourceViewAttempt::Unavailable);
+        };
+        let published = match mode {
+            SourceViewPublicationMode::ReplaceFirstEdge => {
+                index.replace_original_source_views(uri.as_str(), indexed)
+            }
+            SourceViewPublicationMode::AppendInherited => {
+                index.append_original_source_interpretations(uri.as_str(), indexed)
+            }
+            SourceViewPublicationMode::AppendRegions => {
+                index.append_original_source_regions(uri.as_str(), indexed)
+            }
+        };
+        published?;
+        let views = staged
+            .into_iter()
+            .map(|(id, draft)| Arc::new(PublishedOriginalSourceView { id, draft }))
+            .collect::<Vec<_>>();
+        match mode {
+            SourceViewPublicationMode::ReplaceFirstEdge => table.replace(uri, next_id, &views),
+            SourceViewPublicationMode::AppendInherited
+            | SourceViewPublicationMode::AppendRegions => {
+                table.append_regions(uri, next_id, &views)
+            }
+        }
+        Some(OriginalSourceViewAttempt::Ready(views))
+    }
+
     async fn publish_original_source_view_batch(
         &self,
         uri: &Uri,
@@ -781,84 +886,39 @@ impl Backend {
         let admissions = Self::original_source_view_admissions(&sources);
         let validation_drafts = drafts.clone();
         let mut drafts = Some(drafts);
-        let transaction = self.readonly_source_transaction(
-            epoch,
-            factory,
-            &admissions,
-            Some(&saved),
-            |state| {
-                (validation_drafts.iter().all(|draft| {
-                    draft.matches_physical_state(state, epoch, factory)
-                }) && ancestors.iter().flatten().all(|view| {
-                    view.draft.matches_physical_state(state, epoch, factory)
-                })).then_some(())
-            },
-            |_state, ()| {
-                let _rehoming = self.rehoming_gate.try_lock().ok()?;
-                let mut table = self.original_source_views.try_lock().ok()?;
-                let mut index = self.workspace_index.try_write().ok()?;
-                let drafts = drafts.take()?;
-                if ancestors.iter().flatten().any(|view| {
-                        !table.contains_actual(view)
-                            || !view.is_indexed(&index)
-                    })
-                {
-                    return None;
-                }
-                if mode == SourceViewPublicationMode::ReplaceFirstEdge
-                    && validation_drafts.iter().all(|draft| !draft.is_interpreted())
-                    && table.by_uri.get(uri).into_iter().flatten().any(|id| {
-                        table.by_id.get(id).is_some_and(|view| view.draft.is_interpreted_member())
-                    })
-                {
-                    return Some(OriginalSourceViewAttempt::Unavailable);
-                }
-                if mode == SourceViewPublicationMode::ReplaceFirstEdge
-                    && let Some(existing) = table.reuse_current_batch(uri, &drafts, &index)
-                {
-                    return Some(OriginalSourceViewAttempt::Ready(existing));
-                }
-                let Some((next_id, staged)) = table.stage(drafts) else {
-                    return Some(OriginalSourceViewAttempt::Unavailable);
-                };
-                if mode != SourceViewPublicationMode::ReplaceFirstEdge
-                    && (staged.iter().any(|(id, _)| table.by_id.contains_key(id))
-                        || (mode == SourceViewPublicationMode::AppendRegions
-                            && table.by_uri.get(uri).is_none_or(Vec::is_empty))) {
-                    return None;
-                }
-                let indexed = staged.iter().map(|(id, draft)| {
-                    let publication = tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(*id);
-                    let source = Arc::clone(&draft.physical.source);
-                    let analysis = Arc::clone(&draft.producer.seed.analysis);
-                    match &draft.region {
-                        None => tcl_lsp_core::workspace_index::WorkspaceOriginalSourceView::capture(publication, source, analysis),
-                        Some(owned) => tcl_lsp_core::workspace_index::WorkspaceOriginalSourceView::capture_region(publication, source, analysis, owned.region.clone()),
-                    }
-                }).collect::<Option<Vec<_>>>();
-                let Some(indexed) = indexed else { return Some(OriginalSourceViewAttempt::Unavailable); };
-                let published = match mode {
-                    SourceViewPublicationMode::ReplaceFirstEdge => index.replace_original_source_views(uri.as_str(), indexed),
-                    SourceViewPublicationMode::AppendInherited => index.append_original_source_interpretations(uri.as_str(), indexed),
-                    SourceViewPublicationMode::AppendRegions => index.append_original_source_regions(uri.as_str(), indexed),
-                };
-                if published.is_none() { return None; }
-                let views = staged
-                    .into_iter()
-                    .map(|(id, draft)| {
-                        Arc::new(PublishedOriginalSourceView {
-                            id,
-                            draft,
-                        })
-                    })
-                    .collect::<Vec<_>>();
-                match mode {
-                    SourceViewPublicationMode::ReplaceFirstEdge => table.replace(uri, next_id, &views),
-                    SourceViewPublicationMode::AppendInherited | SourceViewPublicationMode::AppendRegions => table.append_regions(uri, next_id, &views),
-                }
-                Some(OriginalSourceViewAttempt::Ready(views))
-            },
-        ).await?;
+        let transaction = self
+            .readonly_source_transaction(
+                epoch,
+                factory,
+                &admissions,
+                Some(&saved),
+                |state| {
+                    (validation_drafts
+                        .iter()
+                        .all(|draft| draft.matches_physical_state(state, epoch, factory))
+                        && ancestors
+                            .iter()
+                            .flatten()
+                            .all(|view| view.draft.matches_physical_state(state, epoch, factory)))
+                    .then_some(())
+                },
+                |_state, ()| {
+                    let _rehoming = self.rehoming_gate.try_lock().ok()?;
+                    let mut table = self.original_source_views.try_lock().ok()?;
+                    let mut index = self.workspace_index.try_write().ok()?;
+                    let drafts = drafts.take()?;
+                    Self::commit_original_source_view_batch(
+                        uri,
+                        drafts,
+                        mode,
+                        &ancestors,
+                        &validation_drafts,
+                        &mut table,
+                        &mut index,
+                    )
+                },
+            )
+            .await?;
         Ok(match transaction {
             super::ReadonlyTransaction::Published(outcome) => outcome,
             super::ReadonlyTransaction::CurrencyRefused
@@ -1283,6 +1343,20 @@ impl Backend {
             .await
     }
 
+    fn completed_source_child_matches_view(
+        completed: &OriginalSourceViewCompletion,
+        child_prefix: &PublishedOriginalSourceView,
+    ) -> bool {
+        completed.prefix.id == child_prefix.id
+            && completed
+                .prefix
+                .draft
+                .same_live_producer(&child_prefix.draft)
+            && completed
+                .outcome
+                .matches_prefix_analysis(&child_prefix.draft.producer.seed.analysis)
+    }
+
     /// Ask the existing kernel for the exact ordered suffix chain. There is no
     /// fresh whole-parent analysis or URI/text reconstruction on this route.
     async fn materialize_conditional_source_regions(
@@ -1293,15 +1367,7 @@ impl Backend {
         completed_child: Option<&OriginalSourceViewCompletion>,
     ) -> DocumentSourceResult<OriginalSourceViewAttempt<OriginalSourceRegionWork>> {
         let outcome = if let Some(completed) = completed_child {
-            if completed.prefix.id != child_prefix.id
-                || !completed
-                    .prefix
-                    .draft
-                    .same_live_producer(&child_prefix.draft)
-                || !completed
-                    .outcome
-                    .matches_prefix_analysis(&child_prefix.draft.producer.seed.analysis)
-            {
+            if !Self::completed_source_child_matches_view(completed, &child_prefix) {
                 return Ok(OriginalSourceViewAttempt::Unavailable);
             }
             Some(completed.outcome.clone())
@@ -2870,6 +2936,63 @@ impl Backend {
         Ok(OriginalSourceViewAttempt::Ready(()))
     }
 
+    /// Continue the same graph work item; no lease or retry budget leaves it.
+    async fn continue_original_source_child(
+        &self,
+        parent: Arc<PublishedOriginalSourceView>,
+        child: Arc<PublishedOriginalSourceView>,
+        load: Arc<tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad>,
+        state: &mut OriginalSourceViewWorkState,
+    ) -> DocumentSourceResult<OriginalSourceViewAttempt<()>> {
+        let Some(completed_child) = state.finished.get(&child.id) else {
+            return Ok(OriginalSourceViewAttempt::Unavailable);
+        };
+        let work = match self
+            .materialize_conditional_source_regions(
+                Arc::clone(&parent),
+                child,
+                load,
+                completed_child.as_ref(),
+            )
+            .await?
+        {
+            OriginalSourceViewAttempt::Ready(work) => work,
+            OriginalSourceViewAttempt::RetryCapture => {
+                return Ok(OriginalSourceViewAttempt::RetryCapture);
+            }
+            OriginalSourceViewAttempt::Unavailable => {
+                return Ok(OriginalSourceViewAttempt::Unavailable);
+            }
+        };
+        state
+            .membership
+            .extend(work.views.iter().map(|view| view.id));
+        match self.reconcile_issued_region_frontiers(&work, state).await? {
+            OriginalSourceViewAttempt::Ready(()) => {}
+            OriginalSourceViewAttempt::RetryCapture => {
+                return Ok(OriginalSourceViewAttempt::RetryCapture);
+            }
+            OriginalSourceViewAttempt::Unavailable => {
+                return Ok(OriginalSourceViewAttempt::Unavailable);
+            }
+        }
+        if let Some(completion) = work.completion() {
+            state.active.remove(&parent.id);
+            state.finished.insert(parent.id, Some(completion));
+        } else {
+            // An incomplete chain still stops at its exact final issued region.
+            let Some(last) = work.views.last().cloned() else {
+                return Ok(OriginalSourceViewAttempt::Unavailable);
+            };
+            state.tasks.push(SourceViewWork::AfterRegion {
+                work,
+                region: Arc::clone(&last),
+            });
+            state.tasks.push(SourceViewWork::Enter(last));
+        }
+        Ok(OriginalSourceViewAttempt::Ready(()))
+    }
+
     async fn run_original_source_view_work(
         &self,
         root: Arc<PublishedOriginalSourceView>,
@@ -2908,31 +3031,8 @@ impl Backend {
                     child,
                     load,
                 } => {
-                    let Some(completed_child) = state.finished.get(&child.id) else {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
-                    };
-                    let work = match self
-                        .materialize_conditional_source_regions(
-                            Arc::clone(&parent),
-                            child,
-                            load,
-                            completed_child.as_ref(),
-                        )
-                        .await?
-                    {
-                        OriginalSourceViewAttempt::Ready(work) => work,
-                        OriginalSourceViewAttempt::RetryCapture => {
-                            return Ok(state.finish_scope(root_id, root_uri, false).retrying());
-                        }
-                        OriginalSourceViewAttempt::Unavailable => {
-                            return Ok(state.finish_scope(root_id, root_uri, false));
-                        }
-                    };
-                    state
-                        .membership
-                        .extend(work.views.iter().map(|view| view.id));
                     match self
-                        .reconcile_issued_region_frontiers(&work, &mut state)
+                        .continue_original_source_child(parent, child, load, &mut state)
                         .await?
                     {
                         OriginalSourceViewAttempt::Ready(()) => {}
@@ -2942,22 +3042,6 @@ impl Backend {
                         OriginalSourceViewAttempt::Unavailable => {
                             return Ok(state.finish_scope(root_id, root_uri, false));
                         }
-                    }
-                    if let Some(completion) = work.completion() {
-                        state.active.remove(&parent.id);
-                        state.finished.insert(parent.id, Some(completion));
-                    } else {
-                        // An incomplete ordered kernel chain ends at its actual
-                        // last issued frame region. It cannot skip to an outer
-                        // suffix or manufacture whole-prefix completion.
-                        let Some(last) = work.views.last().cloned() else {
-                            return Ok(state.finish_scope(root_id, root_uri, false));
-                        };
-                        state.tasks.push(SourceViewWork::AfterRegion {
-                            work,
-                            region: Arc::clone(&last),
-                        });
-                        state.tasks.push(SourceViewWork::Enter(last));
                     }
                 }
                 SourceViewWork::AfterRegion { work, region } => {
@@ -4822,10 +4906,18 @@ mod completed_world_owner_controls {
 mod closed_source_child_ingress_tests {
     use super::*;
     use crate::{DocumentPublication, DocumentState, RehomingDocumentSnapshot};
-    use tower_lsp_server::ls_types::Position;
+    use futures_util::{SinkExt, StreamExt};
+    use tower::{Service, ServiceExt};
+    use tower_lsp_server::{
+        ExitedError, LspService,
+        jsonrpc::{Request, Response},
+        ls_types::Position,
+    };
 
     const CALLER: &str = "source child.tcl\nproc caller {} {return [helper 7]}\n";
     const CHILD: &str = "proc helper {value} {return $value}\n";
+    const EXACT_APP: &str = include_str!("../../../tcl-lsp-server-wasi/test/fixture/app.tcl");
+    const EXACT_LIB: &str = include_str!("../../../tcl-lsp-server-wasi/test/fixture/lib.tcl");
 
     struct Fixture {
         root: std::path::PathBuf,
@@ -5073,11 +5165,10 @@ mod closed_source_child_ingress_tests {
         assert_ne!(current_parent.id, parent.id);
     }
 
-    #[tokio::test]
-    async fn unrelated_persistent_publication_refusal_preserves_selected_scope() {
-        let (fixture, backend) = fixture().await;
-        let selected_child = child_view(&fixture, &backend).await;
-        let selected_parent = Arc::clone(&selected_child.draft.inherited.as_ref().unwrap().parent);
+    async fn unrelated_shared_source_root(
+        fixture: &Fixture,
+        backend: &Backend,
+    ) -> (Fixture, Arc<PublishedOriginalSourceView>) {
         let other_root = fixture.root.join("unrelated");
         std::fs::create_dir(&other_root).unwrap();
         let other_source = format!(
@@ -5098,8 +5189,17 @@ mod closed_source_child_ingress_tests {
                 .unwrap(),
             RehomingDocumentSnapshot::Ready(_)
         ));
-        open(&backend, &other.main, &other_source).await;
-        let other_parent = publication_parent(&other, &backend).await;
+        open(backend, &other.main, &other_source).await;
+        let other_parent = publication_parent(&other, backend).await;
+        (other, other_parent)
+    }
+
+    #[tokio::test]
+    async fn unrelated_persistent_publication_refusal_preserves_selected_scope() {
+        let (fixture, backend) = fixture().await;
+        let selected_child = child_view(&fixture, &backend).await;
+        let selected_parent = Arc::clone(&selected_child.draft.inherited.as_ref().unwrap().parent);
+        let (other, other_parent) = unrelated_shared_source_root(&fixture, &backend).await;
         let work = backend.original_source_root_work().await.unwrap().unwrap();
         let bootstrap = work
             .candidates
@@ -5249,12 +5349,132 @@ mod closed_source_child_ingress_tests {
         assert!(matches!(attempt, Some(std::ops::ControlFlow::Break(None))));
     }
 
-    /// Private protocol-path diagnostic: genuine Backend::new and the actual
-    /// initialize/configuration/client-callback flow, before one definition.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn exact_wasi_closed_child_first_public_definition_and_partial_hover() {
-        const APP: &str = include_str!("../../../tcl-lsp-server-wasi/test/fixture/app.tcl");
-        const LIB: &str = include_str!("../../../tcl-lsp-server-wasi/test/fixture/lib.tcl");
+    type SourceProtocolService = crate::transport_liveness::DeferredConcurrency<
+        tower::util::MapRequest<LspService<Backend>, fn(Request) -> Request>,
+    >;
+    type SourceProtocolTask = tokio::task::JoinHandle<Result<Option<Response>, ExitedError>>;
+
+    struct SourceProtocol {
+        service: SourceProtocolService,
+        backend: Backend,
+        responder: tokio::task::JoinHandle<()>,
+        startup: Vec<SourceProtocolTask>,
+        serial: i32,
+    }
+
+    impl SourceProtocol {
+        fn new() -> Self {
+            let (service, socket) = LspService::new(Backend::new);
+            let backend = service.inner().clone();
+            let (mut outgoing, mut responses) = socket.split();
+            let responder = tokio::spawn(async move {
+                while let Some(request) = outgoing.next().await {
+                    let (method, id, params) = request.into_parts();
+                    if let Some(id) = id {
+                        let result = if method == "workspace/configuration" {
+                            serde_json::Value::Array(params.unwrap()["items"].as_array().unwrap().iter().map(|item| {
+                                if item["section"] == "tclLsp.dialect" {serde_json::json!("tcl8.6")} else {serde_json::json!({"dialect":"tcl8.6","libraryPaths":[]})}
+                            }).collect())
+                        } else {
+                            serde_json::Value::Null
+                        };
+                        responses.send(Response::from_ok(id, result)).await.unwrap();
+                    }
+                }
+            });
+            let service = service
+                .map_request(crate::service::normalise_request_uris as fn(Request) -> Request);
+            Self {
+                service: crate::transport_liveness::DeferredConcurrency::new(
+                    service,
+                    crate::transport_liveness::DEFAULT_HANDLER_CONCURRENCY,
+                ),
+                backend,
+                responder,
+                startup: Vec::new(),
+                serial: 0,
+            }
+        }
+
+        async fn request(
+            &mut self,
+            method: &'static str,
+            params: serde_json::Value,
+        ) -> serde_json::Value {
+            self.serial += 1;
+            let request = Request::build(method)
+                .id(self.serial)
+                .params(params)
+                .finish();
+            self.service
+                .ready()
+                .await
+                .unwrap()
+                .call(request)
+                .await
+                .unwrap()
+                .unwrap()
+                .into_parts()
+                .1
+                .unwrap()
+        }
+
+        async fn notify(&mut self, method: &'static str, params: serde_json::Value) {
+            let future = self
+                .service
+                .ready()
+                .await
+                .unwrap()
+                .call(Request::build(method).params(params).finish());
+            self.startup.push(tokio::spawn(future));
+            tokio::task::yield_now().await;
+        }
+
+        async fn start(&mut self, fixture: &Fixture) {
+            let root_uri = Uri::from_file_path(&fixture.root).unwrap();
+            let _ = self.request("initialize", serde_json::json!({
+                "processId":std::process::id(), "rootUri":null, "workspaceFolders":[],
+                "initializationOptions":{"folderDialects":{(root_uri.as_str()):"tcl8.6"}},
+                "capabilities":{"general":{"positionEncodings":["utf-16"]},"workspace":{"configuration":true,"workspaceFolders":true},"textDocument":{"hover":{"contentFormat":["markdown","plaintext"]},"definition":{"linkSupport":false},"publishDiagnostics":{}}}
+            })).await;
+            // Preserve the real concurrent notification/callback order.
+            self.notify("initialized", serde_json::json!({})).await;
+            self.notify(
+                "workspace/didChangeConfiguration",
+                serde_json::json!({"settings":{"tclLsp":{"dialect":"tcl8.6","libraryPaths":[]}}}),
+            )
+            .await;
+            self.notify("textDocument/didOpen", serde_json::json!({"textDocument":{"uri":fixture.main,"languageId":"tcl","version":1,"text":EXACT_APP}})).await;
+            let config = self.request("workspace/executeCommand", serde_json::json!({"command":"tcl-lsp.getEffectiveConfig","arguments":[fixture.main]})).await;
+            assert_eq!(config["dialect"], "tcl8.6", "{config}");
+        }
+
+        async fn wait_current(&mut self, fixture: &Fixture) {
+            tokio::time::timeout(std::time::Duration::from_secs(20), async {
+                loop {
+                    let report = self.request("workspace/executeCommand", serde_json::json!({"command":"tcl-lsp.currentDiagnostics","arguments":[{"uri":fixture.main,"version":1,"source":EXACT_APP}]})).await;
+                    if report["status"] == "complete" {
+                        assert_eq!(report["dialectId"], "tcl8.6");
+                        assert_eq!(report["source"], EXACT_APP);
+                        break;
+                    }
+                    assert_eq!(report["status"], "unavailable", "{report}");
+                    assert!(report["reason"] == "pending" || report["reason"] == "stale", "{report}");
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                }
+            }).await.expect("protocol app currentDiagnostics must become complete before navigation");
+        }
+
+        async fn finish(&mut self) {
+            for task in self.startup.drain(..) {
+                task.await.unwrap().unwrap();
+            }
+            let _ = self.request("shutdown", serde_json::Value::Null).await;
+            self.responder.abort();
+        }
+    }
+
+    fn exact_source_fixture() -> Fixture {
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -5264,161 +5484,58 @@ mod closed_source_child_ingress_tests {
             std::process::id()
         ));
         std::fs::create_dir(&root).unwrap();
-        std::fs::write(root.join("app.tcl"), APP).unwrap();
-        std::fs::write(root.join("lib.tcl"), LIB).unwrap();
-        let fixture = Fixture {
+        std::fs::write(root.join("app.tcl"), EXACT_APP).unwrap();
+        std::fs::write(root.join("lib.tcl"), EXACT_LIB).unwrap();
+        Fixture {
             main: Uri::from_file_path(root.join("app.tcl")).unwrap(),
             child: Uri::from_file_path(root.join("lib.tcl")).unwrap(),
             root,
-        };
-        use futures_util::{SinkExt, StreamExt};
-        use tower::{Service, ServiceExt};
-        use tower_lsp_server::{
-            LspService,
-            jsonrpc::{Request, Response},
-        };
-        let (service, socket) = LspService::new(Backend::new);
-        let backend = service.inner().clone();
-        let (mut outgoing, mut responses) = socket.split();
-        let responder = tokio::spawn(async move {
-            while let Some(request) = outgoing.next().await {
-                let (method, id, params) = request.into_parts();
-                if let Some(id) = id {
-                    let result = if method == "workspace/configuration" {
-                        serde_json::Value::Array(
-                            params.unwrap()["items"]
-                                .as_array()
-                                .unwrap()
-                                .iter()
-                                .map(|item| {
-                                    if item["section"] == "tclLsp.dialect" {
-                                        serde_json::json!("tcl8.6")
-                                    } else {
-                                        serde_json::json!({"dialect":"tcl8.6","libraryPaths":[]})
-                                    }
-                                })
-                                .collect(),
-                        )
-                    } else {
-                        serde_json::Value::Null
-                    };
-
-                    responses.send(Response::from_ok(id, result)).await.unwrap();
-                }
-            }
-        });
-        let service = service.map_request(crate::service::normalise_request_uris);
-        let mut service = crate::transport_liveness::DeferredConcurrency::new(
-            service,
-            crate::transport_liveness::DEFAULT_HANDLER_CONCURRENCY,
-        );
-        macro_rules! request {
-            ($method:literal, $id:expr, $params:expr) => {{
-                let request = Request::build($method).id($id).params($params).finish();
-
-                service
-                    .ready()
-                    .await
-                    .unwrap()
-                    .call(request)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .into_parts()
-                    .1
-                    .unwrap()
-            }};
         }
-        let root_uri = Uri::from_file_path(&fixture.root).unwrap();
-        let _initialize = request!(
-            "initialize",
-            1,
-            serde_json::json!({
-                "processId":std::process::id(), "rootUri":null, "workspaceFolders":[],
-                "initializationOptions":{"folderDialects":{(root_uri.as_str()):"tcl8.6"}},
-                "capabilities":{"general":{"positionEncodings":["utf-16"]},"workspace":{"configuration":true,"workspaceFolders":true},"textDocument":{"hover":{"contentFormat":["markdown","plaintext"]},"definition":{"linkSupport":false},"publishDiagnostics":{}}}
-            })
-        );
+    }
 
-        // Match stdio dispatch: these notification handlers may overlap while
-        // their configuration callbacks are answered by the client task.
-        let initialized = tokio::spawn(
-            service.ready().await.unwrap().call(
-                Request::build("initialized")
-                    .params(serde_json::json!({}))
-                    .finish(),
-            ),
-        );
-        tokio::task::yield_now().await;
-        let changed = tokio::spawn(service.ready().await.unwrap().call(Request::build("workspace/didChangeConfiguration").params(serde_json::json!({"settings":{"tclLsp":{"dialect":"tcl8.6","libraryPaths":[]}}})).finish()));
-        tokio::task::yield_now().await;
-        let opened = tokio::spawn(service.ready().await.unwrap().call(Request::build("textDocument/didOpen").params(serde_json::json!({"textDocument":{"uri":fixture.main,"languageId":"tcl","version":1,"text":APP}})).finish()));
-        tokio::task::yield_now().await;
-        let config = request!(
-            "workspace/executeCommand",
-            2,
-            serde_json::json!({"command":"tcl-lsp.getEffectiveConfig","arguments":[fixture.main]})
-        );
-        assert_eq!(config["dialect"], "tcl8.6", "{config}");
-
-        let mut serial = 2;
-        let _readiness = tokio::time::timeout(std::time::Duration::from_secs(20), async {
-            loop {
-                serial += 1;
-                let report = request!("workspace/executeCommand", serial, serde_json::json!({"command":"tcl-lsp.currentDiagnostics","arguments":[{"uri":fixture.main,"version":1,"source":APP}]}));
-                if report["status"] == "complete" {
-                    assert_eq!(report["dialectId"], "tcl8.6");
-                    assert_eq!(report["source"], APP);
-                    break report;
-                }
-                assert_eq!(report["status"], "unavailable", "{report}");
-                assert!(report["reason"] == "pending" || report["reason"] == "stale", "{report}");
-                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            }
-        }).await.expect("protocol app currentDiagnostics must become complete before navigation");
-
-        assert!(backend.workspace_folders.lock().await.is_empty());
+    /// Genuine `Backend::new` initialization/configuration precedes one definition.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn exact_wasi_closed_child_first_public_definition_and_partial_hover() {
+        let fixture = exact_source_fixture();
+        let mut protocol = SourceProtocol::new();
+        protocol.start(&fixture).await;
+        protocol.wait_current(&fixture).await;
+        assert!(protocol.backend.workspace_folders.lock().await.is_empty());
         assert!(
-            !backend
+            !protocol
+                .backend
                 .documents
                 .lock("exact child is closed")
                 .await
                 .contains_key(&fixture.child)
         );
-        assert!(!backend.db_files.lock().await.contains_key(&fixture.child));
         assert!(
-            !backend
+            !protocol
+                .backend
+                .db_files
+                .lock()
+                .await
+                .contains_key(&fixture.child)
+        );
+        assert!(
+            !protocol
+                .backend
                 .workspace_index
                 .read()
                 .await
                 .contains_document(fixture.child.as_str())
         );
-        serial += 1;
-        let response = request!(
-            "textDocument/definition",
-            serial,
-            serde_json::json!({"textDocument":{"uri":fixture.main},"position":{"line":9,"character":13}})
-        );
-
+        let response = protocol.request("textDocument/definition", serde_json::json!({"textDocument":{"uri":fixture.main},"position":{"line":9,"character":13}})).await;
         let expected_uri = fixture.child.as_str();
         let found = response.as_array().is_some_and(|locations| {
             locations.iter().any(|location| {
                 location["uri"] == expected_uri && location["range"]["start"]["line"] == 8
             })
         });
-        serial += 1;
-        let hover = request!(
-            "textDocument/hover",
-            serial,
-            serde_json::json!({"textDocument":{"uri":fixture.main},"position":{"line":9,"character":13}})
-        );
+        let hover = protocol.request("textDocument/hover", serde_json::json!({"textDocument":{"uri":fixture.main},"position":{"line":9,"character":13}})).await;
         let hover_text = serde_json::to_string(&hover).unwrap();
-        // Cleanup follows the preserved first response and observations.
-        initialized.await.unwrap().unwrap();
-        changed.await.unwrap().unwrap();
-        opened.await.unwrap().unwrap();
-        let _ = request!("shutdown", serial + 1, serde_json::Value::Null);
-        responder.abort();
+        // Cleanup still follows the preserved first response and separate hover.
+        protocol.finish().await;
         assert!(
             found,
             "first public definition must locate actual helper declaration: {response}"

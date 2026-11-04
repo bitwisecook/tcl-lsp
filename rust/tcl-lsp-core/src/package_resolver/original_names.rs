@@ -11,7 +11,7 @@ pub use file_candidates::{OriginalPackageFileCandidate, OriginalPackageFileCandi
 
 use super::PackageResolver;
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
 };
 use tcl_compiler::{
@@ -1101,6 +1101,7 @@ fn survey_index_entries_using(
     };
     let commands =
         tcl_compiler::segmenter::segment_commands_with_offset_and_config(content, 0, config);
+    let commands_by_offset = index_commands_by_offset(&commands);
     for command in plan.commands {
         let words = &command.words;
         if words.len() != 3 {
@@ -1113,12 +1114,7 @@ fn survey_index_entries_using(
         ) else {
             continue;
         };
-        let Some(command) = commands.iter().find(|command| {
-            command
-                .argv
-                .first()
-                .is_some_and(|word| word.span.start() == head.span().start())
-        }) else {
+        let Some(command) = commands_by_offset.get(&head.span().start()).copied() else {
             continue;
         };
         let Some(schema) = captured.words(content, command) else {
@@ -1154,6 +1150,19 @@ fn survey_index_entries_using(
         entries.push(OriginalAutoIndexRegistration { input, file });
     }
     Some(entries)
+}
+
+fn index_commands_by_offset(
+    commands: &[tcl_compiler::segmenter::SegmentedCommand],
+) -> BTreeMap<u32, &tcl_compiler::segmenter::SegmentedCommand> {
+    let mut index = BTreeMap::new();
+    for command in commands {
+        if let Some(head) = command.argv.first() {
+            // Preserve the original scan's first match, including duplicates.
+            index.entry(head.span.start()).or_insert(command);
+        }
+    }
+    index
 }
 
 fn select_index_filename(
@@ -1215,6 +1224,46 @@ fn append_legacy_index_registrations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn command_offset_index_retains_the_first_complete_matching_segment() {
+        let source =
+            "set auto_index(a) [list source a.tcl]\nset auto_index(b) [list source b.tcl]\n";
+        let parsed = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            LexerConfig::default(),
+        );
+        assert_eq!(parsed.len(), 2);
+        let first = parsed[0].argv[0].span.start();
+        let second = parsed[1].argv[0].span.start();
+        let mut duplicate = parsed[0].clone();
+        duplicate.texts[1] = "different duplicate".to_owned();
+        let mut empty = parsed[0].clone();
+        empty.argv.clear();
+        let commands = [empty, parsed[1].clone(), parsed[0].clone(), duplicate];
+        let index = index_commands_by_offset(&commands);
+        assert_eq!(index.len(), 2);
+        assert!(index.len() <= commands.len());
+        assert!(std::ptr::eq(index[&first], &commands[2]));
+        assert!(std::ptr::eq(index[&second], &commands[1]));
+        for offset in [first, second, first + 1, u32::MAX] {
+            let old = commands.iter().find(|command| {
+                command
+                    .argv
+                    .first()
+                    .is_some_and(|word| word.span.start() == offset)
+            });
+            let new = index.get(&offset).copied();
+            match (old, new) {
+                (Some(old), Some(new)) => assert!(std::ptr::eq(old, new)),
+                (None, None) => {}
+                _ => panic!("head-offset join changed: {offset}"),
+            }
+        }
+        let empty: [tcl_compiler::segmenter::SegmentedCommand; 0] = [];
+        assert!(index_commands_by_offset(&empty).is_empty());
+    }
+
     #[test]
     fn invalid_filename_layout_matches_full_registration_vectors() {
         let source = "set auto_index(a) [list source -encoding utf-8 [file join $dir a.tcl]]\nset auto_index(b) [list source -encoding utf-8 [file join $dir b.tcl]]\n";
