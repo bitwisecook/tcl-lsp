@@ -6538,6 +6538,12 @@ struct EvidenceHandles {
     class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
 }
 
+struct FactoryHoverSources {
+    file: tcl_lsp_db::SourceFile,
+    project: tcl_lsp_db::Project,
+    sources: Vec<(Uri, tcl_lsp_db::SourceFile, Arc<str>)>,
+}
+
 struct CrossFileEvidenceSnapshot {
     snapshot: DbSnapshot<tcl_lsp_db::TclDatabase>,
     files: Vec<(Uri, tcl_lsp_db::SourceFile)>,
@@ -14447,6 +14453,54 @@ impl Backend {
         config.set_package_provides(&mut *db).to(provides);
     }
 
+    async fn conditional_foreign_factory_sources(
+        &self,
+        uri: &Uri,
+        caller: &DocumentState,
+    ) -> Option<FactoryHoverSources> {
+        let db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        let project = *self.db_project.lock().await.as_ref()?;
+        let file = *files.get(uri)?;
+        if file.text(&*db).as_str() != caller.text.as_ref() || file.dialect(&*db) != &caller.dialect
+        {
+            return None;
+        }
+        if file
+            .workspace_class_factories(&*db)
+            .as_ref()
+            .is_none_or(|map| map.is_empty())
+        {
+            return None;
+        }
+        let mut owners = HashMap::new();
+        for (member_uri, &member) in files.iter() {
+            if owners.insert(member, member_uri).is_some() {
+                return None;
+            }
+        }
+        let mut seen = HashSet::new();
+        let mut sources = Vec::new();
+        for &member in project.files(&*db) {
+            if seen.insert(member) {
+                let member_uri = owners.get(&member)?;
+                sources.push((
+                    Uri::clone(member_uri),
+                    member,
+                    Arc::<str>::from(member.text(&*db).as_str()),
+                ));
+            }
+        }
+        if !seen.contains(&file) {
+            return None;
+        }
+        Some(FactoryHoverSources {
+            file,
+            project,
+            sources,
+        })
+    }
+
     /// Rejoin every declaring source before presenting conditional factory syntax.
     async fn conditional_foreign_factory_source_hover(
         &self,
@@ -14479,46 +14533,13 @@ impl Backend {
         }
         let factory_generation = *self.class_factory_generation.read().await;
         let config = self.resolved_db_config(uri).await;
-        let (file, project, sources) = {
-            let db = self.db.lock().await;
-            let files = self.db_files.lock().await;
-            let project = *self.db_project.lock().await.as_ref()?;
-            let file = *files.get(uri)?;
-            if file.text(&*db).as_str() != caller.text.as_ref()
-                || file.dialect(&*db) != &caller.dialect
-            {
-                return None;
-            }
-            if file
-                .workspace_class_factories(&*db)
-                .as_ref()
-                .is_none_or(|map| map.is_empty())
-            {
-                return None;
-            }
-            let mut owners = HashMap::new();
-            for (member_uri, &member) in files.iter() {
-                if owners.insert(member, member_uri).is_some() {
-                    return None;
-                }
-            }
-            let mut seen = HashSet::new();
-            let mut sources = Vec::new();
-            for &member in project.files(&*db) {
-                if seen.insert(member) {
-                    let member_uri = owners.get(&member)?;
-                    sources.push((
-                        Uri::clone(member_uri),
-                        member,
-                        Arc::<str>::from(member.text(&*db).as_str()),
-                    ));
-                }
-            }
-            if !seen.contains(&file) {
-                return None;
-            }
-            (file, project, sources)
-        };
+        let FactoryHoverSources {
+            file,
+            project,
+            sources,
+        } = self
+            .conditional_foreign_factory_sources(uri, caller)
+            .await?;
         let mut leases = Vec::with_capacity(sources.len());
         for (member_uri, _, source) in &sources {
             leases.push(
@@ -14550,10 +14571,10 @@ impl Backend {
         };
         let hover = crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
+                use salsa::plumbing::AsId as _;
                 let headers =
                     tcl_lsp_db::project_factory_header_census_for_inputs(&*snapshot, project)?;
                 let analysis = tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config);
-                use salsa::plumbing::AsId as _;
                 tcl_lsp_core::hover::conditional_foreign_factory_hover(
                     file.text(&*snapshot),
                     position.line,
@@ -32910,6 +32931,278 @@ impl Backend {
 }
 
 impl Backend {
+    async fn conditional_variable_prepare_tier(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        pos: Position,
+        conditional_uri_generation: u64,
+    ) -> jsonrpc::Result<ControlFlow<Option<PrepareRenameResponse>>> {
+        if !self
+            .conditional_variable_rename_supported
+            .load(std::sync::atomic::Ordering::Relaxed)
+            || doc.version.is_none()
+        {
+            return Ok(ControlFlow::Continue(()));
+        }
+        let source_plan = self.capture_workspace_source_plan().await;
+        let Some(inputs) = self.file_rename_input_snapshot().await else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let seed = self
+            .fresh_analysis_seed(uri, doc.text.clone(), doc.dialect.clone())
+            .await?;
+        let text = doc.text.clone();
+        let worker_analysis = seed.analysis.clone();
+        let prepared = crate::rt::spawn_blocking(move || {
+            core_rename::prepare_conditional_variable_rename(
+                &text,
+                pos.line,
+                pos.character,
+                &worker_analysis,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("conditional prepare worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if let Some(prepared) = prepared {
+            if !self.workspace_source_plan_is_current(source_plan).await {
+                return Ok(ControlFlow::Break(None));
+            }
+            let response = PrepareRenameResponse::RangeWithPlaceholder {
+                range: lift_lsp_range(prepared.range),
+                placeholder: prepared.placeholder,
+            };
+            return Ok(ControlFlow::Break(
+                self.publish_conditional_if_current(
+                    uri,
+                    doc,
+                    &seed,
+                    &inputs,
+                    conditional_uri_generation,
+                    response,
+                )
+                .await,
+            ));
+        }
+        Ok(ControlFlow::Continue(()))
+    }
+
+    async fn conditional_variable_rename_tier(
+        &self,
+        caller: WorkspaceRenameCaller<'_>,
+        doc: &DocumentState,
+        new_name: &str,
+        source_plan: WorkspaceSourcePlanToken,
+        conditional_uri_generation: u64,
+    ) -> jsonrpc::Result<ControlFlow<Option<WorkspaceEdit>>> {
+        let WorkspaceRenameCaller {
+            uri,
+            analysis,
+            position: pos,
+            ..
+        } = caller;
+        if self
+            .conditional_variable_rename_supported
+            .load(std::sync::atomic::Ordering::Relaxed)
+            && analysis.resolved_input.as_ref().is_some_and(
+                tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+            )
+            && let std::ops::ControlFlow::Break(Some(selected)) =
+                tcl_lsp_core::variable_symbol::select(&doc.text, analysis, pos.line, pos.character)
+            && !analysis.original_variable_rename_is_complete(selected.symbol())
+        {
+            let Some(version) = doc.version else {
+                return Ok(ControlFlow::Break(None));
+            };
+            let Some(inputs) = self.file_rename_input_snapshot().await else {
+                return Ok(ControlFlow::Break(None));
+            };
+            let seed = self
+                .fresh_analysis_seed(uri, doc.text.clone(), doc.dialect.clone())
+                .await?;
+            let text = doc.text.clone();
+            let worker_analysis = seed.analysis.clone();
+            let worker_name = new_name.to_owned();
+            let proposed = crate::rt::spawn_blocking(move || {
+                core_rename::conditional_variable_rename_with_diagnosis(
+                    &text,
+                    pos.line,
+                    pos.character,
+                    &worker_name,
+                    &worker_analysis,
+                )
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("conditional rename worker panicked: {err}").into(),
+                data: None,
+            })?;
+            let proposal = match proposed {
+                Ok(proposal) if !proposal.edits.is_empty() => proposal,
+                _ => return Ok(ControlFlow::Break(None)),
+            };
+            if !self.workspace_source_plan_is_current(source_plan).await {
+                return Ok(ControlFlow::Break(None));
+            }
+            let raw_source = doc.raw_text.as_deref().unwrap_or(doc.text.as_ref());
+            let Some(edit) = coalesce_conditional_variable_edits(
+                raw_source,
+                &doc.text,
+                &proposal.generated_source,
+                &doc.line_index,
+                &proposal.edits,
+            ) else {
+                return Ok(ControlFlow::Break(None));
+            };
+            let Some(response) =
+                annotated_conditional_variable_edit(uri.clone(), version, vec![edit])
+            else {
+                return Ok(ControlFlow::Break(None));
+            };
+            Ok(ControlFlow::Break(
+                self.publish_conditional_if_current(
+                    uri,
+                    doc,
+                    &seed,
+                    &inputs,
+                    conditional_uri_generation,
+                    response,
+                )
+                .await,
+            ))
+        } else {
+            Ok(ControlFlow::Continue(()))
+        }
+    }
+
+    async fn ordinary_rename_edit(
+        &self,
+        doc: &DocumentState,
+        ctx: RenameContext<'_>,
+        mut source_plan: WorkspaceSourcePlanToken,
+    ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        let RenameContext {
+            uri,
+            analysis,
+            pos,
+            new_name,
+            registry,
+            ..
+        } = ctx;
+        let edits = self
+            .in_document_rename_edits(uri, doc, analysis, registry, pos, new_name)
+            .await?;
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        // An empty in-document result means the rename was *rejected*
+        // (collision with an existing symbol, an unsafe / built-in target
+        // name) or the cursor isn't on a renameable symbol.  In every one
+        // of those cases the rename must abort wholesale — adding
+        // cross-document edits for a locally-rejected rename would leak a
+        // partial, inconsistent edit set into sibling documents.
+        let local_rejected = edits.is_empty();
+        if !edits.is_empty() {
+            let lifted = Self::lift_local_rename_edits(edits);
+            changes.insert(uri.clone(), lifted);
+        }
+        // Cross-document rename: rewrite the symbol's call / definition
+        // sites in sibling documents (or resolve through the workspace
+        // oracle when the in-document rename found nothing local to
+        // resolve against).  Aborts the whole rename when a sibling's
+        // provenance isn't fully writable.
+        // The consumer-document fallback can trigger an on-demand library
+        // merge. Complete that selected lookup before binding the index token;
+        // the actual workspace-resolved edit plan below must use this exact
+        // snapshot. A subsequent index change is refused by the guarded
+        // focused replacement or final publication check.
+        if local_rejected
+            && core_rename::is_safe_symbol_name(new_name)
+            && !core_rename::is_builtin_command_name(new_name, registry)
+        {
+            let _ = self
+                .resolve_workspace_symbols_for_binding(uri, &doc.text, analysis, pos)
+                .await?;
+            source_plan = self.capture_workspace_source_plan().await;
+        }
+        if self
+            .extend_rename_with_cross_document_edits(
+                ctx,
+                local_rejected,
+                &mut changes,
+                &mut source_plan,
+            )
+            .await?
+        {
+            return Ok(None);
+        }
+        if changes.is_empty() {
+            return Ok(None);
+        }
+        if !self.workspace_source_plan_is_current(source_plan).await {
+            return Ok(None);
+        }
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
+    }
+
+    async fn hover_workspace_fallback(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        on_command_head: bool,
+    ) -> jsonrpc::Result<Option<Hover>> {
+        // Nothing in this document explains the word.  A per-object
+        // visibility mask makes `$obj m` answer `unknown method` regardless
+        // of the class chain, so it is a *definitive* no-hover and must not
+        // fall through to the cross-file method tier — the same gate
+        // `compute_definition` applies ahead of its own.
+        if core_definition::object_dispatch_mask(analysis, &doc.text, pos.line, pos.character)
+            .withholds_workspace_fallback()
+        {
+            return Ok(None);
+        }
+        // A `my method` / `$obj method` dispatch whose provider class lives
+        // in a sibling document.  Answered before the
+        // command-head tiers because a method-name token is never a command
+        // head — its head is `my` / `$obj` — so it would otherwise never
+        // reach any cross-document tier at all.
+        if let Some(hover) = Box::pin(self.cross_file_method_hover(uri, doc, analysis, pos)).await?
+        {
+            return Ok(Some(lift_hover(hover)));
+        }
+        // A namespace-qualified variable whose declaration is in a sibling
+        // document — a `$var` site is never a command head either, so it
+        // would never reach the tiers below.
+        if let Some(hover) = self
+            .cross_document_variable_hover(uri, &doc.text, pos, analysis)
+            .await?
+        {
+            return Ok(Some(lift_hover(hover)));
+        }
+        // If the word is a command head, resolve it the way go-to-definition
+        // does — across the workspace, then through the autoload / package
+        // database.
+        if !on_command_head {
+            return Ok(None);
+        }
+        Ok(self
+            .cross_document_hover(uri, &doc.text, pos, analysis)
+            .await?
+            .map(lift_hover))
+    }
+}
+
+impl Backend {
     fn hover_worker_error(err: &impl std::fmt::Display) -> jsonrpc::Error {
         jsonrpc::Error {
             code: jsonrpc::ErrorCode::InternalError,
@@ -36276,54 +36569,11 @@ impl LanguageServer for Backend {
                 placeholder: p.placeholder,
             }));
         }
-        if self
-            .conditional_variable_rename_supported
-            .load(std::sync::atomic::Ordering::Relaxed)
+        if let ControlFlow::Break(prepared) = self
+            .conditional_variable_prepare_tier(&uri, &doc, pos, conditional_uri_generation)
+            .await?
         {
-            if doc.version.is_some() {
-                let source_plan = self.capture_workspace_source_plan().await;
-                let Some(inputs) = self.file_rename_input_snapshot().await else {
-                    return Ok(None);
-                };
-                let seed = self
-                    .fresh_analysis_seed(&uri, doc.text.clone(), doc.dialect.clone())
-                    .await?;
-                let text = doc.text.clone();
-                let worker_analysis = seed.analysis.clone();
-                let prepared = crate::rt::spawn_blocking(move || {
-                    core_rename::prepare_conditional_variable_rename(
-                        &text,
-                        pos.line,
-                        pos.character,
-                        &worker_analysis,
-                    )
-                })
-                .await
-                .map_err(|err| jsonrpc::Error {
-                    code: jsonrpc::ErrorCode::InternalError,
-                    message: format!("conditional prepare worker panicked: {err}").into(),
-                    data: None,
-                })?;
-                if let Some(prepared) = prepared {
-                    if !self.workspace_source_plan_is_current(source_plan).await {
-                        return Ok(None);
-                    }
-                    let response = PrepareRenameResponse::RangeWithPlaceholder {
-                        range: lift_lsp_range(prepared.range),
-                        placeholder: prepared.placeholder,
-                    };
-                    return Ok(self
-                        .publish_conditional_if_current(
-                            &uri,
-                            &doc,
-                            &seed,
-                            &inputs,
-                            conditional_uri_generation,
-                            response,
-                        )
-                        .await);
-                }
-            }
+            return Ok(prepared);
         }
         if Self::original_namespace_cursor_retained(&doc.text, &analysis, pos)
             || tcl_lsp_core::variable_symbol::select(&doc.text, &analysis, pos.line, pos.character)
@@ -36390,76 +36640,23 @@ impl LanguageServer for Backend {
         // used by rename planning. Any later rehoming/index mutation makes the
         // exact token fail at publication.
         self.refresh_source_rehoming().await?;
-        let mut source_plan = self.capture_workspace_source_plan().await;
-        if self
-            .conditional_variable_rename_supported
-            .load(std::sync::atomic::Ordering::Relaxed)
-            && analysis.resolved_input.as_ref().is_some_and(
-                tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        let source_plan = self.capture_workspace_source_plan().await;
+        if let ControlFlow::Break(result) = self
+            .conditional_variable_rename_tier(
+                WorkspaceRenameCaller {
+                    uri: &uri,
+                    source: &doc.text,
+                    analysis: &analysis,
+                    position: pos,
+                },
+                &doc,
+                &new_name,
+                source_plan,
+                conditional_uri_generation,
             )
-            && let std::ops::ControlFlow::Break(Some(selected)) =
-                tcl_lsp_core::variable_symbol::select(&doc.text, &analysis, pos.line, pos.character)
-            && !analysis.original_variable_rename_is_complete(selected.symbol())
+            .await?
         {
-            let Some(version) = doc.version else {
-                return Ok(None);
-            };
-            let Some(inputs) = self.file_rename_input_snapshot().await else {
-                return Ok(None);
-            };
-            let seed = self
-                .fresh_analysis_seed(&uri, doc.text.clone(), doc.dialect.clone())
-                .await?;
-            let text = doc.text.clone();
-            let worker_analysis = seed.analysis.clone();
-            let worker_name = new_name.clone();
-            let proposed = crate::rt::spawn_blocking(move || {
-                core_rename::conditional_variable_rename_with_diagnosis(
-                    &text,
-                    pos.line,
-                    pos.character,
-                    &worker_name,
-                    &worker_analysis,
-                )
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("conditional rename worker panicked: {err}").into(),
-                data: None,
-            })?;
-            let proposal = match proposed {
-                Ok(proposal) if !proposal.edits.is_empty() => proposal,
-                _ => return Ok(None),
-            };
-            if !self.workspace_source_plan_is_current(source_plan).await {
-                return Ok(None);
-            }
-            let raw_source = doc.raw_text.as_deref().unwrap_or(doc.text.as_ref());
-            let Some(edit) = coalesce_conditional_variable_edits(
-                raw_source,
-                &doc.text,
-                &proposal.generated_source,
-                &doc.line_index,
-                &proposal.edits,
-            ) else {
-                return Ok(None);
-            };
-            let Some(response) =
-                annotated_conditional_variable_edit(uri.clone(), version, vec![edit])
-            else {
-                return Ok(None);
-            };
-            return Ok(self
-                .publish_conditional_if_current(
-                    &uri,
-                    &doc,
-                    &seed,
-                    &inputs,
-                    conditional_uri_generation,
-                    response,
-                )
-                .await);
+            return Ok(result);
         }
         // The gated tiers, before any ordinary edit is built: the `TclOO`
         // member safety gate and the workspace namespace-variable rename.
@@ -36483,70 +36680,19 @@ impl LanguageServer for Backend {
                 change_annotations: None,
             }));
         }
-        let edits = self
-            .in_document_rename_edits(&uri, &doc, &analysis, &registry, pos, &new_name)
-            .await?;
-        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
-            std::collections::HashMap::new();
-        // An empty in-document result means the rename was *rejected*
-        // (collision with an existing symbol, an unsafe / built-in target
-        // name) or the cursor isn't on a renameable symbol.  In every one
-        // of those cases the rename must abort wholesale — adding
-        // cross-document edits for a locally-rejected rename would leak a
-        // partial, inconsistent edit set into sibling documents.
-        let local_rejected = edits.is_empty();
-        if !edits.is_empty() {
-            let lifted = Self::lift_local_rename_edits(edits);
-            changes.insert(uri.clone(), lifted);
-        }
-        // Cross-document rename: rewrite the symbol's call / definition
-        // sites in sibling documents (or resolve through the workspace
-        // oracle when the in-document rename found nothing local to
-        // resolve against).  Aborts the whole rename when a sibling's
-        // provenance isn't fully writable.
-        // The consumer-document fallback can trigger an on-demand library
-        // merge. Complete that selected lookup before binding the index token;
-        // the actual workspace-resolved edit plan below must use this exact
-        // snapshot. A subsequent index change is refused by the guarded
-        // focused replacement or final publication check.
-        if local_rejected
-            && core_rename::is_safe_symbol_name(&new_name)
-            && !core_rename::is_builtin_command_name(&new_name, &registry)
-        {
-            let _ = self
-                .resolve_workspace_symbols_for_binding(&uri, &doc.text, &analysis, pos)
-                .await?;
-            source_plan = self.capture_workspace_source_plan().await;
-        }
-        if self
-            .extend_rename_with_cross_document_edits(
-                RenameContext {
-                    uri: &uri,
-                    source: &doc.text,
-                    analysis: &analysis,
-                    pos,
-                    new_name: &new_name,
-                    registry: &registry,
-                },
-                local_rejected,
-                &mut changes,
-                &mut source_plan,
-            )
-            .await?
-        {
-            return Ok(None);
-        }
-        if changes.is_empty() {
-            return Ok(None);
-        }
-        if !self.workspace_source_plan_is_current(source_plan).await {
-            return Ok(None);
-        }
-        Ok(Some(WorkspaceEdit {
-            changes: Some(changes),
-            document_changes: None,
-            change_annotations: None,
-        }))
+        self.ordinary_rename_edit(
+            &doc,
+            RenameContext {
+                uri: &uri,
+                source: &doc.text,
+                analysis: &analysis,
+                pos,
+                new_name: &new_name,
+                registry: &registry,
+            },
+            source_plan,
+        )
+        .await
     }
 
     /// Project source-reference edits for an explicit host file rename.
@@ -36900,45 +37046,8 @@ impl LanguageServer for Backend {
             }
             return Ok(Some(lift_hover(hover)));
         }
-        // Nothing in this document explains the word.  A per-object
-        // visibility mask makes `$obj m` answer `unknown method` regardless
-        // of the class chain, so it is a *definitive* no-hover and must not
-        // fall through to the cross-file method tier — the same gate
-        // `compute_definition` applies ahead of its own.
-        if core_definition::object_dispatch_mask(&analysis, &doc.text, pos.line, pos.character)
-            .withholds_workspace_fallback()
-        {
-            return Ok(None);
-        }
-        // A `my method` / `$obj method` dispatch whose provider class lives
-        // in a sibling document.  Answered before the
-        // command-head tiers because a method-name token is never a command
-        // head — its head is `my` / `$obj` — so it would otherwise never
-        // reach any cross-document tier at all.
-        if let Some(hover) =
-            Box::pin(self.cross_file_method_hover(&uri, &doc, &analysis, pos)).await?
-        {
-            return Ok(Some(lift_hover(hover)));
-        }
-        // A namespace-qualified variable whose declaration is in a sibling
-        // document — a `$var` site is never a command head either, so it
-        // would never reach the tiers below.
-        if let Some(hover) = self
-            .cross_document_variable_hover(&uri, &doc.text, pos, &analysis)
-            .await?
-        {
-            return Ok(Some(lift_hover(hover)));
-        }
-        // If the word is a command head, resolve it the way go-to-definition
-        // does — across the workspace, then through the autoload / package
-        // database.
-        if !on_command_head {
-            return Ok(None);
-        }
-        Ok(self
-            .cross_document_hover(&uri, &doc.text, pos, &analysis)
-            .await?
-            .map(lift_hover))
+        self.hover_workspace_fallback(&uri, &doc, &analysis, pos, on_command_head)
+            .await
     }
 }
 
@@ -71473,9 +71582,7 @@ impl Backend {
                     continue;
                 }
             };
-            let Some(current) = guards.documents.get(uri) else {
-                return None;
-            };
+            let current = guards.documents.get(uri)?;
             let current = current.clone().normalised_for_analysis();
             if current.backing_file_deleted
                 || current.version != document.version
@@ -71562,9 +71669,7 @@ fn coalesce_conditional_variable_edits(
     }
     let mut expected = analysis_source.to_owned();
     for (start, end, edit) in ranges.iter().rev() {
-        if expected.get(*start as usize..*end as usize).is_none() {
-            return None;
-        }
+        expected.get(*start as usize..*end as usize)?;
         expected.replace_range(*start as usize..*end as usize, &edit.new_text);
     }
     let mut materialised = source.to_owned();
